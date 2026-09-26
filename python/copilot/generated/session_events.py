@@ -12969,7 +12969,7 @@ class WorkerBridgeObservation:
 
 @dataclass
 class WorkerCausality:
-    "Optional v1 worker diagnostics. The compact UTF-8 {\"workerCausality\":value}\nmust fit 4096 bytes. Ignore invalid/unknown/oversize metadata, not the product event."
+    "Optional v1 worker diagnostics. The compact UTF-8 {\"workerCausality\":value}\nmust fit 4096 bytes after materializing an allowed implicit self-reference.\nIgnore invalid/unknown/oversize metadata, not the product event."
     capture_complete: bool
     observation_provenance: WorkerObservationProvenance
     sources: list[WorkerSource]

@@ -10,6 +10,10 @@ function fields(value: Record<string, unknown>, allowed: readonly string[]): boo
     return Object.keys(value).every((key) => allowed.includes(key));
 }
 
+function text(value: unknown): value is string {
+    return typeof value === "string" && value.length > 0 && Buffer.byteLength(value, "utf8") <= 256;
+}
+
 function small(value: unknown, budget: { remaining: number }, depth = 0): boolean {
     budget.remaining--;
     if (budget.remaining < 0 || depth > 32) return false;
@@ -28,12 +32,11 @@ function reference(value: unknown, type: string): boolean {
     return (
         object(value) &&
         fields(value, ["sessionId", "eventId", "agentId", "eventType", "provenance"]) &&
-        typeof value.sessionId === "string" &&
+        text(value.sessionId) &&
         /^[A-Za-z0-9_-]+$/.test(value.sessionId) &&
         typeof value.eventId === "string" &&
         /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i.test(value.eventId) &&
-        (!("agentId" in value) ||
-            (typeof value.agentId === "string" && value.agentId.length > 0)) &&
+        (!("agentId" in value) || text(value.agentId)) &&
         value.eventType === type &&
         (value.provenance === "native" || value.provenance === "ahp_coordinator")
     );
@@ -55,8 +58,7 @@ function source(value: unknown): boolean {
         typeof value.captureComplete === "boolean" &&
         typeof input.queueItemId === "string" &&
         /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i.test(input.queueItemId) &&
-        typeof input.agentId === "string" &&
-        input.agentId.length > 0 &&
+        text(input.agentId) &&
         (!("sender" in input) || reference(input.sender, "tool.execution_start")) &&
         (!("senderBridges" in input) ||
             ("sender" in input &&
@@ -76,8 +78,7 @@ function source(value: unknown): boolean {
                 object(item) &&
                 fields(item, ["kind", "messageId", "event", "ahpTurnId"]) &&
                 (item.kind === "queued_input" || item.kind === "system_continuation") &&
-                typeof item.messageId === "string" &&
-                item.messageId.length > 0 &&
+                text(item.messageId) &&
                 (!("event" in item) ||
                     (reference(item.event, "user.message") &&
                         (item.event as Record<string, unknown>).agentId === input.agentId)) &&

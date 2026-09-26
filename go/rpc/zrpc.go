@@ -17564,7 +17564,7 @@ type WorkerAdmission struct {
 	Event *WorkerEventReference `json:"event,omitempty"`
 	// The producer's admission kind.
 	Kind WorkerAdmissionKind `json:"kind"`
-	// Canonical logical message identity, independent of queueItemId.
+	// Canonical logical message identity, independent of queueItemId; at most 256 UTF-8 bytes.
 	MessageID string `json:"messageId"`
 }
 
@@ -17579,7 +17579,8 @@ type WorkerBridgeObservation struct {
 }
 
 // Optional v1 worker diagnostics. The compact UTF-8 {"workerCausality":value}
-// must fit 4096 bytes. Ignore invalid/unknown/oversize metadata, not the product event.
+// must fit 4096 bytes after materializing an allowed implicit self-reference.
+// Ignore invalid/unknown/oversize metadata, not the product event.
 // Experimental: WorkerCausality is part of an experimental API and may change or be removed.
 type WorkerCausality struct {
 	// Complete placement-aware observed capture, not global causality or execution success.
@@ -17597,7 +17598,7 @@ type WorkerCausality struct {
 // Experimental: WorkerEventReference is part of an experimental API and may change or be
 // removed.
 type WorkerEventReference struct {
-	// Actual event agent scope, absent for a root occurrence.
+	// Actual event agent scope, absent for a root occurrence; at most 256 UTF-8 bytes.
 	AgentID *string `json:"agentId,omitempty"`
 	// Actual event occurrence UUID; copied without normalization.
 	EventID string `json:"eventId"`
@@ -17605,14 +17606,14 @@ type WorkerEventReference struct {
 	EventType WorkerEventType `json:"eventType"`
 	// Explicit provenance of this reference.
 	Provenance WorkerObservationProvenance `json:"provenance"`
-	// Actual runtime session scope.
+	// Actual runtime session scope, at most 256 UTF-8 bytes.
 	SessionID string `json:"sessionId"`
 }
 
 // Exact accepted worker input, distinct from a message, event, caller correlation or Turn.
 // Experimental: WorkerInput is part of an experimental API and may change or be removed.
 type WorkerInput struct {
-	// Actual recipient task.
+	// Actual recipient task, at most 256 UTF-8 bytes.
 	AgentID string `json:"agentId"`
 	// UUID allocated for this queue item by the admitting producer.
 	QueueItemID string `json:"queueItemId"`

@@ -218,9 +218,11 @@ Admission correlation is not a frontend outcome. The SDK does not infer a
 displayed submission error, preserved draft, recovery result, browser attempt,
 surface attribution or physical dispatch from protocol acceptance. Pending
 application recovery must be generation-bound and invalidated by a
-session/client-generation change or Stop. The current frontend association
-contract is github/github-ui#35143 at
-`4c2a7dfd381a57206995041ba4e4b1dbd4600e83`; backend carriers remain generic.
+session/client-generation change or Stop. The original frontend
+association-boundary ancestor is github/github-ui#35143 at
+`4c2a7dfd381a57206995041ba4e4b1dbd4600e83`; the current authoritative integrated
+UI head is `485a6c2c3aad0f77f41aad7057c117490f358c43`. Backend carriers remain generic,
+and UI evidence does not enter the runtime contract.
 
 ### Release prerequisites and the existing Rust raw API
 

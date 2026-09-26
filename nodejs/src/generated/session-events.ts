@@ -4811,7 +4811,8 @@ export interface AttachmentExtensionContext {
 }
 /**
  * Optional v1 worker diagnostics. The compact UTF-8 {"workerCausality":value}
- * must fit 4096 bytes. Ignore invalid/unknown/oversize metadata, not the product event.
+ * must fit 4096 bytes after materializing an allowed implicit self-reference.
+ * Ignore invalid/unknown/oversize metadata, not the product event.
  */
 export interface WorkerCausality {
   /**
@@ -4861,7 +4862,7 @@ export interface WorkerAdmission {
   event?: WorkerEventReference;
   kind: WorkerAdmissionKind;
   /**
-   * Canonical logical message identity, independent of queueItemId.
+   * Canonical logical message identity, independent of queueItemId; at most 256 UTF-8 bytes.
    */
   messageId: string;
 }
@@ -4870,7 +4871,7 @@ export interface WorkerAdmission {
  */
 export interface WorkerEventReference {
   /**
-   * Actual event agent scope, absent for a root occurrence.
+   * Actual event agent scope, absent for a root occurrence; at most 256 UTF-8 bytes.
    */
   agentId?: string;
   /**
@@ -4880,7 +4881,7 @@ export interface WorkerEventReference {
   eventType: WorkerEventType;
   provenance: WorkerObservationProvenance;
   /**
-   * Actual runtime session scope.
+   * Actual runtime session scope, at most 256 UTF-8 bytes.
    */
   sessionId: string;
 }
@@ -4889,7 +4890,7 @@ export interface WorkerEventReference {
  */
 export interface WorkerInput {
   /**
-   * Actual recipient task.
+   * Actual recipient task, at most 256 UTF-8 bytes.
    */
   agentId: string;
   /**

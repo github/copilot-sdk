@@ -2596,7 +2596,7 @@ pub struct SessionPermissionRecoveryData {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkerEventReference {
-    /// Actual event agent scope, absent for a root occurrence.
+    /// Actual event agent scope, absent for a root occurrence; at most 256 UTF-8 bytes.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub agent_id: Option<String>,
     /// Actual event occurrence UUID; copied without normalization.
@@ -2605,7 +2605,7 @@ pub struct WorkerEventReference {
     pub event_type: WorkerEventType,
     /// Explicit provenance of this reference.
     pub provenance: WorkerObservationProvenance,
-    /// Actual runtime session scope.
+    /// Actual runtime session scope, at most 256 UTF-8 bytes.
     pub session_id: SessionId,
 }
 
@@ -2621,7 +2621,7 @@ pub struct WorkerAdmission {
     pub event: Option<WorkerEventReference>,
     /// The producer's admission kind.
     pub kind: WorkerAdmissionKind,
-    /// Canonical logical message identity, independent of queueItemId.
+    /// Canonical logical message identity, independent of queueItemId; at most 256 UTF-8 bytes.
     pub message_id: String,
 }
 
@@ -2639,7 +2639,7 @@ pub struct WorkerBridgeObservation {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkerInput {
-    /// Actual recipient task.
+    /// Actual recipient task, at most 256 UTF-8 bytes.
     pub agent_id: String,
     /// UUID allocated for this queue item by the admitting producer.
     pub queue_item_id: String,
@@ -2686,7 +2686,8 @@ pub struct WorkerSource {
 }
 
 /// Optional v1 worker diagnostics. The compact UTF-8 {"workerCausality":value}
-/// must fit 4096 bytes. Ignore invalid/unknown/oversize metadata, not the product event.
+/// must fit 4096 bytes after materializing an allowed implicit self-reference.
+/// Ignore invalid/unknown/oversize metadata, not the product event.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkerCausality {

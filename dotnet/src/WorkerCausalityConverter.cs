@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 using System.Diagnostics;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
@@ -110,7 +111,10 @@ internal sealed class WorkerCausalityConverter<T> : JsonConverter<T> where T : c
     }
 
     private static bool Text(JsonElement value, string property) =>
-        value.TryGetProperty(property, out var text) && text.ValueKind == JsonValueKind.String && text.GetString()!.Length > 0;
+        value.TryGetProperty(property, out var text) &&
+        text.ValueKind == JsonValueKind.String &&
+        text.GetString()!.Length > 0 &&
+        Encoding.UTF8.GetByteCount(text.GetString()!) <= 256;
 
     private static bool Uuid(JsonElement value, string property) =>
         Text(value, property) && Guid.TryParseExact(value.GetProperty(property).GetString(), "D", out _);

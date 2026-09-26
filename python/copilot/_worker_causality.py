@@ -18,7 +18,7 @@ def _uuid(value: Any) -> bool:
 
 
 def _text(value: Any) -> bool:
-    return isinstance(value, str) and bool(value)
+    return isinstance(value, str) and bool(value) and len(value.encode("utf-8")) <= 256
 
 
 def _fields(value: dict[str, Any], allowed: set[str]) -> bool:
@@ -29,7 +29,7 @@ def _reference(value: Any, event_type: str) -> bool:
     return (
         isinstance(value, dict)
         and _fields(value, {"sessionId", "eventId", "agentId", "eventType", "provenance"})
-        and isinstance(value.get("sessionId"), str)
+        and _text(value.get("sessionId"))
         and re.fullmatch(r"[A-Za-z0-9_-]+", value["sessionId"]) is not None
         and _uuid(value.get("eventId"))
         and ("agentId" not in value or _text(value["agentId"]))

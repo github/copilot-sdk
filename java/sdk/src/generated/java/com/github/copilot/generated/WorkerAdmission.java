@@ -24,7 +24,7 @@ import javax.annotation.processing.Generated;
 public record WorkerAdmission(
     /** The producer's admission kind. */
     @JsonProperty("kind") WorkerAdmissionKind kind,
-    /** Canonical logical message identity, independent of queueItemId. */
+    /** Canonical logical message identity, independent of queueItemId; at most 256 UTF-8 bytes. */
     @JsonProperty("messageId") String messageId,
     /** May be omitted only for the matching current worker user.message. */
     @JsonProperty("event") WorkerEventReference event,

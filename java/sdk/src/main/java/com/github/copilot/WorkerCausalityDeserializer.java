@@ -138,7 +138,8 @@ public final class WorkerCausalityDeserializer extends JsonDeserializer<Object> 
     }
 
     private static boolean text(JsonNode value) {
-        return value.isTextual() && !value.textValue().isEmpty();
+        return value.isTextual() && !value.textValue().isEmpty()
+                && value.textValue().getBytes(StandardCharsets.UTF_8).length <= 256;
     }
 
     private static boolean uuid(JsonNode value) {

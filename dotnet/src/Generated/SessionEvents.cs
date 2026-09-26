@@ -8068,7 +8068,10 @@ public partial class Attachment
 /// <remarks>Nested data type for <c>WorkerEventReference</c>.</remarks>
 public sealed partial class WorkerEventReference
 {
-    /// <summary>Actual event agent scope, absent for a root occurrence.</summary>
+    /// <summary>Actual event agent scope, absent for a root occurrence; at most 256 UTF-8 bytes.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [MaxLength(256)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("agentId")]
     public string? AgentId { get; set; }
@@ -8085,7 +8088,10 @@ public sealed partial class WorkerEventReference
     [JsonPropertyName("provenance")]
     public required WorkerObservationProvenance Provenance { get; set; }
 
-    /// <summary>Actual runtime session scope.</summary>
+    /// <summary>Actual runtime session scope, at most 256 UTF-8 bytes.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [MaxLength(256)]
     [JsonPropertyName("sessionId")]
     public required string SessionId { get; set; }
 }
@@ -8108,7 +8114,10 @@ public sealed partial class WorkerAdmission
     [JsonPropertyName("kind")]
     public required WorkerAdmissionKind Kind { get; set; }
 
-    /// <summary>Canonical logical message identity, independent of queueItemId.</summary>
+    /// <summary>Canonical logical message identity, independent of queueItemId; at most 256 UTF-8 bytes.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [MaxLength(256)]
     [JsonPropertyName("messageId")]
     public required string MessageId { get; set; }
 }
@@ -8130,7 +8139,10 @@ public sealed partial class WorkerBridgeObservation
 /// <remarks>Nested data type for <c>WorkerInput</c>.</remarks>
 public sealed partial class WorkerInput
 {
-    /// <summary>Actual recipient task.</summary>
+    /// <summary>Actual recipient task, at most 256 UTF-8 bytes.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [MaxLength(256)]
     [JsonPropertyName("agentId")]
     public required string AgentId { get; set; }
 
@@ -8201,7 +8213,8 @@ public sealed partial class WorkerSource
 
 /// <summary>
 /// Optional v1 worker diagnostics. The compact UTF-8 {"workerCausality":value}
-/// must fit 4096 bytes. Ignore invalid/unknown/oversize metadata, not the product event.
+/// must fit 4096 bytes after materializing an allowed implicit self-reference.
+/// Ignore invalid/unknown/oversize metadata, not the product event.
 /// </summary>
 /// <remarks>Nested data type for <c>WorkerCausality</c>.</remarks>
 public sealed partial class WorkerCausality

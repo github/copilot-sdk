@@ -15,7 +15,8 @@ import javax.annotation.processing.Generated;
 
 /**
  * Optional v1 worker diagnostics. The compact UTF-8 {"workerCausality":value}
-must fit 4096 bytes. Ignore invalid/unknown/oversize metadata, not the product event.
+must fit 4096 bytes after materializing an allowed implicit self-reference.
+Ignore invalid/unknown/oversize metadata, not the product event.
  *
  * @since 1.0.0
  */

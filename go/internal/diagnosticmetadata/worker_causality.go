@@ -15,7 +15,7 @@ var sessionPattern = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
 
 func text(value any) bool {
 	s, ok := value.(string)
-	return ok && s != ""
+	return ok && s != "" && len(s) <= 256
 }
 
 func uuid(value any) bool {
@@ -50,7 +50,7 @@ func reference(value any, eventType string) bool {
 	session, ok := ref["sessionId"].(string)
 	agent, hasAgent := ref["agentId"]
 	return fields(ref, "sessionId", "eventId", "agentId", "eventType", "provenance") &&
-		ok && sessionPattern.MatchString(session) && uuid(ref["eventId"]) &&
+		ok && len(session) <= 256 && sessionPattern.MatchString(session) && uuid(ref["eventId"]) &&
 		(!hasAgent || text(agent)) && ref["eventType"] == eventType &&
 		(ref["provenance"] == "native" || ref["provenance"] == "ahp_coordinator")
 }

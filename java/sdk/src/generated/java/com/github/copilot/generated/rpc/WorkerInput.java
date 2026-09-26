@@ -25,7 +25,7 @@ import javax.annotation.processing.Generated;
 public record WorkerInput(
     /** UUID allocated for this queue item by the admitting producer. */
     @JsonProperty("queueItemId") UUID queueItemId,
-    /** Actual recipient task. */
+    /** Actual recipient task, at most 256 UTF-8 bytes. */
     @JsonProperty("agentId") String agentId,
     /** Original invoking occurrence, never replaced by a reported/root alias. */
     @JsonProperty("sender") WorkerEventReference sender,

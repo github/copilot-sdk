@@ -22,11 +22,11 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record WorkerEventReference(
-    /** Actual runtime session scope. */
+    /** Actual runtime session scope, at most 256 UTF-8 bytes. */
     @JsonProperty("sessionId") String sessionId,
     /** Actual event occurrence UUID; copied without normalization. */
     @JsonProperty("eventId") UUID eventId,
-    /** Actual event agent scope, absent for a root occurrence. */
+    /** Actual event agent scope, absent for a root occurrence; at most 256 UTF-8 bytes. */
     @JsonProperty("agentId") String agentId,
     /** Type of the observed occurrence. */
     @JsonProperty("eventType") WorkerEventType eventType,
