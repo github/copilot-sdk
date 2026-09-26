@@ -14,7 +14,7 @@ namespace GitHub.Copilot.Test.Unit;
 public class WorkerCausalityTests
 {
     private static readonly JsonNode Corpus = JsonNode.Parse(File.ReadAllText(
-        Path.Combine(AppContext.BaseDirectory, "worker-causality.json")))!;
+        Path.Join(AppContext.BaseDirectory, "worker-causality.json")))!;
     private static readonly JsonSerializerOptions RpcOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,

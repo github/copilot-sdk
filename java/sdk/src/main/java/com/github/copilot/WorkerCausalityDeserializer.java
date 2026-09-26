@@ -179,9 +179,7 @@ public final class WorkerCausalityDeserializer extends JsonDeserializer<Object> 
         if (value.isTextual()) {
             remaining[0] -= value.textValue().length();
         } else if (value.isObject()) {
-            var fields = value.fields();
-            while (fields.hasNext()) {
-                var field = fields.next();
+            for (var field : value.properties()) {
                 remaining[0] -= field.getKey().length();
                 if (!small(field.getValue(), remaining, depth + 1)) {
                     return false;
