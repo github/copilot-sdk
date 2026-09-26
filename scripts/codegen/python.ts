@@ -2477,6 +2477,10 @@ function emitPyClass(
     lines.push(`        assert isinstance(obj, dict)`);
     for (const field of fieldInfos) {
         const sourceExpr = `obj.get(${JSON.stringify(field.jsonName)})`;
+        if (field.jsonName === "workerCausality" && !field.isRequired) {
+            lines.push(`        ${field.fieldName} = optional_worker_causality(${sourceExpr}, lambda: ${field.resolved.fromExpr(sourceExpr)})`);
+            continue;
+        }
         lines.push(
             `        ${field.fieldName} = ${field.resolved.fromExpr(sourceExpr)}`
         );
@@ -2728,6 +2732,7 @@ export function generatePythonSessionEventsCode(schema: JSONSchema7): string {
     out.push(`from uuid import UUID`);
     out.push(``);
     out.push(`import dateutil.parser`);
+    out.push(`from .._worker_causality import optional_worker_causality`);
     out.push(``);
     out.push(`T = TypeVar("T")`);
     out.push(`EnumT = TypeVar("EnumT", bound=Enum)`);
@@ -3391,11 +3396,16 @@ from typing import Any, Protocol, TypeVar, cast
 from uuid import UUID
 
 import dateutil.parser
+from .._worker_causality import optional_worker_causality
 
 T = TypeVar("T")
 EnumT = TypeVar("EnumT", bound=Enum)
 
 `);
+    typesCode = typesCode.replace(
+        /^(\s*)worker_causality = (.*obj\.get\("workerCausality"\).*)$/gm,
+        '$1worker_causality = optional_worker_causality(obj.get("workerCausality"), lambda: $2)'
+    );
     lines.push(typesCode);
     if (publicTypeAliases.size > 0) {
         lines.push("");

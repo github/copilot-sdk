@@ -1059,7 +1059,9 @@ function emitRustStruct(
 			lines.push(`    #[serde(rename = "${propName}")]`);
 		}
 
-		if (prop.$ref && typeof prop.const === "string") {
+		if (propName === "workerCausality" && !isReq) {
+			lines.push(`    #[serde(default, deserialize_with = "crate::worker_causality::deserialize_optional")]`);
+		} else if (prop.$ref && typeof prop.const === "string") {
 			lines.push(
 				`    #[serde(${isReq ? "" : "default, "}deserialize_with = "${typeName}::deserialize_${snakeField}")]`,
 			);

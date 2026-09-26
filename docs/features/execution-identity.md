@@ -56,6 +56,14 @@ An application Turn, including an AHP Turn, is a separate identity. AHP Turn IDs
 are opaque and session-scoped; they are not required to be UUIDs and must never
 be equated with runtime `turnId`.
 
+A Turn identity exists only after an actual dispatch receipt or accepted host
+action supplies that Turn ID. Ownership claims, active-client selection,
+pre-dispatch processing, callback resolution, late acknowledgements and host
+acknowledgements alone are not Turn or transport evidence. A pre-dispatch
+failure therefore has no Turn identity, and a late ownership acknowledgement
+after reconnect cannot retroactively mark a successful submission or a Turn
+failure.
+
 Runtime `turnId` is a loop counter represented as a string. Counters can restart
 across invocations. Interaction IDs can be reused for system-sourced work and
 no-user HMAC sessions. Even `(sessionId, interactionId, turnId)` is not a
@@ -205,6 +213,14 @@ This value is not an idempotency key, authorization, or permission to retry.
 Reusing a UUID does not deduplicate submissions; several admissions with the
 same value remain ambiguous. Retain observed canonical message IDs and existing
 application command/Turn ownership. Missing evidence must remain missing.
+
+Admission correlation is not a frontend outcome. The SDK does not infer a
+displayed submission error, preserved draft, recovery result, browser attempt,
+surface attribution or physical dispatch from protocol acceptance. Pending
+application recovery must be generation-bound and invalidated by a
+session/client-generation change or Stop. The current frontend association
+contract is github/github-ui#35143 at
+`4c2a7dfd381a57206995041ba4e4b1dbd4600e83`; backend carriers remain generic.
 
 ### Release prerequisites and the existing Rust raw API
 

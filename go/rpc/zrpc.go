@@ -16409,6 +16409,9 @@ type TasksSendMessageResult struct {
 	Error *string `json:"error,omitempty"`
 	// Whether the message was successfully delivered or steered
 	Sent bool `json:"sent"`
+	// Optional exact queue admission receipt on sent=true only. No implicit event or
+	// execution-success claim.
+	WorkerCausality *WorkerCausality `json:"workerCausality,omitempty"`
 }
 
 // Agent type, prompt, name, and optional description and model override for the new task.
@@ -17550,6 +17553,102 @@ type VisibilitySetResult struct {
 	// Whether the session has been synced to Mission Control (i.e. has a GitHub task). When
 	// false, the visibility change could not be applied and `status`/`shareUrl` are absent.
 	Synced bool `json:"synced"`
+}
+
+// An observed worker admission, not a claim that execution succeeded.
+// Experimental: WorkerAdmission is part of an experimental API and may change or be removed.
+type WorkerAdmission struct {
+	// Actual AHP participant Turn UUID, not a native turn counter or provenance signal.
+	AhpTurnID *string `json:"ahpTurnId,omitempty"`
+	// May be omitted only for the matching current worker user.message.
+	Event *WorkerEventReference `json:"event,omitempty"`
+	// The producer's admission kind.
+	Kind WorkerAdmissionKind `json:"kind"`
+	// Canonical logical message identity, independent of queueItemId.
+	MessageID string `json:"messageId"`
+}
+
+// One indivisible source-to-reported bridge observation, not a root alias.
+// Experimental: WorkerBridgeObservation is part of an experimental API and may change or be
+// removed.
+type WorkerBridgeObservation struct {
+	// Full occurrence actually emitted by that bridge.
+	Reported WorkerEventReference `json:"reported"`
+	// Full event received by this bridge.
+	Source WorkerEventReference `json:"source"`
+}
+
+// Optional v1 worker diagnostics. The compact UTF-8 {"workerCausality":value}
+// must fit 4096 bytes. Ignore invalid/unknown/oversize metadata, not the product event.
+// Experimental: WorkerCausality is part of an experimental API and may change or be removed.
+type WorkerCausality struct {
+	// Complete placement-aware observed capture, not global causality or execution success.
+	// Empty true requires explicit native invocation attestation.
+	CaptureComplete bool `json:"captureComplete"`
+	// Provenance of this enclosing observation; never inferred from other fields.
+	ObservationProvenance WorkerObservationProvenance `json:"observationProvenance"`
+	// Sources in capture order, at most 32. Absent/unknown is not known-empty.
+	Sources []WorkerSource `json:"sources"`
+	// Supported version, exactly 1.
+	Version int64 `json:"version"`
+}
+
+// Exact observed event identity. No private registration generation or execution handle.
+// Experimental: WorkerEventReference is part of an experimental API and may change or be
+// removed.
+type WorkerEventReference struct {
+	// Actual event agent scope, absent for a root occurrence.
+	AgentID *string `json:"agentId,omitempty"`
+	// Actual event occurrence UUID; copied without normalization.
+	EventID string `json:"eventId"`
+	// Type of the observed occurrence.
+	EventType WorkerEventType `json:"eventType"`
+	// Explicit provenance of this reference.
+	Provenance WorkerObservationProvenance `json:"provenance"`
+	// Actual runtime session scope.
+	SessionID string `json:"sessionId"`
+}
+
+// Exact accepted worker input, distinct from a message, event, caller correlation or Turn.
+// Experimental: WorkerInput is part of an experimental API and may change or be removed.
+type WorkerInput struct {
+	// Actual recipient task.
+	AgentID string `json:"agentId"`
+	// UUID allocated for this queue item by the admitting producer.
+	QueueItemID string `json:"queueItemId"`
+	// Original invoking occurrence, never replaced by a reported/root alias.
+	Sender *WorkerEventReference `json:"sender,omitempty"`
+	// Exact captured edges in producer order. Requires sender; at most 32 whole pairs.
+	SenderBridges []WorkerBridgeObservation `json:"senderBridges,omitzero"`
+}
+
+// Exact delivery and optional occurrence of a consumed worker notification.
+// Experimental: WorkerNotificationReference is part of an experimental API and may change
+// or be removed.
+type WorkerNotificationReference struct {
+	// Actual notificationDeliveryId UUID.
+	DeliveryID string `json:"deliveryId"`
+	// May be omitted only on the matching current system.notification.
+	Event *WorkerEventReference `json:"event,omitempty"`
+	// Actual consumption mode.
+	Mode WorkerNotificationMode `json:"mode"`
+}
+
+// One captured source at this placement and observation boundary.
+// Experimental: WorkerSource is part of an experimental API and may change or be removed.
+type WorkerSource struct {
+	// Actual admissions in capture order; at most 32.
+	Admissions []WorkerAdmission `json:"admissions"`
+	// Exact already-open iteration when an immediate notification was consumed.
+	AdmittedDuring *WorkerEventReference `json:"admittedDuring,omitempty"`
+	// Applicable observations were all captured here, never work completion or success.
+	CaptureComplete bool `json:"captureComplete"`
+	// Actual completion emission only. Absence is not an execution outcome.
+	Completion *WorkerEventReference `json:"completion,omitempty"`
+	// Indivisible accepted input identity.
+	Input WorkerInput `json:"input"`
+	// Actual consumed notification, when observed.
+	Notification *WorkerNotificationReference `json:"notification,omitempty"`
 }
 
 // Parameters for cooperatively aborting a workflow body.
@@ -22837,6 +22936,48 @@ const (
 	VerbosityLow Verbosity = "low"
 	// Request a medium amount of response detail.
 	VerbosityMedium Verbosity = "medium"
+)
+
+// Why this exact worker admission was made.
+// Experimental: WorkerAdmissionKind is part of an experimental API and may change or be
+// removed.
+type WorkerAdmissionKind string
+
+const (
+	WorkerAdmissionKindQueuedInput        WorkerAdmissionKind = "queued_input"
+	WorkerAdmissionKindSystemContinuation WorkerAdmissionKind = "system_continuation"
+)
+
+// Supported observed occurrences. Chronological parentId is not a causal reference.
+// Experimental: WorkerEventType is part of an experimental API and may change or be removed.
+type WorkerEventType string
+
+const (
+	WorkerEventTypeAssistantTurnStart WorkerEventType = "assistant.turn_start"
+	WorkerEventTypeSubagentCompleted  WorkerEventType = "subagent.completed"
+	WorkerEventTypeSystemNotification WorkerEventType = "system.notification"
+	WorkerEventTypeToolExecutionStart WorkerEventType = "tool.execution_start"
+	WorkerEventTypeUserMessage        WorkerEventType = "user.message"
+)
+
+// How the owned notification was consumed.
+// Experimental: WorkerNotificationMode is part of an experimental API and may change or be
+// removed.
+type WorkerNotificationMode string
+
+const (
+	WorkerNotificationModeImmediate WorkerNotificationMode = "immediate"
+	WorkerNotificationModeQueued    WorkerNotificationMode = "queued"
+)
+
+// Producer of an observation, not the execution location of every referenced source.
+// Experimental: WorkerObservationProvenance is part of an experimental API and may change
+// or be removed.
+type WorkerObservationProvenance string
+
+const (
+	WorkerObservationProvenanceAhpCoordinator WorkerObservationProvenance = "ahp_coordinator"
+	WorkerObservationProvenanceNative         WorkerObservationProvenance = "native"
 )
 
 // Execution-critical workflow storage operation.

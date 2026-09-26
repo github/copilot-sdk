@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from typing import ClassVar, TYPE_CHECKING
 
-from .session_events import AbortReason, AgentModelPolicy, Attachment, AutoTier, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, IndexedSearchState, ManagedSettingsResolvedSource, McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerMetadata, McpServerSource, McpServerStatus, ModelChangeSource, PermissionDecisionSource, PermissionMode, PermissionPromptRequest, PermissionRule, ReasoningSummary, RemediationAction, SessionEvent, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskBlocker, TaskCompletionOutcome, UserToolSessionApproval, Verbosity, _load_Attachment, _load_PermissionPromptRequest, _load_UserToolSessionApproval
+from .session_events import AbortReason, AgentModelPolicy, Attachment, AutoTier, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, IndexedSearchState, ManagedSettingsResolvedSource, McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerMetadata, McpServerSource, McpServerStatus, ModelChangeSource, PermissionDecisionSource, PermissionMode, PermissionPromptRequest, PermissionRule, ReasoningSummary, RemediationAction, SessionEvent, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskBlocker, TaskCompletionOutcome, UserToolSessionApproval, Verbosity, WorkerCausality, _load_Attachment, _load_PermissionPromptRequest, _load_UserToolSessionApproval
 
 if TYPE_CHECKING:
     from .._jsonrpc import JsonRpcClient
@@ -19,6 +19,7 @@ from typing import Any, Protocol, TypeVar, cast
 from uuid import UUID
 
 import dateutil.parser
+from .._worker_causality import optional_worker_causality
 
 T = TypeVar("T")
 EnumT = TypeVar("EnumT", bound=Enum)
@@ -14715,18 +14716,26 @@ class TasksSendMessageResult:
     error: str | None = None
     """Error message if delivery failed"""
 
+    worker_causality: WorkerCausality | None = None
+    """Optional exact queue admission receipt on sent=true only. No implicit event or
+    execution-success claim.
+    """
+
     @staticmethod
     def from_dict(obj: Any) -> 'TasksSendMessageResult':
         assert isinstance(obj, dict)
         sent = from_bool(obj.get("sent"))
         error = from_union([from_str, from_none], obj.get("error"))
-        return TasksSendMessageResult(sent, error)
+        worker_causality = optional_worker_causality(obj.get("workerCausality"), lambda: from_union([WorkerCausality.from_dict, from_none], obj.get("workerCausality")))
+        return TasksSendMessageResult(sent, error, worker_causality)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["sent"] = from_bool(self.sent)
         if self.error is not None:
             result["error"] = from_union([from_str, from_none], self.error)
+        if self.worker_causality is not None:
+            result["workerCausality"] = from_union([lambda x: to_class(WorkerCausality, x), from_none], self.worker_causality)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.

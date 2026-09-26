@@ -24,9 +24,16 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionTasksSendMessageResult(
+    /** Optional exact queue admission receipt on sent=true only. No implicit event or execution-success claim. */
+    @com.fasterxml.jackson.databind.annotation.JsonDeserialize(using = com.github.copilot.WorkerCausalityDeserializer.class)
+    @JsonProperty("workerCausality") WorkerCausality workerCausality,
     /** Whether the message was successfully delivered or steered */
     @JsonProperty("sent") Boolean sent,
     /** Error message if delivery failed */
     @JsonProperty("error") String error
 ) {
+    /** Creates a value without optional worker diagnostics. */
+    public SessionTasksSendMessageResult(Boolean sent, String error) {
+        this(null, sent, error);
+    }
 }

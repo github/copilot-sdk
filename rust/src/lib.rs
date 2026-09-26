@@ -60,6 +60,7 @@ pub mod transforms;
 /// Protocol types shared between the SDK and the GitHub Copilot CLI.
 pub mod types;
 mod wire;
+mod worker_causality;
 
 /// Session event payload types — auto-generated from the protocol schema.
 pub mod session_events;

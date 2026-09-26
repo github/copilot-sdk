@@ -25,6 +25,7 @@ import type {
 import { type Canvas, CanvasError } from "./canvas.js";
 import type { OpenCanvasInstance } from "./generated/rpc.js";
 import { getTraceContext } from "./telemetry.js";
+import { withWorkerCausality, withWorkerCausalityEvents } from "./workerCausality.js";
 import { isResponseSchema, toJsonSchema } from "./schema.js";
 import { isAttributedPermissionResult } from "./types.js";
 import type {
@@ -1517,6 +1518,13 @@ export class CopilotSession {
      * @internal This method is for internal use by the SDK.
      */
     _dispatchEvent(event: SessionEvent): void {
+        if (
+            event.type === "user.message" ||
+            event.type === "system.notification" ||
+            event.type === "assistant.turn_start"
+        ) {
+            event = { ...event, data: withWorkerCausality(event.data) } as SessionEvent;
+        }
         // Handle broadcast request events internally (fire-and-forget)
         this._handleBroadcastEvent(event);
 
@@ -2849,7 +2857,7 @@ export class CopilotSession {
             sessionId: this.sessionId,
         });
 
-        return (response as { events: SessionEvent[] }).events;
+        return withWorkerCausalityEvents(response as { events: SessionEvent[] }).events;
     }
 
     /**

@@ -49,6 +49,46 @@ describe("C# root event payload unions", () => {
         expect(code).toContain("public sealed partial class SampleEmptyData");
         expect(code).not.toContain("public sealed partial class SampleUnionData { }");
     });
+
+    it("keeps optional worker converter attributes attached after XML documentation", () => {
+        const code = generateSessionEventsCode({
+            definitions: {
+                WorkerCausality: {
+                    type: "object",
+                    properties: { version: { type: "integer" } },
+                    required: ["version"],
+                },
+                SessionEvent: {
+                    anyOf: [
+                        {
+                            type: "object",
+                            properties: {
+                                type: { const: "user.message" },
+                                data: {
+                                    type: "object",
+                                    properties: {
+                                        content: { type: "string" },
+                                        workerCausality: {
+                                            $ref: "#/definitions/WorkerCausality",
+                                            description: "Optional worker diagnostics.",
+                                        },
+                                    },
+                                    required: ["content"],
+                                },
+                            },
+                            required: ["type", "data"],
+                        },
+                    ],
+                },
+            },
+        });
+        expect(code).toContain(
+            "/// <summary>Optional worker diagnostics.</summary>\n" +
+                "    [JsonConverter(typeof(WorkerCausalityConverter<WorkerCausality>))]\n" +
+                "    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]\n" +
+                '    [JsonPropertyName("workerCausality")]'
+        );
+    });
 });
 
 describe("C# RPC codegen", () => {

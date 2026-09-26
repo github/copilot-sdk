@@ -12179,6 +12179,11 @@ public sealed class TasksSendMessageResult
     /// <summary>Whether the message was successfully delivered or steered.</summary>
     [JsonPropertyName("sent")]
     public bool Sent { get; set; }
+
+    /// <summary>Optional exact queue admission receipt on sent=true only. No implicit event or execution-success claim.</summary>
+    [JsonConverter(typeof(WorkerCausalityConverter<WorkerCausality>))]
+    [JsonPropertyName("workerCausality")]
+    public WorkerCausality? WorkerCausality { get; set; }
 }
 
 /// <summary>Identifier of the target agent task, message content, and optional sender agent ID.</summary>
@@ -43983,6 +43988,17 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.UserToolSessionApprovalRead), TypeInfoPropertyName = "SessionEventsUserToolSessionApprovalRead")]
 [JsonSerializable(typeof(GitHub.Copilot.UserToolSessionApprovalWrite), TypeInfoPropertyName = "SessionEventsUserToolSessionApprovalWrite")]
 [JsonSerializable(typeof(GitHub.Copilot.Verbosity), TypeInfoPropertyName = "SessionEventsVerbosity")]
+[JsonSerializable(typeof(GitHub.Copilot.WorkerAdmission), TypeInfoPropertyName = "SessionEventsWorkerAdmission")]
+[JsonSerializable(typeof(GitHub.Copilot.WorkerAdmissionKind), TypeInfoPropertyName = "SessionEventsWorkerAdmissionKind")]
+[JsonSerializable(typeof(GitHub.Copilot.WorkerBridgeObservation), TypeInfoPropertyName = "SessionEventsWorkerBridgeObservation")]
+[JsonSerializable(typeof(GitHub.Copilot.WorkerCausality), TypeInfoPropertyName = "SessionEventsWorkerCausality")]
+[JsonSerializable(typeof(GitHub.Copilot.WorkerEventReference), TypeInfoPropertyName = "SessionEventsWorkerEventReference")]
+[JsonSerializable(typeof(GitHub.Copilot.WorkerEventType), TypeInfoPropertyName = "SessionEventsWorkerEventType")]
+[JsonSerializable(typeof(GitHub.Copilot.WorkerInput), TypeInfoPropertyName = "SessionEventsWorkerInput")]
+[JsonSerializable(typeof(GitHub.Copilot.WorkerNotificationMode), TypeInfoPropertyName = "SessionEventsWorkerNotificationMode")]
+[JsonSerializable(typeof(GitHub.Copilot.WorkerNotificationReference), TypeInfoPropertyName = "SessionEventsWorkerNotificationReference")]
+[JsonSerializable(typeof(GitHub.Copilot.WorkerObservationProvenance), TypeInfoPropertyName = "SessionEventsWorkerObservationProvenance")]
+[JsonSerializable(typeof(GitHub.Copilot.WorkerSource), TypeInfoPropertyName = "SessionEventsWorkerSource")]
 [JsonSerializable(typeof(GitHub.Copilot.WorkingDirectoryContext), TypeInfoPropertyName = "SessionEventsWorkingDirectoryContext")]
 [JsonSerializable(typeof(GitHub.Copilot.WorkingDirectoryContextHostType), TypeInfoPropertyName = "SessionEventsWorkingDirectoryContextHostType")]
 [JsonSerializable(typeof(GitHub.Copilot.WorkspaceFileChangedOperation), TypeInfoPropertyName = "SessionEventsWorkspaceFileChangedOperation")]

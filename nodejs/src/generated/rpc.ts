@@ -4,8 +4,9 @@
  */
 
 import type { MessageConnection } from "vscode-jsonrpc/node.js";
+import { withWorkerCausality, withWorkerCausalityEvents } from "../workerCausality.js";
 
-import type { AbortReason, AgentModelPolicy, Attachment, AutoTier, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, IndexedSearchState, ManagedSettingsResolvedData, McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerMetadata, McpServerSource, McpServerStatus, ModelChangeSource, PermissionDecisionSource, PermissionMode, PermissionPromptRequest, PermissionRule, ReasoningSummary, RemediationAction, SessionEvent, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskCompleteData, TaskCompletionOutcome, UserToolSessionApproval, Verbosity } from "./session-events.js";
+import type { AbortReason, AgentModelPolicy, Attachment, AutoTier, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, IndexedSearchState, ManagedSettingsResolvedData, McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerMetadata, McpServerSource, McpServerStatus, ModelChangeSource, PermissionDecisionSource, PermissionMode, PermissionPromptRequest, PermissionRule, ReasoningSummary, RemediationAction, SessionEvent, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskCompleteData, TaskCompletionOutcome, UserToolSessionApproval, Verbosity, WorkerCausality } from "./session-events.js";
 
 /** A value that can be represented losslessly on the SDK JSON wire. */
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
@@ -23810,6 +23811,7 @@ export interface TasksSendMessageRequest {
  */
 /** @experimental */
 export interface TasksSendMessageResult {
+  workerCausality?: WorkerCausality;
   /**
    * Whether the message was successfully delivered or steered
    */
@@ -28683,7 +28685,7 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
              * @returns Indicates whether the message was delivered, with an error message when delivery failed.
              */
             sendMessage: async (params: TasksSendMessageRequest): Promise<TasksSendMessageResult> =>
-                connection.sendRequest("session.tasks.sendMessage", { sessionId, ...params }),
+                connection.sendRequest<TasksSendMessageResult>("session.tasks.sendMessage", { sessionId, ...params }).then(withWorkerCausality),
         },
         /** @experimental */
         skills: {
@@ -30033,7 +30035,7 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
              * @returns Batch of session events returned by a read, with cursor and continuation metadata.
              */
             read: async (params: EventLogReadRequest): Promise<EventsReadResult> =>
-                connection.sendRequest("session.eventLog.read", { sessionId, ...params }),
+                connection.sendRequest<EventsReadResult>("session.eventLog.read", { sessionId, ...params }).then(withWorkerCausalityEvents),
             /**
              * Returns a snapshot of the current tail cursor without consuming events.
              *

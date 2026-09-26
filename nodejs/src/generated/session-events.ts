@@ -770,6 +770,27 @@ export type UserMessageDelivery =
   /** Enqueued while the agent was busy; processed as its own run afterward. */
   | "queued";
 /**
+ * Producer of an observation, not the execution location of every referenced source.
+ */
+export type WorkerObservationProvenance = "native" | "ahp_coordinator";
+/**
+ * Supported observed occurrences. Chronological parentId is not a causal reference.
+ */
+export type WorkerEventType =
+  | "tool.execution_start"
+  | "user.message"
+  | "subagent.completed"
+  | "system.notification"
+  | "assistant.turn_start";
+/**
+ * Why this exact worker admission was made.
+ */
+export type WorkerAdmissionKind = "queued_input" | "system_continuation";
+/**
+ * How the owned notification was consumed.
+ */
+export type WorkerNotificationMode = "queued" | "immediate";
+/**
  * Content-safe activity observed while a HydraFusion phase is running.
  */
 /** @experimental */
@@ -4348,6 +4369,7 @@ export interface UserMessageData {
    * The agent-loop turn ID that consumed this message; absent when no agent-loop turn consumed it
    */
   turnId?: string;
+  workerCausality?: WorkerCausality;
 }
 /**
  * File attachment
@@ -4788,6 +4810,119 @@ export interface AttachmentExtensionContext {
   type: "extension_context";
 }
 /**
+ * Optional v1 worker diagnostics. The compact UTF-8 {"workerCausality":value}
+ * must fit 4096 bytes. Ignore invalid/unknown/oversize metadata, not the product event.
+ */
+export interface WorkerCausality {
+  /**
+   * Complete placement-aware observed capture, not global causality or execution success.
+   * Empty true requires explicit native invocation attestation.
+   */
+  captureComplete: boolean;
+  observationProvenance: WorkerObservationProvenance;
+  /**
+   * Sources in capture order, at most 32. Absent/unknown is not known-empty.
+   *
+   * @maxItems 32
+   */
+  sources: WorkerSource[];
+  /**
+   * Supported version, exactly 1.
+   */
+  version: 1;
+}
+/**
+ * One captured source at this placement and observation boundary.
+ */
+export interface WorkerSource {
+  /**
+   * Actual admissions in capture order; at most 32.
+   *
+   * @maxItems 32
+   */
+  admissions: WorkerAdmission[];
+  admittedDuring?: WorkerEventReference;
+  /**
+   * Applicable observations were all captured here, never work completion or success.
+   */
+  captureComplete: boolean;
+  completion?: WorkerEventReference;
+  input: WorkerInput;
+  notification?: WorkerNotificationReference;
+}
+/**
+ * An observed worker admission, not a claim that execution succeeded.
+ */
+export interface WorkerAdmission {
+  /**
+   * Actual AHP participant Turn UUID, not a native turn counter or provenance signal.
+   */
+  ahpTurnId?: string;
+  event?: WorkerEventReference;
+  kind: WorkerAdmissionKind;
+  /**
+   * Canonical logical message identity, independent of queueItemId.
+   */
+  messageId: string;
+}
+/**
+ * Exact observed event identity. No private registration generation or execution handle.
+ */
+export interface WorkerEventReference {
+  /**
+   * Actual event agent scope, absent for a root occurrence.
+   */
+  agentId?: string;
+  /**
+   * Actual event occurrence UUID; copied without normalization.
+   */
+  eventId: string;
+  eventType: WorkerEventType;
+  provenance: WorkerObservationProvenance;
+  /**
+   * Actual runtime session scope.
+   */
+  sessionId: string;
+}
+/**
+ * Exact accepted worker input, distinct from a message, event, caller correlation or Turn.
+ */
+export interface WorkerInput {
+  /**
+   * Actual recipient task.
+   */
+  agentId: string;
+  /**
+   * UUID allocated for this queue item by the admitting producer.
+   */
+  queueItemId: string;
+  sender?: WorkerEventReference;
+  /**
+   * Exact captured edges in producer order. Requires sender; at most 32 whole pairs.
+   *
+   * @maxItems 32
+   */
+  senderBridges?: WorkerBridgeObservation[];
+}
+/**
+ * One indivisible source-to-reported bridge observation, not a root alias.
+ */
+export interface WorkerBridgeObservation {
+  reported: WorkerEventReference;
+  source: WorkerEventReference;
+}
+/**
+ * Exact delivery and optional occurrence of a consumed worker notification.
+ */
+export interface WorkerNotificationReference {
+  /**
+   * Actual notificationDeliveryId UUID.
+   */
+  deliveryId: string;
+  event?: WorkerEventReference;
+  mode: WorkerNotificationMode;
+}
+/**
  * Session event "pending_messages.modified". Empty payload; the event signals that the pending message queue has changed
  */
 export interface PendingMessagesModifiedEvent {
@@ -4867,6 +5002,7 @@ export interface AssistantTurnStartData {
    * Identifier for this turn within the agentic loop, typically a stringified turn number
    */
   turnId: string;
+  workerCausality?: WorkerCausality;
 }
 /**
  * Session event "assistant.intent". Agent intent description for current activity or plan
@@ -8359,6 +8495,7 @@ export interface SystemNotificationData {
   content: string;
   kind: SystemNotification;
   responsesReasoning?: ResponsesReasoning;
+  workerCausality?: WorkerCausality;
 }
 /**
  * System notification metadata for a background agent that completed or failed, including agent ID, type, status, description, and prompt.

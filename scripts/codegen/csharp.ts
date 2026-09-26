@@ -1432,6 +1432,9 @@ function generateDataClass(variant: EventVariant, knownTypes: Map<string, string
         const csharpType = resolveSessionPropertyType(prop, variant.dataClassName, csharpName, isReq, knownTypes, nestedClasses, enumOutput);
 
         lines.push(...xmlDocPropertyComment(prop.description, propName, "    "));
+        if (propName === "workerCausality" && !isReq) {
+            lines.push(`    [JsonConverter(typeof(WorkerCausalityConverter<${csharpType.replace(/\?$/, "")}>))]`);
+        }
         lines.push(...emitDataAnnotations(prop, "    ", csharpType));
         if (isSchemaDeprecated(prop)) pushObsoleteAttributes(lines, "    ");
         if (isSchemaExperimental(prop)) pushExperimentalAttribute(lines, "    ");
@@ -1896,6 +1899,9 @@ function emitRpcClass(
         const csharpType = resolveRpcType(prop, isReq, inlineTypeParentName, csharpName, extraClasses);
 
         lines.push(...xmlDocPropertyComment(prop.description, propName, "    "));
+        if (propName === "workerCausality" && !isReq) {
+            lines.push(`    [JsonConverter(typeof(WorkerCausalityConverter<${csharpType.replace(/\?$/, "")}>))]`);
+        }
         lines.push(...emitDataAnnotations(prop, "    ", csharpType));
         if (isSchemaDeprecated(prop)) pushObsoleteAttributes(lines, "    ");
         if (isSchemaExperimental(prop)) pushExperimentalAttribute(lines, "    ");

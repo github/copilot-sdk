@@ -1356,11 +1356,14 @@ export function renderEventVariantClass(variant: EventVariant, packageName: stri
                 if (field.description) {
                     lines.push(`        /** ${field.description} */`);
                 }
+                if (field.jsonName === "workerCausality") {
+                    lines.push(`        @com.fasterxml.jackson.databind.annotation.JsonDeserialize(using = com.github.copilot.WorkerCausalityDeserializer.class)`);
+                }
                 lines.push(`        @JsonProperty("${field.jsonName}") ${field.javaType} ${field.javaName}${comma}`);
             }
             lines.push(`    ) {`);
         }
-        lines.push(...renderAdmissionCompatibilityConstructor(`${variant.className}Data`, dataFields, "        "));
+        lines.push(...renderCompatibilityConstructors(`${variant.className}Data`, dataFields, "        "));
         // Render nested types inside Data record
         for (const [, nested] of nestedTypes) {
             lines.push(...renderNestedType(nested, 2, nestedTypes, allImports));
@@ -1565,27 +1568,51 @@ function schemaAllowsNull(schema: JSONSchema7): boolean {
     );
 }
 
-/** Preserve pre-admission constructor descriptors while adding optional record components. */
-function renderAdmissionCompatibilityConstructor(
+/** Preserve public record descriptors while adding optional diagnostic components. */
+function renderCompatibilityConstructors(
     className: string,
     fields: { javaName: string; javaType: string }[],
     indent: string,
 ): string[] {
-    const types = new Set(["SessionSendParams", "SendMessageItem", "QueuePendingItems", "UserMessageEventData"]);
-    if (!types.has(className) || !fields.some((field) => field.javaName === "clientCorrelationId")) return [];
-    const previous = fields.filter((field) => field.javaName !== "clientCorrelationId");
-    const parameters = previous.map((field) => `${field.javaType} ${field.javaName}`).join(", ");
-    const arguments_ = fields.map((field) => field.javaName === "clientCorrelationId" ? "null" : field.javaName).join(", ");
-    return [
-        `${indent}/** Creates a value without optional admission correlation metadata. */`,
-        `${indent}public ${className}(${parameters}) {`,
-        `${indent}    this(${arguments_});`,
-        `${indent}}`,
-    ];
+    const names = new Set(fields.map((field) => field.javaName));
+    let omissions: string[][] = [];
+    if (className === "UserMessageEventData") {
+        omissions = names.has("workerCausality")
+            ? [["workerCausality"], ["workerCausality", "clientCorrelationId"]]
+            : [["clientCorrelationId"]];
+    } else if (className === "QueuePendingItems") {
+        omissions = [["clientCorrelationId"], ["clientCorrelationId", "source"]];
+    } else if (["SessionSendParams", "SendMessageItem"].includes(className)) {
+        omissions = [["clientCorrelationId"]];
+    } else if ([
+        "SystemNotificationEventData",
+        "AssistantTurnStartEventData",
+        "SessionTasksSendMessageResult",
+    ].includes(className)) {
+        omissions = [["workerCausality"]];
+    }
+    return omissions.flatMap((omitted, index) => {
+        if (!omitted.every((field) => names.has(field))) return [];
+        const previous = fields.filter((field) => !omitted.includes(field.javaName));
+        const parameters = previous.map((field) => `${field.javaType} ${field.javaName}`).join(", ");
+        const arguments_ = fields
+            .map((field) => omitted.includes(field.javaName) ? "null" : field.javaName)
+            .join(", ");
+        const description = omitted.includes("workerCausality")
+            ? "Creates a value without optional worker diagnostics."
+            : "Creates a value without optional admission correlation metadata.";
+        return [
+            ...(index === 0 ? [] : [""]),
+            `${indent}/** ${description} */`,
+            `${indent}public ${className}(${parameters}) {`,
+            `${indent}    this(${arguments_});`,
+            `${indent}}`,
+        ];
+    });
 }
 
 /** Generate a Java record for a JSON Schema object type. Returns the class content. */
-function generateRpcClass(
+export function generateRpcClass(
     className: string,
     schema: JSONSchema7,
     _nestedTypes: Map<string, { code: string }>,
@@ -1630,12 +1657,15 @@ function generateRpcClass(
             if (f.includeNull) {
                 lines.push(`    @JsonInclude(JsonInclude.Include.ALWAYS)`);
             }
+            if (f.propName === "workerCausality") {
+                lines.push(`    @com.fasterxml.jackson.databind.annotation.JsonDeserialize(using = com.github.copilot.WorkerCausalityDeserializer.class)`);
+            }
             lines.push(`    @JsonProperty("${f.propName}") ${f.javaType} ${f.javaName}${comma}`);
         }
         lines.push(`) {`);
     }
 
-    lines.push(...renderAdmissionCompatibilityConstructor(className, fields, "    "));
+    lines.push(...renderCompatibilityConstructors(className, fields, "    "));
 
     // Add nested types as nested records/enums inside this record
     for (const [, nested] of localNestedTypes) {

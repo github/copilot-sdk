@@ -6,6 +6,7 @@ package rpc
 import (
 	"encoding/json"
 	"errors"
+	"github.com/github/copilot-sdk/go/internal/diagnosticmetadata"
 )
 
 func unmarshalAuthInfo(data []byte) (AuthInfo, error) {
@@ -7393,6 +7394,24 @@ func (r *TasksPromoteCurrentToBackgroundResult) UnmarshalJSON(data []byte) error
 			return err
 		}
 		r.Task = value
+	}
+	return nil
+}
+
+func (r *TasksSendMessageResult) UnmarshalJSON(data []byte) error {
+	type rawTasksSendMessageResult struct {
+		Error           *string         `json:"error,omitempty"`
+		Sent            bool            `json:"sent"`
+		WorkerCausality json.RawMessage `json:"workerCausality,omitempty"`
+	}
+	var raw rawTasksSendMessageResult
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	r.Error = raw.Error
+	r.Sent = raw.Sent
+	if !diagnosticmetadata.ReadWorkerCausality(raw.WorkerCausality, &r.WorkerCausality) {
+		r.WorkerCausality = nil
 	}
 	return nil
 }

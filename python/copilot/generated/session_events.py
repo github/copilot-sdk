@@ -13,6 +13,7 @@ from typing import Any, ClassVar, TypeVar, cast
 from uuid import UUID
 
 import dateutil.parser
+from .._worker_causality import optional_worker_causality
 
 T = TypeVar("T")
 EnumT = TypeVar("EnumT", bound=Enum)
@@ -3201,6 +3202,7 @@ class AssistantTurnStartData:
     turn_id: str
     interaction_id: str | None = None
     model: str | None = None
+    worker_causality: WorkerCausality | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "AssistantTurnStartData":
@@ -3208,10 +3210,12 @@ class AssistantTurnStartData:
         turn_id = from_str(obj.get("turnId"))
         interaction_id = from_union([from_none, from_str], obj.get("interactionId"))
         model = from_union([from_none, from_str], obj.get("model"))
+        worker_causality = optional_worker_causality(obj.get("workerCausality"), lambda: from_union([from_none, WorkerCausality.from_dict], obj.get("workerCausality")))
         return AssistantTurnStartData(
             turn_id=turn_id,
             interaction_id=interaction_id,
             model=model,
+            worker_causality=worker_causality,
         )
 
     def to_dict(self) -> dict:
@@ -3221,6 +3225,8 @@ class AssistantTurnStartData:
             result["interactionId"] = from_union([from_none, from_str], self.interaction_id)
         if self.model is not None:
             result["model"] = from_union([from_none, from_str], self.model)
+        if self.worker_causality is not None:
+            result["workerCausality"] = from_union([from_none, lambda x: to_class(WorkerCausality, x)], self.worker_causality)
         return result
 
 
@@ -11247,6 +11253,7 @@ class SystemNotificationData:
     content: str
     kind: SystemNotification
     responses_reasoning: ResponsesReasoning | None = None
+    worker_causality: WorkerCausality | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "SystemNotificationData":
@@ -11254,10 +11261,12 @@ class SystemNotificationData:
         content = from_str(obj.get("content"))
         kind = _load_SystemNotification(obj.get("kind"))
         responses_reasoning = from_union([from_none, ResponsesReasoning.from_dict], obj.get("responsesReasoning"))
+        worker_causality = optional_worker_causality(obj.get("workerCausality"), lambda: from_union([from_none, WorkerCausality.from_dict], obj.get("workerCausality")))
         return SystemNotificationData(
             content=content,
             kind=kind,
             responses_reasoning=responses_reasoning,
+            worker_causality=worker_causality,
         )
 
     def to_dict(self) -> dict:
@@ -11266,6 +11275,8 @@ class SystemNotificationData:
         result["kind"] = self.kind.to_dict()
         if self.responses_reasoning is not None:
             result["responsesReasoning"] = from_union([from_none, lambda x: to_class(ResponsesReasoning, x)], self.responses_reasoning)
+        if self.worker_causality is not None:
+            result["workerCausality"] = from_union([from_none, lambda x: to_class(WorkerCausality, x)], self.worker_causality)
         return result
 
 
@@ -12616,6 +12627,7 @@ class UserMessageData:
     supported_native_document_mime_types: list[str] | None = None
     transformed_content: str | None = None
     turn_id: str | None = None
+    worker_causality: WorkerCausality | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "UserMessageData":
@@ -12635,6 +12647,7 @@ class UserMessageData:
         supported_native_document_mime_types = from_union([from_none, lambda x: from_list(from_str, x)], obj.get("supportedNativeDocumentMimeTypes"))
         transformed_content = from_union([from_none, from_str], obj.get("transformedContent"))
         turn_id = from_union([from_none, from_str], obj.get("turnId"))
+        worker_causality = optional_worker_causality(obj.get("workerCausality"), lambda: from_union([from_none, WorkerCausality.from_dict], obj.get("workerCausality")))
         return UserMessageData(
             content=content,
             agent_mode=agent_mode,
@@ -12651,6 +12664,7 @@ class UserMessageData:
             supported_native_document_mime_types=supported_native_document_mime_types,
             transformed_content=transformed_content,
             turn_id=turn_id,
+            worker_causality=worker_causality,
         )
 
     def to_dict(self) -> dict:
@@ -12684,6 +12698,8 @@ class UserMessageData:
             result["transformedContent"] = from_union([from_none, from_str], self.transformed_content)
         if self.turn_id is not None:
             result["turnId"] = from_union([from_none, from_str], self.turn_id)
+        if self.worker_causality is not None:
+            result["workerCausality"] = from_union([from_none, lambda x: to_class(WorkerCausality, x)], self.worker_causality)
         return result
 
 
@@ -12895,6 +12911,230 @@ class UserToolSessionApprovalWrite:
         return result
 
 
+@dataclass
+class WorkerAdmission:
+    "An observed worker admission, not a claim that execution succeeded."
+    kind: WorkerAdmissionKind
+    message_id: str
+    ahp_turn_id: UUID | None = None
+    event: WorkerEventReference | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "WorkerAdmission":
+        assert isinstance(obj, dict)
+        kind = parse_enum(WorkerAdmissionKind, obj.get("kind"))
+        message_id = from_str(obj.get("messageId"))
+        ahp_turn_id = from_union([from_none, from_uuid], obj.get("ahpTurnId"))
+        event = from_union([from_none, WorkerEventReference.from_dict], obj.get("event"))
+        return WorkerAdmission(
+            kind=kind,
+            message_id=message_id,
+            ahp_turn_id=ahp_turn_id,
+            event=event,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["kind"] = to_enum(WorkerAdmissionKind, self.kind)
+        result["messageId"] = from_str(self.message_id)
+        if self.ahp_turn_id is not None:
+            result["ahpTurnId"] = from_union([from_none, to_uuid], self.ahp_turn_id)
+        if self.event is not None:
+            result["event"] = from_union([from_none, lambda x: to_class(WorkerEventReference, x)], self.event)
+        return result
+
+
+@dataclass
+class WorkerBridgeObservation:
+    "One indivisible source-to-reported bridge observation, not a root alias."
+    reported: WorkerEventReference
+    source: WorkerEventReference
+
+    @staticmethod
+    def from_dict(obj: Any) -> "WorkerBridgeObservation":
+        assert isinstance(obj, dict)
+        reported = WorkerEventReference.from_dict(obj.get("reported"))
+        source = WorkerEventReference.from_dict(obj.get("source"))
+        return WorkerBridgeObservation(
+            reported=reported,
+            source=source,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["reported"] = to_class(WorkerEventReference, self.reported)
+        result["source"] = to_class(WorkerEventReference, self.source)
+        return result
+
+
+@dataclass
+class WorkerCausality:
+    "Optional v1 worker diagnostics. The compact UTF-8 {\"workerCausality\":value}\nmust fit 4096 bytes. Ignore invalid/unknown/oversize metadata, not the product event."
+    capture_complete: bool
+    observation_provenance: WorkerObservationProvenance
+    sources: list[WorkerSource]
+    version: int
+
+    @staticmethod
+    def from_dict(obj: Any) -> "WorkerCausality":
+        assert isinstance(obj, dict)
+        capture_complete = from_bool(obj.get("captureComplete"))
+        observation_provenance = parse_enum(WorkerObservationProvenance, obj.get("observationProvenance"))
+        sources = from_list(WorkerSource.from_dict, obj.get("sources"))
+        version = from_int(obj.get("version"))
+        return WorkerCausality(
+            capture_complete=capture_complete,
+            observation_provenance=observation_provenance,
+            sources=sources,
+            version=version,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["captureComplete"] = from_bool(self.capture_complete)
+        result["observationProvenance"] = to_enum(WorkerObservationProvenance, self.observation_provenance)
+        result["sources"] = from_list(lambda x: to_class(WorkerSource, x), self.sources)
+        result["version"] = to_int(self.version)
+        return result
+
+
+@dataclass
+class WorkerEventReference:
+    "Exact observed event identity. No private registration generation or execution handle."
+    event_id: UUID
+    event_type: WorkerEventType
+    provenance: WorkerObservationProvenance
+    session_id: str
+    agent_id: str | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "WorkerEventReference":
+        assert isinstance(obj, dict)
+        event_id = from_uuid(obj.get("eventId"))
+        event_type = parse_enum(WorkerEventType, obj.get("eventType"))
+        provenance = parse_enum(WorkerObservationProvenance, obj.get("provenance"))
+        session_id = from_str(obj.get("sessionId"))
+        agent_id = from_union([from_none, from_str], obj.get("agentId"))
+        return WorkerEventReference(
+            event_id=event_id,
+            event_type=event_type,
+            provenance=provenance,
+            session_id=session_id,
+            agent_id=agent_id,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["eventId"] = to_uuid(self.event_id)
+        result["eventType"] = to_enum(WorkerEventType, self.event_type)
+        result["provenance"] = to_enum(WorkerObservationProvenance, self.provenance)
+        result["sessionId"] = from_str(self.session_id)
+        if self.agent_id is not None:
+            result["agentId"] = from_union([from_none, from_str], self.agent_id)
+        return result
+
+
+@dataclass
+class WorkerInput:
+    "Exact accepted worker input, distinct from a message, event, caller correlation or Turn."
+    agent_id: str
+    queue_item_id: UUID
+    sender: WorkerEventReference | None = None
+    sender_bridges: list[WorkerBridgeObservation] | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "WorkerInput":
+        assert isinstance(obj, dict)
+        agent_id = from_str(obj.get("agentId"))
+        queue_item_id = from_uuid(obj.get("queueItemId"))
+        sender = from_union([from_none, WorkerEventReference.from_dict], obj.get("sender"))
+        sender_bridges = from_union([from_none, lambda x: from_list(WorkerBridgeObservation.from_dict, x)], obj.get("senderBridges"))
+        return WorkerInput(
+            agent_id=agent_id,
+            queue_item_id=queue_item_id,
+            sender=sender,
+            sender_bridges=sender_bridges,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["agentId"] = from_str(self.agent_id)
+        result["queueItemId"] = to_uuid(self.queue_item_id)
+        if self.sender is not None:
+            result["sender"] = from_union([from_none, lambda x: to_class(WorkerEventReference, x)], self.sender)
+        if self.sender_bridges is not None:
+            result["senderBridges"] = from_union([from_none, lambda x: from_list(lambda x: to_class(WorkerBridgeObservation, x), x)], self.sender_bridges)
+        return result
+
+
+@dataclass
+class WorkerNotificationReference:
+    "Exact delivery and optional occurrence of a consumed worker notification."
+    delivery_id: UUID
+    mode: WorkerNotificationMode
+    event: WorkerEventReference | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "WorkerNotificationReference":
+        assert isinstance(obj, dict)
+        delivery_id = from_uuid(obj.get("deliveryId"))
+        mode = parse_enum(WorkerNotificationMode, obj.get("mode"))
+        event = from_union([from_none, WorkerEventReference.from_dict], obj.get("event"))
+        return WorkerNotificationReference(
+            delivery_id=delivery_id,
+            mode=mode,
+            event=event,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["deliveryId"] = to_uuid(self.delivery_id)
+        result["mode"] = to_enum(WorkerNotificationMode, self.mode)
+        if self.event is not None:
+            result["event"] = from_union([from_none, lambda x: to_class(WorkerEventReference, x)], self.event)
+        return result
+
+
+@dataclass
+class WorkerSource:
+    "One captured source at this placement and observation boundary."
+    admissions: list[WorkerAdmission]
+    capture_complete: bool
+    input: WorkerInput
+    admitted_during: WorkerEventReference | None = None
+    completion: WorkerEventReference | None = None
+    notification: WorkerNotificationReference | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "WorkerSource":
+        assert isinstance(obj, dict)
+        admissions = from_list(WorkerAdmission.from_dict, obj.get("admissions"))
+        capture_complete = from_bool(obj.get("captureComplete"))
+        input = WorkerInput.from_dict(obj.get("input"))
+        admitted_during = from_union([from_none, WorkerEventReference.from_dict], obj.get("admittedDuring"))
+        completion = from_union([from_none, WorkerEventReference.from_dict], obj.get("completion"))
+        notification = from_union([from_none, WorkerNotificationReference.from_dict], obj.get("notification"))
+        return WorkerSource(
+            admissions=admissions,
+            capture_complete=capture_complete,
+            input=input,
+            admitted_during=admitted_during,
+            completion=completion,
+            notification=notification,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["admissions"] = from_list(lambda x: to_class(WorkerAdmission, x), self.admissions)
+        result["captureComplete"] = from_bool(self.capture_complete)
+        result["input"] = to_class(WorkerInput, self.input)
+        if self.admitted_during is not None:
+            result["admittedDuring"] = from_union([from_none, lambda x: to_class(WorkerEventReference, x)], self.admitted_during)
+        if self.completion is not None:
+            result["completion"] = from_union([from_none, lambda x: to_class(WorkerEventReference, x)], self.completion)
+        if self.notification is not None:
+            result["notification"] = from_union([from_none, lambda x: to_class(WorkerNotificationReference, x)], self.notification)
+        return result
 @dataclass
 class WorkingDirectoryContext:
     "Working directory and git context at session start"
@@ -14544,6 +14784,33 @@ class Verbosity(Enum):
     HIGH = "high"
 
 
+class WorkerAdmissionKind(Enum):
+    "Why this exact worker admission was made."
+    QUEUED_INPUT = "queued_input"
+    SYSTEM_CONTINUATION = "system_continuation"
+
+
+class WorkerEventType(Enum):
+    "Supported observed occurrences. Chronological parentId is not a causal reference."
+    TOOL_EXECUTION_START = "tool.execution_start"
+    USER_MESSAGE = "user.message"
+    SUBAGENT_COMPLETED = "subagent.completed"
+    SYSTEM_NOTIFICATION = "system.notification"
+    ASSISTANT_TURN_START = "assistant.turn_start"
+
+
+class WorkerNotificationMode(Enum):
+    "How the owned notification was consumed."
+    QUEUED = "queued"
+    IMMEDIATE = "immediate"
+
+
+class WorkerObservationProvenance(Enum):
+    "Producer of an observation, not the execution location of every referenced source."
+    NATIVE = "native"
+    AHP_COORDINATOR = "ahp_coordinator"
+
+
 class WorkingDirectoryContextHostType(Enum):
     "Hosting platform type of the repository (github or ado)"
     # Repository is hosted on GitHub.
@@ -15227,6 +15494,17 @@ __all__ = [
     "UserToolSessionApprovalRead",
     "UserToolSessionApprovalWrite",
     "Verbosity",
+    "WorkerAdmission",
+    "WorkerAdmissionKind",
+    "WorkerBridgeObservation",
+    "WorkerCausality",
+    "WorkerEventReference",
+    "WorkerEventType",
+    "WorkerInput",
+    "WorkerNotificationMode",
+    "WorkerNotificationReference",
+    "WorkerObservationProvenance",
+    "WorkerSource",
     "WorkingDirectoryContext",
     "WorkingDirectoryContextHostType",
     "WorkspaceFileChangedOperation",

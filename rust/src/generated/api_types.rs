@@ -16,7 +16,7 @@ pub use super::session_events::{
     OmittedBinaryOmittedReason, PermissionDecisionSource, PermissionMode, PermissionPromptRequest,
     PermissionRule, ReasoningSummary, RemediationAction, SessionLimitsConfig, SessionMode,
     ShutdownType, SkillSource, TaskBlocker, TaskCompletionOutcome, UserToolSessionApproval,
-    Verbosity,
+    Verbosity, WorkerCausality,
 };
 use crate::types::{RequestId, SessionEvent, SessionId};
 
@@ -22255,6 +22255,13 @@ pub struct TasksSendMessageResult {
     pub error: Option<String>,
     /// Whether the message was successfully delivered or steered
     pub sent: bool,
+    /// Optional exact queue admission receipt on sent=true only. No implicit event or execution-success claim.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "crate::worker_causality::deserialize_optional"
+    )]
+    pub worker_causality: Option<WorkerCausality>,
 }
 
 /// Agent type, prompt, name, and optional description and model override for the new task.
@@ -28609,6 +28616,13 @@ pub struct SessionTasksSendMessageResult {
     pub error: Option<String>,
     /// Whether the message was successfully delivered or steered
     pub sent: bool,
+    /// Optional exact queue admission receipt on sent=true only. No implicit event or execution-success claim.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "crate::worker_causality::deserialize_optional"
+    )]
+    pub worker_causality: Option<WorkerCausality>,
 }
 
 /// Identifies the target session.

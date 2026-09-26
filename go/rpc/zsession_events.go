@@ -2160,6 +2160,8 @@ type UserMessageData struct {
 	TransformedContent *string `json:"transformedContent,omitempty"`
 	// The agent-loop turn ID that consumed this message; absent when no agent-loop turn consumed it
 	TurnID *string `json:"turnId,omitempty"`
+	// Optional worker admission observations; self identity requires the matching enclosing message and agent.
+	WorkerCausality *WorkerCausality `json:"workerCausality,omitempty"`
 }
 
 func (*UserMessageData) sessionEventData()      {}
@@ -2965,6 +2967,8 @@ type SystemNotificationData struct {
 	Kind SystemNotification `json:"kind"`
 	// Responses reasoning settings anchored before this model-facing message, for cache-stable history replay
 	ResponsesReasoning *ResponsesReasoning `json:"responsesReasoning,omitempty"`
+	// Optional owned worker notification observations; an omitted notification event refers only to this occurrence.
+	WorkerCausality *WorkerCausality `json:"workerCausality,omitempty"`
 }
 
 func (*SystemNotificationData) sessionEventData()      {}
@@ -3179,6 +3183,8 @@ type AssistantTurnStartData struct {
 	Model *string `json:"model,omitempty"`
 	// Identifier for this turn within the agentic loop, typically a stringified turn number
 	TurnID string `json:"turnId"`
+	// Optional bounded worker observations. Missing or invalid metadata is unavailable, not known-empty.
+	WorkerCausality *WorkerCausality `json:"workerCausality,omitempty"`
 }
 
 func (*AssistantTurnStartData) sessionEventData()      {}

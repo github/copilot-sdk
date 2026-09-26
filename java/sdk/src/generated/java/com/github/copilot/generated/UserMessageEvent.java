@@ -35,6 +35,9 @@ public final class UserMessageEvent extends SessionEvent {
     @JsonIgnoreProperties(ignoreUnknown = true)
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record UserMessageEventData(
+        /** Optional worker admission observations; self identity requires the matching enclosing message and agent. */
+        @com.fasterxml.jackson.databind.annotation.JsonDeserialize(using = com.github.copilot.WorkerCausalityDeserializer.class)
+        @JsonProperty("workerCausality") WorkerCausality workerCausality,
         /** The user's message text as displayed in the timeline */
         @JsonProperty("content") String content,
         /** Responses reasoning settings anchored before this model-facing message, for cache-stable history replay */
@@ -66,9 +69,14 @@ public final class UserMessageEvent extends SessionEvent {
         /** Task ID minted when the runtime prepares this user-message run. This is not a parent interaction ID or worker instance ID and must not be equated with CAPI's X-Parent-Agent-Id. */
         @JsonProperty("parentAgentTaskId") String parentAgentTaskId
     ) {
-        /** Creates a value without optional admission correlation metadata. */
+        /** Creates a value without optional worker diagnostics. */
+        public UserMessageEventData(String content, ResponsesReasoning responsesReasoning, String messageId, String clientCorrelationId, String transformedContent, List<Object> attachments, List<String> supportedNativeDocumentMimeTypes, List<String> nativeDocumentPathFallbackPaths, String source, UserMessageDelivery delivery, UserMessageAgentMode agentMode, Boolean isAutopilotContinuation, String interactionId, String turnId, String parentAgentTaskId) {
+            this(null, content, responsesReasoning, messageId, clientCorrelationId, transformedContent, attachments, supportedNativeDocumentMimeTypes, nativeDocumentPathFallbackPaths, source, delivery, agentMode, isAutopilotContinuation, interactionId, turnId, parentAgentTaskId);
+        }
+
+        /** Creates a value without optional worker diagnostics. */
         public UserMessageEventData(String content, ResponsesReasoning responsesReasoning, String messageId, String transformedContent, List<Object> attachments, List<String> supportedNativeDocumentMimeTypes, List<String> nativeDocumentPathFallbackPaths, String source, UserMessageDelivery delivery, UserMessageAgentMode agentMode, Boolean isAutopilotContinuation, String interactionId, String turnId, String parentAgentTaskId) {
-            this(content, responsesReasoning, messageId, null, transformedContent, attachments, supportedNativeDocumentMimeTypes, nativeDocumentPathFallbackPaths, source, delivery, agentMode, isAutopilotContinuation, interactionId, turnId, parentAgentTaskId);
+            this(null, content, responsesReasoning, messageId, null, transformedContent, attachments, supportedNativeDocumentMimeTypes, nativeDocumentPathFallbackPaths, source, delivery, agentMode, isAutopilotContinuation, interactionId, turnId, parentAgentTaskId);
         }
     }
 }

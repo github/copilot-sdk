@@ -2592,6 +2592,115 @@ pub struct SessionPermissionRecoveryData {
     pub status: PermissionRecoveryStatus,
 }
 
+/// Exact observed event identity. No private registration generation or execution handle.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkerEventReference {
+    /// Actual event agent scope, absent for a root occurrence.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub agent_id: Option<String>,
+    /// Actual event occurrence UUID; copied without normalization.
+    pub event_id: String,
+    /// Type of the observed occurrence.
+    pub event_type: WorkerEventType,
+    /// Explicit provenance of this reference.
+    pub provenance: WorkerObservationProvenance,
+    /// Actual runtime session scope.
+    pub session_id: SessionId,
+}
+
+/// An observed worker admission, not a claim that execution succeeded.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkerAdmission {
+    /// Actual AHP participant Turn UUID, not a native turn counter or provenance signal.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ahp_turn_id: Option<String>,
+    /// May be omitted only for the matching current worker user.message.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub event: Option<WorkerEventReference>,
+    /// The producer's admission kind.
+    pub kind: WorkerAdmissionKind,
+    /// Canonical logical message identity, independent of queueItemId.
+    pub message_id: String,
+}
+
+/// One indivisible source-to-reported bridge observation, not a root alias.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkerBridgeObservation {
+    /// Full occurrence actually emitted by that bridge.
+    pub reported: WorkerEventReference,
+    /// Full event received by this bridge.
+    pub source: WorkerEventReference,
+}
+
+/// Exact accepted worker input, distinct from a message, event, caller correlation or Turn.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkerInput {
+    /// Actual recipient task.
+    pub agent_id: String,
+    /// UUID allocated for this queue item by the admitting producer.
+    pub queue_item_id: String,
+    /// Original invoking occurrence, never replaced by a reported/root alias.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sender: Option<WorkerEventReference>,
+    /// Exact captured edges in producer order. Requires sender; at most 32 whole pairs.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sender_bridges: Option<Vec<WorkerBridgeObservation>>,
+}
+
+/// Exact delivery and optional occurrence of a consumed worker notification.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkerNotificationReference {
+    /// Actual notificationDeliveryId UUID.
+    pub delivery_id: String,
+    /// May be omitted only on the matching current system.notification.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub event: Option<WorkerEventReference>,
+    /// Actual consumption mode.
+    pub mode: WorkerNotificationMode,
+}
+
+/// One captured source at this placement and observation boundary.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkerSource {
+    /// Actual admissions in capture order; at most 32.
+    pub admissions: Vec<WorkerAdmission>,
+    /// Exact already-open iteration when an immediate notification was consumed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub admitted_during: Option<WorkerEventReference>,
+    /// Applicable observations were all captured here, never work completion or success.
+    pub capture_complete: bool,
+    /// Actual completion emission only. Absence is not an execution outcome.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub completion: Option<WorkerEventReference>,
+    /// Indivisible accepted input identity.
+    pub input: WorkerInput,
+    /// Actual consumed notification, when observed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub notification: Option<WorkerNotificationReference>,
+}
+
+/// Optional v1 worker diagnostics. The compact UTF-8 {"workerCausality":value}
+/// must fit 4096 bytes. Ignore invalid/unknown/oversize metadata, not the product event.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkerCausality {
+    /// Complete placement-aware observed capture, not global causality or execution success.
+    /// Empty true requires explicit native invocation attestation.
+    pub capture_complete: bool,
+    /// Provenance of this enclosing observation; never inferred from other fields.
+    pub observation_provenance: WorkerObservationProvenance,
+    /// Sources in capture order, at most 32. Absent/unknown is not known-empty.
+    pub sources: Vec<WorkerSource>,
+    /// Supported version, exactly 1.
+    pub version: serde_json::Value,
+}
+
 /// Session event "user.message". Payload of `user.message` with displayed and model-transformed content, attachments, source/delivery metadata, mode, and telemetry IDs.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -2640,6 +2749,13 @@ pub struct UserMessageData {
     /// The agent-loop turn ID that consumed this message; absent when no agent-loop turn consumed it
     #[serde(skip_serializing_if = "Option::is_none")]
     pub turn_id: Option<String>,
+    /// Optional worker admission observations; self identity requires the matching enclosing message and agent.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "crate::worker_causality::deserialize_optional"
+    )]
+    pub worker_causality: Option<WorkerCausality>,
 }
 
 /// Session event "pending_messages.modified". Empty payload; the event signals that the pending message queue has changed
@@ -2659,6 +2775,13 @@ pub struct AssistantTurnStartData {
     pub model: Option<String>,
     /// Identifier for this turn within the agentic loop, typically a stringified turn number
     pub turn_id: String,
+    /// Optional bounded worker observations. Missing or invalid metadata is unavailable, not known-empty.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "crate::worker_causality::deserialize_optional"
+    )]
+    pub worker_causality: Option<WorkerCausality>,
 }
 
 /// Session event "assistant.turn_retry". Metadata for an additional model inference attempt within an existing assistant turn
@@ -5200,6 +5323,13 @@ pub struct SystemNotificationData {
     /// Responses reasoning settings anchored before this model-facing message, for cache-stable history replay
     #[serde(skip_serializing_if = "Option::is_none")]
     pub responses_reasoning: Option<ResponsesReasoning>,
+    /// Optional owned worker notification observations; an omitted notification event refers only to this occurrence.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "crate::worker_causality::deserialize_optional"
+    )]
+    pub worker_causality: Option<WorkerCausality>,
 }
 
 /// A parsed command identifier in a shell permission request, including whether it is read-only.
@@ -8771,6 +8901,64 @@ pub enum UserMessageDelivery {
     /// Enqueued while the agent was busy; processed as its own run afterward.
     #[serde(rename = "queued")]
     Queued,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Producer of an observation, not the execution location of every referenced source.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum WorkerObservationProvenance {
+    #[serde(rename = "native")]
+    Native,
+    #[serde(rename = "ahp_coordinator")]
+    AhpCoordinator,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Supported observed occurrences. Chronological parentId is not a causal reference.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum WorkerEventType {
+    #[serde(rename = "tool.execution_start")]
+    ToolExecutionStart,
+    #[serde(rename = "user.message")]
+    UserMessage,
+    #[serde(rename = "subagent.completed")]
+    SubagentCompleted,
+    #[serde(rename = "system.notification")]
+    SystemNotification,
+    #[serde(rename = "assistant.turn_start")]
+    AssistantTurnStart,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Why this exact worker admission was made.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum WorkerAdmissionKind {
+    #[serde(rename = "queued_input")]
+    QueuedInput,
+    #[serde(rename = "system_continuation")]
+    SystemContinuation,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// How the owned notification was consumed.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum WorkerNotificationMode {
+    #[serde(rename = "queued")]
+    Queued,
+    #[serde(rename = "immediate")]
+    Immediate,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
