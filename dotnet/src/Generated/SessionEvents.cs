@@ -14,6 +14,7 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 
 namespace GitHub.Copilot;
 
@@ -205,7 +206,7 @@ public partial class SessionEvent
 
     /// <summary>Deserializes a JSON string into a <see cref="SessionEvent"/>.</summary>
     public static SessionEvent FromJson(string json) =>
-        JsonSerializer.Deserialize(json, SessionEventsJsonContext.Default.SessionEvent)!;
+        SessionEventJsonConverter.Deserialize(json);
 
     /// <summary>Serializes this event to a JSON string.</summary>
     public string ToJson() =>
@@ -213,6 +214,277 @@ public partial class SessionEvent
 
     [DebuggerBrowsable(DebuggerBrowsableState.Never)]
     private string DebuggerDisplay => ToJson();
+}
+
+internal sealed class SessionEventJsonConverter : JsonConverter<SessionEvent>
+{
+    internal static SessionEventJsonConverter Default { get; } = new();
+
+    private static JsonSerializerOptions SerializerOptions { get; } = CreateSerializerOptions();
+
+    private static JsonTypeInfo<SessionEvent> SerializerTypeInfo { get; } =
+        (JsonTypeInfo<SessionEvent>)SerializerOptions.GetTypeInfo(typeof(SessionEvent));
+
+    internal static SessionEvent Deserialize(string json) =>
+        JsonSerializer.Deserialize(json, SerializerTypeInfo)!;
+
+    public override SessionEvent? Read(
+        ref Utf8JsonReader reader,
+        Type typeToConvert,
+        JsonSerializerOptions options)
+    {
+        string? type = ReadTypeDiscriminator(reader);
+        return type switch
+        {
+            "abort" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.AbortEvent),
+            "agent.interrupted" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.AgentInterruptedEvent),
+            "assistant.fusion_phase_activity" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.AssistantFusionPhaseActivityEvent),
+            "assistant.fusion_phase_completed" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.AssistantFusionPhaseCompletedEvent),
+            "assistant.fusion_phase_failed" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.AssistantFusionPhaseFailedEvent),
+            "assistant.fusion_phase_started" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.AssistantFusionPhaseStartedEvent),
+            "assistant.idle" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.AssistantIdleEvent),
+            "assistant.intent" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.AssistantIntentEvent),
+            "assistant.message" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.AssistantMessageEvent),
+            "assistant.message_delta" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.AssistantMessageDeltaEvent),
+            "assistant.message_start" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.AssistantMessageStartEvent),
+            "assistant.reasoning" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.AssistantReasoningEvent),
+            "assistant.reasoning_delta" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.AssistantReasoningDeltaEvent),
+            "assistant.server_tool_progress" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.AssistantServerToolProgressEvent),
+            "assistant.streaming_delta" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.AssistantStreamingDeltaEvent),
+            "assistant.tool_call_delta" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.AssistantToolCallDeltaEvent),
+            "assistant.turn_end" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.AssistantTurnEndEvent),
+            "assistant.turn_retry" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.AssistantTurnRetryEvent),
+            "assistant.turn_start" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.AssistantTurnStartEvent),
+            "assistant.usage" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.AssistantUsageEvent),
+            "auto_mode_switch.completed" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.AutoModeSwitchCompletedEvent),
+            "auto_mode_switch.requested" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.AutoModeSwitchRequestedEvent),
+            "capabilities.changed" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.CapabilitiesChangedEvent),
+            "command.completed" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.CommandCompletedEvent),
+            "command.execute" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.CommandExecuteEvent),
+            "command.queued" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.CommandQueuedEvent),
+            "commands.changed" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.CommandsChangedEvent),
+            "elicitation.completed" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.ElicitationCompletedEvent),
+            "elicitation.requested" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.ElicitationRequestedEvent),
+            "exit_plan_mode.completed" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.ExitPlanModeCompletedEvent),
+            "exit_plan_mode.requested" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.ExitPlanModeRequestedEvent),
+            "external_tool.completed" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.ExternalToolCompletedEvent),
+            "external_tool.requested" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.ExternalToolRequestedEvent),
+            "factory.run_settled" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.FactoryRunSettledEvent),
+            "factory.run_started" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.FactoryRunStartedEvent),
+            "factory.run_updated" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.FactoryRunUpdatedEvent),
+            "hook.end" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.HookEndEvent),
+            "hook.progress" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.HookProgressEvent),
+            "hook.start" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.HookStartEvent),
+            "mcp_app.tool_call_complete" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.McpAppToolCallCompleteEvent),
+            "mcp.headers_refresh_completed" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.McpHeadersRefreshCompletedEvent),
+            "mcp.headers_refresh_required" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.McpHeadersRefreshRequiredEvent),
+            "mcp.oauth_completed" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.McpOauthCompletedEvent),
+            "mcp.oauth_required" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.McpOauthRequiredEvent),
+            "mcp.prompts.list_changed" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.McpPromptsListChangedEvent),
+            "mcp.resources.list_changed" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.McpResourcesListChangedEvent),
+            "mcp.tools.list_changed" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.McpToolsListChangedEvent),
+            "model.call_failure" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.ModelCallFailureEvent),
+            "model.call_finished" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.ModelCallFinishedEvent),
+            "model.call_start" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.ModelCallStartEvent),
+            "pending_messages.modified" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.PendingMessagesModifiedEvent),
+            "permission.assentDetected" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.PermissionAssentDetectedEvent),
+            "permission.carriedForward" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.PermissionCarriedForwardEvent),
+            "permission.completed" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.PermissionCompletedEvent),
+            "permission.contextualAuthorization" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.PermissionContextualAuthorizationEvent),
+            "permission.messageAuthorization" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.PermissionMessageAuthorizationEvent),
+            "permission.messageAuthorizationDegraded" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.PermissionMessageAuthorizationDegradedEvent),
+            "permission.messageAuthorizationRead" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.PermissionMessageAuthorizationReadEvent),
+            "permission.requested" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.PermissionRequestedEvent),
+            "prompt_cache_break" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.PromptCacheBreakEvent),
+            "sampling.completed" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SamplingCompletedEvent),
+            "sampling.requested" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SamplingRequestedEvent),
+            "sandbox.decision" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SandboxDecisionEvent),
+            "session_limits_exhausted.completed" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SessionLimitsExhaustedCompletedEvent),
+            "session_limits_exhausted.requested" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SessionLimitsExhaustedRequestedEvent),
+            "session.auto_mode_resolved" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SessionAutoModeResolvedEvent),
+            "session.auto_tier_recommendation" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SessionAutoTierRecommendationEvent),
+            "session.auto_tier_switch_failed" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SessionAutoTierSwitchFailedEvent),
+            "session.autopilot_objective_changed" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SessionAutopilotObjectiveChangedEvent),
+            "session.background_tasks_changed" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SessionBackgroundTasksChangedEvent),
+            "session.binary_asset" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SessionBinaryAssetEvent),
+            "session.canvas.closed" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SessionCanvasClosedEvent),
+            "session.canvas.opened" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SessionCanvasOpenedEvent),
+            "session.canvas.recorded" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SessionCanvasRecordedEvent),
+            "session.canvas.registry_changed" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SessionCanvasRegistryChangedEvent),
+            "session.canvas.removed" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SessionCanvasRemovedEvent),
+            "session.canvas.unavailable" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SessionCanvasUnavailableEvent),
+            "session.compaction_complete" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SessionCompactionCompleteEvent),
+            "session.compaction_start" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SessionCompactionStartEvent),
+            "session.completion_receipt" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SessionCompletionReceiptEvent),
+            "session.context_changed" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SessionContextChangedEvent),
+            "session.context_cleared" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SessionContextClearedEvent),
+            "session.custom_agents_updated" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SessionCustomAgentsUpdatedEvent),
+            "session.custom_notification" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SessionCustomNotificationEvent),
+            "session.error" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SessionErrorEvent),
+            "session.extensions_loaded" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SessionExtensionsLoadedEvent),
+            "session.extensions.attachments_pushed" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SessionExtensionsAttachmentsPushedEvent),
+            "session.fusion_completed" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SessionFusionCompletedEvent),
+            "session.fusion_resolved" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SessionFusionResolvedEvent),
+            "session.fusion_route_failed" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SessionFusionRouteFailedEvent),
+            "session.fusion_route_started" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SessionFusionRouteStartedEvent),
+            "session.handoff" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SessionHandoffEvent),
+            "session.idle" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SessionIdleEvent),
+            "session.indexed_search" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SessionIndexedSearchEvent),
+            "session.info" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SessionInfoEvent),
+            "session.managed_settings_enforced" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SessionManagedSettingsEnforcedEvent),
+            "session.managed_settings_resolved" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SessionManagedSettingsResolvedEvent),
+            "session.mcp_server_needs_reconnect" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SessionMcpServerNeedsReconnectEvent),
+            "session.mcp_server_removed" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SessionMcpServerRemovedEvent),
+            "session.mcp_server_status_changed" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SessionMcpServerStatusChangedEvent),
+            "session.mcp_servers_loaded" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SessionMcpServersLoadedEvent),
+            "session.mode_changed" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SessionModeChangedEvent),
+            "session.mode_notice_delivered" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SessionModeNoticeDeliveredEvent),
+            "session.model_change" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SessionModelChangeEvent),
+            "session.model_deselected" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SessionModelDeselectedEvent),
+            "session.permission_recovery" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SessionPermissionRecoveryEvent),
+            "session.permissions_changed" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SessionPermissionsChangedEvent),
+            "session.plan_changed" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SessionPlanChangedEvent),
+            "session.remote_steerable_changed" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SessionRemoteSteerableChangedEvent),
+            "session.resume" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SessionResumeEvent),
+            "session.schedule_cancelled" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SessionScheduleCancelledEvent),
+            "session.schedule_created" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SessionScheduleCreatedEvent),
+            "session.schedule_rearmed" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SessionScheduleRearmedEvent),
+            "session.session_limits_changed" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SessionSessionLimitsChangedEvent),
+            "session.shutdown" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SessionShutdownEvent),
+            "session.skills_loaded" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SessionSkillsLoadedEvent),
+            "session.snapshot_rewind" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SessionSnapshotRewindEvent),
+            "session.start" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SessionStartEvent),
+            "session.task_complete" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SessionTaskCompleteEvent),
+            "session.title_changed" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SessionTitleChangedEvent),
+            "session.todos_changed" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SessionTodosChangedEvent),
+            "session.tools_updated" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SessionToolsUpdatedEvent),
+            "session.truncation" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SessionTruncationEvent),
+            "session.usage_checkpoint" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SessionUsageCheckpointEvent),
+            "session.usage_info" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SessionUsageInfoEvent),
+            "session.warning" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SessionWarningEvent),
+            "session.workspace_file_changed" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SessionWorkspaceFileChangedEvent),
+            "skill.context_delivered" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SkillContextDeliveredEvent),
+            "skill.context_delivered_ref" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SkillContextDeliveredRefEvent),
+            "skill.invoked" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SkillInvokedEvent),
+            "skill.invoked_ref" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SkillInvokedRefEvent),
+            "subagent.completed" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SubagentCompletedEvent),
+            "subagent.configured" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SubagentConfiguredEvent),
+            "subagent.deselected" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SubagentDeselectedEvent),
+            "subagent.failed" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SubagentFailedEvent),
+            "subagent.selected" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SubagentSelectedEvent),
+            "subagent.started" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SubagentStartedEvent),
+            "system.message" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SystemMessageEvent),
+            "system.notification" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.SystemNotificationEvent),
+            "tool_search.activated" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.ToolSearchActivatedEvent),
+            "tool.execution_complete" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.ToolExecutionCompleteEvent),
+            "tool.execution_partial_result" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.ToolExecutionPartialResultEvent),
+            "tool.execution_progress" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.ToolExecutionProgressEvent),
+            "tool.execution_start" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.ToolExecutionStartEvent),
+            "tool.user_requested" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.ToolUserRequestedEvent),
+            "ui.ephemeral_query" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.UiEphemeralQueryEvent),
+            "user_input.completed" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.UserInputCompletedEvent),
+            "user_input.requested" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.UserInputRequestedEvent),
+            "user.message" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.UserMessageEvent),
+            _ => DeserializeEnvelope(ref reader),
+        };
+    }
+
+    public override void Write(
+        Utf8JsonWriter writer,
+        SessionEvent value,
+        JsonSerializerOptions options) =>
+        JsonSerializer.Serialize(writer, value, SessionEventsJsonContext.Default.SessionEvent);
+
+    private static JsonSerializerOptions CreateSerializerOptions()
+    {
+        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web)
+        {
+            AllowOutOfOrderMetadataProperties = true,
+        };
+        options.Converters.Add(Default);
+        options.TypeInfoResolver = SessionEventJsonTypeInfoResolver.Default;
+        options.MakeReadOnly();
+        return options;
+    }
+
+    private static SessionEvent DeserializeEnvelope(ref Utf8JsonReader reader)
+    {
+        SessionEventEnvelope? envelope = JsonSerializer.Deserialize(
+            ref reader,
+            SessionEventsJsonContext.Default.SessionEventEnvelope);
+        return envelope?.ToSessionEvent()!;
+    }
+
+    private static string? ReadTypeDiscriminator(Utf8JsonReader reader)
+    {
+        // Intentionally scan a copy so the original reader remains at the event's first token.
+        while (reader.Read() && reader.TokenType == JsonTokenType.PropertyName)
+        {
+            if (reader.ValueTextEquals("type"))
+            {
+                reader.Read();
+                return reader.TokenType == JsonTokenType.String ? reader.GetString() : null;
+            }
+
+            reader.Read();
+            reader.Skip();
+        }
+
+        return null;
+    }
+}
+
+internal sealed class SessionEventJsonTypeInfoResolver : IJsonTypeInfoResolver
+{
+    internal static SessionEventJsonTypeInfoResolver Default { get; } = new();
+
+    public JsonTypeInfo? GetTypeInfo(Type type, JsonSerializerOptions options)
+    {
+        if (type != typeof(SessionEvent))
+        {
+            return null;
+        }
+
+        JsonTypeInfo typeInfo = JsonMetadataServices.CreateValueInfo<SessionEvent>(
+            options,
+            SessionEventJsonConverter.Default);
+        typeInfo.PolymorphismOptions = null;
+        return typeInfo;
+    }
+}
+
+internal sealed class SessionEventEnvelope
+{
+    /// <summary>Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("agentId")]
+    public string? AgentId { get; set; }
+
+    /// <summary>When true, the event is transient and not persisted to the session event log on disk.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("ephemeral")]
+    public bool? Ephemeral { get; set; }
+
+    /// <summary>Unique event identifier (UUID v4), generated when the event is emitted.</summary>
+    [JsonPropertyName("id")]
+    public Guid Id { get; set; }
+
+    /// <summary>ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.</summary>
+    [JsonPropertyName("parentId")]
+    public Guid? ParentId { get; set; }
+
+    /// <summary>ISO 8601 timestamp when the event was created.</summary>
+    [JsonPropertyName("timestamp")]
+    public DateTimeOffset Timestamp { get; set; }
+
+    internal SessionEvent ToSessionEvent() => new()
+    {
+        AgentId = AgentId,
+        Ephemeral = Ephemeral,
+        Id = Id,
+        ParentId = ParentId,
+        Timestamp = Timestamp,
+    };
 }
 
 /// <summary>Session initialization metadata including context and configuration.</summary>
@@ -20501,6 +20773,7 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(SessionErrorData))]
 [JsonSerializable(typeof(SessionErrorEvent))]
 [JsonSerializable(typeof(SessionEvent))]
+[JsonSerializable(typeof(SessionEventEnvelope))]
 [JsonSerializable(typeof(SessionExtensionsAttachmentsPushedData))]
 [JsonSerializable(typeof(SessionExtensionsAttachmentsPushedEvent))]
 [JsonSerializable(typeof(SessionExtensionsLoadedData))]

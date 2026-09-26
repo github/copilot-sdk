@@ -1502,6 +1502,7 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 
 namespace GitHub.Copilot;
 `);
@@ -1522,11 +1523,66 @@ namespace GitHub.Copilot;
     lines.push(`    /// <summary>`, `    /// The event type discriminator.`, `    /// </summary>`);
     lines.push(`    [JsonIgnore]`, `    public virtual string Type => "unknown";`, "");
     lines.push(`    /// <summary>Deserializes a JSON string into a <see cref="SessionEvent"/>.</summary>`);
-    lines.push(`    public static SessionEvent FromJson(string json) =>`, `        JsonSerializer.Deserialize(json, SessionEventsJsonContext.Default.SessionEvent)!;`, "");
+    lines.push(`    public static SessionEvent FromJson(string json) =>`, `        SessionEventJsonConverter.Deserialize(json);`, "");
     lines.push(`    /// <summary>Serializes this event to a JSON string.</summary>`);
     lines.push(`    public string ToJson() =>`, `        JsonSerializer.Serialize(this, SessionEventsJsonContext.Default.SessionEvent);`, "");
     lines.push(`    [DebuggerBrowsable(DebuggerBrowsableState.Never)]`, `    private string DebuggerDisplay => ToJson();`);
     lines.push(`}`, "");
+
+    lines.push(`internal sealed class SessionEventJsonConverter : JsonConverter<SessionEvent>`, `{`);
+    lines.push(`    internal static SessionEventJsonConverter Default { get; } = new();`, "");
+    lines.push(`    private static JsonSerializerOptions SerializerOptions { get; } = CreateSerializerOptions();`, "");
+    lines.push(`    private static JsonTypeInfo<SessionEvent> SerializerTypeInfo { get; } =`, `        (JsonTypeInfo<SessionEvent>)SerializerOptions.GetTypeInfo(typeof(SessionEvent));`, "");
+    lines.push(`    internal static SessionEvent Deserialize(string json) =>`, `        JsonSerializer.Deserialize(json, SerializerTypeInfo)!;`, "");
+    lines.push(`    public override SessionEvent? Read(`, `        ref Utf8JsonReader reader,`, `        Type typeToConvert,`, `        JsonSerializerOptions options)`, `    {`);
+    lines.push(`        string? type = ReadTypeDiscriminator(reader);`);
+    lines.push(`        return type switch`, `        {`);
+    for (const variant of [...variants].sort((a, b) => a.typeName.localeCompare(b.typeName))) {
+        lines.push(
+            `            "${escapeCSharpStringLiteral(variant.typeName)}" => JsonSerializer.Deserialize(ref reader, SessionEventsJsonContext.Default.${variant.className}),`
+        );
+    }
+    lines.push(`            _ => DeserializeEnvelope(ref reader),`, `        };`, `    }`, "");
+    lines.push(`    public override void Write(`, `        Utf8JsonWriter writer,`, `        SessionEvent value,`, `        JsonSerializerOptions options) =>`, `        JsonSerializer.Serialize(writer, value, SessionEventsJsonContext.Default.SessionEvent);`, "");
+    lines.push(`    private static JsonSerializerOptions CreateSerializerOptions()`, `    {`);
+    lines.push(`        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web)`, `        {`, `            AllowOutOfOrderMetadataProperties = true,`, `        };`);
+    lines.push(`        options.Converters.Add(Default);`);
+    lines.push(`        options.TypeInfoResolver = SessionEventJsonTypeInfoResolver.Default;`);
+    lines.push(`        options.MakeReadOnly();`);
+    lines.push(`        return options;`, `    }`, "");
+    lines.push(`    private static SessionEvent DeserializeEnvelope(ref Utf8JsonReader reader)`, `    {`);
+    lines.push(`        SessionEventEnvelope? envelope = JsonSerializer.Deserialize(`, `            ref reader,`, `            SessionEventsJsonContext.Default.SessionEventEnvelope);`);
+    lines.push(`        return envelope?.ToSessionEvent()!;`, `    }`, "");
+    lines.push(`    private static string? ReadTypeDiscriminator(Utf8JsonReader reader)`, `    {`);
+    lines.push(`        // Intentionally scan a copy so the original reader remains at the event's first token.`);
+    lines.push(`        while (reader.Read() && reader.TokenType == JsonTokenType.PropertyName)`, `        {`);
+    lines.push(`            if (reader.ValueTextEquals("type"))`, `            {`);
+    lines.push(`                reader.Read();`);
+    lines.push(`                return reader.TokenType == JsonTokenType.String ? reader.GetString() : null;`, `            }`, "");
+    lines.push(`            reader.Read();`);
+    lines.push(`            reader.Skip();`, `        }`, "");
+    lines.push(`        return null;`, `    }`);
+    lines.push(`}`, "");
+
+    lines.push(`internal sealed class SessionEventJsonTypeInfoResolver : IJsonTypeInfoResolver`, `{`);
+    lines.push(`    internal static SessionEventJsonTypeInfoResolver Default { get; } = new();`, "");
+    lines.push(`    public JsonTypeInfo? GetTypeInfo(Type type, JsonSerializerOptions options)`, `    {`);
+    lines.push(`        if (type != typeof(SessionEvent))`, `        {`, `            return null;`, `        }`, "");
+    lines.push(`        JsonTypeInfo typeInfo = JsonMetadataServices.CreateValueInfo<SessionEvent>(`, `            options,`, `            SessionEventJsonConverter.Default);`);
+    lines.push(`        typeInfo.PolymorphismOptions = null;`);
+    lines.push(`        return typeInfo;`, `    }`);
+    lines.push(`}`, "");
+
+    lines.push(`internal sealed class SessionEventEnvelope`, `{`);
+    for (const property of envelopeProperties) {
+        lines.push(...emitSessionEventEnvelopeProperty(property, knownTypes, nestedClasses, enumOutput));
+    }
+    lines.push(`    internal SessionEvent ToSessionEvent() => new()`, `    {`);
+    for (const property of envelopeProperties) {
+        const csharpName = toCSharpPropertyName(property.name, property.schema);
+        lines.push(`        ${csharpName} = ${csharpName},`);
+    }
+    lines.push(`    };`, `}`, "");
 
     // Event classes with XML docs
     for (const variant of variants) {
@@ -1569,7 +1625,7 @@ namespace GitHub.Copilot;
     for (const code of enumOutput) lines.push(code);
 
     // JsonSerializerContext
-    const types = ["SessionEvent", ...variants.flatMap((v) => [v.className, v.dataClassName]), ...nestedClasses.keys()].sort();
+    const types = ["SessionEvent", "SessionEventEnvelope", ...variants.flatMap((v) => [v.className, v.dataClassName]), ...nestedClasses.keys()].sort();
     lines.push(`[JsonSourceGenerationOptions(`, `    JsonSerializerDefaults.Web,`, `    AllowOutOfOrderMetadataProperties = true,`, `    NumberHandling = JsonNumberHandling.AllowReadingFromString,`, `    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]`);
     for (const t of types) lines.push(`[JsonSerializable(typeof(${t}))]`);
     lines.push(`[JsonSerializable(typeof(JsonElement))]`);
