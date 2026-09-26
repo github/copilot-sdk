@@ -240,6 +240,9 @@ func TestPermissionsE2E(t *testing.T) {
 		if _, err = session1.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "What is 1+1?"}); err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}
+		if err := session1.Disconnect(); err != nil {
+			t.Fatalf("Failed to disconnect session: %v", err)
+		}
 
 		session2, err := client.ResumeSession(t.Context(), sessionID, &copilot.ResumeSessionConfig{
 			OnPermissionRequest: func(request copilot.PermissionRequest, invocation copilot.PermissionInvocation) (rpc.PermissionDecision, error) {

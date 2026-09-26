@@ -3338,6 +3338,83 @@ type DebugCollectLogsSkippedEntry struct {
 	Reason string `json:"reason"`
 }
 
+// Experimental: DiagnosticEntry is part of an experimental API and may change or be removed.
+type DiagnosticEntry struct {
+	// Agent identifier for a subagent host. Omitted for the root agent.
+	AgentID *string `json:"agentId,omitempty"`
+	// Typed MCP diagnostic detail.
+	Details MCPDiagnosticDetails `json:"details"`
+	// Severity of this emitted diagnostic record.
+	Level DiagnosticSeverity `json:"level"`
+	// Human-readable diagnostic summary.
+	Message string `json:"message"`
+	// Original byte count when a known-size message or data value was truncated.
+	OriginalBytes *int64 `json:"originalBytes,omitempty"`
+	// Diagnostic source identifying the typed details payload.
+	Source DiagnosticEntrySource `json:"source"`
+	// UTC RFC 3339 timestamp captured at the diagnostic source.
+	Timestamp string `json:"timestamp"`
+	// Whether message or data was truncated to the record-size bound.
+	Truncated *bool `json:"truncated,omitempty"`
+}
+
+// Per-source session diagnostics configuration.
+// Experimental: DiagnosticsConfiguration is part of an experimental API and may change or
+// be removed.
+type DiagnosticsConfiguration struct {
+	// Diagnostic thresholds keyed by supported source.
+	Sources DiagnosticSourcesConfiguration `json:"sources"`
+}
+
+// Patch session diagnostic thresholds for explicitly supplied sources.
+// Experimental: DiagnosticsConfigureRequest is part of an experimental API and may change
+// or be removed.
+type DiagnosticsConfigureRequest struct {
+	// Sources to configure. At least one supported source must be supplied.
+	Sources DiagnosticSourcesConfiguration `json:"sources"`
+}
+
+// Typed diagnostic source configuration. At least one source is required by diagnostics
+// configuration methods.
+// Experimental: DiagnosticSourcesConfiguration is part of an experimental API and may
+// change or be removed.
+type DiagnosticSourcesConfiguration struct {
+	// MCP diagnostic capture threshold. Omit to leave the current threshold unchanged.
+	MCP *MCPDiagnosticSourceConfiguration `json:"mcp,omitempty"`
+}
+
+// Cursor-based request for session diagnostics. The default limit is 100 (maximum 500); the
+// default waitMs is zero (maximum 30000).
+// Experimental: DiagnosticsReadRequest is part of an experimental API and may change or be
+// removed.
+type DiagnosticsReadRequest struct {
+	// Opaque cursor returned by an earlier read. Omit to start at the oldest retained record.
+	Cursor *string `json:"cursor,omitempty"`
+	// Maximum number of records to return, from 1 through 500. Omit for 100.
+	Max *int64 `json:"max,omitempty"`
+	// Nonempty selection of sources to read. Each source may be listed once.
+	Sources []DiagnosticSource `json:"sources"`
+	// Maximum time in milliseconds to wait for a new record, from 0 through 30000.
+	WaitMs *int32 `json:"waitMs,omitempty"`
+}
+
+// One cursor-addressed page of retained session diagnostics.
+// Experimental: DiagnosticsReadResult is part of an experimental API and may change or be
+// removed.
+type DiagnosticsReadResult struct {
+	// Opaque cursor for the next independent read.
+	Cursor string `json:"cursor"`
+	// Whether the requested cursor remained within the retained buffer window.
+	CursorStatus DiagnosticCursorStatus `json:"cursorStatus"`
+	// Number of records lost before this page when known. Omitted when a buffer generation
+	// change makes the count unknowable.
+	DroppedCount *int64 `json:"droppedCount,omitempty"`
+	// Retained records beginning at the requested cursor.
+	Entries []DiagnosticEntry `json:"entries"`
+	// Whether additional retained records follow this page.
+	HasMore bool `json:"hasMore"`
+}
+
 // Canvas available in the current session.
 // Experimental: DiscoveredCanvas is part of an experimental API and may change or be
 // removed.
@@ -6212,6 +6289,30 @@ type MCPConfigureGitHubRequest struct {
 type MCPConfigureGitHubResult struct {
 	// Whether GitHub MCP configuration changed.
 	Changed bool `json:"changed"`
+}
+
+// MCP-specific detail for a source-discriminated diagnostic entry.
+// Experimental: MCPDiagnosticDetails is part of an experimental API and may change or be
+// removed.
+type MCPDiagnosticDetails struct {
+	// Fresh identifier for the MCP connection attempt, including failed starts.
+	ConnectionID string `json:"connectionId"`
+	// Serialized diagnostic detail. Protocol and HTTP records use JSON when detail is present.
+	Data *string `json:"data,omitempty"`
+	// Protocol-frame direction when kind is protocol.
+	Direction *MCPDiagnosticDirection `json:"direction,omitempty"`
+	// Diagnostic record category.
+	Kind MCPDiagnosticKind `json:"kind"`
+	// Configured MCP server name.
+	ServerName string `json:"serverName"`
+}
+
+// MCP diagnostic source configuration.
+// Experimental: MCPDiagnosticSourceConfiguration is part of an experimental API and may
+// change or be removed.
+type MCPDiagnosticSourceConfiguration struct {
+	// Threshold to apply to MCP diagnostic producers in this session.
+	Level DiagnosticLogLevel `json:"level"`
 }
 
 // Name of the MCP server to disable for the session.
@@ -11383,6 +11484,12 @@ type QueuePendingItems struct {
 	// Stable identity of the queued user message. Present for message rows and absent for slash
 	// commands and model changes.
 	MessageID *string `json:"messageId,omitempty"`
+	// Optional source tag associated with this pending queue entry. This is an open string, not
+	// authenticated authorship. In particular, `user` does not prove that a person typed the
+	// message. If the source is absent or unrecognized, consumers must not infer human or agent
+	// authorship and should handle the entry neutrally. Consumers should tolerate future source
+	// values.
+	Source *string `json:"source,omitempty"`
 }
 
 // Snapshot of the session's pending queued items and immediate-steering messages.
@@ -11399,6 +11506,12 @@ type QueuePendingItemsResult struct {
 	// Display text for messages currently in the immediate steering queue (interjections sent
 	// during a running turn).
 	SteeringMessages []string `json:"steeringMessages"`
+	// ID of the running turn's user message while the model has not answered it, so
+	// `withdrawMessage` can still take it back once nothing sent after it is pending. A message
+	// leaves `items` when its turn starts, before its `user.message` is recorded; this tells
+	// that message apart from one that was removed. Absent when no turn prompt can be taken
+	// back.
+	WithdrawableTurnMessageID *string `json:"withdrawableTurnMessageId,omitempty"`
 }
 
 // Parameters for removing a queued item by stable id.
@@ -11491,8 +11604,8 @@ type QueueUpdateTextResult struct {
 	Updated bool `json:"updated"`
 }
 
-// Conditional withdrawal of a single user message, before the runtime claims it for
-// delivery.
+// Conditional withdrawal of a single user message, from its queue or from the running turn
+// it started.
 // Experimental: QueueWithdrawMessageRequest is part of an experimental API and may change
 // or be removed.
 type QueueWithdrawMessageRequest struct {
@@ -11501,6 +11614,18 @@ type QueueWithdrawMessageRequest struct {
 	ExpectedPrompt string `json:"expectedPrompt"`
 	// Message identity returned by send, not the queue item id. Batch messages are not eligible.
 	MessageID string `json:"messageId"`
+}
+
+// Result of withdrawing a user message.
+// Experimental: QueueWithdrawMessageResult is part of an experimental API and may change or
+// be removed.
+type QueueWithdrawMessageResult struct {
+	// True when the running turn was interrupted to withdraw the message. With removed false,
+	// the turn was interrupted but its events could not be removed, for example because the
+	// model answered first, so the message stays in the interrupted turn.
+	Interrupted bool `json:"interrupted"`
+	// True when the message left the queue or, for a running turn, history.
+	Removed bool `json:"removed"`
 }
 
 // Event type to register consumer interest for, used by runtime gating logic.
@@ -11995,6 +12120,64 @@ type SandboxEnforcementStatus struct {
 	Reason *string `json:"reason,omitempty"`
 	// Whether the effective managed policy requires an available sandbox backend.
 	Required bool `json:"required"`
+}
+
+// Whether this host can run one sandbox policy feature. A session whose effective policy
+// uses an unsupported feature fails each sandboxed command with `reason`.
+// Experimental: SandboxHostCapability is part of an experimental API and may change or be
+// removed.
+type SandboxHostCapability struct {
+	// The policy feature, as an extensible string: ignore names you do not recognize. Known
+	// values: `network` (sandboxed commands can reach the network; on Linux this needs the
+	// tooling for Bubblewrap's private network namespace, such as slirp4netns),
+	// `network_filtering` (host rules and the sandbox proxy; on Linux this needs the same
+	// tooling as `network`; on Windows it needs Process Security Environment 1.1 host-loopback
+	// support, and a policy that uses it must also set `network.allowLocalNetwork`),
+	// `denied_paths` (native enforcement of `filesystem.deniedPaths`), and `shell` (shell
+	// commands inside the sandbox; on Windows this needs Process Security Environment 1.1
+	// filesystem enumeration support).
+	Name string `json:"name"`
+	// Human-readable reason and remedy when the feature is unsupported, such as a package to
+	// install or an OS update. Present only when `supported` is false.
+	Reason *string `json:"reason,omitempty"`
+	// Whether this host can run the feature.
+	Supported bool `json:"supported"`
+}
+
+// Extensible identifier of a sandbox policy feature whose availability varies between
+// hosts. A plain string, so an older client decodes a name added by a newer runtime; ignore
+// names you do not recognize. Known values: `network` — sandboxed commands can reach the
+// network (`network.allowOutbound`, on by default); on Linux this needs the tooling for
+// Bubblewrap's private network namespace, such as slirp4netns. `network_filtering` — host
+// rules and the sandbox proxy (`network.allowedHosts`, `network.blockedHosts`,
+// `network.proxy`); on Linux this needs the same tooling as `network`; on Windows it needs
+// a version with Process Security Environment 1.1 host-loopback support, and a policy that
+// uses it must also set `network.allowLocalNetwork`, because Windows reaches the local
+// proxy only together with private-network access. `denied_paths` — native enforcement of
+// `filesystem.deniedPaths`; on Windows this needs a version whose sandbox contract reports
+// denied-path support. `shell` — shell commands inside the sandbox: bash on macOS and
+// Linux, PowerShell on Windows; on Windows this needs a version with Process Security
+// Environment 1.1 filesystem enumeration support.
+// Experimental: SandboxHostCapabilityName is part of an experimental API and may change or
+// be removed.
+type SandboxHostCapabilityName string
+
+// Whether the host running this runtime can run the command sandbox. The runtime checks
+// `supported` once per process. A capability answer can change while the process runs, for
+// example after the user installs a missing package.
+// Experimental: SandboxHostSupport is part of an experimental API and may change or be
+// removed.
+type SandboxHostSupport struct {
+	// Sandbox policy features whose availability varies between hosts that can run the backend.
+	// Empty when `supported` is false, because no feature can run without a backend. Later
+	// runtimes can add entries; ignore an entry whose `name` you do not recognize.
+	Capabilities []SandboxHostCapability `json:"capabilities"`
+	// Human-readable reason the sandbox cannot run on this host. Present only when `supported`
+	// is false.
+	Reason *string `json:"reason,omitempty"`
+	// Whether a process-containment backend is usable on this host: Seatbelt on macOS,
+	// Bubblewrap on Linux, or ProcessContainer on Windows.
+	Supported bool `json:"supported"`
 }
 
 // Register an absolute-time scheduled prompt.
@@ -13171,6 +13354,11 @@ type SessionInstalledPluginSourceURL struct {
 	Source SessionInstalledPluginSourceURLSource `json:"source"`
 	// URL of the plugin source.
 	URL string `json:"url"`
+}
+
+// Experimental: SessionInstructionsReloadResult is part of an experimental API and may
+// change or be removed.
+type SessionInstructionsReloadResult struct {
 }
 
 // Baseline data provenance for a prediction.
@@ -19885,6 +20073,74 @@ const (
 	DebugCollectLogsSourceShellLog DebugCollectLogsSource = "shell-log"
 )
 
+// Whether the supplied diagnostic cursor remained within the retained buffer window.
+// Experimental: DiagnosticCursorStatus is part of an experimental API and may change or be
+// removed.
+type DiagnosticCursorStatus string
+
+const (
+	// The cursor no longer addresses retained records; reading resumes at the oldest retained
+	// record.
+	DiagnosticCursorStatusExpired DiagnosticCursorStatus = "expired"
+	// The cursor is valid for the current retained window.
+	DiagnosticCursorStatusOk DiagnosticCursorStatus = "ok"
+)
+
+// Diagnostic source identifying the typed details payload.
+type DiagnosticEntrySource string
+
+const (
+	DiagnosticEntrySourceMCP DiagnosticEntrySource = "mcp"
+)
+
+// Session-scoped diagnostic threshold. Capture is disabled by default and is never
+// persisted with the session.
+// Experimental: DiagnosticLogLevel is part of an experimental API and may change or be
+// removed.
+type DiagnosticLogLevel string
+
+const (
+	// Capture protocol frames and launch diagnostics.
+	DiagnosticLogLevelDebug DiagnosticLogLevel = "debug"
+	// Capture failures only.
+	DiagnosticLogLevelError DiagnosticLogLevel = "error"
+	// Capture lifecycle diagnostics.
+	DiagnosticLogLevelInfo DiagnosticLogLevel = "info"
+	// Disable capture and clear retained diagnostics.
+	DiagnosticLogLevelOff DiagnosticLogLevel = "off"
+	// Capture HTTP metadata in addition to debug diagnostics.
+	DiagnosticLogLevelTrace DiagnosticLogLevel = "trace"
+	// Capture failures, warnings, and stderr.
+	DiagnosticLogLevelWarning DiagnosticLogLevel = "warning"
+)
+
+// Severity of an emitted diagnostic record.
+// Experimental: DiagnosticSeverity is part of an experimental API and may change or be
+// removed.
+type DiagnosticSeverity string
+
+const (
+	// Protocol-frame or launch diagnostic.
+	DiagnosticSeverityDebug DiagnosticSeverity = "debug"
+	// Failure that prevented or interrupted communication.
+	DiagnosticSeverityError DiagnosticSeverity = "error"
+	// Lifecycle transition.
+	DiagnosticSeverityInfo DiagnosticSeverity = "info"
+	// HTTP metadata diagnostic.
+	DiagnosticSeverityTrace DiagnosticSeverity = "trace"
+	// A recoverable warning or server standard-error output.
+	DiagnosticSeverityWarning DiagnosticSeverity = "warning"
+)
+
+// A supported diagnostic source.
+// Experimental: DiagnosticSource is part of an experimental API and may change or be
+// removed.
+type DiagnosticSource string
+
+const (
+	DiagnosticSourceMCP DiagnosticSource = "mcp"
+)
+
 // Effective extension loading and agent-management mode
 // Experimental: DiscoveredExtensionMode is part of an experimental API and may change or be
 // removed.
@@ -20621,6 +20877,34 @@ const (
 	MCPAppsSetHostContextDetailsThemeDark MCPAppsSetHostContextDetailsTheme = "dark"
 	// Light UI theme
 	MCPAppsSetHostContextDetailsThemeLight MCPAppsSetHostContextDetailsTheme = "light"
+)
+
+// Direction of an observed MCP protocol frame.
+// Experimental: MCPDiagnosticDirection is part of an experimental API and may change or be
+// removed.
+type MCPDiagnosticDirection string
+
+const (
+	// Frame emitted by the Copilot MCP client.
+	MCPDiagnosticDirectionClientToServer MCPDiagnosticDirection = "client-to-server"
+	// Frame received from the MCP server.
+	MCPDiagnosticDirectionServerToClient MCPDiagnosticDirection = "server-to-client"
+)
+
+// Category for an MCP diagnostic record.
+// Experimental: MCPDiagnosticKind is part of an experimental API and may change or be
+// removed.
+type MCPDiagnosticKind string
+
+const (
+	// HTTP request or response metadata.
+	MCPDiagnosticKindHTTP MCPDiagnosticKind = "http"
+	// Connection lifecycle transition or failure.
+	MCPDiagnosticKindLifecycle MCPDiagnosticKind = "lifecycle"
+	// JSON-RPC protocol frame.
+	MCPDiagnosticKindProtocol MCPDiagnosticKind = "protocol"
+	// Local MCP server standard-error output.
+	MCPDiagnosticKindStderr MCPDiagnosticKind = "stderr"
 )
 
 // Structured MCP elicitation mode.
@@ -24180,6 +24464,29 @@ func (a *ServerRuntimeAPI) Shutdown(ctx context.Context) (*RuntimeShutdownResult
 	return &result, nil
 }
 
+// Experimental: ServerSandboxAPI contains experimental APIs that may change or be removed.
+type ServerSandboxAPI serverAPI
+
+// GetHostSupport reports whether the host running this runtime can run the command sandbox,
+// without starting a session or spawning a sandboxed command.
+//
+// RPC method: sandbox.getHostSupport.
+//
+// Returns: Whether the host running this runtime can run the command sandbox. The runtime
+// checks `supported` once per process. A capability answer can change while the process
+// runs, for example after the user installs a missing package.
+func (a *ServerSandboxAPI) GetHostSupport(ctx context.Context) (*SandboxHostSupport, error) {
+	raw, err := a.client.Request(ctx, "sandbox.getHostSupport", nil)
+	if err != nil {
+		return nil, err
+	}
+	var result SandboxHostSupport
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // Experimental: ServerSecretsAPI contains experimental APIs that may change or be removed.
 type ServerSecretsAPI serverAPI
 
@@ -24984,6 +25291,7 @@ type ServerRPC struct {
 	Models          *ServerModelsAPI
 	Plugins         *ServerPluginsAPI
 	Runtime         *ServerRuntimeAPI
+	Sandbox         *ServerSandboxAPI
 	Secrets         *ServerSecretsAPI
 	SessionFS       *ServerSessionFSAPI
 	Sessions        *ServerSessionsAPI
@@ -25049,6 +25357,7 @@ func NewServerRPC(client *jsonrpc2.Client) *ServerRPC {
 	r.Models = (*ServerModelsAPI)(&r.common)
 	r.Plugins = (*ServerPluginsAPI)(&r.common)
 	r.Runtime = (*ServerRuntimeAPI)(&r.common)
+	r.Sandbox = (*ServerSandboxAPI)(&r.common)
 	r.Secrets = (*ServerSecretsAPI)(&r.common)
 	r.SessionFS = (*ServerSessionFSAPI)(&r.common)
 	r.Sessions = (*ServerSessionsAPI)(&r.common)
@@ -26044,6 +26353,30 @@ func (a *ContentExclusionAPI) CheckPaths(ctx context.Context, params *ContentExc
 	return &result, nil
 }
 
+// Experimental: CustomizationsAPI contains experimental APIs that may change or be removed.
+type CustomizationsAPI sessionAPI
+
+// Reloads all repository and user customizations for the active session: instructions,
+// plugins and their MCP servers and hooks, custom agents, extensions, and skills. Returns
+// diagnostics from the final skill reload.
+//
+// RPC method: session.customizations.reload.
+//
+// Returns: Diagnostics from reloading skill definitions, with warnings and errors as
+// separate lists.
+func (a *CustomizationsAPI) Reload(ctx context.Context) (*SkillsLoadDiagnostics, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request(ctx, "session.customizations.reload", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SkillsLoadDiagnostics
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // Experimental: DebugAPI contains experimental APIs that may change or be removed.
 type DebugAPI sessionAPI
 
@@ -26074,6 +26407,68 @@ func (a *DebugAPI) CollectLogs(ctx context.Context, params *DebugCollectLogsRequ
 		return nil, err
 	}
 	var result DebugCollectLogsResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Experimental: DiagnosticsAPI contains experimental APIs that may change or be removed.
+type DiagnosticsAPI sessionAPI
+
+// Configure patches configured session diagnostic sources without restarting their
+// producers. Setting a source level to off clears its retained diagnostics and invalidates
+// cursors selecting that source.
+//
+// RPC method: session.diagnostics.configure.
+//
+// Parameters: Patch session diagnostic thresholds for explicitly supplied sources.
+//
+// Returns: Per-source session diagnostics configuration.
+func (a *DiagnosticsAPI) Configure(ctx context.Context, params *DiagnosticsConfigureRequest) (*DiagnosticsConfiguration, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["sources"] = params.Sources
+	}
+	raw, err := a.client.Request(ctx, "session.diagnostics.configure", req)
+	if err != nil {
+		return nil, err
+	}
+	var result DiagnosticsConfiguration
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Reads a bounded batch of retained session diagnostics for the selected sources. Records
+// are never consumed and each reader advances independently through its opaque cursor.
+//
+// RPC method: session.diagnostics.read.
+//
+// Parameters: Cursor-based request for session diagnostics. The default limit is 100
+// (maximum 500); the default waitMs is zero (maximum 30000).
+//
+// Returns: One cursor-addressed page of retained session diagnostics.
+func (a *DiagnosticsAPI) Read(ctx context.Context, params *DiagnosticsReadRequest) (*DiagnosticsReadResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		if params.Cursor != nil {
+			req["cursor"] = *params.Cursor
+		}
+		if params.Max != nil {
+			req["max"] = *params.Max
+		}
+		req["sources"] = params.Sources
+		if params.WaitMs != nil {
+			req["waitMs"] = *params.WaitMs
+		}
+	}
+	raw, err := a.client.Request(ctx, "session.diagnostics.read", req)
+	if err != nil {
+		return nil, err
+	}
+	var result DiagnosticsReadResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -26960,6 +27355,23 @@ func (a *InstructionsAPI) GetSources(ctx context.Context) (*InstructionsGetSourc
 		return nil, err
 	}
 	var result InstructionsGetSourcesResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Reload invalidates cached custom-instruction discovery so subsequent turns and source
+// reads observe instruction files currently on disk.
+//
+// RPC method: session.instructions.reload.
+func (a *InstructionsAPI) Reload(ctx context.Context) (*SessionInstructionsReloadResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request(ctx, "session.instructions.reload", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionInstructionsReloadResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -30049,17 +30461,19 @@ func (a *QueueAPI) UpdateText(ctx context.Context, params *QueueUpdateTextReques
 	return &result, nil
 }
 
-// WithdrawMessage atomically withdraws an unchanged, unconsumed user message from the local
-// queued or steering lane. A client retaining the original draft may restore it only when
-// removed is true. Does not interrupt the running turn.
+// WithdrawMessage atomically withdraws an unchanged user message of a local session: from
+// the queued or steering lane while unconsumed, or from the running turn it started while
+// the model has not answered it and nothing the user sent after it is pending. Withdrawing
+// from the running turn interrupts that turn and removes its events from history. A client
+// retaining the original draft may restore it only when removed is true.
 //
 // RPC method: session.queue.withdrawMessage.
 //
-// Parameters: Conditional withdrawal of a single user message, before the runtime claims it
-// for delivery.
+// Parameters: Conditional withdrawal of a single user message, from its queue or from the
+// running turn it started.
 //
-// Returns: Result of removing a queued item.
-func (a *QueueAPI) WithdrawMessage(ctx context.Context, params *QueueWithdrawMessageRequest) (*QueueRemoveAtResult, error) {
+// Returns: Result of withdrawing a user message.
+func (a *QueueAPI) WithdrawMessage(ctx context.Context, params *QueueWithdrawMessageRequest) (*QueueWithdrawMessageResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["expectedPrompt"] = params.ExpectedPrompt
@@ -30069,7 +30483,7 @@ func (a *QueueAPI) WithdrawMessage(ctx context.Context, params *QueueWithdrawMes
 	if err != nil {
 		return nil, err
 	}
-	var result QueueRemoveAtResult
+	var result QueueWithdrawMessageResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -32217,7 +32631,9 @@ type SessionRPC struct {
 	Completions        *CompletionsAPI
 	Connectors         *ConnectorsAPI
 	ContentExclusion   *ContentExclusionAPI
+	Customizations     *CustomizationsAPI
 	Debug              *DebugAPI
+	Diagnostics        *DiagnosticsAPI
 	EventLog           *EventLogAPI
 	Extensions         *ExtensionsAPI
 	Factory            *FactoryAPI
@@ -32555,7 +32971,9 @@ func NewSessionRPC(client *jsonrpc2.Client, sessionID string) *SessionRPC {
 	r.Completions = (*CompletionsAPI)(&r.common)
 	r.Connectors = (*ConnectorsAPI)(&r.common)
 	r.ContentExclusion = (*ContentExclusionAPI)(&r.common)
+	r.Customizations = (*CustomizationsAPI)(&r.common)
 	r.Debug = (*DebugAPI)(&r.common)
+	r.Diagnostics = (*DiagnosticsAPI)(&r.common)
 	r.EventLog = (*EventLogAPI)(&r.common)
 	r.Extensions = (*ExtensionsAPI)(&r.common)
 	r.Factory = (*FactoryAPI)(&r.common)

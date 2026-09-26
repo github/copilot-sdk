@@ -535,6 +535,7 @@ class McpAuthStaticClientConfig(TypedDict, total=False):
     clientSecret: str
     grantType: Literal["client_credentials"]
     publicClient: bool
+    scope: str
 
 
 class McpAuthRequest(TypedDict, total=False):
@@ -1883,6 +1884,11 @@ class CopilotSession:
         has finished processing the message.
 
         Events are still delivered to handlers registered via :meth:`on` while waiting.
+        Synchronous handlers registered before this call finish processing the
+        completing root session.idle event before it returns successfully.
+        This does not wait for asynchronous work started by a handler.
+        Sub-agent events with a non-empty ``agent_id`` do not complete the wait
+        or supply its reply.
 
         Args:
             prompt: The message text to send.
@@ -1942,6 +1948,8 @@ class CopilotSession:
 
         def handler(event: SessionEventTypeAlias) -> None:
             nonlocal first_assistant_message_logged, last_assistant_message, error_event
+            if event.agent_id:
+                return
             match event.data:
                 case AssistantMessageData():
                     last_assistant_message = event
@@ -2327,6 +2335,8 @@ class CopilotSession:
                         static_client_config["publicClient"] = (
                             data.static_client_config.public_client
                         )
+                    if data.static_client_config.scope is not None:
+                        static_client_config["scope"] = data.static_client_config.scope
                     request["staticClientConfig"] = static_client_config
                 asyncio.ensure_future(self._execute_mcp_auth_and_respond(request, handler))
 

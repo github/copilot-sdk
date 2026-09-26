@@ -1029,21 +1029,44 @@ class TestSessions:
     async def test_sendandwait_blocks_until_session_idle_and_returns_final_assistant_message(
         self, ctx: E2ETestContext
     ):
-        """`send_and_wait` blocks until idle and returns the final assistant message."""
+        """The synchronous root-idle listener finishes before `send_and_wait` returns."""
+        import asyncio
+
         session = await ctx.client.create_session(
             on_permission_request=PermissionHandler.approve_all,
         )
         events: list[str] = []
-        session.on(lambda evt: events.append(evt.type.value))
+        ordering: list[str] = []
+        waiter_pending: list[bool] = []
+        listener_loops = []
+        loop = asyncio.get_running_loop()
 
-        response = await session.send_and_wait("What is 2+2?")
-        assert response is not None
-        assert response.type.value == "assistant.message"
-        assert "4" in (response.data.content or "")
-        assert "session.idle" in events
-        assert "assistant.message" in events
+        def on_event(event):
+            events.append(event.type.value)
+            if event.type.value == "session.idle" and not event.agent_id:
+                ordering.append("listener entered")
+                listener_loops.append(asyncio.get_running_loop())
+                waiter_pending.append(not send_task.done())
+                # Dispatch is synchronous on the asyncio loop, even though the
+                # JSON-RPC reader is a thread. A blocking gate would deadlock it.
+                ordering.append("listener completed")
 
-        await session.disconnect()
+        unsubscribe = session.on(on_event)
+        try:
+            send_task = asyncio.create_task(session.send_and_wait("What is 2+2?"))
+            response = await send_task
+            ordering.append("wait returned")
+            assert ordering == ["listener entered", "listener completed", "wait returned"]
+            assert waiter_pending == [True]
+            assert listener_loops == [loop]
+            assert response is not None
+            assert response.type.value == "assistant.message"
+            assert "4" in (response.data.content or "")
+            assert "session.idle" in events
+            assert "assistant.message" in events
+        finally:
+            unsubscribe()
+            await session.disconnect()
 
     async def test_sendandwait_throws_on_timeout(self, ctx: E2ETestContext):
         """`send_and_wait` raises TimeoutError when the session does not become idle."""

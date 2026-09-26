@@ -1,0 +1,126 @@
+models:
+  - claude-sonnet-5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Reply with READY.
+      - role: assistant
+        content: READY
+      - role: user
+        content: >-
+          <tools_changed_notice>
+
+          New tools available: skill
+
+          </tools_changed_notice>
+
+
+          Use the skill tool to load late-skill, then use the task tool to ask a task agent to load late-skill with the skill tool and report its verification word. Report the agent's word.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: skill
+              arguments: '{"skill":"late-skill"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Skill "late-skill" loaded successfully. Follow the instructions in the skill context.
+      - role: user
+        content: >-
+          <skill-context name="late-skill">
+
+          Base directory for this skill: ${workdir}/.late_skills/late-skill
+
+
+          The verification word is ORCHID_SAPPHIRE_73.
+
+
+          </skill-context>
+      - role: assistant
+        tool_calls:
+          - id: toolcall_1
+            type: function
+            function:
+              name: task
+              arguments: '{"agent_type":"task","name":"check-late-skill","description":"Reading verification word","prompt":"Use the skill tool to load late-skill and report its verification word.","mode":"sync"}'
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Use the skill tool to load late-skill and report its verification word.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: skill
+              arguments: '{"skill":"late-skill"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Skill "late-skill" loaded successfully. Follow the instructions in the skill context.
+      - role: user
+        content: >-
+          <skill-context name="late-skill">
+
+          Base directory for this skill: ${workdir}/.late_skills/late-skill
+
+
+          The verification word is ORCHID_SAPPHIRE_73.
+
+
+          </skill-context>
+      - role: assistant
+        content: ORCHID_SAPPHIRE_73
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Reply with READY.
+      - role: assistant
+        content: READY
+      - role: user
+        content: >-
+          <tools_changed_notice>
+
+          New tools available: skill
+
+          </tools_changed_notice>
+
+
+          Use the skill tool to load late-skill, then use the task tool to ask a task agent to load late-skill with the skill tool and report its verification word. Report the agent's word.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: skill
+              arguments: '{"skill":"late-skill"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Skill "late-skill" loaded successfully. Follow the instructions in the skill context.
+      - role: user
+        content: >-
+          <skill-context name="late-skill">
+
+          Base directory for this skill: ${workdir}/.late_skills/late-skill
+
+
+          The verification word is ORCHID_SAPPHIRE_73.
+
+
+          </skill-context>
+      - role: assistant
+        tool_calls:
+          - id: toolcall_1
+            type: function
+            function:
+              name: task
+              arguments: '{"agent_type":"task","name":"check-late-skill","description":"Reading verification word","prompt":"Use the skill tool to load late-skill and report its verification word.","mode":"sync"}'
+      - role: tool
+        tool_call_id: toolcall_1
+        content: ORCHID_SAPPHIRE_73
+      - role: assistant
+        content: The agent reported ORCHID_SAPPHIRE_73.

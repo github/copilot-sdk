@@ -65,16 +65,16 @@ rust_library(
     version = "1.6.1",
     deps = select({
         "@rules_rust//rust/platform:aarch64-apple-darwin": [
-            "@sdk_vendor__rustix-1.1.4//:rustix",  # cfg(any(target_os = "android", target_os = "linux", target_os = "macos", target_os = "hurd"))
+            "@sdk_vendor__rustix-1.1.5//:rustix",  # cfg(any(target_os = "android", target_os = "linux", target_os = "macos", target_os = "hurd"))
         ],
         "@rules_rust//rust/platform:aarch64-unknown-linux-gnu": [
-            "@sdk_vendor__rustix-1.1.4//:rustix",  # cfg(any(target_os = "android", target_os = "linux", target_os = "macos", target_os = "hurd"))
+            "@sdk_vendor__rustix-1.1.5//:rustix",  # cfg(any(target_os = "android", target_os = "linux", target_os = "macos", target_os = "hurd"))
         ],
         "@rules_rust//rust/platform:x86_64-apple-darwin": [
-            "@sdk_vendor__rustix-1.1.4//:rustix",  # cfg(any(target_os = "android", target_os = "linux", target_os = "macos", target_os = "hurd"))
+            "@sdk_vendor__rustix-1.1.5//:rustix",  # cfg(any(target_os = "android", target_os = "linux", target_os = "macos", target_os = "hurd"))
         ],
         "@rules_rust//rust/platform:x86_64-unknown-linux-gnu": [
-            "@sdk_vendor__rustix-1.1.4//:rustix",  # cfg(any(target_os = "android", target_os = "linux", target_os = "macos", target_os = "hurd"))
+            "@sdk_vendor__rustix-1.1.5//:rustix",  # cfg(any(target_os = "android", target_os = "linux", target_os = "macos", target_os = "hurd"))
         ],
         "//conditions:default": [],
     }),

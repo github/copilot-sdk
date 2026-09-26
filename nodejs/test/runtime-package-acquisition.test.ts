@@ -46,7 +46,6 @@ async function createRuntimePackage(root: string, platform: string): Promise<str
     mkdirSync(join(packageRoot, "prebuilds", platform), { recursive: true });
     mkdirSync(join(packageRoot, "copilot-sdk"), { recursive: true });
     mkdirSync(join(packageRoot, "preloads"), { recursive: true });
-    mkdirSync(join(packageRoot, "sdk"), { recursive: true });
     writeFileSync(
         join(packageRoot, "package.json"),
         JSON.stringify({
@@ -74,7 +73,6 @@ async function createRuntimePackage(root: string, platform: string): Promise<str
         join("prebuilds", platform, "runtime.node"),
         join("copilot-sdk", "extension.js"),
         join("preloads", "extension_bootstrap.mjs"),
-        join("sdk", "index.js"),
     ]) {
         const destination = join(packageRoot, path);
         writeFileSync(destination, path);

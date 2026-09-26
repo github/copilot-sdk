@@ -64,16 +64,11 @@ not download a second runtime artifact.
 
 ## Run the Sample
 
-Try the interactive chat sample from the SDK root (`src/sdk` when nested).
-In the runtime repository, first run `pnpm run build:cli` from the runtime root,
-then return to `src/sdk`. A Python source install does not pin a downloadable
-runtime, so select the prepared executable explicitly. Run the sample in the
-project's uv environment; see [development setup](#development) for prerequisites.
+Try the interactive chat sample (from the repo root):
 
 ```bash
-npm --prefix nodejs ci --ignore-scripts
-export COPILOT_CLI_PATH="$(npm --prefix nodejs run --silent prepare:runtime -- --print-path)"
-uv run --project python python python/samples/chat.py
+cd python/samples
+python chat.py
 ```
 
 ## Quick Start
@@ -139,6 +134,8 @@ Use `"user"` when you need to set it explicitly. Source is independent of delive
 mode and does not replace the session's `system_message` configuration, set billing
 flags, or use the notification API. `send_and_wait` can return `None` when the
 session goes idle without an assistant message; errors still propagate.
+Sub-agent events remain visible to listeners but do not complete the wait
+or supply its reply.
 
 ### Manual Resource Management
 
@@ -1266,22 +1263,22 @@ When `on_elicitation_request` is provided, the SDK automatically:
 
 ## Development
 
-Follow [SDK development setup](../CONTRIBUTING.md#developing-an-sdk) for Python,
-uv, and the Node/replay-harness dependencies. From the SDK root (`src/sdk` in
-the runtime repository, or the standalone repository root):
+Install [uv](https://docs.astral.sh/uv/) and a supported [Node.js version](../nodejs/README.md#prerequisites), then from the repository root:
 
 ```bash
-npm run build:python
-npm run test:python
-npm run check:python
+cd nodejs
+npm ci
 ```
 
-The build task runs `uv sync --all-extras --dev`. For focused tests after
-[preparing the runtime](../CONTRIBUTING.md#testing-an-unreleased-runtime-api),
-run the native runner from `python/`:
+```bash
+cd test/harness
+npm ci
+```
 
 ```bash
-uv run pytest "<test-file>"
+cd python
+uv sync
+uv run pytest
 ```
 
 Signal-based E2E failures from `pytest-timeout` include an **Async timeout diagnostics** report

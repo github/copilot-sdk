@@ -10,6 +10,6 @@ package(default_visibility = ["//visibility:public"])
 
 alias(
     name = "tokio-stream",
-    actual = "@sdk_vendor__tokio-stream-0.1.18//:tokio_stream",
+    actual = "@sdk_vendor__tokio-stream-0.1.19//:tokio_stream",
     tags = ["manual"],
 )

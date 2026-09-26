@@ -10,10 +10,13 @@ package com.github.copilot.generated.rpc;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
+import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
  * Typed result of initiating or continuing a Connector connection.
+ *
+ * @apiNote This type is experimental and may change in a future version.
  *
  * @since 1.0.0
  */
@@ -23,6 +26,7 @@ import javax.annotation.processing.Generated;
     @JsonSubTypes.Type(value = ConnectorConnectResultConsentRequired.class, name = "consent_required"),
     @JsonSubTypes.Type(value = ConnectorConnectResultPending.class, name = "pending")
 })
+@CopilotExperimental
 @JsonIgnoreProperties(ignoreUnknown = true)
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 public abstract class ConnectorConnectResult {

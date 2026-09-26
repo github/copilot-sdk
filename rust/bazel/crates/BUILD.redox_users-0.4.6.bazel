@@ -61,7 +61,7 @@ rust_library(
     version = "0.4.6",
     deps = [
         "@sdk_vendor__getrandom-0.2.17//:getrandom",
-        "@sdk_vendor__libredox-0.1.16//:libredox",
+        "@sdk_vendor__libredox-0.1.25//:libredox",
         "@sdk_vendor__thiserror-1.0.69//:thiserror",
     ],
 )

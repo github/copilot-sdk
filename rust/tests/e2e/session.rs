@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
+use futures_util::FutureExt;
 use github_copilot_sdk::handler::{
     ApproveAllHandler, McpAuthHandler, McpAuthRequest, McpAuthResult,
 };
@@ -65,11 +66,9 @@ async fn shouldcreateanddisconnectsessions() {
 
 #[tokio::test]
 async fn sendandwait_throws_operationcanceledexception_when_token_cancelled() {
-    let cancelled = tokio::time::timeout(
-        Duration::from_millis(1),
-        tokio::time::sleep(Duration::from_millis(50)),
-    )
-    .await;
+    // A delayed poll can observe both a finite sleep and its timeout ready.
+    let cancelled =
+        tokio::time::timeout(Duration::from_millis(1), std::future::pending::<()>()).await;
 
     assert!(cancelled.is_err());
 }
@@ -842,7 +841,7 @@ async fn sendandwait_blocks_until_session_idle_and_returns_final_assistant_messa
                     .create_session(ctx.approve_all_session_config())
                     .await
                     .expect("create session");
-                let events = session.subscribe();
+                let mut events = session.subscribe();
 
                 let response = session
                     .send_and_wait("What is 2+2?")
@@ -852,7 +851,20 @@ async fn sendandwait_blocks_until_session_idle_and_returns_final_assistant_messa
                 assert_eq!(response.parsed_type(), SessionEventType::AssistantMessage);
                 assert!(assistant_message_content(&response).contains('4'));
 
-                let observed = collect_until_idle(events).await;
+                let mut observed = Vec::new();
+                loop {
+                    let event = events
+                        .recv()
+                        .now_or_never()
+                        .expect("terminal event must already be queued when send_and_wait returns")
+                        .expect("receive queued event");
+                    let is_idle = event.parsed_type() == SessionEventType::SessionIdle
+                        && event.agent_id.as_deref().is_none_or(str::is_empty);
+                    observed.push(event);
+                    if is_idle {
+                        break;
+                    }
+                }
                 let types = event_types(&observed);
                 assert!(types.contains(&"assistant.message"));
                 assert!(types.contains(&"session.idle"));

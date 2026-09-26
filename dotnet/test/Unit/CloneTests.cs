@@ -178,6 +178,28 @@ public class CloneTests
         Assert.Same(original.OnAutoModeSwitchRequest, clone.OnAutoModeSwitchRequest);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(null)]
+    public void SessionConfig_Clone_PreservesRefreshCustomInstructions(bool? refresh)
+    {
+        var original = new SessionConfig { RefreshCustomInstructions = refresh };
+
+        var clone = original.Clone();
+
+        Assert.NotSame(original, clone);
+        Assert.Equal(refresh, clone.RefreshCustomInstructions);
+    }
+
+    [Fact]
+    public void SessionConfig_RefreshCustomInstructions_IsCreateOnlyAndDefaultsToNull()
+    {
+        Assert.Null(new SessionConfig().RefreshCustomInstructions);
+        Assert.Null(typeof(SessionConfigBase).GetProperty(nameof(SessionConfig.RefreshCustomInstructions)));
+        Assert.Null(typeof(ResumeSessionConfig).GetProperty(nameof(SessionConfig.RefreshCustomInstructions)));
+    }
+
     [Fact]
     public void SessionConfig_Clone_CollectionsAreIndependent()
     {

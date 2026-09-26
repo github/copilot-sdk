@@ -64,6 +64,6 @@ rust_library(
     version = "0.1.7",
     deps = [
         "@sdk_vendor__generic-array-0.14.7//:generic_array",
-        "@sdk_vendor__typenum-1.20.0//:typenum",
+        "@sdk_vendor__typenum-1.20.1//:typenum",
     ],
 )

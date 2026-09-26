@@ -15,6 +15,26 @@ import {
 } from "./java.js";
 import { RPC_VARIANT_OWNERS } from "./rpc-variant-owners.js";
 
+test("preserves diagnostics configuration for session create and resume", async () => {
+    const files = await renderRpcTypes({
+        definitions: {
+            DiagnosticsConfiguration: {
+                type: "object",
+                properties: { sources: { $ref: "#/definitions/DiagnosticSourcesConfiguration" } },
+                required: ["sources"],
+            },
+            DiagnosticSourcesConfiguration: {
+                type: "object",
+                properties: { mcp: { type: "string" } },
+            },
+        },
+    }, {});
+    const configuration = [...files].find(([file]) => file.endsWith("/DiagnosticsConfiguration.java"));
+    assert.ok(configuration, "startup diagnostics must have a named generated configuration");
+    assert.match(configuration[1], /DiagnosticSourcesConfiguration sources/);
+    assert.ok([...files.keys()].some((file) => file.endsWith("/DiagnosticSourcesConfiguration.java")));
+});
+
 test("recognizes an entrypoint reached through a linked directory", (t) => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "copilot-java-codegen-entrypoint-"));
     t.after(() => fs.rmSync(root, { recursive: true, force: true }));
@@ -330,6 +350,26 @@ function rpcSource(files: Map<string, string>, name: string): string {
     assert.ok(source, `missing ${name}.java`);
     return source;
 }
+
+test("static OAuth config preserves the legacy four-argument constructor", () => {
+    const typeName = "McpOauthRequiredStaticClientConfig";
+    const source = generateRpcClass(typeName, {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+            clientId: { type: "string" },
+            clientSecret: { type: ["string", "null"] },
+            publicClient: { type: ["boolean", "null"] },
+            grantType: { type: ["string", "null"] },
+            scope: { type: ["string", "null"] },
+        },
+        required: ["clientId"],
+    }, new Map(), "com.github.copilot.generated").code;
+    assert.match(
+        source,
+        /public McpOauthRequiredStaticClientConfig\(\s*String clientId,\s*String clientSecret,\s*Boolean publicClient,\s*String grantType\s*\) \{\s*this\(clientId, clientSecret, publicClient, grantType, null\);/s
+    );
+});
 
 for (const roots of [
     ["FirstResult", "HistoricalResult"],

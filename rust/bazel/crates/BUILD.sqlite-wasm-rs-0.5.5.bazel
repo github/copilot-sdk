@@ -65,9 +65,9 @@ rust_library(
     version = "0.5.5",
     deps = [
         ":build_script_build",
-        "@sdk_vendor__js-sys-0.3.102//:js_sys",
+        "@sdk_vendor__js-sys-0.3.105//:js_sys",
         "@sdk_vendor__rsqlite-vfs-0.1.1//:rsqlite_vfs",
-        "@sdk_vendor__wasm-bindgen-0.2.125//:wasm_bindgen",
+        "@sdk_vendor__wasm-bindgen-0.2.128//:wasm_bindgen",
     ],
 )
 
@@ -127,7 +127,7 @@ cargo_build_script(
     version = "0.5.5",
     visibility = ["//visibility:private"],
     deps = [
-        "@sdk_vendor__cc-1.2.61//:cc",
+        "@sdk_vendor__cc-1.4.7//:cc",
     ],
 )
 

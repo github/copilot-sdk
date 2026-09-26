@@ -6,12 +6,16 @@ package com.github.copilot;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -192,7 +196,8 @@ public class SessionEventsE2ETest {
     }
 
     /**
-     * Verifies that session.idle event is emitted after message completion.
+     * Verifies that an earlier synchronous root-idle listener finishes before
+     * sendAndWait completes.
      *
      * @see Snapshot: session/should_receive_session_events
      */
@@ -202,15 +207,41 @@ public class SessionEventsE2ETest {
         ctx.configureForTest("session", "should_receive_session_events");
 
         var allEvents = new ArrayList<SessionEvent>();
+        var idleEntered = new CountDownLatch(1);
+        var releaseIdle = new CountDownLatch(1);
+        var idleCallbackCompleted = new AtomicBoolean();
 
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client
                     .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
-            session.on(event -> allEvents.add(event));
-
-            // Use prompt that matches the snapshot
-            session.sendAndWait(new MessageOptions().setPrompt("What is 100+200?")).get(60, TimeUnit.SECONDS);
+            try (var subscription = session.on(event -> {
+                allEvents.add(event);
+                if (event instanceof SessionIdleEvent && (event.getAgentId() == null || event.getAgentId().isEmpty())) {
+                    idleEntered.countDown();
+                    try {
+                        if (!releaseIdle.await(10, TimeUnit.SECONDS)) {
+                            throw new IllegalStateException("Timed out waiting to release the idle listener");
+                        }
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        throw new IllegalStateException(e);
+                    }
+                    idleCallbackCompleted.set(true);
+                }
+            })) {
+                var response = session.sendAndWait(new MessageOptions().setPrompt("What is 100+200?"));
+                try {
+                    assertTrue(idleEntered.await(30, TimeUnit.SECONDS), "Root-idle listener should run");
+                    assertThrows(TimeoutException.class, () -> response.get(200, TimeUnit.MILLISECONDS),
+                            "sendAndWait must not complete while the earlier listener is blocked");
+                } finally {
+                    releaseIdle.countDown();
+                }
+                assertNotNull(response.get(60, TimeUnit.SECONDS));
+                // No separate subscriber wait after sendAndWait completes.
+                assertTrue(idleCallbackCompleted.get(), "Root-idle listener should have finished");
+            }
 
             // Verify session.idle is emitted after assistant.message
             assertTrue(allEvents.stream().anyMatch(e -> e instanceof SessionIdleEvent),
@@ -244,12 +275,7 @@ public class SessionEventsE2ETest {
         ctx.configureForTest("tools", "invokes_built_in_tools");
 
         var eventTypes = new ArrayList<String>();
-        // Use a separate completion signal so we know when THIS handler has seen
-        // session.idle, rather than relying on sendAndWait's internal subscription.
-        // sendAndWait also listens for session.idle internally. Because eventHandlers
-        // is a ConcurrentHashMap Set (non-deterministic iteration order), the
-        // sendAndWait handler can fire BEFORE this listener and unblock the test
-        // thread before session.idle has been added to eventTypes — a race condition.
+        // Track this listener's receipt of session.idle explicitly.
         var idleReceived = new java.util.concurrent.CompletableFuture<Void>();
 
         try (CopilotClient client = ctx.createClient()) {
@@ -273,9 +299,7 @@ public class SessionEventsE2ETest {
             session.sendAndWait(new MessageOptions().setPrompt("What's the first line of README.md in this directory?"))
                     .get(60, TimeUnit.SECONDS);
 
-            // Wait for this listener to also receive session.idle. sendAndWait can return
-            // slightly before our listener sees the event due to concurrent dispatch
-            // ordering.
+            // Verify this listener also received session.idle.
             idleReceived.get(5, TimeUnit.SECONDS);
 
             // Verify expected event types are present

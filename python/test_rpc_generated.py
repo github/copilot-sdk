@@ -1,5 +1,6 @@
 """Tests for generated RPC method behavior."""
 
+import inspect
 import json
 from unittest.mock import AsyncMock
 
@@ -11,6 +12,7 @@ from copilot.rpc import (
     CommandsInvokeRequest,
     CommandsRespondToQueuedCommandRequest,
     LocalSessionMetadataValue,
+    MCPServerConfigHTTP,
     QueuedCommandHandled,
     QueuedCommandNotHandled,
     RemoteControlStatusOff,
@@ -30,6 +32,23 @@ def test_sandbox_config_round_trips_allow_bypass_and_omits_when_absent():
     assert configured.to_dict() == {"enabled": True, "allowBypass": True}
     assert SandboxConfig.from_dict(configured.to_dict()).allow_bypass is True
     assert SandboxConfig(enabled=True).to_dict() == {"enabled": True}
+
+
+def test_mcp_oauth_scopes_preserve_existing_positional_parameters():
+    parameters = inspect.signature(MCPServerConfigHTTP).parameters
+
+    assert parameters["oauth_scopes"].kind is inspect.Parameter.KEYWORD_ONLY
+    assert parameters["oidc"].kind is inspect.Parameter.POSITIONAL_OR_KEYWORD
+
+    config = MCPServerConfigHTTP.from_dict(
+        {
+            "url": "https://example.test/mcp",
+            "oauthScopes": ["tools:read", "resources:read"],
+            "oidc": True,
+        }
+    )
+    assert config.oauth_scopes == ["tools:read", "resources:read"]
+    assert config.oidc is True
 
 
 @pytest.mark.asyncio

@@ -262,6 +262,7 @@ func TestSession_MCPAuthRequestSendsHostToken(t *testing.T) {
 	clientSecret := "static-secret"
 	grantType := rpc.MCPOauthRequiredStaticClientConfigGrantTypeClientCredentials
 	publicClient := false
+	scope := "configured.read"
 	session.handleBroadcastEvent(SessionEvent{
 		Data: &MCPOauthRequiredData{
 			RequestID:        "oauth-request",
@@ -274,6 +275,7 @@ func TestSession_MCPAuthRequestSendsHostToken(t *testing.T) {
 				ClientSecret: &clientSecret,
 				GrantType:    &grantType,
 				PublicClient: &publicClient,
+				Scope:        &scope,
 			},
 			WwwAuthenticateParams: &MCPOauthWwwAuthenticateParams{
 				ResourceMetadataURL: &resourceMetadataURL,
@@ -297,6 +299,9 @@ func TestSession_MCPAuthRequestSendsHostToken(t *testing.T) {
 	}
 	if observedRequest.StaticClientConfig.GrantType == nil || *observedRequest.StaticClientConfig.GrantType != "client_credentials" {
 		t.Fatalf("expected static client grant type to be propagated, got %#v", observedRequest.StaticClientConfig.GrantType)
+	}
+	if observedRequest.StaticClientConfig.Scope == nil || *observedRequest.StaticClientConfig.Scope != "configured.read" {
+		t.Fatalf("expected static client scope to be propagated, got %#v", observedRequest.StaticClientConfig.Scope)
 	}
 
 	select {
@@ -351,7 +356,8 @@ func TestMCPOauthRequiredDataAllowsOptionalMetadata(t *testing.T) {
 		"staticClientConfig": {
 		    "clientId": "static-client",
 		    "clientSecret": "static-secret",
-		    "publicClient": false
+		    "publicClient": false,
+		    "scope": "configured.read"
 		}
 	}`), &withMetadata); err != nil {
 		t.Fatal(err)
@@ -364,6 +370,9 @@ func TestMCPOauthRequiredDataAllowsOptionalMetadata(t *testing.T) {
 	}
 	if withMetadata.StaticClientConfig == nil || withMetadata.StaticClientConfig.ClientSecret == nil || *withMetadata.StaticClientConfig.ClientSecret != "static-secret" {
 		t.Fatalf("expected static client secret, got %#v", withMetadata.StaticClientConfig)
+	}
+	if withMetadata.StaticClientConfig.Scope == nil || *withMetadata.StaticClientConfig.Scope != "configured.read" {
+		t.Fatalf("expected static client scope, got %#v", withMetadata.StaticClientConfig)
 	}
 
 	var withoutMetadata rpc.MCPOauthRequiredData
@@ -512,7 +521,16 @@ func readTestJSONRPCFrame(r io.Reader) ([]byte, error) {
 	return data, err
 }
 
-func TestSession_SendAndWaitSkipsAutopilotContinuationIdle(t *testing.T) {
+func TestSession_SendAndWaitSkipsSubagentAndAutopilotContinuationIdle(t *testing.T) {
+	t.Run("with root reply", func(t *testing.T) {
+		checkSendAndWaitSkipsSubagentAndAutopilotContinuationIdle(t, true)
+	})
+	t.Run("without root reply", func(t *testing.T) {
+		checkSendAndWaitSkipsSubagentAndAutopilotContinuationIdle(t, false)
+	})
+}
+
+func checkSendAndWaitSkipsSubagentAndAutopilotContinuationIdle(t *testing.T, rootReplies bool) {
 	stdinR, stdinW := io.Pipe()
 	stdoutR, stdoutW := io.Pipe()
 	defer stdinR.Close()
@@ -593,7 +611,21 @@ func TestSession_SendAndWaitSkipsAutopilotContinuationIdle(t *testing.T) {
 	}
 
 	continuationIdleProcessed := make(chan struct{})
+	childMessageProcessed := make(chan struct{})
+	childErrorProcessed := make(chan struct{})
+	childIdleProcessed := make(chan struct{})
+	childID := "child-1"
 	unsubscribe := session.On(func(event SessionEvent) {
+		if event.AgentID != nil && *event.AgentID == childID {
+			switch event.Data.(type) {
+			case *AssistantMessageData:
+				close(childMessageProcessed)
+			case *SessionErrorData:
+				close(childErrorProcessed)
+			case *SessionIdleData:
+				close(childIdleProcessed)
+			}
+		}
 		if idle, ok := event.Data.(*SessionIdleData); ok &&
 			idle.Mode != nil && *idle.Mode == SessionModeAutopilot {
 			close(continuationIdleProcessed)
@@ -601,11 +633,22 @@ func TestSession_SendAndWaitSkipsAutopilotContinuationIdle(t *testing.T) {
 	})
 	defer unsubscribe()
 
-	autopilot := SessionModeAutopilot
-	session.dispatchEvent(SessionEvent{Data: &AssistantMessageData{
-		Content:   "intermediate",
-		MessageID: "assistant-1",
+	session.dispatchEvent(SessionEvent{AgentID: &childID, Data: &AssistantMessageData{
+		Content:   "child reply",
+		MessageID: "child-message",
 	}})
+	session.dispatchEvent(SessionEvent{AgentID: &childID, Data: &SessionErrorData{
+		Message: "child failed",
+	}})
+	session.dispatchEvent(SessionEvent{AgentID: &childID, Data: &SessionIdleData{}})
+
+	autopilot := SessionModeAutopilot
+	if rootReplies {
+		session.dispatchEvent(SessionEvent{Data: &AssistantMessageData{
+			Content:   "intermediate",
+			MessageID: "assistant-1",
+		}})
+	}
 	session.dispatchEvent(SessionEvent{Data: &SessionIdleData{Mode: &autopilot}})
 
 	select {
@@ -615,22 +658,46 @@ func TestSession_SendAndWaitSkipsAutopilotContinuationIdle(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("timed out waiting for autopilot continuation idle")
 	}
+	for name, delivered := range map[string]<-chan struct{}{
+		"child assistant message": childMessageProcessed,
+		"child session error":     childErrorProcessed,
+		"child session idle":      childIdleProcessed,
+	} {
+		select {
+		case <-delivered:
+		default:
+			t.Fatalf("%s was not delivered to subscribers", name)
+		}
+	}
 
 	select {
 	case <-resultCh:
-		t.Fatal("SendAndWait returned at an autopilot continuation idle")
+		t.Fatal("SendAndWait returned at a child or autopilot continuation idle")
+	case err := <-errCh:
+		t.Fatalf("SendAndWait failed on a child error: %v", err)
 	default:
 	}
 
 	interactive := SessionModeInteractive
-	session.dispatchEvent(SessionEvent{Data: &AssistantMessageData{
-		Content:   "final",
-		MessageID: "assistant-2",
-	}})
+	if rootReplies {
+		session.dispatchEvent(SessionEvent{Data: &AssistantMessageData{
+			Content:   "final",
+			MessageID: "assistant-2",
+		}})
+	}
 	session.dispatchEvent(SessionEvent{Data: &SessionIdleData{Mode: &interactive}})
 
 	select {
 	case result := <-resultCh:
+		if !rootReplies {
+			if result != nil {
+				t.Fatalf("child reply supplied the parent result: %+v", result)
+			}
+			return
+		}
+		if result == nil {
+			t.Fatal("expected root assistant message, got nil")
+		}
 		message, ok := result.Data.(*AssistantMessageData)
 		if !ok {
 			t.Fatalf("expected assistant message, got %T", result.Data)

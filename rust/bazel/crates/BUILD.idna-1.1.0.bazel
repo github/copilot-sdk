@@ -66,7 +66,7 @@ rust_library(
     version = "1.1.0",
     deps = [
         "@sdk_vendor__idna_adapter-1.2.2//:idna_adapter",
-        "@sdk_vendor__smallvec-1.15.1//:smallvec",
+        "@sdk_vendor__smallvec-1.16.1//:smallvec",
         "@sdk_vendor__utf8_iter-1.0.4//:utf8_iter",
     ],
 )

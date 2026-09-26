@@ -116,6 +116,107 @@ describe("Session MCP and skills RPC", async () => {
         });
     }
 
+    it("captures opt-in MCP diagnostics without exposing configured credentials", async () => {
+        const defaultSession = await client.createSession({ onPermissionRequest: approveAll });
+        try {
+            const defaultLogs = await defaultSession.rpc.diagnostics.read({ sources: ["mcp"] });
+            expect(defaultLogs.entries).toEqual([]);
+        } finally {
+            await defaultSession.disconnect();
+        }
+
+        const credentialCanary = "mcp-diagnostics-credential-canary";
+        const stderrSentinel = "mcp-diagnostics-stderr-sentinel";
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            diagnostics: { sources: { mcp: { level: "debug" } } },
+            mcpServers: {
+                diagnostics: {
+                    type: "stdio",
+                    command: "node",
+                    args: [
+                        TEST_MCP_SERVER,
+                        "--diagnostic-stderr",
+                        `${stderrSentinel} ${credentialCanary}`,
+                    ],
+                    env: { MCP_API_KEY: credentialCanary },
+                    workingDirectory: TEST_HARNESS_DIR,
+                    tools: ["*"],
+                } as MCPStdioServerConfig,
+            },
+        });
+
+        try {
+            try {
+                await session.rpc.mcp.startServer({ serverName: "diagnostics" });
+            } catch (error) {
+                const kind = error instanceof Error ? error.name : typeof error;
+                throw new Error(`MCP diagnostics server start failed (${kind})`);
+            }
+
+            let startupLogs: Awaited<ReturnType<typeof session.rpc.diagnostics.read>> | undefined;
+            await expect
+                .poll(
+                    async () => {
+                        startupLogs = await session.rpc.diagnostics.read({
+                            sources: ["mcp"],
+                            max: 500,
+                            waitMs: 0,
+                        });
+                        const server = (await session.rpc.mcp.list()).servers.find(
+                            (candidate) => candidate.name === "diagnostics"
+                        );
+                        return {
+                            serverStatus: server?.status ?? "<not listed>",
+                            entryCount: startupLogs.entries.length,
+                            entries: startupLogs.entries.map((entry) => ({
+                                connectionId: entry.details.connectionId,
+                                kind: entry.details.kind,
+                                level: entry.level,
+                                serverName: entry.details.serverName,
+                            })),
+                            hasDiagnosticsServer: startupLogs.entries.some(
+                                (entry) => entry.details.serverName === "diagnostics"
+                            ),
+                            hasProtocol: startupLogs.entries.some(
+                                (entry) => entry.details.kind === "protocol"
+                            ),
+                            hasStderr: startupLogs.entries.some(
+                                (entry) => entry.details.kind === "stderr"
+                            ),
+                        };
+                    },
+                    { interval: 200, timeout: 9_000 }
+                )
+                .toMatchObject({
+                    hasDiagnosticsServer: true,
+                    hasProtocol: true,
+                    hasStderr: true,
+                });
+
+            if (!startupLogs) {
+                throw new Error("MCP diagnostics polling completed without a read result");
+            }
+            expect(JSON.stringify(startupLogs.entries)).not.toContain(credentialCanary);
+            expect(JSON.stringify(startupLogs.entries)).toContain(stderrSentinel);
+            expect(JSON.stringify(startupLogs.entries)).toContain("[REDACTED]");
+
+            const info = await session.rpc.diagnostics.configure({
+                sources: { mcp: { level: "info" } },
+            });
+            expect(info.sources.mcp?.level).toBe("info");
+
+            const off = await session.rpc.diagnostics.configure({
+                sources: { mcp: { level: "off" } },
+            });
+            expect(off.sources.mcp?.level).toBe("off");
+            const clearedLogs = await session.rpc.diagnostics.read({ sources: ["mcp"] });
+            expect(clearedLogs.entries).toEqual([]);
+        } finally {
+            await session.disconnect();
+        }
+    });
+
     it("should list and toggle session skills", async () => {
         const skillName = `session-rpc-skill-${Date.now()}-${Math.random().toString(36).slice(2)}`;
         const skillsDir = createSkillDirectory(skillName, "Session skill controlled by RPC.");

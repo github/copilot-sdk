@@ -127,7 +127,6 @@ globalThis.fetch = async (url) => {
                 );
                 write(join(packageRoot, "copilot-sdk/extension.js"), "extension SDK");
                 write(join(packageRoot, "preloads/extension_bootstrap.mjs"), "bootstrap");
-                write(join(packageRoot, "sdk/index.js"), "legacy SDK");
                 return packageRoot;
             });
             const npmCliPath = process.env.npm_execpath;
@@ -141,17 +140,17 @@ globalThis.fetch = async (url) => {
                     encoding: "utf8",
                     timeout: 60_000,
                 });
+            const diagnostics = ({ error, stdout, stderr }: ReturnType<typeof run>) =>
+                `${error ?? ""}\n${stdout}\n${stderr}`;
             const pack = run("pack:release");
-            expect(pack.status, `${pack.error ?? ""}\n${pack.stdout}\n${pack.stderr}`).toBe(0);
+            expect(pack.status, diagnostics(pack)).toBe(0);
             expect(existsSync(join(root, "download-attempt"))).toBe(false);
             expect(readFileSync(join(nodeRoot, "package.json"), "utf8")).toBe(manifest);
             expect(readdirSync(nodeRoot).filter((name) => name.endsWith(".tgz"))).toHaveLength(
                 platforms.length + 1
             );
             const verify = run("verify:release-packages");
-            expect(verify.status, `${verify.error ?? ""}\n${verify.stdout}\n${verify.stderr}`).toBe(
-                0
-            );
+            expect(verify.status, diagnostics(verify)).toBe(0);
 
             const unpacked = join(root, "unpacked");
             mkdirSync(unpacked);
@@ -163,12 +162,14 @@ globalThis.fetch = async (url) => {
                 readFileSync(join(unpacked, "package/prebuilds/linux-x64/runtime.node"), "utf8")
             ).toBe(`${source} runtime: linux-x64`);
 
-            rmSync(join(packageRoots[0], "sdk/index.js"));
+            rmSync(join(packageRoots[0], "copilot-sdk/extension.js"));
             const incompletePack = run("pack:release");
-            expect(incompletePack.status, incompletePack.stderr).toBe(0);
+            expect(incompletePack.status, diagnostics(incompletePack)).toBe(0);
             const incompleteVerify = run("verify:release-packages");
-            expect(incompleteVerify.status).not.toBe(0);
-            expect(incompleteVerify.stderr).toContain("is missing package/sdk/index.js");
+            expect(incompleteVerify.status, diagnostics(incompleteVerify)).not.toBe(0);
+            expect(incompleteVerify.stderr).toContain(
+                "is missing package/copilot-sdk/extension.js"
+            );
         }
     );
 });

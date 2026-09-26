@@ -114,7 +114,6 @@ for (const platform of platforms) {
         `package/prebuilds/${platform}/runtime.node`,
         "package/copilot-sdk/extension.js",
         "package/preloads/extension_bootstrap.mjs",
-        "package/sdk/index.js",
     ]) {
         assert(packed.entries.has(requiredPath), `${packageName} is missing ${requiredPath}`);
     }

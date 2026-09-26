@@ -693,6 +693,68 @@ describe("Session Configuration", async () => {
         await session1.disconnect();
     });
 
+    it("should refresh cached custom instructions only when creating with opt-in", async () => {
+        const projectDir = join(workDir, "instruction-refresh-project");
+        const instructionDir = join(workDir, "refresh-instructions");
+        const instructionFilesDir = join(instructionDir, ".github", "instructions");
+        const instructionFile = join(instructionFilesDir, "refresh.instructions.md");
+        const original = "TS_ORIGINAL_INSTRUCTION_CONTENT";
+        const updated = "TS_UPDATED_INSTRUCTION_CONTENT";
+        await mkdir(projectDir, { recursive: true });
+        await mkdir(instructionFilesDir, { recursive: true });
+        await writeFile(instructionFile, `Always include ${original}.`);
+
+        const handler = new RecordingRequestHandler();
+        const refreshClient = new CopilotClient({
+            connection: RuntimeConnection.forStdio({ path: process.env.COPILOT_CLI_PATH }),
+            workingDirectory: projectDir,
+            env,
+            gitHubToken: DEFAULT_GITHUB_TOKEN,
+            requestHandler: handler,
+        });
+
+        async function readInstructions(refreshCustomInstructions?: boolean): Promise<string> {
+            const session = await refreshClient.createSession({
+                onPermissionRequest: approveAll,
+                workingDirectory: projectDir,
+                instructionDirectories: [instructionDir],
+                model: "claude-sonnet-5",
+                provider: createAnthropicProvider(),
+                refreshCustomInstructions,
+            });
+            try {
+                const before = handler.inferenceRequests().length;
+                const response = await session.sendAndWait({ prompt: "Say OK." });
+                expect(response?.data.content).toBe("OK from the synthetic stream.");
+                const requests = handler.inferenceRequests().slice(before);
+                expect(requests).toHaveLength(1);
+                const body = JSON.parse(requests[0].body) as { system: unknown };
+                expect(body.system).toBeDefined();
+                return JSON.stringify(body.system);
+            } finally {
+                await session.disconnect();
+            }
+        }
+
+        try {
+            expect(await readInstructions()).toContain(original);
+            await writeFile(instructionFile, `Always include ${updated}.`);
+
+            for (const refresh of [undefined, false]) {
+                const instructions = await readInstructions(refresh);
+                expect(instructions).toContain(original);
+                expect(instructions).not.toContain(updated);
+            }
+
+            const refreshed = await readInstructions(true);
+            expect(refreshed).toContain(updated);
+            expect(refreshed).not.toContain(original);
+            expect(await readInstructions()).toContain(updated);
+        } finally {
+            expect(await refreshClient.stop()).toEqual([]);
+        }
+    });
+
     it("should forward clientName in user-agent", async () => {
         const session = await client.createSession({
             onPermissionRequest: approveAll,

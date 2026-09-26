@@ -12,6 +12,10 @@ import java.util.concurrent.CompletableFuture;
 
 import org.junit.jupiter.api.Test;
 
+import com.github.copilot.generated.rpc.DiagnosticLogLevel;
+import com.github.copilot.generated.rpc.DiagnosticSourcesConfiguration;
+import com.github.copilot.generated.rpc.DiagnosticsConfiguration;
+import com.github.copilot.generated.rpc.McpDiagnosticSourceConfiguration;
 import com.github.copilot.generated.rpc.SessionLimitsConfig;
 import com.github.copilot.rpc.AskUserVariant;
 import com.github.copilot.rpc.AutoModeSwitchResponse;
@@ -105,6 +109,34 @@ public class SessionRequestBuilderTest {
         assertFalse(mapper.readTree(mapper.writeValueAsBytes(createRequest)).has("askUserVariant"));
         assertNull(resumeRequest.getAskUserVariant());
         assertFalse(mapper.readTree(mapper.writeValueAsBytes(resumeRequest)).has("askUserVariant"));
+    }
+
+    @Test
+    void diagnosticsAreForwardedAndOmittedForCreateAndColdResume() throws Exception {
+        var mapper = JsonRpcClient.getObjectMapper();
+        var createRequest = SessionRequestBuilder.buildCreateRequest(
+                new SessionConfig().setDiagnostics(diagnostics(DiagnosticLogLevel.DEBUG)).clone(),
+                "diagnostics-create");
+        var resumeRequest = SessionRequestBuilder.buildResumeRequest("diagnostics-resume",
+                new ResumeSessionConfig().setDiagnostics(diagnostics(DiagnosticLogLevel.TRACE)).clone());
+        var defaultCreateRequest = SessionRequestBuilder.buildCreateRequest(new SessionConfig(),
+                "diagnostics-default-create");
+        var defaultResumeRequest = SessionRequestBuilder.buildResumeRequest("diagnostics-default-resume",
+                new ResumeSessionConfig());
+
+        assertEquals(DiagnosticLogLevel.DEBUG, createRequest.getDiagnostics().sources().mcp().level());
+        assertEquals("debug", mapper.readTree(mapper.writeValueAsBytes(createRequest)).path("diagnostics")
+                .path("sources").path("mcp").path("level").asText());
+        assertEquals(DiagnosticLogLevel.TRACE, resumeRequest.getDiagnostics().sources().mcp().level());
+        assertEquals("trace", mapper.readTree(mapper.writeValueAsBytes(resumeRequest)).path("diagnostics")
+                .path("sources").path("mcp").path("level").asText());
+        assertFalse(mapper.readTree(mapper.writeValueAsBytes(defaultCreateRequest)).has("diagnostics"));
+        assertFalse(mapper.readTree(mapper.writeValueAsBytes(defaultResumeRequest)).has("diagnostics"));
+    }
+
+    private static DiagnosticsConfiguration diagnostics(DiagnosticLogLevel level) {
+        return new DiagnosticsConfiguration(
+                new DiagnosticSourcesConfiguration(new McpDiagnosticSourceConfiguration(level)));
     }
 
     @Test

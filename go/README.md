@@ -17,11 +17,7 @@ go get github.com/github/copilot-sdk/go
 
 ## Run the Sample
 
-Try the interactive chat sample from the SDK root (`src/sdk` when nested).
-In the runtime repository, first run `pnpm run build:cli` from the runtime root
-to prepare the same-checkout executable, then return to `src/sdk`.
-Building the Go SDK alone does not build the runtime. For dependency
-prerequisites, see [development setup](#development).
+Try the interactive chat sample (from the repo root):
 
 ```bash
 cd nodejs
@@ -100,6 +96,42 @@ tool name is `<server-key>-<tool-name>`. For `AvailableTools` and
 `ExcludedTools`, prefer the source-qualified form
 `mcp:<server-key>-<tool-name>`. For `CustomAgents[].Tools` and
 `DefaultAgent.ExcludedTools`, use `<server-key>-<tool-name>` directly.
+
+## JSON-RPC errors
+
+Use `errors.As` to inspect a runtime error without parsing its message, including
+errors wrapped by SDK operations:
+
+```go
+var rpcErr *copilot.RPCError
+if errors.As(err, &rpcErr) {
+    fmt.Printf("RPC error %d: %s\n", rpcErr.Code, rpcErr.Message)
+    if rpcErr.Data != nil {
+        // Decode into an application-specific type when the payload schema is known.
+        var details map[string]json.RawMessage
+        if err := json.Unmarshal(rpcErr.Data, &details); err != nil {
+            // The payload may be an array or scalar rather than an object.
+            log.Printf("Error data is not an object: %v", err)
+        }
+    }
+}
+```
+
+This example uses the standard `errors`, `encoding/json`, `fmt`, and `log` packages.
+`RPCError.Data` is a `json.RawMessage` containing the original JSON value:
+objects, arrays, strings, numbers, and booleans are preserved. Omitted `data`
+is `nil`; explicit JSON null is the non-nil JSON text `null`. Empty values,
+zero, and false are not treated as absent. Ordinary connection and local
+precondition failures do not match `*copilot.RPCError`. The transport also uses
+this type for locally synthesized inline-response callback failures, so matching
+it does not prove that the runtime sent an error response.
+
+`RPCError` aliases the existing transport error, so error identity, wrapping,
+and `Error()` messages are unchanged. The error string does not include the
+payload; accessing or logging it is an explicit application choice.
+Avoid logging it indiscriminately: server-provided data may contain sensitive
+information. Its fields and data bytes are shared with the wrapped error; copy
+them before mutation.
 
 ## Distributing your application with an embedded GitHub Copilot CLI
 
@@ -306,6 +338,8 @@ whitespace, change case, or remove an existing prefix.
 Source is independent of delivery `Mode` and `AgentMode`; it does not replace the
 session's `SystemMessage` configuration. `SendAndWait` accepts the same options
 and still waits for session idle, returning `nil` if no assistant message arrives.
+Sub-agent events remain visible to listeners but do not complete the wait or
+supply its reply.
 
 ### Helper Functions
 
@@ -1099,21 +1133,20 @@ Communicates with CLI via TCP socket. Useful for distributed scenarios.
 
 ## Development
 
-Follow [SDK development setup](../CONTRIBUTING.md#developing-an-sdk) for Go,
-golangci-lint, and the Node/replay-harness dependencies. From the SDK root
-(`src/sdk` in the runtime repository, or the standalone repository root):
+Tests require a supported [Node.js version](../nodejs/README.md#prerequisites). From the repository root:
 
 ```bash
-npm run build:go
-npm run test:go
-npm run check:go
+cd nodejs
+npm ci
 ```
 
-For focused tests, use `go test` selectors from `go/` after
-[preparing the runtime](../CONTRIBUTING.md#testing-an-unreleased-runtime-api).
-The existing race-enabled native test script is also available there:
+```bash
+cd test/harness
+npm ci
+```
 
 ```bash
+cd go
 ./test.sh
 ```
 

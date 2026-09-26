@@ -57,6 +57,8 @@ public final class SessionRpc {
     public final SessionCompletionsApi completions;
     /** API methods for the {@code instructions} namespace. */
     public final SessionInstructionsApi instructions;
+    /** API methods for the {@code customizations} namespace. */
+    public final SessionCustomizationsApi customizations;
     /** API methods for the {@code fleet} namespace. */
     public final SessionFleetApi fleet;
     /** API methods for the {@code agent} namespace. */
@@ -67,6 +69,8 @@ public final class SessionRpc {
     public final SessionSkillsApi skills;
     /** API methods for the {@code mcp} namespace. */
     public final SessionMcpApi mcp;
+    /** API methods for the {@code diagnostics} namespace. */
+    public final SessionDiagnosticsApi diagnostics;
     /** API methods for the {@code connectors} namespace. */
     public final SessionConnectorsApi connectors;
     /** API methods for the {@code managedSettings} namespace. */
@@ -139,11 +143,13 @@ public final class SessionRpc {
         this.autopilotObjective = new SessionAutopilotObjectiveApi(caller, sessionId);
         this.completions = new SessionCompletionsApi(caller, sessionId);
         this.instructions = new SessionInstructionsApi(caller, sessionId);
+        this.customizations = new SessionCustomizationsApi(caller, sessionId);
         this.fleet = new SessionFleetApi(caller, sessionId);
         this.agent = new SessionAgentApi(caller, sessionId);
         this.tasks = new SessionTasksApi(caller, sessionId);
         this.skills = new SessionSkillsApi(caller, sessionId);
         this.mcp = new SessionMcpApi(caller, sessionId);
+        this.diagnostics = new SessionDiagnosticsApi(caller, sessionId);
         this.connectors = new SessionConnectorsApi(caller, sessionId);
         this.managedSettings = new SessionManagedSettingsApi(caller, sessionId);
         this.plugins = new SessionPluginsApi(caller, sessionId);

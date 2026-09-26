@@ -490,13 +490,13 @@ impl CopilotWebSocketForwarderBuilder {
                     _ = loop_cancel.cancelled() => break,
                     msg = read.next() => match msg {
                         Some(Ok(Message::Text(text))) => {
-                            let message = CopilotWebSocketMessage::from_text(text);
+                            let message = CopilotWebSocketMessage { data: bytes::Bytes::from(text).into(), binary: false };
                             if let Some(out) = apply_transform(&on_response, message) {
                                 let _ = response.send_message(out).await;
                             }
                         }
                         Some(Ok(Message::Binary(data))) => {
-                            let message = CopilotWebSocketMessage { data, binary: true };
+                            let message = CopilotWebSocketMessage { data: data.into(), binary: true };
                             if let Some(out) = apply_transform(&on_response, message) {
                                 let _ = response.send_message(out).await;
                             }
@@ -553,13 +553,13 @@ impl CopilotWebSocketHandler for CopilotWebSocketForwarder {
             return Ok(());
         };
         let ws_message = if message.binary {
-            Message::Binary(message.data)
+            Message::Binary(message.data.into())
         } else {
             let text = match String::from_utf8(message.data) {
                 Ok(text) => text,
                 Err(err) => String::from_utf8_lossy(err.as_bytes()).into_owned(),
             };
-            Message::Text(text)
+            Message::Text(text.into())
         };
         let mut guard = self.write.lock().await;
         if let Some(write) = guard.as_mut() {

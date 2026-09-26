@@ -12,12 +12,15 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use github_copilot_sdk::handler::{McpAuthHandler, McpAuthRequest, McpAuthResult};
+use futures_util::FutureExt;
+use github_copilot_sdk::handler::{
+    McpAuthHandler, McpAuthRequest, McpAuthResult, PermissionHandler, PermissionResult,
+};
 use github_copilot_sdk::session::{PreparedSession, Session};
 use github_copilot_sdk::subscription::{EventSubscription, RecvErrorKind};
 use github_copilot_sdk::types::{
-    CloudSessionOptions, CloudSessionRepository, MessageOptions, RequestId, ResumeSessionConfig,
-    SessionConfig, SessionId,
+    CloudSessionOptions, CloudSessionRepository, MessageOptions, PermissionRequestData, RequestId,
+    ResumeSessionConfig, SessionConfig, SessionId,
 };
 use github_copilot_sdk::{Client, ErrorKind, SessionErrorKind};
 use serde_json::{Value, json};
@@ -159,6 +162,41 @@ impl FakeServer {
         let request = self.read_request().await;
         assert_eq!(request["method"], "session.skills.reload");
         self.respond(&request, json!({})).await;
+    }
+
+    /// The permission callback runs after publication on the session loop,
+    /// proving preceding events were dispatched without claiming a subscription.
+    async fn await_publication(&mut self, session_id: &str, published: &tokio::sync::Notify) {
+        let notification = json!({
+            "jsonrpc": "2.0",
+            "method": "session.event",
+            "params": {
+                "sessionId": session_id,
+                "event": {
+                    "id": "publication-fence",
+                    "timestamp": "2025-01-01T00:00:00Z",
+                    "type": "permission.requested",
+                    "data": { "requestId": "publication-fence", "kind": "read" },
+                },
+            },
+        });
+        write_framed(&mut self.write, &serde_json::to_vec(&notification).unwrap()).await;
+        timeout(TIMEOUT, published.notified()).await.unwrap();
+    }
+}
+
+struct PublicationFence(Arc<tokio::sync::Notify>);
+
+#[async_trait]
+impl PermissionHandler for PublicationFence {
+    async fn handle(
+        &self,
+        _session_id: SessionId,
+        _request_id: RequestId,
+        _request: PermissionRequestData,
+    ) -> PermissionResult {
+        self.0.notify_one();
+        PermissionResult::no_result()
     }
 }
 
@@ -307,6 +345,14 @@ async fn expect_startup_burst(events: &mut EventSubscription) {
     assert_eq!(idle.id.as_str(), "evt-idle");
     assert_eq!(idle.event_type, "session.idle");
     assert_eq!(idle.ephemeral, Some(true));
+}
+
+async fn expect_event_id(events: &mut EventSubscription, id: &str) {
+    let event = timeout(TIMEOUT, events.recv())
+        .await
+        .unwrap_or_else(|_| panic!("timed out waiting for {id}"))
+        .unwrap_or_else(|error| panic!("expected {id}, got {error}"));
+    assert_eq!(event.id, id);
 }
 
 /// Unwrap the error arm of a result whose `Ok` type is not `Debug`.
@@ -461,6 +507,14 @@ async fn prepared_resume_delivers_pre_response_burst() {
 
     let session = timeout(TIMEOUT, start).await.unwrap().unwrap().unwrap();
     expect_startup_burst(&mut events).await;
+    let mut late = session.subscribe();
+    assert!(late.recv().now_or_never().is_none());
+    server
+        .send_event(session_id.as_str(), "live", "assistant.message", false)
+        .await;
+    for subscription in [&mut events, &mut late] {
+        expect_event_id(subscription, "live").await;
+    }
     drop(session);
 }
 
@@ -704,6 +758,27 @@ async fn create_rpc_error_preserves_kind_and_cleans_up() {
         "unexpected error kind: {:?}",
         error.kind()
     );
+    await_no_registrations(&client).await;
+    expect_closed(&mut events).await;
+}
+
+#[tokio::test]
+async fn create_result_parse_error_preserves_kind_and_cleans_up() {
+    let (client, mut server) = make_client();
+    let session_id = SessionId::new("prepared-create-parse-error");
+    let prepared = client
+        .prepare_session(SessionConfig::default().with_session_id(session_id))
+        .unwrap();
+    let mut events = prepared.subscribe();
+    let start = tokio::spawn(prepared.start());
+
+    let create_req = server.read_request().await;
+    server
+        .respond(&create_req, json!({ "sessionId": 42 }))
+        .await;
+
+    let error = expect_error(timeout(TIMEOUT, start).await.unwrap().unwrap());
+    assert!(matches!(error.kind(), ErrorKind::Json), "{error}");
     await_no_registrations(&client).await;
     expect_closed(&mut events).await;
 }
@@ -1004,6 +1079,414 @@ async fn resume_session_wrapper_keeps_rpc_sequence() {
     assert_eq!(session.id(), &session_id);
     server.expect_quiet().await;
     drop(session);
+}
+
+#[tokio::test]
+async fn resume_bootstrap_retains_all_startup_phases_and_keeps_later_subscribers_live() {
+    let (client, mut server) = make_client();
+    let session_id = SessionId::new("resume-bootstrap-phases");
+    let published = Arc::new(tokio::sync::Notify::new());
+    let start = tokio::spawn({
+        let client = client.clone();
+        let session_id = session_id.clone();
+        let published = published.clone();
+        async move {
+            client
+                .resume_session(
+                    ResumeSessionConfig::new(session_id)
+                        .with_event_buffer_capacity(1)
+                        .with_permission_handler(Arc::new(PublicationFence(published)))
+                        .with_mcp_auth_handler(Arc::new(CancelMcpAuthHandler)),
+                )
+                .await
+        }
+    });
+
+    let resume = server.read_request().await;
+    assert_eq!(resume["method"], "session.resume");
+    server
+        .send_event(
+            session_id.as_str(),
+            "pre-durable",
+            "session.model_change",
+            false,
+        )
+        .await;
+    server
+        .send_event(session_id.as_str(), "pre-ephemeral", "session.idle", true)
+        .await;
+    server
+        .await_publication(session_id.as_str(), &published)
+        .await;
+    server
+        .respond(&resume, json!({ "sessionId": session_id.as_str() }))
+        .await;
+
+    let interest = server.read_request().await;
+    assert_eq!(interest["method"], "session.eventLog.registerInterest");
+    server.send_startup_burst(session_id.as_str()).await;
+    server
+        .await_publication(session_id.as_str(), &published)
+        .await;
+    server.respond(&interest, json!({})).await;
+
+    let reload = server.read_request().await;
+    assert_eq!(reload["method"], "session.skills.reload");
+    server
+        .send_event(session_id.as_str(), "during-reload", "session.idle", true)
+        .await;
+    server
+        .await_publication(session_id.as_str(), &published)
+        .await;
+    server.respond(&reload, json!({})).await;
+    let session = timeout(TIMEOUT, start).await.unwrap().unwrap().unwrap();
+
+    server
+        .send_event(
+            session_id.as_str(),
+            "post-setup",
+            "assistant.message",
+            false,
+        )
+        .await;
+    server
+        .await_publication(session_id.as_str(), &published)
+        .await;
+    let mut first = session.subscribe();
+    let mut second = session.subscribe();
+    server
+        .send_event(session_id.as_str(), "during-catchup", "session.idle", true)
+        .await;
+    expect_event_id(&mut second, "during-catchup").await;
+
+    for (id, ephemeral) in [
+        ("pre-durable", Some(false)),
+        ("pre-ephemeral", Some(true)),
+        ("publication-fence", None),
+    ] {
+        let event = timeout(TIMEOUT, first.recv()).await.unwrap().unwrap();
+        assert_eq!(event.id, id);
+        assert_eq!(event.ephemeral, ephemeral);
+    }
+    expect_startup_burst(&mut first).await;
+    for id in [
+        "publication-fence",
+        "during-reload",
+        "publication-fence",
+        "post-setup",
+        "publication-fence",
+        "during-catchup",
+    ] {
+        expect_event_id(&mut first, id).await;
+    }
+    // Poll past the retained prefix, installing live delivery, then cancel.
+    assert!(first.recv().now_or_never().is_none());
+    assert!(second.recv().now_or_never().is_none());
+    server
+        .send_event(session_id.as_str(), "live", "assistant.message", false)
+        .await;
+    for events in [&mut first, &mut second] {
+        expect_event_id(events, "live").await;
+        assert!(events.recv().now_or_never().is_none());
+    }
+    timeout(TIMEOUT, session.stop_event_loop()).await.unwrap();
+    drop(session);
+    expect_closed(&mut first).await;
+    expect_closed(&mut second).await;
+}
+
+#[tokio::test]
+async fn structured_output_completion_preserves_resume_bootstrap_for_first_observer() {
+    check_structured_output_preserves_bootstrap(false).await;
+}
+
+#[tokio::test]
+async fn structured_output_cancellation_preserves_resume_bootstrap_for_first_observer() {
+    check_structured_output_preserves_bootstrap(true).await;
+}
+
+async fn check_structured_output_preserves_bootstrap(cancel: bool) {
+    let (client, mut server) = make_client();
+    let session_id = SessionId::new("resume-structured-output");
+    let published = Arc::new(tokio::sync::Notify::new());
+    let start = tokio::spawn({
+        let client = client.clone();
+        let session_id = session_id.clone();
+        let published = published.clone();
+        async move {
+            client
+                .resume_session(
+                    ResumeSessionConfig::new(session_id)
+                        .with_permission_handler(Arc::new(PublicationFence(published))),
+                )
+                .await
+        }
+    });
+    let resume = server.read_request().await;
+    server
+        .send_event(session_id.as_str(), "startup-idle", "session.idle", true)
+        .await;
+    server
+        .await_publication(session_id.as_str(), &published)
+        .await;
+    server
+        .respond(&resume, json!({ "sessionId": session_id.as_str() }))
+        .await;
+    server.answer_skills_reload().await;
+    let session = Arc::new(timeout(TIMEOUT, start).await.unwrap().unwrap().unwrap());
+    let waiting = tokio::spawn({
+        let session = session.clone();
+        async move {
+            session
+                .send_and_wait(
+                    MessageOptions::new("structured")
+                        .with_response_schema(json!({ "type": "object" })),
+                )
+                .await
+        }
+    });
+    let request = server.read_request().await;
+    assert_eq!(request["method"], "session.send");
+    if cancel {
+        waiting.abort();
+        let error = timeout(TIMEOUT, waiting).await.unwrap().unwrap_err();
+        assert!(error.is_cancelled(), "expected cancellation, got {error:?}");
+    } else {
+        server
+            .respond(&request, json!({ "messageId": "structured-user" }))
+            .await;
+        let notification = json!({
+            "jsonrpc": "2.0", "method": "session.event",
+            "params": { "sessionId": session_id.as_str(), "event": {
+                "id": "structured-answer", "timestamp": "2025-01-01T00:00:00Z",
+                "type": "assistant.message", "data": {
+                    "messageId": "structured-answer", "originatingMessageId": "structured-user",
+                    "content": "{\"ok\":true}"
+                }
+            } }
+        });
+        write_framed(
+            &mut server.write,
+            &serde_json::to_vec(&notification).unwrap(),
+        )
+        .await;
+        server
+            .send_event(session_id.as_str(), "structured-idle", "session.idle", true)
+            .await;
+        let result = timeout(TIMEOUT, waiting)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap()
+            .unwrap();
+        assert_eq!(result.id, "structured-answer");
+    }
+
+    let mut observer = session.subscribe();
+    expect_event_id(&mut observer, "startup-idle").await;
+    expect_event_id(&mut observer, "publication-fence").await;
+    if !cancel {
+        expect_event_id(&mut observer, "structured-answer").await;
+        expect_event_id(&mut observer, "structured-idle").await;
+    }
+    assert!(observer.recv().now_or_never().is_none());
+    timeout(TIMEOUT, session.stop_event_loop()).await.unwrap();
+    drop(session);
+    expect_closed(&mut observer).await;
+}
+
+#[tokio::test]
+async fn populated_resume_bootstrap_cleans_up_after_setup_failure() {
+    check_populated_resume_cleanup(false).await;
+}
+
+#[tokio::test]
+async fn populated_resume_bootstrap_cleans_up_after_setup_cancellation() {
+    check_populated_resume_cleanup(true).await;
+}
+
+async fn check_populated_resume_cleanup(cancel: bool) {
+    let (client, mut server) = make_client();
+    let session_id = SessionId::new("resume-bootstrap-cleanup");
+    let published = Arc::new(tokio::sync::Notify::new());
+    let start = tokio::spawn({
+        let client = client.clone();
+        let session_id = session_id.clone();
+        let published = published.clone();
+        async move {
+            client
+                .resume_session(
+                    ResumeSessionConfig::new(session_id)
+                        .with_permission_handler(Arc::new(PublicationFence(published)))
+                        .with_mcp_auth_handler(Arc::new(CancelMcpAuthHandler)),
+                )
+                .await
+        }
+    });
+    let resume = server.read_request().await;
+    assert_eq!(resume["method"], "session.resume");
+    server
+        .respond(&resume, json!({ "sessionId": session_id.as_str() }))
+        .await;
+    let interest = server.read_request().await;
+    assert_eq!(interest["method"], "session.eventLog.registerInterest");
+    server.send_startup_burst(session_id.as_str()).await;
+    server
+        .await_publication(session_id.as_str(), &published)
+        .await;
+    if cancel {
+        start.abort();
+        let error = timeout(TIMEOUT, start)
+            .await
+            .unwrap()
+            .err()
+            .expect("cancelled resume task unexpectedly completed");
+        assert!(error.is_cancelled(), "expected cancellation, got {error:?}");
+    } else {
+        server
+            .respond_error(&interest, -32004, "interest registration failed")
+            .await;
+        let error = expect_error(timeout(TIMEOUT, start).await.unwrap().unwrap());
+        assert!(matches!(error.kind(), ErrorKind::Rpc { code: -32004 }));
+    }
+    await_no_registrations(&client).await;
+    server.expect_quiet().await;
+
+    let retry = tokio::spawn({
+        let client = client.clone();
+        let session_id = session_id.clone();
+        async move {
+            client
+                .resume_session(ResumeSessionConfig::new(session_id))
+                .await
+        }
+    });
+    let request = server.read_request().await;
+    assert_eq!(request["method"], "session.resume");
+    server
+        .respond(&request, json!({ "sessionId": session_id.as_str() }))
+        .await;
+    server.answer_skills_reload().await;
+    let session = timeout(TIMEOUT, retry).await.unwrap().unwrap().unwrap();
+    let mut events = session.subscribe();
+    server
+        .send_event(session_id.as_str(), "after-retry", "session.idle", true)
+        .await;
+    expect_event_id(&mut events, "after-retry").await;
+    timeout(TIMEOUT, session.stop_event_loop()).await.unwrap();
+    drop(session);
+    expect_closed(&mut events).await;
+    await_no_registrations(&client).await;
+}
+
+#[tokio::test]
+async fn stopping_resume_releases_unclaimed_bootstrap() {
+    check_stopping_resume_bootstrap(false).await;
+}
+
+#[tokio::test]
+async fn claimed_bootstrap_drains_after_stopping_and_dropping_session() {
+    check_stopping_resume_bootstrap(true).await;
+}
+
+async fn check_stopping_resume_bootstrap(claim: bool) {
+    let (client, mut server) = make_client();
+    let session_id = SessionId::new("resume-bootstrap-stop");
+    let published = Arc::new(tokio::sync::Notify::new());
+    let start = tokio::spawn({
+        let client = client.clone();
+        let session_id = session_id.clone();
+        let published = published.clone();
+        async move {
+            let prepared = client
+                .prepare_resume_session(
+                    ResumeSessionConfig::new(session_id)
+                        .with_event_buffer_capacity(1)
+                        .with_permission_handler(Arc::new(PublicationFence(published))),
+                )
+                .unwrap();
+            // A dropped prepared observer is not active at startup.
+            drop(prepared.subscribe());
+            prepared.start().await
+        }
+    });
+    let resume = server.read_request().await;
+    server.send_startup_burst(session_id.as_str()).await;
+    server
+        .await_publication(session_id.as_str(), &published)
+        .await;
+    server
+        .respond(&resume, json!({ "sessionId": session_id.as_str() }))
+        .await;
+    server.answer_skills_reload().await;
+    let session = timeout(TIMEOUT, start).await.unwrap().unwrap().unwrap();
+    let claimed = claim.then(|| session.subscribe());
+
+    timeout(TIMEOUT, session.stop_event_loop()).await.unwrap();
+    let mut events = claimed.unwrap_or_else(|| session.subscribe());
+    if claim {
+        drop(session);
+        expect_startup_burst(&mut events).await;
+        expect_event_id(&mut events, "publication-fence").await;
+    } else {
+        assert!(
+            events.recv().now_or_never().is_none(),
+            "unclaimed backlog was replayed"
+        );
+        drop(session);
+    }
+    assert!(matches!(
+        timeout(TIMEOUT, events.recv())
+            .await
+            .unwrap()
+            .unwrap_err()
+            .kind(),
+        RecvErrorKind::Closed
+    ));
+    await_no_registrations(&client).await;
+}
+
+#[tokio::test]
+async fn active_prepared_resume_subscription_remains_bounded() {
+    let (client, mut server) = make_client();
+    let session_id = SessionId::new("prepared-resume-bounded");
+    let published = Arc::new(tokio::sync::Notify::new());
+    let prepared = client
+        .prepare_resume_session(
+            ResumeSessionConfig::new(session_id.clone())
+                .with_event_buffer_capacity(1)
+                .with_permission_handler(Arc::new(PublicationFence(published.clone()))),
+        )
+        .unwrap();
+    let mut events = prepared.subscribe();
+    let start = tokio::spawn(prepared.start());
+    let resume = server.read_request().await;
+    server.send_startup_burst(session_id.as_str()).await;
+    server
+        .await_publication(session_id.as_str(), &published)
+        .await;
+    server
+        .respond(&resume, json!({ "sessionId": session_id.as_str() }))
+        .await;
+    server.answer_skills_reload().await;
+    let session = timeout(TIMEOUT, start).await.unwrap().unwrap().unwrap();
+    let error = timeout(TIMEOUT, events.recv()).await.unwrap().unwrap_err();
+    let RecvErrorKind::Lagged(lag) = error.kind() else {
+        panic!("expected bounded prepared delivery to lag, got {error:?}");
+    };
+    assert_eq!(lag.skipped(), (BURST + 1) as u64);
+    expect_event_id(&mut events, "publication-fence").await;
+    let mut late = session.subscribe();
+    server
+        .send_event(session_id.as_str(), "live", "session.idle", true)
+        .await;
+    for subscription in [&mut events, &mut late] {
+        expect_event_id(subscription, "live").await;
+    }
+    timeout(TIMEOUT, session.stop_event_loop()).await.unwrap();
+    drop(session);
+    expect_closed(&mut events).await;
+    expect_closed(&mut late).await;
 }
 
 // ---------------------------------------------------------------------------

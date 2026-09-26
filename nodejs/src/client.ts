@@ -1700,6 +1700,7 @@ export class CopilotClient {
                     ? { enableGitHubTelemetryForwarding: true }
                     : {}),
                 mcpServers: toWireMcpServers(config.mcpServers),
+                ...(config.diagnostics !== undefined ? { diagnostics: config.diagnostics } : {}),
                 mcpOAuthTokenStorage: config.mcpOAuthTokenStorage,
                 authClientIdMetadataUrl: config.authClientIdMetadataUrl,
                 envValueMode: "direct",
@@ -1709,6 +1710,7 @@ export class CopilotClient {
                 agent: config.agent,
                 configDir: config.configDirectory,
                 enableConfigDiscovery: config.enableConfigDiscovery,
+                refreshCustomInstructions: config.refreshCustomInstructions,
                 skipEmbeddingRetrieval: config.skipEmbeddingRetrieval,
                 embeddingCacheStorage: config.embeddingCacheStorage,
                 organizationCustomInstructions: config.organizationCustomInstructions,
@@ -2003,6 +2005,7 @@ export class CopilotClient {
                     ? { enableGitHubTelemetryForwarding: true }
                     : {}),
                 mcpServers: toWireMcpServers(config.mcpServers),
+                ...(config.diagnostics !== undefined ? { diagnostics: config.diagnostics } : {}),
                 mcpOAuthTokenStorage: config.mcpOAuthTokenStorage,
                 authClientIdMetadataUrl: config.authClientIdMetadataUrl,
                 envValueMode: "direct",

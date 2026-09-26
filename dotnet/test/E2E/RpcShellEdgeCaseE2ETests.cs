@@ -28,16 +28,14 @@ public class RpcShellEdgeCaseE2ETests(E2ETestFixture fixture, ITestOutputHelper 
         var markerPath = Path.Join(Ctx.WorkDir, $"shell-timeout-{Guid.NewGuid():N}.txt");
         var startedPath = Path.Join(Ctx.WorkDir, $"shell-timeout-started-{Guid.NewGuid():N}.txt");
 
-        // Sleep 30s but use a much shorter timeout — runtime should SIGTERM the child before the
-        // sleep completes, which means the marker file must NEVER appear within a wait
-        // window comfortably greater than the timeout but well under the sleep duration.
-        // Process startup on Windows can exceed 200ms on loaded runners, so match the
-        // platform-specific allowance used by the Rust coverage for this RPC.
+        // Sleep 30s but use a shorter timeout — runtime should terminate the child before
+        // the sleep completes. On loaded Windows runners, cmd.exe can start more than 2s
+        // after the RPC returns its process ID; allow it to reach the startup marker.
         var timeout = OperatingSystem.IsWindows()
-            ? TimeSpan.FromSeconds(2)
+            ? TimeSpan.FromSeconds(10)
             : TimeSpan.FromMilliseconds(200);
         var command = OperatingSystem.IsWindows()
-            ? $"powershell -NoLogo -NoProfile -Command \"Set-Content -LiteralPath '{startedPath}' -Value started; Start-Sleep -Seconds 30; Set-Content -LiteralPath '{markerPath}' -Value should-not-exist\""
+            ? $"echo started>\"{startedPath}\" & ping.exe -n 31 127.0.0.1 >nul & echo should-not-exist>\"{markerPath}\""
             : $"printf 'started' > '{startedPath}'; sleep 30; printf 'should-not-exist' > '{markerPath}'";
 
         // On Windows, terminating the shell wrapper can briefly leave children alive.
@@ -50,6 +48,9 @@ public class RpcShellEdgeCaseE2ETests(E2ETestFixture fixture, ITestOutputHelper 
             timeout: TimeSpan.FromSeconds(30),
             timeoutMessage: "Timed-out shell command did not start.");
 
+        // The startup marker can precede the timeout; don't probe the process map
+        // until the configured timeout has had a chance to terminate the command.
+        await Task.Delay(timeout);
         await AssertProcessMapCleanedUpAsync(session, result.ProcessId, "Timed-out shell command");
 
         Assert.False(File.Exists(markerPath), "Marker file should not exist; timeout should have killed the child before the sleep completed.");

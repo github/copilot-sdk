@@ -32,10 +32,17 @@ public record QueuePendingItems(
     /** Human-readable text to display for this queue entry in the UI */
     @JsonProperty("displayText") String displayText,
     /** Agent mode stored on this queued entry, as stamped when it was enqueued. Items without an explicit mode report interactive. This is not necessarily the mode that will constrain the turn: a plan or autopilot session applies its own write gate, continuation loop and permission posture to every drained item regardless of the mode stored here. */
-    @JsonProperty("agentMode") SendAgentMode agentMode
+    @JsonProperty("agentMode") SendAgentMode agentMode,
+    /** Optional source tag associated with this pending queue entry. This is an open string, not authenticated authorship. In particular, `user` does not prove that a person typed the message. If the source is absent or unrecognized, consumers must not infer human or agent authorship and should handle the entry neutrally. Consumers should tolerate future source values. */
+    @JsonProperty("source") String source
 ) {
     /** Creates a value without optional admission correlation metadata. */
+    public QueuePendingItems(String id, String messageId, QueuePendingItemsKind kind, String displayText, SendAgentMode agentMode, String source) {
+        this(id, messageId, null, kind, displayText, agentMode, source);
+    }
+
+    /** Creates a value without optional admission correlation metadata. */
     public QueuePendingItems(String id, String messageId, QueuePendingItemsKind kind, String displayText, SendAgentMode agentMode) {
-        this(id, messageId, null, kind, displayText, agentMode);
+        this(id, messageId, null, kind, displayText, agentMode, null);
     }
 }

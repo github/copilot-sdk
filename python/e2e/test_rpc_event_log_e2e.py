@@ -6,6 +6,7 @@ import asyncio
 import time
 import uuid
 from collections.abc import Awaitable, Callable
+from typing import TYPE_CHECKING
 
 import pytest
 
@@ -16,6 +17,7 @@ from copilot.rpc import (
     PlanUpdateRequest,
     RegisterEventInterestParams,
     ReleaseEventInterestParams,
+    SessionsSaveRequest,
 )
 from copilot.session import PermissionHandler
 from copilot.session_events import (
@@ -24,7 +26,8 @@ from copilot.session_events import (
     SessionTitleChangedData,
 )
 
-from .testharness import E2ETestContext
+if TYPE_CHECKING:
+    from .testharness import E2ETestContext
 
 pytestmark = pytest.mark.asyncio(loop_scope="module")
 
@@ -89,14 +92,27 @@ class TestRpcEventLog:
         )
         try:
             tail = await session.rpc.event_log.tail()
-            read = await session.rpc.event_log.read(
-                EventLogReadRequest(cursor=tail.cursor, max=10, wait_ms=0)
+            await session.log("Ephemeral event after tail", ephemeral=True)
+            request = EventLogReadRequest(
+                cursor=tail.cursor, max=10, wait_ms=0, include_ephemeral=False
             )
+            read = await session.rpc.event_log.read(request)
 
             assert tail.cursor
             assert read.cursor_status == EventsCursorStatus.OK
             assert read.events == []
             assert read.has_more is False
+
+            await session.rpc.plan.update(PlanUpdateRequest(content="# Durable event after tail"))
+            await ctx.client.rpc.sessions.save(SessionsSaveRequest(session_id=session.session_id))
+            read = await session.rpc.event_log.read(request)
+            assert read.cursor_status == EventsCursorStatus.OK
+            assert any(
+                isinstance(evt.data, SessionPlanChangedData)
+                and evt.data.operation == PlanChangedOperation.CREATE
+                and evt.ephemeral is not True
+                for evt in read.events
+            )
         finally:
             await session.disconnect()
 
@@ -133,25 +149,43 @@ class TestRpcEventLog:
         try:
             expected_title = f"EventLogTitle-{uuid.uuid4().hex}"
             tail = await session.rpc.event_log.tail()
-            read_task = asyncio.create_task(
-                session.rpc.event_log.read(
-                    EventLogReadRequest(
-                        cursor=tail.cursor,
-                        max=10,
-                        wait_ms=5000,
-                        types=["session.title_changed"],
+            last_read = None
+
+            async def read_until_title():
+                nonlocal last_read
+                cursor = tail.cursor
+                while True:
+                    last_read = await session.rpc.event_log.read(
+                        EventLogReadRequest(
+                            cursor=cursor,
+                            max=10,
+                            wait_ms=5000,
+                            types=["session.title_changed"],
+                        )
                     )
-                )
-            )
+                    assert last_read.cursor_status == EventsCursorStatus.OK
+                    assert all(
+                        evt.type.value == "session.title_changed" for evt in last_read.events
+                    )
+                    if any(
+                        isinstance(evt.data, SessionTitleChangedData)
+                        and evt.data.title == expected_title
+                        for evt in last_read.events
+                    ):
+                        return
+                    # Any new event can wake a long poll, even if the filter removes it.
+                    cursor = last_read.cursor
 
-            await session.rpc.name.set(NameSetRequest(name=expected_title))
-            read = await asyncio.wait_for(read_task, timeout=10.0)
-
-            assert read.cursor_status == EventsCursorStatus.OK
-            assert all(evt.type.value == "session.title_changed" for evt in read.events)
-            assert any(
-                isinstance(evt.data, SessionTitleChangedData) and evt.data.title == expected_title
-                for evt in read.events
-            )
+            read_task = asyncio.create_task(read_until_title())
+            try:
+                await session.rpc.name.set(NameSetRequest(name=expected_title))
+                try:
+                    await asyncio.wait_for(read_task, timeout=10.0)
+                except TimeoutError as exc:
+                    exc.add_note(f"Expected title {expected_title!r}; last batch: {last_read!r}")
+                    raise
+            finally:
+                read_task.cancel()
+                await asyncio.gather(read_task, return_exceptions=True)
         finally:
             await session.disconnect()

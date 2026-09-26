@@ -38,9 +38,18 @@ async fn should_continue_pending_external_tool_request_after_resume() {
         "should_continue_pending_external_tool_request_after_resume",
         |ctx| {
             Box::pin(async move {
+                let started = Instant::now();
+                let phase = |name| {
+                    eprintln!(
+                        "pending_work_resume/should_continue_pending_external_tool_request_after_resume [{:?}]: {name}",
+                        started.elapsed()
+                    );
+                };
                 ctx.set_default_copilot_user();
                 let port = free_tcp_port();
+                phase("start managed TCP server");
                 let server = start_tcp_server(ctx, port).await;
+                phase("start first external client");
                 let suspended_client = start_external_client(ctx, port).await;
                 let (started_tx, mut started_rx) = mpsc::unbounded_channel();
                 let (_release_tx, release_rx) = oneshot::channel();
@@ -48,6 +57,7 @@ async fn should_continue_pending_external_tool_request_after_resume() {
                     started_tx,
                     release_rx: Mutex::new(Some(release_rx)),
                 });
+                phase("create first session");
                 let session1 = suspended_client
                     .create_session(
                         SessionConfig::default()
@@ -68,21 +78,27 @@ async fn should_continue_pending_external_tool_request_after_resume() {
                                 .typed_data::<ExternalToolRequestedData>()
                                 .is_some_and(|data| data.tool_name == "resume_external_tool")
                     });
+                phase("send pending tool prompt");
                 session1
                     .send("Use resume_external_tool with value 'beta', then reply with the result.")
                     .await
                     .expect("send pending tool prompt");
+                phase("wait for pending tool");
                 assert_eq!(
                     recv_with_timeout(&mut started_rx, "pending tool started").await,
                     "beta"
                 );
+                phase("wait for tool request event");
                 let tool_event = tool_requested
                     .await
                     .typed_data::<ExternalToolRequestedData>()
                     .expect("tool request data");
+                phase("force-stop first external client");
                 suspended_client.force_stop();
 
+                phase("start resumed external client");
                 let resumed_client = start_external_client(ctx, port).await;
+                phase("resume pending session");
                 let session2 = resumed_client
                     .resume_session(resume_config(session_id).with_continue_pending_work(true))
                     .await
@@ -96,6 +112,7 @@ async fn should_continue_pending_external_tool_request_after_resume() {
                             .typed_data::<AssistantMessageData>()
                             .is_some_and(|data| data.content.contains("EXTERNAL_RESUMED_BETA"))
                     });
+                phase("complete pending tool");
                 let result = session2
                     .rpc()
                     .tools()
@@ -107,14 +124,18 @@ async fn should_continue_pending_external_tool_request_after_resume() {
                     .await
                     .expect("complete pending tool");
                 assert!(result.success);
+                phase("wait for resumed assistant answer");
                 assistant.await;
 
+                phase("disconnect resumed session");
                 session2
                     .disconnect()
                     .await
                     .expect("disconnect resumed session");
                 resumed_client.force_stop();
+                phase("stop managed TCP server");
                 server.stop().await.expect("stop server client");
+                phase("completed");
             })
         },
     )

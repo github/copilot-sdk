@@ -4,6 +4,9 @@ use std::time::Duration;
 
 use sha2::Digest;
 
+#[path = "download.rs"]
+mod download;
+
 pub(crate) fn main() {
     println!("cargo:rerun-if-env-changed=DOCS_RS");
     println!("cargo:rerun-if-env-changed=COPILOT_SKIP_CLI_DOWNLOAD");
@@ -586,21 +589,29 @@ struct DownloadError {
 }
 
 fn try_download(url: &str) -> Result<Vec<u8>, DownloadError> {
-    let connector = native_tls::TlsConnector::new().map_err(|e| DownloadError {
+    native_tls::TlsConnector::new().map_err(|e| DownloadError {
         message: format!("native-tls init error: {e}"),
         transient: false,
     })?;
-    let agent = ureq::AgentBuilder::new()
-        .tls_connector(std::sync::Arc::new(connector))
-        .timeout_connect(Duration::from_secs(30))
-        .timeout_read(Duration::from_secs(120))
-        .build();
+    let agent = ureq::Agent::config_builder()
+        .tls_config(
+            ureq::tls::TlsConfig::builder()
+                .provider(ureq::tls::TlsProvider::NativeTls)
+                .root_certs(ureq::tls::RootCerts::PlatformVerifier)
+                .build(),
+        )
+        .timeout_connect(Some(Duration::from_secs(30)))
+        .timeout_recv_response(Some(Duration::from_secs(120)))
+        .timeout_recv_body(Some(download::BODY_TIMEOUT))
+        .build()
+        .new_agent();
 
     match agent.get(url).call() {
-        Ok(response) => {
+        Ok(mut response) => {
             let mut bytes = Vec::new();
             response
-                .into_reader()
+                .body_mut()
+                .as_reader()
                 .read_to_end(&mut bytes)
                 .map_err(|e| DownloadError {
                     message: format!("read error: {e}"),
@@ -608,22 +619,9 @@ fn try_download(url: &str) -> Result<Vec<u8>, DownloadError> {
                 })?;
             Ok(bytes)
         }
-        // 5xx — server-side, treat as transient.
-        Err(ureq::Error::Status(code, response)) if (500..600).contains(&code) => {
-            Err(DownloadError {
-                message: format!("HTTP {code} {}", response.status_text()),
-                transient: true,
-            })
-        }
-        // 4xx — client-side, fail fast.
-        Err(ureq::Error::Status(code, response)) => Err(DownloadError {
-            message: format!("HTTP {code} {}", response.status_text()),
-            transient: false,
-        }),
-        // Transport-layer (DNS, connect, TLS, read timeout) — treat as transient.
-        Err(ureq::Error::Transport(t)) => Err(DownloadError {
-            message: format!("transport error: {t}"),
-            transient: true,
+        Err(error) => Err(DownloadError {
+            message: download::message(&error),
+            transient: download::is_transient(&error),
         }),
     }
 }

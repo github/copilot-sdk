@@ -66,10 +66,10 @@ rust_library(
     }),
     version = "3.7.0",
     deps = [
-        "@sdk_vendor__bitflags-2.11.1//:bitflags",
+        "@sdk_vendor__bitflags-2.13.2//:bitflags",
         "@sdk_vendor__core-foundation-0.10.1//:core_foundation",
         "@sdk_vendor__core-foundation-sys-0.8.7//:core_foundation_sys",
-        "@sdk_vendor__libc-0.2.186//:libc",
+        "@sdk_vendor__libc-0.2.189//:libc",
         "@sdk_vendor__security-framework-sys-2.17.0//:security_framework_sys",
     ],
 )

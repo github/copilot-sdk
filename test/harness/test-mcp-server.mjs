@@ -22,6 +22,7 @@ function getArgument(name) {
 }
 
 const startupMarkerPath = getArgument("--startup-marker");
+const diagnosticStderr = getArgument("--diagnostic-stderr");
 const serverName = getArgument("--server-name") ?? "env-echo";
 const server = new McpServer({ name: serverName, version: "1.0.0" });
 
@@ -37,5 +38,8 @@ server.tool(
 const transport = new StdioServerTransport();
 if (startupMarkerPath) {
     await appendFile(startupMarkerPath, `${serverName}\n`);
+}
+if (diagnosticStderr) {
+    console.error(diagnosticStderr);
 }
 await server.connect(transport);

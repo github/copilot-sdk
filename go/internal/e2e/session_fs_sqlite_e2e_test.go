@@ -31,15 +31,52 @@ type inMemorySqliteProvider struct {
 	files       map[string]string
 	dirs        map[string]bool
 	hadQuery    bool
-	sqliteCalls *[]sqliteCall
+	sqliteCalls []sqliteCall
 }
 
-func newInMemorySqliteProvider(sessionID string, calls *[]sqliteCall) *inMemorySqliteProvider {
+func newInMemorySqliteProvider(sessionID string) *inMemorySqliteProvider {
 	return &inMemorySqliteProvider{
-		sessionID:   sessionID,
-		files:       make(map[string]string),
-		dirs:        map[string]bool{"/": true},
-		sqliteCalls: calls,
+		sessionID: sessionID,
+		files:     make(map[string]string),
+		dirs:      map[string]bool{"/": true},
+	}
+}
+
+func (p *inMemorySqliteProvider) recordedCalls() []sqliteCall {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return append([]sqliteCall(nil), p.sqliteCalls...)
+}
+
+func TestInMemorySqliteProviderConcurrentCalls(t *testing.T) {
+	provider := newInMemorySqliteProvider("concurrent-sqlite")
+	start := make(chan struct{})
+	var workers sync.WaitGroup
+	workers.Add(2)
+	go func() {
+		defer workers.Done()
+		<-start
+		for range 100 {
+			if _, err := provider.SqliteQuery(rpc.SessionFSSqliteQueryTypeExec, "CREATE TABLE items (id TEXT)", nil); err != nil {
+				t.Errorf("SqliteQuery: %v", err)
+			}
+		}
+	}()
+	go func() {
+		defer workers.Done()
+		<-start
+		for range 100 {
+			for _, call := range provider.recordedCalls() {
+				if call.SessionID != "concurrent-sqlite" || call.QueryType != "exec" {
+					t.Errorf("Unexpected recorded call: %+v", call)
+				}
+			}
+		}
+	}()
+	close(start)
+	workers.Wait()
+	if got := len(provider.recordedCalls()); got != 100 {
+		t.Fatalf("Expected 100 recorded calls, got %d", got)
 	}
 }
 
@@ -220,7 +257,7 @@ func (p *inMemorySqliteProvider) SqliteTransaction(statements []rpc.SessionFSSql
 // Callers must hold p.mu.
 func (p *inMemorySqliteProvider) runQueryLocked(queryType rpc.SessionFSSqliteQueryType, query string) *copilot.SessionFSSqliteQueryResult {
 	p.hadQuery = true
-	*p.sqliteCalls = append(*p.sqliteCalls, sqliteCall{
+	p.sqliteCalls = append(p.sqliteCalls, sqliteCall{
 		SessionID: p.sessionID,
 		QueryType: string(queryType),
 		Query:     query,
@@ -283,13 +320,20 @@ func TestSessionFSSqliteE2E(t *testing.T) {
 		Capabilities:            &copilot.SessionFSCapabilities{Sqlite: true},
 	}
 
-	var sqliteCalls []sqliteCall
 	var providers sync.Map
 
 	createSessionFSHandler := func(session *copilot.Session) copilot.SessionFSProvider {
-		p := newInMemorySqliteProvider(session.SessionID, &sqliteCalls)
+		p := newInMemorySqliteProvider(session.SessionID)
 		providers.Store(session.SessionID, p)
 		return p
+	}
+	recordedProvider := func(t *testing.T, sessionID string) *inMemorySqliteProvider {
+		t.Helper()
+		value, ok := providers.Load(sessionID)
+		if !ok {
+			t.Fatal("Provider not found for session")
+		}
+		return value.(*inMemorySqliteProvider)
 	}
 
 	client := ctx.NewClient(func(opts *copilot.ClientOptions) {
@@ -299,7 +343,6 @@ func TestSessionFSSqliteE2E(t *testing.T) {
 
 	t.Run("should route sql queries through the sessionfs sqlite handler", func(t *testing.T) {
 		ctx.ConfigureForTest(t)
-		sqliteCalls = nil
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest:     copilot.PermissionHandler.ApproveAll,
@@ -319,7 +362,7 @@ func TestSessionFSSqliteE2E(t *testing.T) {
 		_ = msg
 
 		// Verify sqlite handler was called
-		sessionCalls := filterCalls(sqliteCalls, session.SessionID)
+		sessionCalls := recordedProvider(t, session.SessionID).recordedCalls()
 		if len(sessionCalls) == 0 {
 			t.Fatal("Expected sqlite handler to be called")
 		}
@@ -337,7 +380,6 @@ func TestSessionFSSqliteE2E(t *testing.T) {
 
 	t.Run("should allow subagents to use sql tool via inherited sessionfs", func(t *testing.T) {
 		ctx.ConfigureForTest(t)
-		sqliteCalls = nil
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest:     copilot.PermissionHandler.ApproveAll,
@@ -361,18 +403,14 @@ func TestSessionFSSqliteE2E(t *testing.T) {
 		}
 
 		// Verify INSERT calls were routed
-		sessionCalls := filterCalls(sqliteCalls, session.SessionID)
+		provider := recordedProvider(t, session.SessionID)
+		sessionCalls := provider.recordedCalls()
 		insertCalls := filterByQuery(sessionCalls, "INSERT")
 		if len(insertCalls) == 0 {
 			t.Fatal("Expected INSERT calls from subagent")
 		}
 
 		// Read events.jsonl from in-memory FS
-		val, ok := providers.Load(session.SessionID)
-		if !ok {
-			t.Fatal("Provider not found for session")
-		}
-		provider := val.(*inMemorySqliteProvider)
 		eventsPath := sessionStatePath + "/events.jsonl"
 		content, err := provider.ReadFile(eventsPath)
 		if err != nil {
@@ -405,16 +443,6 @@ func TestSessionFSSqliteE2E(t *testing.T) {
 			}
 		}
 	})
-}
-
-func filterCalls(calls []sqliteCall, sessionID string) []sqliteCall {
-	var result []sqliteCall
-	for _, c := range calls {
-		if c.SessionID == sessionID {
-			result = append(result, c)
-		}
-	}
-	return result
 }
 
 func filterByQuery(calls []sqliteCall, keyword string) []sqliteCall {

@@ -29,6 +29,8 @@ public final class ServerRpc {
     public final ServerHooksApi hooks;
     /** API methods for the {@code models} namespace. */
     public final ServerModelsApi models;
+    /** API methods for the {@code sandbox} namespace. */
+    public final ServerSandboxApi sandbox;
     /** API methods for the {@code tools} namespace. */
     public final ServerToolsApi tools;
     /** API methods for the {@code account} namespace. */
@@ -75,6 +77,7 @@ public final class ServerRpc {
         this.caller = caller;
         this.hooks = new ServerHooksApi(caller);
         this.models = new ServerModelsApi(caller);
+        this.sandbox = new ServerSandboxApi(caller);
         this.tools = new ServerToolsApi(caller);
         this.account = new ServerAccountApi(caller);
         this.secrets = new ServerSecretsApi(caller);

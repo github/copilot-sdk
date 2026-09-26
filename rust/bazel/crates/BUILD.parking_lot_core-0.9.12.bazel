@@ -65,26 +65,26 @@ rust_library(
     version = "0.9.12",
     deps = [
         ":build_script_build",
-        "@sdk_vendor__cfg-if-1.0.4//:cfg_if",
-        "@sdk_vendor__smallvec-1.15.1//:smallvec",
+        "@sdk_vendor__cfg-if-1.0.5//:cfg_if",
+        "@sdk_vendor__smallvec-1.16.1//:smallvec",
     ] + select({
         "@rules_rust//rust/platform:aarch64-apple-darwin": [
-            "@sdk_vendor__libc-0.2.186//:libc",  # cfg(unix)
+            "@sdk_vendor__libc-0.2.189//:libc",  # cfg(unix)
         ],
         "@rules_rust//rust/platform:aarch64-pc-windows-msvc": [
             "@sdk_vendor__windows-link-0.2.1//:windows_link",  # cfg(windows)
         ],
         "@rules_rust//rust/platform:aarch64-unknown-linux-gnu": [
-            "@sdk_vendor__libc-0.2.186//:libc",  # cfg(unix)
+            "@sdk_vendor__libc-0.2.189//:libc",  # cfg(unix)
         ],
         "@rules_rust//rust/platform:x86_64-apple-darwin": [
-            "@sdk_vendor__libc-0.2.186//:libc",  # cfg(unix)
+            "@sdk_vendor__libc-0.2.189//:libc",  # cfg(unix)
         ],
         "@rules_rust//rust/platform:x86_64-pc-windows-msvc": [
             "@sdk_vendor__windows-link-0.2.1//:windows_link",  # cfg(windows)
         ],
         "@rules_rust//rust/platform:x86_64-unknown-linux-gnu": [
-            "@sdk_vendor__libc-0.2.186//:libc",  # cfg(unix)
+            "@sdk_vendor__libc-0.2.189//:libc",  # cfg(unix)
         ],
         "//conditions:default": [],
     }),

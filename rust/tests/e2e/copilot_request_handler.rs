@@ -486,7 +486,7 @@ async fn start_ws_upstream(counters: HandlerCounters) -> String {
                             counters.upstream_ws_requests.fetch_add(1, Ordering::SeqCst);
                             for event in responses_events(HANDLER_WS_TEXT, "resp_stub_ws") {
                                 let raw = serde_json::to_string(&event).unwrap();
-                                if write.send(Message::Text(raw)).await.is_err() {
+                                if write.send(Message::Text(raw.into())).await.is_err() {
                                     return;
                                 }
                             }

@@ -19,18 +19,27 @@
 //! also works for callers who don't need the [`Stream`](tokio_stream::Stream)
 //! surface.
 //!
-//! # Lag policy
+//! # Resume bootstrap and lag policy
 //!
-//! Each subscriber maintains its own internal queue. If a consumer cannot
-//! keep up, the oldest events are dropped and the next call yields
+//! The first subscription on a resumed session may begin with a lossless,
+//! ordered bootstrap prefix. Once its owner catches up, delivery switches
+//! atomically to the bounded live stream. See
+//! [`Session::subscribe`](crate::session::Session::subscribe) for the
+//! unbounded retention, eager ownership, cleanup, and router limits.
+//!
+//! Each live subscriber maintains its own finite queue. If a consumer cannot
+//! keep up, the oldest live events are dropped and the next call yields
 //! [`Lagged`](crate::subscription::Lagged) reporting how many events were skipped.
 //! Slow subscribers do not block the producer.
 
+use std::collections::VecDeque;
 use std::fmt;
 use std::pin::Pin;
+use std::sync::Arc;
 use std::task::{Context, Poll};
 
-use tokio::sync::broadcast::Receiver;
+use parking_lot::Mutex;
+use tokio::sync::broadcast::{Receiver, Sender, WeakSender};
 use tokio_stream::wrappers::BroadcastStream;
 use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
 use tokio_stream::{Stream, StreamExt as _};
@@ -135,154 +144,245 @@ impl From<Lagged> for RecvError {
     }
 }
 
-macro_rules! define_subscription {
-    (
-        $(#[$meta:meta])*
-        $name:ident, $item:ty $(,)?
-    ) => {
-        $(#[$meta])*
-        #[must_use = "subscriptions are inert until polled"]
-        pub struct $name {
-            inner: BroadcastStream<$item>,
-        }
-
-        impl $name {
-            pub(crate) fn new(rx: Receiver<$item>) -> Self {
-                Self {
-                    inner: BroadcastStream::new(rx),
-                }
-            }
-
-            /// Receive the next event.
-            ///
-            /// Returns:
-            ///
-            /// - `Ok(event)` for the next delivered event.
-            /// - `Err(`[`RecvError`]`)` with [`RecvError::kind()`] [`RecvErrorKind::Lagged`] if the subscriber fell behind;
-            ///   call `recv` again to continue from the next live event.
-            /// - `Err(`[`RecvError`]`)` with [`RecvError::kind()`] [`RecvErrorKind::Closed`] once the producer is gone.
-            ///
-            /// # Cancel safety
-            ///
-            /// **Cancel-safe.** Wraps a `tokio::sync::broadcast::Receiver`
-            /// via `BroadcastStream`; both are cancel-safe by design.
-            /// Dropping the future before completion is harmless — events
-            /// already buffered for this subscriber remain available on
-            /// the next `recv` call.
-            pub async fn recv(&mut self) -> Result<$item, RecvError> {
-                match self.inner.next().await {
-                    Some(Ok(event)) => Ok(event),
-                    Some(Err(BroadcastStreamRecvError::Lagged(n))) => {
-                        Err(Lagged(n).into())
-                    }
-                    None => Err(RecvErrorKind::Closed.into()),
-                }
-            }
-        }
-
-        impl Stream for $name {
-            type Item = Result<$item, Lagged>;
-
-            fn poll_next(
-                mut self: Pin<&mut Self>,
-                cx: &mut Context<'_>,
-            ) -> Poll<Option<Self::Item>> {
-                match Pin::new(&mut self.inner).poll_next(cx) {
-                    Poll::Ready(Some(Ok(event))) => Poll::Ready(Some(Ok(event))),
-                    Poll::Ready(Some(Err(BroadcastStreamRecvError::Lagged(n)))) => {
-                        Poll::Ready(Some(Err(Lagged(n))))
-                    }
-                    Poll::Ready(None) => Poll::Ready(None),
-                    Poll::Pending => Poll::Pending,
-                }
-            }
-        }
-    };
+enum ResumeBootstrapState {
+    Unclaimed(VecDeque<SessionEvent>),
+    Claimed(VecDeque<SessionEvent>),
+    Disabled,
 }
 
-define_subscription! {
-    /// Subscription to runtime events for a single
-    /// [`Session`](crate::session::Session).
-    ///
-    /// Created by [`Session::subscribe`](crate::session::Session::subscribe).
-    /// Implements [`Stream`] yielding `Result<SessionEvent, Lagged>`.
-    /// Drop the value to unsubscribe; there is no separate cancel handle.
-    EventSubscription, SessionEvent
+/// Publication, ownership, and the empty-queue handoff share one lock so
+/// the bootstrap owner observes an exact prefix without gaps or duplicates.
+pub(crate) struct ResumeBootstrap {
+    state: Mutex<ResumeBootstrapState>,
+    live: WeakSender<SessionEvent>,
 }
 
-define_subscription! {
-    /// Subscription to lifecycle events on a [`Client`](crate::Client).
+/// Releases only unclaimed events when the publishing task exits or unwinds.
+pub(crate) struct ResumeBootstrapCleanup(Arc<ResumeBootstrap>);
+
+impl Drop for ResumeBootstrapCleanup {
+    fn drop(&mut self) {
+        self.0.release_unclaimed();
+    }
+}
+
+impl ResumeBootstrap {
+    pub(crate) fn new(event_tx: &Sender<SessionEvent>) -> Arc<Self> {
+        Arc::new(Self {
+            state: Mutex::new(ResumeBootstrapState::Unclaimed(VecDeque::new())),
+            live: event_tx.downgrade(),
+        })
+    }
+
+    pub(crate) fn cleanup_guard(self: &Arc<Self>) -> ResumeBootstrapCleanup {
+        ResumeBootstrapCleanup(self.clone())
+    }
+
+    pub(crate) fn publish(&self, event_tx: &Sender<SessionEvent>, event: SessionEvent) {
+        let mut state = self.state.lock();
+        match &mut *state {
+            ResumeBootstrapState::Unclaimed(events) | ResumeBootstrapState::Claimed(events) => {
+                events.push_back(event.clone());
+            }
+            ResumeBootstrapState::Disabled => {}
+        }
+        // Other observers stay live while the bootstrap owner catches up.
+        let _ = event_tx.send(event);
+    }
+
+    pub(crate) fn subscribe(
+        self: &Arc<Self>,
+        event_tx: &Sender<SessionEvent>,
+    ) -> EventSubscription {
+        let mut state = self.state.lock();
+        match &mut *state {
+            ResumeBootstrapState::Unclaimed(events) => {
+                let events = std::mem::take(events);
+                *state = ResumeBootstrapState::Claimed(events);
+                EventSubscription {
+                    inner: None,
+                    bootstrap: Some(self.clone()),
+                }
+            }
+            ResumeBootstrapState::Claimed(_) | ResumeBootstrapState::Disabled => {
+                EventSubscription::new(event_tx.subscribe())
+            }
+        }
+    }
+
+    fn pop(&self, live: &mut Option<BroadcastStream<SessionEvent>>) -> Option<SessionEvent> {
+        let mut state = self.state.lock();
+        let ResumeBootstrapState::Claimed(events) = &mut *state else {
+            return None;
+        };
+        if let Some(event) = events.pop_front() {
+            return Some(event);
+        }
+        // Subscribe under the publication lock, never replaying the broadcast
+        // copy of an event already delivered from the bootstrap queue.
+        *live = self
+            .live
+            .upgrade()
+            .map(|sender| BroadcastStream::new(sender.subscribe()));
+        *state = ResumeBootstrapState::Disabled;
+        None
+    }
+
+    pub(crate) fn release_unclaimed(&self) {
+        let mut state = self.state.lock();
+        if matches!(*state, ResumeBootstrapState::Unclaimed(_)) {
+            *state = ResumeBootstrapState::Disabled;
+        }
+    }
+
+    fn abandon(&self) {
+        let mut state = self.state.lock();
+        if matches!(*state, ResumeBootstrapState::Claimed(_)) {
+            *state = ResumeBootstrapState::Disabled;
+        }
+    }
+}
+
+/// Subscription to runtime events for a single
+/// [`Session`](crate::session::Session).
+///
+/// Created by [`Session::subscribe`](crate::session::Session::subscribe).
+/// Implements [`Stream`] yielding `Result<SessionEvent, Lagged>`.
+/// Drop the value to unsubscribe; there is no separate cancel handle.
+/// A resume bootstrap is claimed at construction, not on the first poll.
+/// Dropping its owner discards any unread bootstrap events.
+#[must_use = "dropping the subscription unsubscribes and discards any owned resume bootstrap backlog"]
+pub struct EventSubscription {
+    inner: Option<BroadcastStream<SessionEvent>>,
+    bootstrap: Option<Arc<ResumeBootstrap>>,
+}
+
+impl EventSubscription {
+    pub(crate) fn new(rx: Receiver<SessionEvent>) -> Self {
+        Self {
+            inner: Some(BroadcastStream::new(rx)),
+            bootstrap: None,
+        }
+    }
+
+    fn next_bootstrap_event(&mut self) -> Option<SessionEvent> {
+        let event = self
+            .bootstrap
+            .as_ref()
+            .and_then(|bootstrap| bootstrap.pop(&mut self.inner));
+        if event.is_none() {
+            self.bootstrap = None;
+        }
+        event
+    }
+
+    /// Receive the next event.
     ///
-    /// Created by
-    /// [`Client::subscribe_lifecycle`](crate::Client::subscribe_lifecycle).
-    /// Implements [`Stream`] yielding `Result<SessionLifecycleEvent, Lagged>`.
-    /// Drop the value to unsubscribe; there is no separate cancel handle.
-    LifecycleSubscription, SessionLifecycleEvent
+    /// Returns:
+    ///
+    /// - `Ok(event)` for the next delivered event.
+    /// - [`RecvErrorKind::Lagged`] if live delivery fell behind; call again
+    ///   to continue from the next available live event.
+    /// - [`RecvErrorKind::Closed`] once the producer is gone and any retained
+    ///   events have been drained.
+    ///
+    /// # Cancel safety
+    ///
+    /// **Cancel-safe.** Bootstrap events are removed before the future's
+    /// first suspension point. Once live delivery begins, this wraps a
+    /// cancel-safe `tokio::sync::broadcast::Receiver` via `BroadcastStream`.
+    pub async fn recv(&mut self) -> Result<SessionEvent, RecvError> {
+        match self.next().await {
+            Some(Ok(event)) => Ok(event),
+            Some(Err(lagged)) => Err(lagged.into()),
+            None => Err(RecvErrorKind::Closed.into()),
+        }
+    }
+}
+
+impl Stream for EventSubscription {
+    type Item = Result<SessionEvent, Lagged>;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        if let Some(event) = self.next_bootstrap_event() {
+            return Poll::Ready(Some(Ok(event)));
+        }
+        let Some(inner) = self.inner.as_mut() else {
+            return Poll::Ready(None);
+        };
+        match Pin::new(inner).poll_next(cx) {
+            Poll::Ready(Some(Ok(event))) => Poll::Ready(Some(Ok(event))),
+            Poll::Ready(Some(Err(BroadcastStreamRecvError::Lagged(n)))) => {
+                Poll::Ready(Some(Err(Lagged(n))))
+            }
+            Poll::Ready(None) => Poll::Ready(None),
+            Poll::Pending => Poll::Pending,
+        }
+    }
+}
+
+impl Drop for EventSubscription {
+    fn drop(&mut self) {
+        if let Some(bootstrap) = &self.bootstrap {
+            bootstrap.abandon();
+        }
+    }
+}
+
+/// Subscription to lifecycle events on a [`Client`](crate::Client).
+///
+/// Created by [`Client::subscribe_lifecycle`](crate::Client::subscribe_lifecycle).
+/// Implements [`Stream`] yielding `Result<SessionLifecycleEvent, Lagged>`.
+/// Drop the value to unsubscribe; there is no separate cancel handle.
+#[must_use = "dropping the subscription unsubscribes"]
+pub struct LifecycleSubscription {
+    inner: BroadcastStream<SessionLifecycleEvent>,
+}
+
+impl LifecycleSubscription {
+    pub(crate) fn new(rx: Receiver<SessionLifecycleEvent>) -> Self {
+        Self {
+            inner: BroadcastStream::new(rx),
+        }
+    }
+
+    /// Receive the next event.
+    ///
+    /// Returns:
+    ///
+    /// - `Ok(event)` for the next delivered event.
+    /// - [`RecvErrorKind::Lagged`] if the subscriber fell behind; call again
+    ///   to continue from the next available event.
+    /// - [`RecvErrorKind::Closed`] once the producer is gone.
+    ///
+    /// # Cancel safety
+    ///
+    /// **Cancel-safe.** Wraps a `tokio::sync::broadcast::Receiver` via
+    /// `BroadcastStream`; both are cancel-safe by design. Dropping the future
+    /// before completion leaves buffered events available for the next call.
+    pub async fn recv(&mut self) -> Result<SessionLifecycleEvent, RecvError> {
+        match self.next().await {
+            Some(Ok(event)) => Ok(event),
+            Some(Err(lagged)) => Err(lagged.into()),
+            None => Err(RecvErrorKind::Closed.into()),
+        }
+    }
+}
+
+impl Stream for LifecycleSubscription {
+    type Item = Result<SessionLifecycleEvent, Lagged>;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        match Pin::new(&mut self.inner).poll_next(cx) {
+            Poll::Ready(Some(Ok(event))) => Poll::Ready(Some(Ok(event))),
+            Poll::Ready(Some(Err(BroadcastStreamRecvError::Lagged(n)))) => {
+                Poll::Ready(Some(Err(Lagged(n))))
+            }
+            Poll::Ready(None) => Poll::Ready(None),
+            Poll::Pending => Poll::Pending,
+        }
+    }
 }
 
 #[cfg(test)]
-mod tests {
-    use tokio::sync::broadcast;
-
-    use super::*;
-
-    fn make_event(id: &str) -> SessionEvent {
-        SessionEvent {
-            id: id.into(),
-            timestamp: "2025-01-01T00:00:00Z".into(),
-            parent_id: None,
-            ephemeral: None,
-            agent_id: None,
-            debug_cli_received_at_ms: None,
-            debug_ws_forwarded_at_ms: None,
-            event_type: "noop".into(),
-            data: serde_json::json!({}),
-        }
-    }
-
-    #[tokio::test]
-    async fn recv_yields_then_closes_on_drop_sender() {
-        let (tx, rx) = broadcast::channel(8);
-        let mut sub = EventSubscription::new(rx);
-        tx.send(make_event("a")).unwrap();
-        tx.send(make_event("b")).unwrap();
-        drop(tx);
-
-        assert_eq!(sub.recv().await.unwrap().id, "a");
-        assert_eq!(sub.recv().await.unwrap().id, "b");
-        assert!(matches!(
-            sub.recv().await.unwrap_err().kind(),
-            RecvErrorKind::Closed
-        ));
-    }
-
-    #[tokio::test]
-    async fn recv_surfaces_lag() {
-        let (tx, rx) = broadcast::channel(2);
-        let mut sub = EventSubscription::new(rx);
-        for id in ["a", "b", "c", "d"] {
-            tx.send(make_event(id)).unwrap();
-        }
-        let err = sub.recv().await.expect_err("expected a Lagged error");
-        let RecvErrorKind::Lagged(l) = err.kind() else {
-            panic!("expected Lagged, got {:?}", err.kind());
-        };
-        assert_eq!(l.skipped(), 2);
-        // Subscription continues with the live tail.
-        assert_eq!(sub.recv().await.unwrap().id, "c");
-        assert_eq!(sub.recv().await.unwrap().id, "d");
-    }
-
-    #[tokio::test]
-    async fn stream_impl_matches_recv_semantics() {
-        let (tx, rx) = broadcast::channel(8);
-        let mut sub = EventSubscription::new(rx);
-        tx.send(make_event("a")).unwrap();
-        drop(tx);
-
-        // poll_next path
-        let next = sub.next().await;
-        assert_eq!(next.unwrap().unwrap().id, "a");
-        assert!(sub.next().await.is_none());
-    }
-}
+mod tests;

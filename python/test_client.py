@@ -41,6 +41,12 @@ from copilot.client import (
     ModelSupports,
 )
 from copilot.generated.rpc import AutoTier as AutoTierEnum
+from copilot.generated.rpc import (
+    DiagnosticLogLevel,
+    DiagnosticsConfiguration,
+    DiagnosticSourcesConfiguration,
+    MCPDiagnosticSourceConfiguration,
+)
 from copilot.session import CopilotSession, PermissionHandler
 from copilot.session_events import (
     McpOauthRequestReason,
@@ -296,6 +302,53 @@ class TestPermissionHandlerOptional:
 
 
 class TestCreateSessionConfig:
+    @pytest.mark.asyncio
+    async def test_diagnostics_forwarded_and_omitted_on_create_and_cold_resume(self):
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
+        await client.start()
+        try:
+            captured: list[tuple[str, dict]] = []
+
+            async def mock_request(method, params, **kwargs):
+                captured.append((method, params))
+                result = {"sessionId": params["sessionId"], "workspacePath": None}
+                callback = kwargs.get("on_response_inline")
+                if callback is not None:
+                    callback(result)
+                return result
+
+            client._client.request = mock_request
+            await client.create_session(
+                session_id="diagnostics-create",
+                diagnostics=DiagnosticsConfiguration(
+                    sources=DiagnosticSourcesConfiguration(
+                        mcp=MCPDiagnosticSourceConfiguration(level=DiagnosticLogLevel.DEBUG)
+                    )
+                ),
+            )
+            await client.resume_session(
+                "diagnostics-resume",
+                diagnostics=DiagnosticsConfiguration(
+                    sources=DiagnosticSourcesConfiguration(
+                        mcp=MCPDiagnosticSourceConfiguration(level=DiagnosticLogLevel.TRACE)
+                    )
+                ),
+            )
+            await client.create_session(session_id="diagnostics-default-create")
+            await client.resume_session("diagnostics-default-resume")
+
+            payloads = {(method, params["sessionId"]): params for method, params in captured}
+            assert payloads[("session.create", "diagnostics-create")]["diagnostics"] == {
+                "sources": {"mcp": {"level": "debug"}}
+            }
+            assert payloads[("session.resume", "diagnostics-resume")]["diagnostics"] == {
+                "sources": {"mcp": {"level": "trace"}}
+            }
+            assert "diagnostics" not in payloads[("session.create", "diagnostics-default-create")]
+            assert "diagnostics" not in payloads[("session.resume", "diagnostics-default-resume")]
+        finally:
+            await client.force_stop()
+
     @pytest.mark.asyncio
     async def test_ask_user_variant_forwarded_on_create_and_cold_resume(self):
         client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
@@ -623,6 +676,7 @@ class TestCreateSessionConfig:
                             client_secret="static-secret",
                             grant_type="client_credentials",
                             public_client=False,
+                            scope="configured.read",
                         ),
                     ),
                     id="evt-1",
@@ -648,6 +702,7 @@ class TestCreateSessionConfig:
                 "clientSecret": "static-secret",
                 "grantType": "client_credentials",
                 "publicClient": False,
+                "scope": "configured.read",
             }
             assert captured == [
                 (

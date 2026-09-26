@@ -21,6 +21,10 @@ pub use crate::copilot_request_handler::{
     CopilotWebSocketResponse, WebSocketTransform, forward_http,
 };
 use crate::generated::api_types::{CurrentToolMetadata, OpenCanvasInstance};
+pub use crate::generated::api_types::{
+    DiagnosticLogLevel, DiagnosticSourcesConfiguration, DiagnosticsConfiguration,
+    McpDiagnosticSourceConfiguration,
+};
 /// Acknowledgement and Auto preference snapshot returned by an Auto tier switch.
 pub use crate::generated::api_types::{ModelSwitchAutoTierResult, ModelSwitchAutoTierStatus};
 /// Routing tier for the `auto` model with Auto mode V2.
@@ -2010,6 +2014,11 @@ pub struct SessionConfig {
     pub included_builtin_skills: Option<Vec<String>>,
     /// MCP server configurations passed through to the CLI.
     pub mcp_servers: Option<IndexMap<String, McpServerConfig>>,
+    /// Enables session-scoped MCP diagnostic capture. Diagnostics are off by
+    /// default. Debug and trace entries can contain MCP payloads, tool arguments,
+    /// paths, and server stderr, so hosts must not upload or export them
+    /// automatically.
+    pub diagnostics: Option<DiagnosticsConfiguration>,
     /// Controls how MCP OAuth tokens are stored for this session.
     ///
     /// - `"persistent"` — tokens are stored in the OS keychain (shared across sessions).
@@ -2036,6 +2045,13 @@ pub struct SessionConfig {
     pub embedding_cache_storage: Option<String>,
     /// Organization-level custom instructions to apply to this session.
     pub organization_custom_instructions: Option<String>,
+    /// Invalidate the runtime process-wide instruction discovery cache before
+    /// constructing this new session. `None` or `Some(false)` retains cache reuse.
+    ///
+    /// Available only on creation configs, not resume configs. Other sessions in
+    /// this runtime may observe updated instructions on later turns or discovery.
+    /// This does not watch files or override instruction-loading policy.
+    pub refresh_custom_instructions: Option<bool>,
     /// When true, enables on-demand instruction discovery for this session.
     pub enable_on_demand_instruction_discovery: Option<bool>,
     /// When true, enables file hooks for this session.
@@ -2334,6 +2350,7 @@ impl std::fmt::Debug for SessionConfig {
             .field("excluded_builtin_agents", &self.excluded_builtin_agents)
             .field("included_builtin_skills", &self.included_builtin_skills)
             .field("mcp_servers", &self.mcp_servers)
+            .field("diagnostics", &self.diagnostics)
             .field("mcp_oauth_token_storage", &self.mcp_oauth_token_storage)
             .field(
                 "auth_client_id_metadata_url",
@@ -2348,6 +2365,10 @@ impl std::fmt::Debug for SessionConfig {
                     .organization_custom_instructions
                     .as_ref()
                     .map(|_| "<redacted>"),
+            )
+            .field(
+                "refresh_custom_instructions",
+                &self.refresh_custom_instructions,
             )
             .field(
                 "enable_on_demand_instruction_discovery",
@@ -2479,11 +2500,13 @@ impl Default for SessionConfig {
             excluded_builtin_agents: None,
             included_builtin_skills: None,
             mcp_servers: None,
+            diagnostics: None,
             mcp_oauth_token_storage: None,
             auth_client_id_metadata_url: None,
             enable_config_discovery: None,
             skip_embedding_retrieval: None,
             organization_custom_instructions: None,
+            refresh_custom_instructions: None,
             enable_on_demand_instruction_discovery: None,
             enable_file_hooks: None,
             enable_host_git_operations: None,
@@ -2650,6 +2673,7 @@ impl SessionConfig {
             excluded_builtin_agents: self.excluded_builtin_agents,
             tool_filter_precedence: "excluded",
             mcp_servers: self.mcp_servers,
+            diagnostics: self.diagnostics,
             mcp_oauth_token_storage: self.mcp_oauth_token_storage,
             auth_client_id_metadata_url: self.auth_client_id_metadata_url,
             embedding_cache_storage: self.embedding_cache_storage,
@@ -2657,6 +2681,7 @@ impl SessionConfig {
             enable_config_discovery: self.enable_config_discovery,
             skip_embedding_retrieval: self.skip_embedding_retrieval,
             organization_custom_instructions: self.organization_custom_instructions,
+            refresh_custom_instructions: self.refresh_custom_instructions,
             enable_on_demand_instruction_discovery: self.enable_on_demand_instruction_discovery,
             enable_file_hooks: self.enable_file_hooks,
             enable_host_git_operations: self.enable_host_git_operations,
@@ -2994,6 +3019,12 @@ impl SessionConfig {
         self
     }
 
+    /// Set the session-scoped MCP diagnostic level.
+    pub fn with_diagnostics(mut self, diagnostics: DiagnosticsConfiguration) -> Self {
+        self.diagnostics = Some(diagnostics);
+        self
+    }
+
     /// Set MCP OAuth token storage mode.
     ///
     /// - `"persistent"` — tokens stored in the OS keychain.
@@ -3040,6 +3071,12 @@ impl SessionConfig {
         instructions: impl Into<String>,
     ) -> Self {
         self.organization_custom_instructions = Some(instructions.into());
+        self
+    }
+
+    /// Set [`Self::refresh_custom_instructions`] for this new session.
+    pub fn with_refresh_custom_instructions(mut self, refresh: bool) -> Self {
+        self.refresh_custom_instructions = Some(refresh);
         self
     }
 
@@ -3490,6 +3527,9 @@ pub struct ResumeSessionConfig {
     pub included_builtin_skills: Option<Vec<String>>,
     /// Re-supply MCP servers so they remain available after app restart.
     pub mcp_servers: Option<IndexMap<String, McpServerConfig>>,
+    /// Updates session-scoped MCP diagnostics. Leave this unset on a resident
+    /// resume to preserve the current diagnostic level.
+    pub diagnostics: Option<DiagnosticsConfiguration>,
     /// Controls how MCP OAuth tokens are stored for this session.
     /// See [`SessionConfig::mcp_oauth_token_storage`] for details.
     pub mcp_oauth_token_storage: Option<String>,
@@ -3726,6 +3766,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field("excluded_builtin_agents", &self.excluded_builtin_agents)
             .field("included_builtin_skills", &self.included_builtin_skills)
             .field("mcp_servers", &self.mcp_servers)
+            .field("diagnostics", &self.diagnostics)
             .field("mcp_oauth_token_storage", &self.mcp_oauth_token_storage)
             .field(
                 "auth_client_id_metadata_url",
@@ -3913,6 +3954,7 @@ impl ResumeSessionConfig {
             excluded_builtin_agents: self.excluded_builtin_agents,
             tool_filter_precedence: "excluded",
             mcp_servers: self.mcp_servers,
+            diagnostics: self.diagnostics,
             mcp_oauth_token_storage: self.mcp_oauth_token_storage,
             auth_client_id_metadata_url: self.auth_client_id_metadata_url,
             embedding_cache_storage: self.embedding_cache_storage,
@@ -4024,6 +4066,7 @@ impl ResumeSessionConfig {
             excluded_builtin_agents: None,
             included_builtin_skills: None,
             mcp_servers: None,
+            diagnostics: None,
             mcp_oauth_token_storage: None,
             auth_client_id_metadata_url: None,
             enable_config_discovery: None,
@@ -4342,6 +4385,12 @@ impl ResumeSessionConfig {
     /// Re-supply MCP server configurations on resume.
     pub fn with_mcp_servers(mut self, servers: IndexMap<String, McpServerConfig>) -> Self {
         self.mcp_servers = Some(servers);
+        self
+    }
+
+    /// Set the session-scoped MCP diagnostic level on resume.
+    pub fn with_diagnostics(mut self, diagnostics: DiagnosticsConfiguration) -> Self {
+        self.diagnostics = Some(diagnostics);
         self
     }
 
@@ -8515,3 +8564,6 @@ mod is_terminal_tests {
         assert!(format!("{plain:?}").contains("is_terminal: false"));
     }
 }
+
+#[cfg(test)]
+mod refresh_custom_instructions_tests;

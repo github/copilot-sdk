@@ -145,6 +145,26 @@ describe("sendAndWait", () => {
         await expect(pending).resolves.toBeUndefined();
     });
 
+    it("ignores child messages, errors, and idle while waiting for the root", async () => {
+        const { session, sendStarted, resolveSend } = controlledSession();
+        const received: SessionEvent[] = [];
+        session.on((event) => received.push(event));
+        const pending = session.sendAndWait({ prompt: "delegate" });
+        await sendStarted;
+        resolveSend();
+
+        const childMessage = { ...assistantMessage("child reply"), agentId: "child-1" };
+        const childError = { ...errorEvent("child failed"), agentId: "child-1" };
+        const childIdle = { ...sessionEvent("session.idle"), agentId: "child-1" };
+        session._dispatchEvent(childMessage);
+        session._dispatchEvent(childError);
+        session._dispatchEvent(childIdle);
+        expect(received).toEqual([childMessage, childError, childIdle]);
+
+        session._dispatchEvent(sessionEvent("session.idle"));
+        await expect(pending).resolves.toBeUndefined();
+    });
+
     it("preserves the send rejection when a session error arrives first", async () => {
         const { session, sendStarted, rejectSend } = controlledSession();
         const pending = session.sendAndWait({ prompt: "hi" });

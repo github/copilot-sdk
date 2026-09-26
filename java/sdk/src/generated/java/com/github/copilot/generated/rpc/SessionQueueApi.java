@@ -117,7 +117,7 @@ public final class SessionQueueApi {
     }
 
     /**
-     * Conditional withdrawal of a single user message, before the runtime claims it for delivery.
+     * Conditional withdrawal of a single user message, from its queue or from the running turn it started.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.

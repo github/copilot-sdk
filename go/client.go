@@ -912,6 +912,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	req.SessionLimits = config.SessionLimits
 	req.IsExperimentalMode = config.EnableExperimentalMode
 	req.SkipCustomInstructions = config.SkipCustomInstructions
+	req.RefreshCustomInstructions = config.RefreshCustomInstructions
 	req.CustomAgentsLocalOnly = config.CustomAgentsLocalOnly
 	req.CoauthorEnabled = config.CoauthorEnabled
 	req.ManageScheduleEnabled = config.ManageScheduleEnabled
@@ -919,6 +920,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	req.WorkingDirectory = config.WorkingDirectory
 	req.AdditionalDirectories = config.AdditionalDirectories
 	req.MCPServers = config.MCPServers
+	req.Diagnostics = config.Diagnostics
 	req.MCPOAuthTokenStorage = config.MCPOAuthTokenStorage
 	req.AuthClientIDMetadataURL = config.AuthClientIDMetadataURL
 	req.EnvValueMode = "direct"
@@ -1088,10 +1090,6 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 			s.registerBearerTokenProviders(bearerTokenProviders)
 		}
 
-		c.sessionsMux.Lock()
-		c.sessions[sessionID] = s
-		c.sessionsMux.Unlock()
-
 		if c.options.SessionFS != nil {
 			if config.CreateSessionFSProvider == nil {
 				unregisterSession(sessionID, s)
@@ -1106,6 +1104,10 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 			}
 			s.clientSessionAPIs.SessionFS = newSessionFSAdapter(provider)
 		}
+
+		c.sessionsMux.Lock()
+		c.sessions[sessionID] = s
+		c.sessionsMux.Unlock()
 		return s, nil
 	}
 
@@ -1339,6 +1341,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	}
 	req.ContinuePendingWork = config.ContinuePendingWork
 	req.MCPServers = config.MCPServers
+	req.Diagnostics = config.Diagnostics
 	req.MCPOAuthTokenStorage = config.MCPOAuthTokenStorage
 	req.AuthClientIDMetadataURL = config.AuthClientIDMetadataURL
 	req.EnvValueMode = "direct"
@@ -1445,6 +1448,23 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 		session.registerBearerTokenProviders(bearerTokenProviders)
 	}
 
+	if c.options.SessionFS != nil {
+		if config.CreateSessionFSProvider == nil {
+			session.stopEventProcessing()
+			return nil, fmt.Errorf("CreateSessionFSProvider is required in session config when SessionFS is enabled in client options")
+		}
+		provider := config.CreateSessionFSProvider(session)
+		if c.options.SessionFS.Capabilities != nil && c.options.SessionFS.Capabilities.Sqlite {
+			if _, ok := provider.(SessionFSSqliteProvider); !ok {
+				session.stopEventProcessing()
+				return nil, fmt.Errorf("SessionFS capabilities declare SQLite support but the provider does not implement SessionFSSqliteProvider")
+			}
+		}
+		session.clientSessionAPIs.SessionFS = newSessionFSAdapter(provider)
+	}
+
+	// Publish only fully initialized handlers: the runtime may still be issuing
+	// SessionFS callbacks for the previous session while its replacement is built.
 	c.sessionsMux.Lock()
 	replacedSession := c.sessions[sessionID]
 	c.sessions[sessionID] = session
@@ -1466,21 +1486,6 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 		// session (if any) but never returns this failed one to the caller, so
 		// its event consumer must be stopped here or it leaks forever.
 		session.stopEventProcessing()
-	}
-
-	if c.options.SessionFS != nil {
-		if config.CreateSessionFSProvider == nil {
-			restoreReplacedSession()
-			return nil, fmt.Errorf("CreateSessionFSProvider is required in session config when SessionFS is enabled in client options")
-		}
-		provider := config.CreateSessionFSProvider(session)
-		if c.options.SessionFS.Capabilities != nil && c.options.SessionFS.Capabilities.Sqlite {
-			if _, ok := provider.(SessionFSSqliteProvider); !ok {
-				restoreReplacedSession()
-				return nil, fmt.Errorf("SessionFS capabilities declare SQLite support but the provider does not implement SessionFSSqliteProvider")
-			}
-		}
-		session.clientSessionAPIs.SessionFS = newSessionFSAdapter(provider)
 	}
 
 	result, err := c.client.Request(ctx, "session.resume", req)

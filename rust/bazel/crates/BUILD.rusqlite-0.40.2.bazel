@@ -68,11 +68,11 @@ rust_library(
     }),
     version = "0.40.2",
     deps = [
-        "@sdk_vendor__bitflags-2.11.1//:bitflags",
+        "@sdk_vendor__bitflags-2.13.2//:bitflags",
         "@sdk_vendor__fallible-iterator-0.3.0//:fallible_iterator",
         "@sdk_vendor__fallible-streaming-iterator-0.1.9//:fallible_streaming_iterator",
         "@sdk_vendor__hashlink-0.12.2//:hashlink",
         "@sdk_vendor__libsqlite3-sys-0.38.2//:libsqlite3_sys",
-        "@sdk_vendor__smallvec-1.15.1//:smallvec",
+        "@sdk_vendor__smallvec-1.16.1//:smallvec",
     ],
 )

@@ -296,15 +296,28 @@ class DataObjectCoverageTest {
     void mcpHttpServerConfigCoversGettersAndFluentSetters() {
         var headers = java.util.Map.of("Authorization", "Bearer token");
         var tools = java.util.List.of("*", "search");
+        var oauthScopes = java.util.List.of("tools:read", "resources:read");
 
         var cfg = new McpHttpServerConfig().setUrl("https://mcp.example.com/sse").setHeaders(headers).setTools(tools)
-                .setTimeout(45);
+                .setTimeout(45).setOauthClientId("static-client").setOauthScopes(oauthScopes).setOauthPublicClient(true)
+                .setOauthGrantType("authorization_code");
 
         assertEquals("http", cfg.getType());
         assertEquals("https://mcp.example.com/sse", cfg.getUrl());
         assertEquals("Bearer token", cfg.getHeaders().get("Authorization"));
         assertEquals(tools, cfg.getTools());
         assertEquals(45, cfg.getTimeout());
+        assertEquals("static-client", cfg.getOauthClientId());
+        assertEquals(oauthScopes, cfg.getOauthScopes());
+        assertTrue(cfg.getOauthPublicClient());
+        assertEquals("authorization_code", cfg.getOauthGrantType());
+
+        var json = new ObjectMapper().valueToTree(cfg);
+        assertEquals("static-client", json.path("oauthClientId").asText());
+        assertEquals("tools:read", json.path("oauthScopes").get(0).asText());
+        assertEquals("resources:read", json.path("oauthScopes").get(1).asText());
+        assertTrue(json.path("oauthPublicClient").asBoolean());
+        assertEquals("authorization_code", json.path("oauthGrantType").asText());
     }
 
     @Test

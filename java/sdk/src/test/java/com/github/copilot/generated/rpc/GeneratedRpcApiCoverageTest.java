@@ -74,6 +74,12 @@ class GeneratedRpcApiCoverageTest {
                 dispatch("session.managedSettings.get", SessionManagedSettingsGetResult.class, """
                         {"sessionId":"bound-session"}
                         """, (server, session) -> session.managedSettings.get()),
+                dispatch("session.instructions.reload", Void.class, """
+                        {"sessionId":"bound-session"}
+                        """, (server, session) -> session.instructions.reload()),
+                dispatch("session.customizations.reload", SessionCustomizationsReloadResult.class, """
+                        {"sessionId":"bound-session"}
+                        """, (server, session) -> session.customizations.reload()),
                 dispatch("session.plugins.install", SessionPluginsInstallResult.class, """
                         {"sessionId":"bound-session","source":"plugin@market"}
                         """,

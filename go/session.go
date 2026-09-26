@@ -479,6 +479,10 @@ func (s *Session) SendPrompt(ctx context.Context, prompt string) (string, error)
 // has finished processing the message.
 //
 // Events are still delivered to handlers registered via [Session.On] while waiting.
+// Synchronous handlers registered before this call finish processing the completing
+// root session.idle event before it returns successfully.
+// This does not wait for asynchronous work started by a handler.
+// Sub-agent events with a non-empty AgentID do not complete the wait or supply its reply.
 //
 // Parameters:
 //   - options: The message options including the prompt and optional attachments.
@@ -517,6 +521,9 @@ func (s *Session) SendAndWait(ctx context.Context, options MessageOptions) (*Ses
 	var mu sync.Mutex
 
 	unsubscribe := s.On(func(event SessionEvent) {
+		if event.AgentID != nil && *event.AgentID != "" {
+			return
+		}
 		switch d := event.Data.(type) {
 		case *AssistantMessageData:
 			mu.Lock()
@@ -1519,6 +1526,7 @@ func (s *Session) handleBroadcastEvent(event SessionEvent) {
 				ClientSecret: d.StaticClientConfig.ClientSecret,
 				GrantType:    grantType,
 				PublicClient: d.StaticClientConfig.PublicClient,
+				Scope:        d.StaticClientConfig.Scope,
 			}
 		}
 		request := MCPAuthRequest{

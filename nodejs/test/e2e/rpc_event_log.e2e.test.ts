@@ -4,7 +4,7 @@
 
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { approveAll, type SessionEvent } from "../../src/index.js";
+import { approveAll } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
 import { waitForCondition } from "./harness/sdkTestHelper.js";
 
@@ -50,27 +50,31 @@ describe("Session event log RPC", async () => {
     it("should return tail cursor and read empty when no new events", async () => {
         const session = await client.createSession({ onPermissionRequest: approveAll });
         try {
-            let tail: Awaited<ReturnType<typeof session.rpc.eventLog.tail>> | undefined;
-            let read: Awaited<ReturnType<typeof session.rpc.eventLog.read>> | undefined;
-            await waitForCondition(
-                async () => {
-                    tail = await session.rpc.eventLog.tail();
-                    read = await session.rpc.eventLog.read({
-                        cursor: tail.cursor,
-                        max: 10,
-                        waitMs: 0,
-                    });
-                    return read.cursorStatus === "ok" && read.events.length === 0;
-                },
-                {
-                    timeoutMessage:
-                        "Timed out waiting for a stable event-log tail cursor with no immediately available events.",
-                }
-            );
+            const tail = await session.rpc.eventLog.tail();
+            await session.log("Ephemeral event after tail", { ephemeral: true });
+            const request = {
+                cursor: tail.cursor,
+                max: 10,
+                waitMs: 0,
+                includeEphemeral: false,
+            };
+            const read = await session.rpc.eventLog.read(request);
 
-            expect(tail!.cursor.trim()).toBeTruthy();
-            expect(read!.events).toEqual([]);
-            expect(read!.hasMore).toBe(false);
+            expect(tail.cursor.trim()).toBeTruthy();
+            expect(read.cursorStatus).toBe("ok");
+            expect(read.events).toEqual([]);
+            expect(read.hasMore).toBe(false);
+
+            await session.rpc.plan.update({ content: "# Durable event after tail" });
+            await client.rpc.sessions.save({ sessionId: session.sessionId });
+            const durableRead = await session.rpc.eventLog.read(request);
+            expect(durableRead.cursorStatus).toBe("ok");
+            expect(durableRead.events).toContainEqual(
+                expect.objectContaining({
+                    type: "session.plan_changed",
+                    data: expect.objectContaining({ operation: "create" }),
+                })
+            );
         } finally {
             await session.disconnect();
         }
@@ -110,14 +114,39 @@ describe("Session event log RPC", async () => {
                 types: ["session.title_changed"],
             });
 
+            await session.rpc.plan.update({ content: "# Unrelated event during a filtered read" });
+            let read = await readTask;
+            expect(read.events).toEqual([]);
             await session.rpc.name.set({ name: expectedTitle });
-            const read = await readTask;
 
-            expect(read.cursorStatus).toBe("ok");
+            // An unrelated event can wake a filtered read with an empty page.
+            await waitForCondition(
+                async () => {
+                    expect(read.cursorStatus).toBe("ok");
+                    expect(
+                        read.events.every((event) => event.type === "session.title_changed")
+                    ).toBe(true);
+                    if (
+                        read.events.some(
+                            (event) =>
+                                event.type === "session.title_changed" &&
+                                event.data.title === expectedTitle
+                        )
+                    ) {
+                        return true;
+                    }
+                    read = await session.rpc.eventLog.read({
+                        cursor: read.cursor,
+                        max: 10,
+                        waitMs: 5_000,
+                        types: ["session.title_changed"],
+                    });
+                    return false;
+                },
+                { timeoutMessage: "Timed out waiting for the filtered title changed event." }
+            );
+
             expect(read.events.length).toBeGreaterThan(0);
-            expect(
-                read.events.every((event: SessionEvent) => event.type === "session.title_changed")
-            ).toBe(true);
             expect(read.events).toContainEqual(
                 expect.objectContaining({
                     type: "session.title_changed",

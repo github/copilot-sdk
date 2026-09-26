@@ -169,8 +169,6 @@ describe("materializeRuntimeBundle", () => {
         writeFileSync(join(sourceDir, "copilot-sdk", "extension.js"), "extension SDK");
         mkdirSync(join(sourceDir, "preloads"), { recursive: true });
         writeFileSync(join(sourceDir, "preloads", "extension_bootstrap.mjs"), "bootstrap");
-        mkdirSync(join(sourceDir, "sdk"), { recursive: true });
-        writeFileSync(join(sourceDir, "sdk", "index.js"), "legacy SDK");
         writeFileSync(join(sourceDir, "app.js"), "excluded");
         writeFileSync(join(sourceDir, "copilot"), "excluded");
         writeFileSync(join(sourceDir, "copilot.exe"), "excluded");
@@ -205,7 +203,6 @@ describe("materializeRuntimeBundle", () => {
         expect(readFileSync(join(installDir, "preloads", "extension_bootstrap.mjs"), "utf8")).toBe(
             "bootstrap"
         );
-        expect(readFileSync(join(installDir, "sdk", "index.js"), "utf8")).toBe("legacy SDK");
         expect(existsSync(join(installDir, "app.js"))).toBe(false);
         expect(existsSync(join(installDir, "copilot"))).toBe(false);
         expect(existsSync(join(installDir, "copilot.exe"))).toBe(false);

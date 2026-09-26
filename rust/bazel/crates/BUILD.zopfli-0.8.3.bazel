@@ -66,9 +66,9 @@ rust_library(
     }),
     version = "0.8.3",
     deps = [
-        "@sdk_vendor__bumpalo-3.20.2//:bumpalo",
-        "@sdk_vendor__crc32fast-1.5.0//:crc32fast",
-        "@sdk_vendor__log-0.4.29//:log",
-        "@sdk_vendor__simd-adler32-0.3.9//:simd_adler32",
+        "@sdk_vendor__bumpalo-3.20.3//:bumpalo",
+        "@sdk_vendor__crc32fast-1.5.2//:crc32fast",
+        "@sdk_vendor__log-0.4.34//:log",
+        "@sdk_vendor__simd-adler32-0.3.10//:simd_adler32",
     ],
 )

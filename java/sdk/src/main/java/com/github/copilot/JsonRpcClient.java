@@ -385,7 +385,8 @@ class JsonRpcClient implements AutoCloseable {
                                 ? errorNode.get("message").asText()
                                 : "Unknown error";
                         int errorCode = errorNode.has("code") ? errorNode.get("code").asInt() : -1;
-                        future.completeExceptionally(new JsonRpcException(errorCode, errorMessage));
+                        future.completeExceptionally(
+                                new JsonRpcException(errorCode, errorMessage, errorNode.get("data")));
                     } else {
                         future.complete(node.get("result"));
                     }

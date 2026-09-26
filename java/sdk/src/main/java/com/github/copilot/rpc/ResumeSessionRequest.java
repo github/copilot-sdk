@@ -12,6 +12,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import com.github.copilot.CopilotExperimental;
+import com.github.copilot.generated.rpc.DiagnosticsConfiguration;
 import com.github.copilot.generated.rpc.SessionLimitsConfig;
 
 /**
@@ -161,6 +162,9 @@ public final class ResumeSessionRequest {
 
     @JsonProperty("mcpOAuthTokenStorage")
     private String mcpOAuthTokenStorage;
+
+    @JsonProperty("diagnostics")
+    private DiagnosticsConfiguration diagnostics;
 
     @JsonProperty("authClientIdMetadataUrl")
     private String authClientIdMetadataUrl;
@@ -823,6 +827,19 @@ public final class ResumeSessionRequest {
     /** Gets MCP OAuth token storage mode. @return the storage mode */
     public String getMcpOAuthTokenStorage() {
         return mcpOAuthTokenStorage;
+    }
+
+    /**
+     * Gets the diagnostics configuration. @return the level, or {@code null} when
+     * unset
+     */
+    public DiagnosticsConfiguration getDiagnostics() {
+        return diagnostics;
+    }
+
+    /** Sets the diagnostics configuration. @param diagnostics the level */
+    public void setDiagnostics(DiagnosticsConfiguration diagnostics) {
+        this.diagnostics = diagnostics;
     }
 
     /**

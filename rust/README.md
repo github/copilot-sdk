@@ -722,9 +722,15 @@ When streaming is off (the default), only the final `assistant.message` and `ass
 
 #### Subscribing before the session starts
 
-`session.subscribe()` can only be called once the session exists, so any event the runtime emits while `session.create` / `session.resume` is still in flight is broadcast with no receiver installed and is not delivered. Ephemeral events such as `session.idle` are not written to the session log either, so `get_messages` can't recover them afterwards.
+`session.subscribe()` can only be called once the session exists. On create, events dispatched before a subscriber is installed are not delivered. Ephemeral events such as `session.idle` are not written to the session log either, so `get_messages` can't recover them afterwards.
 
-`Client::prepare_session` / `Client::prepare_resume_session` close that window. They return a `PreparedSession` that owns the session's broadcast channel up front:
+On resume with no active prepared subscriber, the SDK instead retains all routed startup events, durable and ephemeral, in an ordered bootstrap queue. The first `session.subscribe()` call claims that queue synchronously, even before the subscription is polled. It receives the complete prefix and any events dispatched while catching up, then atomically switches to bounded live delivery. Later subscribers receive newly dispatched live events immediately, even while the owner is draining.
+
+**The resume bootstrap is unbounded until its owner catches up.** Subscribe and drain promptly: a caller that never subscribes or cannot catch up can retain arbitrarily many events. Dropping the owner discards its unread backlog without transferring it to another subscriber. Stopping the session event loop releases an unclaimed backlog; a claimed backlog can still drain after shutdown without keeping the sender alive. This guarantee covers events routed to the session, not overflow in the bounded client-global notification router.
+
+For create and resume calls with a client-known session ID, the SDK starts its event loop before sending the RPC so it can answer session-scoped requests issued during startup. Cloud creates with a server-assigned ID register the loop after the response identifies the session.
+
+`Client::prepare_session` / `Client::prepare_resume_session` let observers subscribe before protocol activity begins, including multiple startup observers. They return a `PreparedSession` that owns the session's broadcast channel up front:
 
 ```rust,ignore
 let prepared = client.prepare_session(
@@ -744,11 +750,11 @@ let session = prepared.start().await?;
 
 `prepare_*` is synchronous and inert — it validates the buffer capacity, allocates a local channel and cancellation token, and touches neither the router nor the transport until `start()` is first polled. `start(self)` consumes the handle and `PreparedSession` is deliberately not `Clone`, so a prepared session can never spawn two event loops. Dropping an unstarted handle leaves no state and closes its subscriptions; dropping the `start()` future cancels the startup, unregisters the session, and lets a same-ID retry succeed. Cleanup removes only the exact registration that startup owned, so a retry started while an abandoned attempt is still unwinding is never evicted by it.
 
-The buffer is finite — `session::DEFAULT_EVENT_BUFFER_CAPACITY` (512) unless `event_buffer_capacity` overrides it, and `Some(0)` is rejected as `ErrorKind::InvalidConfig` rather than clamped. Subscribers that fall behind observe `RecvErrorKind::Lagged` with the skipped count instead of applying backpressure, so a consumer that needs a lossless view of a large startup burst must configure enough capacity or drain concurrently with `start()`.
+Prepared subscriptions and live delivery use a finite buffer — `session::DEFAULT_EVENT_BUFFER_CAPACITY` (512) unless `event_buffer_capacity` overrides it, and `Some(0)` is rejected as `ErrorKind::InvalidConfig` rather than clamped. Subscribers that fall behind observe `RecvErrorKind::Lagged` with the skipped count instead of applying backpressure, so a prepared consumer that needs a lossless view of a large startup burst must configure enough capacity or drain concurrently with `start()`. An active prepared subscriber disables the implicit resume bootstrap; a resume started without one uses the one-shot bootstrap described above.
 
 For cloud sessions where the server assigns the session ID, notifications can't be routed until the create response arrives; the guarantee is that *routed* events are never dropped for lack of a receiver. Pin `session_id` for full pre-response coverage.
 
-`create_session` / `resume_session` are unchanged wrappers over `prepare_*(...)?.start()`, with identical RPC sequences and error kinds.
+`create_session` / `resume_session` remain wrappers over `prepare_*(...)?.start()`, with unchanged RPC sequences and error kinds.
 
 ### Infinite Sessions
 
@@ -873,7 +879,7 @@ For fire-and-forget messaging where you need to block until the agent finishes:
 use std::time::Duration;
 use github_copilot_sdk::MessageOptions;
 
-// Sends a message and blocks until session.idle or session.error
+// Sends a message and blocks until the root session.idle or session.error
 session
     .send_and_wait(
         MessageOptions::new("Fix the bug").with_wait_timeout(Duration::from_secs(120)),
@@ -882,7 +888,11 @@ session
 ```
 
 Default timeout is 60 seconds. Only one unformatted `send_and_wait` can be active
-per session; it also prevents other sends until it completes.
+per session; it also prevents other sends until it completes. Events attributed
+to a sub-agent (with a non-empty `agentId`) are still delivered to subscribers,
+but cannot supply the reply or end the parent's wait.
+The terminal event is queued to existing subscriptions before the wait returns;
+subscribers consume their streams independently and do not delay completion.
 
 ### Structured output (experimental)
 
@@ -1041,10 +1051,10 @@ none of them are scheduled for removal.
   without string-splicing.
 - **`Client::prepare_session` / `prepare_resume_session`** — return an inert
   `PreparedSession` whose `subscribe()` installs an event receiver before any
-  protocol activity, so startup events (including ephemeral `session.idle`)
-  aren't dropped. Other SDKs register callbacks on a config object instead,
-  which sidesteps the problem in a way Rust's broadcast-based `subscribe()`
-  cannot.
+  protocol activity, including multiple startup observers, subject to bounded
+  delivery. Without a prepared observer, resume retains routed events for the
+  first `Session::subscribe()` owner until it catches up; create remains
+  live-only. Other SDKs install event callbacks before session startup.
 
 ## Layout
 
@@ -1286,21 +1296,19 @@ github-copilot-sdk = { version = "1", features = ["derive"] }
 
 ## Development
 
-Follow [SDK development setup](../CONTRIBUTING.md#developing-an-sdk) for this
-crate's pinned Rust toolchain, nightly formatter, and Node/replay-harness
-dependencies. From the SDK root (`src/sdk` in the runtime repository, or the
-standalone repository root):
+Tests require a supported [Node.js version](../nodejs/README.md#prerequisites). From the repository root:
 
 ```bash
-npm run build:rust
-npm run test:rust
-npm run check:rust
+cd nodejs
+npm ci
 ```
 
-The runtime layout builds this SDK through Bazel but runs tests through Cargo
-with this crate's toolchain and default features plus `test-support`. For
-non-default `derive` or in-process coverage, use the feature selections in the
-[Rust SDK workflow](../.github/workflows/sdk-rust.yml). Direct native commands bypass the
-facade's runtime preparation; see [AGENTS.md](AGENTS.md#development) for
-same-checkout feature selection and standalone Cargo commands. Runtime paths
-set by the facade do not persist in your shell.
+```bash
+cd test/harness
+npm ci
+```
+
+```bash
+cd rust
+cargo test --features test-support
+```

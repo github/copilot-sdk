@@ -74,10 +74,10 @@ rust_library(
     version = "0.10.81",
     deps = [
         ":build_script_build",
-        "@sdk_vendor__bitflags-2.11.1//:bitflags",
-        "@sdk_vendor__cfg-if-1.0.4//:cfg_if",
+        "@sdk_vendor__bitflags-2.13.2//:bitflags",
+        "@sdk_vendor__cfg-if-1.0.5//:cfg_if",
         "@sdk_vendor__foreign-types-0.3.2//:foreign_types",
-        "@sdk_vendor__libc-0.2.186//:libc",
+        "@sdk_vendor__libc-0.2.189//:libc",
         "@sdk_vendor__openssl-sys-0.9.117//:openssl_sys",
     ],
 )

@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
@@ -188,7 +189,7 @@ public final class CopilotSession implements AutoCloseable {
     private final SessionUiApi ui;
     private final JsonRpcClient rpc;
     private volatile SessionRpc sessionRpc;
-    private final Set<Consumer<SessionEvent>> eventHandlers = ConcurrentHashMap.newKeySet();
+    private final Set<Consumer<SessionEvent>> eventHandlers = new CopyOnWriteArraySet<>();
     private final Map<String, ToolDefinition> toolHandlers = new ConcurrentHashMap<>();
     private final Map<String, PendingExternalTool> pendingExternalTools = new ConcurrentHashMap<>();
     private boolean externalToolsClosed;
@@ -587,6 +588,11 @@ public final class CopilotSession implements AutoCloseable {
      * the future completes with {@link java.util.concurrent.CancellationException}.
      * If the timeout expires first, the future completes exceptionally with a
      * {@link TimeoutException}.
+     * <p>
+     * Sub-agent events with a non-empty agentId remain visible to subscribers but
+     * cannot complete this wait or supply its reply. Synchronous listeners
+     * registered before this call finish processing the root idle event before this
+     * wait completes.
      *
      * @param options
      *            the message options containing the prompt and attachments
@@ -612,6 +618,8 @@ public final class CopilotSession implements AutoCloseable {
         var firstAssistantMessageLogged = new java.util.concurrent.atomic.AtomicBoolean(false);
 
         Consumer<SessionEvent> handler = evt -> {
+            if (evt.getAgentId() != null && !evt.getAgentId().isEmpty())
+                return;
             if (evt instanceof AssistantMessageEvent msg) {
                 lastAssistantMessage.set(msg);
                 if (firstAssistantMessageLogged.compareAndSet(false, true)) {
@@ -668,15 +676,8 @@ public final class CopilotSession implements AutoCloseable {
             }
         }
 
-        // When inner future completes, run cleanup and propagate to result.
-        // Use whenCompleteAsync so that result.complete(r) is not called
-        // synchronously on the event-dispatch thread while dispatchEvent() is
-        // still iterating over handlers. Without async dispatch, a caller that
-        // registered its own session.on() listener before calling sendAndWait()
-        // could see its listener invoked *after* result.get() returned, because
-        // sendAndWait's internal handler would complete the future mid-loop. By
-        // submitting the completion to timeoutScheduler we allow the current
-        // dispatch loop to finish calling all other handlers first.
+        // Keep completion continuations off the event-dispatch thread. The ordered
+        // handler set, not this executor hop, ensures earlier listeners finish first.
         final ScheduledFuture<?> taskToCancel = timeoutTask;
         future.whenCompleteAsync((r, ex) -> {
             try {

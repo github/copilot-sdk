@@ -743,31 +743,73 @@ func TestSessionE2E(t *testing.T) {
 
 		var receivedEvents []copilot.SessionEvent
 		var receivedEventsMu sync.Mutex
-		idle := make(chan bool, 1)
+		idleEntered := make(chan struct{})
+		idleRelease := make(chan struct{})
+		idleCompleted := make(chan struct{})
+		releaseIdle := sync.OnceFunc(func() { close(idleRelease) })
+		defer releaseIdle()
 
-		session.On(func(event copilot.SessionEvent) {
+		unsubscribe := session.On(func(event copilot.SessionEvent) {
 			receivedEventsMu.Lock()
 			receivedEvents = append(receivedEvents, event)
 			receivedEventsMu.Unlock()
-			if event.Type() == "session.idle" {
-				select {
-				case idle <- true:
-				default:
+			if data, ok := event.Data.(*copilot.SessionIdleData); ok {
+				if (event.AgentID != nil && *event.AgentID != "") ||
+					(data.Mode != nil && *data.Mode == copilot.SessionModeAutopilot) {
+					return
 				}
+				close(idleEntered)
+				<-idleRelease
+				close(idleCompleted)
 			}
 		})
+		defer unsubscribe()
 
-		// Send a message to trigger events
-		_, err = session.Send(t.Context(), copilot.MessageOptions{Prompt: "What is 100+200?"})
-		if err != nil {
-			t.Fatalf("Failed to send message: %v", err)
+		type sendResult struct {
+			message *copilot.SessionEvent
+			err     error
+		}
+		result := make(chan sendResult, 1)
+		sendCtx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
+		defer cancel()
+		go func() {
+			message, err := session.SendAndWait(sendCtx, copilot.MessageOptions{Prompt: "What is 100+200?"})
+			result <- sendResult{message, err}
+		}()
+
+		select {
+		case <-idleEntered:
+		case got := <-result:
+			t.Fatalf("SendAndWait returned before the root idle listener entered: %v", got.err)
+		case <-sendCtx.Done():
+			t.Fatal("Timed out waiting for the root idle listener")
 		}
 
-		// Wait for session to become idle
+		// Hold the earlier subscriber inside root-idle processing and give the
+		// waiter a bounded opportunity to return incorrectly on another goroutine.
 		select {
-		case <-idle:
-		case <-time.After(60 * time.Second):
-			t.Fatal("Timed out waiting for session.idle")
+		case got := <-result:
+			t.Fatalf("SendAndWait returned while the root idle listener was active: %v", got.err)
+		case <-time.After(100 * time.Millisecond):
+		}
+		releaseIdle()
+
+		select {
+		case got := <-result:
+			if got.err != nil {
+				t.Fatalf("SendAndWait failed: %v", got.err)
+			}
+			if got.message == nil || got.message.Type() != "assistant.message" {
+				t.Fatalf("Expected final assistant message, got %v", got.message)
+			}
+		case <-sendCtx.Done():
+			t.Fatal("Timed out waiting for SendAndWait")
+		}
+		// Do not wait for the subscriber after SendAndWait: it must be done already.
+		select {
+		case <-idleCompleted:
+		default:
+			t.Fatal("SendAndWait returned before the root idle listener completed")
 		}
 
 		// Should have received multiple events

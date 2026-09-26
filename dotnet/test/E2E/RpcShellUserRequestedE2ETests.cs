@@ -39,23 +39,16 @@ public class RpcShellUserRequestedE2ETests(E2ETestFixture fixture, ITestOutputHe
         var missing = await session.Rpc.Shell.CancelUserRequestedAsync($"missing-{Guid.NewGuid():N}");
         Assert.False(missing.Cancelled);
 
-        // De-race an in-flight cancellation: launch a long command that first writes a marker file
-        // (so we know it is genuinely running) and then sleeps. Keep the marker outside the fixture
-        // workspace so Windows cleanup is not blocked by lingering process handles.
+        // Poll cancellation until the runtime has registered the request. This is the authoritative
+        // readiness signal and avoids depending on PowerShell-specific command syntax when the
+        // Windows runtime legitimately falls back to cmd.exe.
         var requestId = $"req-{Guid.NewGuid():N}";
-        var markerPath = Path.Join(Path.GetTempPath(), $"shell-cancel-{Guid.NewGuid():N}.txt");
         var executeTask = session.Rpc.Shell.ExecuteUserRequestedAsync(
             requestId,
-            CreateMarkerThenSleepCommand(markerPath, seconds: 60));
+            CreateLongRunningCommand(seconds: 60));
 
         try
         {
-            await WaitForFileExistsAsync(markerPath);
-
-            // The marker proves the child process reached the command body, but the runtime may not
-            // yet have registered the request in its cancellable in-flight map. Poll the cancel until
-            // it takes effect so the assertion is not racy. WaitForConditionAsync stops on the first
-            // call that reports Cancelled, so the command is cancelled exactly once.
             await TestHelper.WaitForConditionAsync(
                 async () => (await session.Rpc.Shell.CancelUserRequestedAsync(requestId)).Cancelled,
                 timeout: TimeSpan.FromSeconds(15),
@@ -70,50 +63,27 @@ public class RpcShellUserRequestedE2ETests(E2ETestFixture fixture, ITestOutputHe
         {
             if (!executeTask.IsCompleted)
             {
+                try { await session.Rpc.Shell.CancelUserRequestedAsync(requestId); }
+                catch (Exception ex) when (ex is TimeoutException or OperationCanceledException or ObjectDisposedException)
+                {
+                    // Preserve the primary test failure across expected teardown races.
+                }
                 try { await executeTask.WaitAsync(TimeSpan.FromSeconds(30)); }
-                catch { /* best-effort drain so the long command does not outlive the test */ }
+                catch (TimeoutException) { /* best-effort drain timed out */ }
+                catch (OperationCanceledException) { /* cancellation completed during teardown */ }
             }
-
-            TryDeleteFile(markerPath);
         }
     }
 
-    private static string CreateMarkerThenSleepCommand(string markerPath, int seconds)
+    private static string CreateLongRunningCommand(int seconds)
     {
-        // The runtime already runs the command through the platform shell (pwsh -Command "<cmd>" on
-        // Windows, sh -c "<cmd>" elsewhere), so emit the script body directly instead of spawning a
-        // *second* nested shell. Cancellation kills only the shell the runtime spawned; a nested
-        // powershell.exe/sh would be orphaned and keep the session working directory locked, which
-        // breaks fixture cleanup on Windows (manifesting as an IOException during teardown).
         if (OperatingSystem.IsWindows())
         {
-            return $"Set-Content -LiteralPath '{markerPath}' -Value 'running'; Start-Sleep -Seconds {seconds}";
+            // ping.exe is available to both PowerShell and cmd.exe and spaces loopback requests
+            // roughly one second apart. The first request is immediate, hence seconds + 1.
+            return $"ping.exe -n {seconds + 1} 127.0.0.1";
         }
 
-        return $"echo running > '{markerPath}'; sleep {seconds}";
-    }
-
-    private static async Task WaitForFileExistsAsync(string path)
-    {
-        await TestHelper.WaitForConditionAsync(
-            () => File.Exists(path),
-            timeout: TimeSpan.FromSeconds(30),
-            timeoutMessage: $"Timed out waiting for the shell command to create '{path}'.",
-            pollInterval: TimeSpan.FromMilliseconds(100));
-    }
-
-    private static void TryDeleteFile(string path)
-    {
-        try
-        {
-            if (File.Exists(path))
-            {
-                File.Delete(path);
-            }
-        }
-        catch (Exception ex) when (TestHelper.IsTransientFileSystemException(ex))
-        {
-            // Best-effort cleanup; the OS temp directory is reclaimed independently.
-        }
+        return $"sleep {seconds}";
     }
 }

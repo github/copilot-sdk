@@ -984,12 +984,18 @@ describe("Send Blocking Behavior", async () => {
         await using session = await client.createSession({ onPermissionRequest: approveAll });
 
         const events: string[] = [];
+        let rootIdleCallbackCompleted = false;
         session.on((event) => {
             events.push(event.type);
+            if (event.type === "session.idle" && !event.agentId) {
+                rootIdleCallbackCompleted = true;
+            }
         });
 
         const response = await session.sendAndWait({ prompt: "What is 2+2?" });
 
+        // No separate subscriber wait: the earlier synchronous callback must be done.
+        expect(rootIdleCallbackCompleted).toBe(true);
         expect(response).toBeDefined();
         expect(response?.type).toBe("assistant.message");
         expect(response?.data.content).toContain("4");

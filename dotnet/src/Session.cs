@@ -75,7 +75,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     private volatile Func<AutoModeSwitchRequest, AutoModeSwitchInvocation, Task<AutoModeSwitchResponse>>? _autoModeSwitchHandler;
     private ImmutableArray<EventSubscription> _eventHandlers = ImmutableArray<EventSubscription>.Empty;
 
-    private sealed record EventSubscription(Type EventType, Action<SessionEvent> Handler);
+    private sealed record EventSubscription(Type EventType, Action<SessionEvent> Handler, bool RootAgentOnly);
 
     private SessionHooks? _hooks;
     private readonly SemaphoreSlim _hooksLock = new(1, 1);
@@ -374,6 +374,8 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// </para>
     /// <para>
     /// Events are still delivered to handlers registered via <see cref="On{T}"/> while waiting.
+    /// Sub-agent events with a non-empty AgentId do not complete the wait or supply its reply.
+    /// Synchronous handlers registered before this call process the terminal event before the wait completes.
     /// </para>
     /// </remarks>
     /// <example>
@@ -433,7 +435,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
             }
         }
 
-        using var subscription = On<SessionEvent>(Handler);
+        using var subscription = OnCore<SessionEvent>(Handler, rootAgentOnly: true);
 
         await SendAsync(options, cancellationToken);
 
@@ -517,11 +519,14 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// </code>
     /// </example>
     public IDisposable On<T>(Action<T> handler) where T : SessionEvent
+        => OnCore(handler, rootAgentOnly: false);
+
+    private ActionDisposable OnCore<T>(Action<T> handler, bool rootAgentOnly) where T : SessionEvent
     {
         ArgumentNullException.ThrowIfNull(handler);
         ThrowIfDisposed();
 
-        var subscription = new EventSubscription(typeof(T), evt => handler((T)evt));
+        var subscription = new EventSubscription(typeof(T), evt => handler((T)evt), rootAgentOnly);
         ImmutableInterlocked.Update(ref _eventHandlers, array => array.Add(subscription));
         return new ActionDisposable(() => ImmutableInterlocked.Update(ref _eventHandlers, array => array.Remove(subscription)));
     }
@@ -561,9 +566,12 @@ public sealed partial class CopilotSession : IAsyncDisposable
         {
             var dispatchTimestamp = Stopwatch.GetTimestamp();
             var eventType = sessionEvent.GetType();
+            // Preserve wire attribution without moving waiters ahead of earlier user handlers.
+            var isRootAgentEvent = string.IsNullOrEmpty(sessionEvent.AgentId);
             foreach (var subscription in _eventHandlers)
             {
-                if (!subscription.EventType.IsAssignableFrom(eventType))
+                if (!subscription.EventType.IsAssignableFrom(eventType) ||
+                    (subscription.RootAgentOnly && !isRootAgentEvent))
                 {
                     continue;
                 }

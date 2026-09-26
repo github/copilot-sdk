@@ -10,6 +10,6 @@ package(default_visibility = ["//visibility:public"])
 
 alias(
     name = "sdk_libloading",
-    actual = "@sdk_vendor__libloading-0.8.9//:libloading",
+    actual = "@sdk_vendor__libloading-0.9.0//:libloading",
     tags = ["manual"],
 )

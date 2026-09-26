@@ -156,7 +156,7 @@ public abstract class RuntimeConnection
     /// Works across the SDK's target frameworks: modern .NET uses <c>NativeLibrary</c>,
     /// while <c>netstandard2.0</c> consumers use a built-in fallback native loader.
     /// </remarks>
-    [Experimental(Diagnostics.Experimental)]
+    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
     public static InProcessRuntimeConnection ForInProcess()
         => new();
 }
@@ -201,7 +201,7 @@ public sealed class StdioRuntimeConnection : ChildProcessRuntimeConnection
 /// To point at a non-default runtime entrypoint, set the <c>COPILOT_CLI_PATH</c>
 /// environment variable.
 /// </summary>
-[Experimental(Diagnostics.Experimental)]
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public sealed class InProcessRuntimeConnection : RuntimeConnection
 {
     internal InProcessRuntimeConnection() { }
@@ -431,7 +431,7 @@ public sealed class CopilotClientOptions
     /// <see cref="CopilotRequestHandler"/> subclass instead of the runtime's own
     /// outbound call.
     /// </summary>
-    [Experimental(Diagnostics.Experimental)]
+    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
     public CopilotRequestHandler? RequestHandler { get; set; }
 
     /// <summary>
@@ -439,7 +439,7 @@ public sealed class CopilotClientOptions
     /// When set, the SDK registers the provider during <c>StartAsync()</c>
     /// before any session can be created.
     /// </summary>
-    [Experimental(Diagnostics.Experimental)]
+    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
     public IExtensionLaunchProviderHandler? ExtensionLaunchProvider { get; set; }
 
     /// <summary>
@@ -447,7 +447,7 @@ public sealed class CopilotClientOptions
     /// connection; setting a handler opts created/resumed sessions into forwarding.
     /// The SDK awaits the handler task so it may perform asynchronous work.
     /// </summary>
-    [Experimental(Diagnostics.Experimental)]
+    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
     [EditorBrowsable(EditorBrowsableState.Never)]
     public Func<Rpc.GitHubTelemetryNotification, Task>? OnGitHubTelemetry { get; set; }
 
@@ -1263,7 +1263,7 @@ public sealed class ElicitationContext
 /// <summary>
 /// Context for an MCP OAuth request callback.
 /// </summary>
-[Experimental(Diagnostics.Experimental)]
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public sealed class McpAuthContext
 {
     /// <summary>Identifier of the session that triggered the MCP OAuth request.</summary>
@@ -1294,7 +1294,7 @@ public sealed class McpAuthContext
 /// <summary>
 /// Host-provided OAuth token data for a pending MCP OAuth request.
 /// </summary>
-[Experimental(Diagnostics.Experimental)]
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public sealed class McpAuthToken
 {
     /// <summary>Access token acquired by the SDK host.</summary>
@@ -1310,7 +1310,7 @@ public sealed class McpAuthToken
 /// <summary>
 /// Result returned by an MCP auth request handler.
 /// </summary>
-[Experimental(Diagnostics.Experimental)]
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public sealed class McpAuthResult
 {
     /// <summary>Whether the request should be cancelled instead of resolved with a token.</summary>
@@ -1358,7 +1358,7 @@ public sealed class SessionUiCapabilities
     /// (or <c>COPILOT_MCP_APPS=true</c> env override) is on. Otherwise absent or
     /// <c>false</c>, indicating the runtime silently dropped the opt-in.
     /// </summary>
-    [Experimental(Diagnostics.Experimental)]
+    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
     public bool? McpApps { get; set; }
 }
 
@@ -2433,7 +2433,7 @@ public sealed class ProviderConfig
     /// and does not send the static credential.
     /// </summary>
     [JsonIgnore]
-    [Experimental(Diagnostics.Experimental)]
+    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
     public Func<ProviderTokenArgs, Task<string>>? BearerTokenProvider { get; set; }
 
     /// <summary>
@@ -2541,7 +2541,7 @@ public sealed class AzureOptions
 /// <see cref="SessionConfigBase.Provider"/> is rejected.
 /// </para>
 /// </summary>
-[Experimental(Diagnostics.Experimental)]
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public sealed class NamedProviderConfig
 {
     /// <summary>
@@ -2602,7 +2602,7 @@ public sealed class NamedProviderConfig
     /// and does not send the static credential.
     /// </summary>
     [JsonIgnore]
-    [Experimental(Diagnostics.Experimental)]
+    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
     public Func<ProviderTokenArgs, Task<string>>? BearerTokenProvider { get; set; }
 
     /// <summary>
@@ -2624,7 +2624,7 @@ public sealed class NamedProviderConfig
 /// (shown in the model list and passed to model switching) is the provider-qualified
 /// <c>provider/id</c>, so BYOK ids never collide with bare CAPI ids.
 /// </summary>
-[Experimental(Diagnostics.Experimental)]
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public sealed class ProviderModelConfig
 {
     /// <summary>
@@ -2836,6 +2836,12 @@ public sealed class McpHttpServerConfig : McpServerConfig
     /// </summary>
     [JsonPropertyName("oauthGrantType")]
     public McpHttpServerConfigOauthGrantType? OauthGrantType { get; set; }
+
+    /// <summary>
+    /// Optional OAuth scopes to request for the statically configured client.
+    /// </summary>
+    [JsonPropertyName("oauthScopes")]
+    public IList<string>? OauthScopes { get; set; }
 }
 
 // ============================================================================
@@ -3091,14 +3097,14 @@ public struct SetModelOptions
     /// <c>auto</c>; use <see cref="CopilotSession.SetAutoTierAsync"/> to change the
     /// preference without changing the selected model.
     /// </remarks>
-    [Experimental(Diagnostics.Experimental)]
+    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
     public AutoTier? AutoTier { get; set; }
 
     /// <summary>
     /// Returns to the provider's default Auto routing as part of this switch.
     /// Mutually exclusive with <see cref="AutoTier"/>.
     /// </summary>
-    [Experimental(Diagnostics.Experimental)]
+    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
     public bool ResetAutoTier { get; set; }
 }
 
@@ -3336,6 +3342,7 @@ public abstract class SessionConfigBase
                 : new Dictionary<string, McpServerConfig>(other.McpServers))
             : null;
         McpOAuthTokenStorage = other.McpOAuthTokenStorage;
+        Diagnostics = other.Diagnostics;
         AuthClientIdMetadataUrl = other.AuthClientIdMetadataUrl;
         Model = other.Model;
         ModelCapabilities = other.ModelCapabilities;
@@ -3429,7 +3436,7 @@ public abstract class SessionConfigBase
     /// Citations are experimental, off by default, and currently available for Anthropic models.
     /// This option may change or be removed while citation support is experimental.
     /// </remarks>
-    [Experimental(Diagnostics.Experimental)]
+    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
     public bool? EnableCitations { get; set; }
 
     /// <summary>
@@ -3568,14 +3575,14 @@ public abstract class SessionConfigBase
     /// API authentication (unlike <see cref="Provider"/>); combine with <see cref="Models"/>.
     /// Cannot be combined with <see cref="Provider"/>.
     /// </summary>
-    [Experimental(Diagnostics.Experimental)]
+    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
     public IList<NamedProviderConfig>? Providers { get; set; }
 
     /// <summary>
     /// BYOK model definitions added to the session's selectable model list, each
     /// referencing a <see cref="Providers"/> entry by name.
     /// </summary>
-    [Experimental(Diagnostics.Experimental)]
+    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
     public IList<ProviderModelConfig>? Models { get; set; }
 
     /// <summary>
@@ -3678,7 +3685,7 @@ public abstract class SessionConfigBase
     /// to register UI-enabled tool variants the consumer cannot display.
     /// </para>
     /// </summary>
-    [Experimental(Diagnostics.Experimental)]
+    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
     public bool EnableMcpApps { get; set; }
 
     /// <summary>
@@ -3724,6 +3731,14 @@ public abstract class SessionConfigBase
     /// Keys are server names, values are server configurations (<see cref="McpStdioServerConfig"/> or <see cref="McpHttpServerConfig"/>).
     /// </summary>
     public IDictionary<string, McpServerConfig>? McpServers { get; set; }
+
+    /// <summary>
+    /// Enables session-scoped MCP diagnostic capture. Diagnostics are off by default.
+    /// Debug and trace entries can contain MCP payloads, tool arguments, paths, and
+    /// server stderr. Hosts must not upload entries as telemetry or export them
+    /// without deliberate user action.
+    /// </summary>
+    public DiagnosticsConfiguration? Diagnostics { get; set; }
 
     /// <summary>
     /// Controls how MCP OAuth tokens are stored for this session.
@@ -3793,7 +3808,7 @@ public abstract class SessionConfigBase
     /// These settings only model the caller's configured limits. Enforcement and
     /// limit-exhaustion behavior are handled by the runtime.
     /// </remarks>
-    [Experimental(Diagnostics.Experimental)]
+    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
     public SessionLimitsConfig? SessionLimits { get; set; }
 
     /// <summary>
@@ -3842,7 +3857,7 @@ public abstract class SessionConfigBase
     /// reject session creation or resume instead of falling back to ambient
     /// authentication. This cannot be combined with <see cref="GitHubToken"/>.
     /// </summary>
-    [Experimental(Diagnostics.Experimental)]
+    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
     [JsonIgnore]
     public Func<GitHubTokenProviderArgs, Task<GitHubTokenProviderResult>>? GitHubTokenProvider { get; set; }
 
@@ -3906,21 +3921,21 @@ public abstract class SessionConfigBase
     /// these to the agent and routes inbound <c>canvas.*</c> requests for any
     /// declared canvas to <see cref="CanvasHandler"/>.
     /// </summary>
-    [Experimental(Diagnostics.Experimental)]
+    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
     public IList<CanvasDeclaration>? Canvases { get; set; }
 
     /// <summary>
     /// When <see langword="true"/>, asks the host to expose canvas renderer tools
     /// for this session. The host typically grants this only to trusted clients.
     /// </summary>
-    [Experimental(Diagnostics.Experimental)]
+    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
     public bool? RequestCanvasRenderer { get; set; }
 
     /// <summary>
     /// When <see langword="true"/>, asks the host to expose extension-discovery
     /// tools for this session. The host typically grants this only to trusted clients.
     /// </summary>
-    [Experimental(Diagnostics.Experimental)]
+    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
     public bool? RequestExtensions { get; set; }
 
     /// <summary>
@@ -3930,7 +3945,7 @@ public abstract class SessionConfigBase
     /// <c>extension.js</c>), the runtime falls back to the bundled SDK
     /// without throwing. Takes precedence over any server-level default.
     /// </summary>
-    [Experimental(Diagnostics.Experimental)]
+    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
     public string? ExtensionSdkPath { get; set; }
 
     /// <summary>
@@ -3938,7 +3953,7 @@ public abstract class SessionConfigBase
     /// Required when <see cref="Canvases"/> is set so the runtime can attribute
     /// declared canvases back to this provider.
     /// </summary>
-    [Experimental(Diagnostics.Experimental)]
+    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
     public ExtensionInfo? ExtensionInfo { get; set; }
 
     /// <summary>
@@ -3948,7 +3963,7 @@ public abstract class SessionConfigBase
     /// a control connection survive reconnect and CLI restart. Honored on
     /// session create and resume.
     /// </summary>
-    [Experimental(Diagnostics.Experimental)]
+    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
     public CanvasProviderIdentity? CanvasProvider { get; set; }
 
     /// <summary>
@@ -3956,7 +3971,7 @@ public abstract class SessionConfigBase
     /// <c>canvas.open</c> / <c>canvas.close</c> / <c>canvas.action.invoke</c>
     /// requests to this handler.
     /// </summary>
-    [Experimental(Diagnostics.Experimental)]
+    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
     [JsonIgnore]
     public ICanvasHandler? CanvasHandler { get; set; }
 #pragma warning restore GHCP001
@@ -3965,7 +3980,7 @@ public abstract class SessionConfigBase
     /// Optional handler for MCP OAuth requests from MCP servers.
     /// When provided, the SDK can satisfy MCP server OAuth requests with host-provided token data or cancellation.
     /// </summary>
-    [Experimental(Diagnostics.Experimental)]
+    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
     [JsonIgnore]
     public Func<McpAuthContext, Task<McpAuthResult?>>? OnMcpAuthRequest { get; set; }
 }
@@ -3988,6 +4003,7 @@ public sealed class SessionConfig : SessionConfigBase
 
         SessionId = other.SessionId;
         Cloud = other.Cloud;
+        RefreshCustomInstructions = other.RefreshCustomInstructions;
     }
 
     /// <summary>Optional session identifier; a new ID is generated if not provided.</summary>
@@ -3998,6 +4014,14 @@ public sealed class SessionConfig : SessionConfigBase
     /// The optional repository is associated with the cloud session.
     /// </summary>
     public CloudSessionOptions? Cloud { get; set; }
+
+    /// <summary>
+    /// When true, invalidates process-wide custom-instruction discovery caches before
+    /// constructing this new session. Omitted or false reuses the caches.
+    /// Other sessions in this runtime may observe updated instructions on later turns
+    /// or discovery. This does not watch files or override instruction enablement.
+    /// </summary>
+    public bool? RefreshCustomInstructions { get; set; }
 
     /// <summary>
     /// Creates a shallow clone of this <see cref="SessionConfig"/> instance.
@@ -4059,7 +4083,7 @@ public sealed class ResumeSessionConfig : SessionConfigBase
     /// When provided on resume, the runtime can rehydrate canvas state so consumers
     /// do not need to re-open canvases that were active before the previous shutdown.
     /// </summary>
-    [Experimental(Diagnostics.Experimental)]
+    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
     public IList<OpenCanvasInstance>? OpenCanvases { get; set; }
 #pragma warning restore GHCP001
 
@@ -4155,7 +4179,7 @@ public sealed class MessageOptions
     /// it is not a persisted session default.
     /// Use <see cref="CopilotSession.Rpc"/> for advanced response-format options.
     /// </summary>
-    [Experimental(Diagnostics.Experimental)]
+    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
     public JsonElement? ResponseSchema { get; set; }
 
     /// <summary>

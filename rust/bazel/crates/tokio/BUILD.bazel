@@ -10,6 +10,6 @@ package(default_visibility = ["//visibility:public"])
 
 alias(
     name = "tokio",
-    actual = "@sdk_vendor__tokio-1.52.1//:tokio",
+    actual = "@sdk_vendor__tokio-1.53.1//:tokio",
     tags = ["manual"],
 )

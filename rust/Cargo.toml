@@ -54,24 +54,24 @@ tokio-stream = { version = "0.1", features = ["sync"] }
 tokio-util = { version = "0.7", default-features = false }
 tracing = "0.1"
 dirs = "5"
-libloading = { version = "0.8", optional = true }
+libloading = { version = "0.9", optional = true }
 parking_lot = "0.12"
 regex = "1"
-getrandom = "0.2"
+getrandom = "0.4"
 uuid = { version = "1", default-features = false, features = ["v4"] }
 flate2 = { version = "1", optional = true }
 tar = { version = "0.4", optional = true }
 # LLM inference callback transport: idiomatic HTTP/WebSocket forwarding for the
 # `CopilotRequestHandler`, plus base64/byte/stream plumbing for the chunk protocol.
-base64 = "0.22"
+base64 = "0.23"
 bytes = "1"
 http = "1"
 futures-util = "0.3"
-reqwest = { version = "0.12", default-features = false, features = ["stream", "http2", "default-tls"] }
-tokio-tungstenite = { version = "0.24", default-features = false, features = ["connect", "native-tls"] }
+reqwest = { version = "0.13", default-features = false, features = ["stream", "http2", "native-tls"] }
+tokio-tungstenite = { version = "0.28.0", default-features = false, features = ["connect", "native-tls"] }
 
 [target.'cfg(windows)'.dependencies]
-zip = { version = "2", default-features = false, features = ["deflate"], optional = true }
+zip = { version = "7.2.0", default-features = false, features = ["deflate"], optional = true }
 windows-sys = { version = "0.61", default-features = false, features = [
     "Win32_Foundation",
     "Win32_System_Diagnostics_ToolHelp",
@@ -80,9 +80,10 @@ windows-sys = { version = "0.61", default-features = false, features = [
 ] }
 
 [dev-dependencies]
+ureq = { version = "3", default-features = false, features = ["native-tls"] }
 rusqlite = { version = "0.40", features = ["bundled"] }
 schemars = "1"
-serial_test = "3"
+serial_test = "4"
 tempfile = "3"
 tokio = { version = "1", features = ["rt-multi-thread"] }
 
@@ -126,9 +127,10 @@ required-features = ["test-support"]
 [build-dependencies]
 dirs = "5"
 flate2 = "1"
+native-tls = "0.2"
 serde_json = "1"
+# 0.11 adds a second digest/block-buffer stack beside the SDK's transitive 0.10.
 sha2 = "0.10"
 tar = "0.4"
-ureq = { version = "2", default-features = false, features = ["native-tls"] }
-native-tls = "0.2"
-zip = { version = "2", default-features = false, features = ["deflate"] }
+ureq = { version = "3", default-features = false, features = ["native-tls"] }
+zip = { version = "7.2.0", default-features = false, features = ["deflate"] }

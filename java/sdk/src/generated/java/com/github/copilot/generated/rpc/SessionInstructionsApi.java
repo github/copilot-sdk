@@ -39,4 +39,15 @@ public final class SessionInstructionsApi {
         return caller.invoke("session.instructions.getSources", java.util.Map.of("sessionId", this.sessionId), SessionInstructionsGetSourcesResult.class);
     }
 
+    /**
+     * Identifies the target session.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<Void> reload() {
+        return caller.invoke("session.instructions.reload", java.util.Map.of("sessionId", this.sessionId), Void.class);
+    }
+
 }

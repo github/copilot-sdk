@@ -1182,6 +1182,7 @@ export class CopilotSession {
      * assistant has finished processing the message.
      *
      * Events are still delivered to handlers registered via {@link on} while waiting.
+     * Sub-agent events with a non-empty `agentId` do not complete the wait or supply its reply.
      * With a schema as the second argument, returns its parsed, validated result.
      * Structured waits select only root-agent output originating from this send;
      * other queued work may delay session.idle but cannot replace the result.
@@ -1264,6 +1265,7 @@ export class CopilotSession {
         // Register event handler BEFORE calling send to avoid race condition
         // where session.idle fires before we start listening
         const unsubscribe = this.on((event) => {
+            if (event.agentId) return;
             if (event.type === "assistant.message") {
                 lastAssistantMessage = event;
             } else if (event.type === "session.idle" && event.data.mode !== "autopilot") {

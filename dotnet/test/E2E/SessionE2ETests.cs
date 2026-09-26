@@ -513,11 +513,38 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
     {
         var session = await CreateSessionAsync();
         var events = new ConcurrentQueue<string>();
+        var idleEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var releaseIdle = new ManualResetEventSlim();
+        var idleHandlerFinished = false;
 
-        session.On<SessionEvent>(evt => events.Enqueue(evt.Type));
+        using var subscription = session.On<SessionEvent>(evt =>
+        {
+            if (evt is SessionIdleEvent)
+            {
+                idleEntered.TrySetResult();
+                if (!releaseIdle.Wait(TimeSpan.FromSeconds(30)))
+                {
+                    return;
+                }
+                idleHandlerFinished = true;
+            }
+            events.Enqueue(evt.Type);
+        });
 
-        var response = await session.SendAndWaitAsync(new MessageOptions { Prompt = "What is 2+2?" });
+        var pending = session.SendAndWaitAsync(new MessageOptions { Prompt = "What is 2+2?" });
+        try
+        {
+            await idleEntered.Task.WaitAsync(TimeSpan.FromSeconds(30));
+            await Assert.ThrowsAsync<TimeoutException>(() =>
+                pending.WaitAsync(TimeSpan.FromMilliseconds(250)));
+        }
+        finally
+        {
+            releaseIdle.Set();
+        }
+        var response = await pending;
 
+        Assert.True(idleHandlerFinished, "The earlier idle listener must finish before SendAndWaitAsync returns");
         Assert.NotNull(response);
         Assert.Equal("assistant.message", response!.Type);
         Assert.Contains("4", response.Data.Content ?? string.Empty);

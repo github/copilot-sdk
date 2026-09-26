@@ -20,6 +20,19 @@ import com.github.copilot.generated.rpc.McpDiscoverParams;
 import com.github.copilot.generated.rpc.RpcCaller;
 import com.github.copilot.generated.rpc.ServerRpc;
 import com.github.copilot.generated.rpc.SessionAgentSelectParams;
+import com.github.copilot.generated.rpc.SessionConnectorsConnectParams;
+import com.github.copilot.generated.rpc.SessionConnectorsContinueConnectionParams;
+import com.github.copilot.generated.rpc.SessionConnectorsDisconnectParams;
+import com.github.copilot.generated.rpc.SessionConnectorsDisconnectResult;
+import com.github.copilot.generated.rpc.SessionConnectorsGetCapabilitiesResult;
+import com.github.copilot.generated.rpc.SessionConnectorsGetStatusResult;
+import com.github.copilot.generated.rpc.SessionConnectorsListParams;
+import com.github.copilot.generated.rpc.SessionConnectorsListResult;
+import com.github.copilot.generated.rpc.SessionConnectorsReconcileParams;
+import com.github.copilot.generated.rpc.SessionConnectorsReconcileResult;
+import com.github.copilot.generated.rpc.SessionConnectorsReconnectParams;
+import com.github.copilot.generated.rpc.SessionConnectorsRefreshParams;
+import com.github.copilot.generated.rpc.SessionConnectorsRefreshResult;
 import com.github.copilot.generated.rpc.SessionModelSwitchToParams;
 import com.github.copilot.generated.rpc.SessionRpc;
 
@@ -43,7 +56,7 @@ class RpcWrappersTest {
      */
     private static final class StubCaller implements RpcCaller {
 
-        static record Call(String method, Object params) {
+        static record Call(String method, Object params, Class<?> resultType) {
         }
 
         final List<Call> calls = new ArrayList<>();
@@ -52,7 +65,7 @@ class RpcWrappersTest {
         @Override
         @SuppressWarnings("unchecked")
         public <T> CompletableFuture<T> invoke(String method, Object params, Class<T> resultType) {
-            calls.add(new Call(method, params));
+            calls.add(new Call(method, params, resultType));
             return CompletableFuture.completedFuture((T) nextResult);
         }
     }
@@ -181,6 +194,61 @@ class RpcWrappersTest {
         assertNotNull(session.shell);
         assertNotNull(session.history);
         assertNotNull(session.usage);
+        assertNotNull(session.connectors);
+    }
+
+    @Test
+    @AllowCopilotExperimental
+    void sessionRpc_connectors_exposes_host_lifecycle_methods() {
+        var stub = new StubCaller();
+        var session = new SessionRpc(stub, "sess-connectors");
+
+        session.connectors.getCapabilities();
+        session.connectors.getStatus();
+        session.connectors.list(new SessionConnectorsListParams("ignored-session", "account-1"));
+        session.connectors.refresh(new SessionConnectorsRefreshParams("ignored-session", "account-1"));
+        session.connectors.connect(new SessionConnectorsConnectParams("ignored-session", "account-1", "outlook"));
+        session.connectors.reconnect(new SessionConnectorsReconnectParams("ignored-session", "account-1", "outlook"));
+        session.connectors.continueConnection(new SessionConnectorsContinueConnectionParams("ignored-session",
+                "continuation-1", 3L, 1_000L, 30_000L));
+        session.connectors.disconnect(new SessionConnectorsDisconnectParams("ignored-session", "account-1", "outlook"));
+        session.connectors.reconcile(new SessionConnectorsReconcileParams("ignored-session", "account-1", true));
+
+        assertEquals(9, stub.calls.size());
+        assertConnectorCall(stub.calls.get(0), "session.connectors.getCapabilities",
+                SessionConnectorsGetCapabilitiesResult.class);
+        assertConnectorCall(stub.calls.get(1), "session.connectors.getStatus", SessionConnectorsGetStatusResult.class);
+
+        var listParams = assertConnectorCall(stub.calls.get(2), "session.connectors.list",
+                SessionConnectorsListResult.class);
+        assertEquals("account-1", listParams.get("accountId").asText());
+
+        var refreshParams = assertConnectorCall(stub.calls.get(3), "session.connectors.refresh",
+                SessionConnectorsRefreshResult.class);
+        assertEquals("account-1", refreshParams.get("accountId").asText());
+
+        var connectParams = assertConnectorCall(stub.calls.get(4), "session.connectors.connect",
+                com.github.copilot.generated.rpc.ConnectorConnectResult.class);
+        assertEquals("outlook", connectParams.get("connectorName").asText());
+
+        var reconnectParams = assertConnectorCall(stub.calls.get(5), "session.connectors.reconnect",
+                com.github.copilot.generated.rpc.ConnectorConnectResult.class);
+        assertEquals("outlook", reconnectParams.get("connectorName").asText());
+
+        var continueParams = assertConnectorCall(stub.calls.get(6), "session.connectors.continueConnection",
+                com.github.copilot.generated.rpc.ConnectorConnectResult.class);
+        assertEquals("continuation-1", continueParams.get("continuationId").asText());
+        assertEquals(3L, continueParams.get("maxAttempts").asLong());
+        assertEquals(1_000L, continueParams.get("pollIntervalMs").asLong());
+        assertEquals(30_000L, continueParams.get("deadlineMs").asLong());
+
+        var disconnectParams = assertConnectorCall(stub.calls.get(7), "session.connectors.disconnect",
+                SessionConnectorsDisconnectResult.class);
+        assertEquals("outlook", disconnectParams.get("connectorName").asText());
+
+        var reconcileParams = assertConnectorCall(stub.calls.get(8), "session.connectors.reconcile",
+                SessionConnectorsReconcileResult.class);
+        assertTrue(reconcileParams.get("refreshCatalog").asBoolean());
     }
 
     @Test
@@ -362,6 +430,7 @@ class RpcWrappersTest {
             assertNotNull(sessionRpc.permissions);
             assertNotNull(sessionRpc.commands);
             assertNotNull(sessionRpc.ui);
+            assertNotNull(sessionRpc.connectors);
         }
     }
 
@@ -460,6 +529,15 @@ class RpcWrappersTest {
         assertInstanceOf(com.fasterxml.jackson.databind.JsonNode.class, result);
         assertEquals("hello world", result.get("content").asText());
         assertEquals(false, result.get("isError").asBoolean());
+    }
+
+    private static com.fasterxml.jackson.databind.JsonNode assertConnectorCall(StubCaller.Call call,
+            String expectedMethod, Class<?> expectedResultType) {
+        assertEquals(expectedMethod, call.method());
+        assertEquals(expectedResultType, call.resultType());
+        var params = new ObjectMapper().valueToTree(call.params());
+        assertEquals("sess-connectors", params.get("sessionId").asText());
+        return params;
     }
 
     /**

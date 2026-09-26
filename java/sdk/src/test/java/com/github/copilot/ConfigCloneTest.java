@@ -10,10 +10,14 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import com.github.copilot.generated.SessionEvent;
 import com.github.copilot.generated.rpc.SessionLimitsConfig;
@@ -141,6 +145,23 @@ class ConfigCloneTest {
         assertEquals(original.getLargeOutput(), cloned.getLargeOutput());
         assertEquals(original.getMemory(), cloned.getMemory());
         assertEquals(original.isStreaming(), cloned.isStreaming());
+    }
+
+    @ParameterizedTest
+    @NullSource
+    @ValueSource(booleans = {true, false})
+    void sessionConfigRefreshCustomInstructionsCloned(Boolean refresh) {
+        var original = new SessionConfig();
+        assertTrue(original.getRefreshCustomInstructions().isEmpty());
+        if (refresh != null) {
+            assertSame(original, original.setRefreshCustomInstructions(refresh));
+        }
+
+        var cloned = original.clone();
+        assertEquals(Optional.ofNullable(refresh), cloned.getRefreshCustomInstructions());
+        assertSame(cloned, cloned.clearRefreshCustomInstructions());
+        assertTrue(cloned.getRefreshCustomInstructions().isEmpty());
+        assertEquals(Optional.ofNullable(refresh), original.getRefreshCustomInstructions());
     }
 
     @Test

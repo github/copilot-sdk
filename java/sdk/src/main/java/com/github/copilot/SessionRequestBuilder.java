@@ -148,6 +148,7 @@ final class SessionRequestBuilder {
         }
         config.getIncludeSubAgentStreamingEvents().ifPresent(request::setIncludeSubAgentStreamingEvents);
         request.setMcpServers(config.getMcpServers());
+        request.setDiagnostics(config.getDiagnostics());
         request.setMcpOAuthTokenStorage(config.getMcpOAuthTokenStorage());
         request.setAuthClientIdMetadataUrl(config.getAuthClientIdMetadataUrl());
         request.setCustomAgents(config.getCustomAgents());
@@ -171,6 +172,7 @@ final class SessionRequestBuilder {
             request.setOrganizationCustomInstructions(config.getOrganizationCustomInstructions());
         }
         config.getEnableOnDemandInstructionDiscovery().ifPresent(request::setEnableOnDemandInstructionDiscovery);
+        config.getRefreshCustomInstructions().ifPresent(request::setRefreshCustomInstructions);
         config.getEnableFileHooks().ifPresent(request::setEnableFileHooks);
         config.getEnableHostGitOperations().ifPresent(request::setEnableHostGitOperations);
         config.getEnableSessionStore().ifPresent(request::setEnableSessionStore);
@@ -304,6 +306,7 @@ final class SessionRequestBuilder {
         }
         config.getIncludeSubAgentStreamingEvents().ifPresent(request::setIncludeSubAgentStreamingEvents);
         request.setMcpServers(config.getMcpServers());
+        request.setDiagnostics(config.getDiagnostics());
         request.setMcpOAuthTokenStorage(config.getMcpOAuthTokenStorage());
         request.setAuthClientIdMetadataUrl(config.getAuthClientIdMetadataUrl());
         request.setCustomAgents(config.getCustomAgents());

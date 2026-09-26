@@ -64,22 +64,22 @@ rust_library(
     }),
     version = "0.4.46",
     deps = [
-        "@sdk_vendor__filetime-0.2.27//:filetime",
+        "@sdk_vendor__filetime-0.2.29//:filetime",
     ] + select({
         "@rules_rust//rust/platform:aarch64-apple-darwin": [
-            "@sdk_vendor__libc-0.2.186//:libc",  # cfg(unix)
+            "@sdk_vendor__libc-0.2.189//:libc",  # cfg(unix)
             "@sdk_vendor__xattr-1.6.1//:xattr",  # aarch64-apple-darwin
         ],
         "@rules_rust//rust/platform:aarch64-unknown-linux-gnu": [
-            "@sdk_vendor__libc-0.2.186//:libc",  # cfg(unix)
+            "@sdk_vendor__libc-0.2.189//:libc",  # cfg(unix)
             "@sdk_vendor__xattr-1.6.1//:xattr",  # aarch64-unknown-linux-gnu
         ],
         "@rules_rust//rust/platform:x86_64-apple-darwin": [
-            "@sdk_vendor__libc-0.2.186//:libc",  # cfg(unix)
+            "@sdk_vendor__libc-0.2.189//:libc",  # cfg(unix)
             "@sdk_vendor__xattr-1.6.1//:xattr",  # x86_64-apple-darwin
         ],
         "@rules_rust//rust/platform:x86_64-unknown-linux-gnu": [
-            "@sdk_vendor__libc-0.2.186//:libc",  # cfg(unix)
+            "@sdk_vendor__libc-0.2.189//:libc",  # cfg(unix)
             "@sdk_vendor__xattr-1.6.1//:xattr",  # x86_64-unknown-linux-gnu
         ],
         "//conditions:default": [],

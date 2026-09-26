@@ -120,6 +120,13 @@ impl<'a> ClientRpc<'a> {
         }
     }
 
+    /// `sandbox.*` sub-namespace.
+    pub fn sandbox(&self) -> ClientRpcSandbox<'a> {
+        ClientRpcSandbox {
+            client: self.client,
+        }
+    }
+
     /// `secrets.*` sub-namespace.
     pub fn secrets(&self) -> ClientRpcSecrets<'a> {
         ClientRpcSecrets {
@@ -1729,6 +1736,38 @@ impl<'a> ClientRpcRuntime<'a> {
     }
 }
 
+/// `sandbox.*` RPCs.
+#[derive(Clone, Copy)]
+pub struct ClientRpcSandbox<'a> {
+    pub(crate) client: &'a Client,
+}
+
+impl<'a> ClientRpcSandbox<'a> {
+    /// Reports whether the host running this runtime can run the command sandbox, without starting a session or spawning a sandboxed command.
+    ///
+    /// Wire method: `sandbox.getHostSupport`.
+    ///
+    /// # Returns
+    ///
+    /// Whether the host running this runtime can run the command sandbox. The runtime checks `supported` once per process. A capability answer can change while the process runs, for example after the user installs a missing package.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn get_host_support(&self) -> Result<SandboxHostSupport, Error> {
+        let wire_params = serde_json::json!({});
+        let _value = self
+            .client
+            .call(rpc_methods::SANDBOX_GETHOSTSUPPORT, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+}
+
 /// `secrets.*` RPCs.
 #[derive(Clone, Copy)]
 pub struct ClientRpcSecrets<'a> {
@@ -3170,9 +3209,23 @@ impl<'a> SessionRpc<'a> {
         }
     }
 
+    /// `session.customizations.*` sub-namespace.
+    pub fn customizations(&self) -> SessionRpcCustomizations<'a> {
+        SessionRpcCustomizations {
+            session: self.session,
+        }
+    }
+
     /// `session.debug.*` sub-namespace.
     pub fn debug(&self) -> SessionRpcDebug<'a> {
         SessionRpcDebug {
+            session: self.session,
+        }
+    }
+
+    /// `session.diagnostics.*` sub-namespace.
+    pub fn diagnostics(&self) -> SessionRpcDiagnostics<'a> {
+        SessionRpcDiagnostics {
             session: self.session,
         }
     }
@@ -4905,6 +4958,42 @@ impl<'a> SessionRpcContentExclusion<'a> {
     }
 }
 
+/// `session.customizations.*` RPCs.
+#[derive(Clone, Copy)]
+pub struct SessionRpcCustomizations<'a> {
+    pub(crate) session: &'a Session,
+}
+
+impl<'a> SessionRpcCustomizations<'a> {
+    /// Reloads all repository and user customizations for the active session: instructions, plugins and their MCP servers and hooks, custom agents, extensions, and skills. Returns diagnostics from the final skill reload.
+    ///
+    /// Wire method: `session.customizations.reload`.
+    ///
+    /// # Returns
+    ///
+    /// Diagnostics from reloading skill definitions, with warnings and errors as separate lists.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn reload(&self) -> Result<SkillsLoadDiagnostics, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_CUSTOMIZATIONS_RELOAD,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+}
+
 /// `session.debug.*` RPCs.
 #[derive(Clone, Copy)]
 pub struct SessionRpcDebug<'a> {
@@ -4941,6 +5030,83 @@ impl<'a> SessionRpcDebug<'a> {
             .session
             .client()
             .call(rpc_methods::SESSION_DEBUG_COLLECTLOGS, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+}
+
+/// `session.diagnostics.*` RPCs.
+#[derive(Clone, Copy)]
+pub struct SessionRpcDiagnostics<'a> {
+    pub(crate) session: &'a Session,
+}
+
+impl<'a> SessionRpcDiagnostics<'a> {
+    /// Patches configured session diagnostic sources without restarting their producers. Setting a source level to off clears its retained diagnostics and invalidates cursors selecting that source.
+    ///
+    /// Wire method: `session.diagnostics.configure`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Patch session diagnostic thresholds for explicitly supplied sources.
+    ///
+    /// # Returns
+    ///
+    /// Per-source session diagnostics configuration.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn configure(
+        &self,
+        params: DiagnosticsConfigureRequest,
+    ) -> Result<DiagnosticsConfiguration, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_DIAGNOSTICS_CONFIGURE,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Reads a bounded batch of retained session diagnostics for the selected sources. Records are never consumed and each reader advances independently through its opaque cursor.
+    ///
+    /// Wire method: `session.diagnostics.read`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Cursor-based request for session diagnostics. The default limit is 100 (maximum 500); the default waitMs is zero (maximum 30000).
+    ///
+    /// # Returns
+    ///
+    /// One cursor-addressed page of retained session diagnostics.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn read(
+        &self,
+        params: DiagnosticsReadRequest,
+    ) -> Result<DiagnosticsReadResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_DIAGNOSTICS_READ, Some(wire_params))
             .await?;
         Ok(serde_json::from_value(_value)?)
     }
@@ -6409,6 +6575,27 @@ impl<'a> SessionRpcInstructions<'a> {
             )
             .await?;
         Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Invalidates cached custom-instruction discovery so subsequent turns and source reads observe instruction files currently on disk.
+    ///
+    /// Wire method: `session.instructions.reload`.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn reload(&self) -> Result<(), Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_INSTRUCTIONS_RELOAD, Some(wire_params))
+            .await?;
+        Ok(())
     }
 }
 
@@ -10135,17 +10322,17 @@ impl<'a> SessionRpcQueue<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
-    /// Atomically withdraws an unchanged, unconsumed user message from the local queued or steering lane. A client retaining the original draft may restore it only when removed is true. Does not interrupt the running turn.
+    /// Atomically withdraws an unchanged user message of a local session: from the queued or steering lane while unconsumed, or from the running turn it started while the model has not answered it and nothing the user sent after it is pending. Withdrawing from the running turn interrupts that turn and removes its events from history. A client retaining the original draft may restore it only when removed is true.
     ///
     /// Wire method: `session.queue.withdrawMessage`.
     ///
     /// # Parameters
     ///
-    /// * `params` - Conditional withdrawal of a single user message, before the runtime claims it for delivery.
+    /// * `params` - Conditional withdrawal of a single user message, from its queue or from the running turn it started.
     ///
     /// # Returns
     ///
-    /// Result of removing a queued item.
+    /// Result of withdrawing a user message.
     ///
     /// <div class="warning">
     ///
@@ -10157,7 +10344,7 @@ impl<'a> SessionRpcQueue<'a> {
     pub async fn withdraw_message(
         &self,
         params: QueueWithdrawMessageRequest,
-    ) -> Result<QueueRemoveAtResult, Error> {
+    ) -> Result<QueueWithdrawMessageResult, Error> {
         let mut wire_params = serde_json::to_value(params)?;
         wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
         let _value = self

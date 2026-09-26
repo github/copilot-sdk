@@ -47,6 +47,19 @@ class HttpResponseForwardingTest {
     private static final Duration DEADLINE = Duration.ofSeconds(5);
 
     @Test
+    void recordsAcknowledgementBeforeReleasingWriter() throws Exception {
+        RecordingCaller caller = new RecordingCaller();
+        CompletableFuture<Object> write = caller.invoke("llmInference.httpResponseChunk",
+                new LlmInferenceHttpResponseChunkParams("test", "first", false, false, null), Object.class);
+        CompletableFuture<Void> observed = write.thenRun(() -> assertEquals(0, caller.outstandingData.get()));
+
+        PendingCall call = caller.calls.poll(DEADLINE.toMillis(), TimeUnit.MILLISECONDS);
+        assertNotNull(call);
+        call.result().complete(null);
+        observed.get(DEADLINE.toMillis(), TimeUnit.MILLISECONDS);
+    }
+
+    @Test
     void readsAheadAndCoalescesUnderOneWithheldAck() throws Exception {
         try (TestFlow flow = new TestFlow()) {
             flow.source.feed("first");
@@ -267,14 +280,15 @@ class HttpResponseForwardingTest {
         @Override
         public <T> CompletableFuture<T> invoke(String method, Object params, Class<T> resultType) {
             CompletableFuture<Object> result = new CompletableFuture<>();
+            CompletableFuture<Object> acknowledged = result;
             if (params instanceof LlmInferenceHttpResponseChunkParams chunk && !chunk.end()) {
                 int outstanding = outstandingData.incrementAndGet();
                 maximumOutstandingData.accumulateAndGet(outstanding, Math::max);
-                result.whenComplete((ignored, error) -> outstandingData.decrementAndGet());
+                acknowledged = result.whenComplete((ignored, error) -> outstandingData.decrementAndGet());
             }
             calls.add(new PendingCall(method, params, result));
             @SuppressWarnings("unchecked")
-            CompletableFuture<T> typed = (CompletableFuture<T>) (CompletableFuture<?>) result;
+            CompletableFuture<T> typed = (CompletableFuture<T>) (CompletableFuture<?>) acknowledged;
             return typed;
         }
     }

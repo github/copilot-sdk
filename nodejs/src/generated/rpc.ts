@@ -1273,6 +1273,127 @@ export type DebugCollectLogsResultKind =
   /** A directory containing the collected files was written. */
   | "directory";
 /**
+ * Whether the supplied diagnostic cursor remained within the retained buffer window.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "DiagnosticCursorStatus".
+ */
+/** @experimental */
+export type DiagnosticCursorStatus =
+  /** The cursor is valid for the current retained window. */
+  | "ok"
+  /** The cursor no longer addresses retained records; reading resumes at the oldest retained record. */
+  | "expired";
+/**
+ * One retained session-scoped diagnostic record. Potentially content-bearing diagnostic data is opt-in and must not be exported automatically as telemetry.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "DiagnosticEntry".
+ */
+/** @experimental */
+export type DiagnosticEntry = {
+  /**
+   * UTC RFC 3339 timestamp captured at the diagnostic source.
+   */
+  timestamp: string;
+  level: DiagnosticSeverity;
+  /**
+   * Agent identifier for a subagent host. Omitted for the root agent.
+   */
+  agentId?: string;
+  /**
+   * Human-readable diagnostic summary.
+   */
+  message: string;
+  /**
+   * Whether message or data was truncated to the record-size bound.
+   */
+  truncated?: boolean;
+  /**
+   * Original byte count when a known-size message or data value was truncated.
+   */
+  originalBytes?: number;
+  details: McpDiagnosticDetails;
+  /**
+   * Diagnostic source identifying the typed details payload.
+   */
+  source: "mcp";
+};
+/**
+ * Severity of an emitted diagnostic record.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "DiagnosticSeverity".
+ */
+/** @experimental */
+export type DiagnosticSeverity =
+  /** Failure that prevented or interrupted communication. */
+  | "error"
+  /** A recoverable warning or server standard-error output. */
+  | "warning"
+  /** Lifecycle transition. */
+  | "info"
+  /** Protocol-frame or launch diagnostic. */
+  | "debug"
+  /** HTTP metadata diagnostic. */
+  | "trace";
+/**
+ * Category for an MCP diagnostic record.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpDiagnosticKind".
+ */
+/** @experimental */
+export type McpDiagnosticKind =
+  /** Connection lifecycle transition or failure. */
+  | "lifecycle"
+  /** JSON-RPC protocol frame. */
+  | "protocol"
+  /** HTTP request or response metadata. */
+  | "http"
+  /** Local MCP server standard-error output. */
+  | "stderr";
+/**
+ * Direction of an observed MCP protocol frame.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpDiagnosticDirection".
+ */
+/** @experimental */
+export type McpDiagnosticDirection =
+  /** Frame emitted by the Copilot MCP client. */
+  | "client-to-server"
+  /** Frame received from the MCP server. */
+  | "server-to-client";
+/**
+ * Session-scoped diagnostic threshold. Capture is disabled by default and is never persisted with the session.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "DiagnosticLogLevel".
+ */
+/** @experimental */
+export type DiagnosticLogLevel =
+  /** Disable capture and clear retained diagnostics. */
+  | "off"
+  /** Capture failures only. */
+  | "error"
+  /** Capture failures, warnings, and stderr. */
+  | "warning"
+  /** Capture lifecycle diagnostics. */
+  | "info"
+  /** Capture protocol frames and launch diagnostics. */
+  | "debug"
+  /** Capture HTTP metadata in addition to debug diagnostics. */
+  | "trace";
+/**
+ * A supported diagnostic source.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "DiagnosticSource".
+ */
+/** @experimental */
+export type DiagnosticSource = "mcp";
+/**
  * Persisted extension discovery source
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -3503,6 +3624,14 @@ export type SandboxConfigSource =
   | "unsupported_host"
   /** A repository policy selected the sandbox state. */
   | "repository_policy";
+/**
+ * Extensible identifier of a sandbox policy feature whose availability varies between hosts. A plain string, so an older client decodes a name added by a newer runtime; ignore names you do not recognize. Known values: `network` — sandboxed commands can reach the network (`network.allowOutbound`, on by default); on Linux this needs the tooling for Bubblewrap's private network namespace, such as slirp4netns. `network_filtering` — host rules and the sandbox proxy (`network.allowedHosts`, `network.blockedHosts`, `network.proxy`); on Linux this needs the same tooling as `network`; on Windows it needs a version with Process Security Environment 1.1 host-loopback support, and a policy that uses it must also set `network.allowLocalNetwork`, because Windows reaches the local proxy only together with private-network access. `denied_paths` — native enforcement of `filesystem.deniedPaths`; on Windows this needs a version whose sandbox contract reports denied-path support. `shell` — shell commands inside the sandbox: bash on macOS and Linux, PowerShell on Windows; on Windows this needs a version with Process Security Environment 1.1 filesystem enumeration support.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SandboxHostCapabilityName".
+ */
+/** @experimental */
+export type SandboxHostCapabilityName = string;
 /**
  * A session-scoped sandbox transition applied while handling a slash command
  *
@@ -8586,6 +8715,120 @@ export interface DebugCollectLogsSkippedEntry {
    * Reason the entry was skipped.
    */
   reason: string;
+}
+/**
+ * MCP-specific detail for a source-discriminated diagnostic entry.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpDiagnosticDetails".
+ */
+/** @experimental */
+export interface McpDiagnosticDetails {
+  kind: McpDiagnosticKind;
+  /**
+   * Configured MCP server name.
+   */
+  serverName: string;
+  /**
+   * Fresh identifier for the MCP connection attempt, including failed starts.
+   */
+  connectionId: string;
+  direction?: McpDiagnosticDirection;
+  /**
+   * Serialized diagnostic detail. Protocol and HTTP records use JSON when detail is present.
+   */
+  data?: string;
+}
+/**
+ * Per-source session diagnostics configuration.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "DiagnosticsConfiguration".
+ */
+/** @experimental */
+export interface DiagnosticsConfiguration {
+  sources: DiagnosticSourcesConfiguration;
+}
+/**
+ * Typed diagnostic source configuration. At least one source is required by diagnostics configuration methods.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "DiagnosticSourcesConfiguration".
+ */
+/** @experimental */
+export interface DiagnosticSourcesConfiguration {
+  mcp?: McpDiagnosticSourceConfiguration;
+}
+/**
+ * MCP diagnostic source configuration.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpDiagnosticSourceConfiguration".
+ */
+/** @experimental */
+export interface McpDiagnosticSourceConfiguration {
+  level: DiagnosticLogLevel;
+}
+/**
+ * Patch session diagnostic thresholds for explicitly supplied sources.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "DiagnosticsConfigureRequest".
+ */
+/** @experimental */
+export interface DiagnosticsConfigureRequest {
+  sources: DiagnosticSourcesConfiguration;
+}
+/**
+ * Cursor-based request for session diagnostics. The default limit is 100 (maximum 500); the default waitMs is zero (maximum 30000).
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "DiagnosticsReadRequest".
+ */
+/** @experimental */
+export interface DiagnosticsReadRequest {
+  /**
+   * Nonempty selection of sources to read. Each source may be listed once.
+   */
+  sources: DiagnosticSource[];
+  /**
+   * Opaque cursor returned by an earlier read. Omit to start at the oldest retained record.
+   */
+  cursor?: string;
+  /**
+   * Maximum number of records to return, from 1 through 500. Omit for 100.
+   */
+  max?: number;
+  /**
+   * Maximum time in milliseconds to wait for a new record, from 0 through 30000.
+   */
+  waitMs?: number;
+}
+/**
+ * One cursor-addressed page of retained session diagnostics.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "DiagnosticsReadResult".
+ */
+/** @experimental */
+export interface DiagnosticsReadResult {
+  /**
+   * Retained records beginning at the requested cursor.
+   */
+  entries: DiagnosticEntry[];
+  /**
+   * Opaque cursor for the next independent read.
+   */
+  cursor: string;
+  cursorStatus: DiagnosticCursorStatus;
+  /**
+   * Number of records lost before this page when known. Omitted when a buffer generation change makes the count unknowable.
+   */
+  droppedCount?: number;
+  /**
+   * Whether additional retained records follow this page.
+   */
+  hasMore: boolean;
 }
 /**
  * Discovered extension metadata and persistent enablement state.
@@ -18332,6 +18575,10 @@ export interface QueuePendingItems {
    */
   displayText: string;
   agentMode: SendAgentMode;
+  /**
+   * Optional source tag associated with this pending queue entry. This is an open string, not authenticated authorship. In particular, `user` does not prove that a person typed the message. If the source is absent or unrecognized, consumers must not infer human or agent authorship and should handle the entry neutrally. Consumers should tolerate future source values.
+   */
+  source?: string;
 }
 /**
  * Snapshot of the session's pending queued items and immediate-steering messages.
@@ -18353,6 +18600,10 @@ export interface QueuePendingItemsResult {
    * How many leading entries of `steeringMessages` have already been folded into the running turn (and so have an emitted `user.message`), as opposed to still waiting for one. Absent for hosts that do not distinguish the two.
    */
   inFlightSteeringCount?: number;
+  /**
+   * ID of the running turn's user message while the model has not answered it, so `withdrawMessage` can still take it back once nothing sent after it is pending. A message leaves `items` when its turn starts, before its `user.message` is recorded; this tells that message apart from one that was removed. Absent when no turn prompt can be taken back.
+   */
+  withdrawableTurnMessageId?: string;
 }
 /**
  * Parameters for removing a queued item by stable id.
@@ -18496,7 +18747,7 @@ export interface QueueUpdateTextResult {
   updated: boolean;
 }
 /**
- * Conditional withdrawal of a single user message, before the runtime claims it for delivery.
+ * Conditional withdrawal of a single user message, from its queue or from the running turn it started.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "QueueWithdrawMessageRequest".
@@ -18511,6 +18762,23 @@ export interface QueueWithdrawMessageRequest {
    * The prompt originally sent. A message edited since submission is not withdrawn, so an obsolete draft cannot replace the edit.
    */
   expectedPrompt: string;
+}
+/**
+ * Result of withdrawing a user message.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "QueueWithdrawMessageResult".
+ */
+/** @experimental */
+export interface QueueWithdrawMessageResult {
+  /**
+   * True when the message left the queue or, for a running turn, history.
+   */
+  removed: boolean;
+  /**
+   * True when the running turn was interrupted to withdraw the message. With removed false, the turn was interrupted but its events could not be removed, for example because the model answered first, so the message stays in the interrupted turn.
+   */
+  interrupted: boolean;
 }
 /**
  * Event type to register consumer interest for, used by runtime gating logic.
@@ -19125,6 +19393,45 @@ export interface SandboxEnforcementStatus {
    * The first sandbox enforcement failure that blocked the session.
    */
   reason?: string;
+}
+/**
+ * Whether this host can run one sandbox policy feature. A session whose effective policy uses an unsupported feature fails each sandboxed command with `reason`.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SandboxHostCapability".
+ */
+/** @experimental */
+export interface SandboxHostCapability {
+  name: SandboxHostCapabilityName;
+  /**
+   * Whether this host can run the feature.
+   */
+  supported: boolean;
+  /**
+   * Human-readable reason and remedy when the feature is unsupported, such as a package to install or an OS update. Present only when `supported` is false.
+   */
+  reason?: string;
+}
+/**
+ * Whether the host running this runtime can run the command sandbox. The runtime checks `supported` once per process. A capability answer can change while the process runs, for example after the user installs a missing package.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SandboxHostSupport".
+ */
+/** @experimental */
+export interface SandboxHostSupport {
+  /**
+   * Whether a process-containment backend is usable on this host: Seatbelt on macOS, Bubblewrap on Linux, or ProcessContainer on Windows.
+   */
+  supported: boolean;
+  /**
+   * Human-readable reason the sandbox cannot run on this host. Present only when `supported` is false.
+   */
+  reason?: string;
+  /**
+   * Sandbox policy features whose availability varies between hosts that can run the backend. Empty when `supported` is false, because no feature can run without a backend. Later runtimes can add entries; ignore an entry whose `name` you do not recognize.
+   */
+  capabilities: SandboxHostCapability[];
 }
 /**
  * Register an absolute-time scheduled prompt.
@@ -26981,6 +27288,16 @@ export function createServerRpc(connection: MessageConnection) {
                 connection.sendRequest("models.getBuiltInCatalog", {}),
         },
         /** @experimental */
+        sandbox: {
+            /**
+             * Reports whether the host running this runtime can run the command sandbox, without starting a session or spawning a sandboxed command.
+             *
+             * @returns Whether the host running this runtime can run the command sandbox. The runtime checks `supported` once per process. A capability answer can change while the process runs, for example after the user installs a missing package.
+             */
+            getHostSupport: async (): Promise<SandboxHostSupport> =>
+                connection.sendRequest("sandbox.getHostSupport", {}),
+        },
+        /** @experimental */
         tools: {
             /**
              * Lists built-in tools available for a model.
@@ -28517,6 +28834,21 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
              */
             getSources: async (): Promise<InstructionsGetSourcesResult> =>
                 connection.sendRequest("session.instructions.getSources", { sessionId }),
+            /**
+             * Invalidates cached custom-instruction discovery so subsequent turns and source reads observe instruction files currently on disk.
+             */
+            reload: async (): Promise<void> =>
+                connection.sendRequest("session.instructions.reload", { sessionId }),
+        },
+        /** @experimental */
+        customizations: {
+            /**
+             * Reloads all repository and user customizations for the active session: instructions, plugins and their MCP servers and hooks, custom agents, extensions, and skills. Returns diagnostics from the final skill reload.
+             *
+             * @returns Diagnostics from reloading skill definitions, with warnings and errors as separate lists.
+             */
+            reload: async (): Promise<SkillsLoadDiagnostics> =>
+                connection.sendRequest("session.customizations.reload", { sessionId }),
         },
         /** @experimental */
         fleet: {
@@ -28979,6 +29311,27 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
                 listTemplates: async (params: McpResourcesListTemplatesRequest): Promise<McpResourcesListTemplatesResult> =>
                     connection.sendRequest("session.mcp.resources.listTemplates", { sessionId, ...params }),
             },
+        },
+        /** @experimental */
+        diagnostics: {
+            /**
+             * Patches configured session diagnostic sources without restarting their producers. Setting a source level to off clears its retained diagnostics and invalidates cursors selecting that source.
+             *
+             * @param params Patch session diagnostic thresholds for explicitly supplied sources.
+             *
+             * @returns Per-source session diagnostics configuration.
+             */
+            configure: async (params: DiagnosticsConfigureRequest): Promise<DiagnosticsConfiguration> =>
+                connection.sendRequest("session.diagnostics.configure", { sessionId, ...params }),
+            /**
+             * Reads a bounded batch of retained session diagnostics for the selected sources. Records are never consumed and each reader advances independently through its opaque cursor.
+             *
+             * @param params Cursor-based request for session diagnostics. The default limit is 100 (maximum 500); the default waitMs is zero (maximum 30000).
+             *
+             * @returns One cursor-addressed page of retained session diagnostics.
+             */
+            read: async (params: DiagnosticsReadRequest): Promise<DiagnosticsReadResult> =>
+                connection.sendRequest("session.diagnostics.read", { sessionId, ...params }),
         },
         /** @experimental */
         connectors: {
@@ -29970,13 +30323,13 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
             updateText: async (params: QueueUpdateTextRequest): Promise<QueueUpdateTextResult> =>
                 connection.sendRequest("session.queue.updateText", { sessionId, ...params }),
             /**
-             * Atomically withdraws an unchanged, unconsumed user message from the local queued or steering lane. A client retaining the original draft may restore it only when removed is true. Does not interrupt the running turn.
+             * Atomically withdraws an unchanged user message of a local session: from the queued or steering lane while unconsumed, or from the running turn it started while the model has not answered it and nothing the user sent after it is pending. Withdrawing from the running turn interrupts that turn and removes its events from history. A client retaining the original draft may restore it only when removed is true.
              *
-             * @param params Conditional withdrawal of a single user message, before the runtime claims it for delivery.
+             * @param params Conditional withdrawal of a single user message, from its queue or from the running turn it started.
              *
-             * @returns Result of removing a queued item.
+             * @returns Result of withdrawing a user message.
              */
-            withdrawMessage: async (params: QueueWithdrawMessageRequest): Promise<QueueRemoveAtResult> =>
+            withdrawMessage: async (params: QueueWithdrawMessageRequest): Promise<QueueWithdrawMessageResult> =>
                 connection.sendRequest("session.queue.withdrawMessage", { sessionId, ...params }),
             /**
              * Atomically appends text and attachments to an unchanged, unconsumed local steering message. Returns updated=false if delivery or withdrawal already claimed the message.

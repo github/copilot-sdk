@@ -536,6 +536,49 @@ async def test_send_and_wait_skips_autopilot_continuation_idle():
 
 
 @pytest.mark.asyncio
+async def test_send_and_wait_ignores_child_events():
+    client = Mock()
+    sent = asyncio.Event()
+
+    async def respond(method, params):
+        assert method == "session.send"
+        sent.set()
+        return {"messageId": "message-1"}
+
+    client.request = AsyncMock(side_effect=respond)
+    session = CopilotSession("session-1", client)
+    received = []
+    session.on(received.append)
+    pending = asyncio.create_task(session.send_and_wait("delegate", timeout=1))
+    try:
+        await asyncio.wait_for(sent.wait(), timeout=1)
+
+        child_message = _event(
+            AssistantMessageData(content="child reply", message_id="child-message"),
+            SessionEventType.ASSISTANT_MESSAGE,
+        )
+        child_message.agent_id = "child-1"
+        child_error = _event(
+            SessionErrorData(error_type="query", message="child failed"),
+            SessionEventType.SESSION_ERROR,
+        )
+        child_error.agent_id = "child-1"
+        child_idle = _event(SessionIdleData(), SessionEventType.SESSION_IDLE)
+        child_idle.agent_id = "child-1"
+        for event in (child_message, child_error, child_idle):
+            session._dispatch_event(event)
+        assert received == [child_message, child_error, child_idle]
+        await asyncio.sleep(0)
+        assert not pending.done()
+
+        session._dispatch_event(_event(SessionIdleData(), SessionEventType.SESSION_IDLE))
+        assert await asyncio.wait_for(pending, timeout=1) is None
+    finally:
+        pending.cancel()
+        await asyncio.gather(pending, return_exceptions=True)
+
+
+@pytest.mark.asyncio
 async def test_external_tool_completed_cancels_blocked_handler():
     client = Mock()
     client.request = AsyncMock()

@@ -61,6 +61,6 @@ rust_library(
     version = "1.4.8",
     deps = [
         "@sdk_vendor__errno-0.3.14//:errno",
-        "@sdk_vendor__libc-0.2.186//:libc",
+        "@sdk_vendor__libc-0.2.189//:libc",
     ],
 )

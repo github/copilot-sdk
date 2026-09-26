@@ -332,6 +332,7 @@ describe("CopilotClient", () => {
                 clientSecret: "static-secret",
                 grantType: "client_credentials",
                 publicClient: false,
+                scope: "configured.read",
             },
         });
 
@@ -341,6 +342,7 @@ describe("CopilotClient", () => {
             clientSecret: "static-secret",
             grantType: "client_credentials",
             publicClient: false,
+            scope: "configured.read",
         });
         expect(sendRequest).toHaveBeenCalledWith("session.mcp.oauth.handlePendingRequest", {
             sessionId: "session-1",
@@ -1136,6 +1138,7 @@ describe("CopilotClient", () => {
             enableFileChangeTracking: true,
             excludedBuiltinAgents: ["explore"],
             sessionLimits: { maxAiCredits: 30 },
+            diagnostics: { sources: { mcp: { level: "debug" } } },
         });
         await client.resumeSession(session.sessionId, {
             onPermissionRequest: approveAll,
@@ -1143,6 +1146,7 @@ describe("CopilotClient", () => {
             enableFileChangeTracking: false,
             excludedBuiltinAgents: ["task"],
             sessionLimits: { maxAiCredits: 15 },
+            diagnostics: { sources: { mcp: { level: "trace" } } },
         });
 
         const createPayload = spy.mock.calls.find(
@@ -1155,10 +1159,39 @@ describe("CopilotClient", () => {
         expect(createPayload.enableFileChangeTracking).toBe(true);
         expect(createPayload.excludedBuiltinAgents).toEqual(["explore"]);
         expect(createPayload.sessionLimits).toEqual({ maxAiCredits: 30 });
+        expect(createPayload.diagnostics).toEqual({ sources: { mcp: { level: "debug" } } });
         expect(resumePayload.enableCitations).toBe(false);
         expect(resumePayload.enableFileChangeTracking).toBe(false);
         expect(resumePayload.excludedBuiltinAgents).toEqual(["task"]);
         expect(resumePayload.sessionLimits).toEqual({ maxAiCredits: 15 });
+        expect(resumePayload.diagnostics).toEqual({ sources: { mcp: { level: "trace" } } });
+    });
+
+    it("omits diagnostics when they are not configured", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => stopClient(client));
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.create" || method === "session.resume") {
+                    return { sessionId: params.sessionId };
+                }
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+        await client.resumeSession(session.sessionId, { onPermissionRequest: approveAll });
+
+        const createPayload = spy.mock.calls.find(
+            ([method]) => method === "session.create"
+        )![1] as Record<string, unknown>;
+        const resumePayload = spy.mock.calls.find(
+            ([method]) => method === "session.resume"
+        )![1] as Record<string, unknown>;
+        expect(createPayload).not.toHaveProperty("diagnostics");
+        expect(resumePayload).not.toHaveProperty("diagnostics");
     });
 
     it("opts into GitHub telemetry forwarding when onGitHubTelemetry is provided", async () => {
@@ -1820,6 +1853,37 @@ describe("CopilotClient", () => {
         );
         spy.mockRestore();
     });
+
+    it.each([true, false, undefined])(
+        "serializes refreshCustomInstructions=%s only on session.create",
+        async (refresh) => {
+            const client = new CopilotClient();
+            await client.start();
+            onTestFinished(() => stopClient(client));
+
+            const spy = vi.spyOn((client as any).connection!, "sendRequest");
+            const config = {
+                onPermissionRequest: approveAll,
+                refreshCustomInstructions: refresh,
+            };
+            const session = await client.createSession(config);
+            const createRequest = spy.mock.calls.find(([method]) => method === "session.create");
+            expect(createRequest).toBeDefined();
+            const payload = JSON.parse(JSON.stringify(createRequest![1]));
+            if (refresh === undefined) {
+                expect(payload).not.toHaveProperty("refreshCustomInstructions");
+            } else {
+                expect(payload).toHaveProperty("refreshCustomInstructions", refresh);
+            }
+
+            await client.resumeSession(session.sessionId, config);
+            const resumeRequest = spy.mock.calls.find(([method]) => method === "session.resume");
+            expect(resumeRequest).toBeDefined();
+            expect(JSON.parse(JSON.stringify(resumeRequest![1]))).not.toHaveProperty(
+                "refreshCustomInstructions"
+            );
+        }
+    );
 
     it("forwards enableOnDemandInstructionDiscovery in session.create request", async () => {
         const client = new CopilotClient();

@@ -65,18 +65,18 @@ rust_library(
     version = "0.17.14",
     deps = [
         ":build_script_build",
-        "@sdk_vendor__cfg-if-1.0.4//:cfg_if",
+        "@sdk_vendor__cfg-if-1.0.5//:cfg_if",
         "@sdk_vendor__getrandom-0.2.17//:getrandom",
         "@sdk_vendor__untrusted-0.9.0//:untrusted",
     ] + select({
         "@rules_rust//rust/platform:aarch64-apple-darwin": [
-            "@sdk_vendor__libc-0.2.186//:libc",  # cfg(all(all(target_arch = "aarch64", target_endian = "little"), target_vendor = "apple", any(target_os = "ios", target_os = "macos", target_os = "tvos", target_os = "visionos", target_os = "watchos")))
+            "@sdk_vendor__libc-0.2.189//:libc",  # cfg(all(all(target_arch = "aarch64", target_endian = "little"), target_vendor = "apple", any(target_os = "ios", target_os = "macos", target_os = "tvos", target_os = "visionos", target_os = "watchos")))
         ],
         "@rules_rust//rust/platform:aarch64-pc-windows-msvc": [
             "@sdk_vendor__windows-sys-0.52.0//:windows_sys",  # cfg(all(all(target_arch = "aarch64", target_endian = "little"), target_os = "windows"))
         ],
         "@rules_rust//rust/platform:aarch64-unknown-linux-gnu": [
-            "@sdk_vendor__libc-0.2.186//:libc",  # cfg(all(any(all(target_arch = "aarch64", target_endian = "little"), all(target_arch = "arm", target_endian = "little")), any(target_os = "android", target_os = "linux")))
+            "@sdk_vendor__libc-0.2.189//:libc",  # cfg(all(any(all(target_arch = "aarch64", target_endian = "little"), all(target_arch = "arm", target_endian = "little")), any(target_os = "android", target_os = "linux")))
         ],
         "//conditions:default": [],
     }),
@@ -138,7 +138,7 @@ cargo_build_script(
     version = "0.17.14",
     visibility = ["//visibility:private"],
     deps = [
-        "@sdk_vendor__cc-1.2.61//:cc",
+        "@sdk_vendor__cc-1.4.7//:cc",
     ],
 )
 

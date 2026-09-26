@@ -987,6 +987,7 @@ public class SerializationTests
             OauthClientId = "client-id",
             OauthPublicClient = false,
             OauthGrantType = McpHttpServerConfigOauthGrantType.ClientCredentials,
+            OauthScopes = ["configured.read", "configured.write"],
             Tools = ["*"],
             Timeout = 3000
         };
@@ -1000,6 +1001,9 @@ public class SerializationTests
         Assert.Equal("client-id", root.GetProperty("oauthClientId").GetString());
         Assert.False(root.GetProperty("oauthPublicClient").GetBoolean());
         Assert.Equal("client_credentials", root.GetProperty("oauthGrantType").GetString());
+        Assert.Equal(
+            ["configured.read", "configured.write"],
+            root.GetProperty("oauthScopes").EnumerateArray().Select(scope => scope.GetString()));
         Assert.Equal("*", root.GetProperty("tools")[0].GetString());
         Assert.Equal(3000, root.GetProperty("timeout").GetInt32());
 
@@ -1010,6 +1014,7 @@ public class SerializationTests
         Assert.Equal("client-id", httpConfig.OauthClientId);
         Assert.False(httpConfig.OauthPublicClient);
         Assert.Equal(McpHttpServerConfigOauthGrantType.ClientCredentials, httpConfig.OauthGrantType);
+        Assert.Equal(["configured.read", "configured.write"], httpConfig.OauthScopes);
         Assert.Equal("*", Assert.Single(httpConfig.Tools!));
         Assert.Equal(3000, httpConfig.Timeout);
     }

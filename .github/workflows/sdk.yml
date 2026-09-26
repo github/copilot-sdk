@@ -299,6 +299,9 @@ jobs:
     name: "Check schema and SDK freshness"
     needs: detect-layout
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v7
         timeout-minutes: 10
@@ -311,11 +314,10 @@ jobs:
         with:
           install-deps: "false"
       - if: needs.detect-layout.outputs.runtime-source == 'checkout'
-        uses: ./.github/actions/setup-rust-cache
-        timeout-minutes: 8
-        continue-on-error: true
+        uses: ./.github/actions/setup-bazel
         with:
-          cache-key: sdk-codegen
+          datadog-api-key: ${{ secrets.DATADOG_API_KEY }}
+          datadog-site: ${{ vars.DATADOG_SITE || vars.DD_SITE }}
       - uses: actions/setup-go@v6
         with:
           go-version: "1.24"

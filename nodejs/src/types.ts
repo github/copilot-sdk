@@ -28,6 +28,7 @@ import type {
     GitHubTokenAcquireResult,
     GitHubTelemetryNotification,
     ModelBillingTokenPrices,
+    DiagnosticsConfiguration,
     OpenCanvasInstance,
     RemoteSessionMode,
     CurrentToolMetadata,
@@ -36,6 +37,20 @@ import type { ToolSet } from "./toolSet.js";
 export type { RemoteSessionMode } from "./generated/rpc.js";
 export type { CurrentToolMetadata } from "./generated/rpc.js";
 export type {
+    ConnectorAccountRequest,
+    ConnectorAvailability,
+    ConnectorCapabilities,
+    ConnectorCatalogEntry,
+    ConnectorCatalogResult,
+    ConnectorCatalogStatus,
+    ConnectorConnectRequest,
+    ConnectorConnectResult,
+    ConnectorContinueRequest,
+    ConnectorDisconnectResult,
+    ConnectorMcpStatus,
+    ConnectorReconcileRequest,
+    ConnectorRuntimeStatus,
+    ConnectorStatus,
     ExtensionLaunchProfile,
     ExtensionLaunchProviderResolveRequest,
     ExtensionLaunchProviderResolveResult,
@@ -2055,6 +2070,8 @@ export interface McpAuthStaticClientConfig {
     grantType?: "client_credentials";
     /** Whether this is a public OAuth client. */
     publicClient?: boolean;
+    /** Configured OAuth scope string used when the server challenge omits scope. */
+    scope?: string;
 }
 
 /** MCP OAuth request that the SDK host can satisfy with a host-acquired token. */
@@ -2378,6 +2395,17 @@ export interface SessionConfigBase {
      * the session to the long-context tier; omit or use "default" otherwise.
      */
     contextTier?: ContextTier;
+
+    /**
+     * Enables session-scoped MCP diagnostic capture at the requested level.
+     *
+     * Diagnostics are off by default. At `"debug"` and `"trace"` levels, entries
+     * can contain MCP payloads, tool arguments, paths, and server stderr. Do not
+     * upload entries as telemetry or export them without deliberate host action.
+     * Omit this option when resuming a resident session to preserve its current
+     * diagnostic level.
+     */
+    diagnostics?: DiagnosticsConfiguration;
 
     /** Per-property overrides for model capabilities, deep-merged over runtime defaults. */
     modelCapabilities?: ModelCapabilitiesOverride;
@@ -3010,6 +3038,15 @@ export interface SessionConfig extends SessionConfigBase {
      * Optional custom session ID. If not provided, the server generates one.
      */
     sessionId?: string;
+
+    /**
+     * Invalidates the process-wide custom-instruction discovery cache before
+     * creating this session. Use when instruction files changed in the same runtime.
+     * Other sessions in this runtime may observe updated instructions on later turns
+     * or discovery. This does not watch files or enable disabled instruction loading.
+     * @default false
+     */
+    refreshCustomInstructions?: boolean;
 
     /**
      * Creates a remote session in the cloud instead of a local session.

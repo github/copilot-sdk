@@ -12,6 +12,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import com.github.copilot.CopilotExperimental;
+import com.github.copilot.generated.rpc.DiagnosticsConfiguration;
 import com.github.copilot.generated.rpc.SessionLimitsConfig;
 
 /**
@@ -119,6 +120,9 @@ public final class CreateSessionRequest {
     @JsonProperty("mcpOAuthTokenStorage")
     private String mcpOAuthTokenStorage;
 
+    @JsonProperty("diagnostics")
+    private DiagnosticsConfiguration diagnostics;
+
     @JsonProperty("authClientIdMetadataUrl")
     private String authClientIdMetadataUrl;
 
@@ -181,6 +185,9 @@ public final class CreateSessionRequest {
     @JsonProperty("enableOnDemandInstructionDiscovery")
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private Boolean enableOnDemandInstructionDiscovery;
+
+    @JsonProperty("refreshCustomInstructions")
+    private Boolean refreshCustomInstructions;
 
     @JsonProperty("enableFileHooks")
     @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -600,6 +607,19 @@ public final class CreateSessionRequest {
     }
 
     /**
+     * Gets the diagnostics configuration. @return the level, or {@code null} when
+     * unset
+     */
+    public DiagnosticsConfiguration getDiagnostics() {
+        return diagnostics;
+    }
+
+    /** Sets the diagnostics configuration. @param diagnostics the level */
+    public void setDiagnostics(DiagnosticsConfiguration diagnostics) {
+        this.diagnostics = diagnostics;
+    }
+
+    /**
      * Sets MCP OAuth token storage mode. @param mcpOAuthTokenStorage the storage
      * mode
      */
@@ -844,6 +864,31 @@ public final class CreateSessionRequest {
      */
     public void clearEnableOnDemandInstructionDiscovery() {
         this.enableOnDemandInstructionDiscovery = null;
+    }
+
+    /**
+     * Gets the instruction discovery cache invalidation flag.
+     *
+     * @return the flag
+     */
+    public Boolean getRefreshCustomInstructions() {
+        return refreshCustomInstructions;
+    }
+
+    /**
+     * Sets the instruction discovery cache invalidation flag.
+     *
+     * @param refreshCustomInstructions
+     *            the flag
+     * @see SessionConfig#setRefreshCustomInstructions(boolean)
+     */
+    public void setRefreshCustomInstructions(boolean refreshCustomInstructions) {
+        this.refreshCustomInstructions = refreshCustomInstructions;
+    }
+
+    /** Clears the instruction discovery cache invalidation flag. */
+    public void clearRefreshCustomInstructions() {
+        this.refreshCustomInstructions = null;
     }
 
     /** Gets enable file hooks flag. @return the flag */

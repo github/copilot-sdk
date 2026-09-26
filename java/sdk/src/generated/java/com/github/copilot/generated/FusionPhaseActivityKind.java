@@ -7,13 +7,17 @@
 
 package com.github.copilot.generated;
 
+import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
  * Content-safe activity observed while a HydraFusion phase is running.
  *
+ * @apiNote This type is experimental and may change in a future version.
+ *
  * @since 1.0.0
  */
+@CopilotExperimental
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 public enum FusionPhaseActivityKind {
     /** The {@code model_output} variant. */

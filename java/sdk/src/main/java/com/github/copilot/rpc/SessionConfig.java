@@ -16,6 +16,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import com.github.copilot.CopilotExperimental;
 import com.github.copilot.generated.SessionEvent;
+import com.github.copilot.generated.rpc.DiagnosticsConfiguration;
 import com.github.copilot.generated.rpc.SessionLimitsConfig;
 
 /**
@@ -74,6 +75,7 @@ public class SessionConfig {
     private boolean streaming;
     private Boolean includeSubAgentStreamingEvents;
     private Map<String, McpServerConfig> mcpServers;
+    private DiagnosticsConfiguration diagnostics;
     private String mcpOAuthTokenStorage;
     private String authClientIdMetadataUrl;
     private List<CustomAgentConfig> customAgents;
@@ -94,6 +96,7 @@ public class SessionConfig {
     private Boolean skipEmbeddingRetrieval;
     private String organizationCustomInstructions;
     private Boolean enableOnDemandInstructionDiscovery;
+    private Boolean refreshCustomInstructions;
     private Boolean enableFileHooks;
     private Boolean enableHostGitOperations;
     private Boolean enableSessionStore;
@@ -1051,6 +1054,30 @@ public class SessionConfig {
     }
 
     /**
+     * Gets the session-scoped diagnostics configuration.
+     *
+     * @return the diagnostic level, or {@code null} when diagnostics are disabled
+     */
+    public DiagnosticsConfiguration getDiagnostics() {
+        return diagnostics;
+    }
+
+    /**
+     * Sets the session-scoped diagnostics configuration. Diagnostics are off by
+     * default. Debug and trace entries can contain MCP payloads, tool arguments,
+     * paths, and server stderr. Do not upload entries as telemetry or export them
+     * without deliberate host action.
+     *
+     * @param diagnostics
+     *            the diagnostic level
+     * @return this config for method chaining
+     */
+    public SessionConfig setDiagnostics(DiagnosticsConfiguration diagnostics) {
+        this.diagnostics = diagnostics;
+        return this;
+    }
+
+    /**
      * Gets the MCP OAuth token storage mode.
      *
      * @return the storage mode, or {@code null} if not set
@@ -1553,6 +1580,43 @@ public class SessionConfig {
      */
     public SessionConfig clearEnableOnDemandInstructionDiscovery() {
         this.enableOnDemandInstructionDiscovery = null;
+        return this;
+    }
+
+    /**
+     * Gets whether to invalidate process-wide instruction discovery caches before
+     * constructing the new session.
+     *
+     * @return an optional flag; {@code false} or empty reuses cached discovery
+     */
+    @JsonIgnore
+    public Optional<Boolean> getRefreshCustomInstructions() {
+        return Optional.ofNullable(refreshCustomInstructions);
+    }
+
+    /**
+     * Sets whether to invalidate process-wide instruction discovery caches before
+     * constructing the new session. Defaults to {@code false}, reusing cached
+     * discovery. Other sessions in this runtime may observe updated instructions on
+     * later turns or discovery. This does not watch files or override instruction
+     * loading policy.
+     *
+     * @param refreshCustomInstructions
+     *            {@code true} to invalidate caches, {@code false} to reuse them
+     * @return this config instance for method chaining
+     */
+    public SessionConfig setRefreshCustomInstructions(boolean refreshCustomInstructions) {
+        this.refreshCustomInstructions = refreshCustomInstructions;
+        return this;
+    }
+
+    /**
+     * Clears the refreshCustomInstructions setting, restoring default cache reuse.
+     *
+     * @return this config instance for method chaining
+     */
+    public SessionConfig clearRefreshCustomInstructions() {
+        this.refreshCustomInstructions = null;
         return this;
     }
 
@@ -2272,6 +2336,7 @@ public class SessionConfig {
         copy.streaming = this.streaming;
         copy.includeSubAgentStreamingEvents = this.includeSubAgentStreamingEvents;
         copy.mcpServers = this.mcpServers != null ? new java.util.HashMap<>(this.mcpServers) : null;
+        copy.diagnostics = this.diagnostics;
         copy.mcpOAuthTokenStorage = this.mcpOAuthTokenStorage;
         copy.authClientIdMetadataUrl = this.authClientIdMetadataUrl;
         copy.customAgents = this.customAgents != null ? new ArrayList<>(this.customAgents) : null;
@@ -2296,6 +2361,7 @@ public class SessionConfig {
         copy.skipEmbeddingRetrieval = this.skipEmbeddingRetrieval;
         copy.organizationCustomInstructions = this.organizationCustomInstructions;
         copy.enableOnDemandInstructionDiscovery = this.enableOnDemandInstructionDiscovery;
+        copy.refreshCustomInstructions = this.refreshCustomInstructions;
         copy.enableFileHooks = this.enableFileHooks;
         copy.enableHostGitOperations = this.enableHostGitOperations;
         copy.enableSessionStore = this.enableSessionStore;

@@ -16,6 +16,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import com.github.copilot.CopilotExperimental;
 import com.github.copilot.generated.SessionEvent;
+import com.github.copilot.generated.rpc.DiagnosticsConfiguration;
 import com.github.copilot.generated.rpc.SessionLimitsConfig;
 
 /**
@@ -85,6 +86,7 @@ public class ResumeSessionConfig {
     private boolean streaming;
     private Boolean includeSubAgentStreamingEvents;
     private Map<String, McpServerConfig> mcpServers;
+    private DiagnosticsConfiguration diagnostics;
     private String mcpOAuthTokenStorage;
     private String authClientIdMetadataUrl;
     private List<CustomAgentConfig> customAgents;
@@ -1398,6 +1400,28 @@ public class ResumeSessionConfig {
     }
 
     /**
+     * Gets the session-scoped diagnostics configuration.
+     *
+     * @return the diagnostic level, or {@code null} to preserve the current level
+     */
+    public DiagnosticsConfiguration getDiagnostics() {
+        return diagnostics;
+    }
+
+    /**
+     * Sets the session-scoped diagnostics configuration. Leave it unset when
+     * resuming a resident session to preserve its current diagnostic level.
+     *
+     * @param diagnostics
+     *            the diagnostic level
+     * @return this config for method chaining
+     */
+    public ResumeSessionConfig setDiagnostics(DiagnosticsConfiguration diagnostics) {
+        this.diagnostics = diagnostics;
+        return this;
+    }
+
+    /**
      * Gets the MCP OAuth token storage mode.
      *
      * @return the storage mode, or {@code null} if not set
@@ -2143,6 +2167,7 @@ public class ResumeSessionConfig {
         copy.streaming = this.streaming;
         copy.includeSubAgentStreamingEvents = this.includeSubAgentStreamingEvents;
         copy.mcpServers = this.mcpServers != null ? new java.util.HashMap<>(this.mcpServers) : null;
+        copy.diagnostics = this.diagnostics;
         copy.mcpOAuthTokenStorage = this.mcpOAuthTokenStorage;
         copy.authClientIdMetadataUrl = this.authClientIdMetadataUrl;
         copy.customAgents = this.customAgents != null ? new ArrayList<>(this.customAgents) : null;

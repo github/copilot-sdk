@@ -217,6 +217,28 @@ describe("Server-scoped RPC", async () => {
         expect(result.ok).toBe(true);
     });
 
+    it("should report sandbox host support", async () => {
+        await client.start();
+        const host = await client.rpc.sandbox.getHostSupport();
+        expect(host.reason === undefined).toBe(host.supported);
+        expect(host.capabilities.map((capability) => capability.name).sort()).toEqual(
+            host.supported ? ["denied_paths", "network", "network_filtering", "shell"] : []
+        );
+        for (const capability of host.capabilities) {
+            expect(capability.reason === undefined).toBe(capability.supported);
+        }
+
+        const unsupportedClient = createClientWithEnv({
+            COPILOT_CLI_SANDBOX_SUPPORT_OVERRIDE: "unsupported",
+        });
+        await unsupportedClient.start();
+        expect(await unsupportedClient.rpc.sandbox.getHostSupport()).toEqual({
+            supported: false,
+            reason: "COPILOT_CLI_SANDBOX_SUPPORT_OVERRIDE=unsupported",
+            capabilities: [],
+        });
+    });
+
     it("should list, find, and inspect persisted session state", async () => {
         const sessionId = randomUUID();
         const missingTaskId = `missing-task-${randomUUID()}`;

@@ -10,6 +10,6 @@ package(default_visibility = ["//visibility:public"])
 
 alias(
     name = "tokio-tungstenite",
-    actual = "@sdk_vendor__tokio-tungstenite-0.24.0//:tokio_tungstenite",
+    actual = "@sdk_vendor__tokio-tungstenite-0.28.0//:tokio_tungstenite",
     tags = ["manual"],
 )

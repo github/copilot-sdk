@@ -100,7 +100,6 @@ export function validateRuntimePackageRoot(
         join("prebuilds", platform, "runtime.node"),
         join("copilot-sdk", "extension.js"),
         join("preloads", "extension_bootstrap.mjs"),
-        join("sdk", "index.js"),
     ]) {
         validateFile(join(packageRoot, requiredPath), `${manifest.name} ${requiredPath}`);
     }

@@ -61,6 +61,6 @@ rust_library(
     version = "0.1.1",
     deps = [
         "@sdk_vendor__hashbrown-0.16.1//:hashbrown",
-        "@sdk_vendor__thiserror-2.0.18//:thiserror",
+        "@sdk_vendor__thiserror-2.0.20//:thiserror",
     ],
 )

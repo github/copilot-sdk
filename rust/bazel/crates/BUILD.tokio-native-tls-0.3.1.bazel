@@ -61,6 +61,6 @@ rust_library(
     version = "0.3.1",
     deps = [
         "@sdk_vendor__native-tls-0.2.18//:native_tls",
-        "@sdk_vendor__tokio-1.52.1//:tokio",
+        "@sdk_vendor__tokio-1.53.1//:tokio",
     ],
 )

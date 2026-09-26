@@ -1423,6 +1423,57 @@ function removeShadowedSessionEventEnumsForPython(
         .replace(/\n{3,}/g, "\n\n");
 }
 
+function makePythonDataclassFieldKeywordOnly(
+    code: string,
+    className: string,
+    fieldName: string
+): string {
+    const classPattern = new RegExp(
+        `(@dataclass\\r?\\nclass ${escapeRegExp(className)}:[\\s\\S]*?)(?=^@dataclass|^class\\s+\\w|^def\\s+\\w|(?![\\s\\S]))`,
+        "gm"
+    );
+    let foundClass = false;
+    const updated = code.replace(classPattern, (block: string) => {
+        foundClass = true;
+        const fieldPattern = new RegExp(
+            `^(    ${escapeRegExp(fieldName)}: .+) = None$`,
+            "m"
+        );
+        if (!fieldPattern.test(block)) {
+            throw new Error(`Missing optional field ${className}.${fieldName}`);
+        }
+        let updatedBlock = block.replace(fieldPattern, "$1 = field(default=None, kw_only=True)");
+
+        const constructorPattern = new RegExp(
+            `^(        return ${escapeRegExp(className)}\\()([^\\n]*)(\\))$`,
+            "m"
+        );
+        let foundConstructor = false;
+        updatedBlock = updatedBlock.replace(
+            constructorPattern,
+            (_match: string, prefix: string, args: string, suffix: string) => {
+                foundConstructor = true;
+                const constructorArgs = args.split(", ");
+                const fieldIndex = constructorArgs.indexOf(fieldName);
+                if (fieldIndex < 0) {
+                    throw new Error(`Missing constructor argument ${className}.${fieldName}`);
+                }
+                constructorArgs.splice(fieldIndex, 1);
+                constructorArgs.push(`${fieldName}=${fieldName}`);
+                return `${prefix}${constructorArgs.join(", ")}${suffix}`;
+            }
+        );
+        if (!foundConstructor) {
+            throw new Error(`Missing from_dict constructor for ${className}`);
+        }
+        return updatedBlock;
+    });
+    if (!foundClass) {
+        throw new Error(`Missing dataclass ${className}`);
+    }
+    return updated;
+}
+
 function reorderPythonDataclassFields(code: string): string {
     const fieldRe =
         /^    \w+: (?:Any|bool|int|float|str|dict|list|ClassVar|[A-Z_]\w*|['"][A-Z_]\w*)(?:[^=]*)?(?: = .*)?$/;
@@ -3249,6 +3300,11 @@ async function generateRpc(schemaPath?: string, sessionEventsSchema?: JSONSchema
     // Reorder class/enum definitions to resolve forward references.
     // Quicktype may emit classes before their dependencies are defined.
     typesCode = reorderPythonForwardRefs(typesCode);
+    typesCode = makePythonDataclassFieldKeywordOnly(
+        typesCode,
+        "MCPServerConfigHTTP",
+        "oauth_scopes"
+    );
 
     // Strip quicktype's import block and preamble — we provide our own unified header.
     // The preamble ends just before the first helper function (e.g. "def from_str")
@@ -3389,7 +3445,7 @@ if TYPE_CHECKING:
     from .._jsonrpc import JsonRpcClient
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from typing import Any, Protocol, TypeVar, cast

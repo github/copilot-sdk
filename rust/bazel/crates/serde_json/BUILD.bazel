@@ -10,6 +10,6 @@ package(default_visibility = ["//visibility:public"])
 
 alias(
     name = "serde_json",
-    actual = "@sdk_vendor__serde_json-1.0.149//:serde_json",
+    actual = "@sdk_vendor__serde_json-1.0.151//:serde_json",
     tags = ["manual"],
 )

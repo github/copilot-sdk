@@ -3,6 +3,8 @@ package copilot
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/github/copilot-sdk/go/rpc"
 )
 
 func TestUserPromptTransformedHookOutput_PreservesEmptyReplacement(t *testing.T) {
@@ -42,6 +44,47 @@ func TestProviderConfig_JSONIncludesHeaders(t *testing.T) {
 	}
 	if headers["Authorization"] != "Bearer provider-token" {
 		t.Fatalf("expected Authorization header, got %v", headers["Authorization"])
+	}
+}
+
+func TestMCPHTTPServerConfig_JSONIncludesOAuthConfiguration(t *testing.T) {
+	grantType := rpc.MCPServerConfigHTTPOauthGrantTypeClientCredentials
+	config := MCPHTTPServerConfig{
+		URL:               "https://example.com/mcp",
+		OAuthClientID:     String("client-id"),
+		OAuthScopes:       []string{"mcp:read", "mcp:write"},
+		OAuthPublicClient: Bool(false),
+		OAuthGrantType:    &grantType,
+	}
+
+	data, err := json.Marshal(config)
+	if err != nil {
+		t.Fatalf("failed to marshal MCP HTTP server config: %v", err)
+	}
+
+	var decoded map[string]any
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("failed to unmarshal MCP HTTP server config: %v", err)
+	}
+
+	if decoded["type"] != "http" {
+		t.Errorf("expected type 'http', got %v", decoded["type"])
+	}
+	if decoded["oauthClientId"] != "client-id" {
+		t.Errorf("expected oauthClientId 'client-id', got %v", decoded["oauthClientId"])
+	}
+	if decoded["oauthPublicClient"] != false {
+		t.Errorf("expected oauthPublicClient false, got %v", decoded["oauthPublicClient"])
+	}
+	if decoded["oauthGrantType"] != "client_credentials" {
+		t.Errorf("expected oauthGrantType 'client_credentials', got %v", decoded["oauthGrantType"])
+	}
+	scopes, ok := decoded["oauthScopes"].([]any)
+	if !ok {
+		t.Fatalf("expected oauthScopes array, got %T", decoded["oauthScopes"])
+	}
+	if len(scopes) != 2 || scopes[0] != "mcp:read" || scopes[1] != "mcp:write" {
+		t.Errorf("expected OAuth scopes to round-trip, got %v", scopes)
 	}
 }
 

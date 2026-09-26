@@ -94,23 +94,24 @@ class ExtensionLaunchProviderTest {
         private void acceptLoop() {
             try {
                 Socket socket = serverSocket.accept();
-                JsonRpcClient server = JsonRpcClient.fromSocket(socket);
-                server.registerMethodHandler("connect", (id, params) -> respond(server, id,
-                        Map.of("ok", true, "protocolVersion", 3, "version", "test")));
-                server.registerMethodHandler("registerExtensionLaunchProvider", (id, params) -> {
-                    registrationCount.incrementAndGet();
-                    server.invoke("extensionLaunchProvider.resolve",
-                            Map.of("id", "project:java-e2e", "name", "java-e2e", "modulePath",
-                                    "/extensions/java-e2e.jar", "source", "project"),
-                            ExtensionLaunchProviderResolveResult.class).whenComplete((result, error) -> {
-                                if (error != null) {
-                                    resolveResult.completeExceptionally(error);
-                                    sendError(server, id, error);
-                                    return;
-                                }
-                                resolveResult.complete(result);
-                                respond(server, id, Map.of());
-                            });
+                JsonRpcClient server = JsonRpcClient.fromSocket(socket, rpc -> {
+                    rpc.registerMethodHandler("connect", (id, params) -> respond(rpc, id,
+                            Map.of("ok", true, "protocolVersion", 3, "version", "test")));
+                    rpc.registerMethodHandler("registerExtensionLaunchProvider", (id, params) -> {
+                        registrationCount.incrementAndGet();
+                        rpc.invoke("extensionLaunchProvider.resolve",
+                                Map.of("id", "project:java-e2e", "name", "java-e2e", "modulePath",
+                                        "/extensions/java-e2e.jar", "source", "project"),
+                                ExtensionLaunchProviderResolveResult.class).whenComplete((result, error) -> {
+                                    if (error != null) {
+                                        resolveResult.completeExceptionally(error);
+                                        sendError(rpc, id, error);
+                                        return;
+                                    }
+                                    resolveResult.complete(result);
+                                    respond(rpc, id, Map.of());
+                                });
+                    });
                 });
                 ready.complete(server);
             } catch (IOException e) {

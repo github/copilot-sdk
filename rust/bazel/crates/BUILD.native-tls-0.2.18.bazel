@@ -39,6 +39,7 @@ rust_library(
         ],
     ),
     crate_features = [
+        "alpn",
         "default",
     ],
     crate_root = "src/lib.rs",
@@ -70,7 +71,7 @@ rust_library(
         ":build_script_build",
     ] + select({
         "@rules_rust//rust/platform:aarch64-apple-darwin": [
-            "@sdk_vendor__libc-0.2.186//:libc",  # cfg(target_vendor = "apple")
+            "@sdk_vendor__libc-0.2.189//:libc",  # cfg(target_vendor = "apple")
             "@sdk_vendor__security-framework-3.7.0//:security_framework",  # cfg(target_vendor = "apple")
             "@sdk_vendor__security-framework-sys-2.17.0//:security_framework_sys",  # cfg(target_vendor = "apple")
             "@sdk_vendor__tempfile-3.27.0//:tempfile",  # cfg(target_os = "macos")
@@ -79,13 +80,13 @@ rust_library(
             "@sdk_vendor__schannel-0.1.29//:schannel",  # cfg(target_os = "windows")
         ],
         "@rules_rust//rust/platform:aarch64-unknown-linux-gnu": [
-            "@sdk_vendor__log-0.4.29//:log",  # cfg(not(any(target_os = "windows", target_vendor = "apple")))
+            "@sdk_vendor__log-0.4.34//:log",  # cfg(not(any(target_os = "windows", target_vendor = "apple")))
             "@sdk_vendor__openssl-0.10.81//:openssl",  # cfg(not(any(target_os = "windows", target_vendor = "apple")))
             "@sdk_vendor__openssl-probe-0.2.1//:openssl_probe",  # cfg(not(any(target_os = "windows", target_vendor = "apple")))
             "@sdk_vendor__openssl-sys-0.9.117//:openssl_sys",  # cfg(not(any(target_os = "windows", target_vendor = "apple")))
         ],
         "@rules_rust//rust/platform:x86_64-apple-darwin": [
-            "@sdk_vendor__libc-0.2.186//:libc",  # cfg(target_vendor = "apple")
+            "@sdk_vendor__libc-0.2.189//:libc",  # cfg(target_vendor = "apple")
             "@sdk_vendor__security-framework-3.7.0//:security_framework",  # cfg(target_vendor = "apple")
             "@sdk_vendor__security-framework-sys-2.17.0//:security_framework_sys",  # cfg(target_vendor = "apple")
             "@sdk_vendor__tempfile-3.27.0//:tempfile",  # cfg(target_os = "macos")
@@ -94,7 +95,7 @@ rust_library(
             "@sdk_vendor__schannel-0.1.29//:schannel",  # cfg(target_os = "windows")
         ],
         "@rules_rust//rust/platform:x86_64-unknown-linux-gnu": [
-            "@sdk_vendor__log-0.4.29//:log",  # cfg(not(any(target_os = "windows", target_vendor = "apple")))
+            "@sdk_vendor__log-0.4.34//:log",  # cfg(not(any(target_os = "windows", target_vendor = "apple")))
             "@sdk_vendor__openssl-0.10.81//:openssl",  # cfg(not(any(target_os = "windows", target_vendor = "apple")))
             "@sdk_vendor__openssl-probe-0.2.1//:openssl_probe",  # cfg(not(any(target_os = "windows", target_vendor = "apple")))
             "@sdk_vendor__openssl-sys-0.9.117//:openssl_sys",  # cfg(not(any(target_os = "windows", target_vendor = "apple")))
@@ -126,6 +127,7 @@ cargo_build_script(
         ],
     ),
     crate_features = [
+        "alpn",
         "default",
     ],
     crate_name = "build_script_build",

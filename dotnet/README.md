@@ -23,8 +23,7 @@ Set `CopilotCliBinaryPath` to copy a preinstalled binary instead, or set
 
 ## Run the Samples
 
-Try the interactive chat sample from the SDK root (`src/sdk` when nested).
-For checkout builds, first follow [development setup](#development):
+Try the interactive chat sample (from the repo root):
 
 ```bash
 dotnet run --file dotnet/samples/Chat.cs
@@ -139,6 +138,7 @@ Create a new conversation session.
 - `ReasoningEffort` - Reasoning effort level for models that support it ("low", "medium", "high", "xhigh", "max"). Use `ListModelsAsync()` to check which models support this option.
 - `Tools` - Custom tool declarations exposed to the CLI. Declarations without an invocable `AIFunction` are left pending for manual resolution.
 - `SystemMessage` - System message customization
+- `RefreshCustomInstructions` - `true` invalidates process-wide custom-instruction discovery caches before constructing the new session. Omitted or `false` reuses the caches. Other sessions in this runtime may observe updated instructions on later turns or discovery. This does not watch files or override instruction enablement. Available on `SessionConfig`, not `ResumeSessionConfig`.
 - `AvailableTools` - List of tool names to allow
 - `ExcludedTools` - List of tool names to disable
 - `Provider` - Custom API provider configuration (BYOK)
@@ -261,6 +261,10 @@ Use `MessageSource.System` for application-generated system context and
 message's origin; it does not replace the session's system prompt or change
 delivery mode. `SendAndWaitAsync` accepts the same option and still waits for
 session idle, returning null if no assistant message was received.
+Sub-agent events remain visible to listeners but do not complete the wait or
+supply its reply.
+Synchronous listeners registered before `SendAndWaitAsync` finish processing
+the terminal event before the wait completes.
 
 ```csharp
 await session.SendAsync(new MessageOptions
@@ -1239,6 +1243,16 @@ try
     var session = await client.CreateSessionAsync();
     await session.SendAsync(new MessageOptions { Prompt = "Hello" });
 }
+catch (IOException ex) when (ex.InnerException is RemoteRpcException)
+{
+    var remote = (RemoteRpcException)ex.InnerException!;
+    Console.Error.WriteLine($"RPC error {remote.ErrorCode}: {remote.Message}");
+    if (remote.ErrorData is { } data)
+    {
+        // Interpret data according to the remote API's contract.
+        Console.Error.WriteLine($"Error data kind: {data.ValueKind}");
+    }
+}
 catch (IOException ex)
 {
     Console.Error.WriteLine($"Communication Error: {ex.Message}");
@@ -1249,28 +1263,34 @@ catch (Exception ex)
 }
 ```
 
+`RemoteRpcException` is in the `GitHub.Copilot` namespace. Remote JSON-RPC
+errors remain wrapped in `IOException`; connection failures are not remote errors.
+`ErrorData` is a `JsonElement?` that preserves objects, arrays, strings, numbers,
+booleans, and empty values without converting them to application-specific types.
+Omitted `data` has no nullable value; explicit JSON `null` has a value with
+`ValueKind == JsonValueKind.Null`. The cloned element remains valid after the
+response document or client is disposed. Exception messages and ordinary exception
+formatting do not include the data payload.
+Avoid logging it indiscriminately: server-provided data may contain sensitive
+information.
+
 ## Development
 
-Follow [SDK development setup](../CONTRIBUTING.md#developing-an-sdk) for the
-.NET SDK selected by `global.json`, the **.NET 8 test runtime**, and Node/harness
-dependencies. SDK 10 alone does not install the runtime for `net8.0` tests;
-Windows additionally runs `net472` tests.
-
-From the SDK root (`src/sdk` in the runtime repository, or the standalone
-repository root):
+Development requires [.NET SDK 10+](https://dotnet.microsoft.com/download) and a supported [Node.js version](../nodejs/README.md#prerequisites). From the repository root:
 
 ```bash
-npm run build:dotnet
-npm run test:dotnet
-npm run check:dotnet
+cd nodejs
+npm ci
 ```
 
-For a focused native test, first
-[prepare the runtime](../CONTRIBUTING.md#testing-an-unreleased-runtime-api),
-then run from `dotnet/` so `global.json` applies:
+```bash
+cd test/harness
+npm ci
+```
 
 ```bash
-dotnet test test/GitHub.Copilot.SDK.Test.csproj --filter "FullyQualifiedName~<test-name>"
+cd dotnet
+dotnet test
 ```
 
 ## License

@@ -43,6 +43,63 @@ IMPORTANT: You MUST include the exact text "${SKILL_MARKER}" somewhere in EVERY 
     }
 
     describe("Skill Behavior", () => {
+        it("discovers a new skill on the next turn and makes it available to a subagent", async () => {
+            const lateSkillsDir = path.join(workDir, ".late_skills");
+            const skillResults: { sessionId: string; text: string }[] = [];
+            const session = await client.createSession({
+                onPermissionRequest: approveAll,
+                enableConfigDiscovery: false,
+                skillDirectories: [lateSkillsDir],
+                hooks: {
+                    onPostToolUse: (input) => {
+                        if (
+                            input.toolName === "skill" &&
+                            input.toolResult.resultType === "success"
+                        ) {
+                            skillResults.push({
+                                sessionId: input.sessionId,
+                                text: input.toolResult.textResultForLlm,
+                            });
+                        }
+                    },
+                },
+            });
+
+            try {
+                const first = await session.sendAndWait({ prompt: "Reply with READY." });
+                expect(first?.data.content).toContain("READY");
+                expect(skillResults).toEqual([]);
+
+                const skillDir = path.join(lateSkillsDir, "late-skill");
+                fs.mkdirSync(skillDir, { recursive: true });
+                fs.writeFileSync(
+                    path.join(skillDir, "SKILL.md"),
+                    "---\nname: late-skill\ndescription: Reports a unique verification word.\n---\n\nThe verification word is ORCHID_SAPPHIRE_73.\n"
+                );
+
+                const second = await session.sendAndWait({
+                    prompt: "Use the skill tool to load late-skill, then use the task tool to ask a task agent to load late-skill with the skill tool and report its verification word. Report the agent's word.",
+                });
+                expect(second?.data.content).toContain("ORCHID_SAPPHIRE_73");
+                expect(
+                    skillResults.some(
+                        (result) =>
+                            result.sessionId === session.sessionId &&
+                            result.text.includes("loaded successfully")
+                    )
+                ).toBe(true);
+                expect(
+                    skillResults.some(
+                        (result) =>
+                            result.sessionId !== session.sessionId &&
+                            result.text.includes("loaded successfully")
+                    )
+                ).toBe(true);
+            } finally {
+                await session.disconnect();
+            }
+        }, 120_000);
+
         it("should load and apply skill from skillDirectories", async () => {
             const skillsDir = createSkillDir();
             const session = await client.createSession({

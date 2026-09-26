@@ -7,13 +7,17 @@
 
 package com.github.copilot.generated.rpc;
 
+import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
  * Whether the requested preference was already effective or was accepted for later transactional activation.
  *
+ * @apiNote This type is experimental and may change in a future version.
+ *
  * @since 1.0.0
  */
+@CopilotExperimental
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 public enum ModelSwitchAutoTierStatus {
     /** The {@code unchanged} variant. */

@@ -36,7 +36,6 @@ rust_library(
     ),
     crate_features = [
         "alloc",
-        "default",
         "std",
     ],
     crate_root = "src/lib.rs",

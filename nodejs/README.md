@@ -18,11 +18,6 @@ The checked-in `copilotCliVersion` in `package.json` and compiled metadata in
 `src/cliVersion.ts` use a development placeholder. The public SDK snapshot
 replaces both with the CLI version published for that snapshot.
 
-Do not change these pins for runtime-repository development. If they contain
-`0.0.0-dev`, use the same-checkout runtime; release snapshot export owns replacing
-development placeholders with a published CLI version. See
-[checkout preparation](../CONTRIBUTING.md#testing-an-unreleased-runtime-api).
-
 `npm run pack:release` builds the main package and all platform packages. Set
 `COPILOT_CLI_DOWNLOAD_BASE_URL` to use a release mirror while packaging.
 Release workflows instead set `COPILOT_SDK_RUNTIME_PACKAGE_DIR` to a directory
@@ -44,11 +39,7 @@ npm install @github/copilot-sdk
 
 ## Run the Sample
 
-Try the interactive chat sample from the SDK root (`src/sdk` when nested).
-In the runtime repository, first run `pnpm run build:cli` from the runtime root
-to prepare the same-checkout executable, then return to `src/sdk`.
-Building the Node SDK alone does not build the runtime. For dependency
-prerequisites, see [development setup](#development).
+Try the interactive chat sample (from the repo root):
 
 ```bash
 cd nodejs
@@ -172,6 +163,7 @@ Create a new conversation session.
 - `systemMessage?: SystemMessageConfig` - System message customization (see below)
 - `infiniteSessions?: InfiniteSessionConfig` - Configure automatic context compaction (see below)
 - `workingDirectory?: string` - Working directory for the session (default: runtime process cwd).
+- `refreshCustomInstructions?: boolean` - Invalidates the process-wide custom-instruction discovery cache before creating this session, so instruction-file edits made in the same runtime are read again. Defaults to `false` (cache reuse). Other sessions in this runtime may observe updated instructions on later turns or discovery. This does not watch files or enable disabled instruction loading. Available on `SessionConfig`, not `ResumeSessionConfig`.
 - `enableSessionStore?: boolean` - Enables the cross-session store for search and retrieval across sessions. When unset in `"copilot-cli"` mode, the runtime default applies (enabled). In `"empty"` mode, defaults to disabled.
 - `gitHubTokenProvider?: GitHubTokenProvider` - Acquires rotating, session-scoped GitHub tokens. Token results require a positive `expiresIn` value in seconds remaining when the callback completes; production tokens typically last eight hours. Cannot be combined with `gitHubToken`.
 - `provider?: ProviderConfig` - Custom API provider configuration (BYOK - Bring Your Own Key). See [Custom Providers](#custom-providers) section.
@@ -309,6 +301,7 @@ Source is independent of delivery mode. Leaving it unset preserves the existing 
 ##### `sendAndWait(options: MessageOptions, timeout?: number): Promise<AssistantMessageEvent | undefined>`
 
 Send a message and wait until the session becomes idle.
+Sub-agent events are still delivered to listeners, but do not complete the wait or supply its reply.
 
 **Options:**
 
@@ -1288,27 +1281,18 @@ try {
 
 ## Development
 
-Follow [SDK development setup](../CONTRIBUTING.md#developing-an-sdk) first,
-including the harness and corrections-script dependencies. From the SDK root
-(`src/sdk` in the runtime repository, or the standalone repository root):
+From the repository root:
 
 ```bash
-npm run build:nodejs
-npm run test:nodejs
-npm run check:nodejs
+cd test/harness
+npm ci
 ```
-
-In the runtime layout, these build/test commands refresh the projection and
-prepare the checked-out runtime for tests. For focused unit tests after
-installing Node dependencies:
 
 ```bash
-npm --prefix nodejs run test:unit
+cd nodejs
+npm ci
+npm test
 ```
-
-For native Vitest selectors on E2Es, use the
-[prepared-runtime instructions](../CONTRIBUTING.md#testing-an-unreleased-runtime-api);
-the SDK facade does not forward selectors.
 
 ## License
 

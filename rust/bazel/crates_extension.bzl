@@ -9,6 +9,6 @@ def _crate_repositories_impl(module_ctx):
         root_module_direct_dev_deps = [],
     )
 
-sdk_crates = module_extension(
+sdk = module_extension(
     implementation = _crate_repositories_impl,
 )

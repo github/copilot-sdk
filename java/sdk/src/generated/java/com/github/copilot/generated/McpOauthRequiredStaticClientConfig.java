@@ -32,4 +32,21 @@ public record McpOauthRequiredStaticClientConfig(
     /** Configured OAuth scope string used when the server challenge omits scope or provides an empty scope */
     @JsonProperty("scope") String scope
 ) {
+
+    /**
+     * Creates a static OAuth client configuration without an explicit scope.
+     *
+     * @param clientId OAuth client ID for the server
+     * @param clientSecret Optional OAuth client secret for confidential static clients, when the runtime can resolve one
+     * @param publicClient Whether this is a public OAuth client
+     * @param grantType Optional non-default OAuth grant type. When set to 'client_credentials', the OAuth flow runs headlessly using the client_id + keychain-stored secret (no browser, no callback server).
+     */
+    public McpOauthRequiredStaticClientConfig(
+        String clientId,
+        String clientSecret,
+        Boolean publicClient,
+        String grantType
+    ) {
+        this(clientId, clientSecret, publicClient, grantType, null);
+    }
 }

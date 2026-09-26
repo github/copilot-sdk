@@ -32,6 +32,8 @@ pub mod rpc_methods {
     pub const MODELS_LIST: &str = "models.list";
     /// `models.getBuiltInCatalog`
     pub const MODELS_GETBUILTINCATALOG: &str = "models.getBuiltInCatalog";
+    /// `sandbox.getHostSupport`
+    pub const SANDBOX_GETHOSTSUPPORT: &str = "sandbox.getHostSupport";
     /// `tools.list`
     pub const TOOLS_LIST: &str = "tools.list";
     /// `account.getQuota`
@@ -411,6 +413,10 @@ pub mod rpc_methods {
     pub const SESSION_COMPLETIONS_REQUEST: &str = "session.completions.request";
     /// `session.instructions.getSources`
     pub const SESSION_INSTRUCTIONS_GETSOURCES: &str = "session.instructions.getSources";
+    /// `session.instructions.reload`
+    pub const SESSION_INSTRUCTIONS_RELOAD: &str = "session.instructions.reload";
+    /// `session.customizations.reload`
+    pub const SESSION_CUSTOMIZATIONS_RELOAD: &str = "session.customizations.reload";
     /// `session.fleet.start`
     pub const SESSION_FLEET_START: &str = "session.fleet.start";
     /// `session.agent.list`
@@ -533,6 +539,10 @@ pub mod rpc_methods {
     pub const SESSION_MCP_RESOURCES_LIST: &str = "session.mcp.resources.list";
     /// `session.mcp.resources.listTemplates`
     pub const SESSION_MCP_RESOURCES_LISTTEMPLATES: &str = "session.mcp.resources.listTemplates";
+    /// `session.diagnostics.configure`
+    pub const SESSION_DIAGNOSTICS_CONFIGURE: &str = "session.diagnostics.configure";
+    /// `session.diagnostics.read`
+    pub const SESSION_DIAGNOSTICS_READ: &str = "session.diagnostics.read";
     /// `session.connectors.getCapabilities`
     pub const SESSION_CONNECTORS_GETCAPABILITIES: &str = "session.connectors.getCapabilities";
     /// `session.connectors.getStatus`
@@ -5649,6 +5659,196 @@ pub struct DebugCollectLogsResult {
     /// Optional files or directories that could not be included.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub skipped_entries: Option<Vec<DebugCollectLogsSkippedEntry>>,
+}
+
+/// MCP-specific detail for a source-discriminated diagnostic entry.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpDiagnosticDetails {
+    /// Fresh identifier for the MCP connection attempt, including failed starts.
+    pub connection_id: String,
+    /// Serialized diagnostic detail. Protocol and HTTP records use JSON when detail is present.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub data: Option<String>,
+    /// Protocol-frame direction when kind is protocol.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub direction: Option<McpDiagnosticDirection>,
+    /// Diagnostic record category.
+    pub kind: McpDiagnosticKind,
+    /// Configured MCP server name.
+    pub server_name: String,
+}
+
+/// One retained session-scoped diagnostic record. Potentially content-bearing diagnostic data is opt-in and must not be exported automatically as telemetry.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DiagnosticEntry {
+    /// Agent identifier for a subagent host. Omitted for the root agent.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub agent_id: Option<String>,
+    /// Typed MCP diagnostic detail.
+    pub details: McpDiagnosticDetails,
+    /// Severity of this emitted diagnostic record.
+    pub level: DiagnosticSeverity,
+    /// Human-readable diagnostic summary.
+    pub message: String,
+    /// Original byte count when a known-size message or data value was truncated.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub original_bytes: Option<i64>,
+    /// Diagnostic source identifying the typed details payload.
+    pub source: DiagnosticEntrySource,
+    /// UTC RFC 3339 timestamp captured at the diagnostic source.
+    pub timestamp: String,
+    /// Whether message or data was truncated to the record-size bound.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub truncated: Option<bool>,
+}
+
+/// MCP diagnostic source configuration.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpDiagnosticSourceConfiguration {
+    /// Threshold to apply to MCP diagnostic producers in this session.
+    pub level: DiagnosticLogLevel,
+}
+
+/// Typed diagnostic source configuration. At least one source is required by diagnostics configuration methods.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DiagnosticSourcesConfiguration {
+    /// MCP diagnostic capture threshold. Omit to leave the current threshold unchanged.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mcp: Option<McpDiagnosticSourceConfiguration>,
+}
+
+/// Per-source session diagnostics configuration.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DiagnosticsConfiguration {
+    /// Diagnostic thresholds keyed by supported source.
+    pub sources: DiagnosticSourcesConfiguration,
+}
+
+/// Patch session diagnostic thresholds for explicitly supplied sources.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DiagnosticsConfigureRequest {
+    /// Sources to configure. At least one supported source must be supplied.
+    pub sources: DiagnosticSourcesConfiguration,
+}
+
+/// Cursor-based request for session diagnostics. The default limit is 100 (maximum 500); the default waitMs is zero (maximum 30000).
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DiagnosticsReadRequest {
+    /// Opaque cursor returned by an earlier read. Omit to start at the oldest retained record.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cursor: Option<String>,
+    /// Maximum number of records to return, from 1 through 500. Omit for 100.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max: Option<i64>,
+    /// Nonempty selection of sources to read. Each source may be listed once.
+    pub sources: Vec<DiagnosticSource>,
+    /// Maximum time in milliseconds to wait for a new record, from 0 through 30000.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub wait_ms: Option<i32>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DiagnosticsReadResultEntriesItem {
+    /// Agent identifier for a subagent host. Omitted for the root agent.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub agent_id: Option<String>,
+    /// Typed MCP diagnostic detail.
+    pub details: McpDiagnosticDetails,
+    /// Severity of this emitted diagnostic record.
+    pub level: DiagnosticSeverity,
+    /// Human-readable diagnostic summary.
+    pub message: String,
+    /// Original byte count when a known-size message or data value was truncated.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub original_bytes: Option<i64>,
+    /// Diagnostic source identifying the typed details payload.
+    pub source: DiagnosticsReadResultEntriesItemSource,
+    /// UTC RFC 3339 timestamp captured at the diagnostic source.
+    pub timestamp: String,
+    /// Whether message or data was truncated to the record-size bound.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub truncated: Option<bool>,
+}
+
+/// One cursor-addressed page of retained session diagnostics.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DiagnosticsReadResult {
+    /// Opaque cursor for the next independent read.
+    pub cursor: String,
+    /// Whether the requested cursor remained within the retained buffer window.
+    pub cursor_status: DiagnosticCursorStatus,
+    /// Number of records lost before this page when known. Omitted when a buffer generation change makes the count unknowable.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dropped_count: Option<i64>,
+    /// Retained records beginning at the requested cursor.
+    pub entries: Vec<DiagnosticsReadResultEntriesItem>,
+    /// Whether additional retained records follow this page.
+    pub has_more: bool,
 }
 
 /// Installed plugin that contributes a discovered extension.
@@ -16154,6 +16354,9 @@ pub struct QueuePendingItems {
     /// Stable identity of the queued user message. Present for message rows and absent for slash commands and model changes.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub message_id: Option<String>,
+    /// Optional source tag associated with this pending queue entry. This is an open string, not authenticated authorship. In particular, `user` does not prove that a person typed the message. If the source is absent or unrecognized, consumers must not infer human or agent authorship and should handle the entry neutrally. Consumers should tolerate future source values.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source: Option<String>,
 }
 
 /// Snapshot of the session's pending queued items and immediate-steering messages.
@@ -16174,6 +16377,9 @@ pub struct QueuePendingItemsResult {
     pub items: Vec<QueuePendingItems>,
     /// Display text for messages currently in the immediate steering queue (interjections sent during a running turn).
     pub steering_messages: Vec<String>,
+    /// ID of the running turn's user message while the model has not answered it, so `withdrawMessage` can still take it back once nothing sent after it is pending. A message leaves `items` when its turn starts, before its `user.message` is recorded; this tells that message apart from one that was removed. Absent when no turn prompt can be taken back.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub withdrawable_turn_message_id: Option<String>,
 }
 
 /// Parameters for removing a queued item by stable id.
@@ -16327,7 +16533,7 @@ pub struct QueueUpdateTextResult {
     pub updated: bool,
 }
 
-/// Conditional withdrawal of a single user message, before the runtime claims it for delivery.
+/// Conditional withdrawal of a single user message, from its queue or from the running turn it started.
 ///
 /// <div class="warning">
 ///
@@ -16342,6 +16548,23 @@ pub struct QueueWithdrawMessageRequest {
     pub expected_prompt: String,
     /// Message identity returned by send, not the queue item id. Batch messages are not eligible.
     pub message_id: String,
+}
+
+/// Result of withdrawing a user message.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct QueueWithdrawMessageResult {
+    /// True when the running turn was interrupted to withdraw the message. With removed false, the turn was interrupted but its events could not be removed, for example because the model answered first, so the message stays in the interrupted turn.
+    pub interrupted: bool,
+    /// True when the message left the queue or, for a running turn, history.
+    pub removed: bool,
 }
 
 /// Event type to register consumer interest for, used by runtime gating logic.
@@ -17016,6 +17239,46 @@ pub struct SandboxEnforcementStatus {
     pub reason: Option<String>,
     /// Whether the effective managed policy requires an available sandbox backend.
     pub required: bool,
+}
+
+/// Whether this host can run one sandbox policy feature. A session whose effective policy uses an unsupported feature fails each sandboxed command with `reason`.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SandboxHostCapability {
+    /// The policy feature, as an extensible string: ignore names you do not recognize. Known values: `network` (sandboxed commands can reach the network; on Linux this needs the tooling for Bubblewrap's private network namespace, such as slirp4netns), `network_filtering` (host rules and the sandbox proxy; on Linux this needs the same tooling as `network`; on Windows it needs Process Security Environment 1.1 host-loopback support, and a policy that uses it must also set `network.allowLocalNetwork`), `denied_paths` (native enforcement of `filesystem.deniedPaths`), and `shell` (shell commands inside the sandbox; on Windows this needs Process Security Environment 1.1 filesystem enumeration support).
+    pub name: String,
+    /// Human-readable reason and remedy when the feature is unsupported, such as a package to install or an OS update. Present only when `supported` is false.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+    /// Whether this host can run the feature.
+    pub supported: bool,
+}
+
+/// Whether the host running this runtime can run the command sandbox. The runtime checks `supported` once per process. A capability answer can change while the process runs, for example after the user installs a missing package.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SandboxHostSupport {
+    /// Sandbox policy features whose availability varies between hosts that can run the backend. Empty when `supported` is false, because no feature can run without a backend. Later runtimes can add entries; ignore an entry whose `name` you do not recognize.
+    pub capabilities: Vec<SandboxHostCapability>,
+    /// Human-readable reason the sandbox cannot run on this host. Present only when `supported` is false.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+    /// Whether a process-containment backend is usable on this host: Seatbelt on macOS, Bubblewrap on Linux, or ProcessContainer on Windows.
+    pub supported: bool,
 }
 
 /// Register an absolute-time scheduled prompt.
@@ -25269,6 +25532,26 @@ pub struct ModelsGetBuiltInCatalogResult {
     pub models: Vec<BuiltInModelCatalogEntry>,
 }
 
+/// Whether the host running this runtime can run the command sandbox. The runtime checks `supported` once per process. A capability answer can change while the process runs, for example after the user installs a missing package.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SandboxGetHostSupportResult {
+    /// Sandbox policy features whose availability varies between hosts that can run the backend. Empty when `supported` is false, because no feature can run without a backend. Later runtimes can add entries; ignore an entry whose `name` you do not recognize.
+    pub capabilities: Vec<SandboxHostCapability>,
+    /// Human-readable reason the sandbox cannot run on this host. Present only when `supported` is false.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+    /// Whether a process-containment backend is usable on this host: Seatbelt on macOS, Bubblewrap on Linux, or ProcessContainer on Windows.
+    pub supported: bool,
+}
+
 /// Built-in tools available for the requested model, with their parameters and instructions.
 ///
 /// <div class="warning">
@@ -28221,6 +28504,53 @@ pub struct SessionInstructionsGetSourcesResult {
     pub sources: Vec<InstructionSource>,
 }
 
+/// Identifies the target session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionInstructionsReloadParams {
+    /// Target session identifier
+    pub session_id: SessionId,
+}
+
+/// Identifies the target session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionCustomizationsReloadParams {
+    /// Target session identifier
+    pub session_id: SessionId,
+}
+
+/// Diagnostics from reloading skill definitions, with warnings and errors as separate lists.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionCustomizationsReloadResult {
+    /// Errors emitted while loading skills (e.g. skills that failed to load entirely)
+    pub errors: Vec<String>,
+    /// Warnings emitted while loading skills (e.g. skills that loaded but had issues)
+    pub warnings: Vec<String>,
+}
+
 /// Indicates whether fleet mode was successfully activated.
 ///
 /// <div class="warning">
@@ -29144,6 +29474,69 @@ pub struct SessionMcpResourcesListTemplatesResult {
     pub next_cursor: Option<String>,
     /// Resource templates advertised by the server (proxied MCP `resources/templates/list`)
     pub resource_templates: Vec<McpResourceTemplate>,
+}
+
+/// Per-source session diagnostics configuration.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionDiagnosticsConfigureResult {
+    /// Diagnostic thresholds keyed by supported source.
+    pub sources: DiagnosticSourcesConfiguration,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionDiagnosticsReadResultEntriesItem {
+    /// Agent identifier for a subagent host. Omitted for the root agent.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub agent_id: Option<String>,
+    /// Typed MCP diagnostic detail.
+    pub details: McpDiagnosticDetails,
+    /// Severity of this emitted diagnostic record.
+    pub level: DiagnosticSeverity,
+    /// Human-readable diagnostic summary.
+    pub message: String,
+    /// Original byte count when a known-size message or data value was truncated.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub original_bytes: Option<i64>,
+    /// Diagnostic source identifying the typed details payload.
+    pub source: SessionDiagnosticsReadResultEntriesItemSource,
+    /// UTC RFC 3339 timestamp captured at the diagnostic source.
+    pub timestamp: String,
+    /// Whether message or data was truncated to the record-size bound.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub truncated: Option<bool>,
+}
+
+/// One cursor-addressed page of retained session diagnostics.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionDiagnosticsReadResult {
+    /// Opaque cursor for the next independent read.
+    pub cursor: String,
+    /// Whether the requested cursor remained within the retained buffer window.
+    pub cursor_status: DiagnosticCursorStatus,
+    /// Number of records lost before this page when known. Omitted when a buffer generation change makes the count unknowable.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dropped_count: Option<i64>,
+    /// Retained records beginning at the requested cursor.
+    pub entries: Vec<SessionDiagnosticsReadResultEntriesItem>,
+    /// Whether additional retained records follow this page.
+    pub has_more: bool,
 }
 
 /// Identifies the target session.
@@ -31307,6 +31700,9 @@ pub struct SessionQueuePendingItemsResult {
     pub items: Vec<QueuePendingItems>,
     /// Display text for messages currently in the immediate steering queue (interjections sent during a running turn).
     pub steering_messages: Vec<String>,
+    /// ID of the running turn's user message while the model has not answered it, so `withdrawMessage` can still take it back once nothing sent after it is pending. A message leaves `items` when its turn starts, before its `user.message` is recorded; this tells that message apart from one that was removed. Absent when no turn prompt can be taken back.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub withdrawable_turn_message_id: Option<String>,
 }
 
 /// Identifies the target session.
@@ -31410,7 +31806,7 @@ pub struct SessionQueueUpdateTextResult {
     pub updated: bool,
 }
 
-/// Result of removing a queued item.
+/// Result of withdrawing a user message.
 ///
 /// <div class="warning">
 ///
@@ -31421,7 +31817,9 @@ pub struct SessionQueueUpdateTextResult {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionQueueWithdrawMessageResult {
-    /// True when the addressed item was removed.
+    /// True when the running turn was interrupted to withdraw the message. With removed false, the turn was interrupted but its events could not be removed, for example because the model answered first, so the message stays in the interrupted turn.
+    pub interrupted: bool,
+    /// True when the message left the queue or, for a running turn, history.
     pub removed: bool,
 }
 
@@ -32242,6 +32640,16 @@ pub type McpExecuteSamplingResult = HashMap<String, serde_json::Value>;
 ///
 /// </div>
 pub type McpPlanSecretReference = String;
+
+/// Extensible identifier of a sandbox policy feature whose availability varies between hosts. A plain string, so an older client decodes a name added by a newer runtime; ignore names you do not recognize. Known values: `network` — sandboxed commands can reach the network (`network.allowOutbound`, on by default); on Linux this needs the tooling for Bubblewrap's private network namespace, such as slirp4netns. `network_filtering` — host rules and the sandbox proxy (`network.allowedHosts`, `network.blockedHosts`, `network.proxy`); on Linux this needs the same tooling as `network`; on Windows it needs a version with Process Security Environment 1.1 host-loopback support, and a policy that uses it must also set `network.allowLocalNetwork`, because Windows reaches the local proxy only together with private-network access. `denied_paths` — native enforcement of `filesystem.deniedPaths`; on Windows this needs a version whose sandbox contract reports denied-path support. `shell` — shell commands inside the sandbox: bash on macOS and Linux, PowerShell on Windows; on Windows this needs a version with Process Security Environment 1.1 filesystem enumeration support.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+pub type SandboxHostCapabilityName = String;
 
 /// Ordered client metadata outcomes for the requested local sessions.
 ///
@@ -34765,6 +35173,177 @@ pub enum DebugCollectLogsResultKind {
     #[default]
     #[serde(other)]
     Unknown,
+}
+
+/// Whether the supplied diagnostic cursor remained within the retained buffer window.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum DiagnosticCursorStatus {
+    /// The cursor is valid for the current retained window.
+    #[serde(rename = "ok")]
+    Ok,
+    /// The cursor no longer addresses retained records; reading resumes at the oldest retained record.
+    #[serde(rename = "expired")]
+    Expired,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Direction of an observed MCP protocol frame.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpDiagnosticDirection {
+    /// Frame emitted by the Copilot MCP client.
+    #[serde(rename = "client-to-server")]
+    ClientToServer,
+    /// Frame received from the MCP server.
+    #[serde(rename = "server-to-client")]
+    ServerToClient,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Category for an MCP diagnostic record.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpDiagnosticKind {
+    /// Connection lifecycle transition or failure.
+    #[serde(rename = "lifecycle")]
+    Lifecycle,
+    /// JSON-RPC protocol frame.
+    #[serde(rename = "protocol")]
+    Protocol,
+    /// HTTP request or response metadata.
+    #[serde(rename = "http")]
+    Http,
+    /// Local MCP server standard-error output.
+    #[serde(rename = "stderr")]
+    Stderr,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Severity of an emitted diagnostic record.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum DiagnosticSeverity {
+    /// Failure that prevented or interrupted communication.
+    #[serde(rename = "error")]
+    Error,
+    /// A recoverable warning or server standard-error output.
+    #[serde(rename = "warning")]
+    Warning,
+    /// Lifecycle transition.
+    #[serde(rename = "info")]
+    Info,
+    /// Protocol-frame or launch diagnostic.
+    #[serde(rename = "debug")]
+    Debug,
+    /// HTTP metadata diagnostic.
+    #[serde(rename = "trace")]
+    Trace,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Diagnostic source identifying the typed details payload.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum DiagnosticEntrySource {
+    #[serde(rename = "mcp")]
+    #[default]
+    Mcp,
+}
+
+/// Session-scoped diagnostic threshold. Capture is disabled by default and is never persisted with the session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum DiagnosticLogLevel {
+    /// Disable capture and clear retained diagnostics.
+    #[serde(rename = "off")]
+    Off,
+    /// Capture failures only.
+    #[serde(rename = "error")]
+    Error,
+    /// Capture failures, warnings, and stderr.
+    #[serde(rename = "warning")]
+    Warning,
+    /// Capture lifecycle diagnostics.
+    #[serde(rename = "info")]
+    Info,
+    /// Capture protocol frames and launch diagnostics.
+    #[serde(rename = "debug")]
+    Debug,
+    /// Capture HTTP metadata in addition to debug diagnostics.
+    #[serde(rename = "trace")]
+    Trace,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// A supported diagnostic source.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum DiagnosticSource {
+    #[serde(rename = "mcp")]
+    Mcp,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Diagnostic source identifying the typed details payload.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum DiagnosticsReadResultEntriesItemSource {
+    #[serde(rename = "mcp")]
+    #[default]
+    Mcp,
 }
 
 /// Persisted extension discovery source
@@ -40120,4 +40699,12 @@ pub enum WorkspacesWorkspaceDetailsHostType {
     #[default]
     #[serde(other)]
     Unknown,
+}
+
+/// Diagnostic source identifying the typed details payload.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SessionDiagnosticsReadResultEntriesItemSource {
+    #[serde(rename = "mcp")]
+    #[default]
+    Mcp,
 }

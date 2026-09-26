@@ -494,7 +494,7 @@ describe("C# RPC codegen", () => {
 
             expect(code).toContain("public sealed partial class SystemMessage");
             expect(code).toContain(
-                "[Experimental(Diagnostics.Experimental)]\n[JsonConverter(typeof(Converter))]\npublic sealed partial class SystemMessage"
+                "[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]\n[JsonConverter(typeof(Converter))]\npublic sealed partial class SystemMessage"
             );
             expect(code).toContain("System message configuration.");
             expect(code).toContain("public SystemMessage? SystemMessage");

@@ -567,6 +567,7 @@ async fn session_mcp_metadata_model_and_permission_rpc_surface_is_typed() {
     results.insert_default::<PermissionsUrlsSetUnrestrictedModeResult>(
         "session.permissions.urls.setUnrestrictedMode",
     );
+    results.insert_default::<SkillsLoadDiagnostics>("session.customizations.reload");
     results.insert(
         "session.provider.getEndpoint",
         ProviderEndpoint {
@@ -800,6 +801,8 @@ async fn session_mcp_metadata_model_and_permission_rpc_surface_is_typed() {
             .urls()
             .set_unrestricted_mode(PermissionUrlsSetUnrestrictedModeParams::default())
     );
+    rpc_ok!(session.rpc().instructions().reload());
+    rpc_ok!(session.rpc().customizations().reload());
     rpc_ok!(
         session
             .rpc()
@@ -849,6 +852,8 @@ async fn session_mcp_metadata_model_and_permission_rpc_surface_is_typed() {
         "session.permissions.paths.isPathWithinAllowedDirectories",
         "session.permissions.paths.isPathWithinWorkspace",
         "session.permissions.urls.setUnrestrictedMode",
+        "session.instructions.reload",
+        "session.customizations.reload",
         "session.plugins.reload",
         "session.provider.getEndpoint",
     ]);

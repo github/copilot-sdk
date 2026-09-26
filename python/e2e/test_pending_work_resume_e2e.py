@@ -486,26 +486,26 @@ class TestPendingWorkResume:
                 assert isinstance(tool_event.data, ExternalToolRequestedData)
                 assert (await asyncio.wait_for(tool_started, PENDING_WORK_TIMEOUT)) == "beta"
 
-                if disconnect_original_client:
-                    # force_stop closes the local socket before the server necessarily
-                    # processes that disconnect. Observe the session lock from another
-                    # runtime so resume cannot race the server's active-session cleanup.
-                    lock_observer = _make_subprocess_client(ctx)
-                    await lock_observer.start()
+                # Resume must observe the established session owner, not race the
+                # server's asynchronous acquisition or release of its session lock.
+                lock_observer = _make_subprocess_client(ctx)
+                await lock_observer.start()
 
-                    async def session_lock_is_held() -> bool:
-                        result = await lock_observer.rpc.sessions.check_in_use(
-                            SessionsCheckInUseRequest(session_ids=[session_id])
-                        )
-                        return session_id in result.in_use
-
-                    await wait_for_condition(
-                        session_lock_is_held,
-                        timeout=PENDING_WORK_TIMEOUT,
-                        timeout_message=(
-                            f"Timed out waiting for session '{session_id}' to acquire its lock."
-                        ),
+                async def session_lock_is_held() -> bool:
+                    result = await lock_observer.rpc.sessions.check_in_use(
+                        SessionsCheckInUseRequest(session_ids=[session_id])
                     )
+                    return session_id in result.in_use
+
+                await wait_for_condition(
+                    session_lock_is_held,
+                    timeout=PENDING_WORK_TIMEOUT,
+                    timeout_message=(
+                        f"Timed out waiting for session '{session_id}' to acquire its lock."
+                    ),
+                )
+
+                if disconnect_original_client:
                     await suspended_client.force_stop()
 
                     async def session_lock_is_released() -> bool:
@@ -521,6 +521,9 @@ class TestPendingWorkResume:
                             f"Timed out waiting for session '{session_id}' to release its lock."
                         ),
                     )
+                else:
+                    await _safe_force_stop(lock_observer)
+                    lock_observer = None
 
                 resumed_client = CopilotClient(
                     connection=RuntimeConnection.for_uri(
