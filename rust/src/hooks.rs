@@ -731,6 +731,9 @@ pub(crate) async fn dispatch_hook(
             let input: AgentStopInput = serde_json::from_value(raw_input)?;
             HookEvent::AgentStop { input, ctx }
         }
+        hook_type if is_passthrough_subagent_lifecycle_hook(hook_type) => {
+            return Ok(serde_json::json!({ "output": {} }));
+        }
         _ => {
             tracing::warn!(
                 hook_type = hook_type,
@@ -782,6 +785,10 @@ pub(crate) async fn dispatch_hook(
     };
 
     Ok(serde_json::json!({ "output": output_value.unwrap_or(Value::Object(Default::default())) }))
+}
+
+fn is_passthrough_subagent_lifecycle_hook(hook_type: &str) -> bool {
+    matches!(hook_type, "subagentStart" | "subagentStop")
 }
 
 #[cfg(test)]
@@ -927,6 +934,24 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(result["output"], serde_json::json!({}));
+    }
+
+    #[tokio::test]
+    async fn dispatch_subagent_lifecycle_hooks_returns_empty() {
+        let hooks = TestHooks;
+        for hook_type in ["subagentStart", "subagentStop"] {
+            assert!(is_passthrough_subagent_lifecycle_hook(hook_type));
+            let result = dispatch_hook(
+                &hooks,
+                &SessionId::new("sess-1"),
+                hook_type,
+                serde_json::json!({}),
+            )
+            .await
+            .unwrap();
+            assert_eq!(result["output"], serde_json::json!({}));
+        }
+        assert!(!is_passthrough_subagent_lifecycle_hook("unknownHook"));
     }
 
     #[tokio::test]
