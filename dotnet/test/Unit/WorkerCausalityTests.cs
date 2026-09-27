@@ -88,9 +88,9 @@ public class WorkerCausalityTests
     [Fact]
     public void InvalidUnicodeScalarIdentitiesAreUnavailable()
     {
-        foreach (var test in Corpus["invalidRaw"]!.AsArray())
+        foreach (var raw in Corpus["invalidRaw"]!.AsArray().Select(
+            test => test!["json"]!.GetValue<string>()))
         {
-            var raw = test!["json"]!.GetValue<string>();
             var wire = $"{{\"sent\":true,\"workerCausality\":{raw}}}";
             var result = JsonSerializer.Deserialize<TasksSendMessageResult>(wire, RpcOptions);
             Assert.NotNull(result);
