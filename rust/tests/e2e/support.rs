@@ -1070,6 +1070,44 @@ struct InProcessEnvGuard {
     previous_cwd: PathBuf,
 }
 
+pub struct InProcessHostGuard {
+    saved: [(OsString, Option<OsString>); 2],
+}
+
+pub fn set_inprocess_host_for_test(
+    copilot_host: &str,
+    gh_host: &str,
+) -> Option<InProcessHostGuard> {
+    if !is_inprocess_default() {
+        return None;
+    }
+    let saved = [
+        (
+            "COPILOT_GH_HOST".into(),
+            std::env::var_os("COPILOT_GH_HOST"),
+        ),
+        ("GH_HOST".into(), std::env::var_os("GH_HOST")),
+    ];
+    // SAFETY: in-process E2E tests hold the suite's single concurrency permit.
+    unsafe {
+        std::env::set_var("COPILOT_GH_HOST", copilot_host);
+        std::env::set_var("GH_HOST", gh_host);
+    }
+    Some(InProcessHostGuard { saved })
+}
+
+impl Drop for InProcessHostGuard {
+    fn drop(&mut self) {
+        for (key, previous) in &self.saved {
+            // SAFETY: this guard is dropped before releasing the in-process permit.
+            match previous {
+                Some(value) => unsafe { std::env::set_var(key, value) },
+                None => unsafe { std::env::remove_var(key) },
+            }
+        }
+    }
+}
+
 impl InProcessEnvGuard {
     /// Returns `Some` guard (having applied the env) when in-process, else `None`.
     fn activate(ctx: &E2eContext) -> Option<Self> {

@@ -4450,6 +4450,8 @@ class CopilotClient:
         # credentials don't leak through a shared keytar store.
         if opts.mode == "empty":
             env["COPILOT_DISABLE_KEYTAR"] = "1"
+        if opts.mode != "empty":
+            env["COPILOT_RUNTIME_PROCESS_FILE_LOGGING"] = "1"
 
         if self._effective_connection_token:
             env["COPILOT_CONNECTION_TOKEN"] = self._effective_connection_token

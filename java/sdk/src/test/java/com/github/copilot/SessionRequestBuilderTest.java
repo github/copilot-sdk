@@ -345,8 +345,38 @@ public class SessionRequestBuilderTest {
         ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-1", null);
         assertEquals("sid-1", request.getSessionId());
         assertNull(request.getModel());
+        assertNull(request.getContinuePendingWork());
         assertTrue(request.getRequestPermission(), "requestPermission should be true even for null config");
         assertEquals("direct", request.getEnvValueMode(), "envValueMode should be 'direct' even for null config");
+    }
+
+    @Test
+    void continuePendingWorkIsForwardedAndSerializedOnResume() throws Exception {
+        var mapper = JsonRpcClient.getObjectMapper();
+        for (boolean enabled : new boolean[]{true, false}) {
+            var config = new ResumeSessionConfig().setContinuePendingWork(enabled);
+            assertEquals(enabled, config.getContinuePendingWork().orElseThrow());
+
+            var request = SessionRequestBuilder.buildResumeRequest("sid-pending", config.clone());
+            assertEquals(enabled, request.getContinuePendingWork());
+            assertEquals(enabled,
+                    mapper.readTree(mapper.writeValueAsBytes(request)).path("continuePendingWork").booleanValue());
+        }
+    }
+
+    @Test
+    void continuePendingWorkIsOmittedWhenUnsetOrCleared() throws Exception {
+        var mapper = JsonRpcClient.getObjectMapper();
+        var config = new ResumeSessionConfig();
+        assertTrue(config.getContinuePendingWork().isEmpty());
+        var defaultRequest = SessionRequestBuilder.buildResumeRequest("sid-pending-default", config);
+        assertNull(defaultRequest.getContinuePendingWork());
+        assertFalse(mapper.readTree(mapper.writeValueAsBytes(defaultRequest)).has("continuePendingWork"));
+
+        config.setContinuePendingWork(true).clearContinuePendingWork();
+        var clearedRequest = SessionRequestBuilder.buildResumeRequest("sid-pending-cleared", config);
+        assertTrue(config.getContinuePendingWork().isEmpty());
+        assertFalse(mapper.readTree(mapper.writeValueAsBytes(clearedRequest)).has("continuePendingWork"));
     }
 
     @Test

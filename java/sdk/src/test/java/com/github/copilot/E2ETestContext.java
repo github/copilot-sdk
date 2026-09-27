@@ -395,12 +395,12 @@ public class E2ETestContext implements AutoCloseable {
             env.put("REQUESTS_CA_BUNDLE", caFile);
             env.put("CURL_CA_BUNDLE", caFile);
             env.put("GIT_SSL_CAINFO", caFile);
-            env.put("GH_TOKEN", DEFAULT_GITHUB_TOKEN);
-            env.put("GITHUB_TOKEN", DEFAULT_GITHUB_TOKEN);
             env.put("GH_ENTERPRISE_TOKEN", "");
             env.put("GITHUB_ENTERPRISE_TOKEN", "");
         }
 
+        env.put("GH_TOKEN", DEFAULT_GITHUB_TOKEN);
+        env.put("GITHUB_TOKEN", DEFAULT_GITHUB_TOKEN);
         return env;
     }
 

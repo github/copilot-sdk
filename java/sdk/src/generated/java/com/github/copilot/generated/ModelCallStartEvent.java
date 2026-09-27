@@ -41,7 +41,9 @@ public final class ModelCallStartEvent extends SessionEvent {
         /** Previous response or interaction identifier included in the model request, when present */
         @JsonProperty("previousResponseId") String previousResponseId,
         /** Experimental HydraFusion attribution for this concrete model call. */
-        @JsonProperty("fusion") FusionAttribution fusion
+        @JsonProperty("fusion") FusionAttribution fusion,
+        /** Parent task tool call ID when this model call belongs to a sub-agent */
+        @JsonProperty("parentToolCallId") String parentToolCallId
     ) {
     }
 }

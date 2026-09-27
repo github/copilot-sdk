@@ -234,24 +234,6 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
-	case SessionEventTypeFactoryRunSettled:
-		var d FactoryRunSettledData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeFactoryRunStarted:
-		var d FactoryRunStartedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
-	case SessionEventTypeFactoryRunUpdated:
-		var d FactoryRunUpdatedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
 	case SessionEventTypeHookEnd:
 		var d HookEndData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {

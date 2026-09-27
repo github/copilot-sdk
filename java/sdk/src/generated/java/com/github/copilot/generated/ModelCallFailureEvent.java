@@ -37,6 +37,8 @@ public final class ModelCallFailureEvent extends SessionEvent {
     public record ModelCallFailureEventData(
         /** Model identifier used for the failed API call */
         @JsonProperty("model") String model,
+        /** Parent task tool call ID when this failed model call belongs to a sub-agent */
+        @JsonProperty("parentToolCallId") String parentToolCallId,
         /** What initiated this API call (e.g., "sub-agent", "mcp-sampling"); absent for user-initiated calls */
         @JsonProperty("initiator") String initiator,
         /** Completion ID from the model provider (e.g., chatcmpl-abc123) */

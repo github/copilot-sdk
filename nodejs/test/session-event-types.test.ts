@@ -16,8 +16,8 @@
 
 import { describe, expect, it } from "vitest";
 import { approveAll } from "../src/index.js";
-import { FACTORY_AGENT_OPTION_KEYS } from "../src/factory.js";
-import type { FactoryAgentOptions as WireFactoryAgentOptions } from "../src/generated/rpc.js";
+import { WORKFLOW_AGENT_OPTION_KEYS } from "../src/workflow.js";
+import type { WorkflowAgentOptions as WireWorkflowAgentOptions } from "../src/generated/rpc.js";
 import type {
     // The aggregate union; must still resolve via the package root.
     SessionEvent,
@@ -65,10 +65,10 @@ import type {
     UserMessageAgentMode,
     Attachment,
     WorkingDirectoryContextHostType,
-    FactoryContext,
-    FactoryDefinition,
-    FactoryAgentOptions,
-    FactoryRunResult,
+    WorkflowContext,
+    WorkflowDefinition,
+    WorkflowAgentOptions,
+    WorkflowRunResult,
     JsonValue,
 } from "../src/index.js";
 
@@ -100,32 +100,32 @@ type _AssistantMessageEventStaysAlignedWithSessionEventUnion = _AssertEqual<
     Extract<SessionEvent, { type: "assistant.message" }>
 >;
 const _assistantMessageEventAlignmentCheck: _AssistantMessageEventStaysAlignedWithSessionEventUnion = true;
-type _DefaultFactoryArgsAreJsonValue = _AssertEqual<FactoryContext["args"], JsonValue>;
-const _defaultFactoryArgsCheck: _DefaultFactoryArgsAreJsonValue = true;
-type _DefaultFactoryResultIsJsonValueOrVoid = _AssertEqual<
-    Awaited<ReturnType<FactoryDefinition["run"]>>,
+type _DefaultWorkflowArgsAreJsonValue = _AssertEqual<WorkflowContext["args"], JsonValue>;
+const _defaultWorkflowArgsCheck: _DefaultWorkflowArgsAreJsonValue = true;
+type _DefaultWorkflowResultIsJsonValueOrVoid = _AssertEqual<
+    Awaited<ReturnType<WorkflowDefinition["run"]>>,
     JsonValue | void
 >;
-const _defaultFactoryResultCheck: _DefaultFactoryResultIsJsonValueOrVoid = true;
-type _FactoryRunResultIsJsonValueOrUndefined = _AssertEqual<
-    FactoryRunResult["result"],
+const _defaultWorkflowResultCheck: _DefaultWorkflowResultIsJsonValueOrVoid = true;
+type _WorkflowRunResultIsJsonValueOrUndefined = _AssertEqual<
+    WorkflowRunResult["result"],
     JsonValue | undefined
 >;
-const _factoryRunResultCheck: _FactoryRunResultIsJsonValueOrUndefined = true;
-type _FactoryAgentOptionKeysMatchPublicInterface = _AssertEqual<
-    (typeof FACTORY_AGENT_OPTION_KEYS)[number],
-    keyof FactoryAgentOptions
+const _workflowRunResultCheck: _WorkflowRunResultIsJsonValueOrUndefined = true;
+type _WorkflowAgentOptionKeysMatchPublicInterface = _AssertEqual<
+    (typeof WORKFLOW_AGENT_OPTION_KEYS)[number],
+    keyof WorkflowAgentOptions
 >;
-const _factoryAgentOptionKeysCheck: _FactoryAgentOptionKeysMatchPublicInterface = true;
-type _PublicFactoryAgentOptionsMatchWire = _AssertEqual<
-    keyof FactoryAgentOptions,
-    keyof WireFactoryAgentOptions
+const _workflowAgentOptionKeysCheck: _WorkflowAgentOptionKeysMatchPublicInterface = true;
+type _PublicWorkflowAgentOptionsMatchWire = _AssertEqual<
+    keyof WorkflowAgentOptions,
+    keyof WireWorkflowAgentOptions
 >;
-const _publicFactoryAgentOptionsCheck: _PublicFactoryAgentOptionsMatchWire = true;
-// @ts-expect-error Factory arguments must be representable on the JSON wire.
-type _FactoryArgsRejectUndefined = FactoryContext<undefined>;
-// @ts-expect-error Factory results must be JSON values or top-level void.
-type _FactoryResultRejectsFunction = FactoryDefinition<JsonValue, () => void>;
+const _publicWorkflowAgentOptionsCheck: _PublicWorkflowAgentOptionsMatchWire = true;
+// @ts-expect-error Workflow arguments must be representable on the JSON wire.
+type _WorkflowArgsRejectUndefined = WorkflowContext<undefined>;
+// @ts-expect-error Workflow results must be JSON values or top-level void.
+type _WorkflowResultRejectsFunction = WorkflowDefinition<JsonValue, () => void>;
 type _PermissionRequestedEventStaysAlignedWithSessionEventUnion = _AssertEqual<
     PermissionRequestedEvent,
     Extract<SessionEvent, { type: "permission.requested" }>

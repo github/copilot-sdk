@@ -146,6 +146,152 @@ async fn should_export_file_telemetry_for_sdk_interactions() {
     .await;
 }
 
+#[tokio::test]
+async fn should_export_per_request_subagent_chat_spans() {
+    if super::support::skip_inprocess("telemetry configuration is not honored in-process") {
+        return;
+    }
+    with_e2e_context(
+        "telemetry",
+        "should_export_per_request_subagent_chat_spans",
+        |ctx| {
+            Box::pin(async move {
+                ctx.set_default_copilot_user();
+                let telemetry_path = ctx.work_dir().join("rust-subagent-telemetry.jsonl");
+                let source_name = "rust-sdk-subagent-telemetry-e2e";
+                let prompt = "Use the task tool in sync mode to ask a task agent to read subagent-otel.txt with the view tool. Then reply with SUBAGENT_OTEL_DONE.";
+                std::fs::write(ctx.work_dir().join("subagent-otel.txt"), "SUBAGENT_OTEL_FILE_CONTENT")
+                    .expect("write child file");
+
+                let client = Client::start(ctx.client_options().with_telemetry(
+                    TelemetryConfig::new()
+                        .with_file_path(&telemetry_path)
+                        .with_exporter_type(OtelExporterType::File)
+                        .with_source_name(source_name)
+                        .with_capture_content(true),
+                ))
+                .await
+                .expect("start client");
+                let session = client
+                    .create_session(
+                        SessionConfig::default()
+                            .with_github_token(super::support::DEFAULT_TEST_TOKEN)
+                            .with_permission_handler(Arc::new(ApproveAllHandler)),
+                    )
+                    .await
+                    .expect("create session");
+                let answer = session
+                    .send_and_wait(prompt)
+                    .await
+                    .expect("send")
+                    .expect("assistant message");
+                assert!(assistant_message_content(&answer).contains("SUBAGENT_OTEL_DONE"));
+
+                session.disconnect().await.expect("disconnect session");
+                client.stop().await.expect("stop client");
+                let entries = read_telemetry_entries(&telemetry_path);
+                let spans: Vec<_> = entries
+                    .iter()
+                    .filter(|entry| string_property(entry, "type") == Some("span"))
+                    .collect();
+                assert!(spans.iter().all(|span| {
+                    span.get("instrumentationScope")
+                        .and_then(|scope| string_property(scope, "name"))
+                        == Some(source_name)
+                        && status_code(span) != Some(2)
+                }));
+                let invocations: Vec<_> = spans
+                    .iter()
+                    .copied()
+                    .filter(|span| {
+                        string_attribute(span, "gen_ai.operation.name").as_deref()
+                            == Some("invoke_agent")
+                    })
+                    .collect();
+                assert_eq!(invocations.len(), 2, "invocations: {invocations:?}");
+                let roots: Vec<_> = invocations
+                    .iter()
+                    .copied()
+                    .filter(|span| is_root_span(span))
+                    .collect();
+                assert_eq!(roots.len(), 1, "roots: {roots:?}");
+                let root = roots[0];
+                assert_eq!(
+                    string_attribute(root, "gen_ai.conversation.id").as_deref(),
+                    Some(session.id().as_str())
+                );
+                let root_id = string_property(root, "spanId").expect("root span id");
+                let trace_id = string_property(root, "traceId").expect("root trace id");
+                let tasks: Vec<_> = spans
+                    .iter()
+                    .copied()
+                    .filter(|span| {
+                        string_attribute(span, "gen_ai.operation.name").as_deref()
+                            == Some("execute_tool")
+                            && string_attribute(span, "gen_ai.tool.name").as_deref() == Some("task")
+                    })
+                    .collect();
+                assert_eq!(tasks.len(), 1, "task spans: {tasks:?}");
+                let task = tasks[0];
+                assert_eq!(string_property(task, "parentSpanId"), Some(root_id));
+                let children: Vec<_> = invocations
+                    .iter()
+                    .copied()
+                    .filter(|span| string_property(span, "parentSpanId") == string_property(task, "spanId"))
+                    .collect();
+                assert_eq!(children.len(), 1, "child spans: {children:?}");
+                let child = children[0];
+                assert_eq!(string_property(task, "traceId"), Some(trace_id));
+                assert_eq!(string_property(child, "traceId"), Some(trace_id));
+
+                let chats: Vec<_> = spans
+                    .iter()
+                    .copied()
+                    .filter(|span| {
+                        string_attribute(span, "gen_ai.operation.name").as_deref() == Some("chat")
+                    })
+                    .collect();
+                assert_eq!(chats.len(), 4, "chats: {chats:?}");
+                let parent_chats: Vec<_> = chats
+                    .iter()
+                    .copied()
+                    .filter(|span| string_property(span, "parentSpanId") == Some(root_id))
+                    .collect();
+                assert_eq!(parent_chats.len(), 2, "parent chats: {parent_chats:?}");
+                assert!(parent_chats.iter().all(|span| string_property(span, "traceId") == Some(trace_id)));
+                let child_chats: Vec<_> = chats
+                    .iter()
+                    .copied()
+                    .filter(|span| string_property(span, "parentSpanId") == string_property(child, "spanId"))
+                    .collect();
+                assert_eq!(child_chats.len(), 2, "child chats: {child_chats:?}");
+                assert!(child_chats.iter().all(|span| {
+                    string_property(span, "traceId") == Some(trace_id)
+                        && string_attribute(span, "github.copilot.initiator").as_deref()
+                            == Some("sub-agent")
+                }));
+                let view_chats: Vec<_> = child_chats
+                    .iter()
+                    .copied()
+                    .filter(|span| string_attribute(span, "gen_ai.output.messages").is_some_and(|output| output.contains(r#""view""#)))
+                    .collect();
+                assert_eq!(view_chats.len(), 1, "view chats: {view_chats:?}");
+                assert!(!string_attribute(view_chats[0], "gen_ai.input.messages")
+                    .is_some_and(|input| input.contains("SUBAGENT_OTEL_FILE_CONTENT")));
+                let final_chats: Vec<_> = child_chats
+                    .iter()
+                    .copied()
+                    .filter(|span| string_attribute(span, "gen_ai.output.messages").is_some_and(|output| output.contains("SUBAGENT_OTEL_CHILD_DONE")))
+                    .collect();
+                assert_eq!(final_chats.len(), 1, "final chats: {final_chats:?}");
+                assert!(string_attribute(final_chats[0], "gen_ai.input.messages")
+                    .is_some_and(|input| input.contains("SUBAGENT_OTEL_FILE_CONTENT")));
+            })
+        },
+    )
+    .await;
+}
+
 struct EchoTelemetryTool;
 
 #[async_trait]

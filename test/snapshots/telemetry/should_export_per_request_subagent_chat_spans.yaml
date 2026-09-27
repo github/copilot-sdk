@@ -1,0 +1,40 @@
+models:
+  - claude-sonnet-5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Read subagent-otel.txt in the current directory with the view tool, then reply with SUBAGENT_OTEL_CHILD_DONE.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: view
+              arguments: '{"path":"${workdir}/subagent-otel.txt"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: SUBAGENT_OTEL_FILE_CONTENT
+      - role: assistant
+        content: SUBAGENT_OTEL_CHILD_DONE
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Use the task tool in sync mode to ask a task agent to read subagent-otel.txt with the view tool. Then reply
+          with SUBAGENT_OTEL_DONE.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: task
+              arguments: '{"agent_type":"task","name":"read-file","description":"Reading subagent-otel.txt","prompt":"Read
+                subagent-otel.txt in the current directory with the view tool, then reply with
+                SUBAGENT_OTEL_CHILD_DONE.","mode":"sync"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: SUBAGENT_OTEL_CHILD_DONE
+      - role: assistant
+        content: SUBAGENT_OTEL_DONE

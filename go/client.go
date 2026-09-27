@@ -2161,6 +2161,10 @@ func (c *Client) startCLIServer(ctx context.Context) error {
 		c.process.Env = setEnvValue(c.process.Env, "COPILOT_DISABLE_KEYTAR", "1")
 	}
 
+	if c.options.Mode != ModeEmpty {
+		c.process.Env = setEnvValue(c.process.Env, "COPILOT_RUNTIME_PROCESS_FILE_LOGGING", "1")
+	}
+
 	if c.options.Telemetry != nil {
 		t := c.options.Telemetry
 		c.process.Env = setEnvValue(c.process.Env, "COPILOT_OTEL_ENABLED", "true")

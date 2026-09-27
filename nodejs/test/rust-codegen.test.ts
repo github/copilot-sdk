@@ -4,9 +4,11 @@ import { describe, expect, it } from "vitest";
 
 import {
     generateApiTypesCode,
+    generateRpcCode,
     generateSessionEventsCode,
     isRustCodegenEntrypoint,
 } from "../../scripts/codegen/rust.ts";
+import { legacyRequestSchema } from "./legacy-parameters-fixture.ts";
 
 describe("Rust codegen entrypoint", () => {
     it("matches Windows paths case-insensitively", () => {
@@ -351,4 +353,108 @@ pub enum ${name} {
     Unknown,`);
         }
     );
+});
+
+describe("Rust x-legacy-parameters", () => {
+    const render = (additions: 0 | 1 | 2, scope: "server" | "session" = "server") => {
+        const { schema } = legacyRequestSchema(additions, scope);
+        const types = generateApiTypesCode(schema);
+        const rpc = generateRpcCode(schema);
+        const block = (code: string, pattern: RegExp) => code.match(pattern)?.[0];
+        return {
+            types,
+            rpc,
+            request: block(types, /pub struct SamplePlanRequest \{[\s\S]*?\n\}/),
+            constructor: block(types, /pub fn new\([^)]*\) -> Self/),
+            plan: block(rpc, /pub async fn plan\([^)]*\)[^{]*/),
+            options: block(rpc, /pub async fn plan_with_options\([^)]*\)[^{]*/),
+        };
+    };
+
+    it("leaves unmarked requests unchanged", () => {
+        const original = render(0);
+        expect(original.types).not.toContain("SamplePlanOptions");
+        expect(original.rpc).not.toContain("plan_with_options");
+    });
+
+    it("freezes the published struct and method and adds private-field options", () => {
+        const original = render(0);
+        const once = render(1);
+        expect(once.request).toBe(original.request);
+        expect(once.plan).toBe(original.plan);
+        expect(once.types).toContain(
+            "pub struct SamplePlanOptions {\n    #[serde(flatten)]\n    legacy: SamplePlanRequest,"
+        );
+        expect(once.types).toMatch(
+            /#\[serde\(skip_serializing_if = "Option::is_none"\)\]\n    policy_session_id: Option<String>,/
+        );
+        expect(once.constructor).toBe(
+            "pub fn new(contract: impl Into<String>, source: impl Into<String>) -> Self"
+        );
+        expect(once.types).toContain(
+            "legacy: SamplePlanRequest { contract: contract.into(), source: source.into(), scope: None },"
+        );
+        expect(once.types).toContain(
+            "pub fn scope(mut self, value: impl Into<String>) -> Self {\n        self.legacy.scope = Some(value.into());"
+        );
+        expect(once.types).toContain(
+            "pub fn policy_session_id(mut self, value: impl Into<String>) -> Self {\n        self.policy_session_id = Some(value.into());"
+        );
+        expect(once.options).toContain("params: SamplePlanOptions");
+        const wireCalls = once.rpc.match(/rpc_methods::SAMPLE_PLAN/g) ?? [];
+        expect(wireCalls).toHaveLength(2);
+        expect(once.types).not.toContain("non_exhaustive");
+    });
+
+    it("keeps both entry points unchanged across a second optional addition", () => {
+        const once = render(1);
+        const twice = render(2);
+        expect(twice.request).toBe(once.request);
+        expect(twice.constructor).toBe(once.constructor);
+        expect(twice.plan).toBe(once.plan);
+        expect(twice.options).toBe(once.options);
+        expect(twice.types).toContain(
+            "pub fn trace_id(mut self, value: impl Into<String>) -> Self {"
+        );
+        expect(twice.types).toContain("            trace_id: None,");
+    });
+
+    it("keeps the session id injected by session-scoped wrappers", () => {
+        const once = render(1, "session");
+        expect(once.request).toBe(render(0, "session").request);
+        expect(once.request).not.toContain("session_id");
+        const body = once.rpc.slice(once.rpc.indexOf("pub async fn plan_with_options"));
+        expect(body).toMatch(
+            /wire_params\["sessionId"\] = serde_json::Value::String\(self\.session\.id\(\)\.to_string\(\)\);/
+        );
+    });
+
+    it("derives Default for options without required inputs", () => {
+        const { schema, params } = legacyRequestSchema(1);
+        params.required = [];
+        const types = generateApiTypesCode(schema);
+        expect(types).toContain("pub fn new() -> Self");
+        expect(types).toContain(
+            "impl Default for SamplePlanOptions {\n    fn default() -> Self {\n        Self::new()"
+        );
+        expect(render(1).types).not.toContain("impl Default for SamplePlanOptions");
+    });
+
+    it("rejects optional requests", () => {
+        const { schema, params } = legacyRequestSchema(1);
+        const method = (schema.server as Record<string, Record<string, { params: unknown }>>).sample
+            .plan;
+        method.params = { anyOf: [{ not: {} }, params] };
+        expect(() => generateApiTypesCode(schema)).toThrow(
+            "Invalid x-legacy-parameters for sample.plan: optional requests cannot declare legacy parameters"
+        );
+    });
+
+    it("rejects metadata that omits a required input", () => {
+        const { schema, params } = legacyRequestSchema(1);
+        (params as Record<string, unknown>)["x-legacy-parameters"] = ["contract", "scope"];
+        expect(() => generateApiTypesCode(schema)).toThrow(
+            "Invalid x-legacy-parameters for sample.plan: required property source must be a legacy parameter"
+        );
+    });
 });

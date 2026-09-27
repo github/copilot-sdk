@@ -2781,6 +2781,9 @@ pub struct AssistantTurnStartData {
     /// Model identifier used for this turn, when known
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
+    /// Parent task tool call ID when this turn belongs to a sub-agent
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent_tool_call_id: Option<String>,
     /// Identifier for this turn within the agentic loop, typically a stringified turn number
     pub turn_id: String,
     /// Optional bounded worker observations. Missing or invalid metadata is unavailable, not known-empty.
@@ -3450,6 +3453,9 @@ pub struct AssistantTurnEndData {
     /// Model identifier used for this turn, when known
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
+    /// Parent task tool call ID when this turn belongs to a sub-agent
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent_tool_call_id: Option<String>,
     /// Identifier of the turn that has ended, matching the corresponding assistant.turn_start event
     pub turn_id: String,
 }
@@ -3864,6 +3870,9 @@ pub struct ModelCallFailureData {
     /// Model identifier used for the failed API call
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
+    /// Parent task tool call ID when this failed model call belongs to a sub-agent
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent_tool_call_id: Option<String>,
     /// GitHub request tracing ID (x-github-request-id header) for server-side log correlation
     #[serde(skip_serializing_if = "Option::is_none")]
     pub provider_call_id: Option<String>,
@@ -3930,6 +3939,9 @@ pub struct ModelCallStartData {
     /// Model identifier used for this API call, when known
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
+    /// Parent task tool call ID when this model call belongs to a sub-agent
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent_tool_call_id: Option<String>,
     /// Previous response or interaction identifier included in the model request, when present
     #[doc(hidden)]
     #[serde(skip_serializing_if = "Option::is_none")]

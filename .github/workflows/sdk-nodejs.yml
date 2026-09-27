@@ -87,7 +87,7 @@ jobs:
           COPILOT_SDK_DEFAULT_CONNECTION: ${{ matrix.transport == 'inprocess' && 'inprocess' || '' }}
         run: |
           if [ "$COPILOT_SDK_DEFAULT_CONNECTION" = "inprocess" ]; then
-            npm test -- test/e2e/inprocess_ffi.e2e.test.ts
+            npm test -- test/e2e/inprocess_ffi.e2e.test.ts test/e2e/auth_host.e2e.test.ts
           else
             npm test
           fi
@@ -138,7 +138,7 @@ jobs:
             test -x "$COPILOT_CLI_PATH"
             test -f "$(dirname "$COPILOT_CLI_PATH")/runtime.node"
             if [ "$COPILOT_SDK_TEST_TRANSPORT" = "inprocess" ]; then
-              npm test -- test/e2e/inprocess_ffi.e2e.test.ts
+              npm test -- test/e2e/inprocess_ffi.e2e.test.ts test/e2e/auth_host.e2e.test.ts
             else
               npm test
             fi

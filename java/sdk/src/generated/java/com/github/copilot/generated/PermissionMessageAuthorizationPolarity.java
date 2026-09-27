@@ -11,7 +11,7 @@ import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
- * Which direction a message-backed authorization claim moves authority in.
+ * Direction stored in a historical extractor claim. Current runtimes do not apply it.
  *
  * @apiNote This type is experimental and may change in a future version.
  *

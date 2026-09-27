@@ -21,6 +21,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import com.github.copilot.ffi.NativeRuntimeLoader;
+import com.github.copilot.rpc.CopilotClientMode;
 import com.github.copilot.rpc.CopilotClientOptions;
 
 /**
@@ -274,6 +275,9 @@ final class CliServerManager {
             pb.environment().putAll(options.getEnvironment());
         }
         pb.environment().remove("NODE_DEBUG");
+        if (options.getMode() != CopilotClientMode.EMPTY) {
+            pb.environment().put("COPILOT_RUNTIME_PROCESS_FILE_LOGGING", "1");
+        }
 
         // Set auth token in environment if provided
         if (options.getGitHubToken() != null && !options.getGitHubToken().isEmpty()) {

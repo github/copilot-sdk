@@ -17,13 +17,13 @@ These secrets are used by the authoritative SDK build/test workflow and the publ
 These secrets power the GitHub Agentic Workflows (gh-aw) used for issue triage, code generation, and release automation.
 
 * **`COPILOT_GITHUB_TOKEN`**: GitHub OAuth token consumed by the Copilot CLI for AI authentication. Required by all agentic workflows when invoking `copilot` for AI inference.
-  * Workflows: `issue-triage.lock.yml`, `issue-classification.lock.yml`, `handle-bug.lock.yml`, `handle-enhancement.lock.yml`, `handle-question.lock.yml`, `handle-documentation.lock.yml`, `java-codegen-check.yml`, `java-codegen-fix.lock.yml`, `java-smoke-test.yml`, `java-adapt-handwritten-code-to-accept-upgrade-changes.lock.yml`, `release-changelog.lock.yml`, `sdk-consistency-review.lock.yml`, `cross-repo-issue-analysis.lock.yml`
+  * Workflows: `issue-triage.lock.yml`, `issue-classification.lock.yml`, `handle-bug.lock.yml`, `handle-enhancement.lock.yml`, `handle-question.lock.yml`, `handle-documentation.lock.yml`, `java-codegen-check.yml`, `java-codegen-fix.lock.yml`, `java-smoke-test.yml`, `java-adapt-handwritten-code-to-accept-upgrade-changes.lock.yml`, `release-changelog.lock.yml`, `cross-repo-issue-analysis.lock.yml`
 
 * **`GH_AW_GITHUB_TOKEN`**: Optional GitHub token override for repository operations (reading code, creating pull requests, and making GitHub API calls). If unset, workflows use the automatic `GITHUB_TOKEN`.
-  * Workflows: `issue-triage.lock.yml`, `issue-classification.lock.yml`, `handle-bug.lock.yml`, `handle-enhancement.lock.yml`, `handle-question.lock.yml`, `handle-documentation.lock.yml`, `java-codegen-fix.lock.yml`, `java-adapt-handwritten-code-to-accept-upgrade-changes.lock.yml`, `release-changelog.lock.yml`, `sdk-consistency-review.lock.yml`, `cross-repo-issue-analysis.lock.yml`
+  * Workflows: `issue-triage.lock.yml`, `issue-classification.lock.yml`, `handle-bug.lock.yml`, `handle-enhancement.lock.yml`, `handle-question.lock.yml`, `handle-documentation.lock.yml`, `java-codegen-fix.lock.yml`, `java-adapt-handwritten-code-to-accept-upgrade-changes.lock.yml`, `release-changelog.lock.yml`, `cross-repo-issue-analysis.lock.yml`
 
 * **`GH_AW_GITHUB_MCP_SERVER_TOKEN`**: Optional token override for the GitHub MCP server container. If unset, workflows fall back to `GH_AW_GITHUB_TOKEN` and then the automatic `GITHUB_TOKEN`.
-  * Workflows: `issue-triage.lock.yml`, `issue-classification.lock.yml`, `handle-bug.lock.yml`, `handle-enhancement.lock.yml`, `handle-question.lock.yml`, `handle-documentation.lock.yml`, `java-codegen-fix.lock.yml`, `java-adapt-handwritten-code-to-accept-upgrade-changes.lock.yml`, `release-changelog.lock.yml`, `sdk-consistency-review.lock.yml`, `cross-repo-issue-analysis.lock.yml`
+  * Workflows: `issue-triage.lock.yml`, `issue-classification.lock.yml`, `handle-bug.lock.yml`, `handle-enhancement.lock.yml`, `handle-question.lock.yml`, `handle-documentation.lock.yml`, `java-codegen-fix.lock.yml`, `java-adapt-handwritten-code-to-accept-upgrade-changes.lock.yml`, `release-changelog.lock.yml`, `cross-repo-issue-analysis.lock.yml`
 
 * **`GH_AW_CI_TRIGGER_TOKEN`**: Token used to trigger CI workflows from within agentic workflow runs.
   * Workflows: `java-codegen-fix.lock.yml`, `java-adapt-handwritten-code-to-accept-upgrade-changes.lock.yml`, `release-changelog.lock.yml`

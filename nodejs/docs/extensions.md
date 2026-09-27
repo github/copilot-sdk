@@ -78,5 +78,4 @@ An approved extension can pass a granted value to anything it starts, so ask onl
 
 - `examples.md` — Practical code examples for tools, hooks, events, and complete extensions
 - `workflows.md` — Authoring, running, resuming, and observing Dynamic Workflows
-- `factories.md`: Authoring, running, resuming, and observing Agent Factories
 - `agent-author.md` — Step-by-step workflow for agents authoring extensions programmatically

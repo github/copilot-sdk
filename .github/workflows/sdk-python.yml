@@ -77,7 +77,7 @@ jobs:
           COPILOT_SDK_DEFAULT_CONNECTION: ${{ matrix.transport == 'inprocess' && 'inprocess' || '' }}
         run: |
           if [ "$COPILOT_SDK_DEFAULT_CONNECTION" = "inprocess" ]; then
-            uv run --locked pytest -v -s e2e/test_inprocess_ffi_e2e.py
+            uv run --locked pytest -v -s e2e/test_inprocess_ffi_e2e.py e2e/test_auth_host_e2e.py
           else
             env -u COPILOT_SKIP_CLI_DOWNLOAD uv run --locked pytest -v -s -n 2 --dist=loadfile
           fi
@@ -140,7 +140,7 @@ jobs:
             cd "$COPILOT_SDK_ROOT/python"
             uv sync --locked --all-extras --dev
             if [ "$COPILOT_SDK_TEST_TRANSPORT" = "inprocess" ]; then
-              uv run --locked pytest -v -s e2e/test_inprocess_ffi_e2e.py
+              uv run --locked pytest -v -s e2e/test_inprocess_ffi_e2e.py e2e/test_auth_host_e2e.py
             else
               env -u COPILOT_SKIP_CLI_DOWNLOAD uv run --locked pytest -v -s -n 2 --dist=loadfile
             fi

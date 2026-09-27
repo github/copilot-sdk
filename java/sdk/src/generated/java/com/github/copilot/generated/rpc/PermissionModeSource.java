@@ -11,7 +11,7 @@ import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
- * Optional source for permission-mode telemetry. Defaults to `rpc` when omitted for SDK callers.
+ * Optional source for permission-mode telemetry. `organization_targeting` is reserved for startup selection after the authenticated account matches an organization targeting policy; SDK callers default to `rpc` and cannot claim targeting provenance.
  *
  * @apiNote This type is experimental and may change in a future version.
  *

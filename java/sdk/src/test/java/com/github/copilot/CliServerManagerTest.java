@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import com.github.copilot.ffi.NativeRuntimeLoader;
+import com.github.copilot.rpc.CopilotClientMode;
 import com.github.copilot.rpc.CopilotClientOptions;
 import com.github.copilot.rpc.TelemetryConfig;
 
@@ -65,6 +66,21 @@ class CliServerManagerTest {
         var manager = new CliServerManager(options);
 
         assertEquals(explicit.toString(), manager.resolveCliLaunch("inherited-copilot-runtime").executable());
+    }
+
+    @Test
+    void cliModeOptsIntoProcessLoggingWithoutChangingEmptyModeEnvironment() {
+        for (var mode : CopilotClientMode.values()) {
+            var options = new CopilotClientOptions().setMode(mode)
+                    .setEnvironment(Map.of("COPILOT_RUNTIME_PROCESS_FILE_LOGGING", "opposite"));
+            var process = new ProcessBuilder("copilot-runtime");
+            new CliServerManager(options).configureProcessEnvironment(process);
+            if (mode == CopilotClientMode.EMPTY) {
+                assertEquals("opposite", process.environment().get("COPILOT_RUNTIME_PROCESS_FILE_LOGGING"));
+            } else {
+                assertEquals("1", process.environment().get("COPILOT_RUNTIME_PROCESS_FILE_LOGGING"));
+            }
+        }
     }
 
     // ===== parseCliUrl tests =====

@@ -126,7 +126,7 @@ jobs:
           ./mvnw clean verify -Pinprocess
           -Dtest=NoTestsForInProcessSmoke
           -Dsurefire.failIfNoSpecifiedTests=false
-          -Dit.test=InProcessTransportIT
+          -Dit.test=InProcessTransportIT,AuthHostE2ETest
           -Dcopilot.inprocess.cli.path="$COPILOT_CLI_PATH"
           $MAVEN_ARGS
       - if: failure()
@@ -183,7 +183,7 @@ jobs:
               ./mvnw clean verify -Pinprocess \
                 -Dtest=NoTestsForInProcessSmoke \
                 -Dsurefire.failIfNoSpecifiedTests=false \
-                -Dit.test=InProcessTransportIT \
+                -Dit.test=InProcessTransportIT,AuthHostE2ETest \
                 -Dcopilot.native.libc=musl \
                 -Dcopilot.inprocess.cli.path="$COPILOT_CLI_PATH"'
       - if: failure()

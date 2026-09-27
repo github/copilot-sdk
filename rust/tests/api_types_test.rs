@@ -8,15 +8,70 @@ use github_copilot_sdk::rpc::{
     ConnectorConnectRequest, ConnectorContinueRequest, ConnectorReconcileRequest,
     EnqueueCommandResult, Extension, ExtensionList, ExtensionSource, ExtensionStatus,
     ExtensionsDisableRequest, ExtensionsEnableRequest, FleetStartRequest, FleetStartResult,
-    ModelSetAllowedModelsRequest, ModelSetAllowedModelsResult, ModelSwitchAutoTierRequest,
-    ModelSwitchAutoTierResult, ModelSwitchAutoTierStatus, QueuePendingItems, QueuePendingItemsKind,
-    SandboxConfig, SendAgentMode, SendMessageItem, SendRequest, TasksStartAgentRequest,
+    McpDisableRequest, McpEnableOptions, McpEnableRequest, McpOauthLoginOptions,
+    McpOauthLoginRequest, McpServer, McpStopServerRequest, ModelSetAllowedModelsRequest,
+    ModelSetAllowedModelsResult, ModelSwitchAutoTierRequest, ModelSwitchAutoTierResult,
+    ModelSwitchAutoTierStatus, QueuePendingItems, QueuePendingItemsKind, SandboxConfig,
+    SendAgentMode, SendMessageItem, SendRequest, TasksStartAgentRequest,
     UnsupportedEnqueueCommandResult,
 };
 use github_copilot_sdk::session_events::{
-    PermissionRequest, PermissionRequestedData, SessionEventData, TypedSessionEvent,
+    McpServerStatus, PermissionRequest, PermissionRequestedData, SessionEventData,
+    TypedSessionEvent,
 };
 use github_copilot_sdk::{AutoTier, AutoTierPreference, SetModelOptions};
+
+#[test]
+fn manual_mcp_requests_omit_unselected_owned_identity() {
+    let payloads = [
+        serde_json::to_value(McpEnableRequest {
+            server_name: "manual".to_string(),
+        })
+        .unwrap(),
+        serde_json::to_value(McpDisableRequest {
+            server_name: "manual".to_string(),
+        })
+        .unwrap(),
+        serde_json::to_value(McpStopServerRequest {
+            server_name: "manual".to_string(),
+        })
+        .unwrap(),
+        serde_json::to_value(McpOauthLoginRequest {
+            server_name: "manual".to_string(),
+            ..Default::default()
+        })
+        .unwrap(),
+        serde_json::to_value(McpEnableOptions::new("manual")).unwrap(),
+        serde_json::to_value(McpOauthLoginOptions::new("manual")).unwrap(),
+    ];
+    for payload in payloads {
+        assert_eq!(payload, serde_json::json!({"serverName": "manual"}));
+    }
+}
+
+#[test]
+fn owned_mcp_identity_is_only_reachable_through_options() {
+    assert_eq!(
+        serde_json::to_value(
+            McpEnableOptions::new("owned").expected_installation_id("a".repeat(32))
+        )
+        .unwrap(),
+        serde_json::json!({"serverName": "owned", "expectedInstallationId": "a".repeat(32)})
+    );
+    assert_eq!(
+        serde_json::to_value(
+            McpOauthLoginOptions::new("owned")
+                .expected_installation_id("a".repeat(32))
+                .login_id("b".repeat(32))
+        )
+        .unwrap(),
+        serde_json::json!({
+            "serverName": "owned",
+            "expectedInstallationId": "a".repeat(32),
+            "loginId": "b".repeat(32),
+        })
+    );
+}
 
 #[test]
 fn session_events_deserialize_auto_tier() {
@@ -474,4 +529,28 @@ fn set_model_options_distinguishes_unset_tier_from_reset() {
 
     let cleared = SetModelOptions::default().with_reset_auto_tier();
     assert_eq!(cleared.auto_tier, Some(AutoTierPreference::Reset));
+}
+
+#[test]
+fn listed_mcp_server_literals_with_defaults_survive_the_owned_marker() {
+    let manual = McpServer {
+        name: "manual".to_string(),
+        status: McpServerStatus::Stopped,
+        ..Default::default()
+    };
+    assert!(manual.owned.is_none());
+    assert!(
+        serde_json::to_value(&manual)
+            .unwrap()
+            .get("owned")
+            .is_none()
+    );
+
+    let owned: McpServer = serde_json::from_value(serde_json::json!({
+        "name": "owned",
+        "status": "stopped",
+        "owned": {"installationId": "installation"},
+    }))
+    .unwrap();
+    assert_eq!(owned.owned.unwrap().installation_id, "installation");
 }

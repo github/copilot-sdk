@@ -5029,6 +5029,10 @@ export interface AssistantTurnStartData {
    */
   model?: string;
   /**
+   * Parent task tool call ID when this turn belongs to a sub-agent
+   */
+  parentToolCallId?: string;
+  /**
    * Identifier for this turn within the agentic loop, typically a stringified turn number
    */
   turnId: string;
@@ -6149,6 +6153,10 @@ export interface AssistantTurnEndData {
    */
   model?: string;
   /**
+   * Parent task tool call ID when this turn belongs to a sub-agent
+   */
+  parentToolCallId?: string;
+  /**
    * Identifier of the turn that has ended, matching the corresponding assistant.turn_start event
    */
   turnId: string;
@@ -6623,6 +6631,10 @@ export interface ModelCallFailureData {
    * Model identifier used for the failed API call
    */
   model?: string;
+  /**
+   * Parent task tool call ID when this failed model call belongs to a sub-agent
+   */
+  parentToolCallId?: string;
   /**
    * GitHub request tracing ID (x-github-request-id header) for server-side log correlation
    */

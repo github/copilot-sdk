@@ -9,7 +9,6 @@ import {
     type PermissionHandler,
     type ResumeSessionConfig,
 } from "./types.js";
-import type { FactoryHandle } from "./factory.js";
 import type { WorkflowHandle } from "./workflow.js";
 
 export {
@@ -22,28 +21,6 @@ export {
     type CanvasJsonSchema,
     type CanvasOptions,
 } from "./canvas.js";
-
-type JoinSessionContributionConfig =
-    | {
-          /**
-           * Factory handles to register when the extension joins the session.
-           *
-           * @experimental Part of the experimental Agent Factories surface and may
-           * change or be removed in future SDK or CLI releases.
-           */
-          factories?: FactoryHandle[];
-          workflows?: never;
-      }
-    | {
-          factories?: never;
-          /**
-           * Workflow handles to register when the extension joins the session.
-           *
-           * @experimental Part of the experimental Dynamic Workflows surface and may
-           * change or be removed in future SDK or CLI releases.
-           */
-          workflows?: WorkflowHandle[];
-      };
 
 export type JoinSessionConfig = Omit<
     ResumeSessionConfig,
@@ -79,37 +56,16 @@ export type JoinSessionConfig = Omit<
      * ```
      */
     requestedEnvironmentVariables?: string[];
-} & JoinSessionContributionConfig;
+    /**
+     * Workflow handles to register when the extension joins the session.
+     *
+     * @experimental Part of the experimental Dynamic Workflows surface and may
+     * change or be removed in future SDK or CLI releases.
+     */
+    workflows?: WorkflowHandle[];
+};
 
-export type { ExtensionInfo, FactoryLimits, FactoryMeta } from "./types.js";
-export {
-    defineFactory,
-    FactoryResumeError,
-    isFactoryRunTerminal,
-    type RunOptions,
-    type ResumeOptions,
-    type FactoryResumeErrorCode,
-    type SessionFactoryApi,
-    type FactoryAgentOptions,
-    type FactoryContext,
-    type FactoryDefinition,
-    type FactoryHandle,
-    type FactoryJsonSchema,
-    type JsonValue,
-    type FactoryPipelineStage,
-    type FactoryStepOptions,
-    type FactoryRunResult,
-    type FactoryRunStatus,
-    type FactoryRunSummary,
-    type FactoryListRunsOptions,
-    type FactoryRunsPage,
-    type FactoryRunDetail,
-    type FactoryProgressPage,
-    type FactoryProgressLine,
-    type FactoryPhaseObservation,
-    type FactoryPhaseStatus,
-    type FactoryAgentSummary,
-} from "./factory.js";
+export type { ExtensionInfo } from "./types.js";
 export {
     defineWorkflow,
     WorkflowResumeError,
@@ -123,6 +79,7 @@ export {
     type WorkflowContext,
     type WorkflowDefinition,
     type WorkflowHandle,
+    type JsonValue,
     type WorkflowJsonSchema,
     type WorkflowLimits,
     type WorkflowMeta,
@@ -170,7 +127,6 @@ export async function joinSession(config: JoinSessionConfig = {}): Promise<Copil
     // already been forked by the host with the SDK the host chose.
     const {
         extensionSdkPath: _stripped,
-        factories,
         workflows,
         requestedEnvironmentVariables,
         ...rest
@@ -178,9 +134,6 @@ export async function joinSession(config: JoinSessionConfig = {}): Promise<Copil
         extensionSdkPath?: string;
     };
     void _stripped;
-    if (factories !== undefined && workflows !== undefined) {
-        throw new Error("joinSession cannot register both factories and workflows");
-    }
 
     return client.resumeSessionForExtension(
         sessionId,
@@ -189,7 +142,7 @@ export async function joinSession(config: JoinSessionConfig = {}): Promise<Copil
             onPermissionRequest: config.onPermissionRequest ?? defaultJoinSessionPermissionHandler,
             suppressResumeEvent: config.suppressResumeEvent ?? true,
         },
-        { factories, workflows },
+        { workflows },
         requestedEnvironmentVariables?.length ? { requestedEnvironmentVariables } : undefined
     );
 }

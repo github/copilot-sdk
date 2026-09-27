@@ -28,6 +28,8 @@ import javax.annotation.processing.Generated;
 public record SessionModelListResult(
     /** Available models, ordered with the most preferred default first. Includes both Copilot (CAPI) models and any registry BYOK models; a BYOK model appears under its provider-qualified selection id (`provider/id`). */
     @JsonProperty("list") List<Object> list,
+    /** The model providers available to this session, in ordering order, resolved from the account roster; empty when no provider is entitled (logged out / seatless). Each model in `list` carries its own provider reference; this roster gives the deterministic provider sequence and lets a consumer group by provider without deriving ordering from the model list. Central code never branches on a provider kind. */
+    @JsonProperty("providers") List<ModelProviderDescriptor> providers,
     /** Cost categories for the full CAPI catalog, including picker-disabled models that Auto may select. Metadata only; entries absent from `list` are not manually selectable. */
     @JsonProperty("modelPriceCategories") List<SessionModelPriceCategory> modelPriceCategories,
     /** Per-quota snapshots returned alongside the model list, keyed by quota type. */

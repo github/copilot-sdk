@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import { readFile } from "fs/promises";
+import { readFile, writeFile } from "fs/promises";
 import { join } from "path";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
@@ -55,7 +55,11 @@ describe("Telemetry export", async () => {
 
     const telemetryFileName = `telemetry-${Date.now()}-${Math.random().toString(36).slice(2)}.jsonl`;
 
-    const { copilotClient: client, workDir } = await createSdkTestContext({
+    const {
+        copilotClient: client,
+        createClient,
+        workDir,
+    } = await createSdkTestContext({
         copilotClientOptions: {
             // Telemetry is lowered to environment variables the native runtime reads, which
             // the in-process transport cannot carry per-client (the runtime runs in the shared
@@ -151,5 +155,98 @@ describe("Telemetry export", async () => {
             `{"value":"${marker}"}`
         );
         expect(getStringAttribute(toolSpan!, "gen_ai.tool.call.result")).toBe(marker);
+    });
+
+    it("should export per request subagent chat spans", { timeout: 90_000 }, async () => {
+        const sourceName = "ts-sdk-subagent-telemetry-e2e";
+        const telemetryFileName = "subagent-telemetry.jsonl";
+        const prompt =
+            "Use the task tool in sync mode to ask a task agent to read subagent-otel.txt with the view tool. Then reply with SUBAGENT_OTEL_DONE.";
+        await writeFile(join(workDir, "subagent-otel.txt"), "SUBAGENT_OTEL_FILE_CONTENT");
+
+        const subagentClient = createClient({
+            connection: RuntimeConnection.forStdio(),
+            telemetry: {
+                filePath: telemetryFileName,
+                exporterType: "file",
+                sourceName,
+                captureContent: true,
+            },
+        });
+        let sessionId: string;
+        try {
+            const session = await subagentClient.createSession({ onPermissionRequest: approveAll });
+            sessionId = session.sessionId;
+            try {
+                const response = await session.sendAndWait({ prompt }, 90_000);
+                expect(response?.data.content ?? "").toContain("SUBAGENT_OTEL_DONE");
+            } finally {
+                await session.disconnect();
+            }
+        } finally {
+            await subagentClient.stop();
+        }
+
+        const spans = (await readTelemetryEntries(join(workDir, telemetryFileName))).filter(
+            (entry) => entry.type === "span"
+        );
+        expect(spans.every((span) => span.instrumentationScope?.name === sourceName)).toBe(true);
+        expect(spans.every((span) => span.status?.code !== 2)).toBe(true);
+        const invocationSpans = spans.filter(
+            (span) => getStringAttribute(span, "gen_ai.operation.name") === "invoke_agent"
+        );
+        expect(invocationSpans).toHaveLength(2);
+        const roots = invocationSpans.filter(isRootSpan);
+        expect(roots).toHaveLength(1);
+        const root = roots[0]!;
+        expect(getStringAttribute(root, "gen_ai.conversation.id")).toBe(sessionId!);
+        expect(root.spanId).toBeTruthy();
+        expect(root.traceId).toBeTruthy();
+
+        const taskTools = spans.filter(
+            (span) =>
+                getStringAttribute(span, "gen_ai.operation.name") === "execute_tool" &&
+                getStringAttribute(span, "gen_ai.tool.name") === "task"
+        );
+        expect(taskTools).toHaveLength(1);
+        const taskTool = taskTools[0]!;
+        expect(taskTool.parentSpanId).toBe(root.spanId);
+        const subagents = invocationSpans.filter((span) => span.parentSpanId === taskTool.spanId);
+        expect(subagents).toHaveLength(1);
+        const subagent = subagents[0]!;
+        expect(taskTool.traceId).toBe(root.traceId);
+        expect(subagent.traceId).toBe(root.traceId);
+
+        const chats = spans.filter(
+            (span) => getStringAttribute(span, "gen_ai.operation.name") === "chat"
+        );
+        expect(chats).toHaveLength(4);
+        const parentChats = chats.filter((span) => span.parentSpanId === root.spanId);
+        expect(parentChats).toHaveLength(2);
+        for (const chat of parentChats) {
+            expect(chat.traceId).toBe(root.traceId);
+        }
+        const childChats = chats.filter((span) => span.parentSpanId === subagent.spanId);
+        expect(childChats).toHaveLength(2);
+        for (const chat of childChats) {
+            expect(chat.traceId).toBe(root.traceId);
+            expect(getStringAttribute(chat, "github.copilot.initiator")).toBe("sub-agent");
+        }
+        const requestingChats = childChats.filter((span) =>
+            (getStringAttribute(span, "gen_ai.output.messages") ?? "").includes('"view"')
+        );
+        expect(requestingChats).toHaveLength(1);
+        expect(
+            getStringAttribute(requestingChats[0]!, "gen_ai.input.messages") ?? ""
+        ).not.toContain("SUBAGENT_OTEL_FILE_CONTENT");
+        const finalChats = childChats.filter((span) =>
+            (getStringAttribute(span, "gen_ai.output.messages") ?? "").includes(
+                "SUBAGENT_OTEL_CHILD_DONE"
+            )
+        );
+        expect(finalChats).toHaveLength(1);
+        expect(getStringAttribute(finalChats[0]!, "gen_ai.input.messages")).toContain(
+            "SUBAGENT_OTEL_FILE_CONTENT"
+        );
     });
 });

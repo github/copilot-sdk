@@ -367,6 +367,22 @@ casing) to their names. You can also opt into your **own** custom skills under
 remain fully usable, including a custom skill that shares a name with a built-in.
 Under `mode: "copilot-cli"` the field is omitted unless you set the option.
 
+Custom skill directories are scanned when skills first load, including directories
+that are missing or empty at that point. Filesystem changes in those directories
+do not automatically refresh the catalog on later turns. After adding, editing,
+or removing skills, call your session's `skills.reload` RPC:
+
+| SDK | Reload call |
+|-----|-------------|
+| Node.js | `await session.rpc.skills.reload()` |
+| Python | `await session.rpc.skills.reload()` |
+| Go | `session.RPC.Skills.Reload(ctx)` |
+| .NET | `await session.Rpc.Skills.ReloadAsync()` |
+| Java | `session.getRpc().skills.reload().join()` |
+| Rust | `session.rpc().skills().reload().await?` |
+
+Changing the configured skill directories also refreshes the catalog.
+
 ## Best practices
 
 1. **Organize by domain** - Group related skills together (e.g., `skills/security/`, `skills/testing/`)

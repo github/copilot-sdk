@@ -127,6 +127,12 @@ jobs:
           cargo test --no-default-features --features test-support,local-runtime,derive
           --test e2e inprocess::should_start_ping_and_stop_inprocess_client
           -- --exact --test-threads=1 --nocapture
+      - env:
+          COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
+        run: >-
+          cargo test --no-default-features --features test-support,local-runtime,derive
+          --test e2e client::should_use_configured_github_host_for_authentication
+          -- --exact --test-threads=1 --nocapture
 
   rust-musl-x64:
     name: "Rust (Alpine x64, ${{ matrix.transport }})"
@@ -185,6 +191,9 @@ jobs:
               unset RUST_E2E_CONCURRENCY
               cargo test --no-default-features --features test-support,local-runtime,derive \
                 --test e2e inprocess::should_start_ping_and_stop_inprocess_client \
+                -- --exact --test-threads=1 --nocapture
+              cargo test --no-default-features --features test-support,local-runtime,derive \
+                --test e2e client::should_use_configured_github_host_for_authentication \
                 -- --exact --test-threads=1 --nocapture
             else
               export RUST_E2E_CONCURRENCY=4

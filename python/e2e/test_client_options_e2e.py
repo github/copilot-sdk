@@ -103,6 +103,7 @@ function saveCapture() {
     env: {
       COPILOT_HOME: process.env.COPILOT_HOME,
       COPILOT_SDK_AUTH_TOKEN: process.env.COPILOT_SDK_AUTH_TOKEN,
+      COPILOT_RUNTIME_PROCESS_FILE_LOGGING: process.env.COPILOT_RUNTIME_PROCESS_FILE_LOGGING,
       COPILOT_OTEL_ENABLED: process.env.COPILOT_OTEL_ENABLED,
       OTEL_EXPORTER_OTLP_ENDPOINT: process.env.OTEL_EXPORTER_OTLP_ENDPOINT,
       OTEL_EXPORTER_OTLP_PROTOCOL: process.env.OTEL_EXPORTER_OTLP_PROTOCOL,
@@ -276,7 +277,11 @@ class TestClientOptions:
                 cli_path=cli_path,
                 base_directory=copilot_home_from_option,
                 cli_args=["--capture-file", capture_path],
-                env={**ctx.get_env(), "COPILOT_HOME": copilot_home_from_env},
+                env={
+                    **ctx.get_env(),
+                    "COPILOT_HOME": copilot_home_from_env,
+                    "COPILOT_RUNTIME_PROCESS_FILE_LOGGING": "0",
+                },
                 github_token="process-option-token",
                 log_level="debug",
                 session_idle_timeout_seconds=17,
@@ -309,6 +314,7 @@ class TestClientOptions:
 
             assert env["COPILOT_HOME"] == copilot_home_from_option
             assert env["COPILOT_SDK_AUTH_TOKEN"] == "process-option-token"
+            assert env["COPILOT_RUNTIME_PROCESS_FILE_LOGGING"] == "1"
             assert env["COPILOT_OTEL_ENABLED"] == "true"
             assert env["OTEL_EXPORTER_OTLP_ENDPOINT"] == "http://127.0.0.1:4318"
             assert env["OTEL_EXPORTER_OTLP_PROTOCOL"] == "http/protobuf"
@@ -434,6 +440,7 @@ class TestClientOptions:
                 cli_args=["--capture-file", capture_path],
                 mode="empty",
                 base_directory=ctx.work_dir,
+                env={**ctx.get_env(), "COPILOT_RUNTIME_PROCESS_FILE_LOGGING": "0"},
                 use_logged_in_user=False,
             ),
         )
@@ -453,6 +460,7 @@ class TestClientOptions:
             try:
                 with open(capture_path) as f:
                     capture = json.load(f)
+                assert capture["env"]["COPILOT_RUNTIME_PROCESS_FILE_LOGGING"] == "0"
                 create_request = next(
                     r for r in capture["requests"] if r["method"] == "session.create"
                 )

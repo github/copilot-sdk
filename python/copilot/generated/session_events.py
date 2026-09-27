@@ -3153,15 +3153,18 @@ class AssistantTurnEndData:
     "Turn completion metadata including the turn identifier"
     turn_id: str
     model: str | None = None
+    parent_tool_call_id: str | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "AssistantTurnEndData":
         assert isinstance(obj, dict)
         turn_id = from_str(obj.get("turnId"))
         model = from_union([from_none, from_str], obj.get("model"))
+        parent_tool_call_id = from_union([from_none, from_str], obj.get("parentToolCallId"))
         return AssistantTurnEndData(
             turn_id=turn_id,
             model=model,
+            parent_tool_call_id=parent_tool_call_id,
         )
 
     def to_dict(self) -> dict:
@@ -3169,6 +3172,8 @@ class AssistantTurnEndData:
         result["turnId"] = from_str(self.turn_id)
         if self.model is not None:
             result["model"] = from_union([from_none, from_str], self.model)
+        if self.parent_tool_call_id is not None:
+            result["parentToolCallId"] = from_union([from_none, from_str], self.parent_tool_call_id)
         return result
 
 
@@ -3208,6 +3213,7 @@ class AssistantTurnStartData:
     interaction_id: str | None = None
     model: str | None = None
     worker_causality: WorkerCausality | None = None
+    parent_tool_call_id: str | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "AssistantTurnStartData":
@@ -3216,11 +3222,13 @@ class AssistantTurnStartData:
         interaction_id = from_union([from_none, from_str], obj.get("interactionId"))
         model = from_union([from_none, from_str], obj.get("model"))
         worker_causality = optional_worker_causality(obj.get("workerCausality"), lambda: from_union([from_none, WorkerCausality.from_dict], obj.get("workerCausality")))
+        parent_tool_call_id = from_union([from_none, from_str], obj.get("parentToolCallId"))
         return AssistantTurnStartData(
             turn_id=turn_id,
             interaction_id=interaction_id,
             model=model,
             worker_causality=worker_causality,
+            parent_tool_call_id=parent_tool_call_id,
         )
 
     def to_dict(self) -> dict:
@@ -3232,6 +3240,8 @@ class AssistantTurnStartData:
             result["model"] = from_union([from_none, from_str], self.model)
         if self.worker_causality is not None:
             result["workerCausality"] = from_union([from_none, lambda x: to_class(WorkerCausality, x)], self.worker_causality)
+        if self.parent_tool_call_id is not None:
+            result["parentToolCallId"] = from_union([from_none, from_str], self.parent_tool_call_id)
         return result
 
 
@@ -5836,6 +5846,7 @@ class ModelCallFailureData:
     max_output_tokens: int | None = None
     max_prompt_tokens: int | None = None
     model: str | None = None
+    parent_tool_call_id: str | None = None
     provider_call_id: str | None = None
     # Internal: this field is an internal SDK API and is not part of the public surface.
     _quota_snapshots: dict[str, _AssistantUsageQuotaSnapshot] | None = None
@@ -5866,6 +5877,7 @@ class ModelCallFailureData:
         max_output_tokens = from_union([from_none, from_int], obj.get("maxOutputTokens"))
         max_prompt_tokens = from_union([from_none, from_int], obj.get("maxPromptTokens"))
         model = from_union([from_none, from_str], obj.get("model"))
+        parent_tool_call_id = from_union([from_none, from_str], obj.get("parentToolCallId"))
         provider_call_id = from_union([from_none, from_str], obj.get("providerCallId"))
         _quota_snapshots = from_union([from_none, lambda x: from_dict(_AssistantUsageQuotaSnapshot.from_dict, x)], obj.get("quotaSnapshots"))
         reasoning_effort = from_union([from_none, from_str], obj.get("reasoningEffort"))
@@ -5892,6 +5904,7 @@ class ModelCallFailureData:
             max_output_tokens=max_output_tokens,
             max_prompt_tokens=max_prompt_tokens,
             model=model,
+            parent_tool_call_id=parent_tool_call_id,
             provider_call_id=provider_call_id,
             _quota_snapshots=_quota_snapshots,
             reasoning_effort=reasoning_effort,
@@ -5937,6 +5950,8 @@ class ModelCallFailureData:
             result["maxPromptTokens"] = from_union([from_none, to_int], self.max_prompt_tokens)
         if self.model is not None:
             result["model"] = from_union([from_none, from_str], self.model)
+        if self.parent_tool_call_id is not None:
+            result["parentToolCallId"] = from_union([from_none, from_str], self.parent_tool_call_id)
         if self.provider_call_id is not None:
             result["providerCallId"] = from_union([from_none, from_str], self.provider_call_id)
         if self._quota_snapshots is not None:
@@ -6048,6 +6063,7 @@ class ModelCallStartData:
     # Experimental: this field is part of an experimental API and may change or be removed.
     fusion: FusionAttribution | None = None
     model: str | None = None
+    parent_tool_call_id: str | None = None
     # Internal: this field is an internal SDK API and is not part of the public surface.
     _previous_response_id: str | None = None
 
@@ -6057,11 +6073,13 @@ class ModelCallStartData:
         turn_id = from_str(obj.get("turnId"))
         fusion = from_union([from_none, FusionAttribution.from_dict], obj.get("fusion"))
         model = from_union([from_none, from_str], obj.get("model"))
+        parent_tool_call_id = from_union([from_none, from_str], obj.get("parentToolCallId"))
         _previous_response_id = from_union([from_none, from_str], obj.get("previousResponseId"))
         return ModelCallStartData(
             turn_id=turn_id,
             fusion=fusion,
             model=model,
+            parent_tool_call_id=parent_tool_call_id,
             _previous_response_id=_previous_response_id,
         )
 
@@ -6072,6 +6090,8 @@ class ModelCallStartData:
             result["fusion"] = from_union([from_none, lambda x: to_class(FusionAttribution, x)], self.fusion)
         if self.model is not None:
             result["model"] = from_union([from_none, from_str], self.model)
+        if self.parent_tool_call_id is not None:
+            result["parentToolCallId"] = from_union([from_none, from_str], self.parent_tool_call_id)
         if self._previous_response_id is not None:
             result["previousResponseId"] = from_union([from_none, from_str], self._previous_response_id)
         return result

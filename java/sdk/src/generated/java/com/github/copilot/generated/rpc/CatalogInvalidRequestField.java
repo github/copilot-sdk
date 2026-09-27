@@ -16,6 +16,8 @@ import javax.annotation.processing.Generated;
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 public enum CatalogInvalidRequestField {
+    /** The {@code policySessionId} variant. */
+    POLICYSESSIONID("policySessionId"),
     /** The {@code query} variant. */
     QUERY("query"),
     /** The {@code limit} variant. */

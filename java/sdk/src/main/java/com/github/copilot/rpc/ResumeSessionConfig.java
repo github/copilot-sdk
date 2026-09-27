@@ -57,6 +57,7 @@ public class ResumeSessionConfig {
     private Boolean enableFileChangeTracking;
     private SessionLimitsConfig sessionLimits;
     private Boolean enableExperimentalMode;
+    private Boolean continuePendingWork;
     private Boolean skipCustomInstructions;
     private Boolean customAgentsLocalOnly;
     private Boolean coauthorEnabled;
@@ -138,6 +139,38 @@ public class ResumeSessionConfig {
      */
     public ResumeSessionConfig setModel(String model) {
         this.model = model;
+        return this;
+    }
+
+    /**
+     * Gets whether pending work should continue after resuming the session.
+     *
+     * @return the explicit choice, or empty to use the runtime default
+     */
+    @JsonIgnore
+    public Optional<Boolean> getContinuePendingWork() {
+        return Optional.ofNullable(continuePendingWork);
+    }
+
+    /**
+     * Sets whether to continue pending work when resuming the session.
+     *
+     * @param continuePendingWork
+     *            whether to continue pending work
+     * @return this config for method chaining
+     */
+    public ResumeSessionConfig setContinuePendingWork(boolean continuePendingWork) {
+        this.continuePendingWork = continuePendingWork;
+        return this;
+    }
+
+    /**
+     * Clears the pending-work choice so the runtime default applies.
+     *
+     * @return this config for method chaining
+     */
+    public ResumeSessionConfig clearContinuePendingWork() {
+        this.continuePendingWork = null;
         return this;
     }
 
@@ -2141,6 +2174,7 @@ public class ResumeSessionConfig {
         copy.enableFileChangeTracking = this.enableFileChangeTracking;
         copy.sessionLimits = this.sessionLimits;
         copy.enableExperimentalMode = this.enableExperimentalMode;
+        copy.continuePendingWork = this.continuePendingWork;
         copy.reasoningEffort = this.reasoningEffort;
         copy.reasoningSummary = this.reasoningSummary;
         copy.contextTier = this.contextTier;

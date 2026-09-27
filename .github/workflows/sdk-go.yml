@@ -80,6 +80,7 @@ jobs:
         run: |
           if [ "$COPILOT_SDK_DEFAULT_CONNECTION" = "inprocess" ]; then
             go test -v -race -timeout=20m ./internal/e2e -run '^TestInProcessFfiE2E$'
+            go test -v -race -timeout=20m ./internal/e2e -run '^TestClientE2E$/^should_use_configured_github_host_for_authentication$'
           else
             /bin/bash test.sh
           fi
@@ -140,6 +141,7 @@ jobs:
             cd "$COPILOT_SDK_ROOT/go"
             if [ "$COPILOT_SDK_TEST_TRANSPORT" = "inprocess" ]; then
               go test -v -race -timeout=20m ./internal/e2e -run '^TestInProcessFfiE2E$'
+              go test -v -race -timeout=20m ./internal/e2e -run '^TestClientE2E$/^should_use_configured_github_host_for_authentication$'
             else
               /bin/bash test.sh
             fi

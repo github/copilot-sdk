@@ -256,6 +256,7 @@ final class SessionRequestBuilder {
         }
 
         request.setModel(config.getModel());
+        config.getContinuePendingWork().ifPresent(request::setContinuePendingWork);
         request.setClientName(config.getClientName());
         request.setReasoningEffort(config.getReasoningEffort());
         request.setReasoningSummary(config.getReasoningSummary());

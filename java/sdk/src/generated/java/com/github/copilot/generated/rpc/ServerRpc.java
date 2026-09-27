@@ -67,6 +67,8 @@ public final class ServerRpc {
     public final ServerSessionsApi sessions;
     /** API methods for the {@code agentRegistry} namespace. */
     public final ServerAgentRegistryApi agentRegistry;
+    /** API methods for the {@code accounts} namespace. */
+    public final ServerAccountsApi accounts;
 
     /**
      * Creates a new server RPC client.
@@ -96,6 +98,7 @@ public final class ServerRpc {
         this.llmInference = new ServerLlmInferenceApi(caller);
         this.sessions = new ServerSessionsApi(caller);
         this.agentRegistry = new ServerAgentRegistryApi(caller);
+        this.accounts = new ServerAccountsApi(caller);
     }
 
     /**

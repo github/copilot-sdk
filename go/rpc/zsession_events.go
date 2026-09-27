@@ -1358,6 +1358,8 @@ type ModelCallFailureData struct {
 	MaxPromptTokens *int64 `json:"maxPromptTokens,omitempty"`
 	// Model identifier used for the failed API call
 	Model *string `json:"model,omitempty"`
+	// Parent task tool call ID when this failed model call belongs to a sub-agent
+	ParentToolCallID *string `json:"parentToolCallId,omitempty"`
 	// GitHub request tracing ID (x-github-request-id header) for server-side log correlation
 	ProviderCallID *string `json:"providerCallId,omitempty"`
 	// Per-quota usage snapshots parsed from the failed response's quota headers, keyed by quota identifier. Present when the error response carried quota headers (e.g. a 402 once the additional spend limit is reached) so the UI can refresh the quota display on failure.
@@ -1869,6 +1871,8 @@ type ModelCallStartData struct {
 	Fusion *FusionAttribution `json:"fusion,omitempty"`
 	// Model identifier used for this API call, when known
 	Model *string `json:"model,omitempty"`
+	// Parent task tool call ID when this model call belongs to a sub-agent
+	ParentToolCallID *string `json:"parentToolCallId,omitempty"`
 	// Previous response or interaction identifier included in the model request, when present
 	// Internal: PreviousResponseID is part of the SDK's internal API surface and is not intended for external use.
 	PreviousResponseID *string `json:"previousResponseId,omitempty"`
@@ -3175,6 +3179,8 @@ func (*AbortData) Type() SessionEventType { return SessionEventTypeAbort }
 type AssistantTurnEndData struct {
 	// Model identifier used for this turn, when known
 	Model *string `json:"model,omitempty"`
+	// Parent task tool call ID when this turn belongs to a sub-agent
+	ParentToolCallID *string `json:"parentToolCallId,omitempty"`
 	// Identifier of the turn that has ended, matching the corresponding assistant.turn_start event
 	TurnID string `json:"turnId"`
 }
@@ -3188,6 +3194,8 @@ type AssistantTurnStartData struct {
 	InteractionID *string `json:"interactionId,omitempty"`
 	// Model identifier used for this turn, when known
 	Model *string `json:"model,omitempty"`
+	// Parent task tool call ID when this turn belongs to a sub-agent
+	ParentToolCallID *string `json:"parentToolCallId,omitempty"`
 	// Identifier for this turn within the agentic loop, typically a stringified turn number
 	TurnID string `json:"turnId"`
 	// Optional bounded worker observations. Missing or invalid metadata is unavailable, not known-empty.

@@ -50,6 +50,8 @@ public record Model(
     /** Informational notices the service published for this model, such as an upcoming change or a recommended alternative. Present only when the service published at least one notice. Hosts should surface these without implying anything is wrong with the model. */
     @JsonProperty("infoMessages") List<ModelMessage> infoMessages,
     /** Warnings the service published for this model, such as a deprecated client version. Present only when the service published at least one warning. The model remains usable; hosts should surface these as advisory rather than blocking. */
-    @JsonProperty("warningMessages") List<ModelMessage> warningMessages
+    @JsonProperty("warningMessages") List<ModelMessage> warningMessages,
+    /** The model provider that produced this model, as a neutral reference (opaque id, human-readable label, and provider kind). Present on models returned by `session.model.list`, which resolves provider attribution from the session's account roster; absent on the flat `server.models.list`, which does not resolve a session roster. The model picker groups by this reference. */
+    @JsonProperty("provider") ModelProviderRef provider
 ) {
 }

@@ -317,10 +317,12 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
         var releaseOriginalToolA = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
         var releaseOriginalToolB = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
 
+        Console.Error.WriteLine("Parallel pending-work resume: starting server");
         await using var server = Ctx.CreateClient(options: new CopilotClientOptions { Connection = RuntimeConnection.ForTcp(connectionToken: SharedToken) });
-        await server.StartAsync();
+        await server.StartAsync().WaitAsync(PendingWorkTimeout);
         var cliUrl = GetCliUrl(server);
 
+        Console.Error.WriteLine("Parallel pending-work resume: creating original session");
         using var suspendedClient = Ctx.CreateClient(options: new CopilotClientOptions { Connection = RuntimeConnection.ForUri(cliUrl, connectionToken: SharedToken) });
         var session1 = await Ctx.CreateSessionAsync(suspendedClient, new SessionConfig
         {
@@ -330,18 +332,20 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
                 AIFunctionFactory.Create(BlockingToolB, "pending_lookup_b"),
             ],
             OnPermissionRequest = PermissionHandler.ApproveAll,
-        });
+        }).WaitAsync(PendingWorkTimeout);
         var sessionId = session1.SessionId;
 
         try
         {
             var toolRequests = WaitForExternalToolRequestsAsync(session1, ["pending_lookup_a", "pending_lookup_b"]);
 
+            Console.Error.WriteLine("Parallel pending-work resume: sending original prompt");
             await session1.SendAsync(new MessageOptions
             {
                 Prompt = "Call pending_lookup_a with value 'alpha' and pending_lookup_b with value 'beta', then reply with both results.",
-            });
+            }).WaitAsync(PendingWorkTimeout);
 
+            Console.Error.WriteLine("Parallel pending-work resume: waiting for both tool requests and handlers");
             var toolEvents = await toolRequests;
             await Task.WhenAll(
                 originalToolAStarted.Task,
@@ -349,29 +353,68 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
             Assert.Equal("alpha", await originalToolAStarted.Task);
             Assert.Equal("beta", await originalToolBStarted.Task);
 
+            Console.Error.WriteLine("Parallel pending-work resume: disconnecting original client");
             await suspendedClient.ForceStopAsync();
             releaseOriginalToolA.TrySetResult("ORIGINAL_A_SHOULD_NOT_WIN");
             releaseOriginalToolB.TrySetResult("ORIGINAL_B_SHOULD_NOT_WIN");
 
+            Console.Error.WriteLine("Parallel pending-work resume: resuming session");
             await using var resumedClient = Ctx.CreateClient(options: new CopilotClientOptions { Connection = RuntimeConnection.ForUri(cliUrl, connectionToken: SharedToken) });
             var session2 = await Ctx.ResumeSessionAsync(resumedClient, sessionId, new ResumeSessionConfig
             {
                 ContinuePendingWork = true,
                 OnPermissionRequest = PermissionHandler.ApproveAll,
-            });
+            }).WaitAsync(PendingWorkTimeout);
 
             var toolA = toolEvents["pending_lookup_a"];
             var toolB = toolEvents["pending_lookup_b"];
+            var completionEvents = new List<SessionEvent>();
+            var completionEventsLock = new object();
+            using var completionSubscription = session2.On<SessionEvent>(evt =>
+            {
+                if (evt is AssistantMessageEvent or SessionIdleEvent)
+                {
+                    lock (completionEventsLock)
+                    {
+                        completionEvents.Add(evt);
+                    }
+                }
+            });
+            var finalResponse = TestHelper.GetNextEventOfTypeAsync<AssistantMessageEvent>(
+                session2,
+                message => message.Data.Content?.Contains("PARALLEL_A_ALPHA", StringComparison.Ordinal) == true
+                    && message.Data.Content.Contains("PARALLEL_B_BETA", StringComparison.Ordinal),
+                PendingWorkTimeout);
+            var resumedTurnIdle = TestHelper.GetNextEventOfTypeAsync<SessionIdleEvent>(session2, PendingWorkTimeout);
+            Console.Error.WriteLine("Parallel pending-work resume: resolving tool B");
             var resultB = await session2.Rpc.Tools.HandlePendingToolCallAsync(
                 toolB.Data.RequestId,
-                result: JsonDocument.Parse("\"PARALLEL_B_BETA\"").RootElement.Clone());
+                result: JsonDocument.Parse("\"PARALLEL_B_BETA\"").RootElement.Clone()).WaitAsync(PendingWorkTimeout);
             Assert.True(resultB.Success);
+            Console.Error.WriteLine("Parallel pending-work resume: resolving tool A");
             var resultA = await session2.Rpc.Tools.HandlePendingToolCallAsync(
                 toolA.Data.RequestId,
-                result: JsonDocument.Parse("\"PARALLEL_A_ALPHA\"").RootElement.Clone());
+                result: JsonDocument.Parse("\"PARALLEL_A_ALPHA\"").RootElement.Clone()).WaitAsync(PendingWorkTimeout);
             Assert.True(resultA.Success);
+            // Acknowledging both tool results does not mean their resumed turn has finished.
+            await finalResponse;
+            await resumedTurnIdle;
+            List<SessionEvent> observedCompletionEvents;
+            lock (completionEventsLock)
+            {
+                observedCompletionEvents = completionEvents.ToList();
+            }
+            var responseIndex = observedCompletionEvents.FindIndex(evt =>
+                evt is AssistantMessageEvent message
+                && message.Data.Content?.Contains("PARALLEL_A_ALPHA", StringComparison.Ordinal) == true
+                && message.Data.Content.Contains("PARALLEL_B_BETA", StringComparison.Ordinal));
+            var idleIndex = observedCompletionEvents.FindIndex(evt => evt is SessionIdleEvent);
+            Assert.True(responseIndex >= 0 && idleIndex > responseIndex,
+                $"Expected the final assistant message before session.idle. Observed: {string.Join(", ", observedCompletionEvents.Select(evt => evt.Type))}");
 
+            Console.Error.WriteLine("Parallel pending-work resume: detaching resumed session");
             await session2.DisposeAsync();
+            Console.Error.WriteLine("Parallel pending-work resume: stopping resumed client");
             await resumedClient.ForceStopAsync();
         }
         finally
@@ -379,6 +422,7 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
             releaseOriginalToolA.TrySetResult("ORIGINAL_A_SHOULD_NOT_WIN");
             releaseOriginalToolB.TrySetResult("ORIGINAL_B_SHOULD_NOT_WIN");
         }
+        Console.Error.WriteLine("Parallel pending-work resume: disposing original client and server");
 
         [Description("Looks up the first value after resumption")]
         async Task<string> BlockingToolA(

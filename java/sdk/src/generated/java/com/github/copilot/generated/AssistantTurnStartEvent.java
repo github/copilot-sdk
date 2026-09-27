@@ -42,11 +42,23 @@ public final class AssistantTurnStartEvent extends SessionEvent {
         /** Model identifier used for this turn, when known */
         @JsonProperty("model") String model,
         /** CAPI interaction ID for correlating this turn with upstream telemetry */
-        @JsonProperty("interactionId") String interactionId
+        @JsonProperty("interactionId") String interactionId,
+        /** Parent task tool call ID when this turn belongs to a sub-agent */
+        @JsonProperty("parentToolCallId") String parentToolCallId
     ) {
         /** Creates a value without optional worker diagnostics. */
+        public AssistantTurnStartEventData(String turnId, String model, String interactionId, String parentToolCallId) {
+            this(null, turnId, model, interactionId, parentToolCallId);
+        }
+
+        /** Creates a value without an optional parent task tool call ID. */
+        public AssistantTurnStartEventData(WorkerCausality workerCausality, String turnId, String model, String interactionId) {
+            this(workerCausality, turnId, model, interactionId, null);
+        }
+
+        /** Creates a value without optional worker diagnostics or a parent task tool call ID. */
         public AssistantTurnStartEventData(String turnId, String model, String interactionId) {
-            this(null, turnId, model, interactionId);
+            this(null, turnId, model, interactionId, null);
         }
     }
 }

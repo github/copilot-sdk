@@ -2,12 +2,15 @@ package testharness
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
 	"os/exec"
 	"regexp"
+	"runtime"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -115,19 +118,38 @@ func listTopLevelTests() ([]string, error) {
 	return tests, nil
 }
 
-func runIsolatedProcess(ctx context.Context, name, selector string, timeout time.Duration) error {
+func runIsolatedProcess(ctx context.Context, name, selector string, timeout time.Duration) (resultErr error) {
 	executable, err := os.Executable()
 	if err != nil {
 		return fmt.Errorf("locate test executable: %w", err)
 	}
+	outputFile, err := os.CreateTemp("", "copilot-sdk-isolated-e2e-")
+	if err != nil {
+		return fmt.Errorf("create isolated FFI output file: %w", err)
+	}
+	defer func() {
+		if err := os.Remove(outputFile.Name()); err != nil {
+			if runtime.GOOS == "windows" && errors.Is(err, syscall.Errno(32)) {
+				// An inherited handle can keep the file open after the test exits.
+				fmt.Fprintf(os.Stderr, "isolated FFI output remains open by a descendant: %v\n", err)
+				return
+			}
+			resultErr = errors.Join(resultErr, fmt.Errorf("remove isolated FFI output file: %w", err))
+		}
+	}()
 	command := exec.CommandContext(ctx, executable, isolatedTestArgs(os.Args[1:], selector, false, timeout)...)
 	command.Env = setEnvironmentValue(os.Environ(), isolatedInProcessTestEnv, name)
 	command.WaitDelay = 5 * time.Second
+	// Native-host descendants can inherit stdout; avoid waiting for their pipe handles after the test exits.
+	command.Stdout = outputFile
+	command.Stderr = outputFile
 	PrepareForProcessWait()
-	output, err := command.CombinedOutput()
+	runErr := command.Run()
+	closeErr := outputFile.Close()
+	output, readErr := os.ReadFile(outputFile.Name())
 	fmt.Print(string(output))
-	if err != nil {
-		return fmt.Errorf("isolated FFI test %s failed: %w", name, err)
+	if runErr != nil || closeErr != nil || readErr != nil {
+		return fmt.Errorf("isolated FFI test %s failed: %w", name, errors.Join(runErr, closeErr, readErr))
 	}
 	if !strings.Contains(string(output), "--- PASS: "+name+" (") &&
 		!strings.Contains(string(output), "--- SKIP: "+name+" (") {

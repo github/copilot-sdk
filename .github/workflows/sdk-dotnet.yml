@@ -39,7 +39,7 @@ jobs:
         working-directory: ${{ inputs.sdk-home }}/dotnet
     env:
       COPILOT_SDK_E2E_BACKEND: capi
-      DOTNET_TEST_FILTER: ${{ matrix.transport == 'inprocess' && 'FullyQualifiedName~GitHub.Copilot.Test.E2E.ClientE2ETests.Should_Start_And_Connect_Over_InProcess_Ffi|FullyQualifiedName~GitHub.Copilot.Test.E2E.SessionE2ETests.Should_Receive_Session_Events' || '' }}
+      DOTNET_TEST_FILTER: ${{ matrix.transport == 'inprocess' && 'FullyQualifiedName~GitHub.Copilot.Test.E2E.ClientE2ETests.Should_Start_And_Connect_Over_InProcess_Ffi|FullyQualifiedName~GitHub.Copilot.Test.E2E.SessionE2ETests.Should_Receive_Session_Events|FullyQualifiedName~GitHub.Copilot.Test.E2E.ClientOptionsE2ETests.Should_Use_Configured_GitHub_Host_For_Authentication' || '' }}
       DOTNET_TEST_SHARD: full
       COPILOT_SDK_DEFAULT_CONNECTION: ${{ matrix.transport == 'inprocess' && 'inprocess' || '' }}
     steps:
@@ -312,7 +312,7 @@ jobs:
               -p:CopilotSkipCliDownload=true
             set --
             if [ "$COPILOT_SDK_TEST_TRANSPORT" = "inprocess" ]; then
-              set -- --filter 'FullyQualifiedName~GitHub.Copilot.Test.E2E.ClientE2ETests.Should_Start_And_Connect_Over_InProcess_Ffi|FullyQualifiedName~GitHub.Copilot.Test.E2E.SessionE2ETests.Should_Receive_Session_Events'
+              set -- --filter 'FullyQualifiedName~GitHub.Copilot.Test.E2E.ClientE2ETests.Should_Start_And_Connect_Over_InProcess_Ffi|FullyQualifiedName~GitHub.Copilot.Test.E2E.SessionE2ETests.Should_Receive_Session_Events|FullyQualifiedName~GitHub.Copilot.Test.E2E.ClientOptionsE2ETests.Should_Use_Configured_GitHub_Host_For_Authentication'
             fi
             dotnet test "$COPILOT_SDK_ROOT/dotnet/test/GitHub.Copilot.SDK.Test.csproj" \
               --no-restore \

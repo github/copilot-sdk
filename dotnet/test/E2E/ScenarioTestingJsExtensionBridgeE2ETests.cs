@@ -304,32 +304,35 @@ public class ScenarioTestingJsExtensionBridgeE2ETests(E2ETestFixture fixture, IT
             $"{source.Value}:{extensionName}");
     }
 
-    private static async Task<RpcExtension> WaitForExtensionAsync(
+    private async Task<RpcExtension> WaitForExtensionAsync(
         CopilotSession session,
         string extensionId,
         ExtensionStatus expectedStatus = default)
     {
         expectedStatus = expectedStatus == default ? ExtensionStatus.Running : expectedStatus;
         RpcExtension? extension = null;
+        string lastExtensions = "<no response>";
         await TestHelper.WaitForConditionAsync(
             async () =>
             {
                 var list = await session.Rpc.Extensions.ListAsync();
+                lastExtensions = string.Join(", ", list.Extensions.Select(item => $"{item.Id}: {item.Status}"));
                 extension = list.Extensions.FirstOrDefault(
                     item => string.Equals(item.Id, extensionId, StringComparison.Ordinal));
                 return extension?.Status == expectedStatus;
             },
             timeout: ExtensionTimeout,
             pollInterval: TimeSpan.FromMilliseconds(100),
-            timeoutMessage: $"Timed out waiting for extension '{extensionId}'.",
+            timeoutMessageFactory: () => $"Timed out waiting for extension '{extensionId}' (listed: [{lastExtensions}]; launch markers: {TestHelper.ExtensionLaunchMarkers(Ctx.HomeDir, extensionId)}).",
             transientExceptionFilter: ex =>
                 ex.ToString().Contains("Extensions not available", StringComparison.OrdinalIgnoreCase));
         return extension!;
     }
 
-    private static async Task<DiscoveredCanvas> WaitForCanvasAsync(CopilotSession session, string extensionId)
+    private async Task<DiscoveredCanvas> WaitForCanvasAsync(CopilotSession session, string extensionId)
     {
         DiscoveredCanvas? canvas = null;
+        string lastExtensions = "<no response>";
         await TestHelper.WaitForConditionAsync(
             async () =>
             {
@@ -337,11 +340,16 @@ public class ScenarioTestingJsExtensionBridgeE2ETests(E2ETestFixture fixture, IT
                 canvas = list.Canvases.FirstOrDefault(
                     item => string.Equals(item.ExtensionId, extensionId, StringComparison.Ordinal)
                         && string.Equals(item.CanvasId, "js-scenario-canvas", StringComparison.Ordinal));
+                if (canvas is null)
+                {
+                    var extensions = await session.Rpc.Extensions.ListAsync();
+                    lastExtensions = string.Join(", ", extensions.Extensions.Select(item => $"{item.Id}: {item.Status}"));
+                }
                 return canvas is not null;
             },
             timeout: ExtensionTimeout,
             pollInterval: TimeSpan.FromMilliseconds(100),
-            timeoutMessage: $"Timed out waiting for canvas from extension '{extensionId}'.");
+            timeoutMessageFactory: () => $"Timed out waiting for canvas from extension '{extensionId}' (listed: [{lastExtensions}]; launch markers: {TestHelper.ExtensionLaunchMarkers(Ctx.HomeDir, extensionId)}).");
         return canvas!;
     }
 
@@ -490,6 +498,7 @@ public class ScenarioTestingJsExtensionBridgeE2ETests(E2ETestFixture fixture, IT
 
         const traceFile = process.env.SCENARIO_EXTENSION_TRACE_FILE;
         const workingDirectory = process.env.SCENARIO_EXTENSION_WORKING_DIRECTORY;
+        console.error("[sdk-extension-test] imported");
 
         function record(kind, data = {}) {
           appendFileSync(traceFile, `${JSON.stringify({ kind, ...data })}\n`);
@@ -556,11 +565,19 @@ public class ScenarioTestingJsExtensionBridgeE2ETests(E2ETestFixture fixture, IT
           onClose: context => record("close", context)
         });
 
-        session = await joinSession({
-          workingDirectory,
-          tools: [],
-          canvases: [canvas]
-        });
+        console.error("[sdk-extension-test] joining");
+        try {
+          session = await joinSession({
+            workingDirectory,
+            tools: [],
+            canvases: [canvas]
+          });
+        } catch (error) {
+          const code = typeof error?.code === "number" ? error.code : "none";
+          console.error(`[sdk-extension-test] join failed code=${code}`);
+          throw error;
+        }
+        console.error("[sdk-extension-test] joined");
 
         record("joined", {
           sessionId: session.sessionId,
@@ -569,6 +586,7 @@ public class ScenarioTestingJsExtensionBridgeE2ETests(E2ETestFixture fixture, IT
           cwd: process.cwd()
         });
         await session.log("JS_EXTENSION_LOG");
+        console.error("[sdk-extension-test] logged");
 
         setInterval(() => {}, 60_000).unref?.();
         """;

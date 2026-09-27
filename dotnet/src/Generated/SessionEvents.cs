@@ -3672,6 +3672,11 @@ public sealed partial class AssistantTurnStartData
     [JsonPropertyName("model")]
     public string? Model { get; set; }
 
+    /// <summary>Parent task tool call ID when this turn belongs to a sub-agent.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("parentToolCallId")]
+    public string? ParentToolCallId { get; set; }
+
     /// <summary>Identifier for this turn within the agentic loop, typically a stringified turn number.</summary>
     [JsonPropertyName("turnId")]
     public required string TurnId { get; set; }
@@ -4225,6 +4230,11 @@ public sealed partial class AssistantTurnEndData
     [JsonPropertyName("model")]
     public string? Model { get; set; }
 
+    /// <summary>Parent task tool call ID when this turn belongs to a sub-agent.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("parentToolCallId")]
+    public string? ParentToolCallId { get; set; }
+
     /// <summary>Identifier of the turn that has ended, matching the corresponding assistant.turn_start event.</summary>
     [JsonPropertyName("turnId")]
     public required string TurnId { get; set; }
@@ -4692,6 +4702,11 @@ public sealed partial class ModelCallFailureData
     [JsonPropertyName("model")]
     public string? Model { get; set; }
 
+    /// <summary>Parent task tool call ID when this failed model call belongs to a sub-agent.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("parentToolCallId")]
+    public string? ParentToolCallId { get; set; }
+
     /// <summary>GitHub request tracing ID (x-github-request-id header) for server-side log correlation.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("providerCallId")]
@@ -4782,6 +4797,11 @@ public sealed partial class ModelCallStartData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("model")]
     public string? Model { get; set; }
+
+    /// <summary>Parent task tool call ID when this model call belongs to a sub-agent.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("parentToolCallId")]
+    public string? ParentToolCallId { get; set; }
 
     /// <summary>Previous response or interaction identifier included in the model request, when present.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

@@ -43,7 +43,7 @@ IMPORTANT: You MUST include the exact text "${SKILL_MARKER}" somewhere in EVERY 
     }
 
     describe("Skill Behavior", () => {
-        it("discovers a new skill on the next turn and makes it available to a subagent", async () => {
+        it("loads a new skill after explicit reload and makes it available to a subagent", async () => {
             const lateSkillsDir = path.join(workDir, ".late_skills");
             const skillResults: { sessionId: string; text: string }[] = [];
             const session = await client.createSession({
@@ -76,6 +76,19 @@ IMPORTANT: You MUST include the exact text "${SKILL_MARKER}" somewhere in EVERY 
                     path.join(skillDir, "SKILL.md"),
                     "---\nname: late-skill\ndescription: Reports a unique verification word.\n---\n\nThe verification word is ORCHID_SAPPHIRE_73.\n"
                 );
+
+                await session.rpc.skills.ensureLoaded();
+                const beforeReload = await session.rpc.skills.list();
+                expect(beforeReload.skills.some((skill) => skill.name === "late-skill")).toBe(
+                    false
+                );
+
+                const reload = await session.rpc.skills.reload();
+                expect(reload.errors).toEqual([]);
+                const afterReload = await session.rpc.skills.list();
+                expect(
+                    afterReload.skills.find((skill) => skill.name === "late-skill")?.enabled
+                ).toBe(true);
 
                 const second = await session.sendAndWait({
                     prompt: "Use the skill tool to load late-skill, then use the task tool to ask a task agent to load late-skill with the skill tool and report its verification word. Report the agent's word.",

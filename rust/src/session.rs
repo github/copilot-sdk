@@ -258,6 +258,7 @@ struct PendingSessionRegistration {
     session_id: PendingSessionId,
     shutdown: CancellationToken,
     external_tools_shutdown: CancellationToken,
+    startup_tasks: Arc<StartupTasks>,
     disarmed: bool,
 }
 
@@ -290,6 +291,7 @@ impl PendingSessionRegistration {
             session_id: PendingSessionId::Known(session_id, token),
             shutdown,
             external_tools_shutdown,
+            startup_tasks: Arc::new(StartupTasks::default()),
             disarmed: false,
         }
     }
@@ -300,14 +302,31 @@ impl PendingSessionRegistration {
         stash: Arc<ParkingLotMutex<Option<(SessionId, crate::router::SessionRegistration)>>>,
         shutdown: CancellationToken,
         external_tools_shutdown: CancellationToken,
-    ) -> Self {
-        Self {
-            client,
-            session_id: PendingSessionId::Deferred(stash),
-            shutdown,
+    ) -> (Self, crate::jsonrpc::InlineResponseCallback) {
+        let guard = Self {
+            client: client.clone(),
+            session_id: PendingSessionId::Deferred(stash.clone()),
+            shutdown: shutdown.clone(),
             external_tools_shutdown,
+            startup_tasks: Arc::new(StartupTasks::default()),
             disarmed: false,
-        }
+        };
+        let callback: crate::jsonrpc::InlineResponseCallback = Box::new(move |response| {
+            let result = response.result.as_ref().ok_or_else(|| {
+                Error::with_message(ErrorKind::Json, "session.create response had no result")
+            })?;
+            let parsed: CreateSessionResult = serde_json::from_value(result.clone())?;
+            // Cancellation sets shutdown before inspecting this stash. Under the
+            // same lock, either registration wins and is cleaned up, or it is rejected.
+            let mut stashed = stash.lock();
+            if shutdown.is_cancelled() {
+                return Err(ErrorKind::Session(SessionErrorKind::EventLoopClosed).into());
+            }
+            let registration = client.register_session(&parsed.session_id);
+            *stashed = Some((parsed.session_id, registration));
+            Ok(())
+        });
+        (guard, callback)
     }
 
     fn registered_id(&self) -> Option<SessionId> {
@@ -324,9 +343,15 @@ impl PendingSessionRegistration {
         self.session_id = PendingSessionId::Known(session_id, token);
     }
 
-    async fn cleanup(mut self, event_loop: JoinHandle<()>) {
+    fn cancel(&self) {
         self.external_tools_shutdown.cancel();
         self.shutdown.cancel();
+        // Later callback spawns are rejected without polling their futures.
+        self.startup_tasks.abort();
+    }
+
+    async fn cleanup(mut self, event_loop: JoinHandle<()>) {
+        self.cancel();
         let _ = event_loop.await;
         if let Some(id) = self.registered_id() {
             if let PendingSessionId::Known(_, token) = self.session_id {
@@ -341,6 +366,7 @@ impl PendingSessionRegistration {
     }
 
     fn disarm(&mut self) {
+        self.startup_tasks.disarm();
         self.disarmed = true;
     }
 }
@@ -348,8 +374,7 @@ impl PendingSessionRegistration {
 impl Drop for PendingSessionRegistration {
     fn drop(&mut self) {
         if !self.disarmed {
-            self.external_tools_shutdown.cancel();
-            self.shutdown.cancel();
+            self.cancel();
             if let Some(id) = self.registered_id() {
                 if let PendingSessionId::Known(_, token) = self.session_id {
                     self.client.unregister_session_owned(&id, token);
@@ -377,10 +402,7 @@ struct StartupTasks {
 }
 
 enum StartupTaskState {
-    Pending {
-        tasks: Vec<JoinHandle<()>>,
-        nested: Vec<tokio::task::AbortHandle>,
-    },
+    Pending(Vec<tokio::task::AbortHandle>),
     Disarmed,
     Aborted,
 }
@@ -388,38 +410,18 @@ enum StartupTaskState {
 impl Default for StartupTasks {
     fn default() -> Self {
         Self {
-            state: ParkingLotMutex::new(StartupTaskState::Pending {
-                tasks: Vec::new(),
-                nested: Vec::new(),
-            }),
+            state: ParkingLotMutex::new(StartupTaskState::Pending(Vec::new())),
         }
     }
 }
 
 impl StartupTasks {
-    fn track(&self, task: JoinHandle<()>) {
-        match &mut *self.state.lock() {
-            StartupTaskState::Pending { tasks, .. } => tasks.push(task),
-            StartupTaskState::Disarmed => {}
-            StartupTaskState::Aborted => task.abort(),
-        }
-    }
-
-    fn track_nested<T>(&self, task: &JoinHandle<T>) {
-        match &mut *self.state.lock() {
-            StartupTaskState::Pending { nested, .. } => nested.push(task.abort_handle()),
-            StartupTaskState::Disarmed => {}
-            StartupTaskState::Aborted => task.abort(),
-        }
-    }
-
     fn abort(&self) {
-        if let StartupTaskState::Pending { tasks, nested } =
+        if let StartupTaskState::Pending(tasks) =
             std::mem::replace(&mut *self.state.lock(), StartupTaskState::Aborted)
         {
-            for handle in nested {
-                handle.abort();
-            }
+            // Parents register before their nested handlers; cancel them before
+            // aborting children can wake their JoinHandle waiters.
             for handle in tasks {
                 handle.abort();
             }
@@ -431,43 +433,33 @@ impl StartupTasks {
     }
 }
 
-fn spawn_startup_tracked(
-    future: impl std::future::Future<Output = ()> + Send + 'static,
+fn spawn_startup_tracked<F>(
+    future: F,
     startup_tasks: Option<&Arc<StartupTasks>>,
-) {
+) -> Option<JoinHandle<F::Output>>
+where
+    F: std::future::Future + Send + 'static,
+    F::Output: Send + 'static,
+{
+    // Hold the cancellation lock across spawn and registration: another worker
+    // can poll the task immediately, before tokio::spawn returns.
+    let mut state = startup_tasks.map(|tasks| tasks.state.lock());
+    if matches!(state.as_deref(), Some(StartupTaskState::Aborted)) {
+        return None;
+    }
     let task = tokio::spawn(future);
-    if let Some(startup_tasks) = startup_tasks {
-        startup_tasks.track(task);
+    if let Some(StartupTaskState::Pending(tasks)) = state.as_deref_mut() {
+        tasks.push(task.abort_handle());
     }
-}
-
-struct RunningCreateLoop {
-    event_loop: Option<JoinHandle<()>>,
-    startup_tasks: Arc<StartupTasks>,
-}
-
-impl RunningCreateLoop {
-    fn into_handle(mut self) -> JoinHandle<()> {
-        self.event_loop
-            .take()
-            .expect("running create loop has a handle")
-    }
-}
-
-impl Drop for RunningCreateLoop {
-    fn drop(&mut self) {
-        if let Some(event_loop) = self.event_loop.take() {
-            self.startup_tasks.abort();
-            event_loop.abort();
-        }
-    }
+    Some(task)
 }
 
 /// A create loop starts before the RPC when the client knows the session ID.
 /// Server-assigned IDs require waiting for the response to register the loop.
+/// The registration guard signals shutdown; inline dispatch never awaits user callbacks.
 enum CreateEventLoop {
     Running {
-        running: RunningCreateLoop,
+        event_loop: JoinHandle<()>,
         token: crate::router::RegistrationToken,
     },
     Deferred(EventLoopSpawner),
@@ -476,11 +468,8 @@ enum CreateEventLoop {
 impl CreateEventLoop {
     async fn cleanup(self, pending_registration: PendingSessionRegistration) {
         match self {
-            Self::Running { running, .. } => {
-                pending_registration.shutdown.cancel();
-                // User handlers may not terminate; abort them without waiting on their futures.
-                running.startup_tasks.abort();
-                pending_registration.cleanup(running.into_handle()).await;
+            Self::Running { event_loop, .. } => {
+                pending_registration.cleanup(event_loop).await;
             }
             Self::Deferred(_) => drop(pending_registration),
         }
@@ -1687,12 +1676,6 @@ impl Client {
             if let Some(ref sid) = local_session_id {
                 let registration = self.register_session(sid);
                 let token = registration.token;
-                let startup_tasks = Arc::new(StartupTasks::default());
-                let event_loop = spawn_loop(
-                    sid.clone(),
-                    registration.channels,
-                    Some(startup_tasks.clone()),
-                );
                 let guard = PendingSessionRegistration::new(
                     self.clone(),
                     sid.clone(),
@@ -1700,54 +1683,20 @@ impl Client {
                     shutdown.clone(),
                     external_tools_shutdown.clone(),
                 );
+                let event_loop = spawn_loop(
+                    sid.clone(),
+                    registration.channels,
+                    Some(guard.startup_tasks.clone()),
+                );
                 (
                     None,
                     guard,
-                    CreateEventLoop::Running {
-                        running: RunningCreateLoop {
-                            event_loop: Some(event_loop),
-                            startup_tasks,
-                        },
-                        token,
-                    },
+                    CreateEventLoop::Running { event_loop, token },
                     None,
                 )
             } else {
                 let inline_stash = Arc::new(ParkingLotMutex::new(None));
-                let client = self.clone();
-                let stash = inline_stash.clone();
-                let expected = caller_session_id.clone();
-                let callback: crate::jsonrpc::InlineResponseCallback = Box::new(move |response| {
-                    let result = response.result.as_ref().ok_or_else(|| {
-                        Error::with_message(
-                            ErrorKind::Json,
-                            "session.create response had no result",
-                        )
-                    })?;
-                    let parsed: CreateSessionResult =
-                        serde_json::from_value(result.clone()).map_err(Error::from)?;
-                    if let Some(requested) = expected.as_ref()
-                        && parsed.session_id != *requested
-                    {
-                        return Err(ErrorKind::Session(SessionErrorKind::SessionIdMismatch {
-                            requested: requested.clone(),
-                            returned: parsed.session_id,
-                        })
-                        .into());
-                    }
-                    // Register and stash under a single stash-lock hold. The
-                    // cancellation guard identifies the session to unregister by
-                    // peeking this stash, so registering outside the lock would
-                    // leave a window where a concurrent guard drop (caller
-                    // cancellation) sees `None` and leaks the registration.
-                    // `register_session` takes the router lock, never the stash
-                    // lock, so there is no lock-order inversion here.
-                    let mut stashed = stash.lock();
-                    let registration = client.register_session(&parsed.session_id);
-                    *stashed = Some((parsed.session_id, registration));
-                    Ok(())
-                });
-                let guard = PendingSessionRegistration::deferred(
+                let (guard, callback) = PendingSessionRegistration::deferred(
                     self.clone(),
                     inline_stash.clone(),
                     shutdown.clone(),
@@ -1796,13 +1745,8 @@ impl Client {
         }
 
         let (session_id, event_loop, registration_token) = match event_loop {
-            CreateEventLoop::Running { running, token } => {
-                running.startup_tasks.disarm();
-                (
-                    create_result.session_id.clone(),
-                    running.into_handle(),
-                    token,
-                )
+            CreateEventLoop::Running { event_loop, token } => {
+                (create_result.session_id.clone(), event_loop, token)
             }
             CreateEventLoop::Deferred(spawn_loop) => {
                 let (session_id, registration) = inline_stash
@@ -1811,7 +1755,11 @@ impl Client {
                     .take()
                     .expect("session registration must have populated stash on success");
                 pending_registration.resolve_to(session_id.clone(), registration.token);
-                let event_loop = spawn_loop(session_id.clone(), registration.channels, None);
+                let event_loop = spawn_loop(
+                    session_id.clone(),
+                    registration.channels,
+                    Some(pending_registration.startup_tasks.clone()),
+                );
                 (session_id, event_loop, registration.token)
             }
         };
@@ -1836,7 +1784,6 @@ impl Client {
             session_id = %session_id,
             "Client::create_session complete"
         );
-        pending_registration.disarm();
         let session = Session {
             id: session_id,
             cwd: self.cwd().clone(),
@@ -1854,22 +1801,15 @@ impl Client {
             github_token_registration: ParkingLotMutex::new(github_token_registration),
             registration_token,
         };
-        apply_mode_post_create_patch(
-            &session,
+        let patch = build_mode_post_create_patch(
             mode,
             opt_skip_custom_instructions,
             opt_custom_agents_local_only,
             opt_coauthor_enabled,
             opt_manage_schedule_enabled,
             opt_included_builtin_skills,
-        )
-        .await?;
-        if let Some(registration) = session.github_token_registration.lock().as_ref() {
-            registration.claim(session.id.clone());
-        } else {
-            self.retire_github_token_provider(&session.id);
-        }
-        Ok(session)
+        );
+        finish_session_setup(session, pending_registration, patch).await
     }
 
     /// Resume an existing session on the CLI.
@@ -2018,6 +1958,13 @@ impl Client {
         let idle_waiter = Arc::new(ParkingLotMutex::new(None));
         let open_canvases = Arc::new(parking_lot::RwLock::new(Vec::new()));
         let external_tools_shutdown = self.inner.rpc.connection_closed_token();
+        let registration = PendingSessionRegistration::new(
+            self.clone(),
+            session_id.clone(),
+            registration_token,
+            shutdown.clone(),
+            external_tools_shutdown.clone(),
+        );
         let event_loop = spawn_event_loop(
             session_id.clone(),
             self.clone(),
@@ -2036,14 +1983,7 @@ impl Client {
             resume_bootstrap.clone(),
             shutdown.clone(),
             external_tools_shutdown.clone(),
-            None,
-        );
-        let mut registration = PendingSessionRegistration::new(
-            self.clone(),
-            session_id.clone(),
-            registration_token,
-            shutdown.clone(),
-            external_tools_shutdown.clone(),
+            Some(registration.startup_tasks.clone()),
         );
         tracing::debug!(
             elapsed_ms = setup_start.elapsed().as_millis(),
@@ -2133,7 +2073,6 @@ impl Client {
             session_id = %session_id,
             "Client::resume_session complete"
         );
-        registration.disarm();
         let session = Session {
             id: session_id,
             cwd: self.cwd().clone(),
@@ -2151,22 +2090,15 @@ impl Client {
             github_token_registration: ParkingLotMutex::new(github_token_registration),
             registration_token,
         };
-        apply_mode_post_create_patch(
-            &session,
+        let patch = build_mode_post_create_patch(
             mode,
             opt_skip_custom_instructions,
             opt_custom_agents_local_only,
             opt_coauthor_enabled,
             opt_manage_schedule_enabled,
             opt_included_builtin_skills,
-        )
-        .await?;
-        if let Some(registration) = session.github_token_registration.lock().as_ref() {
-            registration.claim(session.id.clone());
-        } else {
-            self.retire_github_token_provider(&session.id);
-        }
-        Ok(session)
+        );
+        finish_session_setup(session, registration, patch).await
     }
 }
 
@@ -2192,9 +2124,11 @@ impl Client {
 /// * Dropping the [`start`](Self::start) future mid-flight cancels the
 ///   session token, unregisters the session from the router if it was
 ///   registered, and closes early subscriptions. A retry with the same
-///   session ID succeeds. Cleanup of already-spawned tasks is signalled,
-///   not awaited: `Drop` is synchronous and cannot await, so the event loop
-///   terminates promptly but not synchronously.
+///   session ID succeeds. Callbacks spawned during startup are aborted until
+///   all post-create/resume setup succeeds. After success, callbacks retain
+///   their established-session lifetime and may outlive the event loop.
+///   Cleanup is signalled, not awaited: `Drop` is synchronous and cannot await,
+///   so the event loop and callbacks terminate promptly but not synchronously.
 /// * A startup error from [`start`](Self::start) performs the same cleanup
 ///   and preserves the [`ErrorKind`] the equivalent
 ///   [`Client::create_session`] / [`Client::resume_session`] call has always
@@ -2319,30 +2253,25 @@ impl PreparedSession {
 
 type CommandHandlerMap = HashMap<String, Arc<dyn CommandHandler>>;
 
-async fn apply_mode_post_create_patch(
-    session: &Session,
-    mode: crate::ClientMode,
-    opt_skip_custom_instructions: Option<bool>,
-    opt_custom_agents_local_only: Option<bool>,
-    opt_coauthor_enabled: Option<bool>,
-    opt_manage_schedule_enabled: Option<bool>,
-    opt_included_builtin_skills: Option<Vec<String>>,
-) -> Result<(), Error> {
-    let Some(patch) = build_mode_post_create_patch(
-        mode,
-        opt_skip_custom_instructions,
-        opt_custom_agents_local_only,
-        opt_coauthor_enabled,
-        opt_manage_schedule_enabled,
-        opt_included_builtin_skills,
-    ) else {
-        return Ok(());
-    };
-    if let Err(error) = session.rpc().options().update(patch).await {
+async fn finish_session_setup(
+    session: Session,
+    mut registration: PendingSessionRegistration,
+    patch: Option<crate::generated::api_types::SessionUpdateOptionsParams>,
+) -> Result<Session, Error> {
+    if let Some(patch) = patch
+        && let Err(error) = session.rpc().options().update(patch).await
+    {
+        registration.cancel();
         let _ = session.disconnect().await;
         return Err(error);
     }
-    Ok(())
+    if let Some(provider) = session.github_token_registration.lock().as_ref() {
+        provider.claim(session.id.clone());
+    } else {
+        session.client.retire_github_token_provider(&session.id);
+    }
+    registration.disarm();
+    Ok(session)
 }
 
 /// Builds the `session.options.update` patch applied immediately after a session
@@ -2490,8 +2419,8 @@ fn spawn_event_loop(
                 // `handle_notification` is awaited inline because it only
                 // performs fast dispatch work; its slow interactive callbacks
                 // (permission/tool/elicitation) are themselves spawned as child
-                // tasks. All of these spawned tasks intentionally outlive the
-                // parent loop and own their own cleanup — RFD 400's "spawn
+                // tasks. After successful startup these tasks intentionally
+                // outlive the parent loop and own their own cleanup — RFD 400's "spawn
                 // background tasks to perform cancel-unsafe operations" pattern.
                 tokio::select! {
                     _ = shutdown.cancelled() => break,
@@ -2515,7 +2444,7 @@ fn spawn_event_loop(
                         let bearer_token_providers = bearer_token_providers.clone();
                         let request_id = request.id;
                         let method = request.method.clone();
-                        spawn_startup_tracked(
+                        let _ = spawn_startup_tracked(
                             async move {
                                 let ctx = RequestDispatchContext {
                                     client: &client,
@@ -2834,7 +2763,7 @@ async fn handle_notification(
                 session_id = %sid,
                 request_id = %request_id
             );
-            spawn_startup_tracked(
+            let _ = spawn_startup_tracked(
                 async move {
                     let handler_start = Instant::now();
                     let result = permission_handler
@@ -2908,7 +2837,7 @@ async fn handle_notification(
                             session_id = %sid,
                             request_id = %request_id
                         );
-                        spawn_startup_tracked(
+                        let _ = spawn_startup_tracked(
                             async move {
                                 let rpc_start = Instant::now();
                                 let _ = client
@@ -2963,7 +2892,7 @@ async fn handle_notification(
                 session_id = %sid,
                 request_id = %request_id
             );
-            spawn_startup_tracked(
+            let _ = spawn_startup_tracked(
                 async move {
                     let guard = PendingExternalToolGuard {
                         request_id: guard_request_id,
@@ -3136,41 +3065,47 @@ async fn handle_notification(
                 request_id = %request_id
             );
             let nested_startup_tasks = startup_tasks.cloned();
-            spawn_startup_tracked(
+            let _ = spawn_startup_tracked(
                 async move {
                     let cancel = ElicitationResult {
                         action: "cancel".to_string(),
                         content: None,
                     };
                     // Dispatch to a nested task so panics are caught as JoinErrors.
-                    let handler_task = tokio::spawn({
-                        let sid = sid.clone();
-                        let request_id = request_id.clone();
-                        let span = tracing::error_span!(
-                            "elicitation_callback",
-                            session_id = %sid,
-                            request_id = %request_id
-                        );
-                        async move {
-                            let handler_start = Instant::now();
-                            let response = elicitation_handler
-                                .handle(sid.clone(), request_id.clone(), request)
-                                .await;
-                            tracing::debug!(
-                                elapsed_ms = handler_start.elapsed().as_millis(),
+                    let handler_task = spawn_startup_tracked(
+                        {
+                            let sid = sid.clone();
+                            let request_id = request_id.clone();
+                            let span = tracing::error_span!(
+                                "elicitation_callback",
                                 session_id = %sid,
-                                request_id = %request_id,
-                                "ElicitationHandler::handle dispatch"
+                                request_id = %request_id
                             );
-                            response
-                        }
-                        .instrument(span)
-                    });
-                    if let Some(tasks) = nested_startup_tasks.as_ref() {
-                        tasks.track_nested(&handler_task);
-                    }
+                            async move {
+                                let handler_start = Instant::now();
+                                let response = elicitation_handler
+                                    .handle(sid.clone(), request_id.clone(), request)
+                                    .await;
+                                tracing::debug!(
+                                    elapsed_ms = handler_start.elapsed().as_millis(),
+                                    session_id = %sid,
+                                    request_id = %request_id,
+                                    "ElicitationHandler::handle dispatch"
+                                );
+                                response
+                            }
+                            .instrument(span)
+                        },
+                        nested_startup_tasks.as_ref(),
+                    );
+                    let Some(handler_task) = handler_task else {
+                        // Abandoned startup must not emit even a fallback cancellation RPC.
+                        return;
+                    };
                     let result = match handler_task.await {
                         Ok(r) => r,
+                        // Startup abort is not a handler failure: no fallback RPC.
+                        Err(error) if error.is_cancelled() => return,
                         Err(_) => cancel.clone(),
                     };
                     let rpc_start = Instant::now();
@@ -3247,37 +3182,43 @@ async fn handle_notification(
                 request_id = %request_id
             );
             let nested_startup_tasks = startup_tasks.cloned();
-            spawn_startup_tracked(
+            let _ = spawn_startup_tracked(
                 async move {
                     let cancel = McpAuthResult::Cancelled;
-                    let handler_task = tokio::spawn({
-                        let sid = sid.clone();
-                        let request_id = request_id.clone();
-                        let span = tracing::error_span!(
-                            "mcp_auth_callback",
-                            session_id = %sid,
-                            request_id = %request_id
-                        );
-                        async move {
-                            let handler_start = Instant::now();
-                            let response = mcp_auth_handler
-                                .handle(sid.clone(), request_id.clone(), request)
-                                .await;
-                            tracing::debug!(
-                                elapsed_ms = handler_start.elapsed().as_millis(),
+                    let handler_task = spawn_startup_tracked(
+                        {
+                            let sid = sid.clone();
+                            let request_id = request_id.clone();
+                            let span = tracing::error_span!(
+                                "mcp_auth_callback",
                                 session_id = %sid,
-                                request_id = %request_id,
-                                "McpAuthHandler::handle dispatch"
+                                request_id = %request_id
                             );
-                            response
-                        }
-                        .instrument(span)
-                    });
-                    if let Some(tasks) = nested_startup_tasks.as_ref() {
-                        tasks.track_nested(&handler_task);
-                    }
+                            async move {
+                                let handler_start = Instant::now();
+                                let response = mcp_auth_handler
+                                    .handle(sid.clone(), request_id.clone(), request)
+                                    .await;
+                                tracing::debug!(
+                                    elapsed_ms = handler_start.elapsed().as_millis(),
+                                    session_id = %sid,
+                                    request_id = %request_id,
+                                    "McpAuthHandler::handle dispatch"
+                                );
+                                response
+                            }
+                            .instrument(span)
+                        },
+                        nested_startup_tasks.as_ref(),
+                    );
+                    let Some(handler_task) = handler_task else {
+                        // Abandoned startup must not emit even a fallback cancellation RPC.
+                        return;
+                    };
                     let result = match handler_task.await {
                         Ok(result) => result,
+                        // Startup abort is not a handler failure: no fallback RPC.
+                        Err(error) if error.is_cancelled() => return,
                         Err(_) => cancel,
                     };
                     let rpc_start = Instant::now();
@@ -3313,7 +3254,7 @@ async fn handle_notification(
             let command_handlers = command_handlers.clone();
             let sid = session_id.clone();
             let span = tracing::error_span!("command_handler", session_id = %sid);
-            spawn_startup_tracked(
+            let _ = spawn_startup_tracked(
                 async move {
                     let request_id = data.request_id;
                     let ack_error = match command_handlers.get(&data.command_name).cloned() {
@@ -3995,3 +3936,6 @@ mod tests {
         assert_eq!(data.managed_approval_required, Some(false));
     }
 }
+
+#[cfg(test)]
+mod startup_tasks_tests;

@@ -2038,6 +2038,9 @@ impl Client {
         for key in &options.env_remove {
             command.env_remove(key);
         }
+        if options.mode != ClientMode::Empty {
+            command.env("COPILOT_RUNTIME_PROCESS_FILE_LOGGING", "1");
+        }
         command
             .current_dir(working_directory)
             .stdout(Stdio::piped())
@@ -3546,6 +3549,34 @@ mod tests {
     fn log_level_args_emit_flag_when_set() {
         let opts = ClientOptions::default().with_log_level(LogLevel::Debug);
         assert_eq!(Client::log_level_args(&opts), vec!["--log-level", "debug"]);
+    }
+
+    #[test]
+    fn cli_mode_opts_into_process_logging_without_changing_empty_mode_environment() {
+        for (mode, expected) in [
+            (ClientMode::Empty, None),
+            (ClientMode::CopilotCli, Some("1")),
+        ] {
+            let mut options = ClientOptions::default().with_mode(mode);
+            options.env.push((
+                std::ffi::OsString::from("COPILOT_RUNTIME_PROCESS_FILE_LOGGING"),
+                std::ffi::OsString::from("opposite"),
+            ));
+            let command =
+                Client::build_command(Path::new("copilot-runtime"), &options, Path::new("."));
+            let actual = command
+                .as_std()
+                .get_envs()
+                .find(|(key, _)| {
+                    *key == std::ffi::OsStr::new("COPILOT_RUNTIME_PROCESS_FILE_LOGGING")
+                })
+                .and_then(|(_, value)| value);
+            assert_eq!(
+                actual,
+                Some(std::ffi::OsStr::new(expected.unwrap_or("opposite"))),
+                "mode: {mode:?}"
+            );
+        }
     }
 
     #[test]

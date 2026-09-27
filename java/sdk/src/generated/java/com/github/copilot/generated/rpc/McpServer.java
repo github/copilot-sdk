@@ -36,6 +36,8 @@ public record McpServer(
     /** Error message if the server failed to connect */
     @JsonProperty("error") String error,
     /** Server-advertised metadata for a connected server. Omitted when no live connection metadata is available, including while pending or when failed, disabled, stopped, or not configured. */
-    @JsonProperty("serverMetadata") McpServerMetadata serverMetadata
+    @JsonProperty("serverMetadata") McpServerMetadata serverMetadata,
+    /** Owned installation this entry's live configuration came from. Absent for manual, workspace, plugin, builtin and same-name servers, and on runtimes without owned installations. */
+    @JsonProperty("owned") McpServerOwnership owned
 ) {
 }

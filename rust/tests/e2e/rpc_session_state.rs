@@ -756,6 +756,10 @@ async fn should_call_metadata_snapshot_setworkingdirectory_and_recordcontextchan
 }
 
 #[tokio::test]
+#[allow(
+    clippy::field_reassign_with_default,
+    reason = "the generated request has a private field, and some feature profiles do not trigger this lint"
+)]
 async fn should_update_options_and_initialize_session_services() {
     super::support::with_shared_e2e_context(
         &E2E,

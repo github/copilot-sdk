@@ -39,6 +39,9 @@ public final class ResumeSessionRequest {
     @JsonProperty("model")
     private String model;
 
+    @JsonProperty("continuePendingWork")
+    private Boolean continuePendingWork;
+
     @JsonProperty("reasoningEffort")
     private String reasoningEffort;
 
@@ -287,6 +290,25 @@ public final class ResumeSessionRequest {
     /** Sets the model name. @param model the model */
     public void setModel(String model) {
         this.model = model;
+    }
+
+    /**
+     * Gets the pending-work continuation choice.
+     *
+     * @return the choice, or {@code null} if omitted
+     */
+    public Boolean getContinuePendingWork() {
+        return continuePendingWork;
+    }
+
+    /**
+     * Sets the pending-work continuation choice.
+     *
+     * @param continuePendingWork
+     *            the choice
+     */
+    public void setContinuePendingWork(boolean continuePendingWork) {
+        this.continuePendingWork = continuePendingWork;
     }
 
     /** Gets the reasoning effort. @return the reasoning effort level */

@@ -70,6 +70,13 @@ jobs:
         with:
           persist-credentials: false
 
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+
+      - name: Capture verified addon source identity
+        run: node --experimental-strip-types script/resolve-cli-build-identity.ts --github-env
+
       - name: Restore completed Windows x64 addons
         id: cache
         uses: actions/cache/restore@v6
@@ -77,6 +84,7 @@ jobs:
           path: |
             windows-x64-addons-receipt.txt
             src/native/runtime/runtime.win32-x64-msvc.node
+            src/native/runtime/runtime.win32-x64-msvc.node.metadata
             src/native/runtime/copilot-runtime.win32-x64-msvc.exe
             src/native/runtime/index.d.ts
             src/native/cli/cli-native.win32-x64-msvc.node
@@ -122,8 +130,13 @@ jobs:
             --bazel-config=windows-e2e-no-icf
 
       - name: Verify Windows x64 addons
-        if: steps.cache.outputs.cache-hit != 'true'
+        env:
+          CLI_PACKAGE_NAME: "@github/copilot"
         run: |
+          export CLI_VERSION="0.0.1-${GITHUB_SHA::7}"
+          node --experimental-strip-types script/assert-runtime-build-metadata.ts \
+            src/native/runtime win32-x64-msvc
+          test -s src/native/runtime/runtime.win32-x64-msvc.node.metadata
           for artifact in \
             src/native/runtime/runtime.win32-x64-msvc.node \
             src/native/runtime/copilot-runtime.win32-x64-msvc.exe \
@@ -143,6 +156,7 @@ jobs:
           path: |
             windows-x64-addons-receipt.txt
             src/native/runtime/runtime.win32-x64-msvc.node
+            src/native/runtime/runtime.win32-x64-msvc.node.metadata
             src/native/runtime/copilot-runtime.win32-x64-msvc.exe
             src/native/runtime/index.d.ts
             src/native/cli/cli-native.win32-x64-msvc.node
@@ -154,6 +168,7 @@ jobs:
           name: sdk-bazel-cross-addons-win32-x64-release
           path: |
             src/native/runtime/runtime.win32-x64-msvc.node
+            src/native/runtime/runtime.win32-x64-msvc.node.metadata
             src/native/runtime/copilot-runtime.win32-x64-msvc.exe
             src/native/runtime/index.d.ts
             src/native/cli/cli-native.win32-x64-msvc.node

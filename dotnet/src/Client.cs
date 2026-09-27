@@ -2388,6 +2388,11 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             startInfo.Environment["COPILOT_DISABLE_KEYTAR"] = "1";
         }
 
+        if (options.Mode != CopilotClientMode.Empty)
+        {
+            startInfo.Environment["COPILOT_RUNTIME_PROCESS_FILE_LOGGING"] = "1";
+        }
+
         // Set telemetry environment variables if configured
         ApplyTelemetryEnvironment(startInfo.Environment, options.Telemetry);
 

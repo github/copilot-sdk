@@ -1637,6 +1637,38 @@ func TestClient_EnvOptions(t *testing.T) {
 	})
 }
 
+func TestClient_ProcessFileLoggingEnvironment(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		mode ClientMode
+		env  []string
+		want string
+	}{
+		{name: "CLI mode enables process logs", env: []string{"COPILOT_RUNTIME_PROCESS_FILE_LOGGING=0"}, want: "1"},
+		{name: "empty mode preserves caller opt-in", mode: ModeEmpty, env: []string{"COPILOT_RUNTIME_PROCESS_FILE_LOGGING=1"}, want: "1"},
+		{name: "empty mode preserves caller opt-out", mode: ModeEmpty, env: []string{"COPILOT_RUNTIME_PROCESS_FILE_LOGGING=0"}, want: "0"},
+		{name: "empty mode leaves logging unset", mode: ModeEmpty, env: []string{}, want: ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			client := NewClient(&ClientOptions{
+				Connection:       StdioConnection{Path: os.Args[0]},
+				Mode:             tc.mode,
+				BaseDirectory:    t.TempDir(),
+				WorkingDirectory: filepath.Join(t.TempDir(), "missing"),
+				Env:              tc.env,
+			})
+
+			err := client.startCLIServer(context.Background())
+			if err == nil || !strings.Contains(err.Error(), "failed to start CLI server") {
+				t.Fatalf("expected process start to fail in missing working directory, got %v", err)
+			}
+			if got := getEnvValue(client.process.Env, "COPILOT_RUNTIME_PROCESS_FILE_LOGGING"); got != tc.want {
+				t.Errorf("process file logging environment = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestClient_InProcessConnection(t *testing.T) {
 	t.Run("requires build tag", func(t *testing.T) {
 		if inProcessAvailable {

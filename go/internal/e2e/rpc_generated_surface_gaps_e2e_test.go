@@ -56,18 +56,18 @@ func TestGeneratedRPCSurfaceGapsE2E(t *testing.T) {
 		{"session completion triggers", "session.completions.getTriggerCharacters", (*rpc.CompletionsAPI).GetTriggerCharacters, session(func(r *rpc.SessionRPC) any { return r.Completions }), false},
 		{"session content exclusion paths", "session.contentExclusion.checkPaths", (*rpc.ContentExclusionAPI).CheckPaths, session(func(r *rpc.SessionRPC) any { return r.ContentExclusion }), false},
 		{"session debug logs", "session.debug.collectLogs", (*rpc.DebugAPI).CollectLogs, session(func(r *rpc.SessionRPC) any { return r.Debug }), false},
-		{"session factory agent", "session.factory.agent", (*rpc.FactoryAPI).Agent, session(func(r *rpc.SessionRPC) any { return r.Factory }), false},
-		{"session factory cancel", "session.factory.cancel", (*rpc.FactoryAPI).Cancel, session(func(r *rpc.SessionRPC) any { return r.Factory }), false},
-		{"session factory get run", "session.factory.getRun", (*rpc.FactoryAPI).GetRun, session(func(r *rpc.SessionRPC) any { return r.Factory }), false},
-		{"session factory detail", "session.factory.getRunDetail", (*rpc.FactoryAPI).GetRunDetail, session(func(r *rpc.SessionRPC) any { return r.Factory }), false},
-		{"session factory progress", "session.factory.getRunProgress", (*rpc.FactoryAPI).GetRunProgress, session(func(r *rpc.SessionRPC) any { return r.Factory }), false},
-		{"session factory list runs", "session.factory.listRuns", (*rpc.FactoryAPI).ListRuns, session(func(r *rpc.SessionRPC) any { return r.Factory }), false},
-		{"session factory log", "session.factory.log", (*rpc.FactoryAPI).Log, session(func(r *rpc.SessionRPC) any { return r.Factory }), false},
-		{"session factory pause", "session.factory.pause", (*rpc.FactoryAPI).Pause, session(func(r *rpc.SessionRPC) any { return r.Factory }), false},
-		{"session factory resume", "session.factory.resume", (*rpc.FactoryAPI).Resume, session(func(r *rpc.SessionRPC) any { return r.Factory }), false},
-		{"session factory run", "session.factory.run", (*rpc.FactoryAPI).Run, session(func(r *rpc.SessionRPC) any { return r.Factory }), false},
-		{"session factory journal get", "session.factory.journal.get", (*rpc.FactoryJournalAPI).Get, session(func(r *rpc.SessionRPC) any { return r.Factory.Journal() }), false},
-		{"session factory journal put", "session.factory.journal.put", (*rpc.FactoryJournalAPI).Put, session(func(r *rpc.SessionRPC) any { return r.Factory.Journal() }), false},
+		{"session workflow agent", "session.workflow.agent", (*rpc.WorkflowAPI).Agent, session(func(r *rpc.SessionRPC) any { return r.Workflow }), false},
+		{"session workflow cancel", "session.workflow.cancel", (*rpc.WorkflowAPI).Cancel, session(func(r *rpc.SessionRPC) any { return r.Workflow }), false},
+		{"session workflow get run", "session.workflow.getRun", (*rpc.WorkflowAPI).GetRun, session(func(r *rpc.SessionRPC) any { return r.Workflow }), false},
+		{"session workflow detail", "session.workflow.getRunDetail", (*rpc.WorkflowAPI).GetRunDetail, session(func(r *rpc.SessionRPC) any { return r.Workflow }), false},
+		{"session workflow progress", "session.workflow.getRunProgress", (*rpc.WorkflowAPI).GetRunProgress, session(func(r *rpc.SessionRPC) any { return r.Workflow }), false},
+		{"session workflow list runs", "session.workflow.listRuns", (*rpc.WorkflowAPI).ListRuns, session(func(r *rpc.SessionRPC) any { return r.Workflow }), false},
+		{"session workflow log", "session.workflow.log", (*rpc.WorkflowAPI).Log, session(func(r *rpc.SessionRPC) any { return r.Workflow }), false},
+		{"session workflow pause", "session.workflow.pause", (*rpc.WorkflowAPI).Pause, session(func(r *rpc.SessionRPC) any { return r.Workflow }), false},
+		{"session workflow resume", "session.workflow.resume", (*rpc.WorkflowAPI).Resume, session(func(r *rpc.SessionRPC) any { return r.Workflow }), false},
+		{"session workflow run", "session.workflow.run", (*rpc.WorkflowAPI).Run, session(func(r *rpc.SessionRPC) any { return r.Workflow }), false},
+		{"session workflow journal get", "session.workflow.journal.get", (*rpc.WorkflowJournalAPI).Get, session(func(r *rpc.SessionRPC) any { return r.Workflow.Journal() }), false},
+		{"session workflow journal put", "session.workflow.journal.put", (*rpc.WorkflowJournalAPI).Put, session(func(r *rpc.SessionRPC) any { return r.Workflow.Journal() }), false},
 		{"session history clear context", "session.history.clearContext", (*rpc.HistoryAPI).ClearContext, session(func(r *rpc.SessionRPC) any { return r.History }), false},
 		{"session limit prediction", "session.limitPrediction.predict", (*rpc.LimitPredictionAPI).Predict, session(func(r *rpc.SessionRPC) any { return r.LimitPrediction }), false},
 		{"session mcp loading background", "session.mcp.moveLoadingToBackground", (*rpc.MCPAPI).MoveLoadingToBackground, session(func(r *rpc.SessionRPC) any { return r.MCP }), false},
@@ -213,20 +213,20 @@ func generatedRPCRequest(wire string) string {
 		return `{"paths":["/tmp/rpc-workspace/file.txt"]}`
 	case "session.debug.collectLogs":
 		return `{"destination":{"kind":"directory","outputDirectory":"/tmp/rpc-debug"},"include":{"events":true,"processLogs":false,"shellLogs":true},"additionalEntries":[{"bundlePath":"host/diagnostic.txt","kind":"file","path":"/tmp/diagnostic.txt","required":true}]}`
-	case "session.factory.run":
-		return `{"name":"rpc-factory","args":{"input":42},"options":{"limits":{"maxAiCredits":2.5,"maxConcurrentSubagents":2,"maxTotalSubagents":4,"timeoutSeconds":30},"logPhaseNames":true,"notifyOnComplete":false}}`
-	case "session.factory.resume":
-		return `{"runId":"factory-run-1","limits":{"maxTotalSubagents":8},"notifyOnComplete":true,"logPhaseNames":false}`
-	case "session.factory.getRun", "session.factory.pause":
-		return `{"runId":"factory-run-1"}`
-	case "session.factory.log":
-		return `{"runId":"factory-run-1","executionToken":"execution-token-1","lines":[{"kind":"log","seq":7,"text":"Factory progress"}]}`
-	case "session.factory.agent":
-		return `{"factoryRunId":"factory-run-1","executionToken":"execution-token-1","prompt":"Complete the RPC task.","opts":{"agent":"explore","label":"rpc-agent","model":"model-a","reasoningEffort":"high"}}`
-	case "session.factory.journal.get":
-		return `{"runId":"factory-run-1","executionToken":"execution-token-1","key":"checkpoint"}`
-	case "session.factory.journal.put":
-		return `{"runId":"factory-run-1","executionToken":"execution-token-1","key":"checkpoint","resultJson":{"checkpoint":8}}`
+	case "session.workflow.run":
+		return `{"name":"rpc-workflow","args":{"input":42},"options":{"limits":{"maxAiCredits":2.5,"maxConcurrentSubagents":2,"maxTotalSubagents":4,"timeoutSeconds":30},"logPhaseNames":true,"notifyOnComplete":false}}`
+	case "session.workflow.resume":
+		return `{"runId":"workflow-run-1","limits":{"maxTotalSubagents":8},"notifyOnComplete":true,"logPhaseNames":false}`
+	case "session.workflow.getRun", "session.workflow.pause":
+		return `{"runId":"workflow-run-1"}`
+	case "session.workflow.log":
+		return `{"runId":"workflow-run-1","executionToken":"execution-token-1","lines":[{"kind":"log","seq":7,"text":"Workflow progress"}]}`
+	case "session.workflow.agent":
+		return `{"workflowRunId":"workflow-run-1","executionToken":"execution-token-1","prompt":"Complete the RPC task.","opts":{"agent":"explore","label":"rpc-agent","model":"model-a","reasoningEffort":"high"}}`
+	case "session.workflow.journal.get":
+		return `{"runId":"workflow-run-1","executionToken":"execution-token-1","key":"checkpoint"}`
+	case "session.workflow.journal.put":
+		return `{"runId":"workflow-run-1","executionToken":"execution-token-1","key":"checkpoint","resultJson":{"checkpoint":8}}`
 	case "session.history.clearContext":
 		return `{"prompt":"Reset context."}`
 	case "session.limitPrediction.predict":
@@ -306,15 +306,15 @@ func generatedRPCResponse(wire string) string {
 		return `{"available":true,"checks":[{"path":"/tmp/rpc-workspace/file.txt","excluded":false}]}`
 	case "session.debug.collectLogs":
 		return `{"kind":"directory","path":"/tmp/rpc-debug","entries":[{"bundlePath":"host/diagnostic.txt","sizeBytes":123,"source":"additional"}],"skippedEntries":[{"bundlePath":"host/missing.txt","path":"/tmp/missing.txt","reason":"not found"}]}`
-	case "session.factory.run", "session.factory.getRun":
-		return `{"runId":"factory-run-1","status":"running","attempt":1,"result":{"value":"running"},"snapshot":{"step":1}}`
-	case "session.factory.pause":
-		return `{"runId":"factory-run-1","status":"paused","attempt":1,"reason":"caller requested pause","snapshot":{"step":2}}`
-	case "session.factory.resume":
-		return `{"factoryName":"rpc-factory","run":{"runId":"factory-run-1","status":"running","attempt":2,"snapshot":{"step":3}}}`
-	case "session.factory.agent":
+	case "session.workflow.run", "session.workflow.getRun":
+		return `{"runId":"workflow-run-1","status":"running","attempt":1,"result":{"value":"running"},"snapshot":{"step":1}}`
+	case "session.workflow.pause":
+		return `{"runId":"workflow-run-1","status":"paused","attempt":1,"reason":"caller requested pause","snapshot":{"step":2}}`
+	case "session.workflow.resume":
+		return `{"workflowName":"rpc-workflow","run":{"runId":"workflow-run-1","status":"running","attempt":2,"snapshot":{"step":3}}}`
+	case "session.workflow.agent":
 		return `{"result":{"answer":"agent-result"}}`
-	case "session.factory.journal.get":
+	case "session.workflow.journal.get":
 		return `{"hit":true,"resultJson":{"checkpoint":7}}`
 	case "session.history.clearContext":
 		return `{"messagesCleared":4}`

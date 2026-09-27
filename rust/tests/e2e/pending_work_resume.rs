@@ -123,6 +123,15 @@ async fn should_continue_pending_external_tool_request_after_resume() {
                     })
                     .await
                     .expect("complete pending tool");
+                if !result.success {
+                    let event_types = session2.get_events().await.map(|events| {
+                        events
+                            .iter()
+                            .map(|event| format!("{:?}", event.parsed_type()))
+                            .collect::<Vec<_>>()
+                    });
+                    panic!("pending external tool response was rejected; events: {event_types:?}");
+                }
                 assert!(result.success);
                 phase("wait for resumed assistant answer");
                 assistant.await;

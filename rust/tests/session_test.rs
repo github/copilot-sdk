@@ -1466,8 +1466,8 @@ async fn create_session_forwards_refresh_custom_instructions_only_when_set() {
         if let Some(refresh) = refresh {
             config = config.with_refresh_custom_instructions(refresh);
         }
-        let create = client.create_session(config);
-        let server = async {
+        let create = Box::pin(client.create_session(config));
+        let server = Box::pin(async {
             let request = read_framed(&mut server_read).await;
             assert_eq!(request["method"], "session.create");
             assert_eq!(
@@ -1482,7 +1482,7 @@ async fn create_session_forwards_refresh_custom_instructions_only_when_set() {
                 "result": { "sessionId": session_id },
             });
             write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
-        };
+        });
 
         let (session, ()) = timeout(TIMEOUT, async { tokio::join!(create, server) })
             .await
@@ -5562,6 +5562,88 @@ async fn elicitation_requested_cancels_on_handler_error() {
     assert_eq!(rpc_call["params"]["result"]["action"], "cancel");
 }
 
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn nested_handler_panics_still_send_cancellation_replies() {
+    struct PanickingHandler;
+
+    #[async_trait]
+    impl ElicitationHandler for PanickingHandler {
+        async fn handle(
+            &self,
+            _session_id: SessionId,
+            _request_id: RequestId,
+            _request: ElicitationRequest,
+        ) -> ElicitationResult {
+            panic!("test elicitation handler panic");
+        }
+    }
+
+    #[async_trait]
+    impl McpAuthHandler for PanickingHandler {
+        async fn handle(
+            &self,
+            _session_id: SessionId,
+            _request_id: RequestId,
+            _request: McpAuthRequest,
+        ) -> McpAuthResult {
+            panic!("test MCP-auth handler panic");
+        }
+    }
+
+    let (client, read, write) = make_client();
+    let mut server = FakeServer {
+        read,
+        write,
+        session_id: String::new(),
+    };
+    let create = tokio::spawn(async move {
+        client
+            .create_session(
+                SessionConfig::default()
+                    .with_elicitation_handler(Arc::new(PanickingHandler))
+                    .with_mcp_auth_handler(Arc::new(PanickingHandler)),
+            )
+            .await
+    });
+    let request = timeout(TIMEOUT, server.read_request()).await.unwrap();
+    server.session_id = requested_session_id(&request).to_string();
+    server
+        .respond(
+            &request,
+            serde_json::json!({ "sessionId": server.session_id }),
+        )
+        .await;
+    let interest = timeout(TIMEOUT, server.read_request()).await.unwrap();
+    assert_eq!(interest["method"], "session.eventLog.registerInterest");
+    server.respond(&interest, serde_json::json!({})).await;
+    let session = timeout(TIMEOUT, create).await.unwrap().unwrap().unwrap();
+
+    for (event, data, method, result) in [
+        (
+            "elicitation.requested",
+            serde_json::json!({ "requestId": "panic-elicitation", "message": "Confirm" }),
+            "session.ui.handlePendingElicitation",
+            serde_json::json!({ "action": "cancel" }),
+        ),
+        (
+            "mcp.oauth_required",
+            serde_json::json!({
+                "requestId": "panic-mcp-auth", "reason": "initial",
+                "serverName": "panic-server", "serverUrl": "https://example.com/mcp",
+            }),
+            "session.mcp.oauth.handlePendingRequest",
+            serde_json::json!({ "kind": "cancelled" }),
+        ),
+    ] {
+        server.send_event(event, data).await;
+        let reply = timeout(TIMEOUT, server.read_request()).await.unwrap();
+        assert_eq!(reply["method"], method);
+        assert_eq!(reply["params"]["result"], result);
+        server.respond(&reply, serde_json::json!({})).await;
+    }
+    session.stop_event_loop().await;
+}
+
 #[tokio::test]
 async fn external_tool_requested_dispatches_to_handler_and_responds() {
     struct RunTestsTool;
@@ -7754,6 +7836,493 @@ async fn failed_create_cancels_pre_response_session_fs_request() {
             .is_err()
     );
     timeout(TIMEOUT, dropped.notified()).await.unwrap();
+}
+
+#[derive(Default)]
+struct StartupCallbackGate {
+    entered: Notify,
+    release: Notify,
+    dropped: Arc<Notify>,
+    completed: std::sync::atomic::AtomicBool,
+}
+
+impl StartupCallbackGate {
+    async fn wait(&self) {
+        let _on_drop = NotifyOnDrop(self.dropped.clone());
+        self.entered.notify_one();
+        self.release.notified().await;
+        self.completed.store(true, Ordering::SeqCst);
+    }
+}
+
+#[async_trait]
+impl PermissionHandler for StartupCallbackGate {
+    async fn handle(
+        &self,
+        _session_id: SessionId,
+        _request_id: RequestId,
+        _request: github_copilot_sdk::PermissionRequestData,
+    ) -> PermissionResult {
+        self.wait().await;
+        PermissionResult::approve_once()
+    }
+}
+
+#[async_trait]
+impl SessionFsProvider for StartupCallbackGate {
+    async fn stat(&self, _path: &str) -> Result<FileInfo, FsError> {
+        self.wait().await;
+        Ok(FileInfo::new(true, false, 0, "", ""))
+    }
+}
+
+#[async_trait]
+impl ElicitationHandler for StartupCallbackGate {
+    async fn handle(
+        &self,
+        _session_id: SessionId,
+        _request_id: RequestId,
+        _request: ElicitationRequest,
+    ) -> ElicitationResult {
+        self.wait().await;
+        ElicitationResult {
+            action: "accept".into(),
+            content: None,
+        }
+    }
+}
+
+#[async_trait]
+impl McpAuthHandler for StartupCallbackGate {
+    async fn handle(
+        &self,
+        _session_id: SessionId,
+        _request_id: RequestId,
+        _request: McpAuthRequest,
+    ) -> McpAuthResult {
+        self.wait().await;
+        McpAuthResult::Cancelled
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum StartupRoute {
+    Local,
+    Deferred,
+    Resume,
+}
+
+#[derive(Clone, Copy, Debug)]
+enum StartupOutcome {
+    Failure,
+    Cancellation,
+    Success,
+}
+
+async fn check_startup_callback_ownership(
+    route: StartupRoute,
+    phase: &str,
+    outcome: StartupOutcome,
+    callbacks_before_response: bool,
+) {
+    let permission = Arc::new(StartupCallbackGate::default());
+    let fs = Arc::new(StartupCallbackGate::default());
+    let elicitation = Arc::new(StartupCallbackGate::default());
+    let mcp_auth = Arc::new(StartupCallbackGate::default());
+    let gates = [&permission, &fs, &elicitation, &mcp_auth];
+    let (client, server_read, server_write) = make_client();
+    let mut server = FakeServer {
+        read: server_read,
+        write: server_write,
+        session_id: "startup-callbacks".into(),
+    };
+    let prepared = if route == StartupRoute::Resume {
+        client
+            .prepare_resume_session(
+                github_copilot_sdk::ResumeSessionConfig::new(SessionId::new(&server.session_id))
+                    .with_permission_handler(permission.clone())
+                    .with_session_fs_provider(fs.clone())
+                    .with_elicitation_handler(elicitation.clone())
+                    .with_mcp_auth_handler(mcp_auth.clone())
+                    .with_coauthor_enabled(false),
+            )
+            .unwrap()
+    } else {
+        let mut config = SessionConfig::default()
+            .with_permission_handler(permission.clone())
+            .with_session_fs_provider(fs.clone())
+            .with_elicitation_handler(elicitation.clone())
+            .with_mcp_auth_handler(mcp_auth.clone())
+            .with_coauthor_enabled(false);
+        if route == StartupRoute::Deferred {
+            config.cloud = Some(CloudSessionOptions::with_repository(
+                CloudSessionRepository::new("octocat", "hello-world"),
+            ));
+        } else {
+            config.session_id = Some(SessionId::new(&server.session_id));
+        }
+        client.prepare_session(config).unwrap()
+    };
+    let mut events = prepared.subscribe();
+    let start = tokio::spawn(prepared.start());
+    let mut request = timeout(TIMEOUT, server.read_request()).await.unwrap();
+    assert_eq!(
+        request["method"],
+        if route == StartupRoute::Resume {
+            "session.resume"
+        } else {
+            "session.create"
+        }
+    );
+    if !callbacks_before_response {
+        server
+            .respond(
+                &request,
+                serde_json::json!({ "sessionId": server.session_id }),
+            )
+            .await;
+        request = timeout(TIMEOUT, server.read_request()).await.unwrap();
+        assert_eq!(request["method"], "session.eventLog.registerInterest");
+    }
+
+    server
+        .send_event(
+            "permission.requested",
+            serde_json::json!({ "requestId": "startup-permission", "kind": "read" }),
+        )
+        .await;
+    server
+        .send_request(
+            7700,
+            "sessionFs.stat",
+            serde_json::json!({ "sessionId": server.session_id, "path": "/workspace/meta" }),
+        )
+        .await;
+    server
+        .send_event(
+            "elicitation.requested",
+            serde_json::json!({
+                "requestId": "startup-elicitation",
+                "message": "Startup confirmation",
+                "requestedSchema": { "type": "object", "properties": {} },
+            }),
+        )
+        .await;
+    server
+        .send_event(
+            "mcp.oauth_required",
+            serde_json::json!({
+                "requestId": "startup-mcp-auth",
+                "reason": "initial",
+                "serverName": "startup-server",
+                "serverUrl": "https://example.com/mcp",
+            }),
+        )
+        .await;
+    for gate in gates {
+        timeout(TIMEOUT, gate.entered.notified())
+            .await
+            .expect("startup callback must enter before setup proceeds");
+    }
+
+    while request["method"] != phase {
+        server
+            .respond(
+                &request,
+                serde_json::json!({ "sessionId": server.session_id }),
+            )
+            .await;
+        request = timeout(TIMEOUT, server.read_request()).await.unwrap();
+        assert!(
+            matches!(
+                request["method"].as_str(),
+                Some(
+                    "session.eventLog.registerInterest"
+                        | "session.skills.reload"
+                        | "session.options.update"
+                )
+            ),
+            "unexpected startup RPC: {request}"
+        );
+    }
+    let mut observed_drops = false;
+    match outcome {
+        StartupOutcome::Failure => {
+            server
+                .respond_error(&request, -32003, "startup rejected")
+                .await;
+            if phase == "session.options.update" {
+                let disconnect = timeout(TIMEOUT, server.read_request()).await.unwrap();
+                assert_eq!(disconnect["method"], "session.detach");
+                // Failed setup must drop callbacks even while graceful disconnect is pending.
+                for gate in gates {
+                    timeout(TIMEOUT, gate.dropped.notified()).await.expect(
+                        "failed mode patch must cancel callbacks before disconnect completes",
+                    );
+                }
+                observed_drops = true;
+                server
+                    .respond(&disconnect, serde_json::json!({ "success": true }))
+                    .await;
+            }
+            let error = match timeout(TIMEOUT, start).await.unwrap().unwrap() {
+                Err(error) => error,
+                Ok(_) => panic!("{route:?} unexpectedly succeeded at {phase}"),
+            };
+            assert_eq!(error.kind(), &ErrorKind::Rpc { code: -32003 });
+        }
+        StartupOutcome::Cancellation => {
+            start.abort();
+            match timeout(TIMEOUT, start).await.unwrap() {
+                Err(error) => assert!(error.is_cancelled()),
+                Ok(_) => panic!("{route:?} unexpectedly completed at {phase}"),
+            }
+        }
+        StartupOutcome::Success => {
+            if phase == "session.skills.reload" {
+                server
+                    .respond_error(&request, -32003, "skills reload failed")
+                    .await;
+                request = timeout(TIMEOUT, server.read_request()).await.unwrap();
+            }
+            assert_eq!(request["method"], "session.options.update");
+            server
+                .respond(&request, serde_json::json!({ "success": true }))
+                .await;
+            let session = timeout(TIMEOUT, start).await.unwrap().unwrap().unwrap();
+            // Successful startup and established-session teardown must not abort these callbacks.
+            timeout(TIMEOUT, session.stop_event_loop()).await.unwrap();
+            drop(session);
+            for gate in gates {
+                assert!(!gate.completed.load(Ordering::SeqCst));
+                gate.release.notify_one();
+            }
+            let mut methods = Vec::new();
+            for _ in gates {
+                let reply = timeout(TIMEOUT, server.read_response()).await.unwrap();
+                if let Some(method) = reply["method"].as_str() {
+                    methods.push(method.to_string());
+                    server.respond(&reply, serde_json::json!({})).await;
+                } else {
+                    assert_eq!(reply["id"], 7700);
+                    assert_eq!(reply["result"]["isFile"], true);
+                }
+            }
+            methods.sort();
+            assert_eq!(
+                methods,
+                [
+                    "session.mcp.oauth.handlePendingRequest",
+                    PERMISSION_CONFIRMATION_METHOD,
+                    "session.ui.handlePendingElicitation",
+                ]
+            );
+        }
+    }
+    for gate in gates {
+        if !observed_drops {
+            timeout(TIMEOUT, gate.dropped.notified())
+                .await
+                .unwrap_or_else(|_| {
+                    panic!("{route:?} callback not dropped at {phase}: {outcome:?}")
+                });
+        }
+        assert_eq!(
+            gate.completed.load(Ordering::SeqCst),
+            matches!(outcome, StartupOutcome::Success),
+        );
+        gate.release.notify_one();
+    }
+    assert_eq!(client.registered_session_count_for_test(), 0);
+    timeout(TIMEOUT, async { while events.recv().await.is_ok() {} })
+        .await
+        .expect("startup event stream must close");
+
+    // Connection-health check only; the unit test joins both nested dispatch layers
+    // before its wire fence to prove that no fallback reply can follow it.
+    let fence = tokio::spawn(async move { client.call("ping", None).await });
+    let request = timeout(TIMEOUT, server.read_request()).await.unwrap();
+    assert_eq!(request["method"], "ping", "late callback reply: {request}");
+    server.respond(&request, serde_json::json!({})).await;
+    timeout(TIMEOUT, fence).await.unwrap().unwrap().unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn startup_callbacks_owned_until_resume_response() {
+    for outcome in [StartupOutcome::Failure, StartupOutcome::Cancellation] {
+        Box::pin(check_startup_callback_ownership(
+            StartupRoute::Resume,
+            "session.resume",
+            outcome,
+            true,
+        ))
+        .await;
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn startup_callbacks_owned_through_mcp_interest() {
+    for route in [StartupRoute::Local, StartupRoute::Resume] {
+        for outcome in [StartupOutcome::Failure, StartupOutcome::Cancellation] {
+            for before_response in [false, true] {
+                Box::pin(check_startup_callback_ownership(
+                    route,
+                    "session.eventLog.registerInterest",
+                    outcome,
+                    before_response,
+                ))
+                .await;
+            }
+        }
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn startup_callbacks_owned_during_deferred_create() {
+    for outcome in [StartupOutcome::Failure, StartupOutcome::Cancellation] {
+        Box::pin(check_startup_callback_ownership(
+            StartupRoute::Deferred,
+            "session.eventLog.registerInterest",
+            outcome,
+            false,
+        ))
+        .await;
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn startup_callbacks_owned_through_mode_patch() {
+    for route in [
+        StartupRoute::Local,
+        StartupRoute::Deferred,
+        StartupRoute::Resume,
+    ] {
+        for outcome in [StartupOutcome::Failure, StartupOutcome::Cancellation] {
+            Box::pin(check_startup_callback_ownership(
+                route,
+                "session.options.update",
+                outcome,
+                false,
+            ))
+            .await;
+        }
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn startup_callbacks_owned_through_skills_reload() {
+    for outcome in [StartupOutcome::Cancellation, StartupOutcome::Success] {
+        Box::pin(check_startup_callback_ownership(
+            StartupRoute::Resume,
+            "session.skills.reload",
+            outcome,
+            true,
+        ))
+        .await;
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn startup_callbacks_survive_successful_setup() {
+    for route in [
+        StartupRoute::Local,
+        StartupRoute::Deferred,
+        StartupRoute::Resume,
+    ] {
+        Box::pin(check_startup_callback_ownership(
+            route,
+            "session.options.update",
+            StartupOutcome::Success,
+            route != StartupRoute::Deferred,
+        ))
+        .await;
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn mode_patch_cleanup_retires_github_token_provider() {
+    for resume in [false, true] {
+        for cancel in [false, true] {
+            let (client, read, write) = make_client();
+            let mut server = FakeServer {
+                read,
+                write,
+                session_id: "mode-patch-token".into(),
+            };
+            let provider = Arc::new(|_args: GitHubTokenProviderArgs| async {
+                Ok(GitHubTokenProviderResult::Cancelled)
+            });
+            let prepared = if resume {
+                client.prepare_resume_session(
+                    github_copilot_sdk::ResumeSessionConfig::new(SessionId::new(
+                        &server.session_id,
+                    ))
+                    .with_github_token_provider(provider)
+                    .with_coauthor_enabled(false),
+                )
+            } else {
+                client.prepare_session(
+                    SessionConfig::default()
+                        .with_session_id(server.session_id.as_str())
+                        .with_github_token_provider(provider)
+                        .with_coauthor_enabled(false),
+                )
+            }
+            .unwrap();
+            let start = tokio::spawn(prepared.start());
+            let request = timeout(TIMEOUT, server.read_request()).await.unwrap();
+            let registration_id = request["params"]["gitHubTokenProviderRegistrationId"]
+                .as_str()
+                .unwrap()
+                .to_string();
+            server
+                .respond(
+                    &request,
+                    serde_json::json!({ "sessionId": server.session_id }),
+                )
+                .await;
+            if resume {
+                let reload = timeout(TIMEOUT, server.read_request()).await.unwrap();
+                assert_eq!(reload["method"], "session.skills.reload");
+                server.respond(&reload, serde_json::json!({})).await;
+            }
+            let patch = timeout(TIMEOUT, server.read_request()).await.unwrap();
+            assert_eq!(patch["method"], "session.options.update");
+            request_test_token(&mut server, 920, &registration_id, "github.com").await;
+            let token = timeout(TIMEOUT, server.read_response()).await.unwrap();
+            assert_eq!(token["id"], 920);
+            assert_eq!(token["result"]["kind"], "cancelled");
+            if cancel {
+                start.abort();
+                match timeout(TIMEOUT, start).await.unwrap() {
+                    Err(error) => assert!(error.is_cancelled()),
+                    Ok(_) => panic!("mode patch startup must be cancelled"),
+                }
+            } else {
+                server
+                    .respond_error(&patch, -32003, "mode patch rejected")
+                    .await;
+                let detach = timeout(TIMEOUT, server.read_request()).await.unwrap();
+                assert_eq!(detach["method"], "session.detach");
+                server
+                    .respond(&detach, serde_json::json!({ "success": true }))
+                    .await;
+                match timeout(TIMEOUT, start).await.unwrap().unwrap() {
+                    Err(error) => assert_eq!(error.kind(), &ErrorKind::Rpc { code: -32003 }),
+                    Ok(_) => panic!("mode patch startup must fail"),
+                }
+            }
+            request_test_token(&mut server, 921, &registration_id, "github.com").await;
+            let retired = timeout(TIMEOUT, server.read_response()).await.unwrap();
+            assert_eq!(retired["id"], 921);
+            assert_eq!(retired["error"]["code"], -32603);
+            assert_eq!(
+                retired["error"]["message"],
+                "unknown GitHub token provider registration"
+            );
+            assert_eq!(client.registered_session_count_for_test(), 0);
+        }
+    }
 }
 
 #[tokio::test]

@@ -51,6 +51,7 @@ import {
     type DefinitionCollections,
     type RpcMethod,
 } from "./utils.js";
+import { validateLegacyRequests } from "./legacy-parameters.js";
 
 const TS_EXPERIMENTAL_JSDOC = "/** @experimental */";
 const EXTERNAL_SCHEMA_TS_IMPORT: Record<string, string> = {
@@ -432,6 +433,12 @@ export function normalizeSchemaForTypeScript(
         delete rewritten["x-opaque-json"];
         delete rewritten["x-opaque-in-process"];
 
+        // A title names an enum that other generators infer from a discriminator; a
+        // TypeScript literal needs no alias, so keep it inline.
+        if (typeof rewritten.title === "string" && "const" in rewritten && typeof rewritten.const === "string") {
+            delete rewritten.title;
+        }
+
         const enumValueDescriptions = getEnumValueDescriptions(rewritten as JSONSchema7);
         if (enumValueDescriptions && Array.isArray(rewritten.enum) && rewritten.enum.every((entry) => typeof entry === "string")) {
             rewritten.tsType = (rewritten.enum as string[])
@@ -743,6 +750,13 @@ import { withWorkerCausality, withWorkerCausalityEvents } from "../workerCausali
     // Build a single combined schema with shared definitions and all method types.
     // This ensures $ref-referenced types are generated exactly once.
     rpcDefinitions = collectDefinitionCollections(schema as Record<string, unknown>);
+    // Added inputs are optional properties of the same request interface.
+    validateLegacyRequests(
+        schema,
+        (node) => collectRpcMethods(node),
+        getMethodParamsSchema,
+        (method) => !!(method.params && getNullableInner(method.params))
+    );
     const combinedSchema = withSharedDefinitions(
         {
             $schema: "http://json-schema.org/draft-07/schema#",

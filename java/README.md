@@ -188,6 +188,11 @@ structured form-based `ask_user` tool when an elicitation handler is also set.
 The default is `AskUserVariant.LEGACY`. Re-supply the option and handler through
 `ResumeSessionConfig` on a cold resume.
 
+To continue a pending turn after resuming a session, pass
+`new ResumeSessionConfig().setContinuePendingWork(true)` to `resumeSession`.
+Set it to `false` to opt out explicitly, or leave it unset to use the runtime
+default.
+
 For rotating per-session GitHub credentials, use
 `SessionConfig.setGitHubTokenProvider(...)` (or the equivalent
 `ResumeSessionConfig` setter) instead of `setGitHubToken(...)`:
