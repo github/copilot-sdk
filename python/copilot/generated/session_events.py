@@ -9375,26 +9375,36 @@ class SessionMcpServerStatusChangedData:
     "Payload of `session.mcp_server_status_changed` for one MCP server's status and optional failure error."
     server_name: str
     status: McpServerStatus
+    config_source: str | None = None
     error: str | None = None
+    error_classification: str | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "SessionMcpServerStatusChangedData":
         assert isinstance(obj, dict)
         server_name = from_str(obj.get("serverName"))
         status = parse_enum(McpServerStatus, obj.get("status"))
+        config_source = from_union([from_none, from_str], obj.get("configSource"))
         error = from_union([from_none, from_str], obj.get("error"))
+        error_classification = from_union([from_none, from_str], obj.get("errorClassification"))
         return SessionMcpServerStatusChangedData(
             server_name=server_name,
             status=status,
+            config_source=config_source,
             error=error,
+            error_classification=error_classification,
         )
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["serverName"] = from_str(self.server_name)
         result["status"] = to_enum(McpServerStatus, self.status)
+        if self.config_source is not None:
+            result["configSource"] = from_union([from_none, from_str], self.config_source)
         if self.error is not None:
             result["error"] = from_union([from_none, from_str], self.error)
+        if self.error_classification is not None:
+            result["errorClassification"] = from_union([from_none, from_str], self.error_classification)
         return result
 
 

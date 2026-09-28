@@ -634,10 +634,15 @@ impl JsonRpcClient {
         if let Some(task) = self.read_task.lock().take() {
             task.abort();
         }
+        self.close_writer();
+        self.pending_requests.write().clear();
+    }
+
+    /// Release stdin while continuing to drain the owned child's final stdout.
+    pub(crate) fn close_writer(&self) {
         if let Some(task) = self.write_task.lock().take() {
             task.abort();
         }
-        self.pending_requests.write().clear();
     }
 
     pub(crate) fn connection_closed_token(&self) -> CancellationToken {

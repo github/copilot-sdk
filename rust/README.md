@@ -51,6 +51,14 @@ Your Application
 
 The SDK manages the CLI process lifecycle: spawning, health-checking, and graceful shutdown. Communication uses [JSON-RPC 2.0](https://www.jsonrpc.org/specification) over stdin/stdout with `Content-Length` framing (the same protocol used by LSP). TCP transport is also supported.
 
+Await `client.stop()` to flush host-owned telemetry: after requesting runtime
+shutdown, the SDK closes its owned stdio child's stdin and waits up to 10 seconds
+for cleanup and exit before falling back to termination. The shutdown RPC and
+final process reap each have a separate 10-second bound. `force_stop()` and
+dropping the last client remain immediate termination paths, not telemetry-flush
+guarantees. External servers and in-process hosts retain their existing shutdown
+behavior.
+
 ## API Reference
 
 ### Client

@@ -7923,9 +7923,15 @@ pub struct SessionMcpServersLoadedData {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionMcpServerStatusChangedData {
+    /// Runtime configuration provenance for a failed connection, or unknown when unavailable. Additional string values may be introduced.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub config_source: Option<String>,
     /// Error message if the server entered a failed state
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
+    /// Runtime-produced classification for the final failed connection; unclassified means no classification was supplied. Additional string values may be introduced.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_classification: Option<String>,
     /// Name of the MCP server whose status changed
     pub server_name: String,
     /// Connection status: connected, failed, needs-auth, pending, disabled, stopped, or not_configured

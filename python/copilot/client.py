@@ -1425,6 +1425,7 @@ HandlerUnsubcribe = Callable[[], None]
 # Servers reporting a version below this are rejected.
 _MIN_PROTOCOL_VERSION = 3
 _RUNTIME_SHUTDOWN_TIMEOUT_SECONDS = 10
+_CLI_PROCESS_GRACEFUL_EXIT_TIMEOUT_SECONDS = 10
 _CLI_PROCESS_EXIT_TIMEOUT_SECONDS = 5
 
 
@@ -2075,8 +2076,8 @@ class CopilotClient:
         This method performs graceful cleanup:
         1. Closes all active sessions (releases in-memory resources)
         2. Requests runtime shutdown for SDK-owned CLI processes
-        3. Closes the JSON-RPC connection
-        4. Terminates the CLI server process (if spawned by this client)
+        3. Closes owned stdio input and waits for host cleanup and natural exit
+        4. Closes the JSON-RPC connection and terminates any remaining owned process
 
         Note: session data on disk is preserved, so sessions can be resumed
         later. To permanently remove session data before stopping, call
@@ -2143,6 +2144,26 @@ class CopilotClient:
                 )
                 errors.append(StopError(message=f"Failed to gracefully shut down runtime: {e}"))
 
+        # Host telemetry is finalized after stdio EOF, not the shutdown response.
+        # Keep the readers alive while the child drains its final output.
+        if (
+            self._cli_process is not None
+            and not self._is_external_server
+            and isinstance(self._connection, StdioRuntimeConnection)
+            and self._cli_process.poll() is None
+        ):
+            try:
+                if self._cli_process.stdin is not None:
+                    self._cli_process.stdin.close()
+                await asyncio.to_thread(
+                    self._cli_process.wait,
+                    timeout=_CLI_PROCESS_GRACEFUL_EXIT_TIMEOUT_SECONDS,
+                )
+            except subprocess.TimeoutExpired:
+                logger.debug("Timed out waiting for graceful CLI exit; terminating the process")
+            except OSError:
+                logger.debug("Error while closing Copilot CLI stdin", exc_info=True)
+
         # Close client
         if self._client:
             await self._client.stop()
@@ -2171,15 +2192,7 @@ class CopilotClient:
                 logger.debug("Error while closing Copilot runtime transport", exc_info=True)
             self._process = None
 
-        # Terminate CLI process (only if we spawned it).
-        #
-        # Per the runtime.shutdown contract, the runtime completes all cleanup
-        # *before* responding and then leaves termination to the caller ("callers
-        # may then terminate the owned runtime process"). It deliberately keeps
-        # its JSON-RPC server alive to send the response and does not self-exit,
-        # so there is no point waiting a grace window for a self-exit that will
-        # never come. Once shutdown has completed (or failed) we terminate the
-        # child immediately and only wait to reap it.
+        # Terminate and reap an owned process that did not exit gracefully.
         if self._cli_process and not self._is_external_server:
             poll = getattr(self._cli_process, "poll", None)
             is_running = poll is None or poll() is None

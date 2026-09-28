@@ -93,11 +93,12 @@ public final class CopilotClient implements AutoCloseable {
     private static final Logger LOG = Logger.getLogger(CopilotClient.class.getName());
 
     /**
-     * Timeout, in seconds, used by {@link #close()} when waiting for graceful
-     * shutdown via {@link #stop()}.
+     * Timeout, in seconds, allowed by {@link #close()} for session and executor
+     * cleanup, in addition to the bounded runtime shutdown phases.
      */
     public static final int AUTOCLOSEABLE_TIMEOUT_SECONDS = 10;
     private static final int RUNTIME_SHUTDOWN_TIMEOUT_SECONDS = 10;
+    private static final int PROCESS_EXIT_TIMEOUT_SECONDS = 10;
     private static final int FORCE_KILL_TIMEOUT_SECONDS = 10;
 
     /**
@@ -735,8 +736,10 @@ public final class CopilotClient implements AutoCloseable {
      * <ol>
      * <li>Closes all active sessions (releases in-memory resources)</li>
      * <li>Requests runtime shutdown for SDK-owned CLI processes</li>
-     * <li>Closes the JSON-RPC connection</li>
-     * <li>Terminates the CLI server process (if spawned by this client)</li>
+     * <li>Closes stdin for an owned stdio process and waits for its host
+     * cleanup</li>
+     * <li>Closes the JSON-RPC connection, terminating an owned process if
+     * needed</li>
      * </ol>
      * <p>
      * Note: session data on disk is preserved, so sessions can be resumed later. To
@@ -828,7 +831,10 @@ public final class CopilotClient implements AutoCloseable {
                         });
             }
 
-            return shutdownFuture.handle((ignored, error) -> {
+            return shutdownFuture.handleAsync((ignored, error) -> {
+                if (gracefulRuntimeShutdown && connection.process != null && options.isUseStdio()) {
+                    awaitStdioProcessExit(connection.process);
+                }
                 try {
                     connection.rpc.close();
                 } catch (Exception e) {
@@ -842,8 +848,24 @@ public final class CopilotClient implements AutoCloseable {
                     closeRuntimeHost(connection.runtimeHost);
                 }
                 return (Void) null;
-            });
+            }, SHUTDOWN_DISPATCHER);
         }).thenCompose(result -> result);
+    }
+
+    private static void awaitStdioProcessExit(Process process) {
+        try {
+            // Host telemetry flushes after stdio EOF, not the shutdown RPC response.
+            // Keep the reader draining stdout until the child has finished.
+            process.getOutputStream().close();
+            if (!process.waitFor(PROCESS_EXIT_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+                LOG.fine("Process did not exit after stdin EOF within graceful shutdown timeout; terminating");
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            LOG.log(Level.FINE, "Interrupted while waiting for process exit", e);
+        } catch (IOException e) {
+            LOG.log(Level.FINE, "Error closing process stdin", e);
+        }
     }
 
     /**
@@ -853,12 +875,6 @@ public final class CopilotClient implements AutoCloseable {
     private static boolean cleanupCliProcess(Process process, boolean forceImmediately) {
         try {
             if (process.isAlive()) {
-                // The runtime completes all cleanup before responding to
-                // runtime.shutdown and then leaves termination to us; it
-                // deliberately keeps its JSON-RPC server alive to send the
-                // response and never self-exits. Waiting for a self-exit that
-                // will never come just wastes time, so terminate the child
-                // immediately and only wait to reap it.
                 if (forceImmediately) {
                     process.destroyForcibly();
                     if (!process.waitFor(FORCE_KILL_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
@@ -1793,9 +1809,11 @@ public final class CopilotClient implements AutoCloseable {
      * Closes this client using graceful shutdown semantics.
      * <p>
      * This method is intended for {@code try-with-resources} usage and blocks while
-     * waiting for {@link #stop()} to complete, up to
-     * {@link #AUTOCLOSEABLE_TIMEOUT_SECONDS} seconds. If shutdown fails or times
-     * out, the error is logged at {@link Level#FINE} and the method returns.
+     * waiting for {@link #stop()} to complete. The timeout includes the bounded
+     * runtime shutdown, natural exit, termination and kill phases, plus
+     * {@link #AUTOCLOSEABLE_TIMEOUT_SECONDS} for session cleanup. If shutdown fails
+     * or times out, the error is logged at {@link Level#FINE} and the method
+     * returns.
      * <p>
      * This method is idempotent.
      *
@@ -1809,7 +1827,8 @@ public final class CopilotClient implements AutoCloseable {
             return;
         disposed = true;
         try {
-            stop().get(AUTOCLOSEABLE_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            stop().get(AUTOCLOSEABLE_TIMEOUT_SECONDS + RUNTIME_SHUTDOWN_TIMEOUT_SECONDS + PROCESS_EXIT_TIMEOUT_SECONDS
+                    + 2 * FORCE_KILL_TIMEOUT_SECONDS, TimeUnit.SECONDS);
         } catch (Exception e) {
             LOG.log(Level.FINE, "Error during close", e);
         } finally {

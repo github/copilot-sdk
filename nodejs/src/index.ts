@@ -171,6 +171,7 @@ export type {
     ProviderModelConfig,
     ProviderTokenArgs,
     RemoteSessionMode,
+    SandboxConfigSource,
     ResumeSessionConfig,
     SectionOverride,
     SectionOverrideAction,

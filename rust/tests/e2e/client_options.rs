@@ -651,6 +651,252 @@ async fn remote_resource_mismatch_is_observable_before_resume() {
     );
 }
 
+#[tokio::test]
+async fn stdio_stop_waits_for_eof_cleanup() {
+    let fake = ShutdownCli::new("stop");
+    let client = Client::start(fake.options()).await.expect("start fake CLI");
+    let pid = client.pid().expect("owned child");
+    tokio::time::timeout(Duration::from_secs(40), client.stop())
+        .await
+        .expect("shutdown RPC, graceful exit, and reap must be bounded")
+        .expect("stop client");
+    assert_eq!(
+        std::fs::read_to_string(&fake.marker).expect("EOF cleanup"),
+        "{\"type\":\"span\"}\n"
+    );
+    assert!(!process_is_alive(pid).await);
+    client.stop().await.expect("repeated stop");
+}
+
+#[tokio::test]
+async fn stdio_stop_drains_stdout_during_eof_cleanup() {
+    let fake = FakeCli::new();
+    let client = Client::start(fake.client_options_with_behavior("token", "shutdown-output"))
+        .await
+        .expect("start fake CLI");
+    tokio::time::timeout(Duration::from_secs(40), client.stop())
+        .await
+        .expect("shutdown RPC, graceful exit, and reap must be bounded")
+        .expect("stop client");
+    assert_eq!(
+        std::fs::read_to_string(fake.capture_path.with_extension("cleanup"))
+            .expect("cleanup after draining final stdout"),
+        "flushed"
+    );
+}
+
+#[tokio::test]
+async fn stdio_stop_preserves_shutdown_error_after_eof_cleanup() {
+    let fake = FakeCli::new();
+    let client = Client::start(fake.client_options_with_behavior("token", "shutdown-error"))
+        .await
+        .expect("start fake CLI");
+    let errors = tokio::time::timeout(Duration::from_secs(40), client.stop())
+        .await
+        .expect("shutdown RPC, graceful exit, and reap must be bounded")
+        .expect_err("shutdown error must be returned");
+    assert!(errors.to_string().contains("shutdown rejected"), "{errors}");
+    assert_eq!(
+        std::fs::read_to_string(fake.capture_path.with_extension("cleanup"))
+            .expect("EOF cleanup despite RPC failure"),
+        "flushed"
+    );
+}
+
+#[tokio::test]
+async fn stdio_stop_bounds_unresponsive_shutdown_and_eof() {
+    let fake = FakeCli::new();
+    let client = Client::start(fake.client_options_with_behavior("token", "ignore-shutdown"))
+        .await
+        .expect("start fake CLI");
+    let pid = client.pid().expect("owned child");
+    let start = std::time::Instant::now();
+    let errors = tokio::time::timeout(Duration::from_secs(40), client.stop())
+        .await
+        .expect("10s RPC + 10s graceful exit + 10s reap must be bounded")
+        .expect_err("unanswered shutdown must report its timeout");
+    assert!(errors.to_string().contains("timed out"), "{errors}");
+    assert!(start.elapsed() >= Duration::from_secs(20));
+    assert!(!process_is_alive(pid).await);
+    assert!(!fake.capture_path.with_extension("cleanup").exists());
+}
+
+#[tokio::test]
+async fn stdio_stop_terminates_child_that_does_not_exit_after_eof() {
+    let fake = ShutdownCli::new("fallback");
+    let client = Client::start(fake.options()).await.expect("start fake CLI");
+    let pid = client.pid().expect("owned child");
+    let start = std::time::Instant::now();
+    tokio::time::timeout(Duration::from_secs(40), client.stop())
+        .await
+        .expect("shutdown RPC, graceful exit, and reap must be bounded")
+        .expect("fallback termination succeeds");
+    assert!(start.elapsed() >= Duration::from_secs(10));
+    assert!(!process_is_alive(pid).await);
+    assert!(
+        fake.marker.exists(),
+        "fixture must observe shutdown and EOF"
+    );
+    assert_eq!(
+        std::fs::read_to_string(&fake.marker).expect("EOF cleanup"),
+        "{\"type\":\"span\"}\n"
+    );
+}
+
+#[tokio::test]
+async fn stdio_force_stop_interrupts_graceful_exit_wait() {
+    let fake = ShutdownCli::new("fallback");
+    let client = Client::start(fake.options()).await.expect("start fake CLI");
+    let pid = client.pid().expect("owned child");
+    let stopping = tokio::spawn({
+        let client = client.clone();
+        async move { client.stop().await }
+    });
+    wait_for_cleanup_marker(&fake.marker).await;
+
+    client.force_stop();
+    tokio::time::timeout(Duration::from_secs(5), async {
+        stopping.await.expect("stop task").expect("stop client");
+        wait_for_process_exit(pid).await;
+    })
+    .await
+    .expect("force stop must interrupt grace before its 10-second deadline");
+}
+
+#[tokio::test]
+async fn stdio_cancelled_graceful_exit_wait_terminates_child() {
+    let fake = ShutdownCli::new("fallback");
+    let client = Client::start(fake.options()).await.expect("start fake CLI");
+    let pid = client.pid().expect("owned child");
+    let stopping = tokio::spawn({
+        let client = client.clone();
+        async move { client.stop().await }
+    });
+    wait_for_cleanup_marker(&fake.marker).await;
+
+    stopping.abort();
+    assert!(
+        stopping
+            .await
+            .expect_err("stop task cancelled")
+            .is_cancelled()
+    );
+    wait_for_process_exit(pid).await;
+    assert!(client.pid().is_none());
+}
+
+async fn wait_for_cleanup_marker(path: &std::path::Path) {
+    tokio::time::timeout(Duration::from_secs(5), async {
+        loop {
+            match std::fs::read_to_string(path) {
+                Ok(content) if content == "{\"type\":\"span\"}\n" => return,
+                Ok(_) => {}
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                Err(error) => panic!("read cleanup marker: {error}"),
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("fixture must reach EOF cleanup during graceful shutdown");
+}
+
+#[tokio::test]
+async fn stdio_force_stop_and_drop_remain_immediate() {
+    for force in [true, false] {
+        let fake = ShutdownCli::new("force");
+        let client = Client::start(fake.options()).await.expect("start fake CLI");
+        let pid = client.pid().expect("owned child");
+        if force {
+            client.force_stop();
+            assert!(client.pid().is_none());
+        }
+        drop(client);
+        wait_for_process_exit(pid).await;
+        assert!(!fake.marker.exists());
+    }
+}
+
+#[tokio::test]
+async fn stdio_startup_failure_terminates_owned_child() {
+    let fake = ShutdownCli::new("start-failure");
+    let result = tokio::time::timeout(Duration::from_secs(5), Client::start(fake.options()))
+        .await
+        .expect("startup failure must not await graceful shutdown");
+    assert!(result.is_err());
+    let pid = std::fs::read_to_string(&fake.pid_file)
+        .expect("read child PID")
+        .parse()
+        .expect("parse child PID");
+    wait_for_process_exit(pid).await;
+    assert!(!fake.marker.exists());
+}
+
+struct ShutdownCli {
+    dir: TempDir,
+    marker: PathBuf,
+    pid_file: PathBuf,
+    mode: &'static str,
+}
+
+impl ShutdownCli {
+    fn new(mode: &'static str) -> Self {
+        let dir = tempfile::tempdir().expect("create shutdown fixture directory");
+        Self {
+            marker: dir.path().join("cleanup.jsonl"),
+            pid_file: dir.path().join("child.pid"),
+            dir,
+            mode,
+        }
+    }
+
+    fn options(&self) -> ClientOptions {
+        let script = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../test/harness/stdio-shutdown-runtime.cjs");
+        ClientOptions::new()
+            .with_program(CliProgram::Path("node".into()))
+            .with_prefix_args([
+                script.into_os_string(),
+                self.marker.clone().into_os_string(),
+                self.mode.into(),
+                self.pid_file.clone().into_os_string(),
+            ])
+            .with_cwd(self.dir.path())
+            .with_use_logged_in_user(false)
+            .with_transport(Transport::Stdio)
+    }
+}
+
+async fn process_is_alive(pid: u32) -> bool {
+    let output = tokio::process::Command::new("node")
+        .args([
+            "-e",
+            "try { process.kill(Number(process.argv[1]), 0); } catch (e) { if (e.code === 'ESRCH') process.exit(3); throw e; }",
+            &pid.to_string(),
+        ])
+        .output()
+        .await
+        .expect("query child process");
+    match output.status.code() {
+        Some(0) => true,
+        Some(3) => false,
+        _ => panic!(
+            "query child process: {}",
+            String::from_utf8_lossy(&output.stderr)
+        ),
+    }
+}
+
+async fn wait_for_process_exit(pid: u32) {
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while process_is_alive(pid).await {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("owned child must exit promptly");
+}
+
 struct FakeCli {
     _dir: TempDir,
     script_path: PathBuf,
@@ -776,6 +1022,29 @@ process.stdin.on("data", chunk => {
   processBuffer();
 });
 process.stdin.resume();
+if (["ignore-shutdown", "shutdown-error", "shutdown-output"].includes(behavior)) {
+  const keepAlive = setInterval(() => {}, 1000);
+  process.stdin.on("end", () => {
+    if (behavior === "ignore-shutdown") return;
+    if (behavior === "shutdown-output") {
+      const body = JSON.stringify({
+        jsonrpc: "2.0",
+        method: "shutdown.output",
+        params: { output: "x".repeat(1024 * 1024) },
+      });
+      process.stdout.write(`Content-Length: ${Buffer.byteLength(body)}\r\n\r\n${body}`, error => {
+        if (error) throw error;
+        fs.writeFileSync(captureFile.replace(/\.json$/, ".cleanup"), "flushed");
+        clearInterval(keepAlive);
+      });
+      return;
+    }
+    setTimeout(() => {
+      fs.writeFileSync(captureFile.replace(/\.json$/, ".cleanup"), "flushed");
+      clearInterval(keepAlive);
+    }, 100);
+  });
+}
 
 function processBuffer() {
   while (true) {
@@ -802,6 +1071,11 @@ function handleMessage(message) {
   saveCapture();
   if (message.method === "connect") {
     writeResponse(message.id, { ok: true, protocolVersion: 3, version: "fake" });
+    return;
+  }
+  if (message.method === "runtime.shutdown" && behavior === "ignore-shutdown") return;
+  if (message.method === "runtime.shutdown" && behavior === "shutdown-error") {
+    writeMessage({ jsonrpc: "2.0", id: message.id, error: { code: -32000, message: "shutdown rejected" } });
     return;
   }
   if (message.method === "ping") {

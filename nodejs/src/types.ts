@@ -38,6 +38,7 @@ import type {
 import type { ToolSet } from "./toolSet.js";
 export type { RemoteSessionMode } from "./generated/rpc.js";
 export type { CurrentToolMetadata } from "./generated/rpc.js";
+export type { SandboxConfigSource } from "./generated/rpc.js";
 export type {
     ConnectorAccountRequest,
     ConnectorAvailability,

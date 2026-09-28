@@ -22031,6 +22031,11 @@ export interface SessionOpenOptions {
    */
   shellProcessFlags?: string[];
   sandboxConfig?: SandboxConfig;
+  /**
+   * Origin of the sandbox choice. Settings-derived origins (never_configured, user_enabled, user_disabled, repository_policy) let managed policy floor a host preference; explicit below-floor changes remain policy conflicts unless a session opt-out is authorized. Also used for telemetry provenance.
+   *
+   * @experimental
+   */
   sandboxConfigSource?: SandboxConfigSource;
   /**
    * Whether interactive shell sessions are logged.
@@ -23557,6 +23562,11 @@ export interface SessionUpdateOptionsParams {
    */
   shellProcessFlags?: string[];
   sandboxConfig?: SandboxConfig;
+  /**
+   * Origin of the sandbox choice. Settings-derived origins (never_configured, user_enabled, user_disabled, repository_policy) let managed policy floor a host preference; explicit below-floor changes remain policy conflicts unless a session opt-out is authorized. Also used for telemetry provenance.
+   *
+   * @experimental
+   */
   sandboxConfigSource?: SandboxConfigSource;
   /**
    * Whether interactive shell sessions are logged.

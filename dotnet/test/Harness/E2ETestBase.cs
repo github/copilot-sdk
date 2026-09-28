@@ -202,7 +202,7 @@ public abstract class E2ETestBase : IClassFixture<E2ETestFixture>, IAsyncLifetim
             });
     }
 
-    protected static string FindTestHarnessDir()
+    protected internal static string FindTestHarnessDir()
     {
         var relativePath = Path.Join("test", "harness", "test-mcp-server.mjs");
         var dir = new DirectoryInfo(AppContext.BaseDirectory);

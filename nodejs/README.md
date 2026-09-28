@@ -188,6 +188,9 @@ Start the CLI server and establish connection.
 ##### `stop(): Promise<Error[]>`
 
 Stop the server and close all sessions. Returns a list of any errors encountered during cleanup.
+For an owned stdio runtime, closes stdin and waits up to 10 seconds for host cleanup
+(including telemetry export) and process exit before falling back to termination.
+This graceful-exit timeout is separate from the shutdown RPC and post-termination wait.
 
 ##### `forceStop(): Promise<void>`
 

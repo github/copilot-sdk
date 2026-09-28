@@ -12745,9 +12745,17 @@ export interface McpServerStatusChangedEvent {
  */
 export interface McpServerStatusChangedData {
   /**
+   * Runtime configuration provenance for a failed connection, or unknown when unavailable. Additional string values may be introduced.
+   */
+  configSource?: string;
+  /**
    * Error message if the server entered a failed state
    */
   error?: string;
+  /**
+   * Runtime-produced classification for the final failed connection; unclassified means no classification was supplied. Additional string values may be introduced.
+   */
+  errorClassification?: string;
   /**
    * Name of the MCP server whose status changed
    */

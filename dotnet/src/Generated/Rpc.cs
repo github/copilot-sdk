@@ -17500,6 +17500,7 @@ internal sealed class SessionUpdateOptionsParams
     public SandboxConfig? SandboxConfig { get; set; }
 
     /// <summary>Origin of the sandbox choice. Settings-derived origins (never_configured, user_enabled, user_disabled, repository_policy) let managed policy floor a host preference; explicit below-floor changes remain policy conflicts unless a session opt-out is authorized. Also used for telemetry provenance.</summary>
+    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
     [JsonPropertyName("sandboxConfigSource")]
     public SandboxConfigSource? SandboxConfigSource { get; set; }
 

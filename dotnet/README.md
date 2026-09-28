@@ -166,6 +166,10 @@ Start the CLI server and establish connection.
 ##### `StopAsync(): Task`
 
 Stop the server and close all sessions. Throws if errors are encountered during cleanup.
+For an owned stdio runtime, graceful shutdown closes stdin and waits up to 10 seconds
+for host cleanup, including telemetry export. This cleanup is best-effort: if the wait
+times out, the process is terminated and that timeout alone is not reported as a cleanup
+error. A successful return does not guarantee that all telemetry was exported.
 
 ##### `ForceStopAsync(): Task`
 
@@ -195,6 +199,11 @@ Create a new conversation session.
 - `OnUserInputRequest` - Handler for legacy question-and-answer requests from the agent. Enables the legacy `ask_user` tool. See [User Input Requests](#user-input-requests) section.
 - `AskUserVariant` - Selects the model-facing `ask_user` tool shape. Defaults to `AskUserVariant.Legacy`; use `AskUserVariant.Elicitation` with `OnElicitationRequest`.
 - `Hooks` - Hook handlers for session lifecycle events. See [Session Hooks](#session-hooks) section.
+- `CanvasHandler` - Handles canvas open, close, and action callbacks. The SDK awaits
+  asynchronous callbacks before replying, including callbacks without a result, unless
+  the runtime cancels the request first. A cancellation response can be sent while the
+  callback is still running. Their cancellation token is canceled by a per-request
+  `$/cancelRequest`, when the runtime connection closes, or when the client is disposed.
 
 ##### `ResumeSessionAsync(string sessionId, ResumeSessionConfig? config = null): Task<CopilotSession>`
 

@@ -692,7 +692,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
         if (ctx.CliProcess is { } childProcess)
         {
-            await CleanupCliProcessAsync(childProcess, ctx.StderrPump, errors, _logger);
+            await CleanupCliProcessAsync(childProcess, ctx.StderrPump, errors, _logger, gracefulRuntimeShutdown);
         }
 
         if (ctx.FfiHost is { } ffiHost)
@@ -703,20 +703,35 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         }
     }
 
-    private static async Task CleanupCliProcessAsync(Process childProcess, ProcessStderrPump? stderrPump, List<Exception>? errors, ILogger? logger)
+    private static async Task CleanupCliProcessAsync(Process childProcess, ProcessStderrPump? stderrPump, List<Exception>? errors, ILogger? logger, bool gracefulRuntimeShutdown = false)
     {
         var processExited = false;
 
         try
         {
+            if (gracefulRuntimeShutdown && childProcess.StartInfo.RedirectStandardInput && !childProcess.HasExited)
+            {
+                try
+                {
+                    // The native wrapper finalizes host telemetry after stdin EOF,
+                    // not when it acknowledges runtime.shutdown.
+                    childProcess.StandardInput.Close();
+                    await childProcess.WaitForExitAsync().WaitAsync(s_runtimeShutdownTimeout);
+                }
+                catch (Exception ex) when (ex is TimeoutException or IOException or ObjectDisposedException)
+                {
+                    logger?.LogDebug(ex, "Graceful stdio runtime exit did not complete; terminating the process");
+                }
+                catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception or NotSupportedException)
+                {
+                    AddCleanupError(errors, ex, logger);
+                }
+            }
+
             if (!childProcess.HasExited)
             {
-                // The runtime completes all cleanup before responding to
-                // runtime.shutdown and then leaves termination to us; it
-                // deliberately keeps its JSON-RPC server alive to send the
-                // response and never self-exits. Waiting for a self-exit that
-                // will never come just wastes time, so terminate the child
-                // immediately and only wait to reap it.
+                // Force-stop, failed startup, and runtimes that ignore EOF still
+                // require explicit termination.
                 childProcess.Kill(entireProcessTree: true);
                 // Kill is asynchronous; wait for the root CLI process to exit so cleanup callers
                 // do not observe StopAsync/DisposeAsync completion while it is still tearing down.

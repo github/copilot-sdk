@@ -1013,7 +1013,8 @@ export class CopilotClient {
      * 1. Closes all active sessions (releases in-memory resources)
      * 2. Requests runtime shutdown for SDK-owned CLI processes
      * 3. Closes the JSON-RPC connection
-     * 4. Terminates the CLI server process (if spawned by this client)
+     * 4. Signals EOF to an owned stdio process and waits for host cleanup, then
+     *    terminates the process if it does not exit within the shutdown timeout
      *
      * Note: session data on disk is preserved, so sessions can be resumed later.
      * To permanently remove session data before stopping, call
@@ -1166,15 +1167,33 @@ export class CopilotClient {
             }
         }
 
-        // The runtime completes all cleanup before responding to
-        // runtime.shutdown and then leaves termination to us; it deliberately
-        // keeps its JSON-RPC server alive to send the response and never
-        // self-exits. Waiting a grace window for a self-exit that will never
-        // come just wastes time, so terminate the child immediately and only
-        // wait to reap it.
         if (this.cliProcess && !this.isExternalServer) {
             const child = this.cliProcess;
-            this.cliProcess = null;
+            if (
+                this.connectionConfig.kind === "stdio" &&
+                child.stdin &&
+                child.exitCode == null &&
+                child.signalCode == null
+            ) {
+                const gracefulExitStart = Date.now();
+                try {
+                    // Host telemetry is finalized after transport EOF, not the shutdown RPC.
+                    child.stdin.end();
+                    const exited = await waitForChildExit(child, RUNTIME_SHUTDOWN_TIMEOUT_MS);
+                    this.logDebugTiming(
+                        exited
+                            ? "CopilotClient.stop graceful stdio exit complete"
+                            : "CopilotClient.stop graceful stdio exit timed out; terminating child",
+                        gracefulExitStart
+                    );
+                } catch (error) {
+                    errors.push(
+                        new Error(
+                            `Failed to close CLI stdin: ${error instanceof Error ? error.message : String(error)}`
+                        )
+                    );
+                }
+            }
             try {
                 if (child.exitCode == null && child.signalCode == null) {
                     child.kill();
@@ -1192,6 +1211,10 @@ export class CopilotClient {
                         `Failed to kill CLI process: ${error instanceof Error ? error.message : String(error)}`
                     )
                 );
+            } finally {
+                if (this.cliProcess === child) {
+                    this.cliProcess = null;
+                }
             }
         }
         // Tear down the in-process FFI host (closes the native connection and

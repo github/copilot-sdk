@@ -18,6 +18,7 @@ import com.github.copilot.rpc.SessionLifecycleEvent;
 import com.github.copilot.rpc.SessionLifecycleEventTypes;
 import com.github.copilot.rpc.ToolDefinition;
 
+import java.io.OutputStream;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
@@ -51,31 +52,6 @@ public class CopilotClientTest {
     }
 
     @Test
-    void testStopRequestsRuntimeShutdownForOwnedProcess() throws Exception {
-        var client = new CopilotClient(new CopilotClientOptions().setAutoStart(false));
-        var rpc = mock(JsonRpcClient.class);
-        when(rpc.invoke(eq("runtime.shutdown"), any(), eq(Void.class)))
-                .thenReturn(CompletableFuture.completedFuture(null));
-        var process = mock(Process.class);
-        when(process.isAlive()).thenReturn(true);
-        when(process.waitFor(anyLong(), any(TimeUnit.class))).thenReturn(true);
-
-        setConnectionFuture(client, rpc, process);
-
-        client.stop().get();
-
-        verify(rpc).invoke(eq("runtime.shutdown"), eq(Map.of()), eq(Void.class));
-        verify(rpc).close();
-        // The runtime never self-exits after runtime.shutdown (it keeps its
-        // JSON-RPC server alive to send the response and leaves termination to
-        // the caller), so stop() terminates the owned process. The mocked
-        // process exits on the first SIGTERM (waitFor returns true), so we
-        // never escalate to destroyForcibly().
-        verify(process).destroy();
-        verify(process, never()).destroyForcibly();
-    }
-
-    @Test
     void testStopDoesNotThrowWhenRuntimeShutdownFails() throws Exception {
         var client = new CopilotClient(new CopilotClientOptions().setAutoStart(false));
         var rpc = mock(JsonRpcClient.class);
@@ -83,6 +59,7 @@ public class CopilotClientTest {
                 .thenReturn(CompletableFuture.failedFuture(new RuntimeException("shutdown failed")));
         var process = mock(Process.class);
         when(process.isAlive()).thenReturn(true);
+        when(process.getOutputStream()).thenReturn(OutputStream.nullOutputStream());
         when(process.destroyForcibly()).thenReturn(process);
         when(process.waitFor(anyLong(), any(TimeUnit.class))).thenReturn(true);
 

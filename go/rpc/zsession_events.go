@@ -2178,8 +2178,12 @@ func (*SessionMCPServerRemovedData) Type() SessionEventType {
 
 // Payload of `session.mcp_server_status_changed` for one MCP server's status and optional failure error.
 type SessionMCPServerStatusChangedData struct {
+	// Runtime configuration provenance for a failed connection, or unknown when unavailable. Additional string values may be introduced.
+	ConfigSource *string `json:"configSource,omitempty"`
 	// Error message if the server entered a failed state
 	Error *string `json:"error,omitempty"`
+	// Runtime-produced classification for the final failed connection; unclassified means no classification was supplied. Additional string values may be introduced.
+	ErrorClassification *string `json:"errorClassification,omitempty"`
 	// Name of the MCP server whose status changed
 	ServerName string `json:"serverName"`
 	// Connection status: connected, failed, needs-auth, pending, disabled, stopped, or not_configured

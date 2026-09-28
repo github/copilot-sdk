@@ -42,6 +42,6 @@ conversations:
         content: Intent logged
       - role: tool
         tool_call_id: toolcall_1
-        content: Permission denied and could not request permission from user
+        content: "Permission denied and could not request permission from user. Copilot needed the user's approval and no one could answer. This is not an OS or sandbox error."
       - role: assistant
         content: failed

@@ -34,6 +34,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/netip"
@@ -148,6 +149,7 @@ func validateEnvironmentOptions(connection RuntimeConnection, opts *ClientOption
 type Client struct {
 	options                            ClientOptions
 	process                            *exec.Cmd
+	processStdin                       io.WriteCloser
 	client                             *jsonrpc2.Client
 	actualPort                         int
 	actualHost                         string
@@ -570,8 +572,8 @@ func (c *Client) Start(ctx context.Context) error {
 // This method performs graceful cleanup:
 //  1. Closes all active sessions (releases in-memory resources)
 //  2. Requests runtime shutdown for SDK-owned CLI processes
-//  3. Closes the JSON-RPC connection
-//  4. Terminates the CLI server process (if spawned by this client)
+//  3. Closes owned stdio input and waits up to 10 seconds for host cleanup and exit
+//  4. Terminates any remaining owned CLI process and closes the JSON-RPC connection
 //
 // Note: session data on disk is preserved, so sessions can be resumed later.
 // To permanently remove session data before stopping, call [Client.DeleteSession]
@@ -634,11 +636,24 @@ func (c *Client) Stop() error {
 		}
 	}
 
-	// The runtime completes all cleanup before responding to runtime.shutdown
-	// and then leaves termination to us; it deliberately keeps its JSON-RPC
-	// server alive to send the response and never self-exits. Waiting for a
-	// self-exit that will never come just wastes time, so terminate the child
-	// immediately and only wait to reap it.
+	// The stdio host finalizes telemetry after EOF, not after runtime.shutdown.
+	// Keep stdout open while allowing the child to finish that cleanup naturally.
+	if c.process != nil && !c.isExternalServer && c.processStdin != nil {
+		processExitStart := time.Now()
+		if err := c.processStdin.Close(); err != nil && !errors.Is(err, os.ErrClosed) {
+			errs = append(errs, fmt.Errorf("failed to close CLI stdin: %w", err))
+		}
+		c.processStdin = nil
+		select {
+		case <-c.processDone:
+			c.logDebugTiming(processExitStart, "CopilotClient.Stop CLI process exited gracefully")
+			c.osProcess.Store(nil)
+			c.process = nil
+		case <-time.After(processExitTimeout):
+			c.logDebugTiming(processExitStart, "CopilotClient.Stop CLI process exit timed out; killing process")
+		}
+	}
+
 	if c.process != nil && !c.isExternalServer {
 		if err := c.killProcessAndWait(); err != nil {
 			errs = append(errs, err)
@@ -2214,6 +2229,7 @@ func (c *Client) startCLIServer(ctx context.Context) error {
 			return fmt.Errorf("failed to start CLI server: %w", err)
 		}
 
+		c.processStdin = stdin
 		c.monitorProcess()
 
 		// Create JSON-RPC client immediately
@@ -2395,6 +2411,10 @@ func (c *Client) killProcess() error {
 		if err := p.Kill(); err != nil {
 			return fmt.Errorf("failed to kill CLI process: %w", err)
 		}
+	}
+	if c.processStdin != nil {
+		_ = c.processStdin.Close()
+		c.processStdin = nil
 	}
 	c.process = nil
 	return nil

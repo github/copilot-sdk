@@ -141,6 +141,12 @@ or supply its reply.
 
 If you need more control over the lifecycle, you can call `start()`, `stop()`, and `disconnect()` manually:
 
+For an SDK-owned stdio runtime, `stop()` and async context-manager exit request
+shutdown, close stdin, and wait up to 10 seconds for the process to finish host
+cleanup, including telemetry flushing. A process that does not exit is terminated,
+then killed if necessary, with bounded waits. `force_stop()` skips graceful cleanup;
+externally managed runtimes are not shut down.
+
 ```python
 import asyncio
 

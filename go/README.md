@@ -244,7 +244,7 @@ Implemented with pure-Go FFI (via [purego](https://github.com/ebitengine/purego)
 
 - `NewClient(options *ClientOptions) *Client` - Create a new client
 - `Start(ctx context.Context) error` - Start the CLI server
-- `Stop() error` - Stop the CLI server
+- `Stop() error` - Gracefully stop the CLI server. For an owned stdio process, requests runtime shutdown, closes stdin, and waits up to 10 seconds for host cleanup (including telemetry) and natural exit before falling back to a forced termination.
 - `ForceStop()` - Forcefully stop without graceful cleanup
 - `CreateSession(ctx context.Context, config *SessionConfig) (*Session, error)` - Create a new session
 - `ResumeSession(ctx context.Context, sessionID string, config *ResumeSessionConfig) (*Session, error)` - Resume an existing session

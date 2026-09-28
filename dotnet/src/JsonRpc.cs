@@ -852,12 +852,19 @@ internal sealed partial class JsonRpc : IDisposable
     {
         var result = registration.Handler.DynamicInvoke(invokeArgs);
 
-        // Handlers return one of: a synchronous value, Task (void async), or ValueTask<T>.
+        // Handlers return a synchronous value, Task, ValueTask, or ValueTask<T>.
         if (result is Task task)
         {
             // Task<T> handlers are not supported — use ValueTask<T> for results.
-            Debug.Assert(!task.GetType().IsGenericType, "Task<T> handlers are not supported; use ValueTask<T>.");
+            // An async Task method can return a generic runtime state-machine box.
+            Debug.Assert(registration.Handler.Method.ReturnType == typeof(Task), "Task<T> handlers are not supported; use ValueTask<T>.");
             await task.ConfigureAwait(false);
+            return null;
+        }
+
+        if (result is ValueTask valueTask)
+        {
+            await valueTask.ConfigureAwait(false);
             return null;
         }
 

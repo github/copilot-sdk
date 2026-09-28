@@ -294,6 +294,16 @@ follow [the Rust SDK workflow](.github/workflows/sdk-rust.yml) for rustdoc.
 
 ### Recording and replaying SDK tests
 
+Owned-stdio shutdown regressions share
+`test/harness/stdio-shutdown-runtime.cjs` across all six SDKs. Launch it with
+Node and arguments `<cleanup-marker> <mode> <pid-file>`. The fixture acknowledges
+`runtime.shutdown`, but writes its cleanup marker only after stdin EOF, matching
+the native wrapper's host-finalization boundary. Language-native tests exercise
+graceful stop/disposal, force-stop where exposed, a child that ignores EOF, and
+failed-startup cleanup. Keep those lifecycle expectations aligned when changing
+an SDK transport; test watchdogs must allow all cleanup phases their separate
+budgets, rather than treating the graceful-exit timeout as a total shutdown cap.
+
 The shared harness records real inference responses under `test/snapshots`.
 Record new captures with `GITHUB_TOKEN` set and `GITHUB_ACTIONS` unset;
 never author model responses by hand. Rerun with `GITHUB_ACTIONS=true` and real
