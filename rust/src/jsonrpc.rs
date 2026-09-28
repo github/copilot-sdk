@@ -564,6 +564,7 @@ pub struct JsonRpcClient {
     notification_tx: broadcast::Sender<JsonRpcNotification>,
     request_tx: mpsc::UnboundedSender<JsonRpcRequest>,
     connection_closed: CancellationToken,
+    pub(crate) confirmation_requests: Arc<crate::installation_confirmation::ConfirmationRequests>,
     read_task: Mutex<Option<JoinHandle<()>>>,
     write_task: Mutex<Option<JoinHandle<()>>>,
 }
@@ -593,6 +594,9 @@ impl JsonRpcClient {
             notification_tx,
             request_tx,
             connection_closed: CancellationToken::new(),
+            confirmation_requests: Arc::new(
+                crate::installation_confirmation::ConfirmationRequests::default(),
+            ),
             read_task: Mutex::new(None),
             write_task: Mutex::new(Some(write_task)),
         };
@@ -601,6 +605,7 @@ impl JsonRpcClient {
         let notification_tx_clone = client.notification_tx.clone();
         let request_tx_clone = client.request_tx.clone();
         let connection_closed = client.connection_closed.clone();
+        let confirmation_requests = client.confirmation_requests.clone();
         let reader_span = tracing::error_span!("jsonrpc_read_loop");
 
         let read_task = tokio::spawn(
@@ -610,9 +615,11 @@ impl JsonRpcClient {
                     pending_requests,
                     notification_tx_clone,
                     request_tx_clone,
+                    confirmation_requests.clone(),
                 )
                 .await;
                 connection_closed.cancel();
+                confirmation_requests.clear();
             }
             .instrument(reader_span),
         );
@@ -623,6 +630,7 @@ impl JsonRpcClient {
 
     pub(crate) fn force_close(&self) {
         self.connection_closed.cancel();
+        self.confirmation_requests.clear();
         if let Some(task) = self.read_task.lock().take() {
             task.abort();
         }
@@ -672,6 +680,7 @@ impl JsonRpcClient {
         pending_requests: Arc<RwLock<HashMap<u64, PendingRequest>>>,
         notification_tx: broadcast::Sender<JsonRpcNotification>,
         request_tx: mpsc::UnboundedSender<JsonRpcRequest>,
+        confirmation_requests: Arc<crate::installation_confirmation::ConfirmationRequests>,
     ) {
         let mut reader = BufReader::new(reader);
 
@@ -748,9 +757,27 @@ impl JsonRpcClient {
                                 &repaired_worker_paths,
                             );
                         }
+                        if notification.method == "$/cancelRequest" {
+                            if let Some(id) = notification
+                                .params
+                                .as_ref()
+                                .and_then(|params| params.get("id"))
+                                .and_then(Value::as_u64)
+                            {
+                                confirmation_requests.cancel(id);
+                            } else {
+                                warn!("invalid numeric request cancellation");
+                            }
+                        }
                         let _ = notification_tx.send(notification);
                     }
                     JsonRpcMessage::Request(request) => {
+                        if request.method == crate::installation_confirmation::CONFIRM_METHOD
+                            && !confirmation_requests.register(request.id)
+                        {
+                            warn!("duplicate pending installation confirmation request ID");
+                            break;
+                        }
                         if request_tx.send(request).is_err() {
                             warn!("failed to forward JSON-RPC request, channel closed");
                         }

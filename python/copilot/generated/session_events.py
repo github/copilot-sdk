@@ -502,6 +502,8 @@ class AssistantFusionPhaseCompletedData:
     _projection_message: Any = None
     # Internal: this field is an internal SDK API and is not part of the public surface.
     _projection_mode: _FusionProjectionMode | None = None
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    reasoning_effort: str | None = None
     # Internal: this field is an internal SDK API and is not part of the public surface.
     _staged_terminal: _FusionStagedTerminal | None = None
 
@@ -521,6 +523,7 @@ class AssistantFusionPhaseCompletedData:
         verdict = from_union([from_none, from_str], obj.get("verdict"))
         _projection_message = obj.get("projectionMessage")
         _projection_mode = from_union([from_none, lambda x: parse_enum(_FusionProjectionMode, x)], obj.get("projectionMode"))
+        reasoning_effort = from_union([from_none, from_str], obj.get("reasoningEffort"))
         _staged_terminal = from_union([from_none, _FusionStagedTerminal.from_dict], obj.get("stagedTerminal"))
         return AssistantFusionPhaseCompletedData(
             content=content,
@@ -536,6 +539,7 @@ class AssistantFusionPhaseCompletedData:
             verdict=verdict,
             _projection_message=_projection_message,
             _projection_mode=_projection_mode,
+            reasoning_effort=reasoning_effort,
             _staged_terminal=_staged_terminal,
         )
 
@@ -556,6 +560,8 @@ class AssistantFusionPhaseCompletedData:
             result["projectionMessage"] = self._projection_message
         if self._projection_mode is not None:
             result["projectionMode"] = from_union([from_none, lambda x: to_enum(_FusionProjectionMode, x)], self._projection_mode)
+        if self.reasoning_effort is not None:
+            result["reasoningEffort"] = from_union([from_none, from_str], self.reasoning_effort)
         if self._staged_terminal is not None:
             result["stagedTerminal"] = from_union([from_none, lambda x: to_class(_FusionStagedTerminal, x)], self._staged_terminal)
         return result
@@ -577,6 +583,8 @@ class AssistantFusionPhaseFailedData:
     usage: FusionPhaseUsage
     degraded_to_phase_id: str | None = None
     error_message: str | None = None
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    reasoning_effort: str | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "AssistantFusionPhaseFailedData":
@@ -593,6 +601,7 @@ class AssistantFusionPhaseFailedData:
         usage = FusionPhaseUsage.from_dict(obj.get("usage"))
         degraded_to_phase_id = from_union([from_none, from_str], obj.get("degradedToPhaseId"))
         error_message = from_union([from_none, from_str], obj.get("errorMessage"))
+        reasoning_effort = from_union([from_none, from_str], obj.get("reasoningEffort"))
         return AssistantFusionPhaseFailedData(
             conversation_scope=conversation_scope,
             duration_ms=duration_ms,
@@ -606,6 +615,7 @@ class AssistantFusionPhaseFailedData:
             usage=usage,
             degraded_to_phase_id=degraded_to_phase_id,
             error_message=error_message,
+            reasoning_effort=reasoning_effort,
         )
 
     def to_dict(self) -> dict:
@@ -624,6 +634,8 @@ class AssistantFusionPhaseFailedData:
             result["degradedToPhaseId"] = from_union([from_none, from_str], self.degraded_to_phase_id)
         if self.error_message is not None:
             result["errorMessage"] = from_union([from_none, from_str], self.error_message)
+        if self.reasoning_effort is not None:
+            result["reasoningEffort"] = from_union([from_none, from_str], self.reasoning_effort)
         return result
 
 
@@ -638,6 +650,8 @@ class AssistantFusionPhaseStartedData:
     phase_id: str
     phase_kind: FusionPhaseKind
     role: str
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    reasoning_effort: str | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "AssistantFusionPhaseStartedData":
@@ -649,6 +663,7 @@ class AssistantFusionPhaseStartedData:
         phase_id = from_str(obj.get("phaseId"))
         phase_kind = parse_enum(FusionPhaseKind, obj.get("phaseKind"))
         role = from_str(obj.get("role"))
+        reasoning_effort = from_union([from_none, from_str], obj.get("reasoningEffort"))
         return AssistantFusionPhaseStartedData(
             conversation_scope=conversation_scope,
             fusion_id=fusion_id,
@@ -657,6 +672,7 @@ class AssistantFusionPhaseStartedData:
             phase_id=phase_id,
             phase_kind=phase_kind,
             role=role,
+            reasoning_effort=reasoning_effort,
         )
 
     def to_dict(self) -> dict:
@@ -668,6 +684,8 @@ class AssistantFusionPhaseStartedData:
         result["phaseId"] = from_str(self.phase_id)
         result["phaseKind"] = to_enum(FusionPhaseKind, self.phase_kind)
         result["role"] = from_str(self.role)
+        if self.reasoning_effort is not None:
+            result["reasoningEffort"] = from_union([from_none, from_str], self.reasoning_effort)
         return result
 
 
@@ -1172,6 +1190,37 @@ class FusionAttribution:
             result["sourceModel"] = from_union([from_none, from_str], self.source_model)
         if self.source_phase_id is not None:
             result["sourcePhaseId"] = from_union([from_none, from_str], self.source_phase_id)
+        return result
+
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class FusionCritic:
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    model: str
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    phase_id: str
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    reasoning_effort: str | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "FusionCritic":
+        assert isinstance(obj, dict)
+        model = from_str(obj.get("model"))
+        phase_id = from_str(obj.get("phaseId"))
+        reasoning_effort = from_union([from_none, from_str], obj.get("reasoningEffort"))
+        return FusionCritic(
+            model=model,
+            phase_id=phase_id,
+            reasoning_effort=reasoning_effort,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["model"] = from_str(self.model)
+        result["phaseId"] = from_str(self.phase_id)
+        if self.reasoning_effort is not None:
+            result["reasoningEffort"] = from_union([from_none, from_str], self.reasoning_effort)
         return result
 
 
@@ -2104,14 +2153,20 @@ class SessionFusionResolvedData:
     secondary_model: str | None
     synthetic_model: str
     turn_id: str
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    critics: list[FusionCritic] | None = None
     follow_up: FusionFollowUpRecommendation | None = None
     # Experimental: this field is part of an experimental API and may change or be removed.
     hint: str | None = None
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    judge_model: str | None = None
     model_universe_version: str | None = None
     # Experimental: this field is part of an experimental API and may change or be removed.
     phase_plan: list[FusionPhasePlanStep] | None = None
     plan_version: str | None = None
     policy_version: str | None = None
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    repair_model: str | None = None
     route_source: str | None = None
     routing_latency_ms: float | None = None
     rule_id: str | None = None
@@ -2132,12 +2187,15 @@ class SessionFusionResolvedData:
         secondary_model = from_union([from_none, from_str], obj.get("secondaryModel"))
         synthetic_model = from_str(obj.get("syntheticModel"))
         turn_id = from_str(obj.get("turnId"))
+        critics = from_union([from_none, lambda x: from_list(FusionCritic.from_dict, x)], obj.get("critics"))
         follow_up = from_union([from_none, FusionFollowUpRecommendation.from_dict], obj.get("followUp"))
         hint = from_union([from_none, from_str], obj.get("hint"))
+        judge_model = from_union([from_none, from_str], obj.get("judgeModel"))
         model_universe_version = from_union([from_none, from_str], obj.get("modelUniverseVersion"))
         phase_plan = from_union([from_none, lambda x: from_list(FusionPhasePlanStep.from_dict, x)], obj.get("phasePlan"))
         plan_version = from_union([from_none, from_str], obj.get("planVersion"))
         policy_version = from_union([from_none, from_str], obj.get("policyVersion"))
+        repair_model = from_union([from_none, from_str], obj.get("repairModel"))
         route_source = from_union([from_none, from_str], obj.get("routeSource"))
         routing_latency_ms = from_union([from_none, from_float], obj.get("routingLatencyMs"))
         rule_id = from_union([from_none, from_str], obj.get("ruleId"))
@@ -2155,12 +2213,15 @@ class SessionFusionResolvedData:
             secondary_model=secondary_model,
             synthetic_model=synthetic_model,
             turn_id=turn_id,
+            critics=critics,
             follow_up=follow_up,
             hint=hint,
+            judge_model=judge_model,
             model_universe_version=model_universe_version,
             phase_plan=phase_plan,
             plan_version=plan_version,
             policy_version=policy_version,
+            repair_model=repair_model,
             route_source=route_source,
             routing_latency_ms=routing_latency_ms,
             rule_id=rule_id,
@@ -2181,10 +2242,14 @@ class SessionFusionResolvedData:
         result["secondaryModel"] = from_union([from_none, from_str], self.secondary_model)
         result["syntheticModel"] = from_str(self.synthetic_model)
         result["turnId"] = from_str(self.turn_id)
+        if self.critics is not None:
+            result["critics"] = from_union([from_none, lambda x: from_list(lambda x: to_class(FusionCritic, x), x)], self.critics)
         if self.follow_up is not None:
             result["followUp"] = from_union([from_none, lambda x: to_class(FusionFollowUpRecommendation, x)], self.follow_up)
         if self.hint is not None:
             result["hint"] = from_union([from_none, from_str], self.hint)
+        if self.judge_model is not None:
+            result["judgeModel"] = from_union([from_none, from_str], self.judge_model)
         if self.model_universe_version is not None:
             result["modelUniverseVersion"] = from_union([from_none, from_str], self.model_universe_version)
         if self.phase_plan is not None:
@@ -2193,6 +2258,8 @@ class SessionFusionResolvedData:
             result["planVersion"] = from_union([from_none, from_str], self.plan_version)
         if self.policy_version is not None:
             result["policyVersion"] = from_union([from_none, from_str], self.policy_version)
+        if self.repair_model is not None:
+            result["repairModel"] = from_union([from_none, from_str], self.repair_model)
         if self.route_source is not None:
             result["routeSource"] = from_union([from_none, from_str], self.route_source)
         if self.routing_latency_ms is not None:
@@ -3212,8 +3279,8 @@ class AssistantTurnStartData:
     turn_id: str
     interaction_id: str | None = None
     model: str | None = None
-    worker_causality: WorkerCausality | None = None
     parent_tool_call_id: str | None = None
+    worker_causality: WorkerCausality | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "AssistantTurnStartData":
@@ -3221,14 +3288,14 @@ class AssistantTurnStartData:
         turn_id = from_str(obj.get("turnId"))
         interaction_id = from_union([from_none, from_str], obj.get("interactionId"))
         model = from_union([from_none, from_str], obj.get("model"))
-        worker_causality = optional_worker_causality(obj.get("workerCausality"), lambda: from_union([from_none, WorkerCausality.from_dict], obj.get("workerCausality")))
         parent_tool_call_id = from_union([from_none, from_str], obj.get("parentToolCallId"))
+        worker_causality = optional_worker_causality(obj.get("workerCausality"), lambda: from_union([from_none, WorkerCausality.from_dict], obj.get("workerCausality")))
         return AssistantTurnStartData(
             turn_id=turn_id,
             interaction_id=interaction_id,
             model=model,
-            worker_causality=worker_causality,
             parent_tool_call_id=parent_tool_call_id,
+            worker_causality=worker_causality,
         )
 
     def to_dict(self) -> dict:
@@ -3238,10 +3305,10 @@ class AssistantTurnStartData:
             result["interactionId"] = from_union([from_none, from_str], self.interaction_id)
         if self.model is not None:
             result["model"] = from_union([from_none, from_str], self.model)
-        if self.worker_causality is not None:
-            result["workerCausality"] = from_union([from_none, lambda x: to_class(WorkerCausality, x)], self.worker_causality)
         if self.parent_tool_call_id is not None:
             result["parentToolCallId"] = from_union([from_none, from_str], self.parent_tool_call_id)
+        if self.worker_causality is not None:
+            result["workerCausality"] = from_union([from_none, lambda x: to_class(WorkerCausality, x)], self.worker_causality)
         return result
 
 
@@ -15208,6 +15275,7 @@ __all__ = [
     "ExternalToolRequestedData",
     "FusionAttribution",
     "FusionConversationScope",
+    "FusionCritic",
     "FusionFollowUpAction",
     "FusionFollowUpRecommendation",
     "FusionPattern",

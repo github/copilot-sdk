@@ -2054,12 +2054,16 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     {
         var handler = _options.RequestHandler;
         var onGitHubTelemetry = _options.OnGitHubTelemetry;
+        var installationConfirmationHandler = _options.InstallationConfirmationHandler;
         return new ClientGlobalApiHandlers
         {
             ExtensionLaunchProvider = _options.ExtensionLaunchProvider,
             LlmInference = handler is null ? null : new LlmInferenceAdapter(handler, () => _serverRpc),
             GitHubTelemetry = onGitHubTelemetry is null ? null : new GitHubTelemetryAdapter(onGitHubTelemetry, _logger),
             GitHubToken = new GitHubTokenAdapter(this),
+            Installations = installationConfirmationHandler is null
+                ? null
+                : new InstallationConfirmationAdapter(installationConfirmationHandler),
         };
     }
 
@@ -2707,6 +2711,10 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             });
             if (_clientGlobalApis is not null)
             {
+                if (_clientGlobalApis.Installations is InstallationConfirmationAdapter installationConfirmationAdapter)
+                {
+                    installationConfirmationAdapter.Attach(rpc);
+                }
                 ClientGlobalApiRegistration.RegisterClientGlobalApiHandlers(rpc, _clientGlobalApis);
             }
             if (cliProcess is not null)

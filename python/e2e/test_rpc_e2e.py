@@ -99,7 +99,6 @@ class TestSessionRpc:
             on_permission_request=PermissionHandler.approve_all, model="claude-sonnet-5"
         )
 
-        # Get initial model
         before = await session.rpc.model.get_current()
         assert before.model_id is not None
 
@@ -173,7 +172,6 @@ class TestSessionRpc:
             assert after_update.exists is True
             assert after_update.content == plan_content
 
-            # Delete plan
             await session.rpc.plan.delete()
 
             # Verify plan is deleted
@@ -216,13 +214,11 @@ class TestSessionRpc:
             after_create = await session.rpc.workspaces.list_files()
             assert "test.txt" in after_create.files
 
-            # Read file
             read_result = await session.rpc.workspaces.read_file(
                 WorkspacesReadFileRequest(path="test.txt")
             )
             assert read_result.content == file_content
 
-            # Create nested file
             await session.rpc.workspaces.create_file(
                 WorkspacesCreateFileRequest(content="Nested content", path="subdir/nested.txt")
             )

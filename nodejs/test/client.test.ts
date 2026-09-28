@@ -3715,7 +3715,6 @@ describe("CopilotClient", () => {
                 },
             });
 
-            // Wait for the async handler to complete
             await vi.waitFor(() => expect(handler).toHaveBeenCalledTimes(1));
             expect(handler).toHaveBeenCalledWith(
                 expect.objectContaining({

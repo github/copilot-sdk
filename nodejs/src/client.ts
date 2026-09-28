@@ -17,6 +17,7 @@ import { existsSync } from "node:fs";
 import { isIPv6, Socket } from "node:net";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import {
+    type CancellationToken,
     createMessageConnection,
     ErrorCodes,
     type Message,
@@ -36,6 +37,7 @@ import type {
     GitHubTelemetryNotification,
     GitHubTokenAcquireRequest,
     GitHubTokenAcquireResult,
+    InstallationConfirmationRequest,
     OpenCanvasInstance,
     SessionUpdateOptionsParams,
     TaskKind,
@@ -47,6 +49,10 @@ import { ensureRuntimeBundle } from "./runtimeArtifacts.js";
 import { COPILOT_CLI_VERSION } from "./cliVersion.js";
 import { createSessionFsAdapter, type SessionFsProvider } from "./sessionFsProvider.js";
 import { createCopilotRequestAdapter } from "./copilotRequestHandler.js";
+import {
+    createInstallationConfirmationAdapter,
+    type InstallationConfirmationHandler,
+} from "./installationConfirmation.js";
 import type { CopilotRequestHandler } from "./copilotRequestHandler.js";
 import { getTraceContext } from "./telemetry.js";
 import { toJsonSchema } from "./schema.js";
@@ -475,6 +481,7 @@ export class CopilotClient {
     private sessionFsConfig: SessionFsConfig | null = null;
     private requestHandler: CopilotRequestHandler | null = null;
     private extensionLaunchProvider?: ExtensionLaunchProvider;
+    private installationConfirmationHandler?: InstallationConfirmationHandler;
     private builtinPluginDirectories: string[] = [];
     private onGitHubTelemetry?: (notification: GitHubTelemetryNotification) => void | Promise<void>;
     private clientGlobalHandlers: import("./generated/rpc.js").ClientGlobalApiHandlers = {};
@@ -674,6 +681,7 @@ export class CopilotClient {
         this.sessionFsConfig = options.sessionFs ?? null;
         this.requestHandler = options.requestHandler ?? null;
         this.extensionLaunchProvider = options.extensionLaunchProvider;
+        this.installationConfirmationHandler = options.installationConfirmationHandler;
         this.onGitHubTelemetry = options.onGitHubTelemetry;
         this.setupClientGlobalHandlers();
 
@@ -3068,6 +3076,18 @@ export class CopilotClient {
         // same connection. These methods carry no implicit sessionId dispatch
         // — the runtime calls into a single handler for the whole connection.
         registerClientGlobalApiHandlers(this.connection, this.clientGlobalHandlers);
+        if (this.installationConfirmationHandler) {
+            // Registered directly so the review receives the transport's request cancellation.
+            const confirmation = createInstallationConfirmationAdapter(
+                this.connection,
+                this.installationConfirmationHandler
+            );
+            this.connection.onRequest(
+                "installations.confirm",
+                (params: InstallationConfirmationRequest, token: CancellationToken) =>
+                    confirmation.confirm(params, token)
+            );
+        }
 
         // `hooks.invoke` is an internal RPC method: the runtime calls it to
         // invoke a hook callback on the client. Route each call to the matching

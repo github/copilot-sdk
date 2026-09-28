@@ -34,9 +34,6 @@ public final class AssistantTurnStartEvent extends SessionEvent {
     @JsonIgnoreProperties(ignoreUnknown = true)
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record AssistantTurnStartEventData(
-        /** Optional bounded worker observations. Missing or invalid metadata is unavailable, not known-empty. */
-        @com.fasterxml.jackson.databind.annotation.JsonDeserialize(using = com.github.copilot.WorkerCausalityDeserializer.class)
-        @JsonProperty("workerCausality") WorkerCausality workerCausality,
         /** Identifier for this turn within the agentic loop, typically a stringified turn number */
         @JsonProperty("turnId") String turnId,
         /** Model identifier used for this turn, when known */
@@ -44,21 +41,24 @@ public final class AssistantTurnStartEvent extends SessionEvent {
         /** CAPI interaction ID for correlating this turn with upstream telemetry */
         @JsonProperty("interactionId") String interactionId,
         /** Parent task tool call ID when this turn belongs to a sub-agent */
-        @JsonProperty("parentToolCallId") String parentToolCallId
+        @JsonProperty("parentToolCallId") String parentToolCallId,
+        /** Optional bounded worker observations. Missing or invalid metadata is unavailable, not known-empty. */
+        @com.fasterxml.jackson.databind.annotation.JsonDeserialize(using = com.github.copilot.WorkerCausalityDeserializer.class)
+        @JsonProperty("workerCausality") WorkerCausality workerCausality
     ) {
         /** Creates a value without optional worker diagnostics. */
         public AssistantTurnStartEventData(String turnId, String model, String interactionId, String parentToolCallId) {
-            this(null, turnId, model, interactionId, parentToolCallId);
+            this(turnId, model, interactionId, parentToolCallId, null);
         }
 
         /** Creates a value without an optional parent task tool call ID. */
-        public AssistantTurnStartEventData(WorkerCausality workerCausality, String turnId, String model, String interactionId) {
-            this(workerCausality, turnId, model, interactionId, null);
+        public AssistantTurnStartEventData(String turnId, String model, String interactionId, WorkerCausality workerCausality) {
+            this(turnId, model, interactionId, null, workerCausality);
         }
 
         /** Creates a value without optional worker diagnostics or a parent task tool call ID. */
         public AssistantTurnStartEventData(String turnId, String model, String interactionId) {
-            this(null, turnId, model, interactionId, null);
+            this(turnId, model, interactionId, null, null);
         }
     }
 }

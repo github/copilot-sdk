@@ -138,6 +138,10 @@ type ClientOptions struct {
 	// discovered by the runtime. When non-nil, Start registers the provider
 	// before any sessions can be created.
 	ExtensionLaunchProvider ExtensionLaunchProvider
+	// InstallationConfirmationHandler receives connection-global human reviews
+	// for experimental `installations.confirm` callbacks. It does not enable
+	// installation capabilities or perform any runtime registration RPC.
+	InstallationConfirmationHandler InstallationConfirmationHandler
 	// LogLevel for the runtime. When empty (the default), the runtime
 	// uses its own default level; the SDK does not pass --log-level.
 	// Recognized values: "none", "error", "warning", "info", "debug", "all".

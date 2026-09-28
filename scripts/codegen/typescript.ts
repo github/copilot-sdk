@@ -51,7 +51,7 @@ import {
     type DefinitionCollections,
     type RpcMethod,
 } from "./utils.js";
-import { validateLegacyRequests } from "./legacy-parameters.js";
+import { validateLegacyDefinitions, validateLegacyRequests } from "./legacy-parameters.js";
 
 const TS_EXPERIMENTAL_JSDOC = "/** @experimental */";
 const EXTERNAL_SCHEMA_TS_IMPORT: Record<string, string> = {
@@ -757,6 +757,8 @@ import { withWorkerCausality, withWorkerCausalityEvents } from "../workerCausali
         getMethodParamsSchema,
         (method) => !!(method.params && getNullableInner(method.params))
     );
+    // Response records gain optional properties of the same interface.
+    validateLegacyDefinitions(rpcDefinitions);
     const combinedSchema = withSharedDefinitions(
         {
             $schema: "http://json-schema.org/draft-07/schema#",
@@ -1203,7 +1205,7 @@ export function emitClientSessionApiRegistration(clientSchema: Record<string, un
  * incoming call to the registered handler regardless of which (if any)
  * runtime session triggered it.
  */
-function emitClientGlobalApiRegistration(clientSchema: Record<string, unknown>): string[] {
+export function emitClientGlobalApiRegistration(clientSchema: Record<string, unknown>): string[] {
     const lines: string[] = [];
     const groups = collectClientGroups(clientSchema);
 

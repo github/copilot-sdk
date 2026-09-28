@@ -3634,6 +3634,7 @@ def _patch_model_capabilities(data: dict) -> dict:
         }
     }
 
+    finalCode = appendPythonCompatibilityAliases(finalCode);
     finalCode = appendPythonRpcAllList(finalCode, rpcDefinitions);
 
     const outPath = await writeGeneratedFile("python/copilot/generated/rpc.py", finalCode);
@@ -3728,6 +3729,21 @@ function appendPythonRpcAllList(code: string, _definitions: { definitions: Recor
     }
 
     return code.replace(/\s*$/, "") + "\n\n" + renderPythonAllList([...exported].sort()) + "\n";
+}
+
+function appendPythonCompatibilityAliases(code: string): string {
+    const aliases: string[] = [];
+    if (/\bclass CatalogInstallability\b/.test(code) && !/\bclass CatalogCandidateInstallability\b/.test(code) && !/^CatalogCandidateInstallability\s*=/m.test(code)) {
+        aliases.push("CatalogCandidateInstallability = CatalogInstallability");
+    }
+    if (/\bclass CatalogMCPServerInstallability\b/.test(code) && !/\bclass CatalogMCPServerInstallabilityEnum\b/.test(code) && !/^CatalogMCPServerInstallabilityEnum\s*=/m.test(code)) {
+        aliases.push("CatalogMCPServerInstallabilityEnum = CatalogMCPServerInstallability");
+    }
+    if (/\bclass CatalogMCPServerInstallability\b/.test(code) && !/\bclass CatalogMcpServerInstallability\b/.test(code) && !/^CatalogMcpServerInstallability\s*=/m.test(code)) {
+        aliases.push("CatalogMcpServerInstallability = CatalogMCPServerInstallability");
+    }
+    if (aliases.length === 0) return code;
+    return `${code.replace(/\s*$/, "")}\n\n# Backward-compatible public aliases retained across typed-review generation.\n${aliases.join("\n")}\n`;
 }
 
 function renderPythonAllList(names: string[]): string {

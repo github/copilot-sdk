@@ -1,6 +1,7 @@
 package jsonrpc2
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/json"
@@ -61,6 +62,10 @@ type NotificationHandler func(method string, params json.RawMessage)
 // RequestHandler handles incoming server requests and returns a result or error
 type RequestHandler func(params json.RawMessage) (json.RawMessage, *Error)
 
+// RequestContextHandler handles incoming server requests with a per-request
+// context that is cancelled by JSON-RPC $/cancelRequest for numeric IDs.
+type RequestContextHandler func(ctx context.Context, params json.RawMessage) (json.RawMessage, *Error)
+
 // Client is a minimal JSON-RPC 2.0 client for stdio transport.
 type Client struct {
 	reader                 *headerReader // reads frames from the remote side
@@ -69,7 +74,8 @@ type Client struct {
 	mu                     sync.Mutex
 	pendingRequests        map[string]chan *Response
 	pendingInlineCallbacks map[string]func(json.RawMessage) error
-	requestHandlers        map[string]RequestHandler
+	requestHandlers        map[string]RequestContextHandler
+	incomingRequestCancels map[string]*incomingRequestCancel
 	running                atomic.Bool
 	stopChan               chan struct{}
 	connectionClosed       chan struct{}
@@ -89,7 +95,8 @@ func NewClient(stdin io.WriteCloser, stdout io.ReadCloser) *Client {
 		writer:                 make(chan *headerWriter, 1),
 		pendingRequests:        make(map[string]chan *Response),
 		pendingInlineCallbacks: make(map[string]func(json.RawMessage) error),
-		requestHandlers:        make(map[string]RequestHandler),
+		requestHandlers:        make(map[string]RequestContextHandler),
+		incomingRequestCancels: make(map[string]*incomingRequestCancel),
 		stopChan:               make(chan struct{}),
 		connectionClosed:       make(chan struct{}),
 	}
@@ -196,6 +203,19 @@ func RequestHandlerFor[In, Out any](handler func(params In) (Out, *Error)) Reque
 
 // SetRequestHandler registers a handler for incoming requests from the server
 func (c *Client) SetRequestHandler(method string, handler RequestHandler) {
+	if handler == nil {
+		c.SetRequestContextHandler(method, nil)
+		return
+	}
+	c.SetRequestContextHandler(method, func(_ context.Context, params json.RawMessage) (json.RawMessage, *Error) {
+		return handler(params)
+	})
+}
+
+// SetRequestContextHandler registers a handler for incoming requests from the
+// server. The supplied context is cancelled when a numeric $/cancelRequest for
+// this request ID is received.
+func (c *Client) SetRequestContextHandler(method string, handler RequestContextHandler) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if handler == nil {
@@ -203,6 +223,12 @@ func (c *Client) SetRequestHandler(method string, handler RequestHandler) {
 		return
 	}
 	c.requestHandlers[method] = handler
+}
+
+// ConnectionClosed returns a channel that closes when the JSON-RPC read loop
+// exits or the client is stopped.
+func (c *Client) ConnectionClosed() <-chan struct{} {
+	return c.connectionClosed
 }
 
 // Request sends a JSON-RPC request and waits for the response
@@ -443,7 +469,10 @@ func (c *Client) handleResponse(response *Response) {
 }
 
 func (c *Client) handleRequest(request *Request) {
-	ctx := context.Background()
+	if request.Method == "$/cancelRequest" {
+		c.handleCancelRequest(request.Params)
+		return
+	}
 
 	c.mu.Lock()
 	handler := c.requestHandlers[request.Method]
@@ -451,7 +480,7 @@ func (c *Client) handleRequest(request *Request) {
 
 	if handler == nil {
 		if request.IsCall() {
-			c.sendErrorResponse(ctx, request.ID, &Error{
+			c.sendErrorResponse(context.Background(), request.ID, &Error{
 				Code:    ErrMethodNotFound.Code,
 				Message: fmt.Sprintf("Method not found: %s", request.Method),
 			})
@@ -459,29 +488,93 @@ func (c *Client) handleRequest(request *Request) {
 		return
 	}
 
+	handlerCtx := context.Background()
+	var entry *incomingRequestCancel
+	var cancelKey string
+	if request.IsCall() {
+		if key, ok := numericRequestIDKey(request.ID); ok {
+			var cancel context.CancelFunc
+			handlerCtx, cancel = context.WithCancel(handlerCtx)
+			entry = &incomingRequestCancel{cancel: cancel}
+			cancelKey = key
+			c.mu.Lock()
+			c.incomingRequestCancels[cancelKey] = entry
+			c.mu.Unlock()
+		}
+	}
+
 	// Notifications run synchronously, calls run in a goroutine to avoid blocking
 	if !request.IsCall() {
-		handler(request.Params)
+		handler(handlerCtx, request.Params)
 		return
 	}
 
 	go func() {
 		defer func() {
+			if entry != nil {
+				c.mu.Lock()
+				if c.incomingRequestCancels[cancelKey] == entry {
+					delete(c.incomingRequestCancels, cancelKey)
+				}
+				c.mu.Unlock()
+				entry.cancel()
+			}
+		}()
+		defer func() {
 			if r := recover(); r != nil {
-				c.sendErrorResponse(ctx, request.ID, &Error{
+				c.sendErrorResponse(context.Background(), request.ID, &Error{
 					Code:    ErrInternal.Code,
 					Message: fmt.Sprintf("request handler panic: %v", r),
 				})
 			}
 		}()
 
-		result, err := handler(request.Params)
+		result, err := handler(handlerCtx, request.Params)
 		if err != nil {
-			c.sendErrorResponse(ctx, request.ID, err)
+			c.sendErrorResponse(context.Background(), request.ID, err)
 			return
 		}
-		c.sendResponse(ctx, request.ID, result)
+		c.sendResponse(context.Background(), request.ID, result)
 	}()
+}
+
+func (c *Client) handleCancelRequest(params json.RawMessage) {
+	var request struct {
+		ID json.RawMessage `json:"id"`
+	}
+	if err := json.Unmarshal(params, &request); err != nil {
+		return
+	}
+	key, ok := numericRequestIDKey(request.ID)
+	if !ok {
+		return
+	}
+	c.mu.Lock()
+	entry := c.incomingRequestCancels[key]
+	c.mu.Unlock()
+	if entry != nil {
+		entry.cancel()
+	}
+}
+
+// incomingRequestCancel is stored by pointer so a completed handler only
+// removes its own entry when a peer reuses the same request ID.
+type incomingRequestCancel struct {
+	cancel context.CancelFunc
+}
+
+func numericRequestIDKey(id json.RawMessage) (string, bool) {
+	decoder := json.NewDecoder(bytes.NewReader(id))
+	decoder.UseNumber()
+	var value any
+	if err := decoder.Decode(&value); err != nil {
+		return "", false
+	}
+	number, ok := value.(json.Number)
+	if !ok {
+		return "", false
+	}
+	return number.String(), true
 }
 
 func (c *Client) sendResponse(ctx context.Context, id json.RawMessage, result json.RawMessage) {

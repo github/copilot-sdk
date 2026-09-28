@@ -133,6 +133,50 @@ Avoid logging it indiscriminately: server-provided data may contain sensitive
 information. Its fields and data bytes are shared with the wrapped error; copy
 them before mutation.
 
+## Installation confirmation (experimental)
+
+Set `ClientOptions.InstallationConfirmationHandler` to receive the runtime's
+`installations.confirm` callback through `InstallationConfirmationHandler`. The
+handler receives the generated `InstallationConfirmationRequest` and an
+`InstallationConfirmationContext`, a `context.Context` cancelled when the review
+is retired or the original connection closes. It returns only an explicit
+`InstallationConfirmationDecision`: `confirm`, `decline` or `cancel`. The SDK
+echoes the original challenge and review fingerprint; it never infers approval.
+
+Match `OperationID` and `PolicySessionID` against the original action on this
+exact connection before presenting the complete review. Missing legacy session
+metadata does not select a default session. Refuse unknown operations or
+incomplete reviews. Concurrent reviews are independent and do not block other
+RPCs on the connection.
+
+The callback context follows the runtime's numeric `$/cancelRequest`, including
+runtime-enforced expiry, and is also cancelled for loss of the original
+connection or client stop. Any separately spawned UI work must observe that
+single context. Dropping an outbound installation or OAuth future does not
+cancel that operation.
+
+Call `client.RPC.MCP.PrepareInstall(...)` before `ApplyInstall(...)`. Register
+its inert runtime-issued `OperationID`, original expiry and captured session on
+this client before applying. Removal uses `PlanUninstall(...)` then
+`ApplyUninstall(...)`; its `OperationID` identifies the operation, while
+`PlanHandle` is the one-use removal input. Never interchange them. The
+`Installations` namespace exposes `List`, `Recover`, `Status` and `Cancel`.
+Control uncertain work using its original connection and operation ID, without
+selecting a replacement session or replaying apply.
+
+Owned OAuth uses `session.RPC.MCP.Oauth().PrepareLogin(...)` to return `LoginID`
+before browser, network or cached-reconnect work. Keep that ID with the original
+session and `ExpectedInstallationID` for `Login(...)` and `CancelLogin(...)`.
+Preparation freezes reauthentication and display options. Dropping the login
+future is not a substitute for `CancelLogin(...)`. Manual MCP OAuth retains its
+direct `Login(...)` path.
+
+These methods require a matching runtime and available owned-lifecycle support.
+Capability negotiation does not promise availability; preserve typed refusals
+instead of falling back to raw configuration writes. Generated presence and
+transport tests do not establish live OAuth, activation or cross-process
+recovery.
+
 ## Distributing your application with an embedded GitHub Copilot CLI
 
 The SDK supports bundling, using Go's `embed` package, the Copilot CLI binary within your application's distribution.
@@ -246,6 +290,7 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
 - `WorkingDirectory` (string): Working directory for the runtime process (default: current process working directory)
 - `BaseDirectory` (string): Base directory for Copilot data (session state, config, etc.). Sets `COPILOT_HOME` on the spawned runtime. When empty, the runtime defaults to `~/.copilot`. Ignored with `URIConnection`. This does **not** affect where the Go SDK extracts the embedded CLI binary; use `embeddedcli.Config.Dir` for the extraction/cache location.
 - `ExtensionLaunchProvider` (ExtensionLaunchProvider): Experimental connection-level resolver for extension launch profiles. `Start` installs the reverse-RPC handler and registers the provider before sessions can be created.
+- `InstallationConfirmationHandler` (InstallationConfirmationHandler): Experimental connection-global human review for `installations.confirm`. Receives the typed request, a per-request cancellation context and a separate connection-closed signal, then returns an explicit decision. Does not enable installation capabilities.
 - `LogLevel` (string): Log level. When empty (default), the runtime uses its own default level (the SDK does not pass `--log-level`).
 - `Env` ([]string): Environment variables for the runtime process (default: inherits from current process)
 - `GitHubToken` (string): GitHub token for authentication. When provided, takes priority over other auth methods.

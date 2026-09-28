@@ -38,10 +38,6 @@ public final class ToolExecutionStartEvent extends SessionEvent {
         @JsonProperty("toolCallId") String toolCallId,
         /** Name of the tool being executed */
         @JsonProperty("toolName") String toolName,
-        /** W3C traceparent of this tool's active runtime execute_tool span. Available on live events when tool-context propagation is enabled; absent when the span is unavailable or on persisted history. This diagnostic context does not authorize execution. */
-        @JsonProperty("traceparent") String traceparent,
-        /** Optional W3C tracestate associated with traceparent. Omitted when no valid vendor state is available. */
-        @JsonProperty("tracestate") String tracestate,
         /** Human-readable display title for the tool, when the selected tool descriptor has a non-empty title. */
         @JsonProperty("toolTitle") String toolTitle,
         /** Arguments passed to the tool */
@@ -71,7 +67,11 @@ public final class ToolExecutionStartEvent extends SessionEvent {
         /** Tool call ID of the parent tool invocation when this event originates from a sub-agent */
         @JsonProperty("parentToolCallId") String parentToolCallId,
         /** Experimental HydraFusion attribution for this tool execution. */
-        @JsonProperty("fusion") FusionAttribution fusion
+        @JsonProperty("fusion") FusionAttribution fusion,
+        /** W3C traceparent of this tool's active runtime execute_tool span. Available on live events when tool-context propagation is enabled; absent when the span is unavailable or on persisted history. This diagnostic context does not authorize execution. */
+        @JsonProperty("traceparent") String traceparent,
+        /** Optional W3C tracestate associated with traceparent. Omitted when no valid vendor state is available. */
+        @JsonProperty("tracestate") String tracestate
     ) {
     }
 }

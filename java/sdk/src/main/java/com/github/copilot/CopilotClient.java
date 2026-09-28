@@ -30,6 +30,7 @@ import com.github.copilot.ffi.NativeRuntimeLoader;
 import com.github.copilot.rpc.CopilotClientMode;
 import com.github.copilot.rpc.CopilotClientOptions;
 import com.github.copilot.rpc.ExtensionLaunchProvider;
+import com.github.copilot.rpc.InstallationConfirmationHandler;
 import com.github.copilot.rpc.InProcessRuntimeConnection;
 import com.github.copilot.rpc.RuntimeConnection;
 import com.github.copilot.rpc.StdioRuntimeConnection;
@@ -570,10 +571,23 @@ public final class CopilotClient implements AutoCloseable {
                 llmAdapter.registerHandlers(connectedRpc);
             }
             LlmInferenceAdapter connectedLlmAdapter = llmAdapter;
+
+            InstallationConfirmationHandler installationConfirmationHandler = this.options
+                    .getInstallationConfirmationHandler();
+            InstallationConfirmationAdapter installationConfirmationAdapter = null;
+            if (installationConfirmationHandler != null) {
+                installationConfirmationAdapter = new InstallationConfirmationAdapter(installationConfirmationHandler,
+                        executor);
+                installationConfirmationAdapter.registerHandlers(connectedRpc);
+            }
+            InstallationConfirmationAdapter connectedInstallationConfirmationAdapter = installationConfirmationAdapter;
             connectedRpc.setCloseHandler(() -> {
                 sessions.values().forEach(CopilotSession::cancelPendingExternalTools);
                 if (connectedLlmAdapter != null) {
                     connectedLlmAdapter.cancelPending();
+                }
+                if (connectedInstallationConfirmationAdapter != null) {
+                    connectedInstallationConfirmationAdapter.closePending();
                 }
             });
 

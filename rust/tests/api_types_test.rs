@@ -8,11 +8,11 @@ use github_copilot_sdk::rpc::{
     ConnectorConnectRequest, ConnectorContinueRequest, ConnectorReconcileRequest,
     EnqueueCommandResult, Extension, ExtensionList, ExtensionSource, ExtensionStatus,
     ExtensionsDisableRequest, ExtensionsEnableRequest, FleetStartRequest, FleetStartResult,
-    McpDisableRequest, McpEnableOptions, McpEnableRequest, McpOauthLoginOptions,
-    McpOauthLoginRequest, McpServer, McpStopServerRequest, ModelSetAllowedModelsRequest,
-    ModelSetAllowedModelsResult, ModelSwitchAutoTierRequest, ModelSwitchAutoTierResult,
-    ModelSwitchAutoTierStatus, QueuePendingItems, QueuePendingItemsKind, SandboxConfig,
-    SendAgentMode, SendMessageItem, SendRequest, TasksStartAgentRequest,
+    McpDisableRequest, McpEnableOptions, McpEnableRequest, McpInstallationOperationStatus,
+    McpOauthLoginOptions, McpOauthLoginRequest, McpServer, McpStopServerRequest,
+    ModelSetAllowedModelsRequest, ModelSetAllowedModelsResult, ModelSwitchAutoTierRequest,
+    ModelSwitchAutoTierResult, ModelSwitchAutoTierStatus, QueuePendingItems, QueuePendingItemsKind,
+    SandboxConfig, SendAgentMode, SendMessageItem, SendRequest, TasksStartAgentRequest,
     UnsupportedEnqueueCommandResult,
 };
 use github_copilot_sdk::session_events::{
@@ -20,6 +20,77 @@ use github_copilot_sdk::session_events::{
     TypedSessionEvent,
 };
 use github_copilot_sdk::{AutoTier, AutoTierPreference, SetModelOptions};
+
+#[test]
+fn operation_status_preserves_required_phases_and_original_identity() {
+    for phase in [
+        "preparing",
+        "prepared",
+        "awaiting-confirmation",
+        "revalidating",
+        "applying",
+        "completed",
+    ] {
+        let mut wire = serde_json::json!({
+            "phase": phase,
+            "operationId": "original-operation",
+            "cancellationRequested": true,
+        });
+        if phase == "completed" {
+            wire["outcome"] = serde_json::json!({
+                "kind": "cancelled",
+                "operationId": "original-operation",
+            });
+        }
+        let status: McpInstallationOperationStatus = serde_json::from_value(wire.clone()).unwrap();
+        assert!(matches!(
+            (phase, &status),
+            ("preparing", McpInstallationOperationStatus::Preparing(_))
+                | ("prepared", McpInstallationOperationStatus::Prepared(_))
+                | (
+                    "awaiting-confirmation",
+                    McpInstallationOperationStatus::AwaitingConfirmation(_)
+                )
+                | (
+                    "revalidating",
+                    McpInstallationOperationStatus::Revalidating(_)
+                )
+                | ("applying", McpInstallationOperationStatus::Applying(_))
+                | ("completed", McpInstallationOperationStatus::Completed(_))
+        ));
+        assert_eq!(serde_json::to_value(status).unwrap(), wire);
+    }
+}
+
+#[test]
+fn operation_status_refuses_unknown_phases_and_incomplete_terminal_results() {
+    let original = serde_json::json!({
+        "phase": "completed",
+        "operationId": "original-operation",
+        "cancellationRequested": false,
+        "outcome": { "kind": "declined", "operationId": "original-operation" },
+    });
+    for field in ["phase", "operationId", "cancellationRequested", "outcome"] {
+        let mut wire = original.clone();
+        wire.as_object_mut().unwrap().remove(field);
+        assert!(
+            serde_json::from_value::<McpInstallationOperationStatus>(wire.clone()).is_err(),
+            "unexpectedly accepted {wire}",
+        );
+    }
+    for phase in [
+        serde_json::Value::Null,
+        serde_json::json!("future-phase"),
+        serde_json::json!(42),
+    ] {
+        let mut wire = original.clone();
+        wire["phase"] = phase;
+        assert!(
+            serde_json::from_value::<McpInstallationOperationStatus>(wire.clone()).is_err(),
+            "unexpectedly accepted {wire}",
+        );
+    }
+}
 
 #[test]
 fn manual_mcp_requests_omit_unselected_owned_identity() {
@@ -553,4 +624,76 @@ fn listed_mcp_server_literals_with_defaults_survive_the_owned_marker() {
     }))
     .unwrap();
     assert_eq!(owned.owned.unwrap().installation_id, "installation");
+}
+
+/// Released structs and enums that are unrelated to the MCP installation payloads keep
+/// distinct types, so downstream trait impls, variant imports and literals still compile.
+mod released_type_shapes {
+    use github_copilot_sdk::rpc::{
+        DiagnosticsReadResultEntriesItem, DiagnosticsReadResultEntriesItemSource,
+        MetadataContextAttributionResultContextAttribution, MetadataContextInfoResultContextInfo,
+        SendMessagesRequestResponseFormat, SendMessagesRequestResponseFormatType,
+        SendRequestResponseFormat, SendRequestResponseFormatType,
+        SessionDiagnosticsReadResultEntriesItem, SessionDiagnosticsReadResultEntriesItemSource,
+        SessionMetadataContextInfoResultContextInfo,
+        SessionMetadataGetContextAttributionResultContextAttribution,
+        SessionMetadataSnapshotResultWorkspace, SessionMetadataSnapshotWorkspace,
+        UpdateSubagentSettingsRequestSubagents,
+    };
+
+    trait Released {
+        const NAME: &'static str;
+    }
+    macro_rules! released {
+        ($($ty:ty),* $(,)?) => { $(impl Released for $ty { const NAME: &'static str = stringify!($ty); })* };
+    }
+    // Separate impls on each released name fail to compile if two names alias one type.
+    released!(
+        DiagnosticsReadResultEntriesItem,
+        SessionDiagnosticsReadResultEntriesItem,
+        DiagnosticsReadResultEntriesItemSource,
+        SessionDiagnosticsReadResultEntriesItemSource,
+        MetadataContextAttributionResultContextAttribution,
+        SessionMetadataGetContextAttributionResultContextAttribution,
+        MetadataContextInfoResultContextInfo,
+        SessionMetadataContextInfoResultContextInfo,
+        SendRequestResponseFormat,
+        SendMessagesRequestResponseFormat,
+        SendRequestResponseFormatType,
+        SendMessagesRequestResponseFormatType,
+        SessionMetadataSnapshotWorkspace,
+        SessionMetadataSnapshotResultWorkspace,
+        UpdateSubagentSettingsRequestSubagents,
+    );
+
+    #[test]
+    fn released_names_are_distinct_types() {
+        assert_ne!(
+            <SendRequestResponseFormat as Released>::NAME,
+            <SendMessagesRequestResponseFormat as Released>::NAME
+        );
+    }
+
+    #[test]
+    fn released_enum_variants_import_and_match() {
+        use SendRequestResponseFormatType::*;
+        let format = SendRequestResponseFormat {
+            r#type: JsonSchema,
+            ..Default::default()
+        };
+        assert!(matches!(format.r#type, JsonSchema));
+        use DiagnosticsReadResultEntriesItemSource::Mcp;
+        assert!(matches!(
+            DiagnosticsReadResultEntriesItemSource::default(),
+            Mcp
+        ));
+        assert!(matches!(
+            SessionDiagnosticsReadResultEntriesItemSource::default(),
+            SessionDiagnosticsReadResultEntriesItemSource::Mcp
+        ));
+        assert!(matches!(
+            SendMessagesRequestResponseFormatType::default(),
+            SendMessagesRequestResponseFormatType::JsonSchema
+        ));
+    }
 }

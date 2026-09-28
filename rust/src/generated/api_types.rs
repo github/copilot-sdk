@@ -88,6 +88,32 @@ pub mod rpc_methods {
     pub const EXTENSIONS_ENABLE: &str = "extensions.enable";
     /// `extensions.disable`
     pub const EXTENSIONS_DISABLE: &str = "extensions.disable";
+    /// `skills.planInstall`
+    pub const SKILLS_PLANINSTALL: &str = "skills.planInstall";
+    /// `skills.applyInstall`
+    pub const SKILLS_APPLYINSTALL: &str = "skills.applyInstall";
+    /// `skills.installations.list`
+    pub const SKILLS_INSTALLATIONS_LIST: &str = "skills.installations.list";
+    /// `skills.installations.recover`
+    pub const SKILLS_INSTALLATIONS_RECOVER: &str = "skills.installations.recover";
+    /// `skills.installations.status`
+    pub const SKILLS_INSTALLATIONS_STATUS: &str = "skills.installations.status";
+    /// `skills.installations.cancel`
+    pub const SKILLS_INSTALLATIONS_CANCEL: &str = "skills.installations.cancel";
+    /// `skills.installations.setEnabled`
+    pub const SKILLS_INSTALLATIONS_SETENABLED: &str = "skills.installations.setEnabled";
+    /// `skills.planUninstall`
+    pub const SKILLS_PLANUNINSTALL: &str = "skills.planUninstall";
+    /// `skills.applyUninstall`
+    pub const SKILLS_APPLYUNINSTALL: &str = "skills.applyUninstall";
+    /// `skills.config.setDisabledSkills`
+    pub const SKILLS_CONFIG_SETDISABLEDSKILLS: &str = "skills.config.setDisabledSkills";
+    /// `skills.config.setSkillDisabled`
+    pub const SKILLS_CONFIG_SETSKILLDISABLED: &str = "skills.config.setSkillDisabled";
+    /// `skills.discover`
+    pub const SKILLS_DISCOVER: &str = "skills.discover";
+    /// `skills.getDiscoveryPaths`
+    pub const SKILLS_GETDISCOVERYPATHS: &str = "skills.getDiscoveryPaths";
     /// `registerExtensionLaunchProvider`
     pub const REGISTEREXTENSIONLAUNCHPROVIDER: &str = "registerExtensionLaunchProvider";
     /// `catalog.search`
@@ -120,14 +146,6 @@ pub mod rpc_methods {
     pub const PLUGINS_MARKETPLACES_BROWSE: &str = "plugins.marketplaces.browse";
     /// `plugins.marketplaces.refresh`
     pub const PLUGINS_MARKETPLACES_REFRESH: &str = "plugins.marketplaces.refresh";
-    /// `skills.config.setDisabledSkills`
-    pub const SKILLS_CONFIG_SETDISABLEDSKILLS: &str = "skills.config.setDisabledSkills";
-    /// `skills.config.setSkillDisabled`
-    pub const SKILLS_CONFIG_SETSKILLDISABLED: &str = "skills.config.setSkillDisabled";
-    /// `skills.discover`
-    pub const SKILLS_DISCOVER: &str = "skills.discover";
-    /// `skills.getDiscoveryPaths`
-    pub const SKILLS_GETDISCOVERYPATHS: &str = "skills.getDiscoveryPaths";
     /// `agents.discover`
     pub const AGENTS_DISCOVER: &str = "agents.discover";
     /// `agents.getDiscoveryPaths`
@@ -4380,7 +4398,7 @@ pub struct CatalogPolicyRejectedError {
     pub source: McpPlanPolicySource,
 }
 
-/// An explicit numbered-page request. SDK consumers treat the token as opaque. For bound search, the runtime unwraps an expiring owner-bound reference to the private authority token; only the runtime changes the authority token's targetPage. Legacy unbound navigation keeps its authority-issued token semantics. No snapshot stability is promised.
+/// An explicit numbered-page request. The SDK treats the token as opaque; only the runtime decodes it and changes its targetPage. Authority validation binds navigation to the original search. No snapshot stability or token TTL is promised.
 ///
 /// <div class="warning">
 ///
@@ -4393,7 +4411,7 @@ pub struct CatalogPolicyRejectedError {
 pub struct CatalogSearchPage {
     /// Requested one-based page. Must not exceed either the token's signed pageCount or the navigation window ceil(1000 / pageSize). Repeat the search without page to discover newly available pages beyond that signed pageCount.
     pub number: i32,
-    /// Opaque pagination token from an earlier response, owner-bound when session-bound search was requested. Never decode, modify or log it in an SDK consumer. Expired or foreign bound references require a fresh bound search, not a legacy retry.
+    /// Opaque authority-issued pagination token from an earlier response. Never decode, modify or log it in an SDK consumer.
     pub token: String,
 }
 
@@ -4418,7 +4436,7 @@ pub struct CatalogSearchPagination {
     pub page_count: i64,
     /// Page size bound to the search, equal to the effective request limit.
     pub page_size: i32,
-    /// Opaque pagination token. Session-bound search returns an expiring runtime-owned reference retaining the exact private authority token, original search and authority. Legacy unbound search returns the authority token unchanged, without a runtime-created expiry. Only the runtime unwraps tokens or changes targetPage; SDK consumers must not decode, modify or log them.
+    /// Opaque authority-issued pagination token. Only the runtime decodes it or changes targetPage; SDK consumers must not decode, modify or log it. It has no runtime-created expiry or cache.
     pub token: String,
     /// Backend-reported count for this response, not the number of returned candidates. Its relationship to the full query result set is unknown.
     pub total_count: i64,
@@ -7839,17 +7857,640 @@ pub struct HooksDiscoverResult {
     pub warnings: Vec<String>,
 }
 
+/// Catalogue identity retained from a bound candidate or plan at installation time.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct InstallationConfirmationRequestReview {
+pub struct InstallationCatalogueIdentity {
+    /// Catalogue description retained at install planning time.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Human display name retained from the catalogue candidate.
+    pub display_name: String,
+    /// Catalogue item URL when supplied by the authority.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub item_url: Option<String>,
+    /// Catalogue publisher retained at install planning time.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub publisher: Option<String>,
+    /// Authority resource identifier when supplied by the catalogue.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resource_id: Option<String>,
+    /// Catalogue authority/source string that supplied the candidate.
+    pub source: String,
+    /// Catalogue trust observation retained at install planning time.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub trust_at_install: Option<serde_json::Value>,
+    /// Catalogue version retained at install planning time.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
+}
+
+/// The configuration-change alternative for the transportChoices entry at the same index. Only the selected alternative is applied; entries are not cumulative. The payload stays behind the runtime boundary.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpPlanConfigurationChange {
+    /// Names of the configuration fields the change would set, without their values.
+    pub changed_fields: Vec<String>,
+    /// Configuration key the change applies to.
+    pub config_key: String,
+    /// Whether the change would create a new entry or modify an existing one.
+    pub operation: McpPlanConfigurationOperation,
+    /// Scope the change would be written to.
+    pub scope: McpPlanScope,
+    /// Secret placeholders the written configuration would reference. The constrained placeholder type cannot carry a literal secret value.
+    pub secret_references: Vec<String>,
+}
+
+/// Final remote configuration, not a template. The producer refuses external-value
+/// expansion before presenting this review. Receipt-owned secrets appear only as
+/// `${installation-secret:<id>}` references whose `<id>` matches a reviewed
+/// `${secret:<id>}` placeholder; values are never included.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpInstallationRemoteConfiguration {
+    /// Configured headers, excluding separately authorised OAuth tokens. Values may
+    /// contain owned secret references, never secret values.
+    pub headers: HashMap<String, String>,
+    /// Configured tool selection, not permission to invoke those tools.
+    pub tools: Vec<String>,
+    /// Transport in the effective persisted remote configuration.
+    pub transport: McpPlanRemoteTransport,
+    /// Exact resolved endpoint, without templates or secret placeholders.
+    pub url: String,
+}
+
+/// Normalised identity of the MCP server a plan targets, independent of how the card spelled it.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpPlanResourceIdentity {
+    /// Canonical, normalised name of the server, for example `io.github.owner/server`.
+    pub canonical_name: String,
+    /// Registry identifier of the server, when it came from a registry.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub registry_id: Option<String>,
+    /// Local configuration key the server would be recorded under.
+    pub server_name: String,
+    /// Version advertised by the card, when it declares one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
+}
+
+/// One Registry string-valued configuration entry for the selected transport.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpInstallationInput {
+    /// Exact category declared by the selected choice.
+    pub category: McpPlanValueCategory,
+    /// Exact key declared by the selected choice.
+    pub key: String,
+    /// Explicit non-secret value. Secret placeholders use a separate input channel.
+    pub value: String,
+}
+
+/// Outcome of evaluating the planned server against registry and enterprise policy. Evaluation is read-only.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpPlanPolicyResult {
+    /// What policy decided for this server.
+    pub decision: McpPlanPolicyDecision,
+    /// Human-readable explanation, safe to surface. Never contains a query, URL, handle, or secret.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+    /// Which authority produced the decision.
+    pub source: McpPlanPolicySource,
+}
+
+/// Provenance of the exact validated JSON MCP card content bound privately to a completed plan and its opaque handle.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpPlanProvenance {
+    /// Authority associated with the validated card, without path, query, or credentials. Inert untrusted data.
+    pub authority: String,
+    /// Semantic digest of the exact validated JSON content bound to the plan handle.
+    pub card_digest: CardDigest,
+    /// JSON MCP media type the validated card was interpreted as.
+    pub media_type: McpServerCardMediaType,
+    /// ISO 8601 timestamp at which the runtime completed strict parsing and schema validation of the card content.
+    pub validated_at: String,
+}
+
+/// One non-secret scalar value a transport choice needs before it can be applied.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpPlanRequiredValueScalar {
+    /// Where the value is applied when the server is launched.
+    pub category: McpPlanValueCategory,
+    /// Default supplied by the card, when the value can be resolved without input. Presence is the authoritative indication that a default exists. Inert untrusted data.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default_value: Option<String>,
+    /// Human-readable explanation from the card. Inert untrusted text.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Whether the value may be supplied more than once.
+    pub is_repeated: bool,
+    /// Key the value is supplied under. Inert untrusted data.
+    pub key: String,
+    /// Discriminator: this required value uses a scalar type.
+    #[serde(deserialize_with = "McpPlanRequiredValueScalar::deserialize_kind")]
+    pub kind: McpPlanRequiredValueScalarKind,
+    /// Whether the value must be present for the plan to be applicable.
+    pub required: bool,
+    /// Human-readable label from the card. Inert untrusted text.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    /// Scalar type the value must conform to.
+    pub value_type: McpPlanScalarValueType,
+}
+
+impl McpPlanRequiredValueScalar {
+    fn deserialize_kind<'de, D>(deserializer: D) -> Result<McpPlanRequiredValueScalarKind, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        if value != "scalar" {
+            return Err(serde::de::Error::unknown_variant(&value, &["scalar"]));
+        }
+        <McpPlanRequiredValueScalarKind>::deserialize(serde::de::value::StringDeserializer::<
+            D::Error,
+        >::new(value))
+    }
+}
+
+/// One enumerated non-secret value a transport choice needs before it can be applied. The permitted values are structurally required.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpPlanRequiredValueEnum {
+    /// Where the value is applied when the server is launched.
+    pub category: McpPlanValueCategory,
+    /// Default supplied by the card, when the value can be resolved without input. Presence is the authoritative indication that a default exists. Inert untrusted data.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default_value: Option<String>,
+    /// Human-readable explanation from the card. Inert untrusted text.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Non-empty permitted value set. Inert untrusted data.
+    pub enum_values: Vec<String>,
+    /// Whether the value may be supplied more than once.
+    pub is_repeated: bool,
+    /// Key the value is supplied under. Inert untrusted data.
+    pub key: String,
+    /// Discriminator: this required value uses a fixed enumeration.
+    #[serde(deserialize_with = "McpPlanRequiredValueEnum::deserialize_kind")]
+    pub kind: McpPlanRequiredValueEnumKind,
+    /// Whether the value must be present for the plan to be applicable.
+    pub required: bool,
+    /// Human-readable label from the card. Inert untrusted text.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    /// Discriminator: the value must be one of `enumValues`.
+    #[serde(deserialize_with = "McpPlanRequiredValueEnum::deserialize_value_type")]
+    pub value_type: McpPlanEnumValueType,
+}
+
+impl McpPlanRequiredValueEnum {
+    fn deserialize_kind<'de, D>(deserializer: D) -> Result<McpPlanRequiredValueEnumKind, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        if value != "enum" {
+            return Err(serde::de::Error::unknown_variant(&value, &["enum"]));
+        }
+        <McpPlanRequiredValueEnumKind>::deserialize(
+            serde::de::value::StringDeserializer::<D::Error>::new(value),
+        )
+    }
+
+    fn deserialize_value_type<'de, D>(deserializer: D) -> Result<McpPlanEnumValueType, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        if value != "enum" {
+            return Err(serde::de::Error::unknown_variant(&value, &["enum"]));
+        }
+        <McpPlanEnumValueType>::deserialize(serde::de::value::StringDeserializer::<D::Error>::new(
+            value,
+        ))
+    }
+}
+
+/// A secret a transport choice needs, referenced by placeholder. No secret value ever appears in a plan, and the placeholder resolves against the keychain only when a plan is applied.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpPlanSecretPlaceholder {
+    /// Key the secret is supplied under. Inert untrusted data.
+    pub key: String,
+    /// The runtime-assigned `${secret:<id>}` placeholder written into configuration in place of the value.
+    pub placeholder: String,
+    /// Human-readable label from the card. Inert untrusted text.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+}
+
+/// An eligible local-package transport choice. Package identity is required and a remote endpoint cannot be represented.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpPlanTransportChoicePackage {
+    /// Stable identifier for this choice within the plan, used to select it when the plan is applied.
+    pub choice_id: String,
+    /// Discriminator: this choice runs a local package
+    #[serde(deserialize_with = "McpPlanTransportChoicePackage::deserialize_install_method")]
+    pub install_method: McpPlanPackageInstallMethod,
+    /// Package identifier. Inert untrusted data.
+    pub package_identifier: String,
+    /// Packaging ecosystem, for example `oci` or `npm`.
+    pub package_type: String,
+    /// Typed values this choice requires, excluding secrets.
+    pub required_values: Vec<McpPlanRequiredValue>,
+    /// Secrets this choice requires, referenced by placeholder only.
+    pub secret_placeholders: Vec<McpPlanSecretPlaceholder>,
+    /// Local process transport this package choice would use.
+    pub transport: McpPlanPackageTransport,
+}
+
+impl McpPlanTransportChoicePackage {
+    fn deserialize_install_method<'de, D>(
+        deserializer: D,
+    ) -> Result<McpPlanPackageInstallMethod, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        if value != "package" {
+            return Err(serde::de::Error::unknown_variant(&value, &["package"]));
+        }
+        <McpPlanPackageInstallMethod>::deserialize(
+            serde::de::value::StringDeserializer::<D::Error>::new(value),
+        )
+    }
+}
+
+/// An eligible remote-endpoint transport choice. The endpoint is required and package identity cannot be represented.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpPlanTransportChoiceRemote {
+    /// Stable identifier for this choice within the plan, used to select it when the plan is applied.
+    pub choice_id: String,
+    /// Endpoint URL. Inert untrusted data.
+    pub endpoint: String,
+    /// Discriminator: this choice connects to a remote endpoint
+    #[serde(deserialize_with = "McpPlanTransportChoiceRemote::deserialize_install_method")]
+    pub install_method: McpPlanRemoteInstallMethod,
+    /// Typed values this choice requires, excluding secrets.
+    pub required_values: Vec<McpPlanRequiredValue>,
+    /// Secrets this choice requires, referenced by placeholder only.
+    pub secret_placeholders: Vec<McpPlanSecretPlaceholder>,
+    /// Endpoint transport this remote choice would use.
+    pub transport: McpPlanRemoteTransport,
+}
+
+impl McpPlanTransportChoiceRemote {
+    fn deserialize_install_method<'de, D>(
+        deserializer: D,
+    ) -> Result<McpPlanRemoteInstallMethod, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        if value != "remote" {
+            return Err(serde::de::Error::unknown_variant(&value, &["remote"]));
+        }
+        <McpPlanRemoteInstallMethod>::deserialize(
+            serde::de::value::StringDeserializer::<D::Error>::new(value),
+        )
+    }
+}
+
+/// Where a plan would be written.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpPlanTarget {
+    /// Configuration key the server would be recorded under within that scope.
+    pub config_key: String,
+    /// Configuration scope the plan targets.
+    pub scope: McpPlanScope,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpInstallationReviewInstall {
+    /// Exact reviewed installation action.
+    pub action: McpInstallationReviewInstallAction,
+    /// Catalogue identity retained from the bound candidate when available.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub catalogue: Option<InstallationCatalogueIdentity>,
+    /// Original catalogue trust metadata, not a verification claim.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub catalogue_trust: Option<serde_json::Value>,
+    /// The configuration change for the selected alternative only.
+    pub configuration_change: McpPlanConfigurationChange,
+    /// Complete effective remote configuration for final installation review.
+    /// Earlier private selection reviews and package choices omit this field.
+    /// The owned remote resource requires it before issuing confirmation.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub effective_configuration: Option<McpInstallationRemoteConfiguration>,
+    /// Identity from the retained plan, not caller display text.
+    pub identity: McpPlanResourceIdentity,
+    /// Non-secret values supplied for this selected alternative.
+    pub inputs: Vec<McpInstallationInput>,
+    /// Policy decision bound to this plan.
+    pub policy: McpPlanPolicyResult,
+    /// Original source identity and content commitment.
+    pub provenance: McpPlanProvenance,
+    /// Explicit reviewed backend selection; no backend is accessed when no secrets are supplied.
+    pub secret_storage: McpInstallationSecretStorage,
+    /// Only the selected alternative is applied.
+    pub selected_choice: McpPlanTransportChoice,
+    /// Exact reviewed placeholders supplied separately. Never secret values.
+    pub supplied_secrets: Vec<String>,
+    /// Exact reviewed user-scope destination.
+    pub target: McpPlanTarget,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpInstallationReviewUninstall {
+    /// Exact reviewed installation action.
+    pub action: McpInstallationReviewUninstallAction,
+    /// Identity from the installed receipt.
+    pub identity: McpPlanResourceIdentity,
+    /// Receipt-owned installation being removed.
+    pub installation_id: String,
+    /// Exact planner-owned secret slots to remove, excluding shared OAuth grants.
+    pub owned_secret_count: i64,
+    /// Current removal policy, independent of permission to activate the server.
+    pub policy: McpPlanPolicyResult,
+    /// Shared profile authentication is deliberately retained, not pending cleanup.
+    pub preserves_shared_authentication: bool,
+    /// Source identity and content commitment retained by the installed receipt.
+    pub provenance: McpPlanProvenance,
+    /// Whether uninstall restores a protected pre-install configuration.
+    pub restores_previous_configuration: bool,
+    /// Exact destination, checked for intervening changes before mutation.
+    pub target: McpPlanTarget,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InstallationReviewMcp {
     /// Reviewed resource discriminator.
-    pub resource: InstallationConfirmationRequestReviewResource,
+    pub resource: InstallationReviewMcpResource,
     /// The exact MCP action and its reviewed changes.
-    pub review: serde_json::Value,
+    pub review: McpInstallationReview,
+}
+
+/// One reviewed Skill file.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillInstallationFileReview {
+    /// SHA-256 digest of the exact file bytes.
+    pub digest: String,
+    /// Whether the file is installed with executable permissions.
+    pub executable: bool,
+    /// Declared media type for the file.
+    pub media_type: String,
+    /// Relative file path within the Skill root.
+    pub path: String,
+    /// Exact reviewed file size in bytes.
+    pub size_bytes: i64,
+}
+
+/// Source identity retained from Agent Finder and the pinned GitHub descriptor.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillInstallationSource {
+    /// Digest of the descriptor's bundle manifest.
+    pub bundle_digest: String,
+    /// Agent Finder materialisation revision identifier.
+    pub catalog_revision_id: String,
+    /// Digest of the canonical materialisation descriptor.
+    pub descriptor_digest: String,
+    /// Repository full name, for example owner/name.
+    pub repository: String,
+    /// GitHub repository database identifier.
+    pub repository_id: String,
+    /// Agent Finder resource identifier.
+    pub resource_id: String,
+    /// Pinned Git commit revision.
+    pub revision: String,
+    /// Root path within the pinned repository.
+    pub root: String,
+}
+
+/// A user-facing personal Skill installation location without absolute host paths.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillInstallationLocation {
+    /// Diagnostics-only absolute host path. Hosts must not display it by default.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub diagnostics_absolute_path: Option<String>,
+    /// Safe display label, for example ~/.copilot/skills/run-checks.
+    pub display_label: String,
+    /// Path relative to the Copilot home.
+    pub relative_path: String,
+    /// Installation scope. Agent Finder Skills are installed in the user's personal Copilot home.
+    pub scope: SkillInstallationScope,
+}
+
+/// Review for installing a verified Skill.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillInstallationReviewInstall {
+    /// Exact reviewed Skill installation action.
+    pub action: SkillInstallationReviewInstallAction,
+    /// Catalogue identity retained from the bound candidate before consent.
+    pub catalogue: InstallationCatalogueIdentity,
+    /// Skill description from SKILL.md when present.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Complete verified SKILL.md content. Planning refuses with review-too-large
+    /// when this exceeds 262144 UTF-8 bytes; it is never truncated.
+    pub entrypoint_content: String,
+    /// Relative path of the verified Skill entrypoint.
+    pub entrypoint_path: String,
+    /// Reviewed files and digests.
+    pub files: Vec<SkillInstallationFileReview>,
+    /// Installing never grants immediate use; the Skill is written disabled.
+    pub installs_disabled: bool,
+    /// Skill invocation name from SKILL.md.
+    pub name: String,
+    /// Exact verified source identity.
+    pub source: SkillInstallationSource,
+    /// Exact user-scope target location without an absolute host path.
+    pub target: SkillInstallationLocation,
+    /// Total reviewed payload size in bytes.
+    pub total_bytes: i64,
+}
+
+/// Durable verified Skill ownership summary.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillInstallationSummary {
+    /// Catalogue identity retained at install time.
+    pub catalogue: InstallationCatalogueIdentity,
+    /// Persisted enablement requested for this installation.
+    pub configured_enabled: bool,
+    /// Exact durable installation receipt identity.
+    pub installation_id: String,
+    /// ISO 8601 wall-clock installation time.
+    pub installed_at: String,
+    /// Skill invocation name.
+    pub name: String,
+    /// Operation that installed this Skill.
+    pub operation_id: String,
+    /// Ownership state observed from files and receipts.
+    pub ownership_state: SkillInstallationOwnershipState,
+    /// Bound-session load observation.
+    pub session_state: SkillInstallationSessionState,
+    /// Exact retained verified source identity.
+    pub source: SkillInstallationSource,
+    /// User-facing installation location without an absolute host path.
+    pub target: SkillInstallationLocation,
+}
+
+/// Review for uninstalling an owned verified Skill.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillInstallationReviewUninstall {
+    /// Exact reviewed Skill installation action.
+    pub action: SkillInstallationReviewUninstallAction,
+    /// Catalogue identity retained at install time.
+    pub catalogue: InstallationCatalogueIdentity,
+    /// Files recorded by the installation receipt.
+    pub files: Vec<SkillInstallationFileReview>,
+    /// Whether current files differ from the receipt. Apply refuses drift.
+    pub files_modified: bool,
+    /// Owned installation being removed.
+    pub installation: SkillInstallationSummary,
+    /// Total receipt-owned payload size in bytes.
+    pub total_bytes: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InstallationReviewSkill {
+    /// Reviewed resource discriminator.
+    pub resource: InstallationReviewSkillResource,
+    /// The exact verified Skill action and its reviewed files.
+    pub review: SkillInstallationReview,
 }
 
 /// One connection-owned, expiring request for a trusted host's explicit user decision.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct InstallationConfirmationRequest {
     /// Opaque one-use challenge. Return unchanged; never log or persist.
@@ -7863,7 +8504,7 @@ pub struct InstallationConfirmationRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub policy_session_id: Option<String>,
     /// Resource-specific review to present before collecting the user's decision.
-    pub review: InstallationConfirmationRequestReview,
+    pub review: InstallationReview,
     /// Opaque commitment to the exact review and inputs. Return unchanged; never log.
     pub review_fingerprint: String,
 }
@@ -7878,16 +8519,6 @@ pub struct InstallationConfirmationResponse {
     pub decision: InstallationDecision,
     /// Exact review commitment from the request.
     pub review_fingerprint: String,
-}
-
-/// Only resource kinds with an implemented installation engine have a review variant.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct InstallationReview {
-    /// Reviewed resource discriminator.
-    pub resource: InstallationReviewResource,
-    /// The exact MCP action and its reviewed changes.
-    pub review: serde_json::Value,
 }
 
 /// Installed plugin record from global state, with marketplace, version, install time, enabled state, cache path, and source.
@@ -9589,25 +10220,6 @@ pub struct McpHostState {
     pub pending_connections: Vec<String>,
 }
 
-/// One Registry string-valued configuration entry for the selected transport.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct McpInstallationInput {
-    /// Exact category declared by the selected choice.
-    pub category: McpPlanValueCategory,
-    /// Exact key declared by the selected choice.
-    pub key: String,
-    /// Explicit non-secret value. Secret placeholders use a separate input channel.
-    pub value: String,
-}
-
 /// Already-confirmed durable work must be reconciled before new mutations or inventory.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -9642,29 +10254,6 @@ pub struct McpInstallationManagementOutcomeInstallPrepared {
     pub operation: McpPreparedInstall,
 }
 
-/// Normalised identity of the MCP server a plan targets, independent of how the card spelled it.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct McpPlanResourceIdentity {
-    /// Canonical, normalised name of the server, for example `io.github.owner/server`.
-    pub canonical_name: String,
-    /// Registry identifier of the server, when it came from a registry.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub registry_id: Option<String>,
-    /// Local configuration key the server would be recorded under.
-    pub server_name: String,
-    /// Version advertised by the card, when it declares one.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub version: Option<String>,
-}
-
 /// Durable configuration ownership is distinct from session-specific usability.
 ///
 /// <div class="warning">
@@ -9676,12 +10265,18 @@ pub struct McpPlanResourceIdentity {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct McpInstallationSummary {
+    /// Catalogue identity retained from the installed plan when available.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub catalogue: Option<InstallationCatalogueIdentity>,
     /// Exact alternative retained in the installing receipt.
     pub choice_id: String,
     /// Identity retained from the validated original plan.
     pub identity: McpPlanResourceIdentity,
     /// Exact durable installation receipt identity.
     pub installation_id: String,
+    /// ISO 8601 wall-clock installation time when available.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub installed_at: Option<String>,
     /// Original installing operation, not a fresh management operation.
     pub operation_id: String,
     /// Ownership or setup state, never inferred proof of tool usability.
@@ -9744,48 +10339,57 @@ pub struct McpInstallationManagementOutcomeUninstallPlanned {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct McpInstallationManagementOutcomeOperation {
-    /// Installation management outcome discriminator.
-    pub kind: McpInstallationManagementOutcomeOperationKind,
-    /// Original-connection operation snapshot.
-    pub operation: serde_json::Value,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct McpInstallationManagementOutcomeRefused {
-    /// Installation management outcome discriminator.
-    pub kind: McpInstallationManagementOutcomeRefusedKind,
-    /// Specific bounded refusal.
-    pub reason: McpInstallationFailureReason,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct McpInstallationManagementResultOutcome {
-    /// A handled management outcome with an honoured contract.
-    pub kind: McpInstallationManagementResultOutcomeKind,
-    /// Capabilities actually honoured for this request.
-    pub negotiated: CatalogNegotiatedContract,
-    /// Observed management outcome.
-    pub outcome: McpInstallationManagementOutcome,
-}
-
-/// Existing-operation control. A new session selector is deliberately not accepted.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct McpInstallationOperationRequest {
-    /// Original installation wire capability; new-work authentication is not reacquired.
-    pub contract: CatalogClientContract,
-    /// Exact runtime-issued operation ID on the original connection.
+pub struct McpInstallationOperationStatusPreparing {
+    /// Whether cancellation has been requested, not proof that a write was undone.
+    pub cancellation_requested: bool,
+    /// Original runtime-issued operation identity.
     pub operation_id: String,
+    /// Original operation progress discriminator.
+    pub phase: McpInstallationOperationStatusPreparingPhase,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpInstallationOperationStatusPrepared {
+    /// Whether the inert prepared operation was asked to cancel.
+    pub cancellation_requested: bool,
+    /// Original runtime-issued operation identity.
+    pub operation_id: String,
+    /// Original operation progress discriminator.
+    pub phase: McpInstallationOperationStatusPreparedPhase,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpInstallationOperationStatusAwaitingConfirmation {
+    /// Whether the pending human callback was asked to cancel.
+    pub cancellation_requested: bool,
+    /// Original runtime-issued operation identity.
+    pub operation_id: String,
+    /// Original operation progress discriminator.
+    pub phase: McpInstallationOperationStatusAwaitingConfirmationPhase,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpInstallationOperationStatusRevalidating {
+    /// Whether source or authority revalidation was asked to cancel.
+    pub cancellation_requested: bool,
+    /// Original runtime-issued operation identity.
+    pub operation_id: String,
+    /// Original operation progress discriminator.
+    pub phase: McpInstallationOperationStatusRevalidatingPhase,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpInstallationOperationStatusApplying {
+    /// Whether applying was asked to cancel; already-started effects retain their lease.
+    pub cancellation_requested: bool,
+    /// Original runtime-issued operation identity.
+    pub operation_id: String,
+    /// Original operation progress discriminator.
+    pub phase: McpInstallationOperationStatusApplyingPhase,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -9870,19 +10474,63 @@ pub struct McpInstallationOutcomeRefused {
     pub reason: McpInstallationFailureReason,
 }
 
-/// Final remote configuration, not a template. The producer refuses configured
-/// secrets and external-value expansion before presenting this review.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpInstallationOperationStatusCompleted {
+    /// Whether cancellation was requested before the terminal result.
+    pub cancellation_requested: bool,
+    /// Original runtime-issued operation identity.
+    pub operation_id: String,
+    /// Immutable terminal receipt.
+    pub outcome: McpInstallationOutcome,
+    /// Original operation progress discriminator.
+    pub phase: McpInstallationOperationStatusCompletedPhase,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpInstallationManagementOutcomeOperation {
+    /// Installation management outcome discriminator.
+    pub kind: McpInstallationManagementOutcomeOperationKind,
+    /// Original-connection operation snapshot.
+    pub operation: McpInstallationOperationStatus,
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct McpInstallationRemoteConfiguration {
-    /// Literal configured headers, excluding separately authorised OAuth tokens.
-    pub headers: HashMap<String, String>,
-    /// Configured tool selection, not permission to invoke those tools.
-    pub tools: Vec<String>,
-    /// Transport in the effective persisted remote configuration.
-    pub transport: McpPlanRemoteTransport,
-    /// Exact resolved endpoint, without templates or secret placeholders.
-    pub url: String,
+pub struct McpInstallationManagementOutcomeRefused {
+    /// Installation management outcome discriminator.
+    pub kind: McpInstallationManagementOutcomeRefusedKind,
+    /// Specific bounded refusal.
+    pub reason: McpInstallationFailureReason,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpInstallationManagementResultOutcome {
+    /// A handled management outcome with an honoured contract.
+    pub kind: McpInstallationManagementResultOutcomeKind,
+    /// Capabilities actually honoured for this request.
+    pub negotiated: CatalogNegotiatedContract,
+    /// Observed management outcome.
+    pub outcome: McpInstallationManagementOutcome,
+}
+
+/// Existing-operation control. A new session selector is deliberately not accepted.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpInstallationOperationRequest {
+    /// Original installation wire capability; new-work authentication is not reacquired.
+    pub contract: CatalogClientContract,
+    /// Exact runtime-issued operation ID on the original connection.
+    pub operation_id: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -9930,87 +10578,6 @@ pub struct McpInstallationsRequest {
     pub policy_session_id: String,
 }
 
-/// The configuration-change alternative for the transportChoices entry at the same index. Only the selected alternative is applied; entries are not cumulative. The payload stays behind the runtime boundary.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct McpPlanConfigurationChange {
-    /// Names of the configuration fields the change would set, without their values.
-    pub changed_fields: Vec<String>,
-    /// Configuration key the change applies to.
-    pub config_key: String,
-    /// Whether the change would create a new entry or modify an existing one.
-    pub operation: McpPlanConfigurationOperation,
-    /// Scope the change would be written to.
-    pub scope: McpPlanScope,
-    /// Secret placeholders the written configuration would reference. The constrained placeholder type cannot carry a literal secret value.
-    pub secret_references: Vec<String>,
-}
-
-/// Outcome of evaluating the planned server against registry and enterprise policy. Evaluation is read-only.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct McpPlanPolicyResult {
-    /// What policy decided for this server.
-    pub decision: McpPlanPolicyDecision,
-    /// Human-readable explanation, safe to surface. Never contains a query, URL, handle, or secret.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub reason: Option<String>,
-    /// Which authority produced the decision.
-    pub source: McpPlanPolicySource,
-}
-
-/// Provenance of the exact validated JSON MCP card content bound privately to a completed plan and its opaque handle.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct McpPlanProvenance {
-    /// Authority associated with the validated card, without path, query, or credentials. Inert untrusted data.
-    pub authority: String,
-    /// Semantic digest of the exact validated JSON content bound to the plan handle.
-    pub card_digest: CardDigest,
-    /// JSON MCP media type the validated card was interpreted as.
-    pub media_type: McpServerCardMediaType,
-    /// ISO 8601 timestamp at which the runtime completed strict parsing and schema validation of the card content.
-    pub validated_at: String,
-}
-
-/// Where a plan would be written.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct McpPlanTarget {
-    /// Configuration key the server would be recorded under within that scope.
-    pub config_key: String,
-    /// Configuration scope the plan targets.
-    pub scope: McpPlanScope,
-}
-
 /// A normalised, inert description of what installing an MCP server would involve. Carries no raw card, no install specification, and no secret value.
 ///
 /// <div class="warning">
@@ -10044,7 +10611,7 @@ pub struct McpInstallPlan {
     /// Configuration scope and key the plan would write to.
     pub target: McpPlanTarget,
     /// Every eligible transport, so a host can present an explicit choice. A completed plan always has at least one; when none is eligible, planning returns `CatalogUnavailableTransportError` instead.
-    pub transport_choices: Vec<serde_json::Value>,
+    pub transport_choices: Vec<McpPlanTransportChoice>,
 }
 
 /// Server name to check running status for.
@@ -10802,230 +11369,6 @@ impl McpPlanInstallOptions {
     }
 }
 
-/// One non-secret scalar value a transport choice needs before it can be applied.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct McpPlanRequiredValueScalar {
-    /// Where the value is applied when the server is launched.
-    pub category: McpPlanValueCategory,
-    /// Default supplied by the card, when the value can be resolved without input. Presence is the authoritative indication that a default exists. Inert untrusted data.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub default_value: Option<String>,
-    /// Human-readable explanation from the card. Inert untrusted text.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub description: Option<String>,
-    /// Whether the value may be supplied more than once.
-    pub is_repeated: bool,
-    /// Key the value is supplied under. Inert untrusted data.
-    pub key: String,
-    /// Discriminator: this required value uses a scalar type.
-    #[serde(deserialize_with = "McpPlanRequiredValueScalar::deserialize_kind")]
-    pub kind: McpPlanRequiredValueScalarKind,
-    /// Whether the value must be present for the plan to be applicable.
-    pub required: bool,
-    /// Human-readable label from the card. Inert untrusted text.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub title: Option<String>,
-    /// Scalar type the value must conform to.
-    pub value_type: McpPlanScalarValueType,
-}
-
-impl McpPlanRequiredValueScalar {
-    fn deserialize_kind<'de, D>(deserializer: D) -> Result<McpPlanRequiredValueScalarKind, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let value = String::deserialize(deserializer)?;
-        if value != "scalar" {
-            return Err(serde::de::Error::unknown_variant(&value, &["scalar"]));
-        }
-        <McpPlanRequiredValueScalarKind>::deserialize(serde::de::value::StringDeserializer::<
-            D::Error,
-        >::new(value))
-    }
-}
-
-/// One enumerated non-secret value a transport choice needs before it can be applied. The permitted values are structurally required.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct McpPlanRequiredValueEnum {
-    /// Where the value is applied when the server is launched.
-    pub category: McpPlanValueCategory,
-    /// Default supplied by the card, when the value can be resolved without input. Presence is the authoritative indication that a default exists. Inert untrusted data.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub default_value: Option<String>,
-    /// Human-readable explanation from the card. Inert untrusted text.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub description: Option<String>,
-    /// Non-empty permitted value set. Inert untrusted data.
-    pub enum_values: Vec<String>,
-    /// Whether the value may be supplied more than once.
-    pub is_repeated: bool,
-    /// Key the value is supplied under. Inert untrusted data.
-    pub key: String,
-    /// Discriminator: this required value uses a fixed enumeration.
-    #[serde(deserialize_with = "McpPlanRequiredValueEnum::deserialize_kind")]
-    pub kind: McpPlanRequiredValueEnumKind,
-    /// Whether the value must be present for the plan to be applicable.
-    pub required: bool,
-    /// Human-readable label from the card. Inert untrusted text.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub title: Option<String>,
-    /// Discriminator: the value must be one of `enumValues`.
-    #[serde(deserialize_with = "McpPlanRequiredValueEnum::deserialize_value_type")]
-    pub value_type: McpPlanEnumValueType,
-}
-
-impl McpPlanRequiredValueEnum {
-    fn deserialize_kind<'de, D>(deserializer: D) -> Result<McpPlanRequiredValueEnumKind, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let value = String::deserialize(deserializer)?;
-        if value != "enum" {
-            return Err(serde::de::Error::unknown_variant(&value, &["enum"]));
-        }
-        <McpPlanRequiredValueEnumKind>::deserialize(
-            serde::de::value::StringDeserializer::<D::Error>::new(value),
-        )
-    }
-
-    fn deserialize_value_type<'de, D>(deserializer: D) -> Result<McpPlanEnumValueType, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let value = String::deserialize(deserializer)?;
-        if value != "enum" {
-            return Err(serde::de::Error::unknown_variant(&value, &["enum"]));
-        }
-        <McpPlanEnumValueType>::deserialize(serde::de::value::StringDeserializer::<D::Error>::new(
-            value,
-        ))
-    }
-}
-
-/// A secret a transport choice needs, referenced by placeholder. No secret value ever appears in a plan, and the placeholder resolves against the keychain only when a plan is applied.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct McpPlanSecretPlaceholder {
-    /// Key the secret is supplied under. Inert untrusted data.
-    pub key: String,
-    /// The runtime-assigned `${secret:<id>}` placeholder written into configuration in place of the value.
-    pub placeholder: String,
-    /// Human-readable label from the card. Inert untrusted text.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub title: Option<String>,
-}
-
-/// An eligible local-package transport choice. Package identity is required and a remote endpoint cannot be represented.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct McpPlanTransportChoicePackage {
-    /// Stable identifier for this choice within the plan, used to select it when the plan is applied.
-    pub choice_id: String,
-    /// Discriminator: this choice runs a local package
-    #[serde(deserialize_with = "McpPlanTransportChoicePackage::deserialize_install_method")]
-    pub install_method: McpPlanPackageInstallMethod,
-    /// Package identifier. Inert untrusted data.
-    pub package_identifier: String,
-    /// Packaging ecosystem, for example `oci` or `npm`.
-    pub package_type: String,
-    /// Typed values this choice requires, excluding secrets.
-    pub required_values: Vec<McpPlanRequiredValue>,
-    /// Secrets this choice requires, referenced by placeholder only.
-    pub secret_placeholders: Vec<McpPlanSecretPlaceholder>,
-    /// Local process transport this package choice would use.
-    pub transport: McpPlanPackageTransport,
-}
-
-impl McpPlanTransportChoicePackage {
-    fn deserialize_install_method<'de, D>(
-        deserializer: D,
-    ) -> Result<McpPlanPackageInstallMethod, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let value = String::deserialize(deserializer)?;
-        if value != "package" {
-            return Err(serde::de::Error::unknown_variant(&value, &["package"]));
-        }
-        <McpPlanPackageInstallMethod>::deserialize(
-            serde::de::value::StringDeserializer::<D::Error>::new(value),
-        )
-    }
-}
-
-/// An eligible remote-endpoint transport choice. The endpoint is required and package identity cannot be represented.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct McpPlanTransportChoiceRemote {
-    /// Stable identifier for this choice within the plan, used to select it when the plan is applied.
-    pub choice_id: String,
-    /// Endpoint URL. Inert untrusted data.
-    pub endpoint: String,
-    /// Discriminator: this choice connects to a remote endpoint
-    #[serde(deserialize_with = "McpPlanTransportChoiceRemote::deserialize_install_method")]
-    pub install_method: McpPlanRemoteInstallMethod,
-    /// Typed values this choice requires, excluding secrets.
-    pub required_values: Vec<McpPlanRequiredValue>,
-    /// Secrets this choice requires, referenced by placeholder only.
-    pub secret_placeholders: Vec<McpPlanSecretPlaceholder>,
-    /// Endpoint transport this remote choice would use.
-    pub transport: McpPlanRemoteTransport,
-}
-
-impl McpPlanTransportChoiceRemote {
-    fn deserialize_install_method<'de, D>(
-        deserializer: D,
-    ) -> Result<McpPlanRemoteInstallMethod, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let value = String::deserialize(deserializer)?;
-        if value != "remote" {
-            return Err(serde::de::Error::unknown_variant(&value, &["remote"]));
-        }
-        <McpPlanRemoteInstallMethod>::deserialize(
-            serde::de::value::StringDeserializer::<D::Error>::new(value),
-        )
-    }
-}
-
 /// Read-only preparation of one owned removal under fresh selected-session authority.
 ///
 /// <div class="warning">
@@ -11045,7 +11388,7 @@ pub struct McpPlanUninstallRequest {
     pub policy_session_id: String,
 }
 
-/// Side-effect-free preparation of one original bound, input-free remote MCP choice.
+/// Side-effect-free preparation of one original bound remote MCP choice.
 ///
 /// <div class="warning">
 ///
@@ -11060,13 +11403,15 @@ pub struct McpPrepareInstallRequest {
     pub choice_id: String,
     /// Required bound catalogue and confirmed remote installation capabilities.
     pub contract: CatalogClientContract,
-    /// Must be empty for the initial input-free remote installation capability.
+    /// Declared non-secret values. Non-empty only when the caller requires
+    /// `mcp-configured-remote-installation`; omitted values use the card default.
     pub inputs: Vec<McpInstallationInput>,
     /// Original single-use bound plan, never a client-authored configuration.
     pub plan_handle: String,
     /// An existing local session attached to this connection, not permission to attach one.
     pub policy_session_id: String,
-    /// Must be empty; this capability does not allocate configured-input secrets.
+    /// One entry per declared secret placeholder of the selected choice. Non-empty
+    /// only when the caller requires `mcp-configured-remote-installation`.
     pub secrets: Vec<McpInstallationSecret>,
     /// The trusted host presents this choice alongside the exact secret placeholders.
     pub secret_storage: McpInstallationSecretStorage,
@@ -15169,7 +15514,7 @@ pub struct PermissionsSetModeRequest {
     pub assisted_approval_model: Option<String>,
     /// Permission mode to apply
     pub mode: PermissionMode,
-    /// Optional source for permission-mode telemetry. `organization_targeting` is reserved for startup selection after the authenticated account matches an organization targeting policy; SDK callers default to `rpc` and cannot claim targeting provenance.
+    /// Optional source for permission-mode telemetry. Defaults to `rpc` when omitted for SDK callers.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source: Option<PermissionModeSource>,
 }
@@ -20065,9 +20410,10 @@ pub struct SessionOpenOptions {
     /// Resolved sandbox configuration.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sandbox_config: Option<SandboxConfig>,
-    /// Origin of the sandbox choice. Settings-derived origins (never_configured, user_enabled, user_disabled, repository_policy) let managed policy floor a host preference; explicit below-floor changes remain policy conflicts unless a session opt-out is authorized. Also used for telemetry provenance.
+    /// Origin of the sandbox choice. The runtime uses this only for internal telemetry provenance; managed policy is derived independently.
+    #[doc(hidden)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub sandbox_config_source: Option<SandboxConfigSource>,
+    pub(crate) sandbox_config_source: Option<SandboxConfigSource>,
     /// Capabilities enabled for this session.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_capabilities: Option<Vec<SessionCapability>>,
@@ -21567,9 +21913,10 @@ pub struct SessionUpdateOptionsParams {
     /// Resolved sandbox configuration.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sandbox_config: Option<SandboxConfig>,
-    /// Origin of the sandbox choice. Settings-derived origins (never_configured, user_enabled, user_disabled, repository_policy) let managed policy floor a host preference; explicit below-floor changes remain policy conflicts unless a session opt-out is authorized. Also used for telemetry provenance.
+    /// Origin of the sandbox choice. The runtime uses this only for internal telemetry provenance; managed policy is derived independently.
+    #[doc(hidden)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub sandbox_config_source: Option<SandboxConfigSource>,
+    pub(crate) sandbox_config_source: Option<SandboxConfigSource>,
     /// Replaces the session's capability set with the given list. Use to enable or disable capabilities mid-session (e.g., remove `memory` for reproducible scripted runs). Omit the field to leave the existing capability set unchanged.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_capabilities: Option<Vec<SessionCapability>>,
@@ -21789,6 +22136,44 @@ pub struct Skill {
     pub user_invocable: bool,
 }
 
+/// Applies exactly one retained verified Skill installation plan.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillApplyInstallRequest {
+    /// Required authenticated bound catalogue and Skill installation capabilities.
+    pub contract: CatalogClientContract,
+    /// Opaque original plan, consumed once.
+    pub plan_handle: String,
+    /// Same existing selected session as planning.
+    pub policy_session_id: String,
+}
+
+/// One-use application of the exact retained Skill removal plan.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillApplyUninstallRequest {
+    /// Required authenticated bound installation contract.
+    pub contract: CatalogClientContract,
+    /// Opaque original removal plan, consumed once.
+    pub plan_handle: String,
+    /// Same existing selected session as removal preparation.
+    pub policy_session_id: String,
+}
+
 /// Canonical directory where skills can be discovered or created, with scope, preference, and optional project path.
 ///
 /// <div class="warning">
@@ -21826,6 +22211,344 @@ pub struct SkillDiscoveryPathList {
     pub paths: Vec<SkillDiscoveryPath>,
 }
 
+/// Already-confirmed durable work must be reconciled before new mutations or inventory.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillInstallationManagementOutcomeRecoveryRequired {
+    /// Skill installation management outcome discriminator.
+    pub kind: SkillInstallationManagementOutcomeRecoveryRequiredKind,
+}
+
+/// A computed Skill install plan. Nothing has been applied.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillInstallPlan {
+    /// Original wall-clock expiry as an ISO 8601 timestamp.
+    pub expires_at: String,
+    /// Original operation identifier returned before confirmation.
+    pub operation_id: String,
+    /// One-use plan handle, bound to the original candidate authority.
+    pub plan_handle: String,
+    /// Safe review to present before applying the plan.
+    pub review: SkillInstallationReview,
+}
+
+/// A verified Skill installation plan was prepared.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillInstallationManagementOutcomeInstallPlanned {
+    /// Skill installation management outcome discriminator.
+    pub kind: SkillInstallationManagementOutcomeInstallPlannedKind,
+    /// Prepared install plan.
+    pub plan: SkillInstallPlan,
+}
+
+/// Owned Skill installations were listed.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillInstallationManagementOutcomeListed {
+    /// Owned Skill installation summaries.
+    pub installations: Vec<SkillInstallationSummary>,
+    /// Skill installation management outcome discriminator.
+    pub kind: SkillInstallationManagementOutcomeListedKind,
+}
+
+/// Recovery completed and inventory was inspected.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillInstallationManagementOutcomeRecovered {
+    /// Owned Skill installation summaries after recovery.
+    pub installations: Vec<SkillInstallationSummary>,
+    /// Skill installation management outcome discriminator.
+    pub kind: SkillInstallationManagementOutcomeRecoveredKind,
+}
+
+/// Interrupted work was safely compensated and the pending marker was cleared.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillInstallationManagementOutcomeRolledBack {
+    /// Skill installation management outcome discriminator.
+    pub kind: SkillInstallationManagementOutcomeRolledBackKind,
+    /// Original operation identity.
+    #[serde(rename = "operation_id")]
+    pub operation_id: String,
+    /// Cause of the compensation.
+    pub reason: SkillInstallationFailureReason,
+}
+
+/// A computed Skill uninstall plan. Nothing has been removed.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillUninstallPlan {
+    /// Original wall-clock expiry as an ISO 8601 timestamp.
+    pub expires_at: String,
+    /// Owned Skill installation being removed.
+    pub installation: SkillInstallationSummary,
+    /// Original removal operation identifier returned before confirmation.
+    pub operation_id: String,
+    /// One-use uninstall plan handle.
+    pub plan_handle: String,
+    /// Safe review to present before applying removal.
+    pub review: SkillInstallationReview,
+}
+
+/// An owned Skill uninstall plan was prepared.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillInstallationManagementOutcomeUninstallPlanned {
+    /// Skill installation management outcome discriminator.
+    pub kind: SkillInstallationManagementOutcomeUninstallPlannedKind,
+    /// Prepared uninstall plan.
+    pub plan: SkillUninstallPlan,
+}
+
+/// Original operation progress discriminator.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillInstallationOperationStatusPreparing {
+    /// Whether cancellation has been requested.
+    pub cancellation_requested: bool,
+    /// Original runtime-issued operation identity.
+    pub operation_id: String,
+    pub phase: SkillInstallationOperationStatusPreparingPhase,
+}
+
+/// Original operation progress discriminator.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillInstallationOperationStatusPrepared {
+    /// Whether cancellation has been requested.
+    pub cancellation_requested: bool,
+    /// Original runtime-issued operation identity.
+    pub operation_id: String,
+    pub phase: SkillInstallationOperationStatusPreparedPhase,
+}
+
+/// Original operation progress discriminator.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillInstallationOperationStatusAwaitingConfirmation {
+    /// Whether cancellation has been requested.
+    pub cancellation_requested: bool,
+    /// Original runtime-issued operation identity.
+    pub operation_id: String,
+    pub phase: SkillInstallationOperationStatusAwaitingConfirmationPhase,
+}
+
+/// Original operation progress discriminator.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillInstallationOperationStatusRevalidating {
+    /// Whether cancellation has been requested.
+    pub cancellation_requested: bool,
+    /// Original runtime-issued operation identity.
+    pub operation_id: String,
+    pub phase: SkillInstallationOperationStatusRevalidatingPhase,
+}
+
+/// Original operation progress discriminator.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillInstallationOperationStatusApplying {
+    /// Whether cancellation has been requested; already-started effects require recovery.
+    pub cancellation_requested: bool,
+    /// Original runtime-issued operation identity.
+    pub operation_id: String,
+    pub phase: SkillInstallationOperationStatusApplyingPhase,
+}
+
+/// The verified Skill was installed disabled.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillInstallationOutcomeInstalled {
+    /// Durable installed Skill summary.
+    pub installation: SkillInstallationSummary,
+    /// Terminal Skill installation outcome discriminator.
+    pub kind: SkillInstallationOutcomeInstalledKind,
+}
+
+/// The owned Skill was removed.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillInstallationOutcomeUninstalled {
+    /// Removed installation identity.
+    pub installation_id: String,
+    /// Terminal Skill installation outcome discriminator.
+    pub kind: SkillInstallationOutcomeUninstalledKind,
+    /// Original removal operation identity.
+    pub operation_id: String,
+}
+
+/// The durable transaction was aborted or fully compensated.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillInstallationOutcomeRolledBack {
+    /// Terminal Skill installation outcome discriminator.
+    pub kind: SkillInstallationOutcomeRolledBackKind,
+    /// Original operation identity.
+    pub operation_id: String,
+    /// Cause of the fully aborted or compensated operation.
+    pub reason: SkillInstallationFailureReason,
+}
+
+/// A write may have completed. Recover and inspect durable state before retrying.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillInstallationOutcomeRecoveryRequired {
+    /// Terminal Skill installation outcome discriminator.
+    pub kind: SkillInstallationOutcomeRecoveryRequiredKind,
+    /// Operation whose durable result must be recovered and inspected.
+    pub operation_id: String,
+}
+
+/// The user declined the confirmation request.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillInstallationOutcomeDeclined {
+    /// Terminal Skill installation outcome discriminator.
+    pub kind: SkillInstallationOutcomeDeclinedKind,
+    /// Original operation identity.
+    pub operation_id: String,
+}
+
+/// The operation was cancelled before a terminal mutation.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillInstallationOutcomeCancelled {
+    /// Terminal Skill installation outcome discriminator.
+    pub kind: SkillInstallationOutcomeCancelledKind,
+    /// Original operation identity.
+    pub operation_id: String,
+}
+
+/// The operation was refused without applying changes.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillInstallationOutcomeRefused {
+    /// Terminal Skill installation outcome discriminator.
+    pub kind: SkillInstallationOutcomeRefusedKind,
+    /// Present once an operation has been allocated.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub operation_id: Option<String>,
+    /// Bounded refusal reason.
+    pub reason: SkillInstallationFailureReason,
+}
+
+/// Original operation progress discriminator.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillInstallationOperationStatusCompleted {
+    /// Whether cancellation was requested before the terminal result.
+    pub cancellation_requested: bool,
+    /// Original runtime-issued operation identity.
+    pub operation_id: String,
+    /// Immutable terminal receipt.
+    pub outcome: SkillInstallationOutcome,
+    pub phase: SkillInstallationOperationStatusCompletedPhase,
+}
+
+/// Original-connection operation snapshot.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillInstallationManagementOutcomeOperation {
+    /// Skill installation management outcome discriminator.
+    pub kind: SkillInstallationManagementOutcomeOperationKind,
+    /// Operation status.
+    pub operation: SkillInstallationOperationStatus,
+}
+
+/// Enablement changed and the selected session was reconciled.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillInstallationManagementOutcomeEnabledChanged {
+    /// Safe reload or reconciliation diagnostics.
+    pub diagnostics: Vec<String>,
+    /// Updated installation summary.
+    pub installation: SkillInstallationSummary,
+    /// Skill installation management outcome discriminator.
+    pub kind: SkillInstallationManagementOutcomeEnabledChangedKind,
+}
+
+/// The management request was refused.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillInstallationManagementOutcomeRefused {
+    /// Skill installation management outcome discriminator.
+    pub kind: SkillInstallationManagementOutcomeRefusedKind,
+    /// Bounded refusal reason.
+    pub reason: SkillInstallationFailureReason,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillInstallationManagementResultOutcome {
+    /// Discriminator: handled management outcome.
+    pub kind: SkillInstallationManagementResultOutcomeKind,
+    /// Capabilities honoured for this request.
+    pub negotiated: CatalogNegotiatedContract,
+    /// Observed management outcome.
+    pub outcome: SkillInstallationManagementOutcome,
+}
+
+/// Existing-operation control. A new session selector is deliberately not accepted.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillInstallationOperationRequest {
+    /// Required authenticated bound Skill installation capability.
+    pub contract: CatalogClientContract,
+    /// Exact runtime-issued operation ID on the original connection.
+    pub operation_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillInstallationResultOutcome {
+    /// Discriminator: handled operation outcome.
+    pub kind: SkillInstallationResultOutcomeKind,
+    /// Capabilities honoured for this request.
+    pub negotiated: CatalogNegotiatedContract,
+    /// Terminal operation outcome.
+    pub outcome: SkillInstallationOutcome,
+}
+
+/// Inventory request under an explicitly selected existing session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillInstallationsRequest {
+    /// Required authenticated bound installation contract.
+    pub contract: CatalogClientContract,
+    /// Existing selected local session on this connection.
+    pub policy_session_id: String,
+}
+
 /// Skills available to the session, with their enabled state.
 ///
 /// <div class="warning">
@@ -21839,6 +22562,44 @@ pub struct SkillDiscoveryPathList {
 pub struct SkillList {
     /// Available skills
     pub skills: Vec<Skill>,
+}
+
+/// Side-effect-free planning of one verified Agent Finder Skill candidate.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillPlanInstallRequest {
+    /// Fresh single-use AI skill candidate handle returned by a bound catalogue search.
+    pub candidate_handle: String,
+    /// Required authenticated bound catalogue and Skill installation capabilities.
+    pub contract: CatalogClientContract,
+    /// Existing local session attached to this connection.
+    pub policy_session_id: String,
+}
+
+/// Read-only preparation of one owned Skill removal under fresh selected-session authority.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillPlanUninstallRequest {
+    /// Required authenticated bound installation contract.
+    pub contract: CatalogClientContract,
+    /// Exact receipt to inspect.
+    pub installation_id: String,
+    /// Existing selected local session on this connection.
+    pub policy_session_id: String,
 }
 
 /// Catalog-only metadata for one SDK-provided skill. The complete SKILL.md is fetched separately and lazily.
@@ -21999,6 +22760,27 @@ pub struct SkillsDiscoverRequest {
 pub struct SkillsEnableRequest {
     /// Name of the skill to enable
     pub name: String,
+}
+
+/// Persisted enablement update for one owned Skill installation.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillSetEnabledRequest {
+    /// Required authenticated bound Skill installation capability.
+    pub contract: CatalogClientContract,
+    /// Persisted enablement value.
+    pub enabled: bool,
+    /// Exact receipt identity to update.
+    pub installation_id: String,
+    /// Existing selected local session to reconcile after persistence.
+    pub policy_session_id: String,
 }
 
 /// Optional project paths to enumerate.
@@ -26209,6 +26991,39 @@ pub struct ExtensionsDiscoverResult {
     pub mode: DiscoveredExtensionMode,
 }
 
+/// Skills discovered across global and project sources.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillsDiscoverResult {
+    /// Messages for skills that failed to load (e.g. malformed SKILL.md). Empty when host skills are excluded so host-local paths are not disclosed to multitenant callers.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub errors: Option<Vec<String>>,
+    /// All discovered skills across all sources
+    pub skills: Vec<ServerSkill>,
+}
+
+/// Canonical locations where skills can be created so the runtime will recognize them.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillsGetDiscoveryPathsResult {
+    /// Canonical skill create/discovery directories, in priority order
+    pub paths: Vec<SkillDiscoveryPath>,
+}
+
 /// Plugins installed in user/global state.
 ///
 /// <div class="warning">
@@ -26362,39 +27177,6 @@ pub struct PluginsMarketplacesBrowseResult {
 pub struct PluginsMarketplacesRefreshResult {
     /// Per-marketplace refresh results in deterministic order.
     pub results: Vec<MarketplaceRefreshEntry>,
-}
-
-/// Skills discovered across global and project sources.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SkillsDiscoverResult {
-    /// Messages for skills that failed to load (e.g. malformed SKILL.md). Empty when host skills are excluded so host-local paths are not disclosed to multitenant callers.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub errors: Option<Vec<String>>,
-    /// All discovered skills across all sources
-    pub skills: Vec<ServerSkill>,
-}
-
-/// Canonical locations where skills can be created so the runtime will recognize them.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SkillsGetDiscoveryPathsResult {
-    /// Canonical skill create/discovery directories, in priority order
-    pub paths: Vec<SkillDiscoveryPath>,
 }
 
 /// Agents discovered across user, project, plugin, and remote sources.
@@ -34197,6 +34979,18 @@ pub enum CatalogAgentPluginMediaType {
 /// </div>
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CatalogAiSkillInstallability {
+    /// This AI skill candidate carries verified materialisation metadata and the selected session may plan installation.
+    #[serde(rename = "installable")]
+    Installable,
+    /// Skill installation is understood but disabled for the selected session.
+    #[serde(rename = "feature-disabled")]
+    FeatureDisabled,
+    /// The candidate lacks verified materialisation metadata required for installation.
+    #[serde(rename = "materialisation-unavailable")]
+    MaterialisationUnavailable,
+    /// Policy refuses Skill installation for the selected session or authority.
+    #[serde(rename = "policy-forbids")]
+    PolicyForbids,
     /// AI skills are discovery-only on this surface.
     #[serde(rename = "not-installable-kind")]
     NotInstallableKind,
@@ -34458,6 +35252,12 @@ pub enum CatalogCapability {
     /// Understands effect-free preparation, exact human-confirmed apply and owned removal for fully resolved personal remote MCP choices without supplied inputs or configured secrets. Advertised only when the real producer and lower owned admission are linked; requires original connection and bound session authority for new work.
     #[serde(rename = "mcp-confirmed-remote-installation")]
     McpConfirmedRemoteInstallation,
+    /// Extends mcp-confirmed-remote-installation to declared non-secret header and URL values and receipt-owned header secrets for personal remote MCP choices. Requires mcp-confirmed-remote-installation and bound session authority. Secret values are written only to the reviewed backend after confirmation and are never returned; package and stdio choices remain unsupported. Advertised only when owned secret effects and owned secret activation are linked.
+    #[serde(rename = "mcp-configured-remote-installation")]
+    McpConfiguredRemoteInstallation,
+    /// Understands verified Agent Finder Skill install, uninstall, recovery and installation-scoped enablement APIs. Advertised only by runtimes with the Skill installation engine linked; acquisition may still be refused as feature-disabled per selected session.
+    #[serde(rename = "skill-confirmed-installation")]
+    SkillConfirmedInstallation,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
@@ -36651,10 +37451,468 @@ pub enum HistoryRewindOutcome {
 
 /// Reviewed resource discriminator.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum InstallationConfirmationRequestReviewResource {
+pub enum InstallationReviewMcpResource {
     #[serde(rename = "mcp")]
     #[default]
     Mcp,
+}
+
+/// Exact reviewed installation action.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpInstallationReviewInstallAction {
+    #[serde(rename = "install")]
+    #[default]
+    Install,
+}
+
+/// Whether a planned configuration change would create or modify an entry
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpPlanConfigurationOperation {
+    /// Creates a configuration entry that does not exist yet.
+    #[serde(rename = "add")]
+    Add,
+    /// Modifies a configuration entry that already exists.
+    #[serde(rename = "update")]
+    Update,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Configuration scope an MCP install plan targets
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpPlanScope {
+    /// The user's own MCP configuration.
+    #[serde(rename = "user")]
+    User,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Transport exposed by a remote endpoint
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpPlanRemoteTransport {
+    /// An HTTP endpoint.
+    #[serde(rename = "http")]
+    Http,
+    /// A streamable HTTP endpoint.
+    #[serde(rename = "streamable-http")]
+    StreamableHttp,
+    /// A server-sent events endpoint.
+    #[serde(rename = "sse")]
+    Sse,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Where a required value is applied when the planned server is launched
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpPlanValueCategory {
+    /// Set as an environment variable on the launched process.
+    #[serde(rename = "environment-variable")]
+    EnvironmentVariable,
+    /// Passed to the runtime that launches the package.
+    #[serde(rename = "runtime-argument")]
+    RuntimeArgument,
+    /// Passed to the packaged server itself.
+    #[serde(rename = "package-argument")]
+    PackageArgument,
+    /// Sent as a request header to a remote endpoint.
+    #[serde(rename = "header")]
+    Header,
+    /// Substituted into the remote endpoint URL.
+    #[serde(rename = "url-variable")]
+    UrlVariable,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// What policy decided for a planned server
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpPlanPolicyDecision {
+    /// Policy permits the server.
+    #[serde(rename = "allowed")]
+    Allowed,
+    /// Policy forbids the server, so the plan cannot be applied.
+    #[serde(rename = "blocked")]
+    Blocked,
+    /// Policy permits the server only after an explicit approval.
+    #[serde(rename = "requires-approval")]
+    RequiresApproval,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Explicit backend selection is part of the final review; failures never switch backends.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpInstallationSecretStorage {
+    /// The selected operating-system keychain, without fallback to file storage.
+    #[serde(rename = "keychain")]
+    Keychain,
+    /// The explicitly selected private file backend.
+    #[serde(rename = "private-file")]
+    PrivateFile,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Discriminator for a package-backed transport choice
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpPlanPackageInstallMethod {
+    /// Install and run a local package.
+    #[serde(rename = "package")]
+    Package,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Discriminator for a scalar required value
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpPlanRequiredValueScalarKind {
+    /// The value uses one scalar type.
+    #[serde(rename = "scalar")]
+    Scalar,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Scalar type a required value must conform to
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpPlanScalarValueType {
+    /// Free text.
+    #[serde(rename = "string")]
+    String,
+    /// A number.
+    #[serde(rename = "number")]
+    Number,
+    /// A boolean.
+    #[serde(rename = "boolean")]
+    Boolean,
+    /// A filesystem path.
+    #[serde(rename = "path")]
+    Path,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Discriminator for an enumerated required value
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpPlanRequiredValueEnumKind {
+    /// The value uses a fixed non-empty enumeration.
+    #[serde(rename = "enum")]
+    Enum,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Discriminator for an enumerated required value
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpPlanEnumValueType {
+    /// One of a fixed, non-empty set of permitted values.
+    #[serde(rename = "enum")]
+    Enum,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// One non-secret value a transport choice needs, represented as a scalar or enumerated variant so enum values cannot be missing or attached to another type.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum McpPlanRequiredValue {
+    Scalar(McpPlanRequiredValueScalar),
+    Enum(McpPlanRequiredValueEnum),
+}
+
+/// Transport exposed by a locally launched package
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpPlanPackageTransport {
+    /// A locally launched process spoken to over standard input and output.
+    #[serde(rename = "stdio")]
+    Stdio,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Discriminator for a remote-endpoint transport choice
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpPlanRemoteInstallMethod {
+    /// Connect to a remote endpoint.
+    #[serde(rename = "remote")]
+    Remote,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// One eligible way to run the server, represented as a tagged package or remote variant so package identity and endpoint states cannot contradict the install method.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum McpPlanTransportChoice {
+    Package(McpPlanTransportChoicePackage),
+    Remote(McpPlanTransportChoiceRemote),
+}
+
+/// Exact reviewed installation action.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpInstallationReviewUninstallAction {
+    #[serde(rename = "uninstall")]
+    #[default]
+    Uninstall,
+}
+
+/// Safe MCP review fields. No raw card, retrieval URL, plan handle or secret value.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum McpInstallationReview {
+    Install(McpInstallationReviewInstall),
+    Uninstall(McpInstallationReviewUninstall),
+}
+
+/// Reviewed resource discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum InstallationReviewSkillResource {
+    #[serde(rename = "skill")]
+    #[default]
+    Skill,
+}
+
+/// Exact reviewed Skill installation action.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SkillInstallationReviewInstallAction {
+    #[serde(rename = "install")]
+    #[default]
+    Install,
+}
+
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SkillInstallationScope {
+    /// The user's personal Copilot home.
+    #[serde(rename = "personal")]
+    Personal,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Exact reviewed Skill installation action.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SkillInstallationReviewUninstallAction {
+    #[serde(rename = "uninstall")]
+    #[default]
+    Uninstall,
+}
+
+/// Owned Skill state observed from files and receipts.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SkillInstallationOwnershipState {
+    /// Owned files and receipt evidence match.
+    #[serde(rename = "intact")]
+    Intact,
+    /// Owned files no longer match the receipt.
+    #[serde(rename = "modified")]
+    Modified,
+    /// Ownership evidence requires recovery before mutation.
+    #[serde(rename = "recovery-required")]
+    RecoveryRequired,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Bound-session observation after reconciling persisted enablement.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SkillInstallationSessionState {
+    /// The selected session has loaded this Skill and it is enabled.
+    #[serde(rename = "loaded-enabled")]
+    LoadedEnabled,
+    /// The selected session has loaded this Skill or settings and it is disabled.
+    #[serde(rename = "loaded-disabled")]
+    LoadedDisabled,
+    /// The selected session has not loaded Skills after the latest change.
+    #[serde(rename = "not-loaded")]
+    NotLoaded,
+    /// The selected session could not be inspected.
+    #[serde(rename = "unknown")]
+    UnknownValue,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Safe verified Skill review fields. No raw credential, candidate handle or plan handle.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum SkillInstallationReview {
+    Install(SkillInstallationReviewInstall),
+    Uninstall(SkillInstallationReviewUninstall),
+}
+
+/// Only resource kinds with an implemented installation engine have a review variant.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum InstallationReview {
+    Mcp(InstallationReviewMcp),
+    Skill(InstallationReviewSkill),
 }
 
 /// Explicit user decisions, never inferred from a permission grant or model response.
@@ -36673,14 +37931,6 @@ pub enum InstallationDecision {
     #[default]
     #[serde(other)]
     Unknown,
-}
-
-/// Reviewed resource discriminator.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum InstallationReviewResource {
-    #[serde(rename = "mcp")]
-    #[default]
-    Mcp,
 }
 
 /// Constant value. Always "github".
@@ -37221,37 +38471,6 @@ pub enum McpInstallationFailureReason {
     Unknown,
 }
 
-/// Where a required value is applied when the planned server is launched
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum McpPlanValueCategory {
-    /// Set as an environment variable on the launched process.
-    #[serde(rename = "environment-variable")]
-    EnvironmentVariable,
-    /// Passed to the runtime that launches the package.
-    #[serde(rename = "runtime-argument")]
-    RuntimeArgument,
-    /// Passed to the packaged server itself.
-    #[serde(rename = "package-argument")]
-    PackageArgument,
-    /// Sent as a request header to a remote endpoint.
-    #[serde(rename = "header")]
-    Header,
-    /// Substituted into the remote endpoint URL.
-    #[serde(rename = "url-variable")]
-    UrlVariable,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
 /// Installation management outcome discriminator.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum McpInstallationManagementOutcomeRecoveryRequiredKind {
@@ -37334,56 +38553,44 @@ pub enum McpInstallationManagementOutcomeOperationKind {
     Operation,
 }
 
-/// Installation management outcome discriminator.
+/// Original operation progress discriminator.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum McpInstallationManagementOutcomeRefusedKind {
-    #[serde(rename = "refused")]
+pub enum McpInstallationOperationStatusPreparingPhase {
+    #[serde(rename = "preparing")]
     #[default]
-    Refused,
+    Preparing,
 }
 
-/// Read-only or recovery management result, never permission to activate or replay.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum McpInstallationManagementOutcome {
-    RecoveryRequired(McpInstallationManagementOutcomeRecoveryRequired),
-    InstallPrepared(McpInstallationManagementOutcomeInstallPrepared),
-    Listed(McpInstallationManagementOutcomeListed),
-    Recovered(McpInstallationManagementOutcomeRecovered),
-    UninstallPlanned(McpInstallationManagementOutcomeUninstallPlanned),
-    Operation(McpInstallationManagementOutcomeOperation),
-    Refused(McpInstallationManagementOutcomeRefused),
-}
-
-/// A handled management outcome with an honoured contract.
+/// Original operation progress discriminator.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum McpInstallationManagementResultOutcomeKind {
-    #[serde(rename = "outcome")]
+pub enum McpInstallationOperationStatusPreparedPhase {
+    #[serde(rename = "prepared")]
     #[default]
-    Outcome,
+    Prepared,
 }
 
-/// Management result with contract receipt, or a typed request/negotiation refusal.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum McpInstallationManagementResult {
-    Outcome(McpInstallationManagementResultOutcome),
-    NegotiationRefused(CatalogNegotiationRefusedError),
-    InvalidRequest(CatalogInvalidRequestError),
+/// Original operation progress discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpInstallationOperationStatusAwaitingConfirmationPhase {
+    #[serde(rename = "awaiting-confirmation")]
+    #[default]
+    AwaitingConfirmation,
+}
+
+/// Original operation progress discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpInstallationOperationStatusRevalidatingPhase {
+    #[serde(rename = "revalidating")]
+    #[default]
+    Revalidating,
+}
+
+/// Original operation progress discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpInstallationOperationStatusApplyingPhase {
+    #[serde(rename = "applying")]
+    #[default]
+    Applying,
 }
 
 /// Terminal installation outcome discriminator.
@@ -37462,7 +38669,15 @@ pub enum McpInstallationOutcome {
     Refused(McpInstallationOutcomeRefused),
 }
 
-/// Transport exposed by a remote endpoint
+/// Original operation progress discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpInstallationOperationStatusCompletedPhase {
+    #[serde(rename = "completed")]
+    #[default]
+    Completed,
+}
+
+/// Status snapshot from the original connection, independent of new-work account availability.
 ///
 /// <div class="warning">
 ///
@@ -37470,21 +38685,67 @@ pub enum McpInstallationOutcome {
 /// and may change or be removed in future SDK or CLI releases.
 ///
 /// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum McpInstallationOperationStatus {
+    Preparing(McpInstallationOperationStatusPreparing),
+    Prepared(McpInstallationOperationStatusPrepared),
+    AwaitingConfirmation(McpInstallationOperationStatusAwaitingConfirmation),
+    Revalidating(McpInstallationOperationStatusRevalidating),
+    Applying(McpInstallationOperationStatusApplying),
+    Completed(McpInstallationOperationStatusCompleted),
+}
+
+/// Installation management outcome discriminator.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum McpPlanRemoteTransport {
-    /// An HTTP endpoint.
-    #[serde(rename = "http")]
-    Http,
-    /// A streamable HTTP endpoint.
-    #[serde(rename = "streamable-http")]
-    StreamableHttp,
-    /// A server-sent events endpoint.
-    #[serde(rename = "sse")]
-    Sse,
-    /// Unknown variant for forward compatibility.
+pub enum McpInstallationManagementOutcomeRefusedKind {
+    #[serde(rename = "refused")]
     #[default]
-    #[serde(other)]
-    Unknown,
+    Refused,
+}
+
+/// Read-only or recovery management result, never permission to activate or replay.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum McpInstallationManagementOutcome {
+    RecoveryRequired(McpInstallationManagementOutcomeRecoveryRequired),
+    InstallPrepared(McpInstallationManagementOutcomeInstallPrepared),
+    Listed(McpInstallationManagementOutcomeListed),
+    Recovered(McpInstallationManagementOutcomeRecovered),
+    UninstallPlanned(McpInstallationManagementOutcomeUninstallPlanned),
+    Operation(McpInstallationManagementOutcomeOperation),
+    Refused(McpInstallationManagementOutcomeRefused),
+}
+
+/// A handled management outcome with an honoured contract.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpInstallationManagementResultOutcomeKind {
+    #[serde(rename = "outcome")]
+    #[default]
+    Outcome,
+}
+
+/// Management result with contract receipt, or a typed request/negotiation refusal.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum McpInstallationManagementResult {
+    Outcome(McpInstallationManagementResultOutcome),
+    NegotiationRefused(CatalogNegotiationRefusedError),
+    InvalidRequest(CatalogInvalidRequestError),
 }
 
 /// A handled operation outcome with an honoured contract.
@@ -37509,94 +38770,6 @@ pub enum McpInstallationResult {
     Outcome(McpInstallationResultOutcome),
     NegotiationRefused(CatalogNegotiationRefusedError),
     InvalidRequest(CatalogInvalidRequestError),
-}
-
-/// Explicit backend selection is part of the final review; failures never switch backends.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum McpInstallationSecretStorage {
-    /// The selected operating-system keychain, without fallback to file storage.
-    #[serde(rename = "keychain")]
-    Keychain,
-    /// The explicitly selected private file backend.
-    #[serde(rename = "private-file")]
-    PrivateFile,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// Whether a planned configuration change would create or modify an entry
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum McpPlanConfigurationOperation {
-    /// Creates a configuration entry that does not exist yet.
-    #[serde(rename = "add")]
-    Add,
-    /// Modifies a configuration entry that already exists.
-    #[serde(rename = "update")]
-    Update,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// Configuration scope an MCP install plan targets
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum McpPlanScope {
-    /// The user's own MCP configuration.
-    #[serde(rename = "user")]
-    User,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// What policy decided for a planned server
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum McpPlanPolicyDecision {
-    /// Policy permits the server.
-    #[serde(rename = "allowed")]
-    Allowed,
-    /// Policy forbids the server, so the plan cannot be applied.
-    #[serde(rename = "blocked")]
-    Blocked,
-    /// Policy permits the server only after an explicit approval.
-    #[serde(rename = "requires-approval")]
-    RequiresApproval,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
 }
 
 /// Consumer allowed to call an MCP tool.
@@ -37770,25 +38943,6 @@ pub enum McpOauthProbeResult {
     Failed(McpOauthProbeResultFailed),
 }
 
-/// Discriminator for an enumerated required value
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum McpPlanEnumValueType {
-    /// One of a fixed, non-empty set of permitted values.
-    #[serde(rename = "enum")]
-    Enum,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
 /// Discriminator: a plan was computed and nothing was changed
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum McpPlanInstallPlannedKind {
@@ -37927,144 +39081,6 @@ pub enum McpPlanInstallResult {
     UnavailableTransport(CatalogUnavailableTransportError),
     NotInstallable(CatalogNotInstallableError),
     Unavailable(CatalogUnavailableError),
-}
-
-/// Discriminator for a package-backed transport choice
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum McpPlanPackageInstallMethod {
-    /// Install and run a local package.
-    #[serde(rename = "package")]
-    Package,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// Transport exposed by a locally launched package
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum McpPlanPackageTransport {
-    /// A locally launched process spoken to over standard input and output.
-    #[serde(rename = "stdio")]
-    Stdio,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// Discriminator for a remote-endpoint transport choice
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum McpPlanRemoteInstallMethod {
-    /// Connect to a remote endpoint.
-    #[serde(rename = "remote")]
-    Remote,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// Discriminator for a scalar required value
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum McpPlanRequiredValueScalarKind {
-    /// The value uses one scalar type.
-    #[serde(rename = "scalar")]
-    Scalar,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// Scalar type a required value must conform to
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum McpPlanScalarValueType {
-    /// Free text.
-    #[serde(rename = "string")]
-    String,
-    /// A number.
-    #[serde(rename = "number")]
-    Number,
-    /// A boolean.
-    #[serde(rename = "boolean")]
-    Boolean,
-    /// A filesystem path.
-    #[serde(rename = "path")]
-    Path,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// Discriminator for an enumerated required value
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum McpPlanRequiredValueEnumKind {
-    /// The value uses a fixed non-empty enumeration.
-    #[serde(rename = "enum")]
-    Enum,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// One non-secret value a transport choice needs, represented as a scalar or enumerated variant so enum values cannot be missing or attached to another type.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum McpPlanRequiredValue {
-    Scalar(McpPlanRequiredValueScalar),
-    Enum(McpPlanRequiredValueEnum),
 }
 
 /// Outcome of the sampling inference. 'success' produced a response; 'failure' encountered an error (including agent-side rejection by content filter or criteria); 'cancelled' the caller cancelled this execution via cancelSamplingExecution.
@@ -39184,7 +40200,7 @@ pub enum PermissionLocationType {
     Unknown,
 }
 
-/// Optional source for permission-mode telemetry. `organization_targeting` is reserved for startup selection after the authenticated account matches an organization targeting policy; SDK callers default to `rpc` and cannot claim targeting provenance.
+/// Optional source for permission-mode telemetry. Defaults to `rpc` when omitted for SDK callers.
 ///
 /// <div class="warning">
 ///
@@ -39206,7 +40222,7 @@ pub enum PermissionModeSource {
     /// The mode was set at startup by the `defaultPermissionMode` user setting.
     #[serde(rename = "user_setting")]
     UserSetting,
-    /// The mode was set at startup because the authenticated account matched an organization targeting policy.
+    /// Historical compatibility value for runtimes that selected Assisted mode through organization targeting. Current runtimes do not produce this source.
     #[serde(rename = "organization_targeting")]
     OrganizationTargeting,
     /// The mode was set through an RPC caller.
@@ -39800,7 +40816,7 @@ pub enum ResponseFormatType {
     JsonSchema,
 }
 
-/// Origin of the sandbox choice supplied by the host. Settings-derived origins let managed policy floor the host preference; do not tag explicit session overrides as settings-derived.
+/// Origin of the sandbox choice supplied by an internal client.
 ///
 /// <div class="warning">
 ///
@@ -40706,6 +41722,391 @@ pub enum SkillDiscoveryScope {
     #[default]
     #[serde(other)]
     Unknown,
+}
+
+/// Bounded refusal categories for verified Skill installation management.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SkillInstallationFailureReason {
+    /// The selected session does not have the Agent Finder Skill installation feature flag enabled for acquisition.
+    #[serde(rename = "feature-disabled")]
+    FeatureDisabled,
+    /// The request is unsupported or malformed.
+    #[serde(rename = "invalid-request")]
+    InvalidRequest,
+    /// The bounded operation limit was reached.
+    #[serde(rename = "operation-limit")]
+    OperationLimit,
+    /// The original operation was cancelled.
+    #[serde(rename = "cancelled")]
+    Cancelled,
+    /// The original host cannot receive human confirmation.
+    #[serde(rename = "confirmation-unavailable")]
+    ConfirmationUnavailable,
+    /// The confirmation response is malformed or mismatched.
+    #[serde(rename = "confirmation-invalid")]
+    ConfirmationInvalid,
+    /// Existing authenticated session and host authority is unavailable.
+    #[serde(rename = "policy-context-unavailable")]
+    PolicyContextUnavailable,
+    /// The original authority or policy changed.
+    #[serde(rename = "policy-changed")]
+    PolicyChanged,
+    /// No matching owned resource or original operation exists.
+    #[serde(rename = "resource-not-found")]
+    ResourceNotFound,
+    /// The original plan deadline elapsed.
+    #[serde(rename = "plan-expired")]
+    PlanExpired,
+    /// The one-use plan was already consumed.
+    #[serde(rename = "plan-replayed")]
+    PlanReplayed,
+    /// The handle belongs to a different runtime, session or connection.
+    #[serde(rename = "foreign-runtime")]
+    ForeignRuntime,
+    /// The handle is not the expected Skill handle kind.
+    #[serde(rename = "wrong-kind")]
+    WrongKind,
+    /// The handle was minted for a different search result or authority.
+    #[serde(rename = "search-mismatch")]
+    SearchMismatch,
+    /// The handle or operation expired.
+    #[serde(rename = "expired")]
+    Expired,
+    /// The candidate handle is not a verified installable Skill candidate.
+    #[serde(rename = "invalid-candidate")]
+    InvalidCandidate,
+    /// The verified Skill descriptor could not be retrieved safely.
+    #[serde(rename = "descriptor-unavailable")]
+    DescriptorUnavailable,
+    /// The verified Skill descriptor failed validation.
+    #[serde(rename = "descriptor-invalid")]
+    DescriptorInvalid,
+    /// The Skill entrypoint could not be retrieved or verified.
+    #[serde(rename = "entrypoint-unavailable")]
+    EntrypointUnavailable,
+    /// The Skill entrypoint is not a valid Skill.
+    #[serde(rename = "invalid-skill")]
+    InvalidSkill,
+    /// The reviewed Skill payload could not be acquired.
+    #[serde(rename = "payload-unavailable")]
+    PayloadUnavailable,
+    /// The acquired payload no longer matches the reviewed descriptor.
+    #[serde(rename = "payload-mismatch")]
+    PayloadMismatch,
+    /// The retained Skill source changed after planning.
+    #[serde(rename = "source-changed")]
+    SourceChanged,
+    /// The selected runtime cannot inspect or control the requested lifecycle operation.
+    #[serde(rename = "lifecycle-unavailable")]
+    LifecycleUnavailable,
+    /// Durable Skill installation evidence requires recovery before mutation.
+    #[serde(rename = "recovery-required")]
+    RecoveryRequired,
+    /// The Skill entrypoint exceeds the bounded complete review size.
+    #[serde(rename = "review-too-large")]
+    ReviewTooLarge,
+    /// Skill installation storage or admission is busy.
+    #[serde(rename = "busy")]
+    Busy,
+    /// An owned Skill with the same identity or target already exists.
+    #[serde(rename = "already-installed")]
+    AlreadyInstalled,
+    /// Installed Skill files no longer match ownership evidence.
+    #[serde(rename = "configuration-modified")]
+    ConfigurationModified,
+    /// A storage operation failed; inspect durable state before retrying.
+    #[serde(rename = "write-failed")]
+    WriteFailed,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Skill installation management outcome discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SkillInstallationManagementOutcomeRecoveryRequiredKind {
+    #[serde(rename = "recovery-required")]
+    #[default]
+    RecoveryRequired,
+}
+
+/// Skill installation management outcome discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SkillInstallationManagementOutcomeInstallPlannedKind {
+    #[serde(rename = "install-planned")]
+    #[default]
+    InstallPlanned,
+}
+
+/// Skill installation management outcome discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SkillInstallationManagementOutcomeListedKind {
+    #[serde(rename = "listed")]
+    #[default]
+    Listed,
+}
+
+/// Skill installation management outcome discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SkillInstallationManagementOutcomeRecoveredKind {
+    #[serde(rename = "recovered")]
+    #[default]
+    Recovered,
+}
+
+/// Skill installation management outcome discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SkillInstallationManagementOutcomeRolledBackKind {
+    #[serde(rename = "rolled-back")]
+    #[default]
+    RolledBack,
+}
+
+/// Skill installation management outcome discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SkillInstallationManagementOutcomeUninstallPlannedKind {
+    #[serde(rename = "uninstall-planned")]
+    #[default]
+    UninstallPlanned,
+}
+
+/// Skill installation management outcome discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SkillInstallationManagementOutcomeOperationKind {
+    #[serde(rename = "operation")]
+    #[default]
+    Operation,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SkillInstallationOperationStatusPreparingPhase {
+    #[serde(rename = "preparing")]
+    #[default]
+    Preparing,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SkillInstallationOperationStatusPreparedPhase {
+    #[serde(rename = "prepared")]
+    #[default]
+    Prepared,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SkillInstallationOperationStatusAwaitingConfirmationPhase {
+    #[serde(rename = "awaiting-confirmation")]
+    #[default]
+    AwaitingConfirmation,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SkillInstallationOperationStatusRevalidatingPhase {
+    #[serde(rename = "revalidating")]
+    #[default]
+    Revalidating,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SkillInstallationOperationStatusApplyingPhase {
+    #[serde(rename = "applying")]
+    #[default]
+    Applying,
+}
+
+/// Terminal Skill installation outcome discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SkillInstallationOutcomeInstalledKind {
+    #[serde(rename = "installed")]
+    #[default]
+    Installed,
+}
+
+/// Terminal Skill installation outcome discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SkillInstallationOutcomeUninstalledKind {
+    #[serde(rename = "uninstalled")]
+    #[default]
+    Uninstalled,
+}
+
+/// Terminal Skill installation outcome discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SkillInstallationOutcomeRolledBackKind {
+    #[serde(rename = "rolled-back")]
+    #[default]
+    RolledBack,
+}
+
+/// Terminal Skill installation outcome discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SkillInstallationOutcomeRecoveryRequiredKind {
+    #[serde(rename = "recovery-required")]
+    #[default]
+    RecoveryRequired,
+}
+
+/// Terminal Skill installation outcome discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SkillInstallationOutcomeDeclinedKind {
+    #[serde(rename = "declined")]
+    #[default]
+    Declined,
+}
+
+/// Terminal Skill installation outcome discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SkillInstallationOutcomeCancelledKind {
+    #[serde(rename = "cancelled")]
+    #[default]
+    Cancelled,
+}
+
+/// Terminal Skill installation outcome discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SkillInstallationOutcomeRefusedKind {
+    #[serde(rename = "refused")]
+    #[default]
+    Refused,
+}
+
+/// Terminal verified Skill mutation result.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum SkillInstallationOutcome {
+    Installed(SkillInstallationOutcomeInstalled),
+    Uninstalled(SkillInstallationOutcomeUninstalled),
+    RolledBack(SkillInstallationOutcomeRolledBack),
+    RecoveryRequired(SkillInstallationOutcomeRecoveryRequired),
+    Declined(SkillInstallationOutcomeDeclined),
+    Cancelled(SkillInstallationOutcomeCancelled),
+    Refused(SkillInstallationOutcomeRefused),
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SkillInstallationOperationStatusCompletedPhase {
+    #[serde(rename = "completed")]
+    #[default]
+    Completed,
+}
+
+/// Status snapshot from the original connection, independent of new-work account availability.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum SkillInstallationOperationStatus {
+    Preparing(SkillInstallationOperationStatusPreparing),
+    Prepared(SkillInstallationOperationStatusPrepared),
+    AwaitingConfirmation(SkillInstallationOperationStatusAwaitingConfirmation),
+    Revalidating(SkillInstallationOperationStatusRevalidating),
+    Applying(SkillInstallationOperationStatusApplying),
+    Completed(SkillInstallationOperationStatusCompleted),
+}
+
+/// Skill installation management outcome discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SkillInstallationManagementOutcomeEnabledChangedKind {
+    #[serde(rename = "enabled-changed")]
+    #[default]
+    EnabledChanged,
+}
+
+/// Skill installation management outcome discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SkillInstallationManagementOutcomeRefusedKind {
+    #[serde(rename = "refused")]
+    #[default]
+    Refused,
+}
+
+/// Management outcome for verified Skill inventory, planning and removal.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum SkillInstallationManagementOutcome {
+    RecoveryRequired(SkillInstallationManagementOutcomeRecoveryRequired),
+    InstallPlanned(SkillInstallationManagementOutcomeInstallPlanned),
+    Listed(SkillInstallationManagementOutcomeListed),
+    Recovered(SkillInstallationManagementOutcomeRecovered),
+    RolledBack(SkillInstallationManagementOutcomeRolledBack),
+    UninstallPlanned(SkillInstallationManagementOutcomeUninstallPlanned),
+    Operation(SkillInstallationManagementOutcomeOperation),
+    EnabledChanged(SkillInstallationManagementOutcomeEnabledChanged),
+    Refused(SkillInstallationManagementOutcomeRefused),
+}
+
+/// Discriminator: handled management outcome.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SkillInstallationManagementResultOutcomeKind {
+    #[serde(rename = "outcome")]
+    #[default]
+    Outcome,
+}
+
+/// Skill installation management result with the honoured contract, or a typed refusal.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum SkillInstallationManagementResult {
+    Outcome(SkillInstallationManagementResultOutcome),
+    NegotiationRefused(CatalogNegotiationRefusedError),
+    InvalidRequest(CatalogInvalidRequestError),
+}
+
+/// Discriminator: handled operation outcome.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SkillInstallationResultOutcomeKind {
+    #[serde(rename = "outcome")]
+    #[default]
+    Outcome,
+}
+
+/// Skill installation result with the honoured contract, or a typed request/negotiation refusal.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum SkillInstallationResult {
+    Outcome(SkillInstallationResultOutcome),
+    NegotiationRefused(CatalogNegotiationRefusedError),
+    InvalidRequest(CatalogInvalidRequestError),
 }
 
 /// Discriminator for an add-timeline-entry result.
@@ -41649,3 +43050,19 @@ pub enum SessionDiagnosticsReadResultEntriesItemSource {
     #[default]
     Mcp,
 }
+
+/// Compatibility alias for the confirmation review wrapper.
+pub type InstallationConfirmationRequestReview = InstallationReview;
+
+/// Resource discriminator for installation confirmation reviews.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum InstallationReviewResource {
+    #[serde(rename = "mcp")]
+    #[default]
+    Mcp,
+    #[serde(rename = "skill")]
+    Skill,
+}
+
+/// Compatibility alias for the confirmation review resource discriminator.
+pub type InstallationConfirmationRequestReviewResource = InstallationReviewResource;

@@ -1163,7 +1163,7 @@ impl<'a> ClientRpcMcp<'a> {
     ///
     /// # Parameters
     ///
-    /// * `params` - Side-effect-free preparation of one original bound, input-free remote MCP choice.
+    /// * `params` - Side-effect-free preparation of one original bound remote MCP choice.
     ///
     /// # Returns
     ///
@@ -3266,6 +3266,137 @@ impl<'a> ClientRpcSkills<'a> {
         }
     }
 
+    /// `skills.installations.*` sub-namespace.
+    pub fn installations(&self) -> ClientRpcSkillsInstallations<'a> {
+        ClientRpcSkillsInstallations {
+            client: self.client,
+        }
+    }
+
+    /// Plans installation of a verified Agent Finder Skill candidate without writing files. The returned review is safe to present to a user and installing always leaves the Skill disabled until separately enabled.
+    ///
+    /// Wire method: `skills.planInstall`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Side-effect-free planning of one verified Agent Finder Skill candidate.
+    ///
+    /// # Returns
+    ///
+    /// Skill installation management result with the honoured contract, or a typed refusal.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn plan_install(
+        &self,
+        params: SkillPlanInstallRequest,
+    ) -> Result<SkillInstallationManagementResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::SKILLS_PLANINSTALL, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Consumes one verified Skill installation plan, requests explicit human consent through installations.confirm on the original connection, then revalidates and installs the Skill disabled.
+    ///
+    /// Wire method: `skills.applyInstall`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Applies exactly one retained verified Skill installation plan.
+    ///
+    /// # Returns
+    ///
+    /// Skill installation result with the honoured contract, or a typed request/negotiation refusal.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn apply_install(
+        &self,
+        params: SkillApplyInstallRequest,
+    ) -> Result<SkillInstallationResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::SKILLS_APPLYINSTALL, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Prepares a read-only removal plan for an owned verified Agent Finder Skill installation. Uninstall planning is never gated by the Skill-install feature flag.
+    ///
+    /// Wire method: `skills.planUninstall`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Read-only preparation of one owned Skill removal under fresh selected-session authority.
+    ///
+    /// # Returns
+    ///
+    /// Skill installation management result with the honoured contract, or a typed refusal.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn plan_uninstall(
+        &self,
+        params: SkillPlanUninstallRequest,
+    ) -> Result<SkillInstallationManagementResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::SKILLS_PLANUNINSTALL, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Consumes an owned Skill removal plan, requests explicit human consent through installations.confirm, refuses drift, and removes the exact owned files through quarantine.
+    ///
+    /// Wire method: `skills.applyUninstall`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - One-use application of the exact retained Skill removal plan.
+    ///
+    /// # Returns
+    ///
+    /// Skill installation result with the honoured contract, or a typed request/negotiation refusal.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn apply_uninstall(
+        &self,
+        params: SkillApplyUninstallRequest,
+    ) -> Result<SkillInstallationResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::SKILLS_APPLYUNINSTALL, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
     /// Discovers skills across global and project sources.
     ///
     /// Wire method: `skills.discover`.
@@ -3391,6 +3522,172 @@ impl<'a> ClientRpcSkillsConfig<'a> {
             )
             .await?;
         Ok(())
+    }
+}
+
+/// `skills.installations.*` RPCs.
+#[derive(Clone, Copy)]
+pub struct ClientRpcSkillsInstallations<'a> {
+    pub(crate) client: &'a Client,
+}
+
+impl<'a> ClientRpcSkillsInstallations<'a> {
+    /// Lists owned verified Agent Finder Skill installations for the selected existing session. Listing is never gated by the Skill-install feature flag.
+    ///
+    /// Wire method: `skills.installations.list`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Inventory request under an explicitly selected existing session.
+    ///
+    /// # Returns
+    ///
+    /// Skill installation management result with the honoured contract, or a typed refusal.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn list(
+        &self,
+        params: SkillInstallationsRequest,
+    ) -> Result<SkillInstallationManagementResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::SKILLS_INSTALLATIONS_LIST, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Reconciles interrupted owned Skill installation work for the selected existing session, then inspects owned inventory. Recovery is never gated by the Skill-install feature flag.
+    ///
+    /// Wire method: `skills.installations.recover`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Inventory request under an explicitly selected existing session.
+    ///
+    /// # Returns
+    ///
+    /// Skill installation management result with the honoured contract, or a typed refusal.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn recover(
+        &self,
+        params: SkillInstallationsRequest,
+    ) -> Result<SkillInstallationManagementResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::SKILLS_INSTALLATIONS_RECOVER, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Inspects a known Skill installation operation on its original runtime connection. Status is never gated by the Skill-install feature flag.
+    ///
+    /// Wire method: `skills.installations.status`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Existing-operation control. A new session selector is deliberately not accepted.
+    ///
+    /// # Returns
+    ///
+    /// Skill installation management result with the honoured contract, or a typed refusal.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn status(
+        &self,
+        params: SkillInstallationOperationRequest,
+    ) -> Result<SkillInstallationManagementResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::SKILLS_INSTALLATIONS_STATUS, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Requests cancellation of a known Skill installation operation before commit. Already-started durable work requires recovery instead of silent replay.
+    ///
+    /// Wire method: `skills.installations.cancel`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Existing-operation control. A new session selector is deliberately not accepted.
+    ///
+    /// # Returns
+    ///
+    /// Skill installation management result with the honoured contract, or a typed refusal.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn cancel(
+        &self,
+        params: SkillInstallationOperationRequest,
+    ) -> Result<SkillInstallationManagementResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::SKILLS_INSTALLATIONS_CANCEL, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Atomically persists enablement for one owned Agent Finder Skill and reconciles the selected bound session. Enablement is installation-scoped by receipt identity and is never gated by the Skill-install feature flag.
+    ///
+    /// Wire method: `skills.installations.setEnabled`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Persisted enablement update for one owned Skill installation.
+    ///
+    /// # Returns
+    ///
+    /// Skill installation management result with the honoured contract, or a typed refusal.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn set_enabled(
+        &self,
+        params: SkillSetEnabledRequest,
+    ) -> Result<SkillInstallationManagementResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(
+                rpc_methods::SKILLS_INSTALLATIONS_SETENABLED,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
     }
 }
 
@@ -7894,7 +8191,7 @@ impl<'a> SessionRpcMcpOauth<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
-    /// Starts OAuth authentication for a remote MCP server. Owned servers require the original one-use prepareLogin handle and exact installation ID; manual servers retain the existing direct login behaviour.
+    /// Starts OAuth authentication for a remote MCP server.
     ///
     /// Wire method: `session.mcp.oauth.login`.
     ///
@@ -7924,7 +8221,7 @@ impl<'a> SessionRpcMcpOauth<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
-    /// Starts OAuth authentication for a remote MCP server. Owned servers require the original one-use prepareLogin handle and exact installation ID; manual servers retain the existing direct login behaviour.
+    /// Starts OAuth authentication for a remote MCP server.
     ///
     /// Wire method: `session.mcp.oauth.login`.
     ///

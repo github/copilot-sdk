@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 using Xunit;
+using InstallationDecision = GitHub.Copilot.Rpc.InstallationDecision;
 
 namespace GitHub.Copilot.Test.Unit;
 
@@ -13,6 +14,8 @@ public class CloneTests
     public void CopilotClientOptions_Clone_CopiesAllProperties()
     {
         var extensionLaunchProvider = new TestExtensionLaunchProvider();
+        InstallationConfirmationHandler installationConfirmationHandler =
+            (_request, _context) => ValueTask.FromResult(InstallationDecision.Decline);
         var original = new CopilotClientOptions
         {
             Connection = RuntimeConnection.ForTcp(port: 8080, connectionToken: "tok", path: "/usr/bin/copilot", args: ["--verbose", "--debug"]),
@@ -26,6 +29,7 @@ public class CloneTests
             EnableRemoteSessions = true,
             SessionIdleTimeoutSeconds = 600,
             ExtensionLaunchProvider = extensionLaunchProvider,
+            InstallationConfirmationHandler = installationConfirmationHandler,
             ClientInfo = new CopilotClientInfo
             {
                 ApplicationName = "example-app",
@@ -49,6 +53,7 @@ public class CloneTests
         Assert.Equal(original.EnableRemoteSessions, clone.EnableRemoteSessions);
         Assert.Equal(original.SessionIdleTimeoutSeconds, clone.SessionIdleTimeoutSeconds);
         Assert.Same(extensionLaunchProvider, clone.ExtensionLaunchProvider);
+        Assert.Same(installationConfirmationHandler, clone.InstallationConfirmationHandler);
         Assert.Same(original.ClientInfo, clone.ClientInfo);
     }
 #pragma warning restore GHCP001

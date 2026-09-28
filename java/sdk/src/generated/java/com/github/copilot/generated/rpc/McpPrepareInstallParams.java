@@ -15,7 +15,7 @@ import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * Side-effect-free preparation of one original bound, input-free remote MCP choice.
+ * Side-effect-free preparation of one original bound remote MCP choice.
  *
  * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
@@ -33,9 +33,11 @@ public record McpPrepareInstallParams(
     @JsonProperty("choiceId") String choiceId,
     /** An existing local session attached to this connection, not permission to attach one. */
     @JsonProperty("policySessionId") String policySessionId,
-    /** Must be empty for the initial input-free remote installation capability. */
+    /** Declared non-secret values. Non-empty only when the caller requires
+`mcp-configured-remote-installation`; omitted values use the card default. */
     @JsonProperty("inputs") List<McpInstallationInput> inputs,
-    /** Must be empty; this capability does not allocate configured-input secrets. */
+    /** One entry per declared secret placeholder of the selected choice. Non-empty
+only when the caller requires `mcp-configured-remote-installation`. */
     @JsonProperty("secrets") List<McpInstallationSecret> secrets,
     /** The exact original source, used transiently only after confirmation. */
     @JsonProperty("source") Object source,

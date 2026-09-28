@@ -156,7 +156,6 @@ func TestSessionRPCE2E(t *testing.T) {
 			t.Fatalf("Failed to create session: %v", err)
 		}
 
-		// Get initial model
 		before, err := session.RPC.Model.GetCurrent(t.Context())
 		if err != nil {
 			t.Fatalf("Failed to get current model: %v", err)
@@ -278,7 +277,6 @@ func TestSessionRPCE2E(t *testing.T) {
 			t.Errorf("Expected content %q, got %v", planContent, afterUpdate.Content)
 		}
 
-		// Delete plan
 		_, err = session.RPC.Plan.Delete(t.Context())
 		if err != nil {
 			t.Fatalf("Failed to delete plan: %v", err)

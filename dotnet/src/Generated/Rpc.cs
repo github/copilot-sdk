@@ -2436,10 +2436,246 @@ public partial class McpInstallationManagementOutcomeInstallPrepared : McpInstal
     public required McpPreparedInstall Operation { get; set; }
 }
 
+/// <summary>A versioned, bounded trust observation carried unchanged with a catalog candidate and its private handle context. Current observations require a recognised T1/T2 tier; every non-current state structurally forbids a tier. Eligibility remains `unknown` while Agent Finder supplies no exposure decision, and states absent from its current wire are never inferred from age, relevance, popularity, or a tier transition.</summary>
+/// <remarks>Polymorphic base type discriminated by <c>status</c>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonPolymorphic(
+    TypeDiscriminatorPropertyName = "status",
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+[JsonDerivedType(typeof(CatalogTrustSnapshotCurrent), "current")]
+[JsonDerivedType(typeof(CatalogTrustSnapshotAbsent), "absent")]
+[JsonDerivedType(typeof(CatalogTrustSnapshotStale), "stale")]
+[JsonDerivedType(typeof(CatalogTrustSnapshotDowngraded), "downgraded")]
+[JsonDerivedType(typeof(CatalogTrustSnapshotRevoked), "revoked")]
+[JsonDerivedType(typeof(CatalogTrustSnapshotUnsupported), "unsupported")]
+[JsonDerivedType(typeof(CatalogTrustSnapshotMalformed), "malformed")]
+public partial class CatalogTrustSnapshot
+{
+    /// <summary>The type discriminator.</summary>
+    [JsonPropertyName("status")]
+    public virtual string Status { get; set; } = string.Empty;
+}
+
+
+/// <summary>Where and when the runtime observed the trust metadata. Observation time is not the authority's evaluation time and must not be used to infer staleness.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class CatalogTrustProvenance
+{
+    /// <summary>ISO 8601 timestamp with a timezone offset at which the runtime observed the search result carrying this trust field.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(20)]
+    [MaxLength(64)]
+    [JsonPropertyName("observedAt")]
+    public DateTimeOffset ObservedAt { get; set; }
+
+    /// <summary>Bounded authority that supplied the trust field.</summary>
+    [JsonPropertyName("source")]
+    public CatalogTrustSource Source { get; set; }
+}
+
+/// <summary>A recognised current Agent Finder T1 or T2 trust tier.</summary>
+/// <remarks>The <c>current</c> variant of <see cref="CatalogTrustSnapshot"/>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class CatalogTrustSnapshotCurrent : CatalogTrustSnapshot
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Status => "current";
+
+    /// <summary>Service-computed exposure eligibility. `unknown` is required while Agent Finder returns no explicit eligibility field.</summary>
+    [JsonPropertyName("eligibility")]
+    public required CatalogTrustEligibility Eligibility { get; set; }
+
+    /// <summary>Bounded source and observation time for this snapshot. This is distinct from evidence used by the authority to calculate trust.</summary>
+    [JsonPropertyName("provenance")]
+    public required CatalogTrustProvenance Provenance { get; set; }
+
+    /// <summary>Schema version of this runtime-owned snapshot envelope.</summary>
+    [JsonPropertyName("schemaVersion")]
+    public required CatalogTrustSnapshotSchemaVersion SchemaVersion { get; set; }
+
+    /// <summary>Service-computed T1 or T2 trust tier.</summary>
+    [JsonPropertyName("tier")]
+    public required CatalogTrustTier Tier { get; set; }
+}
+
+/// <summary>Discriminator: the authority omitted trust metadata.</summary>
+/// <remarks>The <c>absent</c> variant of <see cref="CatalogTrustSnapshot"/>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class CatalogTrustSnapshotAbsent : CatalogTrustSnapshot
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Status => "absent";
+
+    /// <summary>Service-computed exposure eligibility. `unknown` is required while Agent Finder returns no explicit eligibility field.</summary>
+    [JsonPropertyName("eligibility")]
+    public required CatalogTrustEligibility Eligibility { get; set; }
+
+    /// <summary>Bounded source and observation time for this snapshot. This is distinct from evidence used by the authority to calculate trust.</summary>
+    [JsonPropertyName("provenance")]
+    public required CatalogTrustProvenance Provenance { get; set; }
+
+    /// <summary>Schema version of this runtime-owned snapshot envelope.</summary>
+    [JsonPropertyName("schemaVersion")]
+    public required CatalogTrustSnapshotSchemaVersion SchemaVersion { get; set; }
+}
+
+/// <summary>Discriminator: the authority explicitly marked the assessment stale.</summary>
+/// <remarks>The <c>stale</c> variant of <see cref="CatalogTrustSnapshot"/>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class CatalogTrustSnapshotStale : CatalogTrustSnapshot
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Status => "stale";
+
+    /// <summary>Service-computed exposure eligibility. `unknown` is required while Agent Finder returns no explicit eligibility field.</summary>
+    [JsonPropertyName("eligibility")]
+    public required CatalogTrustEligibility Eligibility { get; set; }
+
+    /// <summary>Bounded source and observation time for this snapshot. This is distinct from evidence used by the authority to calculate trust.</summary>
+    [JsonPropertyName("provenance")]
+    public required CatalogTrustProvenance Provenance { get; set; }
+
+    /// <summary>Schema version of this runtime-owned snapshot envelope.</summary>
+    [JsonPropertyName("schemaVersion")]
+    public required CatalogTrustSnapshotSchemaVersion SchemaVersion { get; set; }
+}
+
+/// <summary>Discriminator: the authority explicitly reported a downgraded assessment.</summary>
+/// <remarks>The <c>downgraded</c> variant of <see cref="CatalogTrustSnapshot"/>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class CatalogTrustSnapshotDowngraded : CatalogTrustSnapshot
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Status => "downgraded";
+
+    /// <summary>Service-computed exposure eligibility. `unknown` is required while Agent Finder returns no explicit eligibility field.</summary>
+    [JsonPropertyName("eligibility")]
+    public required CatalogTrustEligibility Eligibility { get; set; }
+
+    /// <summary>Bounded source and observation time for this snapshot. This is distinct from evidence used by the authority to calculate trust.</summary>
+    [JsonPropertyName("provenance")]
+    public required CatalogTrustProvenance Provenance { get; set; }
+
+    /// <summary>Schema version of this runtime-owned snapshot envelope.</summary>
+    [JsonPropertyName("schemaVersion")]
+    public required CatalogTrustSnapshotSchemaVersion SchemaVersion { get; set; }
+}
+
+/// <summary>Discriminator: the authority explicitly revoked the assessment.</summary>
+/// <remarks>The <c>revoked</c> variant of <see cref="CatalogTrustSnapshot"/>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class CatalogTrustSnapshotRevoked : CatalogTrustSnapshot
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Status => "revoked";
+
+    /// <summary>Service-computed exposure eligibility. `unknown` is required while Agent Finder returns no explicit eligibility field.</summary>
+    [JsonPropertyName("eligibility")]
+    public required CatalogTrustEligibility Eligibility { get; set; }
+
+    /// <summary>Bounded source and observation time for this snapshot. This is distinct from evidence used by the authority to calculate trust.</summary>
+    [JsonPropertyName("provenance")]
+    public required CatalogTrustProvenance Provenance { get; set; }
+
+    /// <summary>Schema version of this runtime-owned snapshot envelope.</summary>
+    [JsonPropertyName("schemaVersion")]
+    public required CatalogTrustSnapshotSchemaVersion SchemaVersion { get; set; }
+}
+
+/// <summary>Discriminator: the authority supplied a bounded trust value this runtime does not understand.</summary>
+/// <remarks>The <c>unsupported</c> variant of <see cref="CatalogTrustSnapshot"/>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class CatalogTrustSnapshotUnsupported : CatalogTrustSnapshot
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Status => "unsupported";
+
+    /// <summary>Service-computed exposure eligibility. `unknown` is required while Agent Finder returns no explicit eligibility field.</summary>
+    [JsonPropertyName("eligibility")]
+    public required CatalogTrustEligibility Eligibility { get; set; }
+
+    /// <summary>Bounded source and observation time for this snapshot. This is distinct from evidence used by the authority to calculate trust.</summary>
+    [JsonPropertyName("provenance")]
+    public required CatalogTrustProvenance Provenance { get; set; }
+
+    /// <summary>Schema version of this runtime-owned snapshot envelope.</summary>
+    [JsonPropertyName("schemaVersion")]
+    public required CatalogTrustSnapshotSchemaVersion SchemaVersion { get; set; }
+}
+
+/// <summary>Discriminator: the trust field was empty, unbounded, or had the wrong JSON type.</summary>
+/// <remarks>The <c>malformed</c> variant of <see cref="CatalogTrustSnapshot"/>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class CatalogTrustSnapshotMalformed : CatalogTrustSnapshot
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Status => "malformed";
+
+    /// <summary>Service-computed exposure eligibility. `unknown` is required while Agent Finder returns no explicit eligibility field.</summary>
+    [JsonPropertyName("eligibility")]
+    public required CatalogTrustEligibility Eligibility { get; set; }
+
+    /// <summary>Bounded source and observation time for this snapshot. This is distinct from evidence used by the authority to calculate trust.</summary>
+    [JsonPropertyName("provenance")]
+    public required CatalogTrustProvenance Provenance { get; set; }
+
+    /// <summary>Schema version of this runtime-owned snapshot envelope.</summary>
+    [JsonPropertyName("schemaVersion")]
+    public required CatalogTrustSnapshotSchemaVersion SchemaVersion { get; set; }
+}
+
+/// <summary>Catalogue identity retained from a bound candidate or plan at installation time.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class InstallationCatalogueIdentity
+{
+    /// <summary>Catalogue description retained at install planning time.</summary>
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
+
+    /// <summary>Human display name retained from the catalogue candidate.</summary>
+    [JsonPropertyName("displayName")]
+    public string DisplayName { get; set; } = string.Empty;
+
+    /// <summary>Catalogue item URL when supplied by the authority.</summary>
+    [JsonPropertyName("itemUrl")]
+    public string? ItemUrl { get; set; }
+
+    /// <summary>Catalogue publisher retained at install planning time.</summary>
+    [JsonPropertyName("publisher")]
+    public string? Publisher { get; set; }
+
+    /// <summary>Authority resource identifier when supplied by the catalogue.</summary>
+    [JsonPropertyName("resourceId")]
+    public string? ResourceId { get; set; }
+
+    /// <summary>Catalogue authority/source string that supplied the candidate.</summary>
+    [JsonPropertyName("source")]
+    public string Source { get; set; } = string.Empty;
+
+    /// <summary>Catalogue trust observation retained at install planning time.</summary>
+    [JsonPropertyName("trustAtInstall")]
+    public CatalogTrustSnapshot? TrustAtInstall { get; set; }
+
+    /// <summary>Catalogue version retained at install planning time.</summary>
+    [JsonPropertyName("version")]
+    public string? Version { get; set; }
+}
+
 /// <summary>Durable configuration ownership is distinct from session-specific usability.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public sealed class McpInstallationSummary
 {
+    /// <summary>Catalogue identity retained from the installed plan when available.</summary>
+    [JsonPropertyName("catalogue")]
+    public InstallationCatalogueIdentity? Catalogue { get; set; }
+
     /// <summary>Exact alternative retained in the installing receipt.</summary>
     [JsonPropertyName("choiceId")]
     public string ChoiceId { get; set; } = string.Empty;
@@ -2451,6 +2687,10 @@ public sealed class McpInstallationSummary
     /// <summary>Exact durable installation receipt identity.</summary>
     [JsonPropertyName("installationId")]
     public string InstallationId { get; set; } = string.Empty;
+
+    /// <summary>ISO 8601 wall-clock installation time when available.</summary>
+    [JsonPropertyName("installedAt")]
+    public string? InstalledAt { get; set; }
 
     /// <summary>Original installing operation, not a fresh management operation.</summary>
     [JsonPropertyName("operationId")]
@@ -2935,7 +3175,7 @@ public sealed class McpInstallationSecret
     public string Value { get; set; } = string.Empty;
 }
 
-/// <summary>Side-effect-free preparation of one original bound, input-free remote MCP choice.</summary>
+/// <summary>Side-effect-free preparation of one original bound remote MCP choice.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 internal sealed class McpPrepareInstallRequest
 {
@@ -2947,7 +3187,10 @@ internal sealed class McpPrepareInstallRequest
     [JsonPropertyName("contract")]
     public CatalogClientContract Contract { get => field ??= new(); set; }
 
-    /// <summary>Must be empty for the initial input-free remote installation capability.</summary>
+    /// <summary>
+    /// Declared non-secret values. Non-empty only when the caller requires
+    /// `mcp-configured-remote-installation`; omitted values use the card default.
+    /// </summary>
     [JsonPropertyName("inputs")]
     public IList<McpInstallationInput> Inputs { get => field ??= []; set; }
 
@@ -2959,7 +3202,10 @@ internal sealed class McpPrepareInstallRequest
     [JsonPropertyName("policySessionId")]
     public string PolicySessionId { get; set; } = string.Empty;
 
-    /// <summary>Must be empty; this capability does not allocate configured-input secrets.</summary>
+    /// <summary>
+    /// One entry per declared secret placeholder of the selected choice. Non-empty
+    /// only when the caller requires `mcp-configured-remote-installation`.
+    /// </summary>
     [JsonPropertyName("secrets")]
     public IList<McpInstallationSecret> Secrets { get => field ??= []; set; }
 
@@ -3283,6 +3529,1136 @@ internal sealed class DiscoveredExtensionsDisableRequest
     public IList<string> Ids { get => field ??= []; set; }
 }
 
+/// <summary>Skill installation management result with the honoured contract, or a typed refusal.</summary>
+/// <remarks>Polymorphic base type discriminated by <c>kind</c>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonPolymorphic(
+    TypeDiscriminatorPropertyName = "kind",
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+[JsonDerivedType(typeof(SkillInstallationManagementResultOutcome), "outcome")]
+[JsonDerivedType(typeof(SkillInstallationManagementResultNegotiationRefused), "negotiation-refused")]
+[JsonDerivedType(typeof(SkillInstallationManagementResultInvalidRequest), "invalid-request")]
+public partial class SkillInstallationManagementResult
+{
+    /// <summary>The type discriminator.</summary>
+    [JsonPropertyName("kind")]
+    public virtual string Kind { get; set; } = string.Empty;
+}
+
+
+/// <summary>Management outcome for verified Skill inventory, planning and removal.</summary>
+/// <remarks>Polymorphic base type discriminated by <c>kind</c>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonPolymorphic(
+    TypeDiscriminatorPropertyName = "kind",
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+[JsonDerivedType(typeof(SkillInstallationManagementOutcomeRecoveryRequired), "recovery-required")]
+[JsonDerivedType(typeof(SkillInstallationManagementOutcomeInstallPlanned), "install-planned")]
+[JsonDerivedType(typeof(SkillInstallationManagementOutcomeListed), "listed")]
+[JsonDerivedType(typeof(SkillInstallationManagementOutcomeRecovered), "recovered")]
+[JsonDerivedType(typeof(SkillInstallationManagementOutcomeRolledBack), "rolled-back")]
+[JsonDerivedType(typeof(SkillInstallationManagementOutcomeUninstallPlanned), "uninstall-planned")]
+[JsonDerivedType(typeof(SkillInstallationManagementOutcomeOperation), "operation")]
+[JsonDerivedType(typeof(SkillInstallationManagementOutcomeEnabledChanged), "enabled-changed")]
+[JsonDerivedType(typeof(SkillInstallationManagementOutcomeRefused), "refused")]
+public partial class SkillInstallationManagementOutcome
+{
+    /// <summary>The type discriminator.</summary>
+    [JsonPropertyName("kind")]
+    public virtual string Kind { get; set; } = string.Empty;
+}
+
+
+/// <summary>Already-confirmed durable work must be reconciled before new mutations or inventory.</summary>
+/// <remarks>The <c>recovery-required</c> variant of <see cref="SkillInstallationManagementOutcome"/>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class SkillInstallationManagementOutcomeRecoveryRequired : SkillInstallationManagementOutcome
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "recovery-required";
+}
+
+/// <summary>Safe verified Skill review fields. No raw credential, candidate handle or plan handle.</summary>
+/// <remarks>Polymorphic base type discriminated by <c>action</c>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonPolymorphic(
+    TypeDiscriminatorPropertyName = "action",
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+[JsonDerivedType(typeof(SkillInstallationReviewInstall), "install")]
+[JsonDerivedType(typeof(SkillInstallationReviewUninstall), "uninstall")]
+public partial class SkillInstallationReview
+{
+    /// <summary>The type discriminator.</summary>
+    [JsonPropertyName("action")]
+    public virtual string Action { get; set; } = string.Empty;
+}
+
+
+/// <summary>One reviewed Skill file.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class SkillInstallationFileReview
+{
+    /// <summary>SHA-256 digest of the exact file bytes.</summary>
+    [JsonPropertyName("digest")]
+    public string Digest { get; set; } = string.Empty;
+
+    /// <summary>Whether the file is installed with executable permissions.</summary>
+    [JsonPropertyName("executable")]
+    public bool Executable { get; set; }
+
+    /// <summary>Declared media type for the file.</summary>
+    [JsonPropertyName("mediaType")]
+    public string MediaType { get; set; } = string.Empty;
+
+    /// <summary>Relative file path within the Skill root.</summary>
+    [JsonPropertyName("path")]
+    public string Path { get; set; } = string.Empty;
+
+    /// <summary>Exact reviewed file size in bytes.</summary>
+    [JsonPropertyName("sizeBytes")]
+    public long SizeBytes { get; set; }
+}
+
+/// <summary>Source identity retained from Agent Finder and the pinned GitHub descriptor.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class SkillInstallationSource
+{
+    /// <summary>Digest of the descriptor's bundle manifest.</summary>
+    [JsonPropertyName("bundleDigest")]
+    public string BundleDigest { get; set; } = string.Empty;
+
+    /// <summary>Agent Finder materialisation revision identifier.</summary>
+    [JsonPropertyName("catalogRevisionId")]
+    public string CatalogRevisionId { get; set; } = string.Empty;
+
+    /// <summary>Digest of the canonical materialisation descriptor.</summary>
+    [JsonPropertyName("descriptorDigest")]
+    public string DescriptorDigest { get; set; } = string.Empty;
+
+    /// <summary>Repository full name, for example owner/name.</summary>
+    [JsonPropertyName("repository")]
+    public string Repository { get; set; } = string.Empty;
+
+    /// <summary>GitHub repository database identifier.</summary>
+    [JsonPropertyName("repositoryId")]
+    public string RepositoryId { get; set; } = string.Empty;
+
+    /// <summary>Agent Finder resource identifier.</summary>
+    [JsonPropertyName("resourceId")]
+    public string ResourceId { get; set; } = string.Empty;
+
+    /// <summary>Pinned Git commit revision.</summary>
+    [JsonPropertyName("revision")]
+    public string Revision { get; set; } = string.Empty;
+
+    /// <summary>Root path within the pinned repository.</summary>
+    [JsonPropertyName("root")]
+    public string Root { get; set; } = string.Empty;
+}
+
+/// <summary>A user-facing personal Skill installation location without absolute host paths.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class SkillInstallationLocation
+{
+    /// <summary>Diagnostics-only absolute host path. Hosts must not display it by default.</summary>
+    [JsonPropertyName("diagnosticsAbsolutePath")]
+    public string? DiagnosticsAbsolutePath { get; set; }
+
+    /// <summary>Safe display label, for example ~/.copilot/skills/run-checks.</summary>
+    [JsonPropertyName("displayLabel")]
+    public string DisplayLabel { get; set; } = string.Empty;
+
+    /// <summary>Path relative to the Copilot home.</summary>
+    [JsonPropertyName("relativePath")]
+    public string RelativePath { get; set; } = string.Empty;
+
+    /// <summary>Installation scope. Agent Finder Skills are installed in the user's personal Copilot home.</summary>
+    [JsonPropertyName("scope")]
+    public SkillInstallationScope Scope { get; set; }
+}
+
+/// <summary>Review for installing a verified Skill.</summary>
+/// <remarks>The <c>install</c> variant of <see cref="SkillInstallationReview"/>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class SkillInstallationReviewInstall : SkillInstallationReview
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Action => "install";
+
+    /// <summary>Catalogue identity retained from the bound candidate before consent.</summary>
+    [JsonPropertyName("catalogue")]
+    public required InstallationCatalogueIdentity Catalogue { get; set; }
+
+    /// <summary>Skill description from SKILL.md when present.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
+
+    /// <summary>
+    /// Complete verified SKILL.md content. Planning refuses with review-too-large
+    /// when this exceeds 262144 UTF-8 bytes; it is never truncated.
+    /// </summary>
+    [JsonPropertyName("entrypointContent")]
+    public required string EntrypointContent { get; set; }
+
+    /// <summary>Relative path of the verified Skill entrypoint.</summary>
+    [JsonPropertyName("entrypointPath")]
+    public required string EntrypointPath { get; set; }
+
+    /// <summary>Reviewed files and digests.</summary>
+    [JsonPropertyName("files")]
+    public required IList<SkillInstallationFileReview> Files { get; set; }
+
+    /// <summary>Installing never grants immediate use; the Skill is written disabled.</summary>
+    [JsonPropertyName("installsDisabled")]
+    public required bool InstallsDisabled { get; set; }
+
+    /// <summary>Skill invocation name from SKILL.md.</summary>
+    [JsonPropertyName("name")]
+    public required string Name { get; set; }
+
+    /// <summary>Exact verified source identity.</summary>
+    [JsonPropertyName("source")]
+    public required SkillInstallationSource Source { get; set; }
+
+    /// <summary>Exact user-scope target location without an absolute host path.</summary>
+    [JsonPropertyName("target")]
+    public required SkillInstallationLocation Target { get; set; }
+
+    /// <summary>Total reviewed payload size in bytes.</summary>
+    [JsonPropertyName("totalBytes")]
+    public required long TotalBytes { get; set; }
+}
+
+/// <summary>Durable verified Skill ownership summary.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class SkillInstallationSummary
+{
+    /// <summary>Catalogue identity retained at install time.</summary>
+    [JsonPropertyName("catalogue")]
+    public InstallationCatalogueIdentity Catalogue { get => field ??= new(); set; }
+
+    /// <summary>Persisted enablement requested for this installation.</summary>
+    [JsonPropertyName("configuredEnabled")]
+    public bool ConfiguredEnabled { get; set; }
+
+    /// <summary>Exact durable installation receipt identity.</summary>
+    [JsonPropertyName("installationId")]
+    public string InstallationId { get; set; } = string.Empty;
+
+    /// <summary>ISO 8601 wall-clock installation time.</summary>
+    [JsonPropertyName("installedAt")]
+    public string InstalledAt { get; set; } = string.Empty;
+
+    /// <summary>Skill invocation name.</summary>
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Operation that installed this Skill.</summary>
+    [JsonPropertyName("operationId")]
+    public string OperationId { get; set; } = string.Empty;
+
+    /// <summary>Ownership state observed from files and receipts.</summary>
+    [JsonPropertyName("ownershipState")]
+    public SkillInstallationOwnershipState OwnershipState { get; set; }
+
+    /// <summary>Bound-session load observation.</summary>
+    [JsonPropertyName("sessionState")]
+    public SkillInstallationSessionState SessionState { get; set; }
+
+    /// <summary>Exact retained verified source identity.</summary>
+    [JsonPropertyName("source")]
+    public SkillInstallationSource Source { get => field ??= new(); set; }
+
+    /// <summary>User-facing installation location without an absolute host path.</summary>
+    [JsonPropertyName("target")]
+    public SkillInstallationLocation Target { get => field ??= new(); set; }
+}
+
+/// <summary>Review for uninstalling an owned verified Skill.</summary>
+/// <remarks>The <c>uninstall</c> variant of <see cref="SkillInstallationReview"/>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class SkillInstallationReviewUninstall : SkillInstallationReview
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Action => "uninstall";
+
+    /// <summary>Catalogue identity retained at install time.</summary>
+    [JsonPropertyName("catalogue")]
+    public required InstallationCatalogueIdentity Catalogue { get; set; }
+
+    /// <summary>Files recorded by the installation receipt.</summary>
+    [JsonPropertyName("files")]
+    public required IList<SkillInstallationFileReview> Files { get; set; }
+
+    /// <summary>Whether current files differ from the receipt. Apply refuses drift.</summary>
+    [JsonPropertyName("filesModified")]
+    public required bool FilesModified { get; set; }
+
+    /// <summary>Owned installation being removed.</summary>
+    [JsonPropertyName("installation")]
+    public required SkillInstallationSummary Installation { get; set; }
+
+    /// <summary>Total receipt-owned payload size in bytes.</summary>
+    [JsonPropertyName("totalBytes")]
+    public required long TotalBytes { get; set; }
+}
+
+/// <summary>A computed Skill install plan. Nothing has been applied.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class SkillInstallPlan
+{
+    /// <summary>Original wall-clock expiry as an ISO 8601 timestamp.</summary>
+    [JsonPropertyName("expiresAt")]
+    public string ExpiresAt { get; set; } = string.Empty;
+
+    /// <summary>Original operation identifier returned before confirmation.</summary>
+    [JsonPropertyName("operationId")]
+    public string OperationId { get; set; } = string.Empty;
+
+    /// <summary>One-use plan handle, bound to the original candidate authority.</summary>
+    [JsonPropertyName("planHandle")]
+    public string PlanHandle { get; set; } = string.Empty;
+
+    /// <summary>Safe review to present before applying the plan.</summary>
+    [JsonPropertyName("review")]
+    public SkillInstallationReview Review { get => field ??= new(); set; }
+}
+
+/// <summary>A verified Skill installation plan was prepared.</summary>
+/// <remarks>The <c>install-planned</c> variant of <see cref="SkillInstallationManagementOutcome"/>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class SkillInstallationManagementOutcomeInstallPlanned : SkillInstallationManagementOutcome
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "install-planned";
+
+    /// <summary>Prepared install plan.</summary>
+    [JsonPropertyName("plan")]
+    public required SkillInstallPlan Plan { get; set; }
+}
+
+/// <summary>Owned Skill installations were listed.</summary>
+/// <remarks>The <c>listed</c> variant of <see cref="SkillInstallationManagementOutcome"/>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class SkillInstallationManagementOutcomeListed : SkillInstallationManagementOutcome
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "listed";
+
+    /// <summary>Owned Skill installation summaries.</summary>
+    [JsonPropertyName("installations")]
+    public required IList<SkillInstallationSummary> Installations { get; set; }
+}
+
+/// <summary>Recovery completed and inventory was inspected.</summary>
+/// <remarks>The <c>recovered</c> variant of <see cref="SkillInstallationManagementOutcome"/>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class SkillInstallationManagementOutcomeRecovered : SkillInstallationManagementOutcome
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "recovered";
+
+    /// <summary>Owned Skill installation summaries after recovery.</summary>
+    [JsonPropertyName("installations")]
+    public required IList<SkillInstallationSummary> Installations { get; set; }
+}
+
+/// <summary>Interrupted work was safely compensated and the pending marker was cleared.</summary>
+/// <remarks>The <c>rolled-back</c> variant of <see cref="SkillInstallationManagementOutcome"/>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class SkillInstallationManagementOutcomeRolledBack : SkillInstallationManagementOutcome
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "rolled-back";
+
+    /// <summary>Original operation identity.</summary>
+    [JsonPropertyName("operation_id")]
+    public required string OperationId { get; set; }
+
+    /// <summary>Cause of the compensation.</summary>
+    [JsonPropertyName("reason")]
+    public required SkillInstallationFailureReason Reason { get; set; }
+}
+
+/// <summary>A computed Skill uninstall plan. Nothing has been removed.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class SkillUninstallPlan
+{
+    /// <summary>Original wall-clock expiry as an ISO 8601 timestamp.</summary>
+    [JsonPropertyName("expiresAt")]
+    public string ExpiresAt { get; set; } = string.Empty;
+
+    /// <summary>Owned Skill installation being removed.</summary>
+    [JsonPropertyName("installation")]
+    public SkillInstallationSummary Installation { get => field ??= new(); set; }
+
+    /// <summary>Original removal operation identifier returned before confirmation.</summary>
+    [JsonPropertyName("operationId")]
+    public string OperationId { get; set; } = string.Empty;
+
+    /// <summary>One-use uninstall plan handle.</summary>
+    [JsonPropertyName("planHandle")]
+    public string PlanHandle { get; set; } = string.Empty;
+
+    /// <summary>Safe review to present before applying removal.</summary>
+    [JsonPropertyName("review")]
+    public SkillInstallationReview Review { get => field ??= new(); set; }
+}
+
+/// <summary>An owned Skill uninstall plan was prepared.</summary>
+/// <remarks>The <c>uninstall-planned</c> variant of <see cref="SkillInstallationManagementOutcome"/>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class SkillInstallationManagementOutcomeUninstallPlanned : SkillInstallationManagementOutcome
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "uninstall-planned";
+
+    /// <summary>Prepared uninstall plan.</summary>
+    [JsonPropertyName("plan")]
+    public required SkillUninstallPlan Plan { get; set; }
+}
+
+/// <summary>Status snapshot from the original connection, independent of new-work account availability.</summary>
+/// <remarks>Polymorphic base type discriminated by <c>phase</c>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonPolymorphic(
+    TypeDiscriminatorPropertyName = "phase",
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+[JsonDerivedType(typeof(SkillInstallationOperationStatusPreparing), "preparing")]
+[JsonDerivedType(typeof(SkillInstallationOperationStatusPrepared), "prepared")]
+[JsonDerivedType(typeof(SkillInstallationOperationStatusAwaitingConfirmation), "awaiting-confirmation")]
+[JsonDerivedType(typeof(SkillInstallationOperationStatusRevalidating), "revalidating")]
+[JsonDerivedType(typeof(SkillInstallationOperationStatusApplying), "applying")]
+[JsonDerivedType(typeof(SkillInstallationOperationStatusCompleted), "completed")]
+public partial class SkillInstallationOperationStatus
+{
+    /// <summary>The type discriminator.</summary>
+    [JsonPropertyName("phase")]
+    public virtual string Phase { get; set; } = string.Empty;
+}
+
+
+/// <summary>Original operation progress discriminator.</summary>
+/// <remarks>The <c>preparing</c> variant of <see cref="SkillInstallationOperationStatus"/>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class SkillInstallationOperationStatusPreparing : SkillInstallationOperationStatus
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Phase => "preparing";
+
+    /// <summary>Whether cancellation has been requested.</summary>
+    [JsonPropertyName("cancellationRequested")]
+    public required bool CancellationRequested { get; set; }
+
+    /// <summary>Original runtime-issued operation identity.</summary>
+    [JsonPropertyName("operationId")]
+    public required string OperationId { get; set; }
+}
+
+/// <summary>Original operation progress discriminator.</summary>
+/// <remarks>The <c>prepared</c> variant of <see cref="SkillInstallationOperationStatus"/>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class SkillInstallationOperationStatusPrepared : SkillInstallationOperationStatus
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Phase => "prepared";
+
+    /// <summary>Whether cancellation has been requested.</summary>
+    [JsonPropertyName("cancellationRequested")]
+    public required bool CancellationRequested { get; set; }
+
+    /// <summary>Original runtime-issued operation identity.</summary>
+    [JsonPropertyName("operationId")]
+    public required string OperationId { get; set; }
+}
+
+/// <summary>Original operation progress discriminator.</summary>
+/// <remarks>The <c>awaiting-confirmation</c> variant of <see cref="SkillInstallationOperationStatus"/>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class SkillInstallationOperationStatusAwaitingConfirmation : SkillInstallationOperationStatus
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Phase => "awaiting-confirmation";
+
+    /// <summary>Whether cancellation has been requested.</summary>
+    [JsonPropertyName("cancellationRequested")]
+    public required bool CancellationRequested { get; set; }
+
+    /// <summary>Original runtime-issued operation identity.</summary>
+    [JsonPropertyName("operationId")]
+    public required string OperationId { get; set; }
+}
+
+/// <summary>Original operation progress discriminator.</summary>
+/// <remarks>The <c>revalidating</c> variant of <see cref="SkillInstallationOperationStatus"/>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class SkillInstallationOperationStatusRevalidating : SkillInstallationOperationStatus
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Phase => "revalidating";
+
+    /// <summary>Whether cancellation has been requested.</summary>
+    [JsonPropertyName("cancellationRequested")]
+    public required bool CancellationRequested { get; set; }
+
+    /// <summary>Original runtime-issued operation identity.</summary>
+    [JsonPropertyName("operationId")]
+    public required string OperationId { get; set; }
+}
+
+/// <summary>Original operation progress discriminator.</summary>
+/// <remarks>The <c>applying</c> variant of <see cref="SkillInstallationOperationStatus"/>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class SkillInstallationOperationStatusApplying : SkillInstallationOperationStatus
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Phase => "applying";
+
+    /// <summary>Whether cancellation has been requested; already-started effects require recovery.</summary>
+    [JsonPropertyName("cancellationRequested")]
+    public required bool CancellationRequested { get; set; }
+
+    /// <summary>Original runtime-issued operation identity.</summary>
+    [JsonPropertyName("operationId")]
+    public required string OperationId { get; set; }
+}
+
+/// <summary>Terminal verified Skill mutation result.</summary>
+/// <remarks>Polymorphic base type discriminated by <c>kind</c>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonPolymorphic(
+    TypeDiscriminatorPropertyName = "kind",
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+[JsonDerivedType(typeof(SkillInstallationOutcomeInstalled), "installed")]
+[JsonDerivedType(typeof(SkillInstallationOutcomeUninstalled), "uninstalled")]
+[JsonDerivedType(typeof(SkillInstallationOutcomeRolledBack), "rolled-back")]
+[JsonDerivedType(typeof(SkillInstallationOutcomeRecoveryRequired), "recovery-required")]
+[JsonDerivedType(typeof(SkillInstallationOutcomeDeclined), "declined")]
+[JsonDerivedType(typeof(SkillInstallationOutcomeCancelled), "cancelled")]
+[JsonDerivedType(typeof(SkillInstallationOutcomeRefused), "refused")]
+public partial class SkillInstallationOutcome
+{
+    /// <summary>The type discriminator.</summary>
+    [JsonPropertyName("kind")]
+    public virtual string Kind { get; set; } = string.Empty;
+}
+
+
+/// <summary>The verified Skill was installed disabled.</summary>
+/// <remarks>The <c>installed</c> variant of <see cref="SkillInstallationOutcome"/>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class SkillInstallationOutcomeInstalled : SkillInstallationOutcome
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "installed";
+
+    /// <summary>Durable installed Skill summary.</summary>
+    [JsonPropertyName("installation")]
+    public required SkillInstallationSummary Installation { get; set; }
+}
+
+/// <summary>The owned Skill was removed.</summary>
+/// <remarks>The <c>uninstalled</c> variant of <see cref="SkillInstallationOutcome"/>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class SkillInstallationOutcomeUninstalled : SkillInstallationOutcome
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "uninstalled";
+
+    /// <summary>Removed installation identity.</summary>
+    [JsonPropertyName("installationId")]
+    public required string InstallationId { get; set; }
+
+    /// <summary>Original removal operation identity.</summary>
+    [JsonPropertyName("operationId")]
+    public required string OperationId { get; set; }
+}
+
+/// <summary>The durable transaction was aborted or fully compensated.</summary>
+/// <remarks>The <c>rolled-back</c> variant of <see cref="SkillInstallationOutcome"/>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class SkillInstallationOutcomeRolledBack : SkillInstallationOutcome
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "rolled-back";
+
+    /// <summary>Original operation identity.</summary>
+    [JsonPropertyName("operationId")]
+    public required string OperationId { get; set; }
+
+    /// <summary>Cause of the fully aborted or compensated operation.</summary>
+    [JsonPropertyName("reason")]
+    public required SkillInstallationFailureReason Reason { get; set; }
+}
+
+/// <summary>A write may have completed. Recover and inspect durable state before retrying.</summary>
+/// <remarks>The <c>recovery-required</c> variant of <see cref="SkillInstallationOutcome"/>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class SkillInstallationOutcomeRecoveryRequired : SkillInstallationOutcome
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "recovery-required";
+
+    /// <summary>Operation whose durable result must be recovered and inspected.</summary>
+    [JsonPropertyName("operationId")]
+    public required string OperationId { get; set; }
+}
+
+/// <summary>The user declined the confirmation request.</summary>
+/// <remarks>The <c>declined</c> variant of <see cref="SkillInstallationOutcome"/>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class SkillInstallationOutcomeDeclined : SkillInstallationOutcome
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "declined";
+
+    /// <summary>Original operation identity.</summary>
+    [JsonPropertyName("operationId")]
+    public required string OperationId { get; set; }
+}
+
+/// <summary>The operation was cancelled before a terminal mutation.</summary>
+/// <remarks>The <c>cancelled</c> variant of <see cref="SkillInstallationOutcome"/>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class SkillInstallationOutcomeCancelled : SkillInstallationOutcome
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "cancelled";
+
+    /// <summary>Original operation identity.</summary>
+    [JsonPropertyName("operationId")]
+    public required string OperationId { get; set; }
+}
+
+/// <summary>The operation was refused without applying changes.</summary>
+/// <remarks>The <c>refused</c> variant of <see cref="SkillInstallationOutcome"/>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class SkillInstallationOutcomeRefused : SkillInstallationOutcome
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "refused";
+
+    /// <summary>Present once an operation has been allocated.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("operationId")]
+    public string? OperationId { get; set; }
+
+    /// <summary>Bounded refusal reason.</summary>
+    [JsonPropertyName("reason")]
+    public required SkillInstallationFailureReason Reason { get; set; }
+}
+
+/// <summary>Original operation progress discriminator.</summary>
+/// <remarks>The <c>completed</c> variant of <see cref="SkillInstallationOperationStatus"/>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class SkillInstallationOperationStatusCompleted : SkillInstallationOperationStatus
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Phase => "completed";
+
+    /// <summary>Whether cancellation was requested before the terminal result.</summary>
+    [JsonPropertyName("cancellationRequested")]
+    public required bool CancellationRequested { get; set; }
+
+    /// <summary>Original runtime-issued operation identity.</summary>
+    [JsonPropertyName("operationId")]
+    public required string OperationId { get; set; }
+
+    /// <summary>Immutable terminal receipt.</summary>
+    [JsonPropertyName("outcome")]
+    public required SkillInstallationOutcome Outcome { get; set; }
+}
+
+/// <summary>Original-connection operation snapshot.</summary>
+/// <remarks>The <c>operation</c> variant of <see cref="SkillInstallationManagementOutcome"/>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class SkillInstallationManagementOutcomeOperation : SkillInstallationManagementOutcome
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "operation";
+
+    /// <summary>Operation status.</summary>
+    [JsonPropertyName("operation")]
+    public required SkillInstallationOperationStatus Operation { get; set; }
+}
+
+/// <summary>Enablement changed and the selected session was reconciled.</summary>
+/// <remarks>The <c>enabled-changed</c> variant of <see cref="SkillInstallationManagementOutcome"/>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class SkillInstallationManagementOutcomeEnabledChanged : SkillInstallationManagementOutcome
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "enabled-changed";
+
+    /// <summary>Safe reload or reconciliation diagnostics.</summary>
+    [JsonPropertyName("diagnostics")]
+    public required IList<string> Diagnostics { get; set; }
+
+    /// <summary>Updated installation summary.</summary>
+    [JsonPropertyName("installation")]
+    public required SkillInstallationSummary Installation { get; set; }
+}
+
+/// <summary>The management request was refused.</summary>
+/// <remarks>The <c>refused</c> variant of <see cref="SkillInstallationManagementOutcome"/>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class SkillInstallationManagementOutcomeRefused : SkillInstallationManagementOutcome
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "refused";
+
+    /// <summary>Bounded refusal reason.</summary>
+    [JsonPropertyName("reason")]
+    public required SkillInstallationFailureReason Reason { get; set; }
+}
+
+/// <summary>The <c>outcome</c> variant of <see cref="SkillInstallationManagementResult"/>.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class SkillInstallationManagementResultOutcome : SkillInstallationManagementResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "outcome";
+
+    /// <summary>Capabilities honoured for this request.</summary>
+    [JsonPropertyName("negotiated")]
+    public required CatalogNegotiatedContract Negotiated { get; set; }
+
+    /// <summary>Observed management outcome.</summary>
+    [JsonPropertyName("outcome")]
+    public required SkillInstallationManagementOutcome Outcome { get; set; }
+}
+
+/// <summary>The caller's protocol version or required capabilities cannot be honoured. Returned instead of a partial or ambiguous success.</summary>
+/// <remarks>The <c>negotiation-refused</c> variant of <see cref="SkillInstallationManagementResult"/>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class SkillInstallationManagementResultNegotiationRefused : SkillInstallationManagementResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "negotiation-refused";
+
+    /// <summary>Human-readable explanation, safe to surface. Never contains a query, URL, handle, or secret.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MaxLength(1000)]
+    [JsonPropertyName("message")]
+    public required string Message { get; set; }
+
+    /// <summary>Lowest caller protocol version this runtime will serve.</summary>
+    [JsonPropertyName("minimumSupportedProtocolVersion")]
+    public required long MinimumSupportedProtocolVersion { get; set; }
+
+    /// <summary>Whether the version or the capability set was the problem.</summary>
+    [JsonPropertyName("reason")]
+    public required CatalogNegotiationRefusedReason Reason { get; set; }
+
+    /// <summary>Protocol version of the runtime that refused the request.</summary>
+    [JsonPropertyName("runtimeProtocolVersion")]
+    public required long RuntimeProtocolVersion { get; set; }
+
+    /// <summary>Capabilities this runtime can safely advertise to this caller. The complete five-capability protocol-3 legacy set is always present; every capability added after that baseline appears only when the caller required it, so an older closed-enum decoder can still consume a refusal. This list does not imply that every deployment has enabled every operation.</summary>
+    [JsonPropertyName("supportedCapabilities")]
+    public required IList<string> SupportedCapabilities { get; set; }
+
+    /// <summary>The subset of the caller's bounded extensible capability identifiers this runtime cannot honour.</summary>
+    [JsonPropertyName("unsupportedCapabilities")]
+    public required IList<string> UnsupportedCapabilities { get; set; }
+}
+
+/// <summary>The request was rejected because a bounded field fell outside its permitted range or a required field was unusable. Pagination may also be rejected by the authority after a continuation request; repeat the search without page.</summary>
+/// <remarks>The <c>invalid-request</c> variant of <see cref="SkillInstallationManagementResult"/>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class SkillInstallationManagementResultInvalidRequest : SkillInstallationManagementResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "invalid-request";
+
+    /// <summary>Which request field was rejected.</summary>
+    [JsonPropertyName("field")]
+    public required CatalogInvalidRequestField Field { get; set; }
+
+    /// <summary>Human-readable explanation, safe to surface. Never echoes the offending value, nor a query, URL, handle, or secret.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MaxLength(1000)]
+    [JsonPropertyName("message")]
+    public required string Message { get; set; }
+}
+
+/// <summary>Side-effect-free planning of one verified Agent Finder Skill candidate.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class SkillPlanInstallRequest
+{
+    /// <summary>Fresh single-use AI skill candidate handle returned by a bound catalogue search.</summary>
+    [JsonPropertyName("candidateHandle")]
+    public string CandidateHandle { get; set; } = string.Empty;
+
+    /// <summary>Required authenticated bound catalogue and Skill installation capabilities.</summary>
+    [JsonPropertyName("contract")]
+    public CatalogClientContract Contract { get => field ??= new(); set; }
+
+    /// <summary>Existing local session attached to this connection.</summary>
+    [JsonPropertyName("policySessionId")]
+    public string PolicySessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Skill installation result with the honoured contract, or a typed request/negotiation refusal.</summary>
+/// <remarks>Polymorphic base type discriminated by <c>kind</c>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonPolymorphic(
+    TypeDiscriminatorPropertyName = "kind",
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+[JsonDerivedType(typeof(SkillInstallationResultOutcome), "outcome")]
+[JsonDerivedType(typeof(SkillInstallationResultNegotiationRefused), "negotiation-refused")]
+[JsonDerivedType(typeof(SkillInstallationResultInvalidRequest), "invalid-request")]
+public partial class SkillInstallationResult
+{
+    /// <summary>The type discriminator.</summary>
+    [JsonPropertyName("kind")]
+    public virtual string Kind { get; set; } = string.Empty;
+}
+
+
+/// <summary>The <c>outcome</c> variant of <see cref="SkillInstallationResult"/>.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class SkillInstallationResultOutcome : SkillInstallationResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "outcome";
+
+    /// <summary>Capabilities honoured for this request.</summary>
+    [JsonPropertyName("negotiated")]
+    public required CatalogNegotiatedContract Negotiated { get; set; }
+
+    /// <summary>Terminal operation outcome.</summary>
+    [JsonPropertyName("outcome")]
+    public required SkillInstallationOutcome Outcome { get; set; }
+}
+
+/// <summary>The caller's protocol version or required capabilities cannot be honoured. Returned instead of a partial or ambiguous success.</summary>
+/// <remarks>The <c>negotiation-refused</c> variant of <see cref="SkillInstallationResult"/>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class SkillInstallationResultNegotiationRefused : SkillInstallationResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "negotiation-refused";
+
+    /// <summary>Human-readable explanation, safe to surface. Never contains a query, URL, handle, or secret.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MaxLength(1000)]
+    [JsonPropertyName("message")]
+    public required string Message { get; set; }
+
+    /// <summary>Lowest caller protocol version this runtime will serve.</summary>
+    [JsonPropertyName("minimumSupportedProtocolVersion")]
+    public required long MinimumSupportedProtocolVersion { get; set; }
+
+    /// <summary>Whether the version or the capability set was the problem.</summary>
+    [JsonPropertyName("reason")]
+    public required CatalogNegotiationRefusedReason Reason { get; set; }
+
+    /// <summary>Protocol version of the runtime that refused the request.</summary>
+    [JsonPropertyName("runtimeProtocolVersion")]
+    public required long RuntimeProtocolVersion { get; set; }
+
+    /// <summary>Capabilities this runtime can safely advertise to this caller. The complete five-capability protocol-3 legacy set is always present; every capability added after that baseline appears only when the caller required it, so an older closed-enum decoder can still consume a refusal. This list does not imply that every deployment has enabled every operation.</summary>
+    [JsonPropertyName("supportedCapabilities")]
+    public required IList<string> SupportedCapabilities { get; set; }
+
+    /// <summary>The subset of the caller's bounded extensible capability identifiers this runtime cannot honour.</summary>
+    [JsonPropertyName("unsupportedCapabilities")]
+    public required IList<string> UnsupportedCapabilities { get; set; }
+}
+
+/// <summary>The request was rejected because a bounded field fell outside its permitted range or a required field was unusable. Pagination may also be rejected by the authority after a continuation request; repeat the search without page.</summary>
+/// <remarks>The <c>invalid-request</c> variant of <see cref="SkillInstallationResult"/>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class SkillInstallationResultInvalidRequest : SkillInstallationResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "invalid-request";
+
+    /// <summary>Which request field was rejected.</summary>
+    [JsonPropertyName("field")]
+    public required CatalogInvalidRequestField Field { get; set; }
+
+    /// <summary>Human-readable explanation, safe to surface. Never echoes the offending value, nor a query, URL, handle, or secret.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MaxLength(1000)]
+    [JsonPropertyName("message")]
+    public required string Message { get; set; }
+}
+
+/// <summary>Applies exactly one retained verified Skill installation plan.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class SkillApplyInstallRequest
+{
+    /// <summary>Required authenticated bound catalogue and Skill installation capabilities.</summary>
+    [JsonPropertyName("contract")]
+    public CatalogClientContract Contract { get => field ??= new(); set; }
+
+    /// <summary>Opaque original plan, consumed once.</summary>
+    [JsonPropertyName("planHandle")]
+    public string PlanHandle { get; set; } = string.Empty;
+
+    /// <summary>Same existing selected session as planning.</summary>
+    [JsonPropertyName("policySessionId")]
+    public string PolicySessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Read-only preparation of one owned Skill removal under fresh selected-session authority.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class SkillPlanUninstallRequest
+{
+    /// <summary>Required authenticated bound installation contract.</summary>
+    [JsonPropertyName("contract")]
+    public CatalogClientContract Contract { get => field ??= new(); set; }
+
+    /// <summary>Exact receipt to inspect.</summary>
+    [JsonPropertyName("installationId")]
+    public string InstallationId { get; set; } = string.Empty;
+
+    /// <summary>Existing selected local session on this connection.</summary>
+    [JsonPropertyName("policySessionId")]
+    public string PolicySessionId { get; set; } = string.Empty;
+}
+
+/// <summary>One-use application of the exact retained Skill removal plan.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class SkillApplyUninstallRequest
+{
+    /// <summary>Required authenticated bound installation contract.</summary>
+    [JsonPropertyName("contract")]
+    public CatalogClientContract Contract { get => field ??= new(); set; }
+
+    /// <summary>Opaque original removal plan, consumed once.</summary>
+    [JsonPropertyName("planHandle")]
+    public string PlanHandle { get; set; } = string.Empty;
+
+    /// <summary>Same existing selected session as removal preparation.</summary>
+    [JsonPropertyName("policySessionId")]
+    public string PolicySessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Server-side skill metadata, including name, description, source, enabled/invocable state, path, project path, and argument hint.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class ServerSkill
+{
+    /// <summary>Optional freeform hint describing the skill's expected arguments, from the `argument-hint` frontmatter field.</summary>
+    [JsonPropertyName("argumentHint")]
+    public string? ArgumentHint { get; set; }
+
+    /// <summary>Canonical slash command name used to invoke the skill, without the leading '/'.</summary>
+    [JsonPropertyName("commandName")]
+    public string? CommandName { get; set; }
+
+    /// <summary>Description of what the skill does.</summary>
+    [JsonPropertyName("description")]
+    public string Description { get; set; } = string.Empty;
+
+    /// <summary>Whether the skill is currently enabled (based on global config).</summary>
+    [JsonPropertyName("enabled")]
+    public bool Enabled { get; set; }
+
+    /// <summary>Unique identifier for the skill.</summary>
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Absolute path to the skill file.</summary>
+    [JsonPropertyName("path")]
+    public string? Path { get; set; }
+
+    /// <summary>The project path this skill belongs to (only for project/inherited skills).</summary>
+    [JsonPropertyName("projectPath")]
+    public string? ProjectPath { get; set; }
+
+    /// <summary>Source location type (e.g., project, personal-copilot, plugin, builtin).</summary>
+    [JsonPropertyName("source")]
+    public SkillSource Source { get; set; }
+
+    /// <summary>Whether the skill can be invoked by the user as a slash command.</summary>
+    [JsonPropertyName("userInvocable")]
+    public bool UserInvocable { get; set; }
+}
+
+/// <summary>Skills discovered across global and project sources.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class ServerSkillList
+{
+    /// <summary>Messages for skills that failed to load (e.g. malformed SKILL.md). Empty when host skills are excluded so host-local paths are not disclosed to multitenant callers.</summary>
+    [JsonPropertyName("errors")]
+    public IList<string>? Errors { get; set; }
+
+    /// <summary>All discovered skills across all sources.</summary>
+    [JsonPropertyName("skills")]
+    public IList<ServerSkill> Skills { get => field ??= []; set; }
+}
+
+/// <summary>Optional project paths and additional skill directories to include in discovery.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class SkillsDiscoverRequest
+{
+    /// <summary>When true, omit skills from the host's global sources (personal, custom, plugin, and built-in), returning only project-scoped skills. For multitenant deployments.</summary>
+    [JsonPropertyName("excludeHostSkills")]
+    public bool? ExcludeHostSkills { get; set; }
+
+    /// <summary>Optional skill scan paths to exclude from discovery.</summary>
+    [JsonPropertyName("ignoredSkillsLocations")]
+    public IList<string>? IgnoredSkillsLocations { get; set; }
+
+    /// <summary>Optional list of project directory paths to scan for project-scoped skills.</summary>
+    [JsonPropertyName("projectPaths")]
+    public IList<string>? ProjectPaths { get; set; }
+
+    /// <summary>Optional list of additional skill directory paths to include.</summary>
+    [JsonPropertyName("skillDirectories")]
+    public IList<string>? SkillDirectories { get; set; }
+}
+
+/// <summary>Canonical directory where skills can be discovered or created, with scope, preference, and optional project path.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class SkillDiscoveryPath
+{
+    /// <summary>Absolute path of the create/discovery target (may not exist on disk yet).</summary>
+    [JsonPropertyName("path")]
+    public string Path { get; set; } = string.Empty;
+
+    /// <summary>Whether this is the canonical directory to create a new skill in its tier. At most one entry per tier is preferred; the `personal-agents` and `custom` scopes are never preferred.</summary>
+    [JsonPropertyName("preferredForCreation")]
+    public bool PreferredForCreation { get; set; }
+
+    /// <summary>The input project path this directory was derived from (only for project scope).</summary>
+    [JsonPropertyName("projectPath")]
+    public string? ProjectPath { get; set; }
+
+    /// <summary>Which tier this directory belongs to.</summary>
+    [JsonPropertyName("scope")]
+    public SkillDiscoveryScope Scope { get; set; }
+}
+
+/// <summary>Canonical locations where skills can be created so the runtime will recognize them.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class SkillDiscoveryPathList
+{
+    /// <summary>Canonical skill create/discovery directories, in priority order.</summary>
+    [JsonPropertyName("paths")]
+    public IList<SkillDiscoveryPath> Paths { get => field ??= []; set; }
+}
+
+/// <summary>Optional project paths to enumerate.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class SkillsGetDiscoveryPathsRequest
+{
+    /// <summary>When true, omit the host's personal and custom skill directories, leaving only project directories. For multitenant deployments.</summary>
+    [JsonPropertyName("excludeHostSkills")]
+    public bool? ExcludeHostSkills { get; set; }
+
+    /// <summary>Optional skill scan paths to exclude from discovery.</summary>
+    [JsonPropertyName("ignoredSkillsLocations")]
+    public IList<string>? IgnoredSkillsLocations { get; set; }
+
+    /// <summary>Optional list of project directory paths. When omitted or empty, only personal and custom directories are returned.</summary>
+    [JsonPropertyName("projectPaths")]
+    public IList<string>? ProjectPaths { get; set; }
+}
+
+/// <summary>Inventory request under an explicitly selected existing session.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class SkillInstallationsRequest
+{
+    /// <summary>Required authenticated bound installation contract.</summary>
+    [JsonPropertyName("contract")]
+    public CatalogClientContract Contract { get => field ??= new(); set; }
+
+    /// <summary>Existing selected local session on this connection.</summary>
+    [JsonPropertyName("policySessionId")]
+    public string PolicySessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Existing-operation control. A new session selector is deliberately not accepted.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class SkillInstallationOperationRequest
+{
+    /// <summary>Required authenticated bound Skill installation capability.</summary>
+    [JsonPropertyName("contract")]
+    public CatalogClientContract Contract { get => field ??= new(); set; }
+
+    /// <summary>Exact runtime-issued operation ID on the original connection.</summary>
+    [JsonPropertyName("operationId")]
+    public string OperationId { get; set; } = string.Empty;
+}
+
+/// <summary>Persisted enablement update for one owned Skill installation.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class SkillSetEnabledRequest
+{
+    /// <summary>Required authenticated bound Skill installation capability.</summary>
+    [JsonPropertyName("contract")]
+    public CatalogClientContract Contract { get => field ??= new(); set; }
+
+    /// <summary>Persisted enablement value.</summary>
+    [JsonPropertyName("enabled")]
+    public bool Enabled { get; set; }
+
+    /// <summary>Exact receipt identity to update.</summary>
+    [JsonPropertyName("installationId")]
+    public string InstallationId { get; set; } = string.Empty;
+
+    /// <summary>Existing selected local session to reconcile after persistence.</summary>
+    [JsonPropertyName("policySessionId")]
+    public string PolicySessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Skill names to mark as disabled in global configuration, replacing any previous list.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class SkillsConfigSetDisabledSkillsRequest
+{
+    /// <summary>List of skill names to disable.</summary>
+    [JsonPropertyName("disabledSkills")]
+    public IList<string> DisabledSkills { get => field ??= []; set; }
+}
+
+/// <summary>Adds or removes a single skill from the global disabled list, leaving every other entry untouched.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class SkillsConfigSetSkillDisabledRequest
+{
+    /// <summary>True to disable the skill, false to enable it.</summary>
+    [JsonPropertyName("disabled")]
+    public bool Disabled { get; set; }
+
+    /// <summary>Name of the skill to add to or remove from the disabled list.</summary>
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+}
+
 /// <summary>Outcome of a catalog.search call: either bounded inert candidates, or one typed refusal. Never a partial success.</summary>
 /// <remarks>Polymorphic base type discriminated by <c>kind</c>.</remarks>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
@@ -3384,201 +4760,6 @@ public partial class CatalogCandidateSourceEmbedded : CatalogCandidateSource
     /// <inheritdoc />
     [JsonIgnore]
     public override string Kind => "embedded";
-}
-
-/// <summary>A versioned, bounded trust observation carried unchanged with a catalog candidate and its private handle context. Current observations require a recognised T1/T2 tier; every non-current state structurally forbids a tier. Eligibility remains `unknown` while Agent Finder supplies no exposure decision, and states absent from its current wire are never inferred from age, relevance, popularity, or a tier transition.</summary>
-/// <remarks>Polymorphic base type discriminated by <c>status</c>.</remarks>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-[JsonPolymorphic(
-    TypeDiscriminatorPropertyName = "status",
-    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
-[JsonDerivedType(typeof(CatalogTrustSnapshotCurrent), "current")]
-[JsonDerivedType(typeof(CatalogTrustSnapshotAbsent), "absent")]
-[JsonDerivedType(typeof(CatalogTrustSnapshotStale), "stale")]
-[JsonDerivedType(typeof(CatalogTrustSnapshotDowngraded), "downgraded")]
-[JsonDerivedType(typeof(CatalogTrustSnapshotRevoked), "revoked")]
-[JsonDerivedType(typeof(CatalogTrustSnapshotUnsupported), "unsupported")]
-[JsonDerivedType(typeof(CatalogTrustSnapshotMalformed), "malformed")]
-public partial class CatalogTrustSnapshot
-{
-    /// <summary>The type discriminator.</summary>
-    [JsonPropertyName("status")]
-    public virtual string Status { get; set; } = string.Empty;
-}
-
-
-/// <summary>Where and when the runtime observed the trust metadata. Observation time is not the authority's evaluation time and must not be used to infer staleness.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class CatalogTrustProvenance
-{
-    /// <summary>ISO 8601 timestamp with a timezone offset at which the runtime observed the search result carrying this trust field.</summary>
-    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
-    [MinLength(20)]
-    [MaxLength(64)]
-    [JsonPropertyName("observedAt")]
-    public DateTimeOffset ObservedAt { get; set; }
-
-    /// <summary>Bounded authority that supplied the trust field.</summary>
-    [JsonPropertyName("source")]
-    public CatalogTrustSource Source { get; set; }
-}
-
-/// <summary>A recognised current Agent Finder T1 or T2 trust tier.</summary>
-/// <remarks>The <c>current</c> variant of <see cref="CatalogTrustSnapshot"/>.</remarks>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public partial class CatalogTrustSnapshotCurrent : CatalogTrustSnapshot
-{
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override string Status => "current";
-
-    /// <summary>Service-computed exposure eligibility. `unknown` is required while Agent Finder returns no explicit eligibility field.</summary>
-    [JsonPropertyName("eligibility")]
-    public required CatalogTrustEligibility Eligibility { get; set; }
-
-    /// <summary>Bounded source and observation time for this snapshot. This is distinct from evidence used by the authority to calculate trust.</summary>
-    [JsonPropertyName("provenance")]
-    public required CatalogTrustProvenance Provenance { get; set; }
-
-    /// <summary>Schema version of this runtime-owned snapshot envelope.</summary>
-    [JsonPropertyName("schemaVersion")]
-    public required CatalogTrustSnapshotSchemaVersion SchemaVersion { get; set; }
-
-    /// <summary>Service-computed T1 or T2 trust tier.</summary>
-    [JsonPropertyName("tier")]
-    public required CatalogTrustTier Tier { get; set; }
-}
-
-/// <summary>Discriminator: the authority omitted trust metadata.</summary>
-/// <remarks>The <c>absent</c> variant of <see cref="CatalogTrustSnapshot"/>.</remarks>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public partial class CatalogTrustSnapshotAbsent : CatalogTrustSnapshot
-{
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override string Status => "absent";
-
-    /// <summary>Service-computed exposure eligibility. `unknown` is required while Agent Finder returns no explicit eligibility field.</summary>
-    [JsonPropertyName("eligibility")]
-    public required CatalogTrustEligibility Eligibility { get; set; }
-
-    /// <summary>Bounded source and observation time for this snapshot. This is distinct from evidence used by the authority to calculate trust.</summary>
-    [JsonPropertyName("provenance")]
-    public required CatalogTrustProvenance Provenance { get; set; }
-
-    /// <summary>Schema version of this runtime-owned snapshot envelope.</summary>
-    [JsonPropertyName("schemaVersion")]
-    public required CatalogTrustSnapshotSchemaVersion SchemaVersion { get; set; }
-}
-
-/// <summary>Discriminator: the authority explicitly marked the assessment stale.</summary>
-/// <remarks>The <c>stale</c> variant of <see cref="CatalogTrustSnapshot"/>.</remarks>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public partial class CatalogTrustSnapshotStale : CatalogTrustSnapshot
-{
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override string Status => "stale";
-
-    /// <summary>Service-computed exposure eligibility. `unknown` is required while Agent Finder returns no explicit eligibility field.</summary>
-    [JsonPropertyName("eligibility")]
-    public required CatalogTrustEligibility Eligibility { get; set; }
-
-    /// <summary>Bounded source and observation time for this snapshot. This is distinct from evidence used by the authority to calculate trust.</summary>
-    [JsonPropertyName("provenance")]
-    public required CatalogTrustProvenance Provenance { get; set; }
-
-    /// <summary>Schema version of this runtime-owned snapshot envelope.</summary>
-    [JsonPropertyName("schemaVersion")]
-    public required CatalogTrustSnapshotSchemaVersion SchemaVersion { get; set; }
-}
-
-/// <summary>Discriminator: the authority explicitly reported a downgraded assessment.</summary>
-/// <remarks>The <c>downgraded</c> variant of <see cref="CatalogTrustSnapshot"/>.</remarks>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public partial class CatalogTrustSnapshotDowngraded : CatalogTrustSnapshot
-{
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override string Status => "downgraded";
-
-    /// <summary>Service-computed exposure eligibility. `unknown` is required while Agent Finder returns no explicit eligibility field.</summary>
-    [JsonPropertyName("eligibility")]
-    public required CatalogTrustEligibility Eligibility { get; set; }
-
-    /// <summary>Bounded source and observation time for this snapshot. This is distinct from evidence used by the authority to calculate trust.</summary>
-    [JsonPropertyName("provenance")]
-    public required CatalogTrustProvenance Provenance { get; set; }
-
-    /// <summary>Schema version of this runtime-owned snapshot envelope.</summary>
-    [JsonPropertyName("schemaVersion")]
-    public required CatalogTrustSnapshotSchemaVersion SchemaVersion { get; set; }
-}
-
-/// <summary>Discriminator: the authority explicitly revoked the assessment.</summary>
-/// <remarks>The <c>revoked</c> variant of <see cref="CatalogTrustSnapshot"/>.</remarks>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public partial class CatalogTrustSnapshotRevoked : CatalogTrustSnapshot
-{
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override string Status => "revoked";
-
-    /// <summary>Service-computed exposure eligibility. `unknown` is required while Agent Finder returns no explicit eligibility field.</summary>
-    [JsonPropertyName("eligibility")]
-    public required CatalogTrustEligibility Eligibility { get; set; }
-
-    /// <summary>Bounded source and observation time for this snapshot. This is distinct from evidence used by the authority to calculate trust.</summary>
-    [JsonPropertyName("provenance")]
-    public required CatalogTrustProvenance Provenance { get; set; }
-
-    /// <summary>Schema version of this runtime-owned snapshot envelope.</summary>
-    [JsonPropertyName("schemaVersion")]
-    public required CatalogTrustSnapshotSchemaVersion SchemaVersion { get; set; }
-}
-
-/// <summary>Discriminator: the authority supplied a bounded trust value this runtime does not understand.</summary>
-/// <remarks>The <c>unsupported</c> variant of <see cref="CatalogTrustSnapshot"/>.</remarks>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public partial class CatalogTrustSnapshotUnsupported : CatalogTrustSnapshot
-{
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override string Status => "unsupported";
-
-    /// <summary>Service-computed exposure eligibility. `unknown` is required while Agent Finder returns no explicit eligibility field.</summary>
-    [JsonPropertyName("eligibility")]
-    public required CatalogTrustEligibility Eligibility { get; set; }
-
-    /// <summary>Bounded source and observation time for this snapshot. This is distinct from evidence used by the authority to calculate trust.</summary>
-    [JsonPropertyName("provenance")]
-    public required CatalogTrustProvenance Provenance { get; set; }
-
-    /// <summary>Schema version of this runtime-owned snapshot envelope.</summary>
-    [JsonPropertyName("schemaVersion")]
-    public required CatalogTrustSnapshotSchemaVersion SchemaVersion { get; set; }
-}
-
-/// <summary>Discriminator: the trust field was empty, unbounded, or had the wrong JSON type.</summary>
-/// <remarks>The <c>malformed</c> variant of <see cref="CatalogTrustSnapshot"/>.</remarks>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public partial class CatalogTrustSnapshotMalformed : CatalogTrustSnapshot
-{
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override string Status => "malformed";
-
-    /// <summary>Service-computed exposure eligibility. `unknown` is required while Agent Finder returns no explicit eligibility field.</summary>
-    [JsonPropertyName("eligibility")]
-    public required CatalogTrustEligibility Eligibility { get; set; }
-
-    /// <summary>Bounded source and observation time for this snapshot. This is distinct from evidence used by the authority to calculate trust.</summary>
-    [JsonPropertyName("provenance")]
-    public required CatalogTrustProvenance Provenance { get; set; }
-
-    /// <summary>Schema version of this runtime-owned snapshot envelope.</summary>
-    [JsonPropertyName("schemaVersion")]
-    public required CatalogTrustSnapshotSchemaVersion SchemaVersion { get; set; }
 }
 
 /// <summary>An inert MCP server catalog result. Every free-text field is untrusted external data and must never be treated as an instruction, and the handle is the only way to refer to the candidate in a later operation.</summary>
@@ -3845,7 +5026,7 @@ public sealed class CatalogSearchPagination
     [JsonPropertyName("pageSize")]
     public int PageSize { get; set; }
 
-    /// <summary>Opaque pagination token. Session-bound search returns an expiring runtime-owned reference retaining the exact private authority token, original search and authority. Legacy unbound search returns the authority token unchanged, without a runtime-created expiry. Only the runtime unwraps tokens or changes targetPage; SDK consumers must not decode, modify or log them.</summary>
+    /// <summary>Opaque authority-issued pagination token. Only the runtime decodes it or changes targetPage; SDK consumers must not decode, modify or log it. It has no runtime-created expiry or cache.</summary>
     [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
     [MinLength(1)]
     [MaxLength(4096)]
@@ -4130,7 +5311,7 @@ public partial class CatalogSearchResultUnavailable : CatalogSearchResult
     public required CatalogUnavailableReason Reason { get; set; }
 }
 
-/// <summary>An explicit numbered-page request. SDK consumers treat the token as opaque. For bound search, the runtime unwraps an expiring owner-bound reference to the private authority token; only the runtime changes the authority token's targetPage. Legacy unbound navigation keeps its authority-issued token semantics. No snapshot stability is promised.</summary>
+/// <summary>An explicit numbered-page request. The SDK treats the token as opaque; only the runtime decodes it and changes its targetPage. Authority validation binds navigation to the original search. No snapshot stability or token TTL is promised.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public sealed class CatalogSearchPage
 {
@@ -4138,7 +5319,7 @@ public sealed class CatalogSearchPage
     [JsonPropertyName("number")]
     public int Number { get; set; }
 
-    /// <summary>Opaque pagination token from an earlier response, owner-bound when session-bound search was requested. Never decode, modify or log it in an SDK consumer. Expired or foreign bound references require a fresh bound search, not a legacy retry.</summary>
+    /// <summary>Opaque authority-issued pagination token from an earlier response. Never decode, modify or log it in an SDK consumer.</summary>
     [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
     [MinLength(1)]
     [MaxLength(4096)]
@@ -4823,150 +6004,6 @@ internal sealed class PluginsMarketplacesRefreshRequest
     /// <summary>Marketplace name to refresh. When omitted, every registered marketplace is refreshed.</summary>
     [JsonPropertyName("name")]
     public string? Name { get; set; }
-}
-
-/// <summary>Server-side skill metadata, including name, description, source, enabled/invocable state, path, project path, and argument hint.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class ServerSkill
-{
-    /// <summary>Optional freeform hint describing the skill's expected arguments, from the `argument-hint` frontmatter field.</summary>
-    [JsonPropertyName("argumentHint")]
-    public string? ArgumentHint { get; set; }
-
-    /// <summary>Canonical slash command name used to invoke the skill, without the leading '/'.</summary>
-    [JsonPropertyName("commandName")]
-    public string? CommandName { get; set; }
-
-    /// <summary>Description of what the skill does.</summary>
-    [JsonPropertyName("description")]
-    public string Description { get; set; } = string.Empty;
-
-    /// <summary>Whether the skill is currently enabled (based on global config).</summary>
-    [JsonPropertyName("enabled")]
-    public bool Enabled { get; set; }
-
-    /// <summary>Unique identifier for the skill.</summary>
-    [JsonPropertyName("name")]
-    public string Name { get; set; } = string.Empty;
-
-    /// <summary>Absolute path to the skill file.</summary>
-    [JsonPropertyName("path")]
-    public string? Path { get; set; }
-
-    /// <summary>The project path this skill belongs to (only for project/inherited skills).</summary>
-    [JsonPropertyName("projectPath")]
-    public string? ProjectPath { get; set; }
-
-    /// <summary>Source location type (e.g., project, personal-copilot, plugin, builtin).</summary>
-    [JsonPropertyName("source")]
-    public SkillSource Source { get; set; }
-
-    /// <summary>Whether the skill can be invoked by the user as a slash command.</summary>
-    [JsonPropertyName("userInvocable")]
-    public bool UserInvocable { get; set; }
-}
-
-/// <summary>Skills discovered across global and project sources.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class ServerSkillList
-{
-    /// <summary>Messages for skills that failed to load (e.g. malformed SKILL.md). Empty when host skills are excluded so host-local paths are not disclosed to multitenant callers.</summary>
-    [JsonPropertyName("errors")]
-    public IList<string>? Errors { get; set; }
-
-    /// <summary>All discovered skills across all sources.</summary>
-    [JsonPropertyName("skills")]
-    public IList<ServerSkill> Skills { get => field ??= []; set; }
-}
-
-/// <summary>Optional project paths and additional skill directories to include in discovery.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class SkillsDiscoverRequest
-{
-    /// <summary>When true, omit skills from the host's global sources (personal, custom, plugin, and built-in), returning only project-scoped skills. For multitenant deployments.</summary>
-    [JsonPropertyName("excludeHostSkills")]
-    public bool? ExcludeHostSkills { get; set; }
-
-    /// <summary>Optional skill scan paths to exclude from discovery.</summary>
-    [JsonPropertyName("ignoredSkillsLocations")]
-    public IList<string>? IgnoredSkillsLocations { get; set; }
-
-    /// <summary>Optional list of project directory paths to scan for project-scoped skills.</summary>
-    [JsonPropertyName("projectPaths")]
-    public IList<string>? ProjectPaths { get; set; }
-
-    /// <summary>Optional list of additional skill directory paths to include.</summary>
-    [JsonPropertyName("skillDirectories")]
-    public IList<string>? SkillDirectories { get; set; }
-}
-
-/// <summary>Canonical directory where skills can be discovered or created, with scope, preference, and optional project path.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class SkillDiscoveryPath
-{
-    /// <summary>Absolute path of the create/discovery target (may not exist on disk yet).</summary>
-    [JsonPropertyName("path")]
-    public string Path { get; set; } = string.Empty;
-
-    /// <summary>Whether this is the canonical directory to create a new skill in its tier. At most one entry per tier is preferred; the `personal-agents` and `custom` scopes are never preferred.</summary>
-    [JsonPropertyName("preferredForCreation")]
-    public bool PreferredForCreation { get; set; }
-
-    /// <summary>The input project path this directory was derived from (only for project scope).</summary>
-    [JsonPropertyName("projectPath")]
-    public string? ProjectPath { get; set; }
-
-    /// <summary>Which tier this directory belongs to.</summary>
-    [JsonPropertyName("scope")]
-    public SkillDiscoveryScope Scope { get; set; }
-}
-
-/// <summary>Canonical locations where skills can be created so the runtime will recognize them.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class SkillDiscoveryPathList
-{
-    /// <summary>Canonical skill create/discovery directories, in priority order.</summary>
-    [JsonPropertyName("paths")]
-    public IList<SkillDiscoveryPath> Paths { get => field ??= []; set; }
-}
-
-/// <summary>Optional project paths to enumerate.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class SkillsGetDiscoveryPathsRequest
-{
-    /// <summary>When true, omit the host's personal and custom skill directories, leaving only project directories. For multitenant deployments.</summary>
-    [JsonPropertyName("excludeHostSkills")]
-    public bool? ExcludeHostSkills { get; set; }
-
-    /// <summary>Optional skill scan paths to exclude from discovery.</summary>
-    [JsonPropertyName("ignoredSkillsLocations")]
-    public IList<string>? IgnoredSkillsLocations { get; set; }
-
-    /// <summary>Optional list of project directory paths. When omitted or empty, only personal and custom directories are returned.</summary>
-    [JsonPropertyName("projectPaths")]
-    public IList<string>? ProjectPaths { get; set; }
-}
-
-/// <summary>Skill names to mark as disabled in global configuration, replacing any previous list.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class SkillsConfigSetDisabledSkillsRequest
-{
-    /// <summary>List of skill names to disable.</summary>
-    [JsonPropertyName("disabledSkills")]
-    public IList<string> DisabledSkills { get => field ??= []; set; }
-}
-
-/// <summary>Adds or removes a single skill from the global disabled list, leaving every other entry untouched.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class SkillsConfigSetSkillDisabledRequest
-{
-    /// <summary>True to disable the skill, false to enable it.</summary>
-    [JsonPropertyName("disabled")]
-    public bool Disabled { get; set; }
-
-    /// <summary>Name of the skill to add to or remove from the disabled list.</summary>
-    [JsonPropertyName("name")]
-    public string Name { get; set; } = string.Empty;
 }
 
 /// <summary>Agent metadata, including identifiers, display details, source, tools, model, models, reasoning effort, MCP servers, skills, and file path.</summary>
@@ -16462,9 +17499,10 @@ internal sealed class SessionUpdateOptionsParams
     [JsonPropertyName("sandboxConfig")]
     public SandboxConfig? SandboxConfig { get; set; }
 
-    /// <summary>Origin of the sandbox choice. Settings-derived origins (never_configured, user_enabled, user_disabled, repository_policy) let managed policy floor a host preference; explicit below-floor changes remain policy conflicts unless a session opt-out is authorized. Also used for telemetry provenance.</summary>
+    /// <summary>Origin of the sandbox choice. The runtime uses this only for internal telemetry provenance; managed policy is derived independently.</summary>
+    [JsonInclude]
     [JsonPropertyName("sandboxConfigSource")]
-    public SandboxConfigSource? SandboxConfigSource { get; set; }
+    internal SandboxConfigSource? SandboxConfigSource { get; set; }
 
     /// <summary>Replaces the session's capability set with the given list. Use to enable or disable capabilities mid-session (e.g., remove `memory` for reproducible scripted runs). Omit the field to leave the existing capability set unchanged.</summary>
     [JsonPropertyName("sessionCapabilities")]
@@ -19704,7 +20742,7 @@ internal sealed class PermissionsSetModeRequest
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
 
-    /// <summary>Optional source for permission-mode telemetry. `organization_targeting` is reserved for startup selection after the authenticated account matches an organization targeting policy; SDK callers default to `rpc` and cannot claim targeting provenance.</summary>
+    /// <summary>Optional source for permission-mode telemetry. Defaults to `rpc` when omitted for SDK callers.</summary>
     [JsonPropertyName("source")]
     public PermissionModeSource? Source { get; set; }
 }
@@ -23938,6 +24976,7 @@ public sealed class InstallationsConfirmResult
     TypeDiscriminatorPropertyName = "resource",
     UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
 [JsonDerivedType(typeof(InstallationReviewMcp), "mcp")]
+[JsonDerivedType(typeof(InstallationReviewSkill), "skill")]
 public partial class InstallationReview
 {
     /// <summary>The type discriminator.</summary>
@@ -23963,13 +25002,18 @@ public partial class McpInstallationReview
 
 
 /// <summary>
-/// Final remote configuration, not a template. The producer refuses configured
-/// secrets and external-value expansion before presenting this review.
+/// Final remote configuration, not a template. The producer refuses external-value
+/// expansion before presenting this review. Receipt-owned secrets appear only as
+/// `${installation-secret:&lt;id&gt;}` references whose `&lt;id&gt;` matches a reviewed
+/// `${secret:&lt;id&gt;}` placeholder; values are never included.
 /// </summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public sealed class McpInstallationRemoteConfiguration
 {
-    /// <summary>Literal configured headers, excluding separately authorised OAuth tokens.</summary>
+    /// <summary>
+    /// Configured headers, excluding separately authorised OAuth tokens. Values may
+    /// contain owned secret references, never secret values.
+    /// </summary>
     [JsonPropertyName("headers")]
     public IDictionary<string, string> Headers { get => field ??= new Dictionary<string, string>(); set; }
 
@@ -23994,6 +25038,11 @@ public partial class McpInstallationReviewInstall : McpInstallationReview
     [JsonIgnore]
     public override string Action => "install";
 
+    /// <summary>Catalogue identity retained from the bound candidate when available.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("catalogue")]
+    public InstallationCatalogueIdentity? Catalogue { get; set; }
+
     /// <summary>Original catalogue trust metadata, not a verification claim.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("catalogueTrust")]
@@ -24004,7 +25053,7 @@ public partial class McpInstallationReviewInstall : McpInstallationReview
     public required McpPlanConfigurationChange ConfigurationChange { get; set; }
 
     /// <summary>
-    /// Complete effective remote configuration for final input-free installation review.
+    /// Complete effective remote configuration for final installation review.
     /// Earlier private selection reviews and package choices omit this field.
     /// The owned remote resource requires it before issuing confirmation.
     /// </summary>
@@ -24097,6 +25146,19 @@ public partial class InstallationReviewMcp : InstallationReview
     /// <summary>The exact MCP action and its reviewed changes.</summary>
     [JsonPropertyName("review")]
     public required McpInstallationReview Review { get; set; }
+}
+
+/// <summary>The <c>skill</c> variant of <see cref="InstallationReview"/>.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class InstallationReviewSkill : InstallationReview
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Resource => "skill";
+
+    /// <summary>The exact verified Skill action and its reviewed files.</summary>
+    [JsonPropertyName("review")]
+    public required SkillInstallationReview Review { get; set; }
 }
 
 /// <summary>One connection-owned, expiring request for a trusted host's explicit user decision.</summary>
@@ -24830,6 +25892,12 @@ public readonly struct CatalogCapability : IEquatable<CatalogCapability>
 
     /// <summary>Understands effect-free preparation, exact human-confirmed apply and owned removal for fully resolved personal remote MCP choices without supplied inputs or configured secrets. Advertised only when the real producer and lower owned admission are linked; requires original connection and bound session authority for new work.</summary>
     public static CatalogCapability McpConfirmedRemoteInstallation { get; } = new("mcp-confirmed-remote-installation");
+
+    /// <summary>Extends mcp-confirmed-remote-installation to declared non-secret header and URL values and receipt-owned header secrets for personal remote MCP choices. Requires mcp-confirmed-remote-installation and bound session authority. Secret values are written only to the reviewed backend after confirmation and are never returned; package and stdio choices remain unsupported. Advertised only when owned secret effects and owned secret activation are linked.</summary>
+    public static CatalogCapability McpConfiguredRemoteInstallation { get; } = new("mcp-configured-remote-installation");
+
+    /// <summary>Understands verified Agent Finder Skill install, uninstall, recovery and installation-scoped enablement APIs. Advertised only by runtimes with the Skill installation engine linked; acquisition may still be refused as feature-disabled per selected session.</summary>
+    public static CatalogCapability SkillConfirmedInstallation { get; } = new("skill-confirmed-installation");
 
     /// <summary>Returns a value indicating whether two <see cref="CatalogCapability"/> instances are equivalent.</summary>
     public static bool operator ==(CatalogCapability left, CatalogCapability right) => left.Equals(right);
@@ -26518,6 +27586,258 @@ public readonly struct CatalogUnavailableReason : IEquatable<CatalogUnavailableR
 }
 
 
+/// <summary>Authority-computed exposure eligibility, kept separate from tier. The current tier-only Agent Finder response maps to `unknown`, never to a locally inferred eligibility.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct CatalogTrustEligibility : IEquatable<CatalogTrustEligibility>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="CatalogTrustEligibility"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="CatalogTrustEligibility"/>.</param>
+    [JsonConstructor]
+    public CatalogTrustEligibility(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="CatalogTrustEligibility"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Eligible for default catalogue exposure.</summary>
+    public static CatalogTrustEligibility Default { get; } = new("default");
+
+    /// <summary>Eligible only when expanded or community results are requested.</summary>
+    public static CatalogTrustEligibility Expanded { get; } = new("expanded");
+
+    /// <summary>Not eligible for normal catalogue exposure.</summary>
+    public static CatalogTrustEligibility Hidden { get; } = new("hidden");
+
+    /// <summary>The authority did not supply an eligibility decision.</summary>
+    public static CatalogTrustEligibility Unknown { get; } = new("unknown");
+
+    /// <summary>Returns a value indicating whether two <see cref="CatalogTrustEligibility"/> instances are equivalent.</summary>
+    public static bool operator ==(CatalogTrustEligibility left, CatalogTrustEligibility right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="CatalogTrustEligibility"/> instances are not equivalent.</summary>
+    public static bool operator !=(CatalogTrustEligibility left, CatalogTrustEligibility right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is CatalogTrustEligibility other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(CatalogTrustEligibility other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{CatalogTrustEligibility}"/> for serializing <see cref="CatalogTrustEligibility"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<CatalogTrustEligibility>
+    {
+        /// <inheritdoc />
+        public override CatalogTrustEligibility Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, CatalogTrustEligibility value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(CatalogTrustEligibility));
+        }
+    }
+}
+
+
+/// <summary>Bounded authority that supplied a catalogue trust observation.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct CatalogTrustSource : IEquatable<CatalogTrustSource>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="CatalogTrustSource"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="CatalogTrustSource"/>.</param>
+    [JsonConstructor]
+    public CatalogTrustSource(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="CatalogTrustSource"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>GitHub Agent Finder supplied the trust field on its search result.</summary>
+    public static CatalogTrustSource AgentFinder { get; } = new("agent-finder");
+
+    /// <summary>Returns a value indicating whether two <see cref="CatalogTrustSource"/> instances are equivalent.</summary>
+    public static bool operator ==(CatalogTrustSource left, CatalogTrustSource right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="CatalogTrustSource"/> instances are not equivalent.</summary>
+    public static bool operator !=(CatalogTrustSource left, CatalogTrustSource right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is CatalogTrustSource other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(CatalogTrustSource other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{CatalogTrustSource}"/> for serializing <see cref="CatalogTrustSource"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<CatalogTrustSource>
+    {
+        /// <inheritdoc />
+        public override CatalogTrustSource Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, CatalogTrustSource value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(CatalogTrustSource));
+        }
+    }
+}
+
+
+/// <summary>Schema version of the catalogue trust snapshot envelope.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct CatalogTrustSnapshotSchemaVersion : IEquatable<CatalogTrustSnapshotSchemaVersion>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="CatalogTrustSnapshotSchemaVersion"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="CatalogTrustSnapshotSchemaVersion"/>.</param>
+    [JsonConstructor]
+    public CatalogTrustSnapshotSchemaVersion(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="CatalogTrustSnapshotSchemaVersion"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Initial envelope carrying one bounded service tier or one explicit unavailable state.</summary>
+    public static CatalogTrustSnapshotSchemaVersion V1 { get; } = new("v1");
+
+    /// <summary>Returns a value indicating whether two <see cref="CatalogTrustSnapshotSchemaVersion"/> instances are equivalent.</summary>
+    public static bool operator ==(CatalogTrustSnapshotSchemaVersion left, CatalogTrustSnapshotSchemaVersion right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="CatalogTrustSnapshotSchemaVersion"/> instances are not equivalent.</summary>
+    public static bool operator !=(CatalogTrustSnapshotSchemaVersion left, CatalogTrustSnapshotSchemaVersion right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is CatalogTrustSnapshotSchemaVersion other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(CatalogTrustSnapshotSchemaVersion other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{CatalogTrustSnapshotSchemaVersion}"/> for serializing <see cref="CatalogTrustSnapshotSchemaVersion"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<CatalogTrustSnapshotSchemaVersion>
+    {
+        /// <inheritdoc />
+        public override CatalogTrustSnapshotSchemaVersion Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, CatalogTrustSnapshotSchemaVersion value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(CatalogTrustSnapshotSchemaVersion));
+        }
+    }
+}
+
+
+/// <summary>Service-computed trust tier currently emitted by Agent Finder. It is independent of search score, popularity, and client-side ranking.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct CatalogTrustTier : IEquatable<CatalogTrustTier>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="CatalogTrustTier"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="CatalogTrustTier"/>.</param>
+    [JsonConstructor]
+    public CatalogTrustTier(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="CatalogTrustTier"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Tier one as assigned by the catalogue authority.</summary>
+    public static CatalogTrustTier T1 { get; } = new("T1");
+
+    /// <summary>Tier two as assigned by the catalogue authority.</summary>
+    public static CatalogTrustTier T2 { get; } = new("T2");
+
+    /// <summary>Returns a value indicating whether two <see cref="CatalogTrustTier"/> instances are equivalent.</summary>
+    public static bool operator ==(CatalogTrustTier left, CatalogTrustTier right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="CatalogTrustTier"/> instances are not equivalent.</summary>
+    public static bool operator !=(CatalogTrustTier left, CatalogTrustTier right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is CatalogTrustTier other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(CatalogTrustTier other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{CatalogTrustTier}"/> for serializing <see cref="CatalogTrustTier"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<CatalogTrustTier>
+    {
+        /// <inheritdoc />
+        public override CatalogTrustTier Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, CatalogTrustTier value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(CatalogTrustTier));
+        }
+    }
+}
+
+
 /// <summary>Configuration ownership and setup observations, distinct from tool permissions.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
@@ -26911,6 +28231,417 @@ public readonly struct DiscoveredExtensionMode : IEquatable<DiscoveredExtensionM
 }
 
 
+/// <summary>Defines the allowed values.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct SkillInstallationScope : IEquatable<SkillInstallationScope>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="SkillInstallationScope"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="SkillInstallationScope"/>.</param>
+    [JsonConstructor]
+    public SkillInstallationScope(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="SkillInstallationScope"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The user's personal Copilot home.</summary>
+    public static SkillInstallationScope Personal { get; } = new("personal");
+
+    /// <summary>Returns a value indicating whether two <see cref="SkillInstallationScope"/> instances are equivalent.</summary>
+    public static bool operator ==(SkillInstallationScope left, SkillInstallationScope right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="SkillInstallationScope"/> instances are not equivalent.</summary>
+    public static bool operator !=(SkillInstallationScope left, SkillInstallationScope right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is SkillInstallationScope other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(SkillInstallationScope other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{SkillInstallationScope}"/> for serializing <see cref="SkillInstallationScope"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<SkillInstallationScope>
+    {
+        /// <inheritdoc />
+        public override SkillInstallationScope Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, SkillInstallationScope value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SkillInstallationScope));
+        }
+    }
+}
+
+
+/// <summary>Owned Skill state observed from files and receipts.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct SkillInstallationOwnershipState : IEquatable<SkillInstallationOwnershipState>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="SkillInstallationOwnershipState"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="SkillInstallationOwnershipState"/>.</param>
+    [JsonConstructor]
+    public SkillInstallationOwnershipState(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="SkillInstallationOwnershipState"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Owned files and receipt evidence match.</summary>
+    public static SkillInstallationOwnershipState Intact { get; } = new("intact");
+
+    /// <summary>Owned files no longer match the receipt.</summary>
+    public static SkillInstallationOwnershipState Modified { get; } = new("modified");
+
+    /// <summary>Ownership evidence requires recovery before mutation.</summary>
+    public static SkillInstallationOwnershipState RecoveryRequired { get; } = new("recovery-required");
+
+    /// <summary>Returns a value indicating whether two <see cref="SkillInstallationOwnershipState"/> instances are equivalent.</summary>
+    public static bool operator ==(SkillInstallationOwnershipState left, SkillInstallationOwnershipState right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="SkillInstallationOwnershipState"/> instances are not equivalent.</summary>
+    public static bool operator !=(SkillInstallationOwnershipState left, SkillInstallationOwnershipState right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is SkillInstallationOwnershipState other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(SkillInstallationOwnershipState other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{SkillInstallationOwnershipState}"/> for serializing <see cref="SkillInstallationOwnershipState"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<SkillInstallationOwnershipState>
+    {
+        /// <inheritdoc />
+        public override SkillInstallationOwnershipState Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, SkillInstallationOwnershipState value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SkillInstallationOwnershipState));
+        }
+    }
+}
+
+
+/// <summary>Bound-session observation after reconciling persisted enablement.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct SkillInstallationSessionState : IEquatable<SkillInstallationSessionState>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="SkillInstallationSessionState"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="SkillInstallationSessionState"/>.</param>
+    [JsonConstructor]
+    public SkillInstallationSessionState(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="SkillInstallationSessionState"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The selected session has loaded this Skill and it is enabled.</summary>
+    public static SkillInstallationSessionState LoadedEnabled { get; } = new("loaded-enabled");
+
+    /// <summary>The selected session has loaded this Skill or settings and it is disabled.</summary>
+    public static SkillInstallationSessionState LoadedDisabled { get; } = new("loaded-disabled");
+
+    /// <summary>The selected session has not loaded Skills after the latest change.</summary>
+    public static SkillInstallationSessionState NotLoaded { get; } = new("not-loaded");
+
+    /// <summary>The selected session could not be inspected.</summary>
+    public static SkillInstallationSessionState Unknown { get; } = new("unknown");
+
+    /// <summary>Returns a value indicating whether two <see cref="SkillInstallationSessionState"/> instances are equivalent.</summary>
+    public static bool operator ==(SkillInstallationSessionState left, SkillInstallationSessionState right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="SkillInstallationSessionState"/> instances are not equivalent.</summary>
+    public static bool operator !=(SkillInstallationSessionState left, SkillInstallationSessionState right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is SkillInstallationSessionState other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(SkillInstallationSessionState other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{SkillInstallationSessionState}"/> for serializing <see cref="SkillInstallationSessionState"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<SkillInstallationSessionState>
+    {
+        /// <inheritdoc />
+        public override SkillInstallationSessionState Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, SkillInstallationSessionState value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SkillInstallationSessionState));
+        }
+    }
+}
+
+
+/// <summary>Bounded refusal categories for verified Skill installation management.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct SkillInstallationFailureReason : IEquatable<SkillInstallationFailureReason>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="SkillInstallationFailureReason"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="SkillInstallationFailureReason"/>.</param>
+    [JsonConstructor]
+    public SkillInstallationFailureReason(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="SkillInstallationFailureReason"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The selected session does not have the Agent Finder Skill installation feature flag enabled for acquisition.</summary>
+    public static SkillInstallationFailureReason FeatureDisabled { get; } = new("feature-disabled");
+
+    /// <summary>The request is unsupported or malformed.</summary>
+    public static SkillInstallationFailureReason InvalidRequest { get; } = new("invalid-request");
+
+    /// <summary>The bounded operation limit was reached.</summary>
+    public static SkillInstallationFailureReason OperationLimit { get; } = new("operation-limit");
+
+    /// <summary>The original operation was cancelled.</summary>
+    public static SkillInstallationFailureReason Cancelled { get; } = new("cancelled");
+
+    /// <summary>The original host cannot receive human confirmation.</summary>
+    public static SkillInstallationFailureReason ConfirmationUnavailable { get; } = new("confirmation-unavailable");
+
+    /// <summary>The confirmation response is malformed or mismatched.</summary>
+    public static SkillInstallationFailureReason ConfirmationInvalid { get; } = new("confirmation-invalid");
+
+    /// <summary>Existing authenticated session and host authority is unavailable.</summary>
+    public static SkillInstallationFailureReason PolicyContextUnavailable { get; } = new("policy-context-unavailable");
+
+    /// <summary>The original authority or policy changed.</summary>
+    public static SkillInstallationFailureReason PolicyChanged { get; } = new("policy-changed");
+
+    /// <summary>No matching owned resource or original operation exists.</summary>
+    public static SkillInstallationFailureReason ResourceNotFound { get; } = new("resource-not-found");
+
+    /// <summary>The original plan deadline elapsed.</summary>
+    public static SkillInstallationFailureReason PlanExpired { get; } = new("plan-expired");
+
+    /// <summary>The one-use plan was already consumed.</summary>
+    public static SkillInstallationFailureReason PlanReplayed { get; } = new("plan-replayed");
+
+    /// <summary>The handle belongs to a different runtime, session or connection.</summary>
+    public static SkillInstallationFailureReason ForeignRuntime { get; } = new("foreign-runtime");
+
+    /// <summary>The handle is not the expected Skill handle kind.</summary>
+    public static SkillInstallationFailureReason WrongKind { get; } = new("wrong-kind");
+
+    /// <summary>The handle was minted for a different search result or authority.</summary>
+    public static SkillInstallationFailureReason SearchMismatch { get; } = new("search-mismatch");
+
+    /// <summary>The handle or operation expired.</summary>
+    public static SkillInstallationFailureReason Expired { get; } = new("expired");
+
+    /// <summary>The candidate handle is not a verified installable Skill candidate.</summary>
+    public static SkillInstallationFailureReason InvalidCandidate { get; } = new("invalid-candidate");
+
+    /// <summary>The verified Skill descriptor could not be retrieved safely.</summary>
+    public static SkillInstallationFailureReason DescriptorUnavailable { get; } = new("descriptor-unavailable");
+
+    /// <summary>The verified Skill descriptor failed validation.</summary>
+    public static SkillInstallationFailureReason DescriptorInvalid { get; } = new("descriptor-invalid");
+
+    /// <summary>The Skill entrypoint could not be retrieved or verified.</summary>
+    public static SkillInstallationFailureReason EntrypointUnavailable { get; } = new("entrypoint-unavailable");
+
+    /// <summary>The Skill entrypoint is not a valid Skill.</summary>
+    public static SkillInstallationFailureReason InvalidSkill { get; } = new("invalid-skill");
+
+    /// <summary>The reviewed Skill payload could not be acquired.</summary>
+    public static SkillInstallationFailureReason PayloadUnavailable { get; } = new("payload-unavailable");
+
+    /// <summary>The acquired payload no longer matches the reviewed descriptor.</summary>
+    public static SkillInstallationFailureReason PayloadMismatch { get; } = new("payload-mismatch");
+
+    /// <summary>The retained Skill source changed after planning.</summary>
+    public static SkillInstallationFailureReason SourceChanged { get; } = new("source-changed");
+
+    /// <summary>The selected runtime cannot inspect or control the requested lifecycle operation.</summary>
+    public static SkillInstallationFailureReason LifecycleUnavailable { get; } = new("lifecycle-unavailable");
+
+    /// <summary>Durable Skill installation evidence requires recovery before mutation.</summary>
+    public static SkillInstallationFailureReason RecoveryRequired { get; } = new("recovery-required");
+
+    /// <summary>The Skill entrypoint exceeds the bounded complete review size.</summary>
+    public static SkillInstallationFailureReason ReviewTooLarge { get; } = new("review-too-large");
+
+    /// <summary>Skill installation storage or admission is busy.</summary>
+    public static SkillInstallationFailureReason Busy { get; } = new("busy");
+
+    /// <summary>An owned Skill with the same identity or target already exists.</summary>
+    public static SkillInstallationFailureReason AlreadyInstalled { get; } = new("already-installed");
+
+    /// <summary>Installed Skill files no longer match ownership evidence.</summary>
+    public static SkillInstallationFailureReason ConfigurationModified { get; } = new("configuration-modified");
+
+    /// <summary>A storage operation failed; inspect durable state before retrying.</summary>
+    public static SkillInstallationFailureReason WriteFailed { get; } = new("write-failed");
+
+    /// <summary>Returns a value indicating whether two <see cref="SkillInstallationFailureReason"/> instances are equivalent.</summary>
+    public static bool operator ==(SkillInstallationFailureReason left, SkillInstallationFailureReason right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="SkillInstallationFailureReason"/> instances are not equivalent.</summary>
+    public static bool operator !=(SkillInstallationFailureReason left, SkillInstallationFailureReason right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is SkillInstallationFailureReason other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(SkillInstallationFailureReason other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{SkillInstallationFailureReason}"/> for serializing <see cref="SkillInstallationFailureReason"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<SkillInstallationFailureReason>
+    {
+        /// <inheritdoc />
+        public override SkillInstallationFailureReason Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, SkillInstallationFailureReason value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SkillInstallationFailureReason));
+        }
+    }
+}
+
+
+/// <summary>Which tier this directory belongs to.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct SkillDiscoveryScope : IEquatable<SkillDiscoveryScope>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="SkillDiscoveryScope"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="SkillDiscoveryScope"/>.</param>
+    [JsonConstructor]
+    public SkillDiscoveryScope(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="SkillDiscoveryScope"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>A project's repository skill directory.</summary>
+    public static SkillDiscoveryScope Project { get; } = new("project");
+
+    /// <summary>The user's personal Copilot skill directory.</summary>
+    public static SkillDiscoveryScope PersonalCopilot { get; } = new("personal-copilot");
+
+    /// <summary>The user's personal agents skill directory.</summary>
+    public static SkillDiscoveryScope PersonalAgents { get; } = new("personal-agents");
+
+    /// <summary>A configured custom skill directory.</summary>
+    public static SkillDiscoveryScope Custom { get; } = new("custom");
+
+    /// <summary>Returns a value indicating whether two <see cref="SkillDiscoveryScope"/> instances are equivalent.</summary>
+    public static bool operator ==(SkillDiscoveryScope left, SkillDiscoveryScope right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="SkillDiscoveryScope"/> instances are not equivalent.</summary>
+    public static bool operator !=(SkillDiscoveryScope left, SkillDiscoveryScope right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is SkillDiscoveryScope other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(SkillDiscoveryScope other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{SkillDiscoveryScope}"/> for serializing <see cref="SkillDiscoveryScope"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<SkillDiscoveryScope>
+    {
+        /// <inheritdoc />
+        public override SkillDiscoveryScope Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, SkillDiscoveryScope value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SkillDiscoveryScope));
+        }
+    }
+}
+
+
 /// <summary>Whether an MCP server candidate can be planned for installation.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
@@ -26974,258 +28705,6 @@ public readonly struct CatalogMcpServerInstallability : IEquatable<CatalogMcpSer
 }
 
 
-/// <summary>Authority-computed exposure eligibility, kept separate from tier. The current tier-only Agent Finder response maps to `unknown`, never to a locally inferred eligibility.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct CatalogTrustEligibility : IEquatable<CatalogTrustEligibility>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="CatalogTrustEligibility"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="CatalogTrustEligibility"/>.</param>
-    [JsonConstructor]
-    public CatalogTrustEligibility(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="CatalogTrustEligibility"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>Eligible for default catalogue exposure.</summary>
-    public static CatalogTrustEligibility Default { get; } = new("default");
-
-    /// <summary>Eligible only when expanded or community results are requested.</summary>
-    public static CatalogTrustEligibility Expanded { get; } = new("expanded");
-
-    /// <summary>Not eligible for normal catalogue exposure.</summary>
-    public static CatalogTrustEligibility Hidden { get; } = new("hidden");
-
-    /// <summary>The authority did not supply an eligibility decision.</summary>
-    public static CatalogTrustEligibility Unknown { get; } = new("unknown");
-
-    /// <summary>Returns a value indicating whether two <see cref="CatalogTrustEligibility"/> instances are equivalent.</summary>
-    public static bool operator ==(CatalogTrustEligibility left, CatalogTrustEligibility right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="CatalogTrustEligibility"/> instances are not equivalent.</summary>
-    public static bool operator !=(CatalogTrustEligibility left, CatalogTrustEligibility right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is CatalogTrustEligibility other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(CatalogTrustEligibility other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{CatalogTrustEligibility}"/> for serializing <see cref="CatalogTrustEligibility"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<CatalogTrustEligibility>
-    {
-        /// <inheritdoc />
-        public override CatalogTrustEligibility Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, CatalogTrustEligibility value, JsonSerializerOptions options)
-        {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(CatalogTrustEligibility));
-        }
-    }
-}
-
-
-/// <summary>Bounded authority that supplied a catalogue trust observation.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct CatalogTrustSource : IEquatable<CatalogTrustSource>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="CatalogTrustSource"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="CatalogTrustSource"/>.</param>
-    [JsonConstructor]
-    public CatalogTrustSource(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="CatalogTrustSource"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>GitHub Agent Finder supplied the trust field on its search result.</summary>
-    public static CatalogTrustSource AgentFinder { get; } = new("agent-finder");
-
-    /// <summary>Returns a value indicating whether two <see cref="CatalogTrustSource"/> instances are equivalent.</summary>
-    public static bool operator ==(CatalogTrustSource left, CatalogTrustSource right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="CatalogTrustSource"/> instances are not equivalent.</summary>
-    public static bool operator !=(CatalogTrustSource left, CatalogTrustSource right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is CatalogTrustSource other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(CatalogTrustSource other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{CatalogTrustSource}"/> for serializing <see cref="CatalogTrustSource"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<CatalogTrustSource>
-    {
-        /// <inheritdoc />
-        public override CatalogTrustSource Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, CatalogTrustSource value, JsonSerializerOptions options)
-        {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(CatalogTrustSource));
-        }
-    }
-}
-
-
-/// <summary>Schema version of the catalogue trust snapshot envelope.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct CatalogTrustSnapshotSchemaVersion : IEquatable<CatalogTrustSnapshotSchemaVersion>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="CatalogTrustSnapshotSchemaVersion"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="CatalogTrustSnapshotSchemaVersion"/>.</param>
-    [JsonConstructor]
-    public CatalogTrustSnapshotSchemaVersion(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="CatalogTrustSnapshotSchemaVersion"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>Initial envelope carrying one bounded service tier or one explicit unavailable state.</summary>
-    public static CatalogTrustSnapshotSchemaVersion V1 { get; } = new("v1");
-
-    /// <summary>Returns a value indicating whether two <see cref="CatalogTrustSnapshotSchemaVersion"/> instances are equivalent.</summary>
-    public static bool operator ==(CatalogTrustSnapshotSchemaVersion left, CatalogTrustSnapshotSchemaVersion right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="CatalogTrustSnapshotSchemaVersion"/> instances are not equivalent.</summary>
-    public static bool operator !=(CatalogTrustSnapshotSchemaVersion left, CatalogTrustSnapshotSchemaVersion right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is CatalogTrustSnapshotSchemaVersion other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(CatalogTrustSnapshotSchemaVersion other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{CatalogTrustSnapshotSchemaVersion}"/> for serializing <see cref="CatalogTrustSnapshotSchemaVersion"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<CatalogTrustSnapshotSchemaVersion>
-    {
-        /// <inheritdoc />
-        public override CatalogTrustSnapshotSchemaVersion Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, CatalogTrustSnapshotSchemaVersion value, JsonSerializerOptions options)
-        {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(CatalogTrustSnapshotSchemaVersion));
-        }
-    }
-}
-
-
-/// <summary>Service-computed trust tier currently emitted by Agent Finder. It is independent of search score, popularity, and client-side ranking.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct CatalogTrustTier : IEquatable<CatalogTrustTier>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="CatalogTrustTier"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="CatalogTrustTier"/>.</param>
-    [JsonConstructor]
-    public CatalogTrustTier(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="CatalogTrustTier"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>Tier one as assigned by the catalogue authority.</summary>
-    public static CatalogTrustTier T1 { get; } = new("T1");
-
-    /// <summary>Tier two as assigned by the catalogue authority.</summary>
-    public static CatalogTrustTier T2 { get; } = new("T2");
-
-    /// <summary>Returns a value indicating whether two <see cref="CatalogTrustTier"/> instances are equivalent.</summary>
-    public static bool operator ==(CatalogTrustTier left, CatalogTrustTier right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="CatalogTrustTier"/> instances are not equivalent.</summary>
-    public static bool operator !=(CatalogTrustTier left, CatalogTrustTier right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is CatalogTrustTier other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(CatalogTrustTier other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{CatalogTrustTier}"/> for serializing <see cref="CatalogTrustTier"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<CatalogTrustTier>
-    {
-        /// <inheritdoc />
-        public override CatalogTrustTier Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, CatalogTrustTier value, JsonSerializerOptions options)
-        {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(CatalogTrustTier));
-        }
-    }
-}
-
-
 /// <summary>Typed non-installable state for an AI skill candidate.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
@@ -27245,6 +28724,18 @@ public readonly struct CatalogAiSkillInstallability : IEquatable<CatalogAiSkillI
 
     /// <summary>Gets the value associated with this <see cref="CatalogAiSkillInstallability"/>.</summary>
     public string Value => _value ?? string.Empty;
+
+    /// <summary>This AI skill candidate carries verified materialisation metadata and the selected session may plan installation.</summary>
+    public static CatalogAiSkillInstallability Installable { get; } = new("installable");
+
+    /// <summary>Skill installation is understood but disabled for the selected session.</summary>
+    public static CatalogAiSkillInstallability FeatureDisabled { get; } = new("feature-disabled");
+
+    /// <summary>The candidate lacks verified materialisation metadata required for installation.</summary>
+    public static CatalogAiSkillInstallability MaterialisationUnavailable { get; } = new("materialisation-unavailable");
+
+    /// <summary>Policy refuses Skill installation for the selected session or authority.</summary>
+    public static CatalogAiSkillInstallability PolicyForbids { get; } = new("policy-forbids");
 
     /// <summary>AI skills are discovery-only on this surface.</summary>
     public static CatalogAiSkillInstallability NotInstallableKind { get; } = new("not-installable-kind");
@@ -27725,75 +29216,6 @@ public readonly struct PluginInstallStagingMode : IEquatable<PluginInstallStagin
         public override void Write(Utf8JsonWriter writer, PluginInstallStagingMode value, JsonSerializerOptions options)
         {
             GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(PluginInstallStagingMode));
-        }
-    }
-}
-
-
-/// <summary>Which tier this directory belongs to.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct SkillDiscoveryScope : IEquatable<SkillDiscoveryScope>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="SkillDiscoveryScope"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="SkillDiscoveryScope"/>.</param>
-    [JsonConstructor]
-    public SkillDiscoveryScope(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="SkillDiscoveryScope"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>A project's repository skill directory.</summary>
-    public static SkillDiscoveryScope Project { get; } = new("project");
-
-    /// <summary>The user's personal Copilot skill directory.</summary>
-    public static SkillDiscoveryScope PersonalCopilot { get; } = new("personal-copilot");
-
-    /// <summary>The user's personal agents skill directory.</summary>
-    public static SkillDiscoveryScope PersonalAgents { get; } = new("personal-agents");
-
-    /// <summary>A configured custom skill directory.</summary>
-    public static SkillDiscoveryScope Custom { get; } = new("custom");
-
-    /// <summary>Returns a value indicating whether two <see cref="SkillDiscoveryScope"/> instances are equivalent.</summary>
-    public static bool operator ==(SkillDiscoveryScope left, SkillDiscoveryScope right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="SkillDiscoveryScope"/> instances are not equivalent.</summary>
-    public static bool operator !=(SkillDiscoveryScope left, SkillDiscoveryScope right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is SkillDiscoveryScope other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(SkillDiscoveryScope other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{SkillDiscoveryScope}"/> for serializing <see cref="SkillDiscoveryScope"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<SkillDiscoveryScope>
-    {
-        /// <inheritdoc />
-        public override SkillDiscoveryScope Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, SkillDiscoveryScope value, JsonSerializerOptions options)
-        {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SkillDiscoveryScope));
         }
     }
 }
@@ -34498,7 +35920,7 @@ public readonly struct OptionsUpdateReasoningSummary : IEquatable<OptionsUpdateR
 }
 
 
-/// <summary>Origin of the sandbox choice supplied by the host. Settings-derived origins let managed policy floor the host preference; do not tag explicit session overrides as settings-derived.</summary>
+/// <summary>Origin of the sandbox choice supplied by an internal client.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
@@ -36157,7 +37579,7 @@ public readonly struct PermissionsSetApproveAllSource : IEquatable<PermissionsSe
 }
 
 
-/// <summary>Optional source for permission-mode telemetry. `organization_targeting` is reserved for startup selection after the authenticated account matches an organization targeting policy; SDK callers default to `rpc` and cannot claim targeting provenance.</summary>
+/// <summary>Optional source for permission-mode telemetry. Defaults to `rpc` when omitted for SDK callers.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
@@ -36189,7 +37611,7 @@ public readonly struct PermissionModeSource : IEquatable<PermissionModeSource>
     /// <summary>The mode was set at startup by the `defaultPermissionMode` user setting.</summary>
     public static PermissionModeSource UserSetting { get; } = new("user_setting");
 
-    /// <summary>The mode was set at startup because the authenticated account matched an organization targeting policy.</summary>
+    /// <summary>Historical compatibility value for runtimes that selected Assisted mode through organization targeting. Current runtimes do not produce this source.</summary>
     public static PermissionModeSource OrganizationTargeting { get; } = new("organization_targeting");
 
     /// <summary>The mode was set through an RPC caller.</summary>
@@ -38251,6 +39673,12 @@ public sealed class ServerRpc
         Interlocked.CompareExchange(ref field, new(_rpc), null) ??
         field;
 
+    /// <summary>Skills APIs.</summary>
+    public ServerSkillsApi Skills =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_rpc), null) ??
+        field;
+
     /// <summary>Catalog APIs.</summary>
     public ServerCatalogApi Catalog =>
         field ??
@@ -38259,12 +39687,6 @@ public sealed class ServerRpc
 
     /// <summary>Plugins APIs.</summary>
     public ServerPluginsApi Plugins =>
-        field ??
-        Interlocked.CompareExchange(ref field, new(_rpc), null) ??
-        field;
-
-    /// <summary>Skills APIs.</summary>
-    public ServerSkillsApi Skills =>
         field ??
         Interlocked.CompareExchange(ref field, new(_rpc), null) ??
         field;
@@ -38575,8 +39997,14 @@ public sealed class ServerMcpApi
     /// <param name="planHandle">Original single-use bound plan, never a client-authored configuration.</param>
     /// <param name="choiceId">Exact selected alternative from that plan.</param>
     /// <param name="policySessionId">An existing local session attached to this connection, not permission to attach one.</param>
-    /// <param name="inputs">Must be empty for the initial input-free remote installation capability.</param>
-    /// <param name="secrets">Must be empty; this capability does not allocate configured-input secrets.</param>
+    /// <param name="inputs">
+    /// Declared non-secret values. Non-empty only when the caller requires
+    /// `mcp-configured-remote-installation`; omitted values use the card default.
+    /// </param>
+    /// <param name="secrets">
+    /// One entry per declared secret placeholder of the selected choice. Non-empty
+    /// only when the caller requires `mcp-configured-remote-installation`.
+    /// </param>
     /// <param name="source">The exact original source, used transiently only after confirmation.</param>
     /// <param name="secretStorage">The trusted host presents this choice alongside the exact secret placeholders.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
@@ -38853,6 +40281,239 @@ public sealed class ServerExtensionsApi
     }
 }
 
+/// <summary>Provides server-scoped Skills APIs.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class ServerSkillsApi
+{
+    private readonly JsonRpc _rpc;
+
+    internal ServerSkillsApi(JsonRpc rpc)
+    {
+        _rpc = rpc;
+    }
+
+    /// <summary>Plans installation of a verified Agent Finder Skill candidate without writing files. The returned review is safe to present to a user and installing always leaves the Skill disabled until separately enabled.</summary>
+    /// <param name="contract">Required authenticated bound catalogue and Skill installation capabilities.</param>
+    /// <param name="candidateHandle">Fresh single-use AI skill candidate handle returned by a bound catalogue search.</param>
+    /// <param name="policySessionId">Existing local session attached to this connection.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Skill installation management result with the honoured contract, or a typed refusal.</returns>
+    public async Task<SkillInstallationManagementResult> PlanInstallAsync(CatalogClientContract contract, string candidateHandle, string policySessionId, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(contract);
+        ArgumentNullException.ThrowIfNull(candidateHandle);
+        ArgumentNullException.ThrowIfNull(policySessionId);
+
+        var request = new SkillPlanInstallRequest { Contract = contract, CandidateHandle = candidateHandle, PolicySessionId = policySessionId };
+        return await CopilotClient.InvokeRpcAsync<SkillInstallationManagementResult>(_rpc, "skills.planInstall", [request], cancellationToken);
+    }
+
+    /// <summary>Consumes one verified Skill installation plan, requests explicit human consent through installations.confirm on the original connection, then revalidates and installs the Skill disabled.</summary>
+    /// <param name="contract">Required authenticated bound catalogue and Skill installation capabilities.</param>
+    /// <param name="planHandle">Opaque original plan, consumed once.</param>
+    /// <param name="policySessionId">Same existing selected session as planning.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Skill installation result with the honoured contract, or a typed request/negotiation refusal.</returns>
+    public async Task<SkillInstallationResult> ApplyInstallAsync(CatalogClientContract contract, string planHandle, string policySessionId, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(contract);
+        ArgumentNullException.ThrowIfNull(planHandle);
+        ArgumentNullException.ThrowIfNull(policySessionId);
+
+        var request = new SkillApplyInstallRequest { Contract = contract, PlanHandle = planHandle, PolicySessionId = policySessionId };
+        return await CopilotClient.InvokeRpcAsync<SkillInstallationResult>(_rpc, "skills.applyInstall", [request], cancellationToken);
+    }
+
+    /// <summary>Prepares a read-only removal plan for an owned verified Agent Finder Skill installation. Uninstall planning is never gated by the Skill-install feature flag.</summary>
+    /// <param name="contract">Required authenticated bound installation contract.</param>
+    /// <param name="installationId">Exact receipt to inspect.</param>
+    /// <param name="policySessionId">Existing selected local session on this connection.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Skill installation management result with the honoured contract, or a typed refusal.</returns>
+    public async Task<SkillInstallationManagementResult> PlanUninstallAsync(CatalogClientContract contract, string installationId, string policySessionId, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(contract);
+        ArgumentNullException.ThrowIfNull(installationId);
+        ArgumentNullException.ThrowIfNull(policySessionId);
+
+        var request = new SkillPlanUninstallRequest { Contract = contract, InstallationId = installationId, PolicySessionId = policySessionId };
+        return await CopilotClient.InvokeRpcAsync<SkillInstallationManagementResult>(_rpc, "skills.planUninstall", [request], cancellationToken);
+    }
+
+    /// <summary>Consumes an owned Skill removal plan, requests explicit human consent through installations.confirm, refuses drift, and removes the exact owned files through quarantine.</summary>
+    /// <param name="contract">Required authenticated bound installation contract.</param>
+    /// <param name="planHandle">Opaque original removal plan, consumed once.</param>
+    /// <param name="policySessionId">Same existing selected session as removal preparation.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Skill installation result with the honoured contract, or a typed request/negotiation refusal.</returns>
+    public async Task<SkillInstallationResult> ApplyUninstallAsync(CatalogClientContract contract, string planHandle, string policySessionId, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(contract);
+        ArgumentNullException.ThrowIfNull(planHandle);
+        ArgumentNullException.ThrowIfNull(policySessionId);
+
+        var request = new SkillApplyUninstallRequest { Contract = contract, PlanHandle = planHandle, PolicySessionId = policySessionId };
+        return await CopilotClient.InvokeRpcAsync<SkillInstallationResult>(_rpc, "skills.applyUninstall", [request], cancellationToken);
+    }
+
+    /// <summary>Discovers skills across global and project sources.</summary>
+    /// <param name="projectPaths">Optional list of project directory paths to scan for project-scoped skills.</param>
+    /// <param name="skillDirectories">Optional list of additional skill directory paths to include.</param>
+    /// <param name="ignoredSkillsLocations">Optional skill scan paths to exclude from discovery.</param>
+    /// <param name="excludeHostSkills">When true, omit skills from the host's global sources (personal, custom, plugin, and built-in), returning only project-scoped skills. For multitenant deployments.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Skills discovered across global and project sources.</returns>
+    public async Task<ServerSkillList> DiscoverAsync(IList<string>? projectPaths = null, IList<string>? skillDirectories = null, IList<string>? ignoredSkillsLocations = null, bool? excludeHostSkills = null, CancellationToken cancellationToken = default)
+    {
+        var request = new SkillsDiscoverRequest { ProjectPaths = projectPaths, SkillDirectories = skillDirectories, IgnoredSkillsLocations = ignoredSkillsLocations, ExcludeHostSkills = excludeHostSkills };
+        return await CopilotClient.InvokeRpcAsync<ServerSkillList>(_rpc, "skills.discover", [request], cancellationToken);
+    }
+
+    /// <summary>Returns the canonical directories where a client may create skills that the runtime will recognize, including ones that do not exist yet. Project directories become active once created.</summary>
+    /// <param name="projectPaths">Optional list of project directory paths. When omitted or empty, only personal and custom directories are returned.</param>
+    /// <param name="ignoredSkillsLocations">Optional skill scan paths to exclude from discovery.</param>
+    /// <param name="excludeHostSkills">When true, omit the host's personal and custom skill directories, leaving only project directories. For multitenant deployments.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Canonical locations where skills can be created so the runtime will recognize them.</returns>
+    public async Task<SkillDiscoveryPathList> GetDiscoveryPathsAsync(IList<string>? projectPaths = null, IList<string>? ignoredSkillsLocations = null, bool? excludeHostSkills = null, CancellationToken cancellationToken = default)
+    {
+        var request = new SkillsGetDiscoveryPathsRequest { ProjectPaths = projectPaths, IgnoredSkillsLocations = ignoredSkillsLocations, ExcludeHostSkills = excludeHostSkills };
+        return await CopilotClient.InvokeRpcAsync<SkillDiscoveryPathList>(_rpc, "skills.getDiscoveryPaths", [request], cancellationToken);
+    }
+
+    /// <summary>Installations APIs.</summary>
+    public ServerSkillsInstallationsApi Installations =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_rpc), null) ??
+        field;
+
+    /// <summary>Config APIs.</summary>
+    public ServerSkillsConfigApi Config =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_rpc), null) ??
+        field;
+}
+
+/// <summary>Provides server-scoped SkillsInstallations APIs.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class ServerSkillsInstallationsApi
+{
+    private readonly JsonRpc _rpc;
+
+    internal ServerSkillsInstallationsApi(JsonRpc rpc)
+    {
+        _rpc = rpc;
+    }
+
+    /// <summary>Lists owned verified Agent Finder Skill installations for the selected existing session. Listing is never gated by the Skill-install feature flag.</summary>
+    /// <param name="contract">Required authenticated bound installation contract.</param>
+    /// <param name="policySessionId">Existing selected local session on this connection.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Skill installation management result with the honoured contract, or a typed refusal.</returns>
+    public async Task<SkillInstallationManagementResult> ListAsync(CatalogClientContract contract, string policySessionId, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(contract);
+        ArgumentNullException.ThrowIfNull(policySessionId);
+
+        var request = new SkillInstallationsRequest { Contract = contract, PolicySessionId = policySessionId };
+        return await CopilotClient.InvokeRpcAsync<SkillInstallationManagementResult>(_rpc, "skills.installations.list", [request], cancellationToken);
+    }
+
+    /// <summary>Reconciles interrupted owned Skill installation work for the selected existing session, then inspects owned inventory. Recovery is never gated by the Skill-install feature flag.</summary>
+    /// <param name="contract">Required authenticated bound installation contract.</param>
+    /// <param name="policySessionId">Existing selected local session on this connection.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Skill installation management result with the honoured contract, or a typed refusal.</returns>
+    public async Task<SkillInstallationManagementResult> RecoverAsync(CatalogClientContract contract, string policySessionId, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(contract);
+        ArgumentNullException.ThrowIfNull(policySessionId);
+
+        var request = new SkillInstallationsRequest { Contract = contract, PolicySessionId = policySessionId };
+        return await CopilotClient.InvokeRpcAsync<SkillInstallationManagementResult>(_rpc, "skills.installations.recover", [request], cancellationToken);
+    }
+
+    /// <summary>Inspects a known Skill installation operation on its original runtime connection. Status is never gated by the Skill-install feature flag.</summary>
+    /// <param name="contract">Required authenticated bound Skill installation capability.</param>
+    /// <param name="operationId">Exact runtime-issued operation ID on the original connection.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Skill installation management result with the honoured contract, or a typed refusal.</returns>
+    public async Task<SkillInstallationManagementResult> StatusAsync(CatalogClientContract contract, string operationId, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(contract);
+        ArgumentNullException.ThrowIfNull(operationId);
+
+        var request = new SkillInstallationOperationRequest { Contract = contract, OperationId = operationId };
+        return await CopilotClient.InvokeRpcAsync<SkillInstallationManagementResult>(_rpc, "skills.installations.status", [request], cancellationToken);
+    }
+
+    /// <summary>Requests cancellation of a known Skill installation operation before commit. Already-started durable work requires recovery instead of silent replay.</summary>
+    /// <param name="contract">Required authenticated bound Skill installation capability.</param>
+    /// <param name="operationId">Exact runtime-issued operation ID on the original connection.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Skill installation management result with the honoured contract, or a typed refusal.</returns>
+    public async Task<SkillInstallationManagementResult> CancelAsync(CatalogClientContract contract, string operationId, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(contract);
+        ArgumentNullException.ThrowIfNull(operationId);
+
+        var request = new SkillInstallationOperationRequest { Contract = contract, OperationId = operationId };
+        return await CopilotClient.InvokeRpcAsync<SkillInstallationManagementResult>(_rpc, "skills.installations.cancel", [request], cancellationToken);
+    }
+
+    /// <summary>Atomically persists enablement for one owned Agent Finder Skill and reconciles the selected bound session. Enablement is installation-scoped by receipt identity and is never gated by the Skill-install feature flag.</summary>
+    /// <param name="contract">Required authenticated bound Skill installation capability.</param>
+    /// <param name="installationId">Exact receipt identity to update.</param>
+    /// <param name="enabled">Persisted enablement value.</param>
+    /// <param name="policySessionId">Existing selected local session to reconcile after persistence.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Skill installation management result with the honoured contract, or a typed refusal.</returns>
+    public async Task<SkillInstallationManagementResult> SetEnabledAsync(CatalogClientContract contract, string installationId, bool enabled, string policySessionId, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(contract);
+        ArgumentNullException.ThrowIfNull(installationId);
+        ArgumentNullException.ThrowIfNull(policySessionId);
+
+        var request = new SkillSetEnabledRequest { Contract = contract, InstallationId = installationId, Enabled = enabled, PolicySessionId = policySessionId };
+        return await CopilotClient.InvokeRpcAsync<SkillInstallationManagementResult>(_rpc, "skills.installations.setEnabled", [request], cancellationToken);
+    }
+}
+
+/// <summary>Provides server-scoped SkillsConfig APIs.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class ServerSkillsConfigApi
+{
+    private readonly JsonRpc _rpc;
+
+    internal ServerSkillsConfigApi(JsonRpc rpc)
+    {
+        _rpc = rpc;
+    }
+
+    /// <summary>Replaces the global list of disabled skills.</summary>
+    /// <param name="disabledSkills">List of skill names to disable.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    public async Task SetDisabledSkillsAsync(IList<string> disabledSkills, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(disabledSkills);
+
+        var request = new SkillsConfigSetDisabledSkillsRequest { DisabledSkills = disabledSkills };
+        await CopilotClient.InvokeRpcAsync(_rpc, "skills.config.setDisabledSkills", [request], cancellationToken);
+    }
+
+    /// <summary>Atomically adds or removes one skill from the disabled list.</summary>
+    /// <param name="name">Name of the skill to add to or remove from the disabled list.</param>
+    /// <param name="disabled">True to disable the skill, false to enable it.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    public async Task SetSkillDisabledAsync(string name, bool disabled, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+
+        var request = new SkillsConfigSetSkillDisabledRequest { Name = name, Disabled = disabled };
+        await CopilotClient.InvokeRpcAsync(_rpc, "skills.config.setSkillDisabled", [request], cancellationToken);
+    }
+}
+
 /// <summary>Provides server-scoped Catalog APIs.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public sealed class ServerCatalogApi
@@ -39100,84 +40761,6 @@ public sealed class ServerPluginsMarketplacesApi
     {
         var request = new PluginsMarketplacesRefreshRequest { Name = name };
         return await CopilotClient.InvokeRpcAsync<MarketplaceRefreshResult>(_rpc, "plugins.marketplaces.refresh", [request], cancellationToken);
-    }
-}
-
-/// <summary>Provides server-scoped Skills APIs.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class ServerSkillsApi
-{
-    private readonly JsonRpc _rpc;
-
-    internal ServerSkillsApi(JsonRpc rpc)
-    {
-        _rpc = rpc;
-    }
-
-    /// <summary>Discovers skills across global and project sources.</summary>
-    /// <param name="projectPaths">Optional list of project directory paths to scan for project-scoped skills.</param>
-    /// <param name="skillDirectories">Optional list of additional skill directory paths to include.</param>
-    /// <param name="ignoredSkillsLocations">Optional skill scan paths to exclude from discovery.</param>
-    /// <param name="excludeHostSkills">When true, omit skills from the host's global sources (personal, custom, plugin, and built-in), returning only project-scoped skills. For multitenant deployments.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>Skills discovered across global and project sources.</returns>
-    public async Task<ServerSkillList> DiscoverAsync(IList<string>? projectPaths = null, IList<string>? skillDirectories = null, IList<string>? ignoredSkillsLocations = null, bool? excludeHostSkills = null, CancellationToken cancellationToken = default)
-    {
-        var request = new SkillsDiscoverRequest { ProjectPaths = projectPaths, SkillDirectories = skillDirectories, IgnoredSkillsLocations = ignoredSkillsLocations, ExcludeHostSkills = excludeHostSkills };
-        return await CopilotClient.InvokeRpcAsync<ServerSkillList>(_rpc, "skills.discover", [request], cancellationToken);
-    }
-
-    /// <summary>Returns the canonical directories where a client may create skills that the runtime will recognize, including ones that do not exist yet. Project directories become active once created.</summary>
-    /// <param name="projectPaths">Optional list of project directory paths. When omitted or empty, only personal and custom directories are returned.</param>
-    /// <param name="ignoredSkillsLocations">Optional skill scan paths to exclude from discovery.</param>
-    /// <param name="excludeHostSkills">When true, omit the host's personal and custom skill directories, leaving only project directories. For multitenant deployments.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>Canonical locations where skills can be created so the runtime will recognize them.</returns>
-    public async Task<SkillDiscoveryPathList> GetDiscoveryPathsAsync(IList<string>? projectPaths = null, IList<string>? ignoredSkillsLocations = null, bool? excludeHostSkills = null, CancellationToken cancellationToken = default)
-    {
-        var request = new SkillsGetDiscoveryPathsRequest { ProjectPaths = projectPaths, IgnoredSkillsLocations = ignoredSkillsLocations, ExcludeHostSkills = excludeHostSkills };
-        return await CopilotClient.InvokeRpcAsync<SkillDiscoveryPathList>(_rpc, "skills.getDiscoveryPaths", [request], cancellationToken);
-    }
-
-    /// <summary>Config APIs.</summary>
-    public ServerSkillsConfigApi Config =>
-        field ??
-        Interlocked.CompareExchange(ref field, new(_rpc), null) ??
-        field;
-}
-
-/// <summary>Provides server-scoped SkillsConfig APIs.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class ServerSkillsConfigApi
-{
-    private readonly JsonRpc _rpc;
-
-    internal ServerSkillsConfigApi(JsonRpc rpc)
-    {
-        _rpc = rpc;
-    }
-
-    /// <summary>Replaces the global list of disabled skills.</summary>
-    /// <param name="disabledSkills">List of skill names to disable.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    public async Task SetDisabledSkillsAsync(IList<string> disabledSkills, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(disabledSkills);
-
-        var request = new SkillsConfigSetDisabledSkillsRequest { DisabledSkills = disabledSkills };
-        await CopilotClient.InvokeRpcAsync(_rpc, "skills.config.setDisabledSkills", [request], cancellationToken);
-    }
-
-    /// <summary>Atomically adds or removes one skill from the disabled list.</summary>
-    /// <param name="name">Name of the skill to add to or remove from the disabled list.</param>
-    /// <param name="disabled">True to disable the skill, false to enable it.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    public async Task SetSkillDisabledAsync(string name, bool disabled, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(name);
-
-        var request = new SkillsConfigSetSkillDisabledRequest { Name = name, Disabled = disabled };
-        await CopilotClient.InvokeRpcAsync(_rpc, "skills.config.setSkillDisabled", [request], cancellationToken);
     }
 }
 
@@ -40220,7 +41803,7 @@ public sealed class SessionRpc
         ArgumentNullException.ThrowIfNull(prompt);
         _session.ThrowIfDisposed();
 
-        var request = new SendRequest { SessionId = _session.SessionId, Prompt = prompt, ClientCorrelationId = clientCorrelationId, DisplayPrompt = displayPrompt, Attachments = attachments, Mode = mode, Prepend = prepend, Billable = billable, RequiredTool = requiredTool, Source = source, AgentMode = agentMode, RequestHeaders = requestHeaders, ResponseFormat = responseFormat, Traceparent = traceparent, Tracestate = tracestate, Wait = wait };
+        var request = new SendRequest { SessionId = _session.SessionId, Prompt = prompt, DisplayPrompt = displayPrompt, Attachments = attachments, Mode = mode, Prepend = prepend, Billable = billable, RequiredTool = requiredTool, Source = source, AgentMode = agentMode, RequestHeaders = requestHeaders, ResponseFormat = responseFormat, Traceparent = traceparent, Tracestate = tracestate, Wait = wait, ClientCorrelationId = clientCorrelationId };
         return await CopilotClient.InvokeRpcAsync<SendResult>(_session.Rpc, "session.send", [request], cancellationToken);
     }
 
@@ -42480,7 +44063,7 @@ public sealed class McpOauthApi
         return await CopilotClient.InvokeRpcAsync<SessionMcpOauthPrepareLoginResult>(_session.Rpc, "session.mcp.oauth.prepareLogin", [request], cancellationToken);
     }
 
-    /// <summary>Starts OAuth authentication for a remote MCP server. Owned servers require the original one-use prepareLogin handle and exact installation ID; manual servers retain the existing direct login behaviour.</summary>
+    /// <summary>Starts OAuth authentication for a remote MCP server.</summary>
     /// <param name="serverName">Name of the remote MCP server to authenticate.</param>
     /// <param name="forceReauth">When true, clears any cached OAuth token for the server and runs a full new authorization. Use when the user explicitly wants to switch accounts or believes their session is stuck.</param>
     /// <param name="clientName">Optional override for the OAuth client display name shown on the consent screen. Applies to newly registered dynamic clients only — existing registrations keep the name they were created with. When omitted, the runtime applies a neutral fallback; callers driving interactive auth should pass their own surface-specific label so the consent screen matches the product the user sees.</param>
@@ -42500,7 +44083,7 @@ public sealed class McpOauthApi
         return await CopilotClient.InvokeRpcAsync<McpOauthLoginResult>(_session.Rpc, "session.mcp.oauth.login", [request], cancellationToken);
     }
 
-    /// <summary>Starts OAuth authentication for a remote MCP server. Owned servers require the original one-use prepareLogin handle and exact installation ID; manual servers retain the existing direct login behaviour.</summary>
+    /// <summary>Starts OAuth authentication for a remote MCP server.</summary>
     /// <param name="request">Remote MCP server name and optional overrides controlling reauthentication, OAuth client display name, callback success-page copy, and static OAuth client selection.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>OAuth authorization URL the caller should open, or empty when cached tokens already authenticated the server.</returns>
@@ -43233,7 +44816,7 @@ public sealed class OptionsApi
     /// <param name="shellInitProfile">Use shell.initProfile instead. Shell init profile (`None` or `NonInteractive`).</param>
     /// <param name="shellProcessFlags">PowerShell process flags applied to built-in and user-requested shell commands.</param>
     /// <param name="sandboxConfig">Resolved sandbox configuration.</param>
-    /// <param name="sandboxConfigSource">Origin of the sandbox choice. Settings-derived origins (never_configured, user_enabled, user_disabled, repository_policy) let managed policy floor a host preference; explicit below-floor changes remain policy conflicts unless a session opt-out is authorized. Also used for telemetry provenance.</param>
+    /// <param name="sandboxConfigSource">Origin of the sandbox choice. The runtime uses this only for internal telemetry provenance; managed policy is derived independently.</param>
     /// <param name="logInteractiveShells">Whether interactive shell sessions are logged.</param>
     /// <param name="envValueMode">How env values are passed to MCP servers (`direct` inlines literal values; `indirect` resolves at launch).</param>
     /// <param name="allowAllMcpServerInstructions">Whether to include instructions from every MCP server in the system prompt instead of only allowlisted servers.</param>
@@ -43871,7 +45454,7 @@ public sealed class PermissionsApi
     /// <summary>Sets the permission mode for the session. `manual` follows the normal approval flow, `assisted` attaches LLM safety recommendations, and `allow-all` automatically approves permission requests. The result returns the authoritative post-mutation mode so callers can update local state without racing the `session.permissions_changed` notification.</summary>
     /// <param name="mode">Permission mode to apply.</param>
     /// <param name="assistedApprovalModel">Optional judge model id for assisted mode. When omitted, the session resolves the provider default: `gpt-5.5` for CAPI sessions and the active session model for BYOK sessions.</param>
-    /// <param name="source">Optional source for permission-mode telemetry. `organization_targeting` is reserved for startup selection after the authenticated account matches an organization targeting policy; SDK callers default to `rpc` and cannot claim targeting provenance.</param>
+    /// <param name="source">Optional source for permission-mode telemetry. Defaults to `rpc` when omitted for SDK callers.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Indicates whether the requested permission mode was applied and reports the authoritative post-mutation mode.</returns>
     public async Task<PermissionsSetModeResult> SetModeAsync(PermissionMode mode, string? assistedApprovalModel = null, PermissionModeSource? source = null, CancellationToken cancellationToken = default)
@@ -45710,6 +47293,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.ExternalToolRequestedEvent), TypeInfoPropertyName = "SessionEventsExternalToolRequestedEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.FusionAttribution), TypeInfoPropertyName = "SessionEventsFusionAttribution")]
 [JsonSerializable(typeof(GitHub.Copilot.FusionConversationScope), TypeInfoPropertyName = "SessionEventsFusionConversationScope")]
+[JsonSerializable(typeof(GitHub.Copilot.FusionCritic), TypeInfoPropertyName = "SessionEventsFusionCritic")]
 [JsonSerializable(typeof(GitHub.Copilot.FusionFollowUpAction), TypeInfoPropertyName = "SessionEventsFusionFollowUpAction")]
 [JsonSerializable(typeof(GitHub.Copilot.FusionFollowUpRecommendation), TypeInfoPropertyName = "SessionEventsFusionFollowUpRecommendation")]
 [JsonSerializable(typeof(GitHub.Copilot.FusionPattern), TypeInfoPropertyName = "SessionEventsFusionPattern")]
@@ -46249,6 +47833,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(IList<AuthValidationError>))]
 [JsonSerializable(typeof(IList<SessionAuthStatus>))]
 [JsonSerializable(typeof(IList<SessionsClientMetadataEntry>))]
+[JsonSerializable(typeof(InstallationCatalogueIdentity))]
 [JsonSerializable(typeof(InstallationReview))]
 [JsonSerializable(typeof(InstallationsConfirmRequest))]
 [JsonSerializable(typeof(InstallationsConfirmResult))]
@@ -46901,9 +48486,28 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(ShellOptions))]
 [JsonSerializable(typeof(ShutdownRequest))]
 [JsonSerializable(typeof(Skill))]
+[JsonSerializable(typeof(SkillApplyInstallRequest))]
+[JsonSerializable(typeof(SkillApplyUninstallRequest))]
 [JsonSerializable(typeof(SkillDiscoveryPath))]
 [JsonSerializable(typeof(SkillDiscoveryPathList))]
+[JsonSerializable(typeof(SkillInstallPlan))]
+[JsonSerializable(typeof(SkillInstallationFileReview))]
+[JsonSerializable(typeof(SkillInstallationLocation))]
+[JsonSerializable(typeof(SkillInstallationManagementOutcome))]
+[JsonSerializable(typeof(SkillInstallationManagementResult))]
+[JsonSerializable(typeof(SkillInstallationOperationRequest))]
+[JsonSerializable(typeof(SkillInstallationOperationStatus))]
+[JsonSerializable(typeof(SkillInstallationOutcome))]
+[JsonSerializable(typeof(SkillInstallationResult))]
+[JsonSerializable(typeof(SkillInstallationReview))]
+[JsonSerializable(typeof(SkillInstallationSource))]
+[JsonSerializable(typeof(SkillInstallationSummary))]
+[JsonSerializable(typeof(SkillInstallationsRequest))]
 [JsonSerializable(typeof(SkillList))]
+[JsonSerializable(typeof(SkillPlanInstallRequest))]
+[JsonSerializable(typeof(SkillPlanUninstallRequest))]
+[JsonSerializable(typeof(SkillSetEnabledRequest))]
+[JsonSerializable(typeof(SkillUninstallPlan))]
 [JsonSerializable(typeof(SkillsConfigSetDisabledSkillsRequest))]
 [JsonSerializable(typeof(SkillsConfigSetSkillDisabledRequest))]
 [JsonSerializable(typeof(SkillsDisableRequest))]

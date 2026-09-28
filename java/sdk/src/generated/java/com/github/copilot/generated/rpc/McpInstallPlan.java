@@ -31,7 +31,7 @@ public record McpInstallPlan(
     /** Origin and semantic digest of the exact validated JSON MCP card content bound to this plan. */
     @JsonProperty("provenance") McpPlanProvenance provenance,
     /** Every eligible transport, so a host can present an explicit choice. A completed plan always has at least one; when none is eligible, planning returns `CatalogUnavailableTransportError` instead. */
-    @JsonProperty("transportChoices") List<Object> transportChoices,
+    @JsonProperty("transportChoices") List<McpPlanTransportChoice> transportChoices,
     /** Identifier of the choice the runtime would pick by default. Omitted when there is no eligible transport, or when the runtime expresses no preference. */
     @JsonProperty("recommendedTransportChoiceId") String recommendedTransportChoiceId,
     /** Configuration scope and key the plan would write to. */

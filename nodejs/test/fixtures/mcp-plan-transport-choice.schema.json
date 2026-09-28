@@ -1,0 +1,169 @@
+{
+    "definitions": {
+        "McpPlanTransportChoice": {
+            "anyOf": [
+                {
+                    "$ref": "#/definitions/McpPlanTransportChoicePackage",
+                    "description": "An eligible local-package transport choice. Package identity is required and a remote endpoint cannot be represented."
+                },
+                {
+                    "$ref": "#/definitions/McpPlanTransportChoiceRemote",
+                    "description": "An eligible remote-endpoint transport choice. The endpoint is required and package identity cannot be represented."
+                }
+            ],
+            "description": "One eligible way to run the server, represented as a tagged package or remote variant so package identity and endpoint states cannot contradict the install method.",
+            "title": "McpPlanTransportChoice"
+        },
+        "McpPlanTransportChoicePackage": {
+            "type": "object",
+            "properties": {
+                "choiceId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128,
+                    "description": "Stable identifier for this choice within the plan, used to select it when the plan is applied."
+                },
+                "transport": {
+                    "$ref": "#/definitions/McpPlanPackageTransport",
+                    "description": "Local process transport this package choice would use."
+                },
+                "installMethod": {
+                    "$ref": "#/definitions/McpPlanPackageInstallMethod",
+                    "const": "package",
+                    "description": "Discriminator: this choice runs a local package"
+                },
+                "packageType": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64,
+                    "description": "Packaging ecosystem, for example `oci` or `npm`."
+                },
+                "packageIdentifier": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 512,
+                    "description": "Package identifier. Inert untrusted data."
+                },
+                "requiredValues": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/McpPlanRequiredValue",
+                        "description": "One non-secret value a transport choice needs, represented as a scalar or enumerated variant so enum values cannot be missing or attached to another type."
+                    },
+                    "description": "Typed values this choice requires, excluding secrets."
+                },
+                "secretPlaceholders": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/McpPlanSecretPlaceholder",
+                        "description": "A secret a transport choice needs, referenced by placeholder. No secret value ever appears in a plan, and the placeholder resolves against the keychain only when a plan is applied."
+                    },
+                    "description": "Secrets this choice requires, referenced by placeholder only."
+                }
+            },
+            "required": [
+                "choiceId",
+                "transport",
+                "installMethod",
+                "packageType",
+                "packageIdentifier",
+                "requiredValues",
+                "secretPlaceholders"
+            ],
+            "additionalProperties": false,
+            "description": "An eligible local-package transport choice. Package identity is required and a remote endpoint cannot be represented.",
+            "title": "McpPlanTransportChoicePackage"
+        },
+        "McpPlanTransportChoiceRemote": {
+            "type": "object",
+            "properties": {
+                "choiceId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128,
+                    "description": "Stable identifier for this choice within the plan, used to select it when the plan is applied."
+                },
+                "transport": {
+                    "$ref": "#/definitions/McpPlanRemoteTransport",
+                    "description": "Endpoint transport this remote choice would use."
+                },
+                "installMethod": {
+                    "$ref": "#/definitions/McpPlanRemoteInstallMethod",
+                    "const": "remote",
+                    "description": "Discriminator: this choice connects to a remote endpoint"
+                },
+                "endpoint": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2048,
+                    "description": "Endpoint URL. Inert untrusted data."
+                },
+                "requiredValues": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/McpPlanRequiredValue",
+                        "description": "One non-secret value a transport choice needs, represented as a scalar or enumerated variant so enum values cannot be missing or attached to another type."
+                    },
+                    "description": "Typed values this choice requires, excluding secrets."
+                },
+                "secretPlaceholders": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/McpPlanSecretPlaceholder",
+                        "description": "A secret a transport choice needs, referenced by placeholder. No secret value ever appears in a plan, and the placeholder resolves against the keychain only when a plan is applied."
+                    },
+                    "description": "Secrets this choice requires, referenced by placeholder only."
+                }
+            },
+            "required": [
+                "choiceId",
+                "transport",
+                "installMethod",
+                "endpoint",
+                "requiredValues",
+                "secretPlaceholders"
+            ],
+            "additionalProperties": false,
+            "description": "An eligible remote-endpoint transport choice. The endpoint is required and package identity cannot be represented.",
+            "title": "McpPlanTransportChoiceRemote"
+        },
+        "McpPlanPackageInstallMethod": {
+            "type": "string",
+            "enum": ["package"],
+            "description": "Discriminator for a package-backed transport choice",
+            "title": "McpPlanPackageInstallMethod",
+            "x-enumDescriptions": {
+                "package": "Install and run a local package."
+            }
+        },
+        "McpPlanRemoteInstallMethod": {
+            "type": "string",
+            "enum": ["remote"],
+            "description": "Discriminator for a remote-endpoint transport choice",
+            "title": "McpPlanRemoteInstallMethod",
+            "x-enumDescriptions": {
+                "remote": "Connect to a remote endpoint."
+            }
+        },
+        "McpPlanPackageTransport": {
+            "type": "string",
+            "enum": ["stdio"],
+            "description": "Transport exposed by a locally launched package",
+            "title": "McpPlanPackageTransport",
+            "x-enumDescriptions": {
+                "stdio": "A locally launched process spoken to over standard input and output."
+            }
+        },
+        "McpPlanRemoteTransport": {
+            "type": "string",
+            "enum": ["http", "streamable-http", "sse"],
+            "description": "Transport exposed by a remote endpoint",
+            "title": "McpPlanRemoteTransport",
+            "x-enumDescriptions": {
+                "http": "An HTTP endpoint.",
+                "streamable-http": "A streamable HTTP endpoint.",
+                "sse": "A server-sent events endpoint."
+            }
+        }
+    }
+}

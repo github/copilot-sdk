@@ -3365,6 +3365,12 @@ public sealed partial class SessionFusionResolvedData
     [JsonPropertyName("contractVersion")]
     public required long ContractVersion { get; set; }
 
+    /// <summary>Planned Critique phase identities, including independent critics with repeated model IDs. May be absent in older events; consumers then use secondaryModel for the legacy critic.</summary>
+    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("critics")]
+    public FusionCritic[]? Critics { get; set; }
+
     /// <summary>Concrete model used when the planned primary model cannot execute.</summary>
     [JsonPropertyName("fallbackModel")]
     public required string FallbackModel { get; set; }
@@ -3387,6 +3393,12 @@ public sealed partial class SessionFusionResolvedData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("hint")]
     public string? Hint { get; set; }
+
+    /// <summary>Concrete model selected for Cascade escalation-gate calls, when required.</summary>
+    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("judgeModel")]
+    public string? JudgeModel { get; set; }
 
     /// <summary>Version of the executable model universe used for selection.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -3420,6 +3432,12 @@ public sealed partial class SessionFusionResolvedData
     /// <summary>Concrete model selected for the primary solver phase.</summary>
     [JsonPropertyName("primaryModel")]
     public required string PrimaryModel { get; set; }
+
+    /// <summary>Concrete model selected for Cascade repair, when required.</summary>
+    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("repairModel")]
+    public string? RepairModel { get; set; }
 
     /// <summary>Router implementation that supplied the plan.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -3810,6 +3828,12 @@ public sealed partial class AssistantFusionPhaseStartedData
     [JsonPropertyName("phaseKind")]
     public required FusionPhaseKind PhaseKind { get; set; }
 
+    /// <summary>Explicit reasoning effort selected for this phase, if supplied.</summary>
+    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("reasoningEffort")]
+    public string? ReasoningEffort { get; set; }
+
     /// <summary>Semantic role assigned to the phase.</summary>
     [JsonPropertyName("role")]
     public required string Role { get; set; }
@@ -3902,6 +3926,12 @@ public sealed partial class AssistantFusionPhaseCompletedData
     [JsonPropertyName("projectionMode")]
     internal FusionProjectionMode? ProjectionMode { get; set; }
 
+    /// <summary>Explicit reasoning effort selected for this phase, if supplied.</summary>
+    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("reasoningEffort")]
+    public string? ReasoningEffort { get; set; }
+
     /// <summary>Semantic role assigned to the completed phase.</summary>
     [JsonPropertyName("role")]
     public required string Role { get; set; }
@@ -3966,6 +3996,12 @@ public sealed partial class AssistantFusionPhaseFailedData
     /// <summary>Stable machine-readable reason for the phase failure.</summary>
     [JsonPropertyName("reason")]
     public required string Reason { get; set; }
+
+    /// <summary>Explicit reasoning effort selected for this phase, if supplied.</summary>
+    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("reasoningEffort")]
+    public string? ReasoningEffort { get; set; }
 
     /// <summary>Semantic role assigned to the failed phase.</summary>
     [JsonPropertyName("role")]
@@ -7490,6 +7526,27 @@ public sealed partial class CompletionReceiptFinalTool
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("toolName")]
     public string? ToolName { get; set; }
+}
+
+/// <summary>Nested data type for <c>FusionCritic</c>.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed partial class FusionCritic
+{
+    /// <summary>Concrete model selected for this critic.</summary>
+    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+    [JsonPropertyName("model")]
+    public required string Model { get; set; }
+
+    /// <summary>Unique execution phase identifier for this critic.</summary>
+    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+    [JsonPropertyName("phaseId")]
+    public required string PhaseId { get; set; }
+
+    /// <summary>Explicit reasoning effort selected for this critic, if supplied.</summary>
+    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("reasoningEffort")]
+    public string? ReasoningEffort { get; set; }
 }
 
 /// <summary>Durable server recommendation for subsequent HydraFusion turns.</summary>
@@ -20827,6 +20884,7 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(ExternalToolRequestedData))]
 [JsonSerializable(typeof(ExternalToolRequestedEvent))]
 [JsonSerializable(typeof(FusionAttribution))]
+[JsonSerializable(typeof(FusionCritic))]
 [JsonSerializable(typeof(FusionFollowUpRecommendation))]
 [JsonSerializable(typeof(FusionPhasePlanStep))]
 [JsonSerializable(typeof(FusionPhaseUsage))]

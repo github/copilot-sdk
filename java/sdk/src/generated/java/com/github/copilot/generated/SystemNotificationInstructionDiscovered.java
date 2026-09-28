@@ -3,7 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 // AUTO-GENERATED FILE - DO NOT EDIT
-// Generated from: session-events.schema.json
+// Generated from: api.schema.json
 
 package com.github.copilot.generated;
 
