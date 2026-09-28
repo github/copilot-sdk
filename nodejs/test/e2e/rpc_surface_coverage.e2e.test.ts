@@ -313,7 +313,7 @@ describe("Generated RPC surface coverage", () => {
             ...collectRuntimeFunctions(session.rpc, "session"),
         ]);
 
-        expect(inventory).toHaveLength(359);
+        expect(inventory).toHaveLength(368);
         expect([...runtimeFunctions.keys()].sort()).toEqual(
             inventory.map((method) => `${method.scope}.${method.path}`)
         );
