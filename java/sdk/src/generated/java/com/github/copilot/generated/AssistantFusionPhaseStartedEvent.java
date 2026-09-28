@@ -47,7 +47,9 @@ public final class AssistantFusionPhaseStartedEvent extends SessionEvent {
         /** Conversation scope in which the phase executes. */
         @JsonProperty("conversationScope") FusionConversationScope conversationScope,
         /** Concrete model executing the phase. */
-        @JsonProperty("model") String model
+        @JsonProperty("model") String model,
+        /** Explicit reasoning effort selected for this phase, if supplied. */
+        @JsonProperty("reasoningEffort") String reasoningEffort
     ) {
     }
 }

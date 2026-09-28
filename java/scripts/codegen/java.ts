@@ -246,6 +246,7 @@ interface JavaTypeResult {
 let currentDefinitions: Record<string, JSONSchema7> = {};
 const pendingStandaloneTypes = new Map<string, JSONSchema7>();
 const promotedNestedUnionTypes = new Set<string>();
+const promotedSealedUnionTypes = new Set<string>();
 const generatedSessionEventTypeNames = new Set<string>();
 
 // Cross-schema definitions: keyed by schema filename (e.g. "session-events.schema.json"),
@@ -321,6 +322,11 @@ interface DiscriminatorInfo {
     mapping: Map<string, { value: unknown; schema: JSONSchema7 }>;
 }
 
+function unionVariants(schema: JSONSchema7): JSONSchema7[] | undefined {
+    const variants = schema.anyOf ?? schema.oneOf;
+    return Array.isArray(variants) ? variants as JSONSchema7[] : undefined;
+}
+
 /**
  * Find a discriminator property shared by all variants in an anyOf.
  * A discriminator is a property with a `const` value that uniquely identifies each variant.
@@ -374,6 +380,213 @@ function resolveAnyOfVariants(
         .filter((v) => v.type !== "null");
 }
 
+function findRequiredStringDiscriminator(
+    variants: JSONSchema7[],
+): DiscriminatorInfo | null {
+    if (variants.length === 0) return null;
+    const firstVariant = variants[0];
+    if (!firstVariant.properties) return null;
+
+    for (const [propName, propSchema] of Object.entries(firstVariant.properties).sort(([a], [b]) => a.localeCompare(b))) {
+        if (typeof propSchema !== "object") continue;
+        const schema = propSchema as JSONSchema7;
+        if (typeof schema.const !== "string") continue;
+
+        const mapping = new Map<string, { value: unknown; schema: JSONSchema7 }>();
+        let isValidDiscriminator = true;
+
+        for (const variant of variants) {
+            if (!variant.properties || !variant.required?.includes(propName)) { isValidDiscriminator = false; break; }
+            const variantProp = variant.properties[propName];
+            if (typeof variantProp !== "object") { isValidDiscriminator = false; break; }
+            const variantSchema = variantProp as JSONSchema7;
+            if (typeof variantSchema.const !== "string") { isValidDiscriminator = false; break; }
+            const key = variantSchema.const;
+            if (mapping.has(key)) { isValidDiscriminator = false; break; }
+            mapping.set(key, { value: variantSchema.const, schema: variant });
+        }
+
+        if (isValidDiscriminator && mapping.size === variants.length) {
+            return { property: propName, mapping };
+        }
+    }
+    return null;
+}
+
+function resolveUnionVariants(
+    schema: JSONSchema7,
+    definitions: Record<string, JSONSchema7> = currentDefinitions
+): JSONSchema7[] | null {
+    const variants = unionVariants(schema);
+    if (!variants) return null;
+    return resolveAnyOfVariants(variants, definitions);
+}
+
+function isSealedStandaloneUnionCandidate(
+    schema: JSONSchema7,
+    definitions: Record<string, JSONSchema7> = currentDefinitions
+): boolean {
+    const variants = resolveUnionVariants(schema, definitions);
+    return !!variants
+        && variants.length > 1
+        && !!findRequiredStringDiscriminator(variants)
+        && variants.every((variant) => variant.type === "object" && variant.additionalProperties === false);
+}
+
+function referencedDefinitionName(schema: JSONSchema7 | boolean | undefined): string | null {
+    if (!schema || typeof schema !== "object" || !schema.$ref?.startsWith("#/definitions/")) return null;
+    return schema.$ref.slice("#/definitions/".length);
+}
+
+function discriminatedUnionReferencesInVariants(
+    typeName: string,
+    definitions: Record<string, JSONSchema7>
+): string[] {
+    const schema = definitions[typeName];
+    const variants = schema ? resolveUnionVariants(schema, definitions) : null;
+    if (!variants) return [];
+
+    const refs = new Set<string>();
+    for (const variant of variants) {
+        for (const property of Object.values(variant.properties ?? {})) {
+            if (!property || typeof property !== "object") continue;
+            const propertySchema = property as JSONSchema7;
+            const directName = referencedDefinitionName(propertySchema);
+            if (directName && isSealedStandaloneUnionCandidate(definitions[directName], definitions) && !hasHistoricalRpcVariantOwner(directName, definitions)) {
+                refs.add(directName);
+            }
+            if (propertySchema.type === "array" && propertySchema.items && !Array.isArray(propertySchema.items)) {
+                const itemName = referencedDefinitionName(propertySchema.items as JSONSchema7);
+                if (itemName && isSealedStandaloneUnionCandidate(definitions[itemName], definitions) && !hasHistoricalRpcVariantOwner(itemName, definitions)) {
+                    refs.add(itemName);
+                }
+            }
+        }
+    }
+    return [...refs].sort();
+}
+
+function hasHistoricalRpcVariantOwner(
+    typeName: string,
+    definitions: Record<string, JSONSchema7>
+): boolean {
+    const variants = resolveUnionVariants(definitions[typeName], definitions);
+    if (!variants) return false;
+    return variants.some((variant) => {
+        const discriminator = findRequiredStringDiscriminator(variants);
+        if (!discriminator) return false;
+        for (const [discValue, { schema: variantSchema }] of discriminator.mapping) {
+            if (variantSchema !== variant) continue;
+            const variantClassName = (variantSchema as JSONSchema7 & { title?: string }).title ?? `${typeName}${toPascalCase(discValue)}`;
+            return Object.hasOwn(RPC_VARIANT_OWNERS, variantClassName);
+        }
+        return false;
+    });
+}
+
+function collectSealedStandaloneUnionTypeNames(
+    definitions: Record<string, JSONSchema7>,
+    excludedSeeds: ReadonlySet<string> = new Set()
+): Set<string> {
+    const seeds = new Map<string, string[]>();
+    const referencedBySeed = new Set<string>();
+    for (const [typeName, schema] of Object.entries(definitions)) {
+        if (excludedSeeds.has(typeName)) continue;
+        if (!isSealedStandaloneUnionCandidate(schema, definitions)) continue;
+        if (hasHistoricalRpcVariantOwner(typeName, definitions)) continue;
+        const references = discriminatedUnionReferencesInVariants(typeName, definitions);
+        if (references.length === 0) continue;
+        seeds.set(typeName, references);
+        for (const reference of references) referencedBySeed.add(reference);
+    }
+
+    const promoted = new Set<string>();
+    for (const [typeName, references] of seeds) {
+        if (referencedBySeed.has(typeName)) continue;
+        promoted.add(typeName);
+        for (const reference of references) promoted.add(reference);
+    }
+    return promoted;
+}
+
+function collectDirectMethodRefNames(schema: RpcSchema): Set<string> {
+    const refs = new Set<string>();
+    const visit = (node: unknown): void => {
+        if (!node || typeof node !== "object") return;
+        const objectNode = node as Record<string, unknown>;
+        if (typeof objectNode.rpcMethod === "string") {
+            for (const key of ["params", "result"]) {
+                const ref = referencedDefinitionName(objectNode[key] as JSONSchema7);
+                if (ref) refs.add(ref);
+            }
+            return;
+        }
+        for (const value of Object.values(objectNode)) visit(value);
+    };
+    for (const section of [schema.server, schema.session, schema.clientSession, schema.clientGlobal]) {
+        visit(section);
+    }
+    return refs;
+}
+
+function collectImmediateObjectUnionRefs(
+    rootNames: ReadonlySet<string>,
+    definitions: Record<string, JSONSchema7>
+): Set<string> {
+    const refs = new Set<string>();
+    for (const rootName of rootNames) {
+        const root = definitions[rootName];
+        collectImmediateObjectUnionRefsFromSchema(root, definitions, refs);
+    }
+    return refs;
+}
+
+function collectImmediateObjectUnionRefsFromSchema(
+    schema: JSONSchema7 | undefined,
+    definitions: Record<string, JSONSchema7>,
+    refs: Set<string>
+): void {
+    if (!schema || schema.type !== "object" || !schema.properties) return;
+    for (const property of Object.values(schema.properties)) {
+        if (!property || typeof property !== "object") continue;
+        const propertySchema = property as JSONSchema7;
+        const directName = referencedDefinitionName(propertySchema);
+        if (directName && isSealedStandaloneUnionCandidate(definitions[directName], definitions)) {
+            refs.add(directName);
+        }
+        if (propertySchema.type === "array" && propertySchema.items && !Array.isArray(propertySchema.items)) {
+            const itemName = referencedDefinitionName(propertySchema.items as JSONSchema7);
+            if (itemName && isSealedStandaloneUnionCandidate(definitions[itemName], definitions)) {
+                refs.add(itemName);
+            }
+        }
+    }
+}
+
+function collectImmediateMethodObjectUnionRefs(
+    schema: RpcSchema,
+    definitions: Record<string, JSONSchema7>
+): Set<string> {
+    const refs = new Set<string>();
+    const visit = (node: unknown): void => {
+        if (!node || typeof node !== "object") return;
+        const objectNode = node as Record<string, unknown>;
+        if (typeof objectNode.rpcMethod === "string") {
+            for (const key of ["params", "result"]) {
+                const methodSchema = objectNode[key] as JSONSchema7 | null | undefined;
+                const ref = referencedDefinitionName(methodSchema ?? undefined);
+                collectImmediateObjectUnionRefsFromSchema(ref ? definitions[ref] : methodSchema ?? undefined, definitions, refs);
+            }
+            return;
+        }
+        for (const value of Object.values(objectNode)) visit(value);
+    };
+    for (const section of [schema.server, schema.session, schema.clientSession, schema.clientGlobal]) {
+        visit(section);
+    }
+    return refs;
+}
+
 export function collectNestedDiscriminatedUnionTypeNames(
     root: unknown,
     definitions: Record<string, JSONSchema7>
@@ -388,8 +601,9 @@ export function collectNestedDiscriminatedUnionTypeNames(
     };
     const closedDiscriminatedUnionVariants = (schema: JSONSchema7): JSONSchema7[] | null => {
         const resolved = resolveLocal(schema);
-        if (!resolved?.anyOf || !Array.isArray(resolved.anyOf)) return null;
-        const variants = resolveAnyOfVariants(resolved.anyOf as JSONSchema7[], definitions);
+        const members = resolved ? unionVariants(resolved) : undefined;
+        if (!members) return null;
+        const variants = resolveAnyOfVariants(members, definitions);
         return variants.length > 1
             && findDiscriminator(variants)
             && variants.every((variant) => variant.additionalProperties === false)
@@ -537,8 +751,7 @@ async function generatePolymorphicResultClass(
     packageName: string,
     packageDir: string
 ): Promise<void> {
-    const anyOf = schema.anyOf as JSONSchema7[];
-    const variants = resolveAnyOfVariants(anyOf);
+    const variants = resolveAnyOfVariants(unionVariants(schema) ?? []);
     const discriminator = findDiscriminator(variants);
     const experimental = isSchemaExperimental(schema);
 
@@ -766,6 +979,220 @@ async function generatePolymorphicVariantClass(
     await writeGeneratedFile(`${packageDir}/${className}.java`, lines.join("\n"));
 }
 
+async function generateSealedUnionInterface(
+    className: string,
+    schema: JSONSchema7,
+    packageName: string,
+    packageDir: string,
+    headerComment: string
+): Promise<void> {
+    const variants = resolveUnionVariants(schema);
+    const discriminator = variants ? findRequiredStringDiscriminator(variants) : null;
+    const experimental = isSchemaExperimental(schema);
+
+    if (!variants || !discriminator) {
+        console.warn(`[codegen] Cannot find required string discriminator for ${className} — skipping sealed union generation`);
+        return;
+    }
+
+    const variantInfos: RpcVariant[] = [];
+    for (const [discValue, { schema: variantSchema }] of discriminator.mapping) {
+        const variantClassName = (variantSchema as JSONSchema7 & { title?: string }).title ?? `${className}${toPascalCase(discValue)}`;
+        variantInfos.push({ discriminatorValue: discValue, variantClassName, schema: variantSchema });
+    }
+
+    const baseLines: string[] = [];
+    baseLines.push(COPYRIGHT);
+    baseLines.push("");
+    baseLines.push(AUTO_GENERATED_HEADER);
+    baseLines.push(headerComment);
+    baseLines.push("");
+    baseLines.push(`package ${packageName};`);
+    baseLines.push("");
+    baseLines.push(`import com.fasterxml.jackson.annotation.JsonIgnoreProperties;`);
+    baseLines.push(`import com.fasterxml.jackson.annotation.JsonProperty;`);
+    baseLines.push(`import com.fasterxml.jackson.annotation.JsonSubTypes;`);
+    baseLines.push(`import com.fasterxml.jackson.annotation.JsonTypeInfo;`);
+    if (experimental) {
+        baseLines.push(`import com.github.copilot.CopilotExperimental;`);
+    }
+    baseLines.push(`import javax.annotation.processing.Generated;`);
+    baseLines.push("");
+    if (schema.description || experimental) {
+        baseLines.push(`/**`);
+        baseLines.push(` * ${schema.description ?? `Polymorphic type {@code ${className}}.`}`);
+        appendExperimentalTypeApiNote(baseLines, schema);
+        baseLines.push(` *`);
+        baseLines.push(` * @since 1.0.0`);
+        baseLines.push(` */`);
+    }
+    baseLines.push(`@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, include = JsonTypeInfo.As.EXISTING_PROPERTY, property = "${discriminator.property}", visible = true)`);
+    baseLines.push(`@JsonSubTypes({`);
+    for (let i = 0; i < variantInfos.length; i++) {
+        const v = variantInfos[i];
+        const comma = i < variantInfos.length - 1 ? "," : "";
+        baseLines.push(`    @JsonSubTypes.Type(value = ${v.variantClassName}.class, name = "${v.discriminatorValue}")${comma}`);
+    }
+    baseLines.push(`})`);
+    if (experimental) {
+        baseLines.push(`@CopilotExperimental`);
+    }
+    baseLines.push(`@JsonIgnoreProperties(ignoreUnknown = true)`);
+    baseLines.push(GENERATED_ANNOTATION);
+    baseLines.push(`public sealed interface ${className} permits ${variantInfos.map((variant) => variant.variantClassName).join(", ")} {`);
+    baseLines.push(`    /**`);
+    baseLines.push(`     * Returns the discriminator value for this variant.`);
+    baseLines.push(`     *`);
+    baseLines.push(`     * @return the ${discriminator.property} discriminator`);
+    baseLines.push(`     */`);
+    baseLines.push(`    @JsonProperty("${discriminator.property}")`);
+    baseLines.push(`    String ${toCamelCase(discriminator.property)}();`);
+    baseLines.push(`}`);
+    baseLines.push("");
+
+    await writeGeneratedFile(`${packageDir}/${className}.java`, baseLines.join("\n"));
+
+    for (const variant of variantInfos) {
+        await generateSealedUnionVariantRecord(
+            variant.variantClassName,
+            variant.schema,
+            variant.discriminatorValue,
+            discriminator.property,
+            className,
+            packageName,
+            packageDir,
+            headerComment
+        );
+    }
+}
+
+async function generateSealedUnionVariantRecord(
+    className: string,
+    schema: JSONSchema7,
+    discriminatorValue: string,
+    discriminatorProperty: string,
+    baseClassName: string,
+    packageName: string,
+    packageDir: string,
+    headerComment: string
+): Promise<void> {
+    const experimental = isSchemaExperimental(schema);
+    const allImports = new Set<string>([
+        "com.fasterxml.jackson.annotation.JsonIgnoreProperties",
+        "com.fasterxml.jackson.annotation.JsonInclude",
+        "com.fasterxml.jackson.annotation.JsonProperty",
+        "com.fasterxml.jackson.annotation.JsonTypeInfo",
+        "javax.annotation.processing.Generated",
+    ]);
+    if (experimental) {
+        allImports.add("com.github.copilot.CopilotExperimental");
+    }
+    const nestedTypes = new Map<string, JavaClassDef>();
+    const fields: { jsonName: string; javaName: string; javaType: string; description?: string; discriminator: boolean }[] = [];
+
+    for (const [propName, propSchema] of Object.entries(schema.properties ?? {})) {
+        if (typeof propSchema !== "object") continue;
+        const prop = propSchema as JSONSchema7;
+        if (propName === discriminatorProperty) {
+            fields.push({
+                jsonName: propName,
+                javaName: toCamelCase(propName),
+                javaType: "String",
+                description: prop.description,
+                discriminator: true,
+            });
+            continue;
+        }
+        const result = schemaTypeToJava(prop, false, className, propName, nestedTypes);
+        for (const imp of result.imports) allImports.add(imp);
+        fields.push({
+            jsonName: propName,
+            javaName: toCamelCase(propName),
+            javaType: result.javaType,
+            description: prop.description,
+            discriminator: false,
+        });
+    }
+
+    const nestedLines: string[] = [];
+    for (const [, nested] of nestedTypes) {
+        nestedLines.push(...renderNestedType(nested, 1, new Map(), allImports));
+    }
+
+    const lines: string[] = [];
+    lines.push(COPYRIGHT);
+    lines.push("");
+    lines.push(AUTO_GENERATED_HEADER);
+    lines.push(headerComment);
+    lines.push("");
+    lines.push(`package ${packageName};`);
+    lines.push("");
+
+    for (const imp of [...allImports].sort()) {
+        lines.push(`import ${imp};`);
+    }
+    lines.push("");
+
+    if (schema.description || experimental) {
+        lines.push(`/**`);
+        lines.push(` * ${schema.description ?? `Variant {@code ${discriminatorValue}} of {@link ${baseClassName}}.`}`);
+        appendExperimentalTypeApiNote(lines, schema);
+        lines.push(` *`);
+        lines.push(` * @since 1.0.0`);
+        lines.push(` */`);
+    } else {
+        lines.push(`/**`);
+        lines.push(` * Variant {@code ${discriminatorValue}} of {@link ${baseClassName}}.`);
+        lines.push(` *`);
+        lines.push(` * @since 1.0.0`);
+        lines.push(` */`);
+    }
+    if (experimental) {
+        lines.push(`@CopilotExperimental`);
+    }
+    lines.push(`@JsonIgnoreProperties(ignoreUnknown = true)`);
+    lines.push(`@JsonInclude(JsonInclude.Include.NON_NULL)`);
+    lines.push(`@JsonTypeInfo(use = JsonTypeInfo.Id.NONE)`);
+    lines.push(GENERATED_ANNOTATION);
+    lines.push(`public record ${className}(`);
+    for (let i = 0; i < fields.length; i++) {
+        const field = fields[i];
+        const comma = i < fields.length - 1 ? "," : "";
+        if (field.description) lines.push(`    /** ${field.description} */`);
+        lines.push(`    @JsonProperty("${field.jsonName}") ${field.javaType} ${field.javaName}${comma}`);
+    }
+    lines.push(`) implements ${baseClassName} {`);
+    lines.push(`    public ${className} {`);
+    lines.push(`        ${toCamelCase(discriminatorProperty)} = "${discriminatorValue}";`);
+    lines.push(`    }`);
+
+    const nonDiscriminatorFields = fields.filter((field) => !field.discriminator);
+    if (nonDiscriminatorFields.length !== fields.length) {
+        lines.push("");
+        if (nonDiscriminatorFields.length === 0) {
+            lines.push(`    public ${className}() {`);
+            lines.push(`        this("${discriminatorValue}");`);
+        } else {
+            lines.push(`    public ${className}(`);
+            for (let i = 0; i < nonDiscriminatorFields.length; i++) {
+                const field = nonDiscriminatorFields[i];
+                const comma = i < nonDiscriminatorFields.length - 1 ? "," : "";
+                lines.push(`        ${field.javaType} ${field.javaName}${comma}`);
+            }
+            lines.push(`    ) {`);
+            lines.push(`        this(${fields.map((field) => field.discriminator ? `"${discriminatorValue}"` : field.javaName).join(", ")});`);
+        }
+        lines.push(`    }`);
+    }
+
+    lines.push(...nestedLines);
+    if (lines[lines.length - 1] === "") lines.pop();
+    lines.push(`}`);
+    lines.push("");
+
+    await writeGeneratedFile(`${packageDir}/${className}.java`, lines.join("\n"));
+}
+
 interface JavaTypeResolution {
     definitions: Record<string, JSONSchema7>;
     standaloneTypes: Map<string, JSONSchema7>;
@@ -807,12 +1234,25 @@ export function schemaTypeToJava(
         const name = schema.$ref.replace(/^#\/definitions\//, "");
         const resolved = resolution.definitions[name];
         if (resolved) {
+            const directUnion = unionVariants(resolved);
+            if (directUnion && ["InstallationReview", "McpInstallationReview", "SkillInstallationReview"].includes(name)) {
+                const variants = resolveAnyOfVariants(directUnion, resolution.definitions);
+                if (variants.length > 1 && findDiscriminator(variants)) {
+                    resolution.standaloneTypes.set(name, resolved);
+                    return { javaType: name, imports };
+                }
+            }
+            if (resolution.promotedUnionTypes.has(name)
+                && promotedSealedUnionTypes.has(name)
+                && isSealedStandaloneUnionCandidate(resolved, resolution.definitions)) {
+                resolution.standaloneTypes.set(name, resolved);
+                return { javaType: name, imports };
+            }
             if (
                 resolution.promotedUnionTypes.has(name)
-                && resolved.anyOf
-                && Array.isArray(resolved.anyOf)
+                && unionVariants(resolved)
             ) {
-                const variants = resolveAnyOfVariants(resolved.anyOf as JSONSchema7[], resolution.definitions);
+                const variants = resolveAnyOfVariants(unionVariants(resolved) ?? [], resolution.definitions);
                 if (variants.length > 1 && findDiscriminator(variants)) {
                     resolution.standaloneTypes.set(name, resolved);
                     return { javaType: name, imports };
@@ -1005,6 +1445,7 @@ async function generateSessionEvents(schemaPath: string): Promise<void> {
     // Set module-level definitions for $ref resolution
     currentDefinitions = (schema.definitions ?? {}) as Record<string, JSONSchema7>;
     pendingStandaloneTypes.clear();
+    promotedSealedUnionTypes.clear();
 
     const variants = extractEventVariants(schema);
     const packageName = "com.github.copilot.generated";
@@ -1440,12 +1881,14 @@ async function generatePendingStandaloneTypes(
                 await generateStandaloneEnum(name, schema, packageName, packageDir, headerComment);
             } else if (schema.type === "object" && schema.properties) {
                 await generateStandaloneRecord(name, schema, packageName, packageDir, headerComment);
-            } else if (schema.anyOf && Array.isArray(schema.anyOf)) {
-                const variants = resolveAnyOfVariants(schema.anyOf as JSONSchema7[]);
-                if (variants.length > 1 && findDiscriminator(variants)) {
+            } else if (unionVariants(schema)) {
+                const variants = resolveUnionVariants(schema);
+                if (variants && variants.length > 1 && promotedSealedUnionTypes.has(name) && findRequiredStringDiscriminator(variants)) {
+                    await generateSealedUnionInterface(name, schema, packageName, packageDir, headerComment);
+                } else if (variants && variants.length > 1 && findDiscriminator(variants)) {
                     await generatePolymorphicResultClass(name, schema, packageName, packageDir);
                 } else {
-                    console.warn(`[codegen] Cannot generate standalone type for ${name}: anyOf without discriminator`);
+                    console.warn(`[codegen] Cannot generate standalone type for ${name}: union without discriminator`);
                 }
             } else {
                 console.warn(`[codegen] Cannot generate standalone type for ${name}: type=${schema.type}`);
@@ -1706,6 +2149,33 @@ export function generateRpcClass(
         lines.push(`    }`);
     }
 
+    // A request record drops its additions instead; a response record keeps every component.
+    const recordLegacy = omittedProperties.size === 0
+        ? readLegacyParameters(schema, className, { ordered: true })
+        : undefined;
+    if (recordLegacy) {
+        if (legacyFieldNames) {
+            throw new Error(`Conflicting compatibility constructors for ${className}`);
+        }
+        const legacyNames = new Set(recordLegacy.legacy);
+        const legacyFields = fields.filter((field) => legacyNames.has(field.propName));
+        lines.push(``);
+        lines.push(`    /**`);
+        lines.push(`     * Creates a record with the components it had before later optional fields were added.`);
+        lines.push(`     *`);
+        for (const field of legacyFields) {
+            lines.push(`     * @param ${field.javaName} ${javadocText(field.description || field.propName)}`);
+        }
+        lines.push(`     */`);
+        lines.push(`    public ${className}(`);
+        legacyFields.forEach((field, index) => {
+            lines.push(`        ${field.javaType} ${field.javaName}${index < legacyFields.length - 1 ? "," : ""}`);
+        });
+        lines.push(`    ) {`);
+        lines.push(`        this(${fields.map((field) => (legacyNames.has(field.propName) ? field.javaName : "null")).join(", ")});`);
+        lines.push(`    }`);
+    }
+
     lines.push(`}`);
 
     return { code: lines.join("\n"), imports };
@@ -1888,6 +2358,34 @@ export async function renderRpcTypes(
         for (const [name, union] of generation.unions) {
             await generatePolymorphicResultClass(name, union.schema, union.packageName, union.packageDir);
         }
+        if ((schema.definitions ?? {})["InstallationReview"]) {
+            const packageDir = `sdk/src/generated/java/com/github/copilot/generated/rpc`;
+            const packageName = "com.github.copilot.generated.rpc";
+            generation.files.set(`${packageDir}/InstallationConfirmationRequestReview.java`, [
+                COPYRIGHT,
+                "",
+                "// AUTO-GENERATED FILE - DO NOT EDIT",
+                "// Generated from: api.schema.json",
+                "",
+                `package ${packageName};`,
+                "",
+                "import com.fasterxml.jackson.annotation.JsonIgnoreProperties;",
+                "import com.fasterxml.jackson.annotation.JsonInclude;",
+                "import com.fasterxml.jackson.annotation.JsonProperty;",
+                "import javax.annotation.processing.Generated;",
+                "",
+                "/** Compatibility wrapper for installation confirmation review payloads. */",
+                "@javax.annotation.processing.Generated(\"copilot-sdk-codegen\")",
+                "@JsonInclude(JsonInclude.Include.NON_NULL)",
+                "@JsonIgnoreProperties(ignoreUnknown = true)",
+                "public record InstallationConfirmationRequestReview(",
+                "    /** Resource-specific review to present before collecting the user's decision. */",
+                "    @JsonProperty(\"review\") InstallationReview review",
+                ") {",
+                "}",
+                "",
+            ].join("\n"));
+        }
         return generation.files;
     } finally {
         rpcGeneration = undefined;
@@ -1898,6 +2396,7 @@ async function collectRpcTypes(schema: RpcSchema): Promise<void> {
     currentDefinitions = schema.definitions ?? {};
     pendingStandaloneTypes.clear();
     promotedNestedUnionTypes.clear();
+    promotedSealedUnionTypes.clear();
     // Session create/resume consumes this named type, not the method-specific result wrapper.
     if (currentDefinitions.DiagnosticsConfiguration) {
         pendingStandaloneTypes.set("DiagnosticsConfiguration", currentDefinitions.DiagnosticsConfiguration);
@@ -1911,6 +2410,17 @@ async function collectRpcTypes(schema: RpcSchema): Promise<void> {
     if (schema.session) sections.push(["session", schema.session]);
     if (schema.clientSession) sections.push(["clientSession", schema.clientSession]);
     if (schema.clientGlobal) sections.push(["clientGlobal", schema.clientGlobal]);
+
+    const directMethodRefNames = collectDirectMethodRefNames(schema);
+    const excludedSealedUnionSeeds = new Set([
+        ...directMethodRefNames,
+        ...collectImmediateObjectUnionRefs(directMethodRefNames, currentDefinitions),
+        ...collectImmediateMethodObjectUnionRefs(schema, currentDefinitions),
+    ]);
+    for (const typeName of collectSealedStandaloneUnionTypeNames(currentDefinitions, excludedSealedUnionSeeds)) {
+        promotedSealedUnionTypes.add(typeName);
+        promotedNestedUnionTypes.add(typeName);
+    }
 
     for (const [, sectionNode] of sections) {
         for (const [, method] of collectRpcMethods(sectionNode)) {
@@ -1985,9 +2495,9 @@ async function collectRpcTypes(schema: RpcSchema): Promise<void> {
                 } else if (resultRefName && resultSchema.type === "string" && resultSchema.enum) {
                     // String enum → register for standalone generation
                     pendingStandaloneTypes.set(resultRefName, resultSchema);
-                } else if (resultRefName && resultSchema.anyOf && Array.isArray(resultSchema.anyOf)) {
+                } else if (resultRefName && unionVariants(resultSchema)) {
                     // anyOf discriminated union → generate polymorphic hierarchy
-                    const variants = resolveAnyOfVariants(resultSchema.anyOf as JSONSchema7[]);
+                    const variants = resolveAnyOfVariants(unionVariants(resultSchema) ?? []);
                     if (variants.length > 1 && findDiscriminator(variants)) {
                         if (!generatedClasses.has(resultRefName)) {
                             generatedClasses.set(resultRefName, true);
@@ -2211,8 +2721,8 @@ function wrapperResultClassName(method: RpcMethodNode): string {
                 return refName;
             }
             // anyOf discriminated union → use the definition name
-            if (resolved.anyOf && Array.isArray(resolved.anyOf)) {
-                const variants = resolveAnyOfVariants(resolved.anyOf as JSONSchema7[]);
+            if (unionVariants(resolved)) {
+                const variants = resolveAnyOfVariants(unionVariants(resolved) ?? []);
                 if (variants.length > 1 && findDiscriminator(variants)) {
                     return refName;
                 }

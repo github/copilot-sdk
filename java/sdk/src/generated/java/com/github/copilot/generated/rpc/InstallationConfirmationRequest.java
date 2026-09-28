@@ -33,16 +33,6 @@ Bound MCP confirmation always includes it; correlate it with the original pendin
     /** Opaque commitment to the exact review and inputs. Return unchanged; never log. */
     @JsonProperty("reviewFingerprint") String reviewFingerprint,
     /** Resource-specific review to present before collecting the user's decision. */
-    @JsonProperty("review") InstallationConfirmationRequestReview review
+    @JsonProperty("review") InstallationReview review
 ) {
-
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    public record InstallationConfirmationRequestReview(
-        /** The exact MCP action and its reviewed changes. */
-        @JsonProperty("review") Object review,
-        /** Reviewed resource discriminator. */
-        @JsonProperty("resource") String resource
-    ) {
-    }
 }

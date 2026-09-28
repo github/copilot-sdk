@@ -146,25 +146,27 @@ func validateEnvironmentOptions(connection RuntimeConnection, opts *ClientOption
 //	}
 //	defer client.Stop()
 type Client struct {
-	options                 ClientOptions
-	process                 *exec.Cmd
-	client                  *jsonrpc2.Client
-	actualPort              int
-	actualHost              string
-	state                   connectionState
-	sessions                map[string]*Session
-	sessionsMux             sync.Mutex
-	gitHubTokenProviders    map[string]GitHubTokenProvider
-	gitHubTokenProvidersMux sync.RWMutex
-	requestAdapter          *copilotRequestAdapter
-	requestAdapterMux       sync.Mutex
-	sessionOperations       map[string]*sessionOperation
-	sessionOperationsMux    sync.Mutex
-	isExternalServer        bool
-	conn                    net.Conn // stores net.Conn for external TCP connections
-	useStdio                bool     // resolved value from options
-	useInProcess            bool     // true for InProcessConnection (FFI transport)
-	ffiHost                 inProcessHost
+	options                            ClientOptions
+	process                            *exec.Cmd
+	client                             *jsonrpc2.Client
+	actualPort                         int
+	actualHost                         string
+	state                              connectionState
+	sessions                           map[string]*Session
+	sessionsMux                        sync.Mutex
+	gitHubTokenProviders               map[string]GitHubTokenProvider
+	gitHubTokenProvidersMux            sync.RWMutex
+	requestAdapter                     *copilotRequestAdapter
+	requestAdapterMux                  sync.Mutex
+	installationConfirmationAdapter    *installationConfirmationAdapter
+	installationConfirmationAdapterMux sync.Mutex
+	sessionOperations                  map[string]*sessionOperation
+	sessionOperationsMux               sync.Mutex
+	isExternalServer                   bool
+	conn                               net.Conn // stores net.Conn for external TCP connections
+	useStdio                           bool     // resolved value from options
+	useInProcess                       bool     // true for InProcessConnection (FFI transport)
+	ffiHost                            inProcessHost
 	// resolved process options for the spawned runtime (zero values for URIConnection)
 	cliPath            string
 	cliArgs            []string
@@ -604,6 +606,7 @@ func (c *Client) Stop() error {
 	c.sessionsMux.Unlock()
 	c.clearGitHubTokenProviders()
 	c.closeCopilotRequestAdapter()
+	c.closeInstallationConfirmationAdapter()
 
 	c.startStopMux.Lock()
 	defer c.startStopMux.Unlock()
@@ -728,6 +731,7 @@ func (c *Client) ForceStop() {
 	}
 	c.clearGitHubTokenProviders()
 	c.closeCopilotRequestAdapter()
+	c.closeInstallationConfirmationAdapter()
 
 	c.startStopMux.Lock()
 	defer c.startStopMux.Unlock()
@@ -2535,6 +2539,17 @@ func (c *Client) setupNotificationHandler() {
 		handlers.GitHubTelemetry = &gitHubTelemetryAdapter{callback: c.options.OnGitHubTelemetry}
 	}
 	rpc.RegisterClientGlobalAPIHandlers(c.client, handlers)
+	if c.options.InstallationConfirmationHandler != nil {
+		adapter := newInstallationConfirmationAdapter(c.options.InstallationConfirmationHandler, c.client.ConnectionClosed())
+		c.installationConfirmationAdapterMux.Lock()
+		previous := c.installationConfirmationAdapter
+		c.installationConfirmationAdapter = adapter
+		c.installationConfirmationAdapterMux.Unlock()
+		if previous != nil {
+			previous.close()
+		}
+		c.client.SetRequestContextHandler("installations.confirm", adapter.handle)
+	}
 }
 
 func (c *Client) registerGitHubTokenProvider(provider GitHubTokenProvider) string {
@@ -2568,6 +2583,7 @@ func (c *Client) clearGitHubTokenProviders() {
 
 func (c *Client) handleConnectionClose() {
 	c.closeCopilotRequestAdapter()
+	c.closeInstallationConfirmationAdapter()
 	c.clearGitHubTokenProviders()
 	c.sessionsMux.Lock()
 	sessions := make([]*Session, 0, len(c.sessions))
@@ -2591,6 +2607,16 @@ func (c *Client) closeCopilotRequestAdapter() {
 	c.requestAdapterMux.Lock()
 	adapter := c.requestAdapter
 	c.requestAdapterMux.Unlock()
+	if adapter != nil {
+		adapter.close()
+	}
+}
+
+func (c *Client) closeInstallationConfirmationAdapter() {
+	c.installationConfirmationAdapterMux.Lock()
+	adapter := c.installationConfirmationAdapter
+	c.installationConfirmationAdapter = nil
+	c.installationConfirmationAdapterMux.Unlock()
 	if adapter != nil {
 		adapter.close()
 	}

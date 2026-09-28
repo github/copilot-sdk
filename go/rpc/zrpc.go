@@ -1949,8 +1949,9 @@ func (CatalogAgentPluginCandidate) Kind() CatalogCandidateKind {
 	return CatalogCandidateKindPlugin
 }
 
-// An inert AI skill catalog result. AI skills are discovery-only and cannot be represented
-// as installable through this surface.
+// An inert AI skill catalog result. Verified Skill candidates may be installable only when
+// the runtime reports installability and the selected session is permitted to plan
+// installation.
 // Experimental: CatalogAiSkillCandidate is part of an experimental API and may change or be
 // removed.
 type CatalogAiSkillCandidate struct {
@@ -1964,7 +1965,8 @@ type CatalogAiSkillCandidate struct {
 	Handle string `json:"handle"`
 	// ISO 8601 timestamp after which the handle is stale and will be rejected.
 	HandleExpiresAt string `json:"handleExpiresAt"`
-	// AI skills are discovery-only and cannot be installed through this surface
+	// Whether this AI skill candidate can be planned for verified installation in the selected
+	// session.
 	Installability CatalogAiSkillInstallability `json:"installability"`
 	// Media type of the underlying AI skill card
 	MediaType CatalogAiSkillMediaType `json:"mediaType"`
@@ -5076,6 +5078,28 @@ type HooksDiscoverResult struct {
 	Warnings []string `json:"warnings"`
 }
 
+// Catalogue identity retained from a bound candidate or plan at installation time.
+// Experimental: InstallationCatalogueIdentity is part of an experimental API and may change
+// or be removed.
+type InstallationCatalogueIdentity struct {
+	// Catalogue description retained at install planning time.
+	Description *string `json:"description,omitempty"`
+	// Human display name retained from the catalogue candidate.
+	DisplayName string `json:"displayName"`
+	// Catalogue item URL when supplied by the authority.
+	ItemURL *string `json:"itemUrl,omitempty"`
+	// Catalogue publisher retained at install planning time.
+	Publisher *string `json:"publisher,omitempty"`
+	// Authority resource identifier when supplied by the catalogue.
+	ResourceID *string `json:"resourceId,omitempty"`
+	// Catalogue authority/source string that supplied the candidate.
+	Source string `json:"source"`
+	// Catalogue trust observation retained at install planning time.
+	TrustAtInstall CatalogTrustSnapshot `json:"trustAtInstall,omitempty"`
+	// Catalogue version retained at install planning time.
+	Version *string `json:"version,omitempty"`
+}
+
 // One connection-owned, expiring request for a trusted host's explicit user decision.
 // Experimental: InstallationConfirmationRequest is part of an experimental API and may
 // change or be removed.
@@ -5107,13 +5131,42 @@ type InstallationConfirmationResponse struct {
 	ReviewFingerprint string `json:"reviewFingerprint"`
 }
 
+// Only resource kinds with an implemented installation engine have a review variant.
 // Experimental: InstallationReview is part of an experimental API and may change or be
 // removed.
-type InstallationReview struct {
-	// Reviewed resource discriminator.
-	Resource InstallationReviewResource `json:"resource"`
+type InstallationReview interface {
+	installationReview()
+	Resource() InstallationReviewResource
+}
+
+type RawInstallationReviewData struct {
+	Discriminator InstallationReviewResource
+	Raw           json.RawMessage
+}
+
+func (RawInstallationReviewData) installationReview() {}
+func (r RawInstallationReviewData) Resource() InstallationReviewResource {
+	return r.Discriminator
+}
+
+type InstallationReviewMCP struct {
 	// The exact MCP action and its reviewed changes.
 	Review MCPInstallationReview `json:"review"`
+}
+
+func (InstallationReviewMCP) installationReview() {}
+func (InstallationReviewMCP) Resource() InstallationReviewResource {
+	return InstallationReviewResourceMCP
+}
+
+type InstallationReviewSkill struct {
+	// The exact verified Skill action and its reviewed files.
+	Review SkillInstallationReview `json:"review"`
+}
+
+func (InstallationReviewSkill) installationReview() {}
+func (InstallationReviewSkill) Resource() InstallationReviewResource {
+	return InstallationReviewResourceSkill
 }
 
 // One connection-owned, expiring request for a trusted host's explicit user decision.
@@ -6698,12 +6751,15 @@ func (MCPInstallationOutcomeUninstalled) Kind() MCPInstallationOutcomeKind {
 	return MCPInstallationOutcomeKindUninstalled
 }
 
-// Final remote configuration, not a template. The producer refuses configured
-// secrets and external-value expansion before presenting this review.
+// Final remote configuration, not a template. The producer refuses external-value
+// expansion before presenting this review. Receipt-owned secrets appear only as
+// `${installation-secret:<id>}` references whose `<id>` matches a reviewed
+// `${secret:<id>}` placeholder; values are never included.
 // Experimental: MCPInstallationRemoteConfiguration is part of an experimental API and may
 // change or be removed.
 type MCPInstallationRemoteConfiguration struct {
-	// Literal configured headers, excluding separately authorised OAuth tokens.
+	// Configured headers, excluding separately authorised OAuth tokens. Values may
+	// contain owned secret references, never secret values.
 	Headers map[string]string `json:"headers"`
 	// Configured tool selection, not permission to invoke those tools.
 	Tools []string `json:"tools"`
@@ -6771,11 +6827,13 @@ func (r RawMCPInstallationReviewData) Action() MCPInstallationReviewAction {
 }
 
 type MCPInstallationReviewInstall struct {
+	// Catalogue identity retained from the bound candidate when available.
+	Catalogue *InstallationCatalogueIdentity `json:"catalogue,omitempty"`
 	// Original catalogue trust metadata, not a verification claim.
 	CatalogueTrust CatalogTrustSnapshot `json:"catalogueTrust,omitempty"`
 	// The configuration change for the selected alternative only.
 	ConfigurationChange MCPPlanConfigurationChange `json:"configurationChange"`
-	// Complete effective remote configuration for final input-free installation review.
+	// Complete effective remote configuration for final installation review.
 	// Earlier private selection reviews and package choices omit this field.
 	// The owned remote resource requires it before issuing confirmation.
 	EffectiveConfiguration *MCPInstallationRemoteConfiguration `json:"effectiveConfiguration,omitempty"`
@@ -6851,12 +6909,16 @@ type MCPInstallationsRequest struct {
 // Experimental: MCPInstallationSummary is part of an experimental API and may change or be
 // removed.
 type MCPInstallationSummary struct {
+	// Catalogue identity retained from the installed plan when available.
+	Catalogue *InstallationCatalogueIdentity `json:"catalogue,omitempty"`
 	// Exact alternative retained in the installing receipt.
 	ChoiceID string `json:"choiceId"`
 	// Identity retained from the validated original plan.
 	Identity MCPPlanResourceIdentity `json:"identity"`
 	// Exact durable installation receipt identity.
 	InstallationID string `json:"installationId"`
+	// ISO 8601 wall-clock installation time when available.
+	InstalledAt *string `json:"installedAt,omitempty"`
 	// Original installing operation, not a fresh management operation.
 	OperationID string `json:"operationId"`
 	// Ownership or setup state, never inferred proof of tool usability.
@@ -7666,7 +7728,7 @@ type MCPPreparedInstall struct {
 	OperationID string `json:"operationId"`
 }
 
-// Side-effect-free preparation of one original bound, input-free remote MCP choice.
+// Side-effect-free preparation of one original bound remote MCP choice.
 // Experimental: MCPPrepareInstallRequest is part of an experimental API and may change or
 // be removed.
 type MCPPrepareInstallRequest struct {
@@ -7674,13 +7736,15 @@ type MCPPrepareInstallRequest struct {
 	ChoiceID string `json:"choiceId"`
 	// Required bound catalogue and confirmed remote installation capabilities.
 	Contract CatalogClientContract `json:"contract"`
-	// Must be empty for the initial input-free remote installation capability.
+	// Declared non-secret values. Non-empty only when the caller requires
+	// `mcp-configured-remote-installation`; omitted values use the card default.
 	Inputs []MCPInstallationInput `json:"inputs"`
 	// Original single-use bound plan, never a client-authored configuration.
 	PlanHandle string `json:"planHandle"`
 	// An existing local session attached to this connection, not permission to attach one.
 	PolicySessionID string `json:"policySessionId"`
-	// Must be empty; this capability does not allocate configured-input secrets.
+	// One entry per declared secret placeholder of the selected choice. Non-empty
+	// only when the caller requires `mcp-configured-remote-installation`.
 	Secrets []MCPInstallationSecret `json:"secrets"`
 	// The trusted host presents this choice alongside the exact secret placeholders.
 	SecretStorage MCPInstallationSecretStorage `json:"secretStorage"`
@@ -16120,6 +16184,30 @@ type Skill struct {
 	UserInvocable bool `json:"userInvocable"`
 }
 
+// Applies exactly one retained verified Skill installation plan.
+// Experimental: SkillApplyInstallRequest is part of an experimental API and may change or
+// be removed.
+type SkillApplyInstallRequest struct {
+	// Required authenticated bound catalogue and Skill installation capabilities.
+	Contract CatalogClientContract `json:"contract"`
+	// Opaque original plan, consumed once.
+	PlanHandle string `json:"planHandle"`
+	// Same existing selected session as planning.
+	PolicySessionID string `json:"policySessionId"`
+}
+
+// One-use application of the exact retained Skill removal plan.
+// Experimental: SkillApplyUninstallRequest is part of an experimental API and may change or
+// be removed.
+type SkillApplyUninstallRequest struct {
+	// Required authenticated bound installation contract.
+	Contract CatalogClientContract `json:"contract"`
+	// Opaque original removal plan, consumed once.
+	PlanHandle string `json:"planHandle"`
+	// Same existing selected session as removal preparation.
+	PolicySessionID string `json:"policySessionId"`
+}
+
 // Canonical directory where skills can be discovered or created, with scope, preference,
 // and optional project path.
 // Experimental: SkillDiscoveryPath is part of an experimental API and may change or be
@@ -16145,11 +16233,610 @@ type SkillDiscoveryPathList struct {
 	Paths []SkillDiscoveryPath `json:"paths"`
 }
 
+// One reviewed Skill file.
+// Experimental: SkillInstallationFileReview is part of an experimental API and may change
+// or be removed.
+type SkillInstallationFileReview struct {
+	// SHA-256 digest of the exact file bytes.
+	Digest string `json:"digest"`
+	// Whether the file is installed with executable permissions.
+	Executable bool `json:"executable"`
+	// Declared media type for the file.
+	MediaType string `json:"mediaType"`
+	// Relative file path within the Skill root.
+	Path string `json:"path"`
+	// Exact reviewed file size in bytes.
+	SizeBytes int64 `json:"sizeBytes"`
+}
+
+// A user-facing personal Skill installation location without absolute host paths.
+// Experimental: SkillInstallationLocation is part of an experimental API and may change or
+// be removed.
+type SkillInstallationLocation struct {
+	// Diagnostics-only absolute host path. Hosts must not display it by default.
+	DiagnosticsAbsolutePath *string `json:"diagnosticsAbsolutePath,omitempty"`
+	// Safe display label, for example ~/.copilot/skills/run-checks.
+	DisplayLabel string `json:"displayLabel"`
+	// Path relative to the Copilot home.
+	RelativePath string `json:"relativePath"`
+	// Installation scope. Agent Finder Skills are installed in the user's personal Copilot home.
+	Scope SkillInstallationScope `json:"scope"`
+}
+
+// Management outcome for verified Skill inventory, planning and removal.
+// Experimental: SkillInstallationManagementOutcome is part of an experimental API and may
+// change or be removed.
+type SkillInstallationManagementOutcome interface {
+	skillInstallationManagementOutcome()
+	Kind() SkillInstallationManagementOutcomeKind
+}
+
+type RawSkillInstallationManagementOutcomeData struct {
+	Discriminator SkillInstallationManagementOutcomeKind
+	Raw           json.RawMessage
+}
+
+func (RawSkillInstallationManagementOutcomeData) skillInstallationManagementOutcome() {}
+func (r RawSkillInstallationManagementOutcomeData) Kind() SkillInstallationManagementOutcomeKind {
+	return r.Discriminator
+}
+
+// Enablement changed and the selected session was reconciled.
+type SkillInstallationManagementOutcomeEnabledChanged struct {
+	// Safe reload or reconciliation diagnostics.
+	Diagnostics []string `json:"diagnostics"`
+	// Updated installation summary.
+	Installation SkillInstallationSummary `json:"installation"`
+}
+
+func (SkillInstallationManagementOutcomeEnabledChanged) skillInstallationManagementOutcome() {}
+func (SkillInstallationManagementOutcomeEnabledChanged) Kind() SkillInstallationManagementOutcomeKind {
+	return SkillInstallationManagementOutcomeKindEnabledChanged
+}
+
+// A verified Skill installation plan was prepared.
+type SkillInstallationManagementOutcomeInstallPlanned struct {
+	// Prepared install plan.
+	Plan SkillInstallPlan `json:"plan"`
+}
+
+func (SkillInstallationManagementOutcomeInstallPlanned) skillInstallationManagementOutcome() {}
+func (SkillInstallationManagementOutcomeInstallPlanned) Kind() SkillInstallationManagementOutcomeKind {
+	return SkillInstallationManagementOutcomeKindInstallPlanned
+}
+
+// Owned Skill installations were listed.
+type SkillInstallationManagementOutcomeListed struct {
+	// Owned Skill installation summaries.
+	Installations []SkillInstallationSummary `json:"installations"`
+}
+
+func (SkillInstallationManagementOutcomeListed) skillInstallationManagementOutcome() {}
+func (SkillInstallationManagementOutcomeListed) Kind() SkillInstallationManagementOutcomeKind {
+	return SkillInstallationManagementOutcomeKindListed
+}
+
+// Original-connection operation snapshot.
+type SkillInstallationManagementOutcomeOperation struct {
+	// Operation status.
+	Operation SkillInstallationOperationStatus `json:"operation"`
+}
+
+func (SkillInstallationManagementOutcomeOperation) skillInstallationManagementOutcome() {}
+func (SkillInstallationManagementOutcomeOperation) Kind() SkillInstallationManagementOutcomeKind {
+	return SkillInstallationManagementOutcomeKindOperation
+}
+
+// Recovery completed and inventory was inspected.
+type SkillInstallationManagementOutcomeRecovered struct {
+	// Owned Skill installation summaries after recovery.
+	Installations []SkillInstallationSummary `json:"installations"`
+}
+
+func (SkillInstallationManagementOutcomeRecovered) skillInstallationManagementOutcome() {}
+func (SkillInstallationManagementOutcomeRecovered) Kind() SkillInstallationManagementOutcomeKind {
+	return SkillInstallationManagementOutcomeKindRecovered
+}
+
+// Already-confirmed durable work must be reconciled before new mutations or inventory.
+type SkillInstallationManagementOutcomeRecoveryRequired struct {
+}
+
+func (SkillInstallationManagementOutcomeRecoveryRequired) skillInstallationManagementOutcome() {}
+func (SkillInstallationManagementOutcomeRecoveryRequired) Kind() SkillInstallationManagementOutcomeKind {
+	return SkillInstallationManagementOutcomeKindRecoveryRequired
+}
+
+// The management request was refused.
+type SkillInstallationManagementOutcomeRefused struct {
+	// Bounded refusal reason.
+	Reason SkillInstallationFailureReason `json:"reason"`
+}
+
+func (SkillInstallationManagementOutcomeRefused) skillInstallationManagementOutcome() {}
+func (SkillInstallationManagementOutcomeRefused) Kind() SkillInstallationManagementOutcomeKind {
+	return SkillInstallationManagementOutcomeKindRefused
+}
+
+// Interrupted work was safely compensated and the pending marker was cleared.
+type SkillInstallationManagementOutcomeRolledBack struct {
+	// Original operation identity.
+	OperationID string `json:"operation_id"`
+	// Cause of the compensation.
+	Reason SkillInstallationFailureReason `json:"reason"`
+}
+
+func (SkillInstallationManagementOutcomeRolledBack) skillInstallationManagementOutcome() {}
+func (SkillInstallationManagementOutcomeRolledBack) Kind() SkillInstallationManagementOutcomeKind {
+	return SkillInstallationManagementOutcomeKindRolledBack
+}
+
+// An owned Skill uninstall plan was prepared.
+type SkillInstallationManagementOutcomeUninstallPlanned struct {
+	// Prepared uninstall plan.
+	Plan SkillUninstallPlan `json:"plan"`
+}
+
+func (SkillInstallationManagementOutcomeUninstallPlanned) skillInstallationManagementOutcome() {}
+func (SkillInstallationManagementOutcomeUninstallPlanned) Kind() SkillInstallationManagementOutcomeKind {
+	return SkillInstallationManagementOutcomeKindUninstallPlanned
+}
+
+// Skill installation management result with the honoured contract, or a typed refusal.
+// Experimental: SkillInstallationManagementResult is part of an experimental API and may
+// change or be removed.
+type SkillInstallationManagementResult interface {
+	skillInstallationManagementResult()
+	skillInstallationManagementResultKind() SkillInstallationManagementResultKind
+}
+
+type RawSkillInstallationManagementResultData struct {
+	Discriminator SkillInstallationManagementResultKind
+	Raw           json.RawMessage
+}
+
+func (RawSkillInstallationManagementResultData) skillInstallationManagementResult() {}
+func (r RawSkillInstallationManagementResultData) skillInstallationManagementResultKind() SkillInstallationManagementResultKind {
+	return r.Discriminator
+}
+func (CatalogInvalidRequestError) skillInstallationManagementResult() {}
+func (CatalogInvalidRequestError) skillInstallationManagementResultKind() SkillInstallationManagementResultKind {
+	return SkillInstallationManagementResultKindInvalidRequest
+}
+func (CatalogNegotiationRefusedError) skillInstallationManagementResult() {}
+func (CatalogNegotiationRefusedError) skillInstallationManagementResultKind() SkillInstallationManagementResultKind {
+	return SkillInstallationManagementResultKindNegotiationRefused
+}
+
+type SkillInstallationManagementResultOutcome struct {
+	// Capabilities honoured for this request.
+	Negotiated CatalogNegotiatedContract `json:"negotiated"`
+	// Observed management outcome.
+	Outcome SkillInstallationManagementOutcome `json:"outcome"`
+}
+
+func (SkillInstallationManagementResultOutcome) skillInstallationManagementResult() {}
+func (SkillInstallationManagementResultOutcome) skillInstallationManagementResultKind() SkillInstallationManagementResultKind {
+	return SkillInstallationManagementResultKindOutcome
+}
+
+// Existing-operation control. A new session selector is deliberately not accepted.
+// Experimental: SkillInstallationOperationRequest is part of an experimental API and may
+// change or be removed.
+type SkillInstallationOperationRequest struct {
+	// Required authenticated bound Skill installation capability.
+	Contract CatalogClientContract `json:"contract"`
+	// Exact runtime-issued operation ID on the original connection.
+	OperationID string `json:"operationId"`
+}
+
+// Status snapshot from the original connection, independent of new-work account
+// availability.
+// Experimental: SkillInstallationOperationStatus is part of an experimental API and may
+// change or be removed.
+type SkillInstallationOperationStatus interface {
+	skillInstallationOperationStatus()
+	Phase() SkillInstallationOperationStatusPhase
+}
+
+type RawSkillInstallationOperationStatusData struct {
+	Discriminator SkillInstallationOperationStatusPhase
+	Raw           json.RawMessage
+}
+
+func (RawSkillInstallationOperationStatusData) skillInstallationOperationStatus() {}
+func (r RawSkillInstallationOperationStatusData) Phase() SkillInstallationOperationStatusPhase {
+	return r.Discriminator
+}
+
+// Original operation progress discriminator.
+type SkillInstallationOperationStatusApplying struct {
+	// Whether cancellation has been requested; already-started effects require recovery.
+	CancellationRequested bool `json:"cancellationRequested"`
+	// Original runtime-issued operation identity.
+	OperationID string `json:"operationId"`
+}
+
+func (SkillInstallationOperationStatusApplying) skillInstallationOperationStatus() {}
+func (SkillInstallationOperationStatusApplying) Phase() SkillInstallationOperationStatusPhase {
+	return SkillInstallationOperationStatusPhaseApplying
+}
+
+// Original operation progress discriminator.
+type SkillInstallationOperationStatusAwaitingConfirmation struct {
+	// Whether cancellation has been requested.
+	CancellationRequested bool `json:"cancellationRequested"`
+	// Original runtime-issued operation identity.
+	OperationID string `json:"operationId"`
+}
+
+func (SkillInstallationOperationStatusAwaitingConfirmation) skillInstallationOperationStatus() {}
+func (SkillInstallationOperationStatusAwaitingConfirmation) Phase() SkillInstallationOperationStatusPhase {
+	return SkillInstallationOperationStatusPhaseAwaitingConfirmation
+}
+
+// Original operation progress discriminator.
+type SkillInstallationOperationStatusCompleted struct {
+	// Whether cancellation was requested before the terminal result.
+	CancellationRequested bool `json:"cancellationRequested"`
+	// Original runtime-issued operation identity.
+	OperationID string `json:"operationId"`
+	// Immutable terminal receipt.
+	Outcome SkillInstallationOutcome `json:"outcome"`
+}
+
+func (SkillInstallationOperationStatusCompleted) skillInstallationOperationStatus() {}
+func (SkillInstallationOperationStatusCompleted) Phase() SkillInstallationOperationStatusPhase {
+	return SkillInstallationOperationStatusPhaseCompleted
+}
+
+// Original operation progress discriminator.
+type SkillInstallationOperationStatusPrepared struct {
+	// Whether cancellation has been requested.
+	CancellationRequested bool `json:"cancellationRequested"`
+	// Original runtime-issued operation identity.
+	OperationID string `json:"operationId"`
+}
+
+func (SkillInstallationOperationStatusPrepared) skillInstallationOperationStatus() {}
+func (SkillInstallationOperationStatusPrepared) Phase() SkillInstallationOperationStatusPhase {
+	return SkillInstallationOperationStatusPhasePrepared
+}
+
+// Original operation progress discriminator.
+type SkillInstallationOperationStatusPreparing struct {
+	// Whether cancellation has been requested.
+	CancellationRequested bool `json:"cancellationRequested"`
+	// Original runtime-issued operation identity.
+	OperationID string `json:"operationId"`
+}
+
+func (SkillInstallationOperationStatusPreparing) skillInstallationOperationStatus() {}
+func (SkillInstallationOperationStatusPreparing) Phase() SkillInstallationOperationStatusPhase {
+	return SkillInstallationOperationStatusPhasePreparing
+}
+
+// Original operation progress discriminator.
+type SkillInstallationOperationStatusRevalidating struct {
+	// Whether cancellation has been requested.
+	CancellationRequested bool `json:"cancellationRequested"`
+	// Original runtime-issued operation identity.
+	OperationID string `json:"operationId"`
+}
+
+func (SkillInstallationOperationStatusRevalidating) skillInstallationOperationStatus() {}
+func (SkillInstallationOperationStatusRevalidating) Phase() SkillInstallationOperationStatusPhase {
+	return SkillInstallationOperationStatusPhaseRevalidating
+}
+
+// Terminal verified Skill mutation result.
+// Experimental: SkillInstallationOutcome is part of an experimental API and may change or
+// be removed.
+type SkillInstallationOutcome interface {
+	skillInstallationOutcome()
+	Kind() SkillInstallationOutcomeKind
+}
+
+type RawSkillInstallationOutcomeData struct {
+	Discriminator SkillInstallationOutcomeKind
+	Raw           json.RawMessage
+}
+
+func (RawSkillInstallationOutcomeData) skillInstallationOutcome() {}
+func (r RawSkillInstallationOutcomeData) Kind() SkillInstallationOutcomeKind {
+	return r.Discriminator
+}
+
+// The operation was cancelled before a terminal mutation.
+type SkillInstallationOutcomeCancelled struct {
+	// Original operation identity.
+	OperationID string `json:"operationId"`
+}
+
+func (SkillInstallationOutcomeCancelled) skillInstallationOutcome() {}
+func (SkillInstallationOutcomeCancelled) Kind() SkillInstallationOutcomeKind {
+	return SkillInstallationOutcomeKindCancelled
+}
+
+// The user declined the confirmation request.
+type SkillInstallationOutcomeDeclined struct {
+	// Original operation identity.
+	OperationID string `json:"operationId"`
+}
+
+func (SkillInstallationOutcomeDeclined) skillInstallationOutcome() {}
+func (SkillInstallationOutcomeDeclined) Kind() SkillInstallationOutcomeKind {
+	return SkillInstallationOutcomeKindDeclined
+}
+
+// The verified Skill was installed disabled.
+type SkillInstallationOutcomeInstalled struct {
+	// Durable installed Skill summary.
+	Installation SkillInstallationSummary `json:"installation"`
+}
+
+func (SkillInstallationOutcomeInstalled) skillInstallationOutcome() {}
+func (SkillInstallationOutcomeInstalled) Kind() SkillInstallationOutcomeKind {
+	return SkillInstallationOutcomeKindInstalled
+}
+
+// A write may have completed. Recover and inspect durable state before retrying.
+type SkillInstallationOutcomeRecoveryRequired struct {
+	// Operation whose durable result must be recovered and inspected.
+	OperationID string `json:"operationId"`
+}
+
+func (SkillInstallationOutcomeRecoveryRequired) skillInstallationOutcome() {}
+func (SkillInstallationOutcomeRecoveryRequired) Kind() SkillInstallationOutcomeKind {
+	return SkillInstallationOutcomeKindRecoveryRequired
+}
+
+// The operation was refused without applying changes.
+type SkillInstallationOutcomeRefused struct {
+	// Present once an operation has been allocated.
+	OperationID *string `json:"operationId,omitempty"`
+	// Bounded refusal reason.
+	Reason SkillInstallationFailureReason `json:"reason"`
+}
+
+func (SkillInstallationOutcomeRefused) skillInstallationOutcome() {}
+func (SkillInstallationOutcomeRefused) Kind() SkillInstallationOutcomeKind {
+	return SkillInstallationOutcomeKindRefused
+}
+
+// The durable transaction was aborted or fully compensated.
+type SkillInstallationOutcomeRolledBack struct {
+	// Original operation identity.
+	OperationID string `json:"operationId"`
+	// Cause of the fully aborted or compensated operation.
+	Reason SkillInstallationFailureReason `json:"reason"`
+}
+
+func (SkillInstallationOutcomeRolledBack) skillInstallationOutcome() {}
+func (SkillInstallationOutcomeRolledBack) Kind() SkillInstallationOutcomeKind {
+	return SkillInstallationOutcomeKindRolledBack
+}
+
+// The owned Skill was removed.
+type SkillInstallationOutcomeUninstalled struct {
+	// Removed installation identity.
+	InstallationID string `json:"installationId"`
+	// Original removal operation identity.
+	OperationID string `json:"operationId"`
+}
+
+func (SkillInstallationOutcomeUninstalled) skillInstallationOutcome() {}
+func (SkillInstallationOutcomeUninstalled) Kind() SkillInstallationOutcomeKind {
+	return SkillInstallationOutcomeKindUninstalled
+}
+
+// Skill installation result with the honoured contract, or a typed request/negotiation
+// refusal.
+// Experimental: SkillInstallationResult is part of an experimental API and may change or be
+// removed.
+type SkillInstallationResult interface {
+	skillInstallationResult()
+	skillInstallationResultKind() SkillInstallationResultKind
+}
+
+type RawSkillInstallationResultData struct {
+	Discriminator SkillInstallationResultKind
+	Raw           json.RawMessage
+}
+
+func (RawSkillInstallationResultData) skillInstallationResult() {}
+func (r RawSkillInstallationResultData) skillInstallationResultKind() SkillInstallationResultKind {
+	return r.Discriminator
+}
+func (CatalogInvalidRequestError) skillInstallationResult() {}
+func (CatalogInvalidRequestError) skillInstallationResultKind() SkillInstallationResultKind {
+	return SkillInstallationResultKindInvalidRequest
+}
+func (CatalogNegotiationRefusedError) skillInstallationResult() {}
+func (CatalogNegotiationRefusedError) skillInstallationResultKind() SkillInstallationResultKind {
+	return SkillInstallationResultKindNegotiationRefused
+}
+
+type SkillInstallationResultOutcome struct {
+	// Capabilities honoured for this request.
+	Negotiated CatalogNegotiatedContract `json:"negotiated"`
+	// Terminal operation outcome.
+	Outcome SkillInstallationOutcome `json:"outcome"`
+}
+
+func (SkillInstallationResultOutcome) skillInstallationResult() {}
+func (SkillInstallationResultOutcome) skillInstallationResultKind() SkillInstallationResultKind {
+	return SkillInstallationResultKindOutcome
+}
+
+// Safe verified Skill review fields. No raw credential, candidate handle or plan handle.
+// Experimental: SkillInstallationReview is part of an experimental API and may change or be
+// removed.
+type SkillInstallationReview interface {
+	skillInstallationReview()
+	Action() SkillInstallationReviewAction
+}
+
+type RawSkillInstallationReviewData struct {
+	Discriminator SkillInstallationReviewAction
+	Raw           json.RawMessage
+}
+
+func (RawSkillInstallationReviewData) skillInstallationReview() {}
+func (r RawSkillInstallationReviewData) Action() SkillInstallationReviewAction {
+	return r.Discriminator
+}
+
+// Review for installing a verified Skill.
+type SkillInstallationReviewInstall struct {
+	// Catalogue identity retained from the bound candidate before consent.
+	Catalogue InstallationCatalogueIdentity `json:"catalogue"`
+	// Skill description from SKILL.md when present.
+	Description *string `json:"description,omitempty"`
+	// Complete verified SKILL.md content. Planning refuses with review-too-large
+	// when this exceeds 262144 UTF-8 bytes; it is never truncated.
+	EntrypointContent string `json:"entrypointContent"`
+	// Relative path of the verified Skill entrypoint.
+	EntrypointPath string `json:"entrypointPath"`
+	// Reviewed files and digests.
+	Files []SkillInstallationFileReview `json:"files"`
+	// Installing never grants immediate use; the Skill is written disabled.
+	InstallsDisabled bool `json:"installsDisabled"`
+	// Skill invocation name from SKILL.md.
+	Name string `json:"name"`
+	// Exact verified source identity.
+	Source SkillInstallationSource `json:"source"`
+	// Exact user-scope target location without an absolute host path.
+	Target SkillInstallationLocation `json:"target"`
+	// Total reviewed payload size in bytes.
+	TotalBytes int64 `json:"totalBytes"`
+}
+
+func (SkillInstallationReviewInstall) skillInstallationReview() {}
+func (SkillInstallationReviewInstall) Action() SkillInstallationReviewAction {
+	return SkillInstallationReviewActionInstall
+}
+
+// Review for uninstalling an owned verified Skill.
+type SkillInstallationReviewUninstall struct {
+	// Catalogue identity retained at install time.
+	Catalogue InstallationCatalogueIdentity `json:"catalogue"`
+	// Files recorded by the installation receipt.
+	Files []SkillInstallationFileReview `json:"files"`
+	// Whether current files differ from the receipt. Apply refuses drift.
+	FilesModified bool `json:"filesModified"`
+	// Owned installation being removed.
+	Installation SkillInstallationSummary `json:"installation"`
+	// Total receipt-owned payload size in bytes.
+	TotalBytes int64 `json:"totalBytes"`
+}
+
+func (SkillInstallationReviewUninstall) skillInstallationReview() {}
+func (SkillInstallationReviewUninstall) Action() SkillInstallationReviewAction {
+	return SkillInstallationReviewActionUninstall
+}
+
+// Source identity retained from Agent Finder and the pinned GitHub descriptor.
+// Experimental: SkillInstallationSource is part of an experimental API and may change or be
+// removed.
+type SkillInstallationSource struct {
+	// Digest of the descriptor's bundle manifest.
+	BundleDigest string `json:"bundleDigest"`
+	// Agent Finder materialisation revision identifier.
+	CatalogRevisionID string `json:"catalogRevisionId"`
+	// Digest of the canonical materialisation descriptor.
+	DescriptorDigest string `json:"descriptorDigest"`
+	// Repository full name, for example owner/name.
+	Repository string `json:"repository"`
+	// GitHub repository database identifier.
+	RepositoryID string `json:"repositoryId"`
+	// Agent Finder resource identifier.
+	ResourceID string `json:"resourceId"`
+	// Pinned Git commit revision.
+	Revision string `json:"revision"`
+	// Root path within the pinned repository.
+	Root string `json:"root"`
+}
+
+// Inventory request under an explicitly selected existing session.
+// Experimental: SkillInstallationsRequest is part of an experimental API and may change or
+// be removed.
+type SkillInstallationsRequest struct {
+	// Required authenticated bound installation contract.
+	Contract CatalogClientContract `json:"contract"`
+	// Existing selected local session on this connection.
+	PolicySessionID string `json:"policySessionId"`
+}
+
+// Durable verified Skill ownership summary.
+// Experimental: SkillInstallationSummary is part of an experimental API and may change or
+// be removed.
+type SkillInstallationSummary struct {
+	// Catalogue identity retained at install time.
+	Catalogue InstallationCatalogueIdentity `json:"catalogue"`
+	// Persisted enablement requested for this installation.
+	ConfiguredEnabled bool `json:"configuredEnabled"`
+	// Exact durable installation receipt identity.
+	InstallationID string `json:"installationId"`
+	// ISO 8601 wall-clock installation time.
+	InstalledAt string `json:"installedAt"`
+	// Skill invocation name.
+	Name string `json:"name"`
+	// Operation that installed this Skill.
+	OperationID string `json:"operationId"`
+	// Ownership state observed from files and receipts.
+	OwnershipState SkillInstallationOwnershipState `json:"ownershipState"`
+	// Bound-session load observation.
+	SessionState SkillInstallationSessionState `json:"sessionState"`
+	// Exact retained verified source identity.
+	Source SkillInstallationSource `json:"source"`
+	// User-facing installation location without an absolute host path.
+	Target SkillInstallationLocation `json:"target"`
+}
+
+// A computed Skill install plan. Nothing has been applied.
+// Experimental: SkillInstallPlan is part of an experimental API and may change or be
+// removed.
+type SkillInstallPlan struct {
+	// Original wall-clock expiry as an ISO 8601 timestamp.
+	ExpiresAt string `json:"expiresAt"`
+	// Original operation identifier returned before confirmation.
+	OperationID string `json:"operationId"`
+	// One-use plan handle, bound to the original candidate authority.
+	PlanHandle string `json:"planHandle"`
+	// Safe review to present before applying the plan.
+	Review SkillInstallationReview `json:"review"`
+}
+
 // Skills available to the session, with their enabled state.
 // Experimental: SkillList is part of an experimental API and may change or be removed.
 type SkillList struct {
 	// Available skills
 	Skills []Skill `json:"skills"`
+}
+
+// Side-effect-free planning of one verified Agent Finder Skill candidate.
+// Experimental: SkillPlanInstallRequest is part of an experimental API and may change or be
+// removed.
+type SkillPlanInstallRequest struct {
+	// Fresh single-use AI skill candidate handle returned by a bound catalogue search.
+	CandidateHandle string `json:"candidateHandle"`
+	// Required authenticated bound catalogue and Skill installation capabilities.
+	Contract CatalogClientContract `json:"contract"`
+	// Existing local session attached to this connection.
+	PolicySessionID string `json:"policySessionId"`
+}
+
+// Read-only preparation of one owned Skill removal under fresh selected-session authority.
+// Experimental: SkillPlanUninstallRequest is part of an experimental API and may change or
+// be removed.
+type SkillPlanUninstallRequest struct {
+	// Required authenticated bound installation contract.
+	Contract CatalogClientContract `json:"contract"`
+	// Exact receipt to inspect.
+	InstallationID string `json:"installationId"`
+	// Existing selected local session on this connection.
+	PolicySessionID string `json:"policySessionId"`
 }
 
 // Catalog-only metadata for one SDK-provided skill. The complete SKILL.md is fetched
@@ -16272,6 +16959,20 @@ type SkillsEnableRequest struct {
 	Name string `json:"name"`
 }
 
+// Persisted enablement update for one owned Skill installation.
+// Experimental: SkillSetEnabledRequest is part of an experimental API and may change or be
+// removed.
+type SkillSetEnabledRequest struct {
+	// Required authenticated bound Skill installation capability.
+	Contract CatalogClientContract `json:"contract"`
+	// Persisted enablement value.
+	Enabled bool `json:"enabled"`
+	// Exact receipt identity to update.
+	InstallationID string `json:"installationId"`
+	// Existing selected local session to reconcile after persistence.
+	PolicySessionID string `json:"policySessionId"`
+}
+
 // Optional project paths to enumerate.
 // Experimental: SkillsGetDiscoveryPathsRequest is part of an experimental API and may
 // change or be removed.
@@ -16321,6 +17022,22 @@ type SkillsLoadDiagnostics struct {
 	Errors []string `json:"errors"`
 	// Warnings emitted while loading skills (e.g. skills that loaded but had issues)
 	Warnings []string `json:"warnings"`
+}
+
+// A computed Skill uninstall plan. Nothing has been removed.
+// Experimental: SkillUninstallPlan is part of an experimental API and may change or be
+// removed.
+type SkillUninstallPlan struct {
+	// Original wall-clock expiry as an ISO 8601 timestamp.
+	ExpiresAt string `json:"expiresAt"`
+	// Owned Skill installation being removed.
+	Installation SkillInstallationSummary `json:"installation"`
+	// Original removal operation identifier returned before confirmation.
+	OperationID string `json:"operationId"`
+	// One-use uninstall plan handle.
+	PlanHandle string `json:"planHandle"`
+	// Safe review to present before applying removal.
+	Review SkillInstallationReview `json:"review"`
 }
 
 // Slash-command metadata with name, aliases, description, kind, input hint, execution
@@ -19901,14 +20618,23 @@ const (
 	CatalogAiSkillCandidateKindAiSkill CatalogAiSkillCandidateKind = "ai-skill"
 )
 
-// Typed non-installable state for an AI skill candidate
+// Typed installability state for an AI skill candidate
 // Experimental: CatalogAiSkillInstallability is part of an experimental API and may change
 // or be removed.
 type CatalogAiSkillInstallability string
 
 const (
-	// AI skills are discovery-only on this surface.
+	// Skill installation is understood but disabled for the selected session.
+	CatalogAiSkillInstallabilityFeatureDisabled CatalogAiSkillInstallability = "feature-disabled"
+	// This AI skill candidate carries verified materialisation metadata and the selected
+	// session may plan installation.
+	CatalogAiSkillInstallabilityInstallable CatalogAiSkillInstallability = "installable"
+	// The candidate lacks verified materialisation metadata required for installation.
+	CatalogAiSkillInstallabilityMaterialisationUnavailable CatalogAiSkillInstallability = "materialisation-unavailable"
+	// Compatibility value for discovery-only callers that did not negotiate Skill installation.
 	CatalogAiSkillInstallabilityNotInstallableKind CatalogAiSkillInstallability = "not-installable-kind"
+	// Policy refuses Skill installation for the selected session or authority.
+	CatalogAiSkillInstallabilityPolicyForbids CatalogAiSkillInstallability = "policy-forbids"
 )
 
 // Canonical AI skill media type
@@ -19989,6 +20715,13 @@ const (
 	CatalogCapabilityCatalogSelection CatalogCapability = "catalog-selection"
 	// Understands the legacy `application/mcp-server+json` media type.
 	CatalogCapabilityLegacyMCPServerCard CatalogCapability = "legacy-mcp-server-card"
+	// Extends mcp-confirmed-remote-installation to declared non-secret header and URL values
+	// and receipt-owned header secrets for personal remote MCP choices. Requires
+	// mcp-confirmed-remote-installation and bound session authority. Secret values are written
+	// only to the reviewed backend after confirmation and are never returned; package and stdio
+	// choices remain unsupported. Advertised only when owned secret effects and owned secret
+	// activation are linked.
+	CatalogCapabilityMCPConfiguredRemoteInstallation CatalogCapability = "mcp-configured-remote-installation"
 	// Understands effect-free preparation, exact human-confirmed apply and owned removal for
 	// fully resolved personal remote MCP choices without supplied inputs or configured secrets.
 	// Advertised only when the real producer and lower owned admission are linked; requires
@@ -20002,6 +20735,11 @@ const (
 	// Understands plans that enumerate every eligible transport rather than a single preferred
 	// one.
 	CatalogCapabilityMultipleTransportChoice CatalogCapability = "multiple-transport-choice"
+	// Understands verified Agent Finder Skill install, uninstall, recovery and
+	// installation-scoped enablement APIs. Advertised only by runtimes with the Skill
+	// installation engine linked; acquisition may still be refused as feature-disabled per
+	// selected session.
+	CatalogCapabilitySkillConfirmedInstallation CatalogCapability = "skill-confirmed-installation"
 	// Understands versioned candidate trust snapshots. Protocol-3 callers must require this
 	// capability before the runtime adds the optional snapshot field.
 	CatalogCapabilityTrustSnapshot CatalogCapability = "trust-snapshot"
@@ -21137,11 +21875,12 @@ const (
 	InstallationDecisionDecline InstallationDecision = "decline"
 )
 
-// Reviewed resource discriminator.
+// Resource discriminator for InstallationReview.
 type InstallationReviewResource string
 
 const (
-	InstallationReviewResourceMCP InstallationReviewResource = "mcp"
+	InstallationReviewResourceMCP   InstallationReviewResource = "mcp"
+	InstallationReviewResourceSkill InstallationReviewResource = "skill"
 )
 
 // Constant value. Always "github".
@@ -23513,6 +24252,180 @@ const (
 	SkillDiscoveryScopeProject SkillDiscoveryScope = "project"
 )
 
+// Bounded refusal categories for verified Skill installation management.
+// Experimental: SkillInstallationFailureReason is part of an experimental API and may
+// change or be removed.
+type SkillInstallationFailureReason string
+
+const (
+	// An owned Skill with the same identity or target already exists.
+	SkillInstallationFailureReasonAlreadyInstalled SkillInstallationFailureReason = "already-installed"
+	// Skill installation storage or admission is busy.
+	SkillInstallationFailureReasonBusy SkillInstallationFailureReason = "busy"
+	// The original operation was cancelled.
+	SkillInstallationFailureReasonCancelled SkillInstallationFailureReason = "cancelled"
+	// Installed Skill files no longer match ownership evidence.
+	SkillInstallationFailureReasonConfigurationModified SkillInstallationFailureReason = "configuration-modified"
+	// The confirmation response is malformed or mismatched.
+	SkillInstallationFailureReasonConfirmationInvalid SkillInstallationFailureReason = "confirmation-invalid"
+	// The original host cannot receive human confirmation.
+	SkillInstallationFailureReasonConfirmationUnavailable SkillInstallationFailureReason = "confirmation-unavailable"
+	// The verified Skill descriptor failed validation.
+	SkillInstallationFailureReasonDescriptorInvalid SkillInstallationFailureReason = "descriptor-invalid"
+	// The verified Skill descriptor could not be retrieved safely.
+	SkillInstallationFailureReasonDescriptorUnavailable SkillInstallationFailureReason = "descriptor-unavailable"
+	// The Skill entrypoint could not be retrieved or verified.
+	SkillInstallationFailureReasonEntrypointUnavailable SkillInstallationFailureReason = "entrypoint-unavailable"
+	// The handle or operation expired.
+	SkillInstallationFailureReasonExpired SkillInstallationFailureReason = "expired"
+	// The selected session does not have the Agent Finder Skill installation feature flag
+	// enabled for acquisition.
+	SkillInstallationFailureReasonFeatureDisabled SkillInstallationFailureReason = "feature-disabled"
+	// The handle belongs to a different runtime, session or connection.
+	SkillInstallationFailureReasonForeignRuntime SkillInstallationFailureReason = "foreign-runtime"
+	// The candidate handle is not a verified installable Skill candidate.
+	SkillInstallationFailureReasonInvalidCandidate SkillInstallationFailureReason = "invalid-candidate"
+	// The request is unsupported or malformed.
+	SkillInstallationFailureReasonInvalidRequest SkillInstallationFailureReason = "invalid-request"
+	// The Skill entrypoint is not a valid Skill.
+	SkillInstallationFailureReasonInvalidSkill SkillInstallationFailureReason = "invalid-skill"
+	// The selected runtime cannot inspect or control the requested lifecycle operation.
+	SkillInstallationFailureReasonLifecycleUnavailable SkillInstallationFailureReason = "lifecycle-unavailable"
+	// The bounded operation limit was reached.
+	SkillInstallationFailureReasonOperationLimit SkillInstallationFailureReason = "operation-limit"
+	// The acquired payload no longer matches the reviewed descriptor.
+	SkillInstallationFailureReasonPayloadMismatch SkillInstallationFailureReason = "payload-mismatch"
+	// The reviewed Skill payload could not be acquired.
+	SkillInstallationFailureReasonPayloadUnavailable SkillInstallationFailureReason = "payload-unavailable"
+	// The original plan deadline elapsed.
+	SkillInstallationFailureReasonPlanExpired SkillInstallationFailureReason = "plan-expired"
+	// The one-use plan was already consumed.
+	SkillInstallationFailureReasonPlanReplayed SkillInstallationFailureReason = "plan-replayed"
+	// The original authority or policy changed.
+	SkillInstallationFailureReasonPolicyChanged SkillInstallationFailureReason = "policy-changed"
+	// Existing authenticated session and host authority is unavailable.
+	SkillInstallationFailureReasonPolicyContextUnavailable SkillInstallationFailureReason = "policy-context-unavailable"
+	// Durable Skill installation evidence requires recovery before mutation.
+	SkillInstallationFailureReasonRecoveryRequired SkillInstallationFailureReason = "recovery-required"
+	// No matching owned resource or original operation exists.
+	SkillInstallationFailureReasonResourceNotFound SkillInstallationFailureReason = "resource-not-found"
+	// The Skill entrypoint exceeds the bounded complete review size.
+	SkillInstallationFailureReasonReviewTooLarge SkillInstallationFailureReason = "review-too-large"
+	// The handle was minted for a different search result or authority.
+	SkillInstallationFailureReasonSearchMismatch SkillInstallationFailureReason = "search-mismatch"
+	// The retained Skill source changed after planning.
+	SkillInstallationFailureReasonSourceChanged SkillInstallationFailureReason = "source-changed"
+	// A storage operation failed; inspect durable state before retrying.
+	SkillInstallationFailureReasonWriteFailed SkillInstallationFailureReason = "write-failed"
+	// The handle is not the expected Skill handle kind.
+	SkillInstallationFailureReasonWrongKind SkillInstallationFailureReason = "wrong-kind"
+)
+
+// Kind discriminator for SkillInstallationManagementOutcome.
+type SkillInstallationManagementOutcomeKind string
+
+const (
+	SkillInstallationManagementOutcomeKindEnabledChanged   SkillInstallationManagementOutcomeKind = "enabled-changed"
+	SkillInstallationManagementOutcomeKindInstallPlanned   SkillInstallationManagementOutcomeKind = "install-planned"
+	SkillInstallationManagementOutcomeKindListed           SkillInstallationManagementOutcomeKind = "listed"
+	SkillInstallationManagementOutcomeKindOperation        SkillInstallationManagementOutcomeKind = "operation"
+	SkillInstallationManagementOutcomeKindRecovered        SkillInstallationManagementOutcomeKind = "recovered"
+	SkillInstallationManagementOutcomeKindRecoveryRequired SkillInstallationManagementOutcomeKind = "recovery-required"
+	SkillInstallationManagementOutcomeKindRefused          SkillInstallationManagementOutcomeKind = "refused"
+	SkillInstallationManagementOutcomeKindRolledBack       SkillInstallationManagementOutcomeKind = "rolled-back"
+	SkillInstallationManagementOutcomeKindUninstallPlanned SkillInstallationManagementOutcomeKind = "uninstall-planned"
+)
+
+// Kind discriminator for SkillInstallationManagementResult.
+type SkillInstallationManagementResultKind string
+
+const (
+	SkillInstallationManagementResultKindInvalidRequest     SkillInstallationManagementResultKind = "invalid-request"
+	SkillInstallationManagementResultKindNegotiationRefused SkillInstallationManagementResultKind = "negotiation-refused"
+	SkillInstallationManagementResultKindOutcome            SkillInstallationManagementResultKind = "outcome"
+)
+
+// Phase discriminator for SkillInstallationOperationStatus.
+type SkillInstallationOperationStatusPhase string
+
+const (
+	SkillInstallationOperationStatusPhaseApplying             SkillInstallationOperationStatusPhase = "applying"
+	SkillInstallationOperationStatusPhaseAwaitingConfirmation SkillInstallationOperationStatusPhase = "awaiting-confirmation"
+	SkillInstallationOperationStatusPhaseCompleted            SkillInstallationOperationStatusPhase = "completed"
+	SkillInstallationOperationStatusPhasePrepared             SkillInstallationOperationStatusPhase = "prepared"
+	SkillInstallationOperationStatusPhasePreparing            SkillInstallationOperationStatusPhase = "preparing"
+	SkillInstallationOperationStatusPhaseRevalidating         SkillInstallationOperationStatusPhase = "revalidating"
+)
+
+// Kind discriminator for SkillInstallationOutcome.
+type SkillInstallationOutcomeKind string
+
+const (
+	SkillInstallationOutcomeKindCancelled        SkillInstallationOutcomeKind = "cancelled"
+	SkillInstallationOutcomeKindDeclined         SkillInstallationOutcomeKind = "declined"
+	SkillInstallationOutcomeKindInstalled        SkillInstallationOutcomeKind = "installed"
+	SkillInstallationOutcomeKindRecoveryRequired SkillInstallationOutcomeKind = "recovery-required"
+	SkillInstallationOutcomeKindRefused          SkillInstallationOutcomeKind = "refused"
+	SkillInstallationOutcomeKindRolledBack       SkillInstallationOutcomeKind = "rolled-back"
+	SkillInstallationOutcomeKindUninstalled      SkillInstallationOutcomeKind = "uninstalled"
+)
+
+// Owned Skill state observed from files and receipts.
+// Experimental: SkillInstallationOwnershipState is part of an experimental API and may
+// change or be removed.
+type SkillInstallationOwnershipState string
+
+const (
+	// Owned files and receipt evidence match.
+	SkillInstallationOwnershipStateIntact SkillInstallationOwnershipState = "intact"
+	// Owned files no longer match the receipt.
+	SkillInstallationOwnershipStateModified SkillInstallationOwnershipState = "modified"
+	// Ownership evidence requires recovery before mutation.
+	SkillInstallationOwnershipStateRecoveryRequired SkillInstallationOwnershipState = "recovery-required"
+)
+
+// Kind discriminator for SkillInstallationResult.
+type SkillInstallationResultKind string
+
+const (
+	SkillInstallationResultKindInvalidRequest     SkillInstallationResultKind = "invalid-request"
+	SkillInstallationResultKindNegotiationRefused SkillInstallationResultKind = "negotiation-refused"
+	SkillInstallationResultKindOutcome            SkillInstallationResultKind = "outcome"
+)
+
+// Action discriminator for SkillInstallationReview.
+type SkillInstallationReviewAction string
+
+const (
+	SkillInstallationReviewActionInstall   SkillInstallationReviewAction = "install"
+	SkillInstallationReviewActionUninstall SkillInstallationReviewAction = "uninstall"
+)
+
+// Experimental: SkillInstallationScope is part of an experimental API and may change or be
+// removed.
+type SkillInstallationScope string
+
+const (
+	// The user's personal Copilot home.
+	SkillInstallationScopePersonal SkillInstallationScope = "personal"
+)
+
+// Bound-session observation after reconciling persisted enablement.
+// Experimental: SkillInstallationSessionState is part of an experimental API and may change
+// or be removed.
+type SkillInstallationSessionState string
+
+const (
+	// The selected session has loaded this Skill or settings and it is disabled.
+	SkillInstallationSessionStateLoadedDisabled SkillInstallationSessionState = "loaded-disabled"
+	// The selected session has loaded this Skill and it is enabled.
+	SkillInstallationSessionStateLoadedEnabled SkillInstallationSessionState = "loaded-enabled"
+	// The selected session has not loaded Skills after the latest change.
+	SkillInstallationSessionStateNotLoaded SkillInstallationSessionState = "not-loaded"
+	// The selected session could not be inspected.
+	SkillInstallationSessionStateUnknown SkillInstallationSessionState = "unknown"
+)
+
 // Source location type (e.g., project, personal-copilot, plugin, builtin, sdk)
 // Experimental: SkillSource is part of an experimental API and may change or be removed.
 type SkillSource string
@@ -24748,8 +25661,7 @@ func (a *ServerMCPAPI) PlanUninstall(ctx context.Context, params *MCPPlanUninsta
 //
 // RPC method: mcp.prepareInstall.
 //
-// Parameters: Side-effect-free preparation of one original bound, input-free remote MCP
-// choice.
+// Parameters: Side-effect-free preparation of one original bound remote MCP choice.
 //
 // Returns: Management result with contract receipt, or a typed request/negotiation refusal.
 func (a *ServerMCPAPI) PrepareInstall(ctx context.Context, params *MCPPrepareInstallRequest) (MCPInstallationManagementResult, error) {
@@ -25932,6 +26844,50 @@ func (a *ServerSessionsAPI) TransferRemoteControl(ctx context.Context, params *S
 // Experimental: ServerSkillsAPI contains experimental APIs that may change or be removed.
 type ServerSkillsAPI serverAPI
 
+// ApplyInstall consumes one verified Skill installation plan, requests explicit human
+// consent through installations.confirm on the original connection, then revalidates and
+// installs the Skill disabled.
+//
+// RPC method: skills.applyInstall.
+//
+// Parameters: Applies exactly one retained verified Skill installation plan.
+//
+// Returns: Skill installation result with the honoured contract, or a typed
+// request/negotiation refusal.
+func (a *ServerSkillsAPI) ApplyInstall(ctx context.Context, params *SkillApplyInstallRequest) (SkillInstallationResult, error) {
+	raw, err := a.client.Request(ctx, "skills.applyInstall", params)
+	if err != nil {
+		return nil, err
+	}
+	result, err := unmarshalSkillInstallationResult(raw)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// ApplyUninstall consumes an owned Skill removal plan, requests explicit human consent
+// through installations.confirm, refuses drift, and removes the exact owned files through
+// quarantine.
+//
+// RPC method: skills.applyUninstall.
+//
+// Parameters: One-use application of the exact retained Skill removal plan.
+//
+// Returns: Skill installation result with the honoured contract, or a typed
+// request/negotiation refusal.
+func (a *ServerSkillsAPI) ApplyUninstall(ctx context.Context, params *SkillApplyUninstallRequest) (SkillInstallationResult, error) {
+	raw, err := a.client.Request(ctx, "skills.applyUninstall", params)
+	if err != nil {
+		return nil, err
+	}
+	result, err := unmarshalSkillInstallationResult(raw)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
 // Discovers skills across global and project sources.
 //
 // RPC method: skills.discover.
@@ -25972,6 +26928,50 @@ func (a *ServerSkillsAPI) GetDiscoveryPaths(ctx context.Context, params *SkillsG
 		return nil, err
 	}
 	return &result, nil
+}
+
+// PlanInstall plans installation of a verified Agent Finder Skill candidate without writing
+// files. The returned review is safe to present to a user and installing always leaves the
+// Skill disabled until separately enabled.
+//
+// RPC method: skills.planInstall.
+//
+// Parameters: Side-effect-free planning of one verified Agent Finder Skill candidate.
+//
+// Returns: Skill installation management result with the honoured contract, or a typed
+// refusal.
+func (a *ServerSkillsAPI) PlanInstall(ctx context.Context, params *SkillPlanInstallRequest) (SkillInstallationManagementResult, error) {
+	raw, err := a.client.Request(ctx, "skills.planInstall", params)
+	if err != nil {
+		return nil, err
+	}
+	result, err := unmarshalSkillInstallationManagementResult(raw)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// PlanUninstall prepares a read-only removal plan for an owned verified Agent Finder Skill
+// installation. Uninstall planning is never gated by the Skill-install feature flag.
+//
+// RPC method: skills.planUninstall.
+//
+// Parameters: Read-only preparation of one owned Skill removal under fresh selected-session
+// authority.
+//
+// Returns: Skill installation management result with the honoured contract, or a typed
+// refusal.
+func (a *ServerSkillsAPI) PlanUninstall(ctx context.Context, params *SkillPlanUninstallRequest) (SkillInstallationManagementResult, error) {
+	raw, err := a.client.Request(ctx, "skills.planUninstall", params)
+	if err != nil {
+		return nil, err
+	}
+	result, err := unmarshalSkillInstallationManagementResult(raw)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 // Experimental: ServerSkillsConfigAPI contains experimental APIs that may change or be
@@ -26017,6 +27017,124 @@ func (a *ServerSkillsConfigAPI) SetSkillDisabled(ctx context.Context, params *Sk
 // Experimental: Config returns experimental APIs that may change or be removed.
 func (s *ServerSkillsAPI) Config() *ServerSkillsConfigAPI {
 	return (*ServerSkillsConfigAPI)(s)
+}
+
+// Experimental: ServerSkillsInstallationsAPI contains experimental APIs that may change or
+// be removed.
+type ServerSkillsInstallationsAPI serverAPI
+
+// Cancel requests cancellation of a known Skill installation operation before commit.
+// Already-started durable work requires recovery instead of silent replay.
+//
+// RPC method: skills.installations.cancel.
+//
+// Parameters: Existing-operation control. A new session selector is deliberately not
+// accepted.
+//
+// Returns: Skill installation management result with the honoured contract, or a typed
+// refusal.
+func (a *ServerSkillsInstallationsAPI) Cancel(ctx context.Context, params *SkillInstallationOperationRequest) (SkillInstallationManagementResult, error) {
+	raw, err := a.client.Request(ctx, "skills.installations.cancel", params)
+	if err != nil {
+		return nil, err
+	}
+	result, err := unmarshalSkillInstallationManagementResult(raw)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// Lists owned verified Agent Finder Skill installations for the selected existing session.
+// Listing is never gated by the Skill-install feature flag.
+//
+// RPC method: skills.installations.list.
+//
+// Parameters: Inventory request under an explicitly selected existing session.
+//
+// Returns: Skill installation management result with the honoured contract, or a typed
+// refusal.
+func (a *ServerSkillsInstallationsAPI) List(ctx context.Context, params *SkillInstallationsRequest) (SkillInstallationManagementResult, error) {
+	raw, err := a.client.Request(ctx, "skills.installations.list", params)
+	if err != nil {
+		return nil, err
+	}
+	result, err := unmarshalSkillInstallationManagementResult(raw)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// Recover reconciles interrupted owned Skill installation work for the selected existing
+// session, then inspects owned inventory. Recovery is never gated by the Skill-install
+// feature flag.
+//
+// RPC method: skills.installations.recover.
+//
+// Parameters: Inventory request under an explicitly selected existing session.
+//
+// Returns: Skill installation management result with the honoured contract, or a typed
+// refusal.
+func (a *ServerSkillsInstallationsAPI) Recover(ctx context.Context, params *SkillInstallationsRequest) (SkillInstallationManagementResult, error) {
+	raw, err := a.client.Request(ctx, "skills.installations.recover", params)
+	if err != nil {
+		return nil, err
+	}
+	result, err := unmarshalSkillInstallationManagementResult(raw)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// SetEnabled atomically persists enablement for one owned Agent Finder Skill and reconciles
+// the selected bound session. Enablement is installation-scoped by receipt identity and is
+// never gated by the Skill-install feature flag.
+//
+// RPC method: skills.installations.setEnabled.
+//
+// Parameters: Persisted enablement update for one owned Skill installation.
+//
+// Returns: Skill installation management result with the honoured contract, or a typed
+// refusal.
+func (a *ServerSkillsInstallationsAPI) SetEnabled(ctx context.Context, params *SkillSetEnabledRequest) (SkillInstallationManagementResult, error) {
+	raw, err := a.client.Request(ctx, "skills.installations.setEnabled", params)
+	if err != nil {
+		return nil, err
+	}
+	result, err := unmarshalSkillInstallationManagementResult(raw)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// Status inspects a known Skill installation operation on its original runtime connection.
+// Status is never gated by the Skill-install feature flag.
+//
+// RPC method: skills.installations.status.
+//
+// Parameters: Existing-operation control. A new session selector is deliberately not
+// accepted.
+//
+// Returns: Skill installation management result with the honoured contract, or a typed
+// refusal.
+func (a *ServerSkillsInstallationsAPI) Status(ctx context.Context, params *SkillInstallationOperationRequest) (SkillInstallationManagementResult, error) {
+	raw, err := a.client.Request(ctx, "skills.installations.status", params)
+	if err != nil {
+		return nil, err
+	}
+	result, err := unmarshalSkillInstallationManagementResult(raw)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// Experimental: Installations returns experimental APIs that may change or be removed.
+func (s *ServerSkillsAPI) Installations() *ServerSkillsInstallationsAPI {
+	return (*ServerSkillsInstallationsAPI)(s)
 }
 
 // Experimental: ServerToolsAPI contains experimental APIs that may change or be removed.

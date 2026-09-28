@@ -210,7 +210,6 @@ class TestPermissions:
         """Test resuming session with permission handler"""
         permission_requests = []
 
-        # Create initial session
         session1 = await ctx.client.create_session(
             on_permission_request=PermissionHandler.approve_all
         )

@@ -94,7 +94,6 @@ class TestMCPServers:
         self, ctx: E2ETestContext
     ):
         """Test that MCP server configuration is accepted on session resume"""
-        # Create a session first
         session1 = await ctx.client.create_session(
             on_permission_request=PermissionHandler.approve_all
         )
@@ -177,7 +176,6 @@ class TestCustomAgents:
         self, ctx: E2ETestContext
     ):
         """Test that custom agent configuration is accepted on session resume"""
-        # Create a session first
         session1 = await ctx.client.create_session(
             on_permission_request=PermissionHandler.approve_all
         )

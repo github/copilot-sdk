@@ -1382,9 +1382,16 @@ class CatalogTrustTier(Enum):
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 class CatalogAISkillInstallability(Enum):
-    """Typed non-installable state for an AI skill candidate"""
+    """Whether this AI skill candidate can be planned for verified installation in the selected
+    session.
 
+    Typed installability state for an AI skill candidate
+    """
+    FEATURE_DISABLED = "feature-disabled"
+    INSTALLABLE = "installable"
+    MATERIALISATION_UNAVAILABLE = "materialisation-unavailable"
     NOT_INSTALLABLE_KIND = "not-installable-kind"
+    POLICY_FORBIDS = "policy-forbids"
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 class CatalogAISkillCandidateKind(Enum):
@@ -1420,16 +1427,22 @@ class CatalogAuthenticationRequiredReason(Enum):
     CREDENTIAL_REJECTED = "credential-rejected"
     NO_CREDENTIAL = "no-credential"
 
-class CatalogCandidateInstallability(Enum):
+class CatalogInstallability(Enum):
     """Whether this MCP server can be planned for installation, and if policy prevents it.
 
     Whether an MCP server candidate can be planned for installation
 
-    Typed non-installable state for an AI skill candidate
+    Whether this AI skill candidate can be planned for verified installation in the selected
+    session.
+
+    Typed installability state for an AI skill candidate
     """
+    FEATURE_DISABLED = "feature-disabled"
     INSTALLABLE = "installable"
+    MATERIALISATION_UNAVAILABLE = "materialisation-unavailable"
     NOT_INSTALLABLE_KIND = "not-installable-kind"
     NOT_INSTALLABLE_POLICY = "not-installable-policy"
+    POLICY_FORBIDS = "policy-forbids"
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 class MCPServerCardEmbeddedKind(Enum):
@@ -1456,54 +1469,13 @@ class CatalogCapability(Enum):
     CATALOG_SEARCH_SESSION_BOUND = "catalog-search-session-bound"
     CATALOG_SELECTION = "catalog-selection"
     LEGACY_MCP_SERVER_CARD = "legacy-mcp-server-card"
+    MCP_CONFIGURED_REMOTE_INSTALLATION = "mcp-configured-remote-installation"
     MCP_CONFIRMED_REMOTE_INSTALLATION = "mcp-confirmed-remote-installation"
     MCP_INSTALL_PLANNING = "mcp-install-planning"
     MCP_SERVER_CARD = "mcp-server-card"
     MULTIPLE_TRANSPORT_CHOICE = "multiple-transport-choice"
+    SKILL_CONFIRMED_INSTALLATION = "skill-confirmed-installation"
     TRUST_SNAPSHOT = "trust-snapshot"
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
-class CatalogClientContract:
-    """The protocol version and capability set a caller requires, supplied on every catalog
-    request so negotiation cannot be skipped by omission.
-
-    Protocol version and capabilities the caller requires.
-
-    Capabilities required by the original prepared operation.
-
-    Required authenticated bound installation capabilities.
-
-    Original installation wire capability; new-work authentication is not reacquired.
-
-    Required authenticated bound installation contract.
-
-    Required bound catalogue and confirmed remote installation capabilities.
-    """
-    protocol_version: int
-    """SDK protocol version the caller was generated against. A caller below the runtime's
-    minimum supported version is refused rather than served a partial result.
-    """
-    required_capabilities: list[str]
-    """Wire features the caller requires the runtime to understand. Identifiers are bounded but
-    extensible so a newer caller can negotiate with an older runtime. Requiring an unknown
-    feature yields a typed refusal listing what is understood, never a partial grant. A grant
-    does not promise that a deployment has enabled the operation; typed unavailable results
-    report that separately.
-    """
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'CatalogClientContract':
-        assert isinstance(obj, dict)
-        protocol_version = from_int(obj.get("protocolVersion"))
-        required_capabilities = from_list(from_str, obj.get("requiredCapabilities"))
-        return CatalogClientContract(protocol_version, required_capabilities)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["protocolVersion"] = from_int(self.protocol_version)
-        result["requiredCapabilities"] = from_list(from_str, self.required_capabilities)
-        return result
 
 class CatalogContractViolationErrorKind(Enum):
     CONTRACT_VIOLATION = "contract-violation"
@@ -1583,7 +1555,7 @@ class CatalogMalformedCardReason(Enum):
     UNSUPPORTED_MEDIA_TYPE = "unsupported-media-type"
 
 # Experimental: this type is part of an experimental API and may change or be removed.
-class CatalogMCPServerInstallabilityEnum(Enum):
+class CatalogMCPServerInstallability(Enum):
     """Whether this MCP server can be planned for installation, and if policy prevents it.
 
     Whether an MCP server candidate can be planned for installation
@@ -4250,6 +4222,78 @@ class HooksDiscoverRequest:
             result["projectPaths"] = from_union([lambda x: from_list(from_str, x), from_none], self.project_paths)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class InstallationCatalogueIdentity:
+    """Catalogue identity retained from a bound candidate or plan at installation time.
+
+    Catalogue identity retained from the bound candidate when available.
+
+    Catalogue identity retained from the bound candidate before consent.
+
+    Catalogue identity retained at install time.
+
+    Catalogue identity retained from the installed plan when available.
+    """
+    display_name: str
+    """Human display name retained from the catalogue candidate."""
+
+    source: str
+    """Catalogue authority/source string that supplied the candidate."""
+
+    description: str | None = None
+    """Catalogue description retained at install planning time."""
+
+    item_url: str | None = None
+    """Catalogue item URL when supplied by the authority."""
+
+    publisher: str | None = None
+    """Catalogue publisher retained at install planning time."""
+
+    resource_id: str | None = None
+    """Authority resource identifier when supplied by the catalogue."""
+
+    trust_at_install: CatalogTrustSnapshot | None = None
+    """Catalogue trust observation retained at install planning time."""
+
+    version: str | None = None
+    """Catalogue version retained at install planning time."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'InstallationCatalogueIdentity':
+        assert isinstance(obj, dict)
+        display_name = from_str(obj.get("displayName"))
+        source = from_str(obj.get("source"))
+        description = from_union([from_str, from_none], obj.get("description"))
+        item_url = from_union([from_str, from_none], obj.get("itemUrl"))
+        publisher = from_union([from_str, from_none], obj.get("publisher"))
+        resource_id = from_union([from_str, from_none], obj.get("resourceId"))
+        trust_at_install = from_union([_load_CatalogTrustSnapshot, from_none], obj.get("trustAtInstall"))
+        version = from_union([from_str, from_none], obj.get("version"))
+        return InstallationCatalogueIdentity(display_name, source, description, item_url, publisher, resource_id, trust_at_install, version)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["displayName"] = from_str(self.display_name)
+        result["source"] = from_str(self.source)
+        if self.description is not None:
+            result["description"] = from_union([from_str, from_none], self.description)
+        if self.item_url is not None:
+            result["itemUrl"] = from_union([from_str, from_none], self.item_url)
+        if self.publisher is not None:
+            result["publisher"] = from_union([from_str, from_none], self.publisher)
+        if self.resource_id is not None:
+            result["resourceId"] = from_union([from_str, from_none], self.resource_id)
+        if self.trust_at_install is not None:
+            result["trustAtInstall"] = from_union([lambda x: (x).to_dict(), from_none], self.trust_at_install)
+        if self.version is not None:
+            result["version"] = from_union([from_str, from_none], self.version)
+        return result
+
+class Resource(Enum):
+    MCP = "mcp"
+    SKILL = "skill"
+
 class MCPInstallationReviewAction(Enum):
     INSTALL = "install"
     UNINSTALL = "uninstall"
@@ -4345,6 +4389,81 @@ class MCPPlanValueCategory(Enum):
     PACKAGE_ARGUMENT = "package-argument"
     RUNTIME_ARGUMENT = "runtime-argument"
     URL_VARIABLE = "url-variable"
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+class SkillInstallationSessionState(Enum):
+    """Bound-session load observation.
+
+    Bound-session observation after reconciling persisted enablement.
+    """
+    LOADED_DISABLED = "loaded-disabled"
+    LOADED_ENABLED = "loaded-enabled"
+    NOT_LOADED = "not-loaded"
+    UNKNOWN = "unknown"
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class SkillInstallationSource:
+    """Exact verified source identity.
+
+    Source identity retained from Agent Finder and the pinned GitHub descriptor.
+
+    Exact retained verified source identity.
+    """
+    bundle_digest: str
+    """Digest of the descriptor's bundle manifest."""
+
+    catalog_revision_id: str
+    """Agent Finder materialisation revision identifier."""
+
+    descriptor_digest: str
+    """Digest of the canonical materialisation descriptor."""
+
+    repository: str
+    """Repository full name, for example owner/name."""
+
+    repository_id: str
+    """GitHub repository database identifier."""
+
+    resource_id: str
+    """Agent Finder resource identifier."""
+
+    revision: str
+    """Pinned Git commit revision."""
+
+    root: str
+    """Root path within the pinned repository."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SkillInstallationSource':
+        assert isinstance(obj, dict)
+        bundle_digest = from_str(obj.get("bundleDigest"))
+        catalog_revision_id = from_str(obj.get("catalogRevisionId"))
+        descriptor_digest = from_str(obj.get("descriptorDigest"))
+        repository = from_str(obj.get("repository"))
+        repository_id = from_str(obj.get("repositoryId"))
+        resource_id = from_str(obj.get("resourceId"))
+        revision = from_str(obj.get("revision"))
+        root = from_str(obj.get("root"))
+        return SkillInstallationSource(bundle_digest, catalog_revision_id, descriptor_digest, repository, repository_id, resource_id, revision, root)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["bundleDigest"] = from_str(self.bundle_digest)
+        result["catalogRevisionId"] = from_str(self.catalog_revision_id)
+        result["descriptorDigest"] = from_str(self.descriptor_digest)
+        result["repository"] = from_str(self.repository)
+        result["repositoryId"] = from_str(self.repository_id)
+        result["resourceId"] = from_str(self.resource_id)
+        result["revision"] = from_str(self.revision)
+        result["root"] = from_str(self.root)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+class SkillInstallationScope(Enum):
+    """Installation scope. Agent Finder Skills are installed in the user's personal Copilot home."""
+
+    PERSONAL = "personal"
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 class MCPPlanPolicyDecision(Enum):
@@ -4445,6 +4564,20 @@ class MCPPlanETransport(Enum):
     SSE = "sse"
     STDIO = "stdio"
     STREAMABLE_HTTP = "streamable-http"
+
+class NScope(Enum):
+    """Scope the change would be written to.
+
+    Configuration scope an MCP install plan targets
+
+    Configuration scope the plan targets.
+
+    Configuration scope the plan targets. Defaults to user scope when omitted.
+
+    Installation scope. Agent Finder Skills are installed in the user's personal Copilot home.
+    """
+    PERSONAL = "personal"
+    USER = "user"
 
 class InstallationDecision(Enum):
     """Fresh explicit user decision. There is no default.
@@ -5393,74 +5526,6 @@ class MCPAppsListToolsResult:
     def to_dict(self) -> dict:
         result: dict = {}
         result["tools"] = from_list(lambda x: from_dict(lambda x: x, x), self.tools)
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
-class MCPAppsReadResourceRequest:
-    """MCP server and resource URI to fetch."""
-
-    server_name: str
-    """Name of the MCP server hosting the resource"""
-
-    uri: str
-    """Resource URI (typically ui://...)"""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'MCPAppsReadResourceRequest':
-        assert isinstance(obj, dict)
-        server_name = from_str(obj.get("serverName"))
-        uri = from_str(obj.get("uri"))
-        return MCPAppsReadResourceRequest(server_name, uri)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["serverName"] = from_str(self.server_name)
-        result["uri"] = from_str(self.uri)
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
-class MCPAppsResourceContent:
-    """MCP Apps resource content with URI, optional MIME type, text or base64 blob, and resource
-    metadata.
-    """
-    uri: str
-    """The resource URI (typically ui://...)"""
-
-    meta: dict[str, Any] | None = None
-    """Resource-level metadata (CSP, permissions, etc.)"""
-
-    blob: str | None = None
-    """Base64-encoded binary content"""
-
-    mime_type: str | None = None
-    """MIME type of the content"""
-
-    text: str | None = None
-    """Text content (e.g. HTML)"""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'MCPAppsResourceContent':
-        assert isinstance(obj, dict)
-        uri = from_str(obj.get("uri"))
-        meta = from_union([lambda x: from_dict(lambda x: x, x), from_none], obj.get("_meta"))
-        blob = from_union([from_str, from_none], obj.get("blob"))
-        mime_type = from_union([from_str, from_none], obj.get("mimeType"))
-        text = from_union([from_str, from_none], obj.get("text"))
-        return MCPAppsResourceContent(uri, meta, blob, mime_type, text)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["uri"] = from_str(self.uri)
-        if self.meta is not None:
-            result["_meta"] = from_union([lambda x: from_dict(lambda x: x, x), from_none], self.meta)
-        if self.blob is not None:
-            result["blob"] = from_union([from_str, from_none], self.blob)
-        if self.mime_type is not None:
-            result["mimeType"] = from_union([from_str, from_none], self.mime_type)
-        if self.text is not None:
-            result["text"] = from_union([from_str, from_none], self.text)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -6558,50 +6623,6 @@ class MCPRemoveGitHubResult:
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
-class MCPResourceContent:
-    """MCP resource content with URI, optional MIME type, text or base64 blob, and resource
-    metadata.
-    """
-    uri: str
-    """The resource URI"""
-
-    meta: dict[str, Any] | None = None
-    """Resource-level metadata (CSP, permissions, etc.)"""
-
-    blob: str | None = None
-    """Base64-encoded binary content"""
-
-    mime_type: str | None = None
-    """MIME type of the content"""
-
-    text: str | None = None
-    """Text content (e.g. HTML)"""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'MCPResourceContent':
-        assert isinstance(obj, dict)
-        uri = from_str(obj.get("uri"))
-        meta = from_union([lambda x: from_dict(lambda x: x, x), from_none], obj.get("_meta"))
-        blob = from_union([from_str, from_none], obj.get("blob"))
-        mime_type = from_union([from_str, from_none], obj.get("mimeType"))
-        text = from_union([from_str, from_none], obj.get("text"))
-        return MCPResourceContent(uri, meta, blob, mime_type, text)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["uri"] = from_str(self.uri)
-        if self.meta is not None:
-            result["_meta"] = from_union([lambda x: from_dict(lambda x: x, x), from_none], self.meta)
-        if self.blob is not None:
-            result["blob"] = from_union([from_str, from_none], self.blob)
-        if self.mime_type is not None:
-            result["mimeType"] = from_union([from_str, from_none], self.mime_type)
-        if self.text is not None:
-            result["text"] = from_union([from_str, from_none], self.text)
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
 class MCPResourcesListRequest:
     """MCP server whose resources to enumerate."""
 
@@ -6648,30 +6669,6 @@ class MCPResourcesListTemplatesRequest:
         result["serverName"] = from_str(self.server_name)
         if self.cursor is not None:
             result["cursor"] = from_union([from_str, from_none], self.cursor)
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
-class MCPResourcesReadRequest:
-    """MCP server and resource URI to fetch."""
-
-    server_name: str
-    """Name of the MCP server hosting the resource"""
-
-    uri: str
-    """Resource URI"""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'MCPResourcesReadRequest':
-        assert isinstance(obj, dict)
-        server_name = from_str(obj.get("serverName"))
-        uri = from_str(obj.get("uri"))
-        return MCPResourcesReadRequest(server_name, uri)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["serverName"] = from_str(self.server_name)
-        result["uri"] = from_str(self.uri)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -13888,6 +13885,17 @@ class SkillDiscoveryScope(Enum):
     PERSONAL_COPILOT = "personal-copilot"
     PROJECT = "project"
 
+class SkillInstallationManagementOutcomeKind(Enum):
+    ENABLED_CHANGED = "enabled-changed"
+    INSTALL_PLANNED = "install-planned"
+    LISTED = "listed"
+    OPERATION = "operation"
+    RECOVERED = "recovered"
+    RECOVERY_REQUIRED = "recovery-required"
+    REFUSED = "refused"
+    ROLLED_BACK = "rolled-back"
+    UNINSTALL_PLANNED = "uninstall-planned"
+
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class SkillProviderDescriptor:
@@ -15726,46 +15734,6 @@ class WorkflowCurrentPhase:
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
-class WorkflowDeclaredLimits:
-    """Declared or approved workflow resource ceilings.
-
-    Resource ceilings declared by the workflow.
-    """
-    max_ai_credits: float | None = None
-    """Maximum AI credits consumed by subagents and descendants."""
-
-    max_concurrent_subagents: int | None = None
-    """Maximum concurrently active subagents."""
-
-    max_total_subagents: int | None = None
-    """Maximum total subagents spawned by the run."""
-
-    timeout_seconds: float | None = None
-    """Maximum accumulated active execution time in seconds."""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'WorkflowDeclaredLimits':
-        assert isinstance(obj, dict)
-        max_ai_credits = from_union([from_float, from_none], obj.get("maxAiCredits"))
-        max_concurrent_subagents = from_union([from_int, from_none], obj.get("maxConcurrentSubagents"))
-        max_total_subagents = from_union([from_int, from_none], obj.get("maxTotalSubagents"))
-        timeout_seconds = from_union([from_float, from_none], obj.get("timeoutSeconds"))
-        return WorkflowDeclaredLimits(max_ai_credits, max_concurrent_subagents, max_total_subagents, timeout_seconds)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        if self.max_ai_credits is not None:
-            result["maxAiCredits"] = from_union([to_float, from_none], self.max_ai_credits)
-        if self.max_concurrent_subagents is not None:
-            result["maxConcurrentSubagents"] = from_union([from_int, from_none], self.max_concurrent_subagents)
-        if self.max_total_subagents is not None:
-            result["maxTotalSubagents"] = from_union([from_int, from_none], self.max_total_subagents)
-        if self.timeout_seconds is not None:
-            result["timeoutSeconds"] = from_union([to_float, from_none], self.timeout_seconds)
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
 class WorkflowDurableOperation(Enum):
     """Execution-critical workflow storage operation.
 
@@ -16070,16 +16038,6 @@ class WorkflowRunStatus(Enum):
     PAUSED = "paused"
     PENDING = "pending"
     RUNNING = "running"
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-class WorkflowRunFailureKind(Enum):
-    """Resource ceiling that stopped the run.
-
-    Cumulative resource ceiling that stopped a workflow run.
-    """
-    MAX_AI_CREDITS = "maxAiCredits"
-    MAX_TOTAL_SUBAGENTS = "maxTotalSubagents"
-    TIMEOUT_SECONDS = "timeoutSeconds"
 
 class WorkflowRunFailureType(Enum):
     WORKFLOW_ACCOUNTING_INCOMPLETE = "workflow_accounting_incomplete"
@@ -17755,6 +17713,8 @@ class CatalogNegotiatedContract:
     Protocol version and capabilities the runtime honoured.
 
     Capabilities actually honoured for this request.
+
+    Capabilities honoured for this request.
     """
     granted_capabilities: list[CatalogCapability]
     """Wire features the runtime understood for this operation. Includes the five original
@@ -17778,141 +17738,6 @@ class CatalogNegotiatedContract:
         result: dict = {}
         result["grantedCapabilities"] = from_list(lambda x: to_enum(CatalogCapability, x), self.granted_capabilities)
         result["runtimeProtocolVersion"] = from_int(self.runtime_protocol_version)
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
-class MCPApplyInstallRequest:
-    """Applies exactly one previously prepared operation on its original connection."""
-
-    contract: CatalogClientContract
-    """Capabilities required by the original prepared operation."""
-
-    operation_id: str
-    """Runtime-issued ID already returned by prepareInstall, never reused or rebound."""
-
-    policy_session_id: str
-    """Same existing attached or privately borrowed session as preparation."""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'MCPApplyInstallRequest':
-        assert isinstance(obj, dict)
-        contract = CatalogClientContract.from_dict(obj.get("contract"))
-        operation_id = from_str(obj.get("operationId"))
-        policy_session_id = from_str(obj.get("policySessionId"))
-        return MCPApplyInstallRequest(contract, operation_id, policy_session_id)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["contract"] = to_class(CatalogClientContract, self.contract)
-        result["operationId"] = from_str(self.operation_id)
-        result["policySessionId"] = from_str(self.policy_session_id)
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
-class MCPApplyUninstallRequest:
-    """One-use application of the exact retained removal plan."""
-
-    contract: CatalogClientContract
-    """Required authenticated bound installation capabilities."""
-
-    plan_handle: str
-    """Opaque original removal plan, consumed once."""
-
-    policy_session_id: str
-    """Same existing selected session as removal preparation."""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'MCPApplyUninstallRequest':
-        assert isinstance(obj, dict)
-        contract = CatalogClientContract.from_dict(obj.get("contract"))
-        plan_handle = from_str(obj.get("planHandle"))
-        policy_session_id = from_str(obj.get("policySessionId"))
-        return MCPApplyUninstallRequest(contract, plan_handle, policy_session_id)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["contract"] = to_class(CatalogClientContract, self.contract)
-        result["planHandle"] = from_str(self.plan_handle)
-        result["policySessionId"] = from_str(self.policy_session_id)
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
-class MCPInstallationOperationRequest:
-    """Existing-operation control. A new session selector is deliberately not accepted."""
-
-    contract: CatalogClientContract
-    """Original installation wire capability; new-work authentication is not reacquired."""
-
-    operation_id: str
-    """Exact runtime-issued operation ID on the original connection."""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'MCPInstallationOperationRequest':
-        assert isinstance(obj, dict)
-        contract = CatalogClientContract.from_dict(obj.get("contract"))
-        operation_id = from_str(obj.get("operationId"))
-        return MCPInstallationOperationRequest(contract, operation_id)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["contract"] = to_class(CatalogClientContract, self.contract)
-        result["operationId"] = from_str(self.operation_id)
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
-class MCPInstallationsRequest:
-    """New-work inventory or recovery request under an explicitly selected existing session."""
-
-    contract: CatalogClientContract
-    """Required authenticated bound installation contract."""
-
-    policy_session_id: str
-    """Existing selected local session on this connection."""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'MCPInstallationsRequest':
-        assert isinstance(obj, dict)
-        contract = CatalogClientContract.from_dict(obj.get("contract"))
-        policy_session_id = from_str(obj.get("policySessionId"))
-        return MCPInstallationsRequest(contract, policy_session_id)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["contract"] = to_class(CatalogClientContract, self.contract)
-        result["policySessionId"] = from_str(self.policy_session_id)
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
-class MCPPlanUninstallRequest:
-    """Read-only preparation of one owned removal under fresh selected-session authority."""
-
-    contract: CatalogClientContract
-    """Required authenticated bound installation capabilities."""
-
-    installation_id: str
-    """Exact receipt to inspect, not a server-name guess."""
-
-    policy_session_id: str
-    """Existing selected session on the original connection."""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'MCPPlanUninstallRequest':
-        assert isinstance(obj, dict)
-        contract = CatalogClientContract.from_dict(obj.get("contract"))
-        installation_id = from_str(obj.get("installationId"))
-        policy_session_id = from_str(obj.get("policySessionId"))
-        return MCPPlanUninstallRequest(contract, installation_id, policy_session_id)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["contract"] = to_class(CatalogClientContract, self.contract)
-        result["installationId"] = from_str(self.installation_id)
-        result["policySessionId"] = from_str(self.policy_session_id)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -18352,43 +18177,6 @@ class PermissionDecisionCancelled:
         result["kind"] = self.kind
         if self.reason is not None:
             result["reason"] = from_union([from_str, from_none], self.reason)
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
-class CatalogSelectionRequest:
-    """Terminates one retained catalog selection group through an opaque reference previously
-    returned by the model-safe search projection.
-    """
-    contract: CatalogClientContract
-    """Protocol version and capabilities the caller requires."""
-
-    outcome: CatalogSelectionDecision
-    """The terminal outcome declared by the caller. Timed-out means the host's live interaction
-    deadline elapsed; a reference whose runtime TTL elapsed is rejected separately as stale.
-    """
-    selection_ref: str
-    """Opaque runtime-instance scoped reference to one visible candidate. For a non-selected
-    outcome, any candidate reference from the same search closes that search's retained group.
-    """
-    session_id: str
-    """Locally owned root session whose retained search state is being resolved."""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'CatalogSelectionRequest':
-        assert isinstance(obj, dict)
-        contract = CatalogClientContract.from_dict(obj.get("contract"))
-        outcome = CatalogSelectionDecision(obj.get("outcome"))
-        selection_ref = from_str(obj.get("selectionRef"))
-        session_id = from_str(obj.get("sessionId"))
-        return CatalogSelectionRequest(contract, outcome, selection_ref, session_id)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["contract"] = to_class(CatalogClientContract, self.contract)
-        result["outcome"] = to_enum(CatalogSelectionDecision, self.outcome)
-        result["selectionRef"] = from_str(self.selection_ref)
-        result["sessionId"] = from_str(self.session_id)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -20786,6 +20574,192 @@ class HistoryRewindRequest:
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
+class MCPAppsReadResourceRequest:
+    """MCP server and resource URI to fetch."""
+
+    server_name: str
+    """Name of the MCP server hosting the resource"""
+
+    uri: str
+    """Resource URI (typically ui://...)"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'MCPAppsReadResourceRequest':
+        assert isinstance(obj, dict)
+        server_name = from_str(obj.get("serverName"))
+        uri = from_str(obj.get("uri"))
+        return MCPAppsReadResourceRequest(server_name, uri)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["serverName"] = from_str(self.server_name)
+        result["uri"] = from_str(self.uri)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class MCPAppsResourceContent:
+    """MCP Apps resource content with URI, optional MIME type, text or base64 blob, and resource
+    metadata.
+    """
+    uri: str
+    """The resource URI (typically ui://...)"""
+
+    meta: dict[str, Any] | None = None
+    """Resource-level metadata (CSP, permissions, etc.)"""
+
+    blob: str | None = None
+    """Base64-encoded binary content"""
+
+    mime_type: str | None = None
+    """MIME type of the content"""
+
+    text: str | None = None
+    """Text content (e.g. HTML)"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'MCPAppsResourceContent':
+        assert isinstance(obj, dict)
+        uri = from_str(obj.get("uri"))
+        meta = from_union([lambda x: from_dict(lambda x: x, x), from_none], obj.get("_meta"))
+        blob = from_union([from_str, from_none], obj.get("blob"))
+        mime_type = from_union([from_str, from_none], obj.get("mimeType"))
+        text = from_union([from_str, from_none], obj.get("text"))
+        return MCPAppsResourceContent(uri, meta, blob, mime_type, text)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["uri"] = from_str(self.uri)
+        if self.meta is not None:
+            result["_meta"] = from_union([lambda x: from_dict(lambda x: x, x), from_none], self.meta)
+        if self.blob is not None:
+            result["blob"] = from_union([from_str, from_none], self.blob)
+        if self.mime_type is not None:
+            result["mimeType"] = from_union([from_str, from_none], self.mime_type)
+        if self.text is not None:
+            result["text"] = from_union([from_str, from_none], self.text)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class MCPResourceContent:
+    """MCP resource content with URI, optional MIME type, text or base64 blob, and resource
+    metadata.
+    """
+    uri: str
+    """The resource URI"""
+
+    meta: dict[str, Any] | None = None
+    """Resource-level metadata (CSP, permissions, etc.)"""
+
+    blob: str | None = None
+    """Base64-encoded binary content"""
+
+    mime_type: str | None = None
+    """MIME type of the content"""
+
+    text: str | None = None
+    """Text content (e.g. HTML)"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'MCPResourceContent':
+        assert isinstance(obj, dict)
+        uri = from_str(obj.get("uri"))
+        meta = from_union([lambda x: from_dict(lambda x: x, x), from_none], obj.get("_meta"))
+        blob = from_union([from_str, from_none], obj.get("blob"))
+        mime_type = from_union([from_str, from_none], obj.get("mimeType"))
+        text = from_union([from_str, from_none], obj.get("text"))
+        return MCPResourceContent(uri, meta, blob, mime_type, text)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["uri"] = from_str(self.uri)
+        if self.meta is not None:
+            result["_meta"] = from_union([lambda x: from_dict(lambda x: x, x), from_none], self.meta)
+        if self.blob is not None:
+            result["blob"] = from_union([from_str, from_none], self.blob)
+        if self.mime_type is not None:
+            result["mimeType"] = from_union([from_str, from_none], self.mime_type)
+        if self.text is not None:
+            result["text"] = from_union([from_str, from_none], self.text)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class MCPResourcesReadRequest:
+    """MCP server and resource URI to fetch."""
+
+    server_name: str
+    """Name of the MCP server hosting the resource"""
+
+    uri: str
+    """Resource URI"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'MCPResourcesReadRequest':
+        assert isinstance(obj, dict)
+        server_name = from_str(obj.get("serverName"))
+        uri = from_str(obj.get("uri"))
+        return MCPResourcesReadRequest(server_name, uri)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["serverName"] = from_str(self.server_name)
+        result["uri"] = from_str(self.uri)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class WorkflowDeclaredLimits:
+    """Declared or approved workflow resource ceilings.
+
+    Resource ceilings declared by the workflow.
+    """
+    max_ai_credits: float | None = None
+    """Maximum AI credits consumed by subagents and descendants."""
+
+    max_concurrent_subagents: int | None = None
+    """Maximum concurrently active subagents."""
+
+    max_total_subagents: int | None = None
+    """Maximum total subagents spawned by the run."""
+
+    timeout_seconds: float | None = None
+    """Maximum accumulated active execution time in seconds."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'WorkflowDeclaredLimits':
+        assert isinstance(obj, dict)
+        max_ai_credits = from_union([from_float, from_none], obj.get("maxAiCredits"))
+        max_concurrent_subagents = from_union([from_int, from_none], obj.get("maxConcurrentSubagents"))
+        max_total_subagents = from_union([from_int, from_none], obj.get("maxTotalSubagents"))
+        timeout_seconds = from_union([from_float, from_none], obj.get("timeoutSeconds"))
+        return WorkflowDeclaredLimits(max_ai_credits, max_concurrent_subagents, max_total_subagents, timeout_seconds)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        if self.max_ai_credits is not None:
+            result["maxAiCredits"] = from_union([to_float, from_none], self.max_ai_credits)
+        if self.max_concurrent_subagents is not None:
+            result["maxConcurrentSubagents"] = from_union([from_int, from_none], self.max_concurrent_subagents)
+        if self.max_total_subagents is not None:
+            result["maxTotalSubagents"] = from_union([from_int, from_none], self.max_total_subagents)
+        if self.timeout_seconds is not None:
+            result["timeoutSeconds"] = from_union([to_float, from_none], self.timeout_seconds)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+class WorkflowRunFailureKind(Enum):
+    """Resource ceiling that stopped the run.
+
+    Cumulative resource ceiling that stopped a workflow run.
+    """
+    MAX_AI_CREDITS = "maxAiCredits"
+    MAX_TOTAL_SUBAGENTS = "maxTotalSubagents"
+    TIMEOUT_SECONDS = "timeoutSeconds"
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
 class MCPPlanConfigurationChange:
     """The configuration change for the selected alternative only.
 
@@ -20829,9 +20803,8 @@ class MCPPlanConfigurationChange:
         result["secretReferences"] = from_list(from_str, self.secret_references)
         return result
 
-# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
-class MCPPlanTarget:
+class MCPPlanTargetClass:
     """Exact reviewed user-scope destination.
 
     Where a plan would be written.
@@ -20847,11 +20820,11 @@ class MCPPlanTarget:
     """Configuration scope the plan targets."""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'MCPPlanTarget':
+    def from_dict(obj: Any) -> 'MCPPlanTargetClass':
         assert isinstance(obj, dict)
         config_key = from_str(obj.get("configKey"))
         scope = MCPPlanScope(obj.get("scope"))
-        return MCPPlanTarget(config_key, scope)
+        return MCPPlanTargetClass(config_key, scope)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -20859,56 +20832,21 @@ class MCPPlanTarget:
         result["scope"] = to_enum(MCPPlanScope, self.scope)
         return result
 
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
-class MCPPlanInstallRequest:
-    """A side-effect-free request for an MCP install plan. Computing a plan never writes
-    configuration, stores a secret, or reloads MCP servers.
-    """
-    contract: CatalogClientContract
-    """Protocol version and capabilities the caller requires."""
-
-    source: MCPPlanInstallSource
-    """What to plan: either a candidate handle from a previous search, or a card supplied
-    directly.
-    """
-    policy_session_id: str | None = field(default=None, kw_only=True)
-    """The same existing attached session that owns the original catalogue candidate."""
-
-    scope: MCPPlanScope | None = None
-    """Configuration scope the plan targets. Defaults to user scope when omitted."""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'MCPPlanInstallRequest':
-        assert isinstance(obj, dict)
-        contract = CatalogClientContract.from_dict(obj.get("contract"))
-        source = _load_MCPPlanInstallSource(obj.get("source"))
-        policy_session_id = from_union([from_str, from_none], obj.get("policySessionId"))
-        scope = from_union([MCPPlanScope, from_none], obj.get("scope"))
-        return MCPPlanInstallRequest(contract, source, scope, policy_session_id=policy_session_id)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["contract"] = to_class(CatalogClientContract, self.contract)
-        result["source"] = (self.source).to_dict()
-        if self.policy_session_id is not None:
-            result["policySessionId"] = from_union([from_str, from_none], self.policy_session_id)
-        if self.scope is not None:
-            result["scope"] = from_union([lambda x: to_enum(MCPPlanScope, x), from_none], self.scope)
-        return result
-
 @dataclass
 class MCPInstallationRemoteConfiguration:
-    """Complete effective remote configuration for final input-free installation review.
+    """Complete effective remote configuration for final installation review.
     Earlier private selection reviews and package choices omit this field.
     The owned remote resource requires it before issuing confirmation.
 
-    Final remote configuration, not a template. The producer refuses configured
-    secrets and external-value expansion before presenting this review.
+    Final remote configuration, not a template. The producer refuses external-value
+    expansion before presenting this review. Receipt-owned secrets appear only as
+    `${installation-secret:<id>}` references whose `<id>` matches a reviewed
+    `${secret:<id>}` placeholder; values are never included.
     """
     headers: dict[str, str]
-    """Literal configured headers, excluding separately authorised OAuth tokens."""
-
+    """Configured headers, excluding separately authorised OAuth tokens. Values may
+    contain owned secret references, never secret values.
+    """
     tools: list[str]
     """Configured tool selection, not permission to invoke those tools."""
 
@@ -21960,25 +21898,6 @@ class MCPAppsSetHostContextDetails:
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
-class MCPAppsReadResourceResult:
-    """Resource contents returned by the MCP server."""
-
-    contents: list[MCPAppsResourceContent]
-    """Resource contents returned by the server"""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'MCPAppsReadResourceResult':
-        assert isinstance(obj, dict)
-        contents = from_list(MCPAppsResourceContent.from_dict, obj.get("contents"))
-        return MCPAppsReadResourceResult(contents)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["contents"] = from_list(lambda x: to_class(MCPAppsResourceContent, x), self.contents)
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
 class MCPOauthLoginRequest:
     """Remote MCP server name and optional overrides controlling reauthentication, OAuth client
     display name, callback success-page copy, and static OAuth client selection.
@@ -22210,6 +22129,12 @@ class MCPInstallationSummary:
     state: MCPInstallationState
     """Ownership or setup state, never inferred proof of tool usability."""
 
+    catalogue: InstallationCatalogueIdentity | None = None
+    """Catalogue identity retained from the installed plan when available."""
+
+    installed_at: str | None = None
+    """ISO 8601 wall-clock installation time when available."""
+
     @staticmethod
     def from_dict(obj: Any) -> 'MCPInstallationSummary':
         assert isinstance(obj, dict)
@@ -22218,7 +22143,9 @@ class MCPInstallationSummary:
         installation_id = from_str(obj.get("installationId"))
         operation_id = from_str(obj.get("operationId"))
         state = MCPInstallationState(obj.get("state"))
-        return MCPInstallationSummary(choice_id, identity, installation_id, operation_id, state)
+        catalogue = from_union([InstallationCatalogueIdentity.from_dict, from_none], obj.get("catalogue"))
+        installed_at = from_union([from_str, from_none], obj.get("installedAt"))
+        return MCPInstallationSummary(choice_id, identity, installation_id, operation_id, state, catalogue, installed_at)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -22227,6 +22154,10 @@ class MCPInstallationSummary:
         result["installationId"] = from_str(self.installation_id)
         result["operationId"] = from_str(self.operation_id)
         result["state"] = to_enum(MCPInstallationState, self.state)
+        if self.catalogue is not None:
+            result["catalogue"] = from_union([lambda x: to_class(InstallationCatalogueIdentity, x), from_none], self.catalogue)
+        if self.installed_at is not None:
+            result["installedAt"] = from_union([from_str, from_none], self.installed_at)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -22548,25 +22479,6 @@ class MCPPlanRequiredValueScalar:
             result["description"] = from_union([from_str, from_none], self.description)
         if self.title is not None:
             result["title"] = from_union([from_str, from_none], self.title)
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
-class MCPResourcesReadResult:
-    """Resource contents returned by the MCP server."""
-
-    contents: list[MCPResourceContent]
-    """Resource contents returned by the server"""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'MCPResourcesReadResult':
-        assert isinstance(obj, dict)
-        contents = from_list(MCPResourceContent.from_dict, obj.get("contents"))
-        return MCPResourcesReadResult(contents)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["contents"] = from_list(lambda x: to_class(MCPResourceContent, x), self.contents)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -27376,6 +27288,239 @@ class AgentInfo:
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
+class CatalogClientContract:
+    """The protocol version and capability set a caller requires, supplied on every catalog
+    request so negotiation cannot be skipped by omission.
+
+    Protocol version and capabilities the caller requires.
+
+    Capabilities required by the original prepared operation.
+
+    Required authenticated bound installation capabilities.
+
+    Original installation wire capability; new-work authentication is not reacquired.
+
+    Required authenticated bound installation contract.
+
+    Required bound catalogue and confirmed remote installation capabilities.
+
+    Required authenticated bound catalogue and Skill installation capabilities.
+
+    Required authenticated bound Skill installation capability.
+    """
+    protocol_version: int
+    """SDK protocol version the caller was generated against. A caller below the runtime's
+    minimum supported version is refused rather than served a partial result.
+    """
+    required_capabilities: list[str]
+    """Wire features the caller requires the runtime to understand. Identifiers are bounded but
+    extensible so a newer caller can negotiate with an older runtime. Requiring an unknown
+    feature yields a typed refusal listing what is understood, never a partial grant. A grant
+    does not promise that a deployment has enabled the operation; typed unavailable results
+    report that separately.
+    """
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'CatalogClientContract':
+        assert isinstance(obj, dict)
+        protocol_version = from_int(obj.get("protocolVersion"))
+        required_capabilities = from_list(from_str, obj.get("requiredCapabilities"))
+        return CatalogClientContract(protocol_version, required_capabilities)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["protocolVersion"] = from_int(self.protocol_version)
+        result["requiredCapabilities"] = from_list(from_str, self.required_capabilities)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class SkillInstallationFileReview:
+    """One reviewed Skill file."""
+
+    digest: str
+    """SHA-256 digest of the exact file bytes."""
+
+    executable: bool
+    """Whether the file is installed with executable permissions."""
+
+    media_type: str
+    """Declared media type for the file."""
+
+    path: str
+    """Relative file path within the Skill root."""
+
+    size_bytes: int
+    """Exact reviewed file size in bytes."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SkillInstallationFileReview':
+        assert isinstance(obj, dict)
+        digest = from_str(obj.get("digest"))
+        executable = from_bool(obj.get("executable"))
+        media_type = from_str(obj.get("mediaType"))
+        path = from_str(obj.get("path"))
+        size_bytes = from_int(obj.get("sizeBytes"))
+        return SkillInstallationFileReview(digest, executable, media_type, path, size_bytes)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["digest"] = from_str(self.digest)
+        result["executable"] = from_bool(self.executable)
+        result["mediaType"] = from_str(self.media_type)
+        result["path"] = from_str(self.path)
+        result["sizeBytes"] = from_int(self.size_bytes)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+class SkillInstallationOwnershipState(Enum):
+    """Ownership state observed from files and receipts.
+
+    Owned Skill state observed from files and receipts.
+    """
+    INTACT = "intact"
+    MODIFIED = "modified"
+    RECOVERY_REQUIRED = "recovery-required"
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class SkillInstallationLocation:
+    """Exact user-scope target location without an absolute host path.
+
+    A user-facing personal Skill installation location without absolute host paths.
+
+    User-facing installation location without an absolute host path.
+    """
+    display_label: str
+    """Safe display label, for example ~/.copilot/skills/run-checks."""
+
+    relative_path: str
+    """Path relative to the Copilot home."""
+
+    scope: SkillInstallationScope
+    """Installation scope. Agent Finder Skills are installed in the user's personal Copilot home."""
+
+    diagnostics_absolute_path: str | None = None
+    """Diagnostics-only absolute host path. Hosts must not display it by default."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SkillInstallationLocation':
+        assert isinstance(obj, dict)
+        display_label = from_str(obj.get("displayLabel"))
+        relative_path = from_str(obj.get("relativePath"))
+        scope = SkillInstallationScope(obj.get("scope"))
+        diagnostics_absolute_path = from_union([from_str, from_none], obj.get("diagnosticsAbsolutePath"))
+        return SkillInstallationLocation(display_label, relative_path, scope, diagnostics_absolute_path)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["displayLabel"] = from_str(self.display_label)
+        result["relativePath"] = from_str(self.relative_path)
+        result["scope"] = to_enum(SkillInstallationScope, self.scope)
+        if self.diagnostics_absolute_path is not None:
+            result["diagnosticsAbsolutePath"] = from_union([from_str, from_none], self.diagnostics_absolute_path)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class MCPPlanTarget:
+    """Exact reviewed user-scope destination.
+
+    Where a plan would be written.
+
+    Exact destination, checked for intervening changes before mutation.
+
+    Configuration scope and key the plan would write to.
+
+    Exact user-scope target location without an absolute host path.
+
+    A user-facing personal Skill installation location without absolute host paths.
+
+    User-facing installation location without an absolute host path.
+    """
+    scope: NScope
+    """Configuration scope the plan targets.
+
+    Installation scope. Agent Finder Skills are installed in the user's personal Copilot home.
+    """
+    config_key: str | None = None
+    """Configuration key the server would be recorded under within that scope."""
+
+    diagnostics_absolute_path: str | None = None
+    """Diagnostics-only absolute host path. Hosts must not display it by default."""
+
+    display_label: str | None = None
+    """Safe display label, for example ~/.copilot/skills/run-checks."""
+
+    relative_path: str | None = None
+    """Path relative to the Copilot home."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'MCPPlanTarget':
+        assert isinstance(obj, dict)
+        scope = NScope(obj.get("scope"))
+        config_key = from_union([from_str, from_none], obj.get("configKey"))
+        diagnostics_absolute_path = from_union([from_str, from_none], obj.get("diagnosticsAbsolutePath"))
+        display_label = from_union([from_str, from_none], obj.get("displayLabel"))
+        relative_path = from_union([from_str, from_none], obj.get("relativePath"))
+        return MCPPlanTarget(scope, config_key, diagnostics_absolute_path, display_label, relative_path)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["scope"] = to_enum(NScope, self.scope)
+        if self.config_key is not None:
+            result["configKey"] = from_union([from_str, from_none], self.config_key)
+        if self.diagnostics_absolute_path is not None:
+            result["diagnosticsAbsolutePath"] = from_union([from_str, from_none], self.diagnostics_absolute_path)
+        if self.display_label is not None:
+            result["displayLabel"] = from_union([from_str, from_none], self.display_label)
+        if self.relative_path is not None:
+            result["relativePath"] = from_union([from_str, from_none], self.relative_path)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+class SkillInstallationFailureReason(Enum):
+    """Bounded refusal categories for verified Skill installation management.
+
+    Cause of the compensation.
+
+    Cause of the fully aborted or compensated operation.
+
+    Bounded refusal reason.
+    """
+    ALREADY_INSTALLED = "already-installed"
+    BUSY = "busy"
+    CANCELLED = "cancelled"
+    CONFIGURATION_MODIFIED = "configuration-modified"
+    CONFIRMATION_INVALID = "confirmation-invalid"
+    CONFIRMATION_UNAVAILABLE = "confirmation-unavailable"
+    DESCRIPTOR_INVALID = "descriptor-invalid"
+    DESCRIPTOR_UNAVAILABLE = "descriptor-unavailable"
+    ENTRYPOINT_UNAVAILABLE = "entrypoint-unavailable"
+    EXPIRED = "expired"
+    FEATURE_DISABLED = "feature-disabled"
+    FOREIGN_RUNTIME = "foreign-runtime"
+    INVALID_CANDIDATE = "invalid-candidate"
+    INVALID_REQUEST = "invalid-request"
+    INVALID_SKILL = "invalid-skill"
+    LIFECYCLE_UNAVAILABLE = "lifecycle-unavailable"
+    OPERATION_LIMIT = "operation-limit"
+    PAYLOAD_MISMATCH = "payload-mismatch"
+    PAYLOAD_UNAVAILABLE = "payload-unavailable"
+    PLAN_EXPIRED = "plan-expired"
+    PLAN_REPLAYED = "plan-replayed"
+    POLICY_CHANGED = "policy-changed"
+    POLICY_CONTEXT_UNAVAILABLE = "policy-context-unavailable"
+    RECOVERY_REQUIRED = "recovery-required"
+    RESOURCE_NOT_FOUND = "resource-not-found"
+    REVIEW_TOO_LARGE = "review-too-large"
+    SEARCH_MISMATCH = "search-mismatch"
+    SOURCE_CHANGED = "source-changed"
+    WRITE_FAILED = "write-failed"
+    WRONG_KIND = "wrong-kind"
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
 class SkillList:
     """Skills available to the session, with their enabled state."""
 
@@ -28718,84 +28863,6 @@ class WorkflowAgentRequest:
         result["opts"] = to_class(WorkflowAgentOptions, self.opts)
         result["prompt"] = from_str(self.prompt)
         result["workflowRunId"] = from_str(self.workflow_run_id)
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
-class WorkflowRunFailure:
-    """Machine-readable terminal failure.
-
-    Machine-readable workflow run failure.
-
-    Machine-readable failure details for a halted or errored run.
-
-    The run stopped because its usage accounting could not be completed.
-
-    The extension that owns the workflow disconnected while the run was executing, so the
-    host halted it. The run's journaled subagent results are preserved so a resume can reuse
-    them.
-    """
-    run_id: str
-    """Workflow run identifier.
-
-    Workflow run identifier whose changed limits were declined.
-    """
-    type: WorkflowRunFailureType
-    """Workflow failure variant discriminator."""
-
-    kind: WorkflowRunFailureKind | None = None
-    """Resource ceiling that stopped the run."""
-
-    suggested_value: float | None = None
-    """Suggested larger ceiling when the runtime can derive one safely."""
-
-    value: float | None = None
-    """Approved effective ceiling that was reached."""
-
-    reason: str | None = None
-    """Human-readable reason the resume did not proceed."""
-
-    code: str | None = None
-    """Stable failure code."""
-
-    operation: WorkflowDurableOperation | None = None
-    """Execution-critical durable operation that failed."""
-
-    drained_nano_aiu: int | None = None
-    """Confirmed usage in nano-AIU, representing the floor of what the run spent."""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'WorkflowRunFailure':
-        assert isinstance(obj, dict)
-        run_id = from_str(obj.get("runId"))
-        type = WorkflowRunFailureType(obj.get("type"))
-        kind = from_union([WorkflowRunFailureKind, from_none], obj.get("kind"))
-        suggested_value = from_union([from_float, from_none], obj.get("suggestedValue"))
-        value = from_union([from_float, from_none], obj.get("value"))
-        reason = from_union([from_str, from_none], obj.get("reason"))
-        code = from_union([from_str, from_none], obj.get("code"))
-        operation = from_union([WorkflowDurableOperation, from_none], obj.get("operation"))
-        drained_nano_aiu = from_union([from_int, from_none], obj.get("drainedNanoAiu"))
-        return WorkflowRunFailure(run_id, type, kind, suggested_value, value, reason, code, operation, drained_nano_aiu)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["runId"] = from_str(self.run_id)
-        result["type"] = to_enum(WorkflowRunFailureType, self.type)
-        if self.kind is not None:
-            result["kind"] = from_union([lambda x: to_enum(WorkflowRunFailureKind, x), from_none], self.kind)
-        if self.suggested_value is not None:
-            result["suggestedValue"] = from_union([to_float, from_none], self.suggested_value)
-        if self.value is not None:
-            result["value"] = from_union([to_float, from_none], self.value)
-        if self.reason is not None:
-            result["reason"] = from_union([from_str, from_none], self.reason)
-        if self.code is not None:
-            result["code"] = from_union([from_str, from_none], self.code)
-        if self.operation is not None:
-            result["operation"] = from_union([lambda x: to_enum(WorkflowDurableOperation, x), from_none], self.operation)
-        if self.drained_nano_aiu is not None:
-            result["drainedNanoAiu"] = from_union([from_int, from_none], self.drained_nano_aiu)
         return result
 
 @dataclass
@@ -30336,8 +30403,9 @@ class CanvasListOpenResult:
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class CatalogAISkillCandidate:
-    """An inert AI skill catalog result. AI skills are discovery-only and cannot be represented
-    as installable through this surface.
+    """An inert AI skill catalog result. Verified Skill candidates may be installable only when
+    the runtime reports installability and the selected session is permitted to plan
+    installation.
     """
     display_name: str
     """Display name taken verbatim from the card. Inert untrusted text."""
@@ -30351,8 +30419,9 @@ class CatalogAISkillCandidate:
     """ISO 8601 timestamp after which the handle is stale and will be rejected."""
 
     installability: CatalogAISkillInstallability
-    """AI skills are discovery-only and cannot be installed through this surface"""
-
+    """Whether this AI skill candidate can be planned for verified installation in the selected
+    session.
+    """
     kind: CatalogAISkillCandidateKind
     """Discriminator: this candidate describes an AI skill"""
 
@@ -30430,7 +30499,7 @@ class CatalogMCPServerCandidate:
     handle_expires_at: str
     """ISO 8601 timestamp after which the handle is stale and will be rejected."""
 
-    installability: CatalogMCPServerInstallabilityEnum
+    installability: CatalogMCPServerInstallability
     """Whether this MCP server can be planned for installation, and if policy prevents it."""
 
     kind: CatalogMCPServerCandidateKind
@@ -30464,7 +30533,7 @@ class CatalogMCPServerCandidate:
         display_name = from_str(obj.get("displayName"))
         handle = from_str(obj.get("handle"))
         handle_expires_at = from_str(obj.get("handleExpiresAt"))
-        installability = CatalogMCPServerInstallabilityEnum(obj.get("installability"))
+        installability = CatalogMCPServerInstallability(obj.get("installability"))
         kind = CatalogMCPServerCandidateKind(obj.get("kind"))
         media_type = MCPServerCardMediaType(obj.get("mediaType"))
         provenance = CatalogMCPServerCandidateProvenance.from_dict(obj.get("provenance"))
@@ -30479,7 +30548,7 @@ class CatalogMCPServerCandidate:
         result["displayName"] = from_str(self.display_name)
         result["handle"] = from_str(self.handle)
         result["handleExpiresAt"] = from_str(self.handle_expires_at)
-        result["installability"] = to_enum(CatalogMCPServerInstallabilityEnum, self.installability)
+        result["installability"] = to_enum(CatalogMCPServerInstallability, self.installability)
         result["kind"] = to_enum(CatalogMCPServerCandidateKind, self.kind)
         result["mediaType"] = to_enum(MCPServerCardMediaType, self.media_type)
         result["provenance"] = to_class(CatalogMCPServerCandidateProvenance, self.provenance)
@@ -31217,56 +31286,118 @@ class HistoryPreviewRewindResult:
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
-class MCPPrepareInstallRequest:
-    """Side-effect-free preparation of one original bound, input-free remote MCP choice."""
+class MCPAppsReadResourceResult:
+    """Resource contents returned by the MCP server."""
 
-    choice_id: str
-    """Exact selected alternative from that plan."""
-
-    contract: CatalogClientContract
-    """Required bound catalogue and confirmed remote installation capabilities."""
-
-    inputs: list[MCPInstallationInput]
-    """Must be empty for the initial input-free remote installation capability."""
-
-    plan_handle: str
-    """Original single-use bound plan, never a client-authored configuration."""
-
-    policy_session_id: str
-    """An existing local session attached to this connection, not permission to attach one."""
-
-    secrets: list[MCPInstallationSecret]
-    """Must be empty; this capability does not allocate configured-input secrets."""
-
-    secret_storage: MCPInstallationSecretStorage
-    """The trusted host presents this choice alongside the exact secret placeholders."""
-
-    source: MCPServerCardReference
-    """The exact original source, used transiently only after confirmation."""
+    contents: list[MCPAppsResourceContent]
+    """Resource contents returned by the server"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'MCPPrepareInstallRequest':
+    def from_dict(obj: Any) -> 'MCPAppsReadResourceResult':
         assert isinstance(obj, dict)
-        choice_id = from_str(obj.get("choiceId"))
-        contract = CatalogClientContract.from_dict(obj.get("contract"))
-        inputs = from_list(MCPInstallationInput.from_dict, obj.get("inputs"))
-        plan_handle = from_str(obj.get("planHandle"))
-        policy_session_id = from_str(obj.get("policySessionId"))
-        secrets = from_list(MCPInstallationSecret.from_dict, obj.get("secrets"))
-        secret_storage = MCPInstallationSecretStorage(obj.get("secretStorage"))
-        source = _load_MCPServerCardReference(obj.get("source"))
-        return MCPPrepareInstallRequest(choice_id, contract, inputs, plan_handle, policy_session_id, secrets, secret_storage, source)
+        contents = from_list(MCPAppsResourceContent.from_dict, obj.get("contents"))
+        return MCPAppsReadResourceResult(contents)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["choiceId"] = from_str(self.choice_id)
-        result["contract"] = to_class(CatalogClientContract, self.contract)
-        result["inputs"] = from_list(lambda x: to_class(MCPInstallationInput, x), self.inputs)
-        result["planHandle"] = from_str(self.plan_handle)
-        result["policySessionId"] = from_str(self.policy_session_id)
-        result["secrets"] = from_list(lambda x: to_class(MCPInstallationSecret, x), self.secrets)
-        result["secretStorage"] = to_enum(MCPInstallationSecretStorage, self.secret_storage)
-        result["source"] = (self.source).to_dict()
+        result["contents"] = from_list(lambda x: to_class(MCPAppsResourceContent, x), self.contents)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class MCPResourcesReadResult:
+    """Resource contents returned by the MCP server."""
+
+    contents: list[MCPResourceContent]
+    """Resource contents returned by the server"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'MCPResourcesReadResult':
+        assert isinstance(obj, dict)
+        contents = from_list(MCPResourceContent.from_dict, obj.get("contents"))
+        return MCPResourcesReadResult(contents)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["contents"] = from_list(lambda x: to_class(MCPResourceContent, x), self.contents)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class WorkflowRunFailure:
+    """Machine-readable terminal failure.
+
+    Machine-readable workflow run failure.
+
+    Machine-readable failure details for a halted or errored run.
+
+    The run stopped because its usage accounting could not be completed.
+
+    The extension that owns the workflow disconnected while the run was executing, so the
+    host halted it. The run's journaled subagent results are preserved so a resume can reuse
+    them.
+    """
+    run_id: str
+    """Workflow run identifier.
+
+    Workflow run identifier whose changed limits were declined.
+    """
+    type: WorkflowRunFailureType
+    """Workflow failure variant discriminator."""
+
+    kind: WorkflowRunFailureKind | None = None
+    """Resource ceiling that stopped the run."""
+
+    suggested_value: float | None = None
+    """Suggested larger ceiling when the runtime can derive one safely."""
+
+    value: float | None = None
+    """Approved effective ceiling that was reached."""
+
+    reason: str | None = None
+    """Human-readable reason the resume did not proceed."""
+
+    code: str | None = None
+    """Stable failure code."""
+
+    operation: WorkflowDurableOperation | None = None
+    """Execution-critical durable operation that failed."""
+
+    drained_nano_aiu: int | None = None
+    """Confirmed usage in nano-AIU, representing the floor of what the run spent."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'WorkflowRunFailure':
+        assert isinstance(obj, dict)
+        run_id = from_str(obj.get("runId"))
+        type = WorkflowRunFailureType(obj.get("type"))
+        kind = from_union([WorkflowRunFailureKind, from_none], obj.get("kind"))
+        suggested_value = from_union([from_float, from_none], obj.get("suggestedValue"))
+        value = from_union([from_float, from_none], obj.get("value"))
+        reason = from_union([from_str, from_none], obj.get("reason"))
+        code = from_union([from_str, from_none], obj.get("code"))
+        operation = from_union([WorkflowDurableOperation, from_none], obj.get("operation"))
+        drained_nano_aiu = from_union([from_int, from_none], obj.get("drainedNanoAiu"))
+        return WorkflowRunFailure(run_id, type, kind, suggested_value, value, reason, code, operation, drained_nano_aiu)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["runId"] = from_str(self.run_id)
+        result["type"] = to_enum(WorkflowRunFailureType, self.type)
+        if self.kind is not None:
+            result["kind"] = from_union([lambda x: to_enum(WorkflowRunFailureKind, x), from_none], self.kind)
+        if self.suggested_value is not None:
+            result["suggestedValue"] = from_union([to_float, from_none], self.suggested_value)
+        if self.value is not None:
+            result["value"] = from_union([to_float, from_none], self.value)
+        if self.reason is not None:
+            result["reason"] = from_union([from_str, from_none], self.reason)
+        if self.code is not None:
+            result["code"] = from_union([from_str, from_none], self.code)
+        if self.operation is not None:
+            result["operation"] = from_union([lambda x: to_enum(WorkflowDurableOperation, x), from_none], self.operation)
+        if self.drained_nano_aiu is not None:
+            result["drainedNanoAiu"] = from_union([from_int, from_none], self.drained_nano_aiu)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -32457,63 +32588,6 @@ class CatalogAgentPluginCandidateProvenance:
         result["authority"] = from_str(self.authority)
         result["mediaType"] = to_enum(CatalogAgentPluginMediaType, self.media_type)
         result["observedAt"] = from_str(self.observed_at)
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
-class CatalogSearchRequest:
-    """A bounded catalog search. Both the query length and the result count are capped by the
-    schema so a caller cannot request an unbounded scan.
-    """
-    contract: CatalogClientContract
-    """Protocol version and capabilities the caller requires."""
-
-    query: str
-    """Free-text search query. Persisted as tool input for session continuity, but omitted from
-    telemetry.
-    """
-    kinds: list[CatalogCandidateKind] | None = None
-    """Restrict results to these candidate kinds. Agent Plugins are opt-in and require the
-    `agent-plugin-discovery` capability so protocol-v3 clients generated before that variant
-    cannot receive an unknown result; when omitted, the backwards-compatible MCP server and
-    AI skill kinds are searched.
-    """
-    limit: int | None = None
-    """Maximum number of candidates to return. Defaults to 10 when omitted."""
-
-    page: CatalogSearchPage | None = None
-    """Numbered navigation using metadata from an earlier response. Requires
-    catalog-search-pagination and the same query, kinds and effective limit. Omit for a fresh
-    first-page search.
-    """
-    policy_session_id: str | None = field(default=None, kw_only=True)
-    """Select an existing attached local session. Requires authenticated, session-bound search.
-    The runtime never creates, resumes or reconfigures a session to honour this selector.
-    """
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'CatalogSearchRequest':
-        assert isinstance(obj, dict)
-        contract = CatalogClientContract.from_dict(obj.get("contract"))
-        query = from_str(obj.get("query"))
-        kinds = from_union([lambda x: from_list(CatalogCandidateKind, x), from_none], obj.get("kinds"))
-        limit = from_union([from_int, from_none], obj.get("limit"))
-        page = from_union([CatalogSearchPage.from_dict, from_none], obj.get("page"))
-        policy_session_id = from_union([from_str, from_none], obj.get("policySessionId"))
-        return CatalogSearchRequest(contract, query, kinds, limit, page, policy_session_id=policy_session_id)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["contract"] = to_class(CatalogClientContract, self.contract)
-        result["query"] = from_str(self.query)
-        if self.kinds is not None:
-            result["kinds"] = from_union([lambda x: from_list(lambda x: to_enum(CatalogCandidateKind, x), x), from_none], self.kinds)
-        if self.limit is not None:
-            result["limit"] = from_union([from_int, from_none], self.limit)
-        if self.page is not None:
-            result["page"] = from_union([lambda x: to_class(CatalogSearchPage, x), from_none], self.page)
-        if self.policy_session_id is not None:
-            result["policySessionId"] = from_union([from_str, from_none], self.policy_session_id)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -33877,6 +33951,599 @@ class SessionAgentListRequest:
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
+class CatalogSearchRequest:
+    """A bounded catalog search. Both the query length and the result count are capped by the
+    schema so a caller cannot request an unbounded scan.
+    """
+    contract: CatalogClientContract
+    """Protocol version and capabilities the caller requires."""
+
+    query: str
+    """Free-text search query. Persisted as tool input for session continuity, but omitted from
+    telemetry.
+    """
+    kinds: list[CatalogCandidateKind] | None = None
+    """Restrict results to these candidate kinds. Agent Plugins are opt-in and require the
+    `agent-plugin-discovery` capability so protocol-v3 clients generated before that variant
+    cannot receive an unknown result; when omitted, the backwards-compatible MCP server and
+    AI skill kinds are searched.
+    """
+    limit: int | None = None
+    """Maximum number of candidates to return. Defaults to 10 when omitted."""
+
+    page: CatalogSearchPage | None = None
+    """Numbered navigation using metadata from an earlier response. Requires
+    catalog-search-pagination and the same query, kinds and effective limit. Omit for a fresh
+    first-page search.
+    """
+    policy_session_id: str | None = field(default=None, kw_only=True)
+    """Select an existing attached local session. Requires authenticated, session-bound search.
+    The runtime never creates, resumes or reconfigures a session to honour this selector.
+    """
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'CatalogSearchRequest':
+        assert isinstance(obj, dict)
+        contract = CatalogClientContract.from_dict(obj.get("contract"))
+        query = from_str(obj.get("query"))
+        kinds = from_union([lambda x: from_list(CatalogCandidateKind, x), from_none], obj.get("kinds"))
+        limit = from_union([from_int, from_none], obj.get("limit"))
+        page = from_union([CatalogSearchPage.from_dict, from_none], obj.get("page"))
+        policy_session_id = from_union([from_str, from_none], obj.get("policySessionId"))
+        return CatalogSearchRequest(contract, query, kinds, limit, page, policy_session_id=policy_session_id)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["contract"] = to_class(CatalogClientContract, self.contract)
+        result["query"] = from_str(self.query)
+        if self.kinds is not None:
+            result["kinds"] = from_union([lambda x: from_list(lambda x: to_enum(CatalogCandidateKind, x), x), from_none], self.kinds)
+        if self.limit is not None:
+            result["limit"] = from_union([from_int, from_none], self.limit)
+        if self.page is not None:
+            result["page"] = from_union([lambda x: to_class(CatalogSearchPage, x), from_none], self.page)
+        if self.policy_session_id is not None:
+            result["policySessionId"] = from_union([from_str, from_none], self.policy_session_id)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class CatalogSelectionRequest:
+    """Terminates one retained catalog selection group through an opaque reference previously
+    returned by the model-safe search projection.
+    """
+    contract: CatalogClientContract
+    """Protocol version and capabilities the caller requires."""
+
+    outcome: CatalogSelectionDecision
+    """The terminal outcome declared by the caller. Timed-out means the host's live interaction
+    deadline elapsed; a reference whose runtime TTL elapsed is rejected separately as stale.
+    """
+    selection_ref: str
+    """Opaque runtime-instance scoped reference to one visible candidate. For a non-selected
+    outcome, any candidate reference from the same search closes that search's retained group.
+    """
+    session_id: str
+    """Locally owned root session whose retained search state is being resolved."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'CatalogSelectionRequest':
+        assert isinstance(obj, dict)
+        contract = CatalogClientContract.from_dict(obj.get("contract"))
+        outcome = CatalogSelectionDecision(obj.get("outcome"))
+        selection_ref = from_str(obj.get("selectionRef"))
+        session_id = from_str(obj.get("sessionId"))
+        return CatalogSelectionRequest(contract, outcome, selection_ref, session_id)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["contract"] = to_class(CatalogClientContract, self.contract)
+        result["outcome"] = to_enum(CatalogSelectionDecision, self.outcome)
+        result["selectionRef"] = from_str(self.selection_ref)
+        result["sessionId"] = from_str(self.session_id)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class MCPApplyInstallRequest:
+    """Applies exactly one previously prepared operation on its original connection."""
+
+    contract: CatalogClientContract
+    """Capabilities required by the original prepared operation."""
+
+    operation_id: str
+    """Runtime-issued ID already returned by prepareInstall, never reused or rebound."""
+
+    policy_session_id: str
+    """Same existing attached or privately borrowed session as preparation."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'MCPApplyInstallRequest':
+        assert isinstance(obj, dict)
+        contract = CatalogClientContract.from_dict(obj.get("contract"))
+        operation_id = from_str(obj.get("operationId"))
+        policy_session_id = from_str(obj.get("policySessionId"))
+        return MCPApplyInstallRequest(contract, operation_id, policy_session_id)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["contract"] = to_class(CatalogClientContract, self.contract)
+        result["operationId"] = from_str(self.operation_id)
+        result["policySessionId"] = from_str(self.policy_session_id)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class MCPApplyUninstallRequest:
+    """One-use application of the exact retained removal plan."""
+
+    contract: CatalogClientContract
+    """Required authenticated bound installation capabilities."""
+
+    plan_handle: str
+    """Opaque original removal plan, consumed once."""
+
+    policy_session_id: str
+    """Same existing selected session as removal preparation."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'MCPApplyUninstallRequest':
+        assert isinstance(obj, dict)
+        contract = CatalogClientContract.from_dict(obj.get("contract"))
+        plan_handle = from_str(obj.get("planHandle"))
+        policy_session_id = from_str(obj.get("policySessionId"))
+        return MCPApplyUninstallRequest(contract, plan_handle, policy_session_id)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["contract"] = to_class(CatalogClientContract, self.contract)
+        result["planHandle"] = from_str(self.plan_handle)
+        result["policySessionId"] = from_str(self.policy_session_id)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class MCPInstallationOperationRequest:
+    """Existing-operation control. A new session selector is deliberately not accepted."""
+
+    contract: CatalogClientContract
+    """Original installation wire capability; new-work authentication is not reacquired."""
+
+    operation_id: str
+    """Exact runtime-issued operation ID on the original connection."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'MCPInstallationOperationRequest':
+        assert isinstance(obj, dict)
+        contract = CatalogClientContract.from_dict(obj.get("contract"))
+        operation_id = from_str(obj.get("operationId"))
+        return MCPInstallationOperationRequest(contract, operation_id)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["contract"] = to_class(CatalogClientContract, self.contract)
+        result["operationId"] = from_str(self.operation_id)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class MCPInstallationsRequest:
+    """New-work inventory or recovery request under an explicitly selected existing session."""
+
+    contract: CatalogClientContract
+    """Required authenticated bound installation contract."""
+
+    policy_session_id: str
+    """Existing selected local session on this connection."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'MCPInstallationsRequest':
+        assert isinstance(obj, dict)
+        contract = CatalogClientContract.from_dict(obj.get("contract"))
+        policy_session_id = from_str(obj.get("policySessionId"))
+        return MCPInstallationsRequest(contract, policy_session_id)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["contract"] = to_class(CatalogClientContract, self.contract)
+        result["policySessionId"] = from_str(self.policy_session_id)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class MCPPlanInstallRequest:
+    """A side-effect-free request for an MCP install plan. Computing a plan never writes
+    configuration, stores a secret, or reloads MCP servers.
+    """
+    contract: CatalogClientContract
+    """Protocol version and capabilities the caller requires."""
+
+    source: MCPPlanInstallSource
+    """What to plan: either a candidate handle from a previous search, or a card supplied
+    directly.
+    """
+    policy_session_id: str | None = field(default=None, kw_only=True)
+    """The same existing attached session that owns the original catalogue candidate."""
+
+    scope: MCPPlanScope | None = None
+    """Configuration scope the plan targets. Defaults to user scope when omitted."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'MCPPlanInstallRequest':
+        assert isinstance(obj, dict)
+        contract = CatalogClientContract.from_dict(obj.get("contract"))
+        source = _load_MCPPlanInstallSource(obj.get("source"))
+        policy_session_id = from_union([from_str, from_none], obj.get("policySessionId"))
+        scope = from_union([MCPPlanScope, from_none], obj.get("scope"))
+        return MCPPlanInstallRequest(contract, source, scope, policy_session_id=policy_session_id)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["contract"] = to_class(CatalogClientContract, self.contract)
+        result["source"] = (self.source).to_dict()
+        if self.policy_session_id is not None:
+            result["policySessionId"] = from_union([from_str, from_none], self.policy_session_id)
+        if self.scope is not None:
+            result["scope"] = from_union([lambda x: to_enum(MCPPlanScope, x), from_none], self.scope)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class MCPPlanUninstallRequest:
+    """Read-only preparation of one owned removal under fresh selected-session authority."""
+
+    contract: CatalogClientContract
+    """Required authenticated bound installation capabilities."""
+
+    installation_id: str
+    """Exact receipt to inspect, not a server-name guess."""
+
+    policy_session_id: str
+    """Existing selected session on the original connection."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'MCPPlanUninstallRequest':
+        assert isinstance(obj, dict)
+        contract = CatalogClientContract.from_dict(obj.get("contract"))
+        installation_id = from_str(obj.get("installationId"))
+        policy_session_id = from_str(obj.get("policySessionId"))
+        return MCPPlanUninstallRequest(contract, installation_id, policy_session_id)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["contract"] = to_class(CatalogClientContract, self.contract)
+        result["installationId"] = from_str(self.installation_id)
+        result["policySessionId"] = from_str(self.policy_session_id)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class MCPPrepareInstallRequest:
+    """Side-effect-free preparation of one original bound remote MCP choice."""
+
+    choice_id: str
+    """Exact selected alternative from that plan."""
+
+    contract: CatalogClientContract
+    """Required bound catalogue and confirmed remote installation capabilities."""
+
+    inputs: list[MCPInstallationInput]
+    """Declared non-secret values. Non-empty only when the caller requires
+    `mcp-configured-remote-installation`; omitted values use the card default.
+    """
+    plan_handle: str
+    """Original single-use bound plan, never a client-authored configuration."""
+
+    policy_session_id: str
+    """An existing local session attached to this connection, not permission to attach one."""
+
+    secrets: list[MCPInstallationSecret]
+    """One entry per declared secret placeholder of the selected choice. Non-empty
+    only when the caller requires `mcp-configured-remote-installation`.
+    """
+    secret_storage: MCPInstallationSecretStorage
+    """The trusted host presents this choice alongside the exact secret placeholders."""
+
+    source: MCPServerCardReference
+    """The exact original source, used transiently only after confirmation."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'MCPPrepareInstallRequest':
+        assert isinstance(obj, dict)
+        choice_id = from_str(obj.get("choiceId"))
+        contract = CatalogClientContract.from_dict(obj.get("contract"))
+        inputs = from_list(MCPInstallationInput.from_dict, obj.get("inputs"))
+        plan_handle = from_str(obj.get("planHandle"))
+        policy_session_id = from_str(obj.get("policySessionId"))
+        secrets = from_list(MCPInstallationSecret.from_dict, obj.get("secrets"))
+        secret_storage = MCPInstallationSecretStorage(obj.get("secretStorage"))
+        source = _load_MCPServerCardReference(obj.get("source"))
+        return MCPPrepareInstallRequest(choice_id, contract, inputs, plan_handle, policy_session_id, secrets, secret_storage, source)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["choiceId"] = from_str(self.choice_id)
+        result["contract"] = to_class(CatalogClientContract, self.contract)
+        result["inputs"] = from_list(lambda x: to_class(MCPInstallationInput, x), self.inputs)
+        result["planHandle"] = from_str(self.plan_handle)
+        result["policySessionId"] = from_str(self.policy_session_id)
+        result["secrets"] = from_list(lambda x: to_class(MCPInstallationSecret, x), self.secrets)
+        result["secretStorage"] = to_enum(MCPInstallationSecretStorage, self.secret_storage)
+        result["source"] = (self.source).to_dict()
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class SkillApplyInstallRequest:
+    """Applies exactly one retained verified Skill installation plan."""
+
+    contract: CatalogClientContract
+    """Required authenticated bound catalogue and Skill installation capabilities."""
+
+    plan_handle: str
+    """Opaque original plan, consumed once."""
+
+    policy_session_id: str
+    """Same existing selected session as planning."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SkillApplyInstallRequest':
+        assert isinstance(obj, dict)
+        contract = CatalogClientContract.from_dict(obj.get("contract"))
+        plan_handle = from_str(obj.get("planHandle"))
+        policy_session_id = from_str(obj.get("policySessionId"))
+        return SkillApplyInstallRequest(contract, plan_handle, policy_session_id)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["contract"] = to_class(CatalogClientContract, self.contract)
+        result["planHandle"] = from_str(self.plan_handle)
+        result["policySessionId"] = from_str(self.policy_session_id)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class SkillApplyUninstallRequest:
+    """One-use application of the exact retained Skill removal plan."""
+
+    contract: CatalogClientContract
+    """Required authenticated bound installation contract."""
+
+    plan_handle: str
+    """Opaque original removal plan, consumed once."""
+
+    policy_session_id: str
+    """Same existing selected session as removal preparation."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SkillApplyUninstallRequest':
+        assert isinstance(obj, dict)
+        contract = CatalogClientContract.from_dict(obj.get("contract"))
+        plan_handle = from_str(obj.get("planHandle"))
+        policy_session_id = from_str(obj.get("policySessionId"))
+        return SkillApplyUninstallRequest(contract, plan_handle, policy_session_id)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["contract"] = to_class(CatalogClientContract, self.contract)
+        result["planHandle"] = from_str(self.plan_handle)
+        result["policySessionId"] = from_str(self.policy_session_id)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class SkillInstallationOperationRequest:
+    """Existing-operation control. A new session selector is deliberately not accepted."""
+
+    contract: CatalogClientContract
+    """Required authenticated bound Skill installation capability."""
+
+    operation_id: str
+    """Exact runtime-issued operation ID on the original connection."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SkillInstallationOperationRequest':
+        assert isinstance(obj, dict)
+        contract = CatalogClientContract.from_dict(obj.get("contract"))
+        operation_id = from_str(obj.get("operationId"))
+        return SkillInstallationOperationRequest(contract, operation_id)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["contract"] = to_class(CatalogClientContract, self.contract)
+        result["operationId"] = from_str(self.operation_id)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class SkillInstallationsRequest:
+    """Inventory request under an explicitly selected existing session."""
+
+    contract: CatalogClientContract
+    """Required authenticated bound installation contract."""
+
+    policy_session_id: str
+    """Existing selected local session on this connection."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SkillInstallationsRequest':
+        assert isinstance(obj, dict)
+        contract = CatalogClientContract.from_dict(obj.get("contract"))
+        policy_session_id = from_str(obj.get("policySessionId"))
+        return SkillInstallationsRequest(contract, policy_session_id)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["contract"] = to_class(CatalogClientContract, self.contract)
+        result["policySessionId"] = from_str(self.policy_session_id)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class SkillPlanInstallRequest:
+    """Side-effect-free planning of one verified Agent Finder Skill candidate."""
+
+    candidate_handle: str
+    """Fresh single-use AI skill candidate handle returned by a bound catalogue search."""
+
+    contract: CatalogClientContract
+    """Required authenticated bound catalogue and Skill installation capabilities."""
+
+    policy_session_id: str
+    """Existing local session attached to this connection."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SkillPlanInstallRequest':
+        assert isinstance(obj, dict)
+        candidate_handle = from_str(obj.get("candidateHandle"))
+        contract = CatalogClientContract.from_dict(obj.get("contract"))
+        policy_session_id = from_str(obj.get("policySessionId"))
+        return SkillPlanInstallRequest(candidate_handle, contract, policy_session_id)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["candidateHandle"] = from_str(self.candidate_handle)
+        result["contract"] = to_class(CatalogClientContract, self.contract)
+        result["policySessionId"] = from_str(self.policy_session_id)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class SkillPlanUninstallRequest:
+    """Read-only preparation of one owned Skill removal under fresh selected-session authority."""
+
+    contract: CatalogClientContract
+    """Required authenticated bound installation contract."""
+
+    installation_id: str
+    """Exact receipt to inspect."""
+
+    policy_session_id: str
+    """Existing selected local session on this connection."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SkillPlanUninstallRequest':
+        assert isinstance(obj, dict)
+        contract = CatalogClientContract.from_dict(obj.get("contract"))
+        installation_id = from_str(obj.get("installationId"))
+        policy_session_id = from_str(obj.get("policySessionId"))
+        return SkillPlanUninstallRequest(contract, installation_id, policy_session_id)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["contract"] = to_class(CatalogClientContract, self.contract)
+        result["installationId"] = from_str(self.installation_id)
+        result["policySessionId"] = from_str(self.policy_session_id)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class SkillSetEnabledRequest:
+    """Persisted enablement update for one owned Skill installation."""
+
+    contract: CatalogClientContract
+    """Required authenticated bound Skill installation capability."""
+
+    enabled: bool
+    """Persisted enablement value."""
+
+    installation_id: str
+    """Exact receipt identity to update."""
+
+    policy_session_id: str
+    """Existing selected local session to reconcile after persistence."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SkillSetEnabledRequest':
+        assert isinstance(obj, dict)
+        contract = CatalogClientContract.from_dict(obj.get("contract"))
+        enabled = from_bool(obj.get("enabled"))
+        installation_id = from_str(obj.get("installationId"))
+        policy_session_id = from_str(obj.get("policySessionId"))
+        return SkillSetEnabledRequest(contract, enabled, installation_id, policy_session_id)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["contract"] = to_class(CatalogClientContract, self.contract)
+        result["enabled"] = from_bool(self.enabled)
+        result["installationId"] = from_str(self.installation_id)
+        result["policySessionId"] = from_str(self.policy_session_id)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class SkillInstallationSummary:
+    """Owned installation being removed.
+
+    Durable verified Skill ownership summary.
+
+    Owned Skill installation being removed.
+
+    Durable installed Skill summary.
+
+    Updated installation summary.
+    """
+    catalogue: InstallationCatalogueIdentity
+    """Catalogue identity retained at install time."""
+
+    configured_enabled: bool
+    """Persisted enablement requested for this installation."""
+
+    installation_id: str
+    """Exact durable installation receipt identity."""
+
+    installed_at: str
+    """ISO 8601 wall-clock installation time."""
+
+    name: str
+    """Skill invocation name."""
+
+    operation_id: str
+    """Operation that installed this Skill."""
+
+    ownership_state: SkillInstallationOwnershipState
+    """Ownership state observed from files and receipts."""
+
+    session_state: SkillInstallationSessionState
+    """Bound-session load observation."""
+
+    source: SkillInstallationSource
+    """Exact retained verified source identity."""
+
+    target: SkillInstallationLocation
+    """User-facing installation location without an absolute host path."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SkillInstallationSummary':
+        assert isinstance(obj, dict)
+        catalogue = InstallationCatalogueIdentity.from_dict(obj.get("catalogue"))
+        configured_enabled = from_bool(obj.get("configuredEnabled"))
+        installation_id = from_str(obj.get("installationId"))
+        installed_at = from_str(obj.get("installedAt"))
+        name = from_str(obj.get("name"))
+        operation_id = from_str(obj.get("operationId"))
+        ownership_state = SkillInstallationOwnershipState(obj.get("ownershipState"))
+        session_state = SkillInstallationSessionState(obj.get("sessionState"))
+        source = SkillInstallationSource.from_dict(obj.get("source"))
+        target = SkillInstallationLocation.from_dict(obj.get("target"))
+        return SkillInstallationSummary(catalogue, configured_enabled, installation_id, installed_at, name, operation_id, ownership_state, session_state, source, target)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["catalogue"] = to_class(InstallationCatalogueIdentity, self.catalogue)
+        result["configuredEnabled"] = from_bool(self.configured_enabled)
+        result["installationId"] = from_str(self.installation_id)
+        result["installedAt"] = from_str(self.installed_at)
+        result["name"] = from_str(self.name)
+        result["operationId"] = from_str(self.operation_id)
+        result["ownershipState"] = to_enum(SkillInstallationOwnershipState, self.ownership_state)
+        result["sessionState"] = to_enum(SkillInstallationSessionState, self.session_state)
+        result["source"] = to_class(SkillInstallationSource, self.source)
+        result["target"] = to_class(SkillInstallationLocation, self.target)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
 class SkillsGetInvokedResult:
     """Skills invoked during this session, ordered by invocation time (most recent last)."""
 
@@ -34430,118 +35097,6 @@ class UsageMetricsAgentMetric:
             result["agentDisplayName"] = from_union([from_str, from_none], self.agent_display_name)
         if self.agent_name is not None:
             result["agentName"] = from_union([from_str, from_none], self.agent_name)
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
-class WorkflowRunTerminal:
-    """Prompt-safe terminal workflow outcome."""
-
-    error: str | None = None
-    """Human-readable terminal error."""
-
-    failure: WorkflowRunFailure | None = None
-    """Machine-readable terminal failure."""
-
-    pause_info: PauseInfoClass | None = None
-    """Pause initiator metadata, or null when the run did not pause."""
-
-    reason: str | None = None
-    """Human-readable terminal reason."""
-
-    result_preview: str | None = None
-    """Prompt-safe preview of the completed result."""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'WorkflowRunTerminal':
-        assert isinstance(obj, dict)
-        error = from_union([from_str, from_none], obj.get("error"))
-        failure = from_union([WorkflowRunFailure.from_dict, from_none], obj.get("failure"))
-        pause_info = from_union([PauseInfoClass.from_dict, from_none], obj.get("pauseInfo"))
-        reason = from_union([from_str, from_none], obj.get("reason"))
-        result_preview = from_union([from_str, from_none], obj.get("resultPreview"))
-        return WorkflowRunTerminal(error, failure, pause_info, reason, result_preview)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        if self.error is not None:
-            result["error"] = from_union([from_str, from_none], self.error)
-        if self.failure is not None:
-            result["failure"] = from_union([lambda x: to_class(WorkflowRunFailure, x), from_none], self.failure)
-        result["pauseInfo"] = from_union([lambda x: to_class(PauseInfoClass, x), from_none], self.pause_info)
-        if self.reason is not None:
-            result["reason"] = from_union([from_str, from_none], self.reason)
-        if self.result_preview is not None:
-            result["resultPreview"] = from_union([from_str, from_none], self.result_preview)
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
-class WorkflowRunResult:
-    """Terminal resumed run envelope.
-
-    Complete current or terminal workflow run envelope.
-    """
-    run_id: str
-    """Workflow run identifier."""
-
-    status: WorkflowRunStatus
-    """Current or terminal workflow run status."""
-
-    attempt: int | None = None
-    """One-based execution attempt represented by this envelope. Absent before the first attempt
-    starts or when returned by an older runtime.
-    """
-    error: str | None = None
-    """Error message for an errored run."""
-
-    failure: WorkflowRunFailure | None = None
-    """Machine-readable failure details for a halted or errored run."""
-
-    pause_info: WorkflowPauseInfo | None = None
-    """Structured pause initiator metadata for a paused attempt."""
-
-    reason: str | None = None
-    """Reason for a halted or cancelled run."""
-
-    result: Any = None
-    """Completed workflow result."""
-
-    snapshot: Any = None
-    """Partial journal and progress snapshot for a halted, cancelled, or errored run."""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'WorkflowRunResult':
-        assert isinstance(obj, dict)
-        run_id = from_str(obj.get("runId"))
-        status = WorkflowRunStatus(obj.get("status"))
-        attempt = from_union([from_int, from_none], obj.get("attempt"))
-        error = from_union([from_str, from_none], obj.get("error"))
-        failure = from_union([WorkflowRunFailure.from_dict, from_none], obj.get("failure"))
-        pause_info = from_union([WorkflowPauseInfo.from_dict, from_none], obj.get("pauseInfo"))
-        reason = from_union([from_str, from_none], obj.get("reason"))
-        result = obj.get("result")
-        snapshot = obj.get("snapshot")
-        return WorkflowRunResult(run_id, status, attempt, error, failure, pause_info, reason, result, snapshot)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["runId"] = from_str(self.run_id)
-        result["status"] = to_enum(WorkflowRunStatus, self.status)
-        if self.attempt is not None:
-            result["attempt"] = from_union([from_int, from_none], self.attempt)
-        if self.error is not None:
-            result["error"] = from_union([from_str, from_none], self.error)
-        if self.failure is not None:
-            result["failure"] = from_union([lambda x: to_class(WorkflowRunFailure, x), from_none], self.failure)
-        if self.pause_info is not None:
-            result["pauseInfo"] = from_union([lambda x: to_class(WorkflowPauseInfo, x), from_none], self.pause_info)
-        if self.reason is not None:
-            result["reason"] = from_union([from_str, from_none], self.reason)
-        if self.result is not None:
-            result["result"] = self.result
-        if self.snapshot is not None:
-            result["snapshot"] = self.snapshot
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -35480,122 +36035,6 @@ class _WorkflowToolRunRequest:
             result["toolCallId"] = from_union([from_str, from_none], self.tool_call_id)
         return result
 
-@dataclass
-class MCPInstallationReview:
-    """The exact MCP action and its reviewed changes.
-
-    Safe MCP review fields. No raw card, retrieval URL, plan handle or secret value.
-    """
-    action: MCPInstallationReviewAction
-    """Exact reviewed installation action."""
-
-    identity: MCPPlanResourceIdentity
-    """Identity from the retained plan, not caller display text.
-
-    Identity from the installed receipt.
-    """
-    policy: MCPPlanPolicyResult
-    """Policy decision bound to this plan.
-
-    Current removal policy, independent of permission to activate the server.
-    """
-    provenance: MCPPlanProvenance
-    """Original source identity and content commitment.
-
-    Source identity and content commitment retained by the installed receipt.
-    """
-    target: MCPPlanTarget
-    """Exact reviewed user-scope destination.
-
-    Exact destination, checked for intervening changes before mutation.
-    """
-    catalogue_trust: CatalogTrustSnapshot | None = None
-    """Original catalogue trust metadata, not a verification claim."""
-
-    configuration_change: MCPPlanConfigurationChange | None = None
-    """The configuration change for the selected alternative only."""
-
-    effective_configuration: MCPInstallationRemoteConfiguration | None = None
-    """Complete effective remote configuration for final input-free installation review.
-    Earlier private selection reviews and package choices omit this field.
-    The owned remote resource requires it before issuing confirmation.
-    """
-    inputs: list[MCPInstallationInput] | None = None
-    """Non-secret values supplied for this selected alternative."""
-
-    secret_storage: MCPInstallationSecretStorage | None = None
-    """Explicit reviewed backend selection; no backend is accessed when no secrets are supplied."""
-
-    selected_choice: MCPPlanTransportChoice | None = None
-    """Only the selected alternative is applied."""
-
-    supplied_secrets: list[str] | None = None
-    """Exact reviewed placeholders supplied separately. Never secret values."""
-
-    installation_id: str | None = None
-    """Receipt-owned installation being removed."""
-
-    owned_secret_count: int | None = None
-    """Exact planner-owned secret slots to remove, excluding shared OAuth grants."""
-
-    preserves_shared_authentication: bool | None = None
-    """Shared profile authentication is deliberately retained, not pending cleanup."""
-
-    restores_previous_configuration: bool | None = None
-    """Whether uninstall restores a protected pre-install configuration."""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'MCPInstallationReview':
-        assert isinstance(obj, dict)
-        action = MCPInstallationReviewAction(obj.get("action"))
-        identity = MCPPlanResourceIdentity.from_dict(obj.get("identity"))
-        policy = MCPPlanPolicyResult.from_dict(obj.get("policy"))
-        provenance = MCPPlanProvenance.from_dict(obj.get("provenance"))
-        target = MCPPlanTarget.from_dict(obj.get("target"))
-        catalogue_trust = from_union([_load_CatalogTrustSnapshot, from_none], obj.get("catalogueTrust"))
-        configuration_change = from_union([MCPPlanConfigurationChange.from_dict, from_none], obj.get("configurationChange"))
-        effective_configuration = from_union([MCPInstallationRemoteConfiguration.from_dict, from_none], obj.get("effectiveConfiguration"))
-        inputs = from_union([lambda x: from_list(MCPInstallationInput.from_dict, x), from_none], obj.get("inputs"))
-        secret_storage = from_union([MCPInstallationSecretStorage, from_none], obj.get("secretStorage"))
-        selected_choice = from_union([_load_MCPPlanTransportChoice, from_none], obj.get("selectedChoice"))
-        supplied_secrets = from_union([lambda x: from_list(from_str, x), from_none], obj.get("suppliedSecrets"))
-        installation_id = from_union([from_str, from_none], obj.get("installationId"))
-        owned_secret_count = from_union([from_int, from_none], obj.get("ownedSecretCount"))
-        preserves_shared_authentication = from_union([from_bool, from_none], obj.get("preservesSharedAuthentication"))
-        restores_previous_configuration = from_union([from_bool, from_none], obj.get("restoresPreviousConfiguration"))
-        return MCPInstallationReview(action, identity, policy, provenance, target, catalogue_trust, configuration_change, effective_configuration, inputs, secret_storage, selected_choice, supplied_secrets, installation_id, owned_secret_count, preserves_shared_authentication, restores_previous_configuration)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["action"] = to_enum(MCPInstallationReviewAction, self.action)
-        result["identity"] = to_class(MCPPlanResourceIdentity, self.identity)
-        result["policy"] = to_class(MCPPlanPolicyResult, self.policy)
-        result["provenance"] = to_class(MCPPlanProvenance, self.provenance)
-        result["target"] = to_class(MCPPlanTarget, self.target)
-        if self.catalogue_trust is not None:
-            result["catalogueTrust"] = from_union([lambda x: (x).to_dict(), from_none], self.catalogue_trust)
-        if self.configuration_change is not None:
-            result["configurationChange"] = from_union([lambda x: to_class(MCPPlanConfigurationChange, x), from_none], self.configuration_change)
-        if self.effective_configuration is not None:
-            result["effectiveConfiguration"] = from_union([lambda x: to_class(MCPInstallationRemoteConfiguration, x), from_none], self.effective_configuration)
-        if self.inputs is not None:
-            result["inputs"] = from_union([lambda x: from_list(lambda x: to_class(MCPInstallationInput, x), x), from_none], self.inputs)
-        if self.secret_storage is not None:
-            result["secretStorage"] = from_union([lambda x: to_enum(MCPInstallationSecretStorage, x), from_none], self.secret_storage)
-        if self.selected_choice is not None:
-            result["selectedChoice"] = from_union([lambda x: (x).to_dict(), from_none], self.selected_choice)
-        if self.supplied_secrets is not None:
-            result["suppliedSecrets"] = from_union([lambda x: from_list(from_str, x), from_none], self.supplied_secrets)
-        if self.installation_id is not None:
-            result["installationId"] = from_union([from_str, from_none], self.installation_id)
-        if self.owned_secret_count is not None:
-            result["ownedSecretCount"] = from_union([from_int, from_none], self.owned_secret_count)
-        if self.preserves_shared_authentication is not None:
-            result["preservesSharedAuthentication"] = from_union([from_bool, from_none], self.preserves_shared_authentication)
-        if self.restores_previous_configuration is not None:
-            result["restoresPreviousConfiguration"] = from_union([from_bool, from_none], self.restores_previous_configuration)
-        return result
-
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class MCPInstallPlan:
@@ -35638,7 +36077,7 @@ class MCPInstallPlan:
     ready. A later apply operation must validate the selected choice's own inputs, secrets
     and policy after explicit confirmation.
     """
-    target: MCPPlanTarget
+    target: MCPPlanTargetClass
     """Configuration scope and key the plan would write to."""
 
     transport_choices: list[MCPPlanTransportChoice]
@@ -35662,7 +36101,7 @@ class MCPInstallPlan:
         provenance = MCPPlanProvenance.from_dict(obj.get("provenance"))
         reload_required = from_bool(obj.get("reloadRequired"))
         requires_interactive_configuration = from_bool(obj.get("requiresInteractiveConfiguration"))
-        target = MCPPlanTarget.from_dict(obj.get("target"))
+        target = MCPPlanTargetClass.from_dict(obj.get("target"))
         transport_choices = from_list(_load_MCPPlanTransportChoice, obj.get("transportChoices"))
         recommended_transport_choice_id = from_union([from_str, from_none], obj.get("recommendedTransportChoiceId"))
         return MCPInstallPlan(configuration_changes, identity, plan_handle, plan_handle_expires_at, policy, provenance, reload_required, requires_interactive_configuration, target, transport_choices, recommended_transport_choice_id)
@@ -35677,10 +36116,132 @@ class MCPInstallPlan:
         result["provenance"] = to_class(MCPPlanProvenance, self.provenance)
         result["reloadRequired"] = from_bool(self.reload_required)
         result["requiresInteractiveConfiguration"] = from_bool(self.requires_interactive_configuration)
-        result["target"] = to_class(MCPPlanTarget, self.target)
+        result["target"] = to_class(MCPPlanTargetClass, self.target)
         result["transportChoices"] = from_list(lambda x: (x).to_dict(), self.transport_choices)
         if self.recommended_transport_choice_id is not None:
             result["recommendedTransportChoiceId"] = from_union([from_str, from_none], self.recommended_transport_choice_id)
+        return result
+
+@dataclass
+class MCPInstallationReview:
+    """The exact MCP action and its reviewed changes.
+
+    Safe MCP review fields. No raw card, retrieval URL, plan handle or secret value.
+    """
+    action: MCPInstallationReviewAction
+    """Exact reviewed installation action."""
+
+    identity: MCPPlanResourceIdentity
+    """Identity from the retained plan, not caller display text.
+
+    Identity from the installed receipt.
+    """
+    policy: MCPPlanPolicyResult
+    """Policy decision bound to this plan.
+
+    Current removal policy, independent of permission to activate the server.
+    """
+    provenance: MCPPlanProvenance
+    """Original source identity and content commitment.
+
+    Source identity and content commitment retained by the installed receipt.
+    """
+    target: MCPPlanTargetClass
+    """Exact reviewed user-scope destination.
+
+    Exact destination, checked for intervening changes before mutation.
+    """
+    catalogue: InstallationCatalogueIdentity | None = None
+    """Catalogue identity retained from the bound candidate when available."""
+
+    catalogue_trust: CatalogTrustSnapshot | None = None
+    """Original catalogue trust metadata, not a verification claim."""
+
+    configuration_change: MCPPlanConfigurationChange | None = None
+    """The configuration change for the selected alternative only."""
+
+    effective_configuration: MCPInstallationRemoteConfiguration | None = None
+    """Complete effective remote configuration for final installation review.
+    Earlier private selection reviews and package choices omit this field.
+    The owned remote resource requires it before issuing confirmation.
+    """
+    inputs: list[MCPInstallationInput] | None = None
+    """Non-secret values supplied for this selected alternative."""
+
+    secret_storage: MCPInstallationSecretStorage | None = None
+    """Explicit reviewed backend selection; no backend is accessed when no secrets are supplied."""
+
+    selected_choice: MCPPlanTransportChoice | None = None
+    """Only the selected alternative is applied."""
+
+    supplied_secrets: list[str] | None = None
+    """Exact reviewed placeholders supplied separately. Never secret values."""
+
+    installation_id: str | None = None
+    """Receipt-owned installation being removed."""
+
+    owned_secret_count: int | None = None
+    """Exact planner-owned secret slots to remove, excluding shared OAuth grants."""
+
+    preserves_shared_authentication: bool | None = None
+    """Shared profile authentication is deliberately retained, not pending cleanup."""
+
+    restores_previous_configuration: bool | None = None
+    """Whether uninstall restores a protected pre-install configuration."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'MCPInstallationReview':
+        assert isinstance(obj, dict)
+        action = MCPInstallationReviewAction(obj.get("action"))
+        identity = MCPPlanResourceIdentity.from_dict(obj.get("identity"))
+        policy = MCPPlanPolicyResult.from_dict(obj.get("policy"))
+        provenance = MCPPlanProvenance.from_dict(obj.get("provenance"))
+        target = MCPPlanTargetClass.from_dict(obj.get("target"))
+        catalogue = from_union([InstallationCatalogueIdentity.from_dict, from_none], obj.get("catalogue"))
+        catalogue_trust = from_union([_load_CatalogTrustSnapshot, from_none], obj.get("catalogueTrust"))
+        configuration_change = from_union([MCPPlanConfigurationChange.from_dict, from_none], obj.get("configurationChange"))
+        effective_configuration = from_union([MCPInstallationRemoteConfiguration.from_dict, from_none], obj.get("effectiveConfiguration"))
+        inputs = from_union([lambda x: from_list(MCPInstallationInput.from_dict, x), from_none], obj.get("inputs"))
+        secret_storage = from_union([MCPInstallationSecretStorage, from_none], obj.get("secretStorage"))
+        selected_choice = from_union([_load_MCPPlanTransportChoice, from_none], obj.get("selectedChoice"))
+        supplied_secrets = from_union([lambda x: from_list(from_str, x), from_none], obj.get("suppliedSecrets"))
+        installation_id = from_union([from_str, from_none], obj.get("installationId"))
+        owned_secret_count = from_union([from_int, from_none], obj.get("ownedSecretCount"))
+        preserves_shared_authentication = from_union([from_bool, from_none], obj.get("preservesSharedAuthentication"))
+        restores_previous_configuration = from_union([from_bool, from_none], obj.get("restoresPreviousConfiguration"))
+        return MCPInstallationReview(action, identity, policy, provenance, target, catalogue, catalogue_trust, configuration_change, effective_configuration, inputs, secret_storage, selected_choice, supplied_secrets, installation_id, owned_secret_count, preserves_shared_authentication, restores_previous_configuration)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["action"] = to_enum(MCPInstallationReviewAction, self.action)
+        result["identity"] = to_class(MCPPlanResourceIdentity, self.identity)
+        result["policy"] = to_class(MCPPlanPolicyResult, self.policy)
+        result["provenance"] = to_class(MCPPlanProvenance, self.provenance)
+        result["target"] = to_class(MCPPlanTargetClass, self.target)
+        if self.catalogue is not None:
+            result["catalogue"] = from_union([lambda x: to_class(InstallationCatalogueIdentity, x), from_none], self.catalogue)
+        if self.catalogue_trust is not None:
+            result["catalogueTrust"] = from_union([lambda x: (x).to_dict(), from_none], self.catalogue_trust)
+        if self.configuration_change is not None:
+            result["configurationChange"] = from_union([lambda x: to_class(MCPPlanConfigurationChange, x), from_none], self.configuration_change)
+        if self.effective_configuration is not None:
+            result["effectiveConfiguration"] = from_union([lambda x: to_class(MCPInstallationRemoteConfiguration, x), from_none], self.effective_configuration)
+        if self.inputs is not None:
+            result["inputs"] = from_union([lambda x: from_list(lambda x: to_class(MCPInstallationInput, x), x), from_none], self.inputs)
+        if self.secret_storage is not None:
+            result["secretStorage"] = from_union([lambda x: to_enum(MCPInstallationSecretStorage, x), from_none], self.secret_storage)
+        if self.selected_choice is not None:
+            result["selectedChoice"] = from_union([lambda x: (x).to_dict(), from_none], self.selected_choice)
+        if self.supplied_secrets is not None:
+            result["suppliedSecrets"] = from_union([lambda x: from_list(from_str, x), from_none], self.supplied_secrets)
+        if self.installation_id is not None:
+            result["installationId"] = from_union([from_str, from_none], self.installation_id)
+        if self.owned_secret_count is not None:
+            result["ownedSecretCount"] = from_union([from_int, from_none], self.owned_secret_count)
+        if self.preserves_shared_authentication is not None:
+            result["preservesSharedAuthentication"] = from_union([from_bool, from_none], self.preserves_shared_authentication)
+        if self.restores_previous_configuration is not None:
+            result["restoresPreviousConfiguration"] = from_union([from_bool, from_none], self.restores_previous_configuration)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -36032,6 +36593,118 @@ class ToolsTaskCompleteEventDataRequest:
         result: dict = {}
         result["finalResult"] = to_class(ToolResultExpanded, self.final_result)
         result["toolArgs"] = self.tool_args
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class WorkflowRunTerminal:
+    """Prompt-safe terminal workflow outcome."""
+
+    error: str | None = None
+    """Human-readable terminal error."""
+
+    failure: WorkflowRunFailure | None = None
+    """Machine-readable terminal failure."""
+
+    pause_info: PauseInfoClass | None = None
+    """Pause initiator metadata, or null when the run did not pause."""
+
+    reason: str | None = None
+    """Human-readable terminal reason."""
+
+    result_preview: str | None = None
+    """Prompt-safe preview of the completed result."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'WorkflowRunTerminal':
+        assert isinstance(obj, dict)
+        error = from_union([from_str, from_none], obj.get("error"))
+        failure = from_union([WorkflowRunFailure.from_dict, from_none], obj.get("failure"))
+        pause_info = from_union([PauseInfoClass.from_dict, from_none], obj.get("pauseInfo"))
+        reason = from_union([from_str, from_none], obj.get("reason"))
+        result_preview = from_union([from_str, from_none], obj.get("resultPreview"))
+        return WorkflowRunTerminal(error, failure, pause_info, reason, result_preview)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        if self.error is not None:
+            result["error"] = from_union([from_str, from_none], self.error)
+        if self.failure is not None:
+            result["failure"] = from_union([lambda x: to_class(WorkflowRunFailure, x), from_none], self.failure)
+        result["pauseInfo"] = from_union([lambda x: to_class(PauseInfoClass, x), from_none], self.pause_info)
+        if self.reason is not None:
+            result["reason"] = from_union([from_str, from_none], self.reason)
+        if self.result_preview is not None:
+            result["resultPreview"] = from_union([from_str, from_none], self.result_preview)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class WorkflowRunResult:
+    """Terminal resumed run envelope.
+
+    Complete current or terminal workflow run envelope.
+    """
+    run_id: str
+    """Workflow run identifier."""
+
+    status: WorkflowRunStatus
+    """Current or terminal workflow run status."""
+
+    attempt: int | None = None
+    """One-based execution attempt represented by this envelope. Absent before the first attempt
+    starts or when returned by an older runtime.
+    """
+    error: str | None = None
+    """Error message for an errored run."""
+
+    failure: WorkflowRunFailure | None = None
+    """Machine-readable failure details for a halted or errored run."""
+
+    pause_info: WorkflowPauseInfo | None = None
+    """Structured pause initiator metadata for a paused attempt."""
+
+    reason: str | None = None
+    """Reason for a halted or cancelled run."""
+
+    result: Any = None
+    """Completed workflow result."""
+
+    snapshot: Any = None
+    """Partial journal and progress snapshot for a halted, cancelled, or errored run."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'WorkflowRunResult':
+        assert isinstance(obj, dict)
+        run_id = from_str(obj.get("runId"))
+        status = WorkflowRunStatus(obj.get("status"))
+        attempt = from_union([from_int, from_none], obj.get("attempt"))
+        error = from_union([from_str, from_none], obj.get("error"))
+        failure = from_union([WorkflowRunFailure.from_dict, from_none], obj.get("failure"))
+        pause_info = from_union([WorkflowPauseInfo.from_dict, from_none], obj.get("pauseInfo"))
+        reason = from_union([from_str, from_none], obj.get("reason"))
+        result = obj.get("result")
+        snapshot = obj.get("snapshot")
+        return WorkflowRunResult(run_id, status, attempt, error, failure, pause_info, reason, result, snapshot)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["runId"] = from_str(self.run_id)
+        result["status"] = to_enum(WorkflowRunStatus, self.status)
+        if self.attempt is not None:
+            result["attempt"] = from_union([from_int, from_none], self.attempt)
+        if self.error is not None:
+            result["error"] = from_union([from_str, from_none], self.error)
+        if self.failure is not None:
+            result["failure"] = from_union([lambda x: to_class(WorkflowRunFailure, x), from_none], self.failure)
+        if self.pause_info is not None:
+            result["pauseInfo"] = from_union([lambda x: to_class(WorkflowPauseInfo, x), from_none], self.pause_info)
+        if self.reason is not None:
+            result["reason"] = from_union([from_str, from_none], self.reason)
+        if self.result is not None:
+            result["result"] = self.result
+        if self.snapshot is not None:
+            result["snapshot"] = self.snapshot
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -36873,8 +37546,9 @@ class CatalogCandidate:
     must never be treated as an instruction, and the handle is the only way to refer to the
     candidate in a later operation.
 
-    An inert AI skill catalog result. AI skills are discovery-only and cannot be represented
-    as installable through this surface.
+    An inert AI skill catalog result. Verified Skill candidates may be installable only when
+    the runtime reports installability and the selected session is permitted to plan
+    installation.
 
     An inert Agent Plugin catalog result. Its canonical catalog identity, declared version,
     repository source claim, and explicit compatibility tags are safe to correlate, while its
@@ -36922,10 +37596,11 @@ class CatalogCandidate:
     handle_expires_at: str | None = None
     """ISO 8601 timestamp after which the handle is stale and will be rejected."""
 
-    installability: CatalogCandidateInstallability | None = None
+    installability: CatalogInstallability | None = None
     """Whether this MCP server can be planned for installation, and if policy prevents it.
 
-    AI skills are discovery-only and cannot be installed through this surface
+    Whether this AI skill candidate can be planned for verified installation in the selected
+    session.
     """
     publisher: str | None = None
     """Publisher taken verbatim from the card. Inert untrusted text."""
@@ -36964,7 +37639,7 @@ class CatalogCandidate:
         description = from_union([from_str, from_none], obj.get("description"))
         handle = from_union([from_str, from_none], obj.get("handle"))
         handle_expires_at = from_union([from_str, from_none], obj.get("handleExpiresAt"))
-        installability = from_union([CatalogCandidateInstallability, from_none], obj.get("installability"))
+        installability = from_union([CatalogInstallability, from_none], obj.get("installability"))
         publisher = from_union([from_str, from_none], obj.get("publisher"))
         trust = from_union([_load_CatalogTrustSnapshot, from_none], obj.get("trust"))
         compatibility_tags = from_union([lambda x: from_list(CatalogAgentPluginCompatibilityTag, x), from_none], obj.get("compatibilityTags"))
@@ -36986,7 +37661,7 @@ class CatalogCandidate:
         if self.handle_expires_at is not None:
             result["handleExpiresAt"] = from_union([from_str, from_none], self.handle_expires_at)
         if self.installability is not None:
-            result["installability"] = from_union([lambda x: to_enum(CatalogCandidateInstallability, x), from_none], self.installability)
+            result["installability"] = from_union([lambda x: to_enum(CatalogInstallability, x), from_none], self.installability)
         if self.publisher is not None:
             result["publisher"] = from_union([from_str, from_none], self.publisher)
         if self.trust is not None:
@@ -37220,6 +37895,392 @@ class SessionFSSqliteTransactionResult:
             result["error"] = from_union([lambda x: to_class(SessionFSSqliteTransactionError, x), from_none], self.error)
         return result
 
+@dataclass
+class ReviewClass:
+    """The exact MCP action and its reviewed changes.
+
+    Safe MCP review fields. No raw card, retrieval URL, plan handle or secret value.
+
+    The exact verified Skill action and its reviewed files.
+
+    Safe verified Skill review fields. No raw credential, candidate handle or plan handle.
+
+    Safe review to present before applying the plan.
+
+    Safe review to present before applying removal.
+
+    Review for installing a verified Skill.
+
+    Review for uninstalling an owned verified Skill.
+    """
+    action: MCPInstallationReviewAction
+    """Exact reviewed installation action.
+
+    Exact reviewed Skill installation action.
+    """
+    catalogue: InstallationCatalogueIdentity | None = None
+    """Catalogue identity retained from the bound candidate when available.
+
+    Catalogue identity retained from the bound candidate before consent.
+
+    Catalogue identity retained at install time.
+    """
+    catalogue_trust: CatalogTrustSnapshot | None = None
+    """Original catalogue trust metadata, not a verification claim."""
+
+    configuration_change: MCPPlanConfigurationChange | None = None
+    """The configuration change for the selected alternative only."""
+
+    effective_configuration: MCPInstallationRemoteConfiguration | None = None
+    """Complete effective remote configuration for final installation review.
+    Earlier private selection reviews and package choices omit this field.
+    The owned remote resource requires it before issuing confirmation.
+    """
+    identity: MCPPlanResourceIdentity | None = None
+    """Identity from the retained plan, not caller display text.
+
+    Identity from the installed receipt.
+    """
+    inputs: list[MCPInstallationInput] | None = None
+    """Non-secret values supplied for this selected alternative."""
+
+    policy: MCPPlanPolicyResult | None = None
+    """Policy decision bound to this plan.
+
+    Current removal policy, independent of permission to activate the server.
+    """
+    provenance: MCPPlanProvenance | None = None
+    """Original source identity and content commitment.
+
+    Source identity and content commitment retained by the installed receipt.
+    """
+    secret_storage: MCPInstallationSecretStorage | None = None
+    """Explicit reviewed backend selection; no backend is accessed when no secrets are supplied."""
+
+    selected_choice: MCPPlanTransportChoice | None = None
+    """Only the selected alternative is applied."""
+
+    supplied_secrets: list[str] | None = None
+    """Exact reviewed placeholders supplied separately. Never secret values."""
+
+    target: MCPPlanTarget | None = None
+    """Exact reviewed user-scope destination.
+
+    Exact destination, checked for intervening changes before mutation.
+
+    Exact user-scope target location without an absolute host path.
+    """
+    installation_id: str | None = None
+    """Receipt-owned installation being removed."""
+
+    owned_secret_count: int | None = None
+    """Exact planner-owned secret slots to remove, excluding shared OAuth grants."""
+
+    preserves_shared_authentication: bool | None = None
+    """Shared profile authentication is deliberately retained, not pending cleanup."""
+
+    restores_previous_configuration: bool | None = None
+    """Whether uninstall restores a protected pre-install configuration."""
+
+    description: str | None = None
+    """Skill description from SKILL.md when present."""
+
+    entrypoint_content: str | None = None
+    """Complete verified SKILL.md content. Planning refuses with review-too-large
+    when this exceeds 262144 UTF-8 bytes; it is never truncated.
+    """
+    entrypoint_path: str | None = None
+    """Relative path of the verified Skill entrypoint."""
+
+    files: list[SkillInstallationFileReview] | None = None
+    """Reviewed files and digests.
+
+    Files recorded by the installation receipt.
+    """
+    installs_disabled: bool | None = None
+    """Installing never grants immediate use; the Skill is written disabled."""
+
+    name: str | None = None
+    """Skill invocation name from SKILL.md."""
+
+    source: SkillInstallationSource | None = None
+    """Exact verified source identity."""
+
+    total_bytes: int | None = None
+    """Total reviewed payload size in bytes.
+
+    Total receipt-owned payload size in bytes.
+    """
+    files_modified: bool | None = None
+    """Whether current files differ from the receipt. Apply refuses drift."""
+
+    installation: SkillInstallationSummary | None = None
+    """Owned installation being removed."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'ReviewClass':
+        assert isinstance(obj, dict)
+        action = MCPInstallationReviewAction(obj.get("action"))
+        catalogue = from_union([InstallationCatalogueIdentity.from_dict, from_none], obj.get("catalogue"))
+        catalogue_trust = from_union([_load_CatalogTrustSnapshot, from_none], obj.get("catalogueTrust"))
+        configuration_change = from_union([MCPPlanConfigurationChange.from_dict, from_none], obj.get("configurationChange"))
+        effective_configuration = from_union([MCPInstallationRemoteConfiguration.from_dict, from_none], obj.get("effectiveConfiguration"))
+        identity = from_union([MCPPlanResourceIdentity.from_dict, from_none], obj.get("identity"))
+        inputs = from_union([lambda x: from_list(MCPInstallationInput.from_dict, x), from_none], obj.get("inputs"))
+        policy = from_union([MCPPlanPolicyResult.from_dict, from_none], obj.get("policy"))
+        provenance = from_union([MCPPlanProvenance.from_dict, from_none], obj.get("provenance"))
+        secret_storage = from_union([MCPInstallationSecretStorage, from_none], obj.get("secretStorage"))
+        selected_choice = from_union([_load_MCPPlanTransportChoice, from_none], obj.get("selectedChoice"))
+        supplied_secrets = from_union([lambda x: from_list(from_str, x), from_none], obj.get("suppliedSecrets"))
+        target = from_union([MCPPlanTarget.from_dict, from_none], obj.get("target"))
+        installation_id = from_union([from_str, from_none], obj.get("installationId"))
+        owned_secret_count = from_union([from_int, from_none], obj.get("ownedSecretCount"))
+        preserves_shared_authentication = from_union([from_bool, from_none], obj.get("preservesSharedAuthentication"))
+        restores_previous_configuration = from_union([from_bool, from_none], obj.get("restoresPreviousConfiguration"))
+        description = from_union([from_str, from_none], obj.get("description"))
+        entrypoint_content = from_union([from_str, from_none], obj.get("entrypointContent"))
+        entrypoint_path = from_union([from_str, from_none], obj.get("entrypointPath"))
+        files = from_union([lambda x: from_list(SkillInstallationFileReview.from_dict, x), from_none], obj.get("files"))
+        installs_disabled = from_union([from_bool, from_none], obj.get("installsDisabled"))
+        name = from_union([from_str, from_none], obj.get("name"))
+        source = from_union([SkillInstallationSource.from_dict, from_none], obj.get("source"))
+        total_bytes = from_union([from_int, from_none], obj.get("totalBytes"))
+        files_modified = from_union([from_bool, from_none], obj.get("filesModified"))
+        installation = from_union([SkillInstallationSummary.from_dict, from_none], obj.get("installation"))
+        return ReviewClass(action, catalogue, catalogue_trust, configuration_change, effective_configuration, identity, inputs, policy, provenance, secret_storage, selected_choice, supplied_secrets, target, installation_id, owned_secret_count, preserves_shared_authentication, restores_previous_configuration, description, entrypoint_content, entrypoint_path, files, installs_disabled, name, source, total_bytes, files_modified, installation)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["action"] = to_enum(MCPInstallationReviewAction, self.action)
+        if self.catalogue is not None:
+            result["catalogue"] = from_union([lambda x: to_class(InstallationCatalogueIdentity, x), from_none], self.catalogue)
+        if self.catalogue_trust is not None:
+            result["catalogueTrust"] = from_union([lambda x: (x).to_dict(), from_none], self.catalogue_trust)
+        if self.configuration_change is not None:
+            result["configurationChange"] = from_union([lambda x: to_class(MCPPlanConfigurationChange, x), from_none], self.configuration_change)
+        if self.effective_configuration is not None:
+            result["effectiveConfiguration"] = from_union([lambda x: to_class(MCPInstallationRemoteConfiguration, x), from_none], self.effective_configuration)
+        if self.identity is not None:
+            result["identity"] = from_union([lambda x: to_class(MCPPlanResourceIdentity, x), from_none], self.identity)
+        if self.inputs is not None:
+            result["inputs"] = from_union([lambda x: from_list(lambda x: to_class(MCPInstallationInput, x), x), from_none], self.inputs)
+        if self.policy is not None:
+            result["policy"] = from_union([lambda x: to_class(MCPPlanPolicyResult, x), from_none], self.policy)
+        if self.provenance is not None:
+            result["provenance"] = from_union([lambda x: to_class(MCPPlanProvenance, x), from_none], self.provenance)
+        if self.secret_storage is not None:
+            result["secretStorage"] = from_union([lambda x: to_enum(MCPInstallationSecretStorage, x), from_none], self.secret_storage)
+        if self.selected_choice is not None:
+            result["selectedChoice"] = from_union([lambda x: (x).to_dict(), from_none], self.selected_choice)
+        if self.supplied_secrets is not None:
+            result["suppliedSecrets"] = from_union([lambda x: from_list(from_str, x), from_none], self.supplied_secrets)
+        if self.target is not None:
+            result["target"] = from_union([lambda x: to_class(MCPPlanTarget, x), from_none], self.target)
+        if self.installation_id is not None:
+            result["installationId"] = from_union([from_str, from_none], self.installation_id)
+        if self.owned_secret_count is not None:
+            result["ownedSecretCount"] = from_union([from_int, from_none], self.owned_secret_count)
+        if self.preserves_shared_authentication is not None:
+            result["preservesSharedAuthentication"] = from_union([from_bool, from_none], self.preserves_shared_authentication)
+        if self.restores_previous_configuration is not None:
+            result["restoresPreviousConfiguration"] = from_union([from_bool, from_none], self.restores_previous_configuration)
+        if self.description is not None:
+            result["description"] = from_union([from_str, from_none], self.description)
+        if self.entrypoint_content is not None:
+            result["entrypointContent"] = from_union([from_str, from_none], self.entrypoint_content)
+        if self.entrypoint_path is not None:
+            result["entrypointPath"] = from_union([from_str, from_none], self.entrypoint_path)
+        if self.files is not None:
+            result["files"] = from_union([lambda x: from_list(lambda x: to_class(SkillInstallationFileReview, x), x), from_none], self.files)
+        if self.installs_disabled is not None:
+            result["installsDisabled"] = from_union([from_bool, from_none], self.installs_disabled)
+        if self.name is not None:
+            result["name"] = from_union([from_str, from_none], self.name)
+        if self.source is not None:
+            result["source"] = from_union([lambda x: to_class(SkillInstallationSource, x), from_none], self.source)
+        if self.total_bytes is not None:
+            result["totalBytes"] = from_union([from_int, from_none], self.total_bytes)
+        if self.files_modified is not None:
+            result["filesModified"] = from_union([from_bool, from_none], self.files_modified)
+        if self.installation is not None:
+            result["installation"] = from_union([lambda x: to_class(SkillInstallationSummary, x), from_none], self.installation)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class SkillInstallationReview:
+    """The exact verified Skill action and its reviewed files.
+
+    Safe verified Skill review fields. No raw credential, candidate handle or plan handle.
+
+    Safe review to present before applying the plan.
+
+    Safe review to present before applying removal.
+
+    Review for installing a verified Skill.
+
+    Review for uninstalling an owned verified Skill.
+    """
+    action: MCPInstallationReviewAction
+    """Exact reviewed Skill installation action."""
+
+    catalogue: InstallationCatalogueIdentity
+    """Catalogue identity retained from the bound candidate before consent.
+
+    Catalogue identity retained at install time.
+    """
+    files: list[SkillInstallationFileReview]
+    """Reviewed files and digests.
+
+    Files recorded by the installation receipt.
+    """
+    total_bytes: int
+    """Total reviewed payload size in bytes.
+
+    Total receipt-owned payload size in bytes.
+    """
+    description: str | None = None
+    """Skill description from SKILL.md when present."""
+
+    entrypoint_content: str | None = None
+    """Complete verified SKILL.md content. Planning refuses with review-too-large
+    when this exceeds 262144 UTF-8 bytes; it is never truncated.
+    """
+    entrypoint_path: str | None = None
+    """Relative path of the verified Skill entrypoint."""
+
+    installs_disabled: bool | None = None
+    """Installing never grants immediate use; the Skill is written disabled."""
+
+    name: str | None = None
+    """Skill invocation name from SKILL.md."""
+
+    source: SkillInstallationSource | None = None
+    """Exact verified source identity."""
+
+    target: SkillInstallationLocation | None = None
+    """Exact user-scope target location without an absolute host path."""
+
+    files_modified: bool | None = None
+    """Whether current files differ from the receipt. Apply refuses drift."""
+
+    installation: SkillInstallationSummary | None = None
+    """Owned installation being removed."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SkillInstallationReview':
+        assert isinstance(obj, dict)
+        action = MCPInstallationReviewAction(obj.get("action"))
+        catalogue = InstallationCatalogueIdentity.from_dict(obj.get("catalogue"))
+        files = from_list(SkillInstallationFileReview.from_dict, obj.get("files"))
+        total_bytes = from_int(obj.get("totalBytes"))
+        description = from_union([from_str, from_none], obj.get("description"))
+        entrypoint_content = from_union([from_str, from_none], obj.get("entrypointContent"))
+        entrypoint_path = from_union([from_str, from_none], obj.get("entrypointPath"))
+        installs_disabled = from_union([from_bool, from_none], obj.get("installsDisabled"))
+        name = from_union([from_str, from_none], obj.get("name"))
+        source = from_union([SkillInstallationSource.from_dict, from_none], obj.get("source"))
+        target = from_union([SkillInstallationLocation.from_dict, from_none], obj.get("target"))
+        files_modified = from_union([from_bool, from_none], obj.get("filesModified"))
+        installation = from_union([SkillInstallationSummary.from_dict, from_none], obj.get("installation"))
+        return SkillInstallationReview(action, catalogue, files, total_bytes, description, entrypoint_content, entrypoint_path, installs_disabled, name, source, target, files_modified, installation)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["action"] = to_enum(MCPInstallationReviewAction, self.action)
+        result["catalogue"] = to_class(InstallationCatalogueIdentity, self.catalogue)
+        result["files"] = from_list(lambda x: to_class(SkillInstallationFileReview, x), self.files)
+        result["totalBytes"] = from_int(self.total_bytes)
+        if self.description is not None:
+            result["description"] = from_union([from_str, from_none], self.description)
+        if self.entrypoint_content is not None:
+            result["entrypointContent"] = from_union([from_str, from_none], self.entrypoint_content)
+        if self.entrypoint_path is not None:
+            result["entrypointPath"] = from_union([from_str, from_none], self.entrypoint_path)
+        if self.installs_disabled is not None:
+            result["installsDisabled"] = from_union([from_bool, from_none], self.installs_disabled)
+        if self.name is not None:
+            result["name"] = from_union([from_str, from_none], self.name)
+        if self.source is not None:
+            result["source"] = from_union([lambda x: to_class(SkillInstallationSource, x), from_none], self.source)
+        if self.target is not None:
+            result["target"] = from_union([lambda x: to_class(SkillInstallationLocation, x), from_none], self.target)
+        if self.files_modified is not None:
+            result["filesModified"] = from_union([from_bool, from_none], self.files_modified)
+        if self.installation is not None:
+            result["installation"] = from_union([lambda x: to_class(SkillInstallationSummary, x), from_none], self.installation)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class SkillInstallationOutcome:
+    """Immutable terminal receipt.
+
+    Terminal verified Skill mutation result.
+
+    Terminal operation outcome.
+
+    The verified Skill was installed disabled.
+
+    The owned Skill was removed.
+
+    The durable transaction was aborted or fully compensated.
+
+    A write may have completed. Recover and inspect durable state before retrying.
+
+    The user declined the confirmation request.
+
+    The operation was cancelled before a terminal mutation.
+
+    The operation was refused without applying changes.
+    """
+    kind: MCPInstallationOutcomeKind
+    """Terminal Skill installation outcome discriminator."""
+
+    installation: SkillInstallationSummary | None = None
+    """Durable installed Skill summary."""
+
+    installation_id: str | None = None
+    """Removed installation identity."""
+
+    operation_id: str | None = None
+    """Original removal operation identity.
+
+    Original operation identity.
+
+    Operation whose durable result must be recovered and inspected.
+
+    Present once an operation has been allocated.
+    """
+    reason: SkillInstallationFailureReason | None = None
+    """Cause of the fully aborted or compensated operation.
+
+    Bounded refusal reason.
+    """
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SkillInstallationOutcome':
+        assert isinstance(obj, dict)
+        kind = MCPInstallationOutcomeKind(obj.get("kind"))
+        installation = from_union([SkillInstallationSummary.from_dict, from_none], obj.get("installation"))
+        installation_id = from_union([from_str, from_none], obj.get("installationId"))
+        operation_id = from_union([from_str, from_none], obj.get("operationId"))
+        reason = from_union([SkillInstallationFailureReason, from_none], obj.get("reason"))
+        return SkillInstallationOutcome(kind, installation, installation_id, operation_id, reason)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["kind"] = to_enum(MCPInstallationOutcomeKind, self.kind)
+        if self.installation is not None:
+            result["installation"] = from_union([lambda x: to_class(SkillInstallationSummary, x), from_none], self.installation)
+        if self.installation_id is not None:
+            result["installationId"] = from_union([from_str, from_none], self.installation_id)
+        if self.operation_id is not None:
+            result["operationId"] = from_union([from_str, from_none], self.operation_id)
+        if self.reason is not None:
+            result["reason"] = from_union([lambda x: to_enum(SkillInstallationFailureReason, x), from_none], self.reason)
+        return result
+
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class TasksRegisterResult:
@@ -37391,144 +38452,6 @@ class UsageGetMetricsResult:
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
-class WorkflowRunSummary:
-    """Durable workflow run summary with read-time live overlays."""
-
-    can_resume: bool
-    """Whether the durable run state currently passes runtime resume eligibility checks."""
-
-    consumed: WorkflowRunConsumed
-    """Durable resource consumption."""
-
-    created_at: int
-    """Epoch milliseconds when the run was created."""
-
-    declared_limits: WorkflowDeclaredLimits
-    """Resource ceilings declared by the workflow."""
-
-    declared_phase_count: int
-    """Number of phases declared by the workflow."""
-
-    description: str
-    """Human-readable workflow description."""
-
-    live_agent_count: int
-    """Number of direct workflow agents currently live."""
-
-    observed_at: int
-    """Epoch milliseconds when this live-overlay snapshot was observed."""
-
-    revision: int
-    """Monotonic durable run revision."""
-
-    run_id: str
-    """Workflow run identifier."""
-
-    status: WorkflowRunStatus
-    """Current workflow run status."""
-
-    total_spawned_agent_count: int
-    """Total direct workflow agents spawned across all attempts."""
-
-    updated_at: int
-    """Epoch milliseconds when the durable run was last updated."""
-
-    workflow_name: str
-    """Registered workflow name."""
-
-    active_segment_started_at: int | None = None
-    """Epoch milliseconds when the current active segment started, or null while inactive."""
-
-    approved: WorkflowDeclaredLimits | None = None
-    """Approved effective resource ceilings, or null until approved."""
-
-    completed_at: int | None = None
-    """Epoch milliseconds when the run completed, or null while nonterminal."""
-
-    current_phase: WorkflowCurrentPhase | None = None
-    """Current phase identity, or null before any phase is entered."""
-
-    started_at: int | None = None
-    """Epoch milliseconds when execution first started, or null before start."""
-
-    terminal: WorkflowRunTerminal | None = None
-    """Terminal run outcome, or null while nonterminal."""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'WorkflowRunSummary':
-        assert isinstance(obj, dict)
-        can_resume = from_bool(obj.get("canResume"))
-        consumed = WorkflowRunConsumed.from_dict(obj.get("consumed"))
-        created_at = from_int(obj.get("createdAt"))
-        declared_limits = WorkflowDeclaredLimits.from_dict(obj.get("declaredLimits"))
-        declared_phase_count = from_int(obj.get("declaredPhaseCount"))
-        description = from_str(obj.get("description"))
-        live_agent_count = from_int(obj.get("liveAgentCount"))
-        observed_at = from_int(obj.get("observedAt"))
-        revision = from_int(obj.get("revision"))
-        run_id = from_str(obj.get("runId"))
-        status = WorkflowRunStatus(obj.get("status"))
-        total_spawned_agent_count = from_int(obj.get("totalSpawnedAgentCount"))
-        updated_at = from_int(obj.get("updatedAt"))
-        workflow_name = from_str(obj.get("workflowName"))
-        active_segment_started_at = from_union([from_int, from_none], obj.get("activeSegmentStartedAt"))
-        approved = from_union([WorkflowDeclaredLimits.from_dict, from_none], obj.get("approved"))
-        completed_at = from_union([from_int, from_none], obj.get("completedAt"))
-        current_phase = from_union([WorkflowCurrentPhase.from_dict, from_none], obj.get("currentPhase"))
-        started_at = from_union([from_int, from_none], obj.get("startedAt"))
-        terminal = from_union([WorkflowRunTerminal.from_dict, from_none], obj.get("terminal"))
-        return WorkflowRunSummary(can_resume, consumed, created_at, declared_limits, declared_phase_count, description, live_agent_count, observed_at, revision, run_id, status, total_spawned_agent_count, updated_at, workflow_name, active_segment_started_at, approved, completed_at, current_phase, started_at, terminal)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["canResume"] = from_bool(self.can_resume)
-        result["consumed"] = to_class(WorkflowRunConsumed, self.consumed)
-        result["createdAt"] = from_int(self.created_at)
-        result["declaredLimits"] = to_class(WorkflowDeclaredLimits, self.declared_limits)
-        result["declaredPhaseCount"] = from_int(self.declared_phase_count)
-        result["description"] = from_str(self.description)
-        result["liveAgentCount"] = from_int(self.live_agent_count)
-        result["observedAt"] = from_int(self.observed_at)
-        result["revision"] = from_int(self.revision)
-        result["runId"] = from_str(self.run_id)
-        result["status"] = to_enum(WorkflowRunStatus, self.status)
-        result["totalSpawnedAgentCount"] = from_int(self.total_spawned_agent_count)
-        result["updatedAt"] = from_int(self.updated_at)
-        result["workflowName"] = from_str(self.workflow_name)
-        result["activeSegmentStartedAt"] = from_union([from_int, from_none], self.active_segment_started_at)
-        result["approved"] = from_union([lambda x: to_class(WorkflowDeclaredLimits, x), from_none], self.approved)
-        result["completedAt"] = from_union([from_int, from_none], self.completed_at)
-        result["currentPhase"] = from_union([lambda x: to_class(WorkflowCurrentPhase, x), from_none], self.current_phase)
-        result["startedAt"] = from_union([from_int, from_none], self.started_at)
-        result["terminal"] = from_union([lambda x: to_class(WorkflowRunTerminal, x), from_none], self.terminal)
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
-class WorkflowResumeResult:
-    """Resolved persisted workflow identity and resumed run envelope."""
-
-    run: WorkflowRunResult
-    """Terminal resumed run envelope."""
-
-    workflow_name: str
-    """Persisted workflow name resolved for the resumed run."""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'WorkflowResumeResult':
-        assert isinstance(obj, dict)
-        run = WorkflowRunResult.from_dict(obj.get("run"))
-        workflow_name = from_str(obj.get("workflowName"))
-        return WorkflowResumeResult(run, workflow_name)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["run"] = to_class(WorkflowRunResult, self.run)
-        result["workflowName"] = from_str(self.workflow_name)
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
 class MCPConfigAddRequest:
     """MCP server name and configuration to add to user configuration."""
 
@@ -37679,31 +38602,6 @@ class MCPListToolsResult:
         result["tools"] = from_list(lambda x: to_class(MCPTools, x), self.tools)
         return result
 
-@dataclass
-class InstallationReview:
-    """Resource-specific review to present before collecting the user's decision.
-
-    Only resource kinds with an implemented installation engine have a review variant.
-    """
-    resource: DiagnosticSource
-    """Reviewed resource discriminator."""
-
-    review: MCPInstallationReview
-    """The exact MCP action and its reviewed changes."""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'InstallationReview':
-        assert isinstance(obj, dict)
-        resource = DiagnosticSource(obj.get("resource"))
-        review = MCPInstallationReview.from_dict(obj.get("review"))
-        return InstallationReview(resource, review)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["resource"] = to_enum(DiagnosticSource, self.resource)
-        result["review"] = to_class(MCPInstallationReview, self.review)
-        return result
-
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class MCPPlanInstallPlanned:
@@ -37802,6 +38700,144 @@ class ConnectorDisconnectResult:
         result: dict = {}
         result["disconnected"] = from_bool(self.disconnected)
         result["status"] = to_class(ConnectorStatus, self.status)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class WorkflowRunSummary:
+    """Durable workflow run summary with read-time live overlays."""
+
+    can_resume: bool
+    """Whether the durable run state currently passes runtime resume eligibility checks."""
+
+    consumed: WorkflowRunConsumed
+    """Durable resource consumption."""
+
+    created_at: int
+    """Epoch milliseconds when the run was created."""
+
+    declared_limits: WorkflowDeclaredLimits
+    """Resource ceilings declared by the workflow."""
+
+    declared_phase_count: int
+    """Number of phases declared by the workflow."""
+
+    description: str
+    """Human-readable workflow description."""
+
+    live_agent_count: int
+    """Number of direct workflow agents currently live."""
+
+    observed_at: int
+    """Epoch milliseconds when this live-overlay snapshot was observed."""
+
+    revision: int
+    """Monotonic durable run revision."""
+
+    run_id: str
+    """Workflow run identifier."""
+
+    status: WorkflowRunStatus
+    """Current workflow run status."""
+
+    total_spawned_agent_count: int
+    """Total direct workflow agents spawned across all attempts."""
+
+    updated_at: int
+    """Epoch milliseconds when the durable run was last updated."""
+
+    workflow_name: str
+    """Registered workflow name."""
+
+    active_segment_started_at: int | None = None
+    """Epoch milliseconds when the current active segment started, or null while inactive."""
+
+    approved: WorkflowDeclaredLimits | None = None
+    """Approved effective resource ceilings, or null until approved."""
+
+    completed_at: int | None = None
+    """Epoch milliseconds when the run completed, or null while nonterminal."""
+
+    current_phase: WorkflowCurrentPhase | None = None
+    """Current phase identity, or null before any phase is entered."""
+
+    started_at: int | None = None
+    """Epoch milliseconds when execution first started, or null before start."""
+
+    terminal: WorkflowRunTerminal | None = None
+    """Terminal run outcome, or null while nonterminal."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'WorkflowRunSummary':
+        assert isinstance(obj, dict)
+        can_resume = from_bool(obj.get("canResume"))
+        consumed = WorkflowRunConsumed.from_dict(obj.get("consumed"))
+        created_at = from_int(obj.get("createdAt"))
+        declared_limits = WorkflowDeclaredLimits.from_dict(obj.get("declaredLimits"))
+        declared_phase_count = from_int(obj.get("declaredPhaseCount"))
+        description = from_str(obj.get("description"))
+        live_agent_count = from_int(obj.get("liveAgentCount"))
+        observed_at = from_int(obj.get("observedAt"))
+        revision = from_int(obj.get("revision"))
+        run_id = from_str(obj.get("runId"))
+        status = WorkflowRunStatus(obj.get("status"))
+        total_spawned_agent_count = from_int(obj.get("totalSpawnedAgentCount"))
+        updated_at = from_int(obj.get("updatedAt"))
+        workflow_name = from_str(obj.get("workflowName"))
+        active_segment_started_at = from_union([from_int, from_none], obj.get("activeSegmentStartedAt"))
+        approved = from_union([WorkflowDeclaredLimits.from_dict, from_none], obj.get("approved"))
+        completed_at = from_union([from_int, from_none], obj.get("completedAt"))
+        current_phase = from_union([WorkflowCurrentPhase.from_dict, from_none], obj.get("currentPhase"))
+        started_at = from_union([from_int, from_none], obj.get("startedAt"))
+        terminal = from_union([WorkflowRunTerminal.from_dict, from_none], obj.get("terminal"))
+        return WorkflowRunSummary(can_resume, consumed, created_at, declared_limits, declared_phase_count, description, live_agent_count, observed_at, revision, run_id, status, total_spawned_agent_count, updated_at, workflow_name, active_segment_started_at, approved, completed_at, current_phase, started_at, terminal)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["canResume"] = from_bool(self.can_resume)
+        result["consumed"] = to_class(WorkflowRunConsumed, self.consumed)
+        result["createdAt"] = from_int(self.created_at)
+        result["declaredLimits"] = to_class(WorkflowDeclaredLimits, self.declared_limits)
+        result["declaredPhaseCount"] = from_int(self.declared_phase_count)
+        result["description"] = from_str(self.description)
+        result["liveAgentCount"] = from_int(self.live_agent_count)
+        result["observedAt"] = from_int(self.observed_at)
+        result["revision"] = from_int(self.revision)
+        result["runId"] = from_str(self.run_id)
+        result["status"] = to_enum(WorkflowRunStatus, self.status)
+        result["totalSpawnedAgentCount"] = from_int(self.total_spawned_agent_count)
+        result["updatedAt"] = from_int(self.updated_at)
+        result["workflowName"] = from_str(self.workflow_name)
+        result["activeSegmentStartedAt"] = from_union([from_int, from_none], self.active_segment_started_at)
+        result["approved"] = from_union([lambda x: to_class(WorkflowDeclaredLimits, x), from_none], self.approved)
+        result["completedAt"] = from_union([from_int, from_none], self.completed_at)
+        result["currentPhase"] = from_union([lambda x: to_class(WorkflowCurrentPhase, x), from_none], self.current_phase)
+        result["startedAt"] = from_union([from_int, from_none], self.started_at)
+        result["terminal"] = from_union([lambda x: to_class(WorkflowRunTerminal, x), from_none], self.terminal)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class WorkflowResumeResult:
+    """Resolved persisted workflow identity and resumed run envelope."""
+
+    run: WorkflowRunResult
+    """Terminal resumed run envelope."""
+
+    workflow_name: str
+    """Persisted workflow name resolved for the resumed run."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'WorkflowResumeResult':
+        assert isinstance(obj, dict)
+        run = WorkflowRunResult.from_dict(obj.get("run"))
+        workflow_name = from_str(obj.get("workflowName"))
+        return WorkflowResumeResult(run, workflow_name)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["run"] = to_class(WorkflowRunResult, self.run)
+        result["workflowName"] = from_str(self.workflow_name)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -38338,6 +39374,298 @@ class SessionUpdateOptionsParams:
             result["workingDirectory"] = from_union([from_str, from_none], self.working_directory)
         return result
 
+@dataclass
+class InstallationReview:
+    """Resource-specific review to present before collecting the user's decision.
+
+    Only resource kinds with an implemented installation engine have a review variant.
+    """
+    resource: Resource
+    """Reviewed resource discriminator."""
+
+    review: ReviewClass
+    """The exact MCP action and its reviewed changes.
+
+    The exact verified Skill action and its reviewed files.
+    """
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'InstallationReview':
+        assert isinstance(obj, dict)
+        resource = Resource(obj.get("resource"))
+        review = ReviewClass.from_dict(obj.get("review"))
+        return InstallationReview(resource, review)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["resource"] = to_enum(Resource, self.resource)
+        result["review"] = to_class(ReviewClass, self.review)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class SkillInstallPlan:
+    """Prepared install plan.
+
+    A computed Skill install plan. Nothing has been applied.
+    """
+    expires_at: str
+    """Original wall-clock expiry as an ISO 8601 timestamp."""
+
+    operation_id: str
+    """Original operation identifier returned before confirmation."""
+
+    plan_handle: str
+    """One-use plan handle, bound to the original candidate authority."""
+
+    review: SkillInstallationReview
+    """Safe review to present before applying the plan."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SkillInstallPlan':
+        assert isinstance(obj, dict)
+        expires_at = from_str(obj.get("expiresAt"))
+        operation_id = from_str(obj.get("operationId"))
+        plan_handle = from_str(obj.get("planHandle"))
+        review = SkillInstallationReview.from_dict(obj.get("review"))
+        return SkillInstallPlan(expires_at, operation_id, plan_handle, review)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["expiresAt"] = from_str(self.expires_at)
+        result["operationId"] = from_str(self.operation_id)
+        result["planHandle"] = from_str(self.plan_handle)
+        result["review"] = to_class(SkillInstallationReview, self.review)
+        return result
+
+@dataclass
+class PlanClass:
+    """Prepared install plan.
+
+    A computed Skill install plan. Nothing has been applied.
+
+    Prepared uninstall plan.
+
+    A computed Skill uninstall plan. Nothing has been removed.
+    """
+    expires_at: str
+    """Original wall-clock expiry as an ISO 8601 timestamp."""
+
+    operation_id: str
+    """Original operation identifier returned before confirmation.
+
+    Original removal operation identifier returned before confirmation.
+    """
+    plan_handle: str
+    """One-use plan handle, bound to the original candidate authority.
+
+    One-use uninstall plan handle.
+    """
+    review: SkillInstallationReview
+    """Safe review to present before applying the plan.
+
+    Safe review to present before applying removal.
+    """
+    installation: SkillInstallationSummary | None = None
+    """Owned Skill installation being removed."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'PlanClass':
+        assert isinstance(obj, dict)
+        expires_at = from_str(obj.get("expiresAt"))
+        operation_id = from_str(obj.get("operationId"))
+        plan_handle = from_str(obj.get("planHandle"))
+        review = SkillInstallationReview.from_dict(obj.get("review"))
+        installation = from_union([SkillInstallationSummary.from_dict, from_none], obj.get("installation"))
+        return PlanClass(expires_at, operation_id, plan_handle, review, installation)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["expiresAt"] = from_str(self.expires_at)
+        result["operationId"] = from_str(self.operation_id)
+        result["planHandle"] = from_str(self.plan_handle)
+        result["review"] = to_class(SkillInstallationReview, self.review)
+        if self.installation is not None:
+            result["installation"] = from_union([lambda x: to_class(SkillInstallationSummary, x), from_none], self.installation)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class SkillUninstallPlan:
+    """Prepared uninstall plan.
+
+    A computed Skill uninstall plan. Nothing has been removed.
+    """
+    expires_at: str
+    """Original wall-clock expiry as an ISO 8601 timestamp."""
+
+    installation: SkillInstallationSummary
+    """Owned Skill installation being removed."""
+
+    operation_id: str
+    """Original removal operation identifier returned before confirmation."""
+
+    plan_handle: str
+    """One-use uninstall plan handle."""
+
+    review: SkillInstallationReview
+    """Safe review to present before applying removal."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SkillUninstallPlan':
+        assert isinstance(obj, dict)
+        expires_at = from_str(obj.get("expiresAt"))
+        installation = SkillInstallationSummary.from_dict(obj.get("installation"))
+        operation_id = from_str(obj.get("operationId"))
+        plan_handle = from_str(obj.get("planHandle"))
+        review = SkillInstallationReview.from_dict(obj.get("review"))
+        return SkillUninstallPlan(expires_at, installation, operation_id, plan_handle, review)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["expiresAt"] = from_str(self.expires_at)
+        result["installation"] = to_class(SkillInstallationSummary, self.installation)
+        result["operationId"] = from_str(self.operation_id)
+        result["planHandle"] = from_str(self.plan_handle)
+        result["review"] = to_class(SkillInstallationReview, self.review)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class SkillInstallationOperationStatus:
+    """Operation status.
+
+    Status snapshot from the original connection, independent of new-work account
+    availability.
+
+    Original operation progress discriminator.
+    """
+    cancellation_requested: bool
+    """Whether cancellation has been requested.
+
+    Whether cancellation has been requested; already-started effects require recovery.
+
+    Whether cancellation was requested before the terminal result.
+    """
+    operation_id: str
+    """Original runtime-issued operation identity."""
+
+    phase: Phase
+    outcome: SkillInstallationOutcome | None = None
+    """Immutable terminal receipt."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SkillInstallationOperationStatus':
+        assert isinstance(obj, dict)
+        cancellation_requested = from_bool(obj.get("cancellationRequested"))
+        operation_id = from_str(obj.get("operationId"))
+        phase = Phase(obj.get("phase"))
+        outcome = from_union([SkillInstallationOutcome.from_dict, from_none], obj.get("outcome"))
+        return SkillInstallationOperationStatus(cancellation_requested, operation_id, phase, outcome)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["cancellationRequested"] = from_bool(self.cancellation_requested)
+        result["operationId"] = from_str(self.operation_id)
+        result["phase"] = to_enum(Phase, self.phase)
+        if self.outcome is not None:
+            result["outcome"] = from_union([lambda x: to_class(SkillInstallationOutcome, x), from_none], self.outcome)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class SkillInstallationResult:
+    """Skill installation result with the honoured contract, or a typed request/negotiation
+    refusal.
+
+    The caller's protocol version or required capabilities cannot be honoured. Returned
+    instead of a partial or ambiguous success.
+
+    The request was rejected because a bounded field fell outside its permitted range or a
+    required field was unusable. Pagination may also be rejected by the authority after a
+    continuation request; repeat the search without page.
+    """
+    kind: MCPInstallationManagementResultKind
+    """Discriminator: handled operation outcome.
+
+    Discriminator: capability or protocol-version negotiation failed
+
+    Discriminator: the request itself was invalid
+    """
+    negotiated: CatalogNegotiatedContract | None = None
+    """Capabilities honoured for this request."""
+
+    outcome: SkillInstallationOutcome | None = None
+    """Terminal operation outcome."""
+
+    message: str | None = None
+    """Human-readable explanation, safe to surface. Never contains a query, URL, handle, or
+    secret.
+
+    Human-readable explanation, safe to surface. Never echoes the offending value, nor a
+    query, URL, handle, or secret.
+    """
+    minimum_supported_protocol_version: int | None = None
+    """Lowest caller protocol version this runtime will serve."""
+
+    reason: CatalogNegotiationRefusedReason | None = None
+    """Whether the version or the capability set was the problem."""
+
+    runtime_protocol_version: int | None = None
+    """Protocol version of the runtime that refused the request."""
+
+    supported_capabilities: list[str] | None = None
+    """Capabilities this runtime can safely advertise to this caller. The complete
+    five-capability protocol-3 legacy set is always present; every capability added after
+    that baseline appears only when the caller required it, so an older closed-enum decoder
+    can still consume a refusal. This list does not imply that every deployment has enabled
+    every operation.
+    """
+    unsupported_capabilities: list[str] | None = None
+    """The subset of the caller's bounded extensible capability identifiers this runtime cannot
+    honour.
+    """
+    field: CatalogInvalidRequestField | None = None
+    """Which request field was rejected."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SkillInstallationResult':
+        assert isinstance(obj, dict)
+        kind = MCPInstallationManagementResultKind(obj.get("kind"))
+        negotiated = from_union([CatalogNegotiatedContract.from_dict, from_none], obj.get("negotiated"))
+        outcome = from_union([SkillInstallationOutcome.from_dict, from_none], obj.get("outcome"))
+        message = from_union([from_str, from_none], obj.get("message"))
+        minimum_supported_protocol_version = from_union([from_int, from_none], obj.get("minimumSupportedProtocolVersion"))
+        reason = from_union([CatalogNegotiationRefusedReason, from_none], obj.get("reason"))
+        runtime_protocol_version = from_union([from_int, from_none], obj.get("runtimeProtocolVersion"))
+        supported_capabilities = from_union([lambda x: from_list(from_str, x), from_none], obj.get("supportedCapabilities"))
+        unsupported_capabilities = from_union([lambda x: from_list(from_str, x), from_none], obj.get("unsupportedCapabilities"))
+        field = from_union([CatalogInvalidRequestField, from_none], obj.get("field"))
+        return SkillInstallationResult(kind, negotiated, outcome, message, minimum_supported_protocol_version, reason, runtime_protocol_version, supported_capabilities, unsupported_capabilities, field)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["kind"] = to_enum(MCPInstallationManagementResultKind, self.kind)
+        if self.negotiated is not None:
+            result["negotiated"] = from_union([lambda x: to_class(CatalogNegotiatedContract, x), from_none], self.negotiated)
+        if self.outcome is not None:
+            result["outcome"] = from_union([lambda x: to_class(SkillInstallationOutcome, x), from_none], self.outcome)
+        if self.message is not None:
+            result["message"] = from_union([from_str, from_none], self.message)
+        if self.minimum_supported_protocol_version is not None:
+            result["minimumSupportedProtocolVersion"] = from_union([from_int, from_none], self.minimum_supported_protocol_version)
+        if self.reason is not None:
+            result["reason"] = from_union([lambda x: to_enum(CatalogNegotiationRefusedReason, x), from_none], self.reason)
+        if self.runtime_protocol_version is not None:
+            result["runtimeProtocolVersion"] = from_union([from_int, from_none], self.runtime_protocol_version)
+        if self.supported_capabilities is not None:
+            result["supportedCapabilities"] = from_union([lambda x: from_list(from_str, x), from_none], self.supported_capabilities)
+        if self.unsupported_capabilities is not None:
+            result["unsupportedCapabilities"] = from_union([lambda x: from_list(from_str, x), from_none], self.unsupported_capabilities)
+        if self.field is not None:
+            result["field"] = from_union([lambda x: to_enum(CatalogInvalidRequestField, x), from_none], self.field)
+        return result
+
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class UIElicitationRequest:
@@ -38423,52 +39751,6 @@ class WorkflowListRunsResult:
             result["omittedOlder"] = from_union([from_int, from_none], self.omitted_older)
         return result
 
-@dataclass
-class InstallationConfirmationRequest:
-    """One connection-owned, expiring request for a trusted host's explicit user decision."""
-
-    confirmation_id: str
-    """Opaque one-use challenge. Return unchanged; never log or persist."""
-
-    expires_at: str
-    """Original plan expiry as an ISO 8601 timestamp. Confirmation never extends it."""
-
-    operation_id: str
-    """Random identifier of this installation operation, not a plan handle."""
-
-    review: InstallationReview
-    """Resource-specific review to present before collecting the user's decision."""
-
-    review_fingerprint: str
-    """Opaque commitment to the exact review and inputs. Return unchanged; never log."""
-
-    policy_session_id: str | None = None
-    """Original engine-resolved selector for a bound operation, never a dispatch default.
-    Bound MCP confirmation always includes it; correlate it with the original pending action.
-    """
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'InstallationConfirmationRequest':
-        assert isinstance(obj, dict)
-        confirmation_id = from_str(obj.get("confirmationId"))
-        expires_at = from_str(obj.get("expiresAt"))
-        operation_id = from_str(obj.get("operationId"))
-        review = InstallationReview.from_dict(obj.get("review"))
-        review_fingerprint = from_str(obj.get("reviewFingerprint"))
-        policy_session_id = from_union([from_str, from_none], obj.get("policySessionId"))
-        return InstallationConfirmationRequest(confirmation_id, expires_at, operation_id, review, review_fingerprint, policy_session_id)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["confirmationId"] = from_str(self.confirmation_id)
-        result["expiresAt"] = from_str(self.expires_at)
-        result["operationId"] = from_str(self.operation_id)
-        result["review"] = to_class(InstallationReview, self.review)
-        result["reviewFingerprint"] = from_str(self.review_fingerprint)
-        if self.policy_session_id is not None:
-            result["policySessionId"] = from_union([from_str, from_none], self.policy_session_id)
-        return result
-
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class MCPInstallationManagementResult:
@@ -38546,6 +39828,232 @@ class MCPInstallationManagementResult:
             result["negotiated"] = from_union([lambda x: to_class(CatalogNegotiatedContract, x), from_none], self.negotiated)
         if self.outcome is not None:
             result["outcome"] = from_union([lambda x: to_class(MCPInstallationManagementOutcome, x), from_none], self.outcome)
+        if self.message is not None:
+            result["message"] = from_union([from_str, from_none], self.message)
+        if self.minimum_supported_protocol_version is not None:
+            result["minimumSupportedProtocolVersion"] = from_union([from_int, from_none], self.minimum_supported_protocol_version)
+        if self.reason is not None:
+            result["reason"] = from_union([lambda x: to_enum(CatalogNegotiationRefusedReason, x), from_none], self.reason)
+        if self.runtime_protocol_version is not None:
+            result["runtimeProtocolVersion"] = from_union([from_int, from_none], self.runtime_protocol_version)
+        if self.supported_capabilities is not None:
+            result["supportedCapabilities"] = from_union([lambda x: from_list(from_str, x), from_none], self.supported_capabilities)
+        if self.unsupported_capabilities is not None:
+            result["unsupportedCapabilities"] = from_union([lambda x: from_list(from_str, x), from_none], self.unsupported_capabilities)
+        if self.field is not None:
+            result["field"] = from_union([lambda x: to_enum(CatalogInvalidRequestField, x), from_none], self.field)
+        return result
+
+@dataclass
+class InstallationConfirmationRequest:
+    """One connection-owned, expiring request for a trusted host's explicit user decision."""
+
+    confirmation_id: str
+    """Opaque one-use challenge. Return unchanged; never log or persist."""
+
+    expires_at: str
+    """Original plan expiry as an ISO 8601 timestamp. Confirmation never extends it."""
+
+    operation_id: str
+    """Random identifier of this installation operation, not a plan handle."""
+
+    review: InstallationReview
+    """Resource-specific review to present before collecting the user's decision."""
+
+    review_fingerprint: str
+    """Opaque commitment to the exact review and inputs. Return unchanged; never log."""
+
+    policy_session_id: str | None = None
+    """Original engine-resolved selector for a bound operation, never a dispatch default.
+    Bound MCP confirmation always includes it; correlate it with the original pending action.
+    """
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'InstallationConfirmationRequest':
+        assert isinstance(obj, dict)
+        confirmation_id = from_str(obj.get("confirmationId"))
+        expires_at = from_str(obj.get("expiresAt"))
+        operation_id = from_str(obj.get("operationId"))
+        review = InstallationReview.from_dict(obj.get("review"))
+        review_fingerprint = from_str(obj.get("reviewFingerprint"))
+        policy_session_id = from_union([from_str, from_none], obj.get("policySessionId"))
+        return InstallationConfirmationRequest(confirmation_id, expires_at, operation_id, review, review_fingerprint, policy_session_id)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["confirmationId"] = from_str(self.confirmation_id)
+        result["expiresAt"] = from_str(self.expires_at)
+        result["operationId"] = from_str(self.operation_id)
+        result["review"] = to_class(InstallationReview, self.review)
+        result["reviewFingerprint"] = from_str(self.review_fingerprint)
+        if self.policy_session_id is not None:
+            result["policySessionId"] = from_union([from_str, from_none], self.policy_session_id)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class SkillInstallationManagementOutcome:
+    """Management outcome for verified Skill inventory, planning and removal.
+
+    Observed management outcome.
+
+    Already-confirmed durable work must be reconciled before new mutations or inventory.
+
+    A verified Skill installation plan was prepared.
+
+    Owned Skill installations were listed.
+
+    Recovery completed and inventory was inspected.
+
+    Interrupted work was safely compensated and the pending marker was cleared.
+
+    An owned Skill uninstall plan was prepared.
+
+    Original-connection operation snapshot.
+
+    Enablement changed and the selected session was reconciled.
+
+    The management request was refused.
+    """
+    kind: SkillInstallationManagementOutcomeKind
+    """Skill installation management outcome discriminator."""
+
+    plan: PlanClass | None = None
+    """Prepared install plan.
+
+    Prepared uninstall plan.
+    """
+    installations: list[SkillInstallationSummary] | None = None
+    """Owned Skill installation summaries.
+
+    Owned Skill installation summaries after recovery.
+    """
+    operation_id: str | None = None
+    """Original operation identity."""
+
+    reason: SkillInstallationFailureReason | None = None
+    """Cause of the compensation.
+
+    Bounded refusal reason.
+    """
+    operation: SkillInstallationOperationStatus | None = None
+    """Operation status."""
+
+    diagnostics: list[str] | None = None
+    """Safe reload or reconciliation diagnostics."""
+
+    installation: SkillInstallationSummary | None = None
+    """Updated installation summary."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SkillInstallationManagementOutcome':
+        assert isinstance(obj, dict)
+        kind = SkillInstallationManagementOutcomeKind(obj.get("kind"))
+        plan = from_union([PlanClass.from_dict, from_none], obj.get("plan"))
+        installations = from_union([lambda x: from_list(SkillInstallationSummary.from_dict, x), from_none], obj.get("installations"))
+        operation_id = from_union([from_str, from_none], obj.get("operation_id"))
+        reason = from_union([SkillInstallationFailureReason, from_none], obj.get("reason"))
+        operation = from_union([SkillInstallationOperationStatus.from_dict, from_none], obj.get("operation"))
+        diagnostics = from_union([lambda x: from_list(from_str, x), from_none], obj.get("diagnostics"))
+        installation = from_union([SkillInstallationSummary.from_dict, from_none], obj.get("installation"))
+        return SkillInstallationManagementOutcome(kind, plan, installations, operation_id, reason, operation, diagnostics, installation)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["kind"] = to_enum(SkillInstallationManagementOutcomeKind, self.kind)
+        if self.plan is not None:
+            result["plan"] = from_union([lambda x: to_class(PlanClass, x), from_none], self.plan)
+        if self.installations is not None:
+            result["installations"] = from_union([lambda x: from_list(lambda x: to_class(SkillInstallationSummary, x), x), from_none], self.installations)
+        if self.operation_id is not None:
+            result["operation_id"] = from_union([from_str, from_none], self.operation_id)
+        if self.reason is not None:
+            result["reason"] = from_union([lambda x: to_enum(SkillInstallationFailureReason, x), from_none], self.reason)
+        if self.operation is not None:
+            result["operation"] = from_union([lambda x: to_class(SkillInstallationOperationStatus, x), from_none], self.operation)
+        if self.diagnostics is not None:
+            result["diagnostics"] = from_union([lambda x: from_list(from_str, x), from_none], self.diagnostics)
+        if self.installation is not None:
+            result["installation"] = from_union([lambda x: to_class(SkillInstallationSummary, x), from_none], self.installation)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class SkillInstallationManagementResult:
+    """Skill installation management result with the honoured contract, or a typed refusal.
+
+    The caller's protocol version or required capabilities cannot be honoured. Returned
+    instead of a partial or ambiguous success.
+
+    The request was rejected because a bounded field fell outside its permitted range or a
+    required field was unusable. Pagination may also be rejected by the authority after a
+    continuation request; repeat the search without page.
+    """
+    kind: MCPInstallationManagementResultKind
+    """Discriminator: handled management outcome.
+
+    Discriminator: capability or protocol-version negotiation failed
+
+    Discriminator: the request itself was invalid
+    """
+    negotiated: CatalogNegotiatedContract | None = None
+    """Capabilities honoured for this request."""
+
+    outcome: SkillInstallationManagementOutcome | None = None
+    """Observed management outcome."""
+
+    message: str | None = None
+    """Human-readable explanation, safe to surface. Never contains a query, URL, handle, or
+    secret.
+
+    Human-readable explanation, safe to surface. Never echoes the offending value, nor a
+    query, URL, handle, or secret.
+    """
+    minimum_supported_protocol_version: int | None = None
+    """Lowest caller protocol version this runtime will serve."""
+
+    reason: CatalogNegotiationRefusedReason | None = None
+    """Whether the version or the capability set was the problem."""
+
+    runtime_protocol_version: int | None = None
+    """Protocol version of the runtime that refused the request."""
+
+    supported_capabilities: list[str] | None = None
+    """Capabilities this runtime can safely advertise to this caller. The complete
+    five-capability protocol-3 legacy set is always present; every capability added after
+    that baseline appears only when the caller required it, so an older closed-enum decoder
+    can still consume a refusal. This list does not imply that every deployment has enabled
+    every operation.
+    """
+    unsupported_capabilities: list[str] | None = None
+    """The subset of the caller's bounded extensible capability identifiers this runtime cannot
+    honour.
+    """
+    field: CatalogInvalidRequestField | None = None
+    """Which request field was rejected."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SkillInstallationManagementResult':
+        assert isinstance(obj, dict)
+        kind = MCPInstallationManagementResultKind(obj.get("kind"))
+        negotiated = from_union([CatalogNegotiatedContract.from_dict, from_none], obj.get("negotiated"))
+        outcome = from_union([SkillInstallationManagementOutcome.from_dict, from_none], obj.get("outcome"))
+        message = from_union([from_str, from_none], obj.get("message"))
+        minimum_supported_protocol_version = from_union([from_int, from_none], obj.get("minimumSupportedProtocolVersion"))
+        reason = from_union([CatalogNegotiationRefusedReason, from_none], obj.get("reason"))
+        runtime_protocol_version = from_union([from_int, from_none], obj.get("runtimeProtocolVersion"))
+        supported_capabilities = from_union([lambda x: from_list(from_str, x), from_none], obj.get("supportedCapabilities"))
+        unsupported_capabilities = from_union([lambda x: from_list(from_str, x), from_none], obj.get("unsupportedCapabilities"))
+        field = from_union([CatalogInvalidRequestField, from_none], obj.get("field"))
+        return SkillInstallationManagementResult(kind, negotiated, outcome, message, minimum_supported_protocol_version, reason, runtime_protocol_version, supported_capabilities, unsupported_capabilities, field)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["kind"] = to_enum(MCPInstallationManagementResultKind, self.kind)
+        if self.negotiated is not None:
+            result["negotiated"] = from_union([lambda x: to_class(CatalogNegotiatedContract, x), from_none], self.negotiated)
+        if self.outcome is not None:
+            result["outcome"] = from_union([lambda x: to_class(SkillInstallationManagementOutcome, x), from_none], self.outcome)
         if self.message is not None:
             result["message"] = from_union([from_str, from_none], self.message)
         if self.minimum_supported_protocol_version is not None:
@@ -43049,7 +44557,7 @@ class RPC:
     catalog_mcp_server_candidate: CatalogMCPServerCandidate
     catalog_mcp_server_candidate_kind: CatalogMCPServerCandidateKind
     catalog_mcp_server_candidate_provenance: CatalogMCPServerCandidateProvenance
-    catalog_mcp_server_installability: CatalogMCPServerInstallabilityEnum
+    catalog_mcp_server_installability: CatalogMCPServerInstallability
     catalog_media_type: CatalogMediaType
     catalog_negotiated_contract: CatalogNegotiatedContract
     catalog_negotiation_refused_error: CatalogNegotiationRefusedError
@@ -43281,6 +44789,7 @@ class RPC:
     hooks_discover_request: HooksDiscoverRequest
     hooks_discover_result: HooksDiscoverResult
     hook_type: HookType
+    installation_catalogue_identity: InstallationCatalogueIdentity
     installation_confirmation_request: InstallationConfirmationRequest
     installation_confirmation_response: InstallationConfirmationResponse
     installation_decision: InstallationDecision
@@ -43451,7 +44960,7 @@ class RPC:
     mcp_plan_scope: MCPPlanScope
     mcp_plan_secret_placeholder: MCPPlanSecretPlaceholder
     mcp_plan_secret_reference: str
-    mcp_plan_target: MCPPlanTarget
+    mcp_plan_target: MCPPlanTargetClass
     mcp_plan_transport_choice: MCPPlanTransportChoice
     mcp_plan_transport_choice_package: MCPPlanTransportChoicePackage
     mcp_plan_transport_choice_remote: MCPPlanTransportChoiceRemote
@@ -44072,10 +45581,31 @@ class RPC:
     shell_options: ShellOptions
     shutdown_request: ShutdownRequest
     skill: Skill
+    skill_apply_install_request: SkillApplyInstallRequest
+    skill_apply_uninstall_request: SkillApplyUninstallRequest
     skill_discovery_path: SkillDiscoveryPath
     skill_discovery_path_list: SkillDiscoveryPathList
     skill_discovery_scope: SkillDiscoveryScope
+    skill_installation_failure_reason: SkillInstallationFailureReason
+    skill_installation_file_review: SkillInstallationFileReview
+    skill_installation_location: SkillInstallationLocation
+    skill_installation_management_outcome: SkillInstallationManagementOutcome
+    skill_installation_management_result: SkillInstallationManagementResult
+    skill_installation_operation_request: SkillInstallationOperationRequest
+    skill_installation_operation_status: SkillInstallationOperationStatus
+    skill_installation_outcome: SkillInstallationOutcome
+    skill_installation_ownership_state: SkillInstallationOwnershipState
+    skill_installation_result: SkillInstallationResult
+    skill_installation_review: SkillInstallationReview
+    skill_installation_scope: SkillInstallationScope
+    skill_installation_session_state: SkillInstallationSessionState
+    skill_installation_source: SkillInstallationSource
+    skill_installations_request: SkillInstallationsRequest
+    skill_installation_summary: SkillInstallationSummary
+    skill_install_plan: SkillInstallPlan
     skill_list: SkillList
+    skill_plan_install_request: SkillPlanInstallRequest
+    skill_plan_uninstall_request: SkillPlanUninstallRequest
     skill_provider_descriptor: SkillProviderDescriptor
     skill_provider_list_request: SkillProviderListRequest
     skill_provider_list_result: _SkillProviderListResult
@@ -44086,10 +45616,12 @@ class RPC:
     skills_disable_request: SkillsDisableRequest
     skills_discover_request: SkillsDiscoverRequest
     skills_enable_request: SkillsEnableRequest
+    skill_set_enabled_request: SkillSetEnabledRequest
     skills_get_discovery_paths_request: SkillsGetDiscoveryPathsRequest
     skills_get_invoked_result: SkillsGetInvokedResult
     skills_invoked_skill: SkillsInvokedSkill
     skills_load_diagnostics: SkillsLoadDiagnostics
+    skill_uninstall_plan: SkillUninstallPlan
     slash_command_add_timeline_entry_result: SlashCommandAddTimelineEntryResult
     slash_command_agent_prompt_result: SlashCommandAgentPromptResult
     slash_command_completed_result: SlashCommandCompletedResult
@@ -44458,7 +45990,7 @@ class RPC:
         catalog_mcp_server_candidate = CatalogMCPServerCandidate.from_dict(obj.get("CatalogMcpServerCandidate"))
         catalog_mcp_server_candidate_kind = CatalogMCPServerCandidateKind(obj.get("CatalogMcpServerCandidateKind"))
         catalog_mcp_server_candidate_provenance = CatalogMCPServerCandidateProvenance.from_dict(obj.get("CatalogMcpServerCandidateProvenance"))
-        catalog_mcp_server_installability = CatalogMCPServerInstallabilityEnum(obj.get("CatalogMcpServerInstallability"))
+        catalog_mcp_server_installability = CatalogMCPServerInstallability(obj.get("CatalogMcpServerInstallability"))
         catalog_media_type = CatalogMediaType(obj.get("CatalogMediaType"))
         catalog_negotiated_contract = CatalogNegotiatedContract.from_dict(obj.get("CatalogNegotiatedContract"))
         catalog_negotiation_refused_error = CatalogNegotiationRefusedError.from_dict(obj.get("CatalogNegotiationRefusedError"))
@@ -44690,6 +46222,7 @@ class RPC:
         hooks_discover_request = HooksDiscoverRequest.from_dict(obj.get("HooksDiscoverRequest"))
         hooks_discover_result = HooksDiscoverResult.from_dict(obj.get("HooksDiscoverResult"))
         hook_type = HookType(obj.get("HookType"))
+        installation_catalogue_identity = InstallationCatalogueIdentity.from_dict(obj.get("InstallationCatalogueIdentity"))
         installation_confirmation_request = InstallationConfirmationRequest.from_dict(obj.get("InstallationConfirmationRequest"))
         installation_confirmation_response = InstallationConfirmationResponse.from_dict(obj.get("InstallationConfirmationResponse"))
         installation_decision = InstallationDecision(obj.get("InstallationDecision"))
@@ -44860,7 +46393,7 @@ class RPC:
         mcp_plan_scope = MCPPlanScope(obj.get("McpPlanScope"))
         mcp_plan_secret_placeholder = MCPPlanSecretPlaceholder.from_dict(obj.get("McpPlanSecretPlaceholder"))
         mcp_plan_secret_reference = from_str(obj.get("McpPlanSecretReference"))
-        mcp_plan_target = MCPPlanTarget.from_dict(obj.get("McpPlanTarget"))
+        mcp_plan_target = MCPPlanTargetClass.from_dict(obj.get("McpPlanTarget"))
         mcp_plan_transport_choice = _load_MCPPlanTransportChoice(obj.get("McpPlanTransportChoice"))
         mcp_plan_transport_choice_package = MCPPlanTransportChoicePackage.from_dict(obj.get("McpPlanTransportChoicePackage"))
         mcp_plan_transport_choice_remote = MCPPlanTransportChoiceRemote.from_dict(obj.get("McpPlanTransportChoiceRemote"))
@@ -45481,10 +47014,31 @@ class RPC:
         shell_options = ShellOptions.from_dict(obj.get("ShellOptions"))
         shutdown_request = ShutdownRequest.from_dict(obj.get("ShutdownRequest"))
         skill = Skill.from_dict(obj.get("Skill"))
+        skill_apply_install_request = SkillApplyInstallRequest.from_dict(obj.get("SkillApplyInstallRequest"))
+        skill_apply_uninstall_request = SkillApplyUninstallRequest.from_dict(obj.get("SkillApplyUninstallRequest"))
         skill_discovery_path = SkillDiscoveryPath.from_dict(obj.get("SkillDiscoveryPath"))
         skill_discovery_path_list = SkillDiscoveryPathList.from_dict(obj.get("SkillDiscoveryPathList"))
         skill_discovery_scope = SkillDiscoveryScope(obj.get("SkillDiscoveryScope"))
+        skill_installation_failure_reason = SkillInstallationFailureReason(obj.get("SkillInstallationFailureReason"))
+        skill_installation_file_review = SkillInstallationFileReview.from_dict(obj.get("SkillInstallationFileReview"))
+        skill_installation_location = SkillInstallationLocation.from_dict(obj.get("SkillInstallationLocation"))
+        skill_installation_management_outcome = SkillInstallationManagementOutcome.from_dict(obj.get("SkillInstallationManagementOutcome"))
+        skill_installation_management_result = SkillInstallationManagementResult.from_dict(obj.get("SkillInstallationManagementResult"))
+        skill_installation_operation_request = SkillInstallationOperationRequest.from_dict(obj.get("SkillInstallationOperationRequest"))
+        skill_installation_operation_status = SkillInstallationOperationStatus.from_dict(obj.get("SkillInstallationOperationStatus"))
+        skill_installation_outcome = SkillInstallationOutcome.from_dict(obj.get("SkillInstallationOutcome"))
+        skill_installation_ownership_state = SkillInstallationOwnershipState(obj.get("SkillInstallationOwnershipState"))
+        skill_installation_result = SkillInstallationResult.from_dict(obj.get("SkillInstallationResult"))
+        skill_installation_review = SkillInstallationReview.from_dict(obj.get("SkillInstallationReview"))
+        skill_installation_scope = SkillInstallationScope(obj.get("SkillInstallationScope"))
+        skill_installation_session_state = SkillInstallationSessionState(obj.get("SkillInstallationSessionState"))
+        skill_installation_source = SkillInstallationSource.from_dict(obj.get("SkillInstallationSource"))
+        skill_installations_request = SkillInstallationsRequest.from_dict(obj.get("SkillInstallationsRequest"))
+        skill_installation_summary = SkillInstallationSummary.from_dict(obj.get("SkillInstallationSummary"))
+        skill_install_plan = SkillInstallPlan.from_dict(obj.get("SkillInstallPlan"))
         skill_list = SkillList.from_dict(obj.get("SkillList"))
+        skill_plan_install_request = SkillPlanInstallRequest.from_dict(obj.get("SkillPlanInstallRequest"))
+        skill_plan_uninstall_request = SkillPlanUninstallRequest.from_dict(obj.get("SkillPlanUninstallRequest"))
         skill_provider_descriptor = SkillProviderDescriptor.from_dict(obj.get("SkillProviderDescriptor"))
         skill_provider_list_request = SkillProviderListRequest.from_dict(obj.get("SkillProviderListRequest"))
         skill_provider_list_result = _SkillProviderListResult.from_dict(obj.get("SkillProviderListResult"))
@@ -45495,10 +47049,12 @@ class RPC:
         skills_disable_request = SkillsDisableRequest.from_dict(obj.get("SkillsDisableRequest"))
         skills_discover_request = SkillsDiscoverRequest.from_dict(obj.get("SkillsDiscoverRequest"))
         skills_enable_request = SkillsEnableRequest.from_dict(obj.get("SkillsEnableRequest"))
+        skill_set_enabled_request = SkillSetEnabledRequest.from_dict(obj.get("SkillSetEnabledRequest"))
         skills_get_discovery_paths_request = SkillsGetDiscoveryPathsRequest.from_dict(obj.get("SkillsGetDiscoveryPathsRequest"))
         skills_get_invoked_result = SkillsGetInvokedResult.from_dict(obj.get("SkillsGetInvokedResult"))
         skills_invoked_skill = SkillsInvokedSkill.from_dict(obj.get("SkillsInvokedSkill"))
         skills_load_diagnostics = SkillsLoadDiagnostics.from_dict(obj.get("SkillsLoadDiagnostics"))
+        skill_uninstall_plan = SkillUninstallPlan.from_dict(obj.get("SkillUninstallPlan"))
         slash_command_add_timeline_entry_result = SlashCommandAddTimelineEntryResult.from_dict(obj.get("SlashCommandAddTimelineEntryResult"))
         slash_command_agent_prompt_result = SlashCommandAgentPromptResult.from_dict(obj.get("SlashCommandAgentPromptResult"))
         slash_command_completed_result = SlashCommandCompletedResult.from_dict(obj.get("SlashCommandCompletedResult"))
@@ -45727,7 +47283,7 @@ class RPC:
         subagent_settings = from_union([SubagentSettings.from_dict, from_none], obj.get("SubagentSettings"))
         task_progress = from_union([TaskProgress.from_dict, from_none], obj.get("TaskProgress"))
         workspace_summary = from_union([WorkspaceSummary.from_dict, from_none], obj.get("WorkspaceSummary"))
-        return RPC(abort_request, abort_result, accepted_enqueue_command_result, account_all_users, account_get_all_users_result, account_get_current_auth_result, account_get_quota_request, account_get_quota_result, account_kind, account_login_request, account_login_result, account_logout_request, account_logout_result, account_quota_snapshot, accounts_enumerate_request, accounts_get_request, accounts_set_request, account_status, adaptive_thinking_support, agent_discovery_path, agent_discovery_path_list, agent_discovery_path_scope, agent_get_current_result, agent_info, agent_info_source, agent_list, agent_list_request, agent_registry_live_target_entry, agent_registry_live_target_entry_attention_kind, agent_registry_live_target_entry_kind, agent_registry_live_target_entry_last_terminal_event, agent_registry_live_target_entry_status, agent_registry_log_capture, agent_registry_log_capture_open_error_reason, agent_registry_spawn_error, agent_registry_spawn_permission_mode, agent_registry_spawn_registry_timeout, agent_registry_spawn_request, agent_registry_spawn_result, agent_registry_spawn_spawned, agent_registry_spawn_validation_error, agent_registry_spawn_validation_error_field, agent_registry_spawn_validation_error_reason, agent_reload_result, agents_discover_request, agent_select_request, agent_select_result, agent_set_prompt_request, agents_get_discovery_paths_request, api_key_auth_info, auth_enumerate_query, auth_enumerate_value, auth_identity, auth_info, auth_info_type, auth_login_advance_request, auth_login_begin_request, auth_login_begun, auth_login_cancel_request, auth_login_result_dto, auth_login_result_status, auth_login_step, auth_read_query, auth_read_value, auth_status_dto, auth_validation_error, auth_validation_errors, auth_write, auth_write_result, autopilot_objective_credit_limit, autopilot_objective_get_state_result, autopilot_objective_state, autopilot_objective_status, built_in_model_catalog, built_in_model_catalog_entry, builtin_tool_descriptor, builtin_tool_format, builtin_tool_format_type, builtin_tool_input_schema, builtin_tool_input_schema_type, builtin_tool_safe_for_telemetry, builtin_tool_safe_telemetry_fields, cancel_user_requested_shell_command_result, canvas_action, canvas_action_invoke_request, canvas_action_invoke_result, canvas_close_request, canvas_host_context, canvas_host_context_capabilities, canvas_json_schema, canvas_list, canvas_list_open_result, canvas_open_request, canvas_provider_close_request, canvas_provider_invoke_action_request, canvas_provider_open_request, canvas_provider_open_result, canvas_provider_register_request, canvas_provider_unregister_request, canvas_session_context, capi_session_options, card_digest, card_digest_algorithm, card_digest_value, catalog_agent_plugin_candidate, catalog_agent_plugin_candidate_kind, catalog_agent_plugin_candidate_provenance, catalog_agent_plugin_compatibility_tag, catalog_agent_plugin_media_type, catalog_ai_skill_candidate, catalog_ai_skill_candidate_kind, catalog_ai_skill_candidate_provenance, catalog_ai_skill_installability, catalog_ai_skill_media_type, catalog_authentication_required_error, catalog_authentication_required_reason, catalog_candidate, catalog_candidate_kind, catalog_candidate_source, catalog_candidate_source_embedded, catalog_candidate_source_url, catalog_capability, catalog_capability_id, catalog_client_contract, catalog_contract_violation_error, catalog_contract_violation_reason, catalog_handle_rejected_error, catalog_handle_rejection_reason, catalog_handle_type, catalog_invalid_request_error, catalog_invalid_request_field, catalog_malformed_card_error, catalog_malformed_card_reason, catalog_mcp_server_candidate, catalog_mcp_server_candidate_kind, catalog_mcp_server_candidate_provenance, catalog_mcp_server_installability, catalog_media_type, catalog_negotiated_contract, catalog_negotiation_refused_error, catalog_negotiation_refused_reason, catalog_network_failure_error, catalog_network_failure_reason, catalog_not_installable_error, catalog_not_installable_reason, catalog_plugin_repository_source, catalog_policy_rejected_error, catalog_resource_identity, catalog_resource_version, catalog_search_page, catalog_search_pagination, catalog_search_request, catalog_search_result, catalog_search_succeeded, catalog_search_total_count_relation, catalog_selection_cancelled, catalog_selection_decision, catalog_selection_declined, catalog_selection_foreign, catalog_selection_invalid, catalog_selection_replayed, catalog_selection_request, catalog_selection_result, catalog_selection_selected, catalog_selection_stale, catalog_selection_timed_out, catalog_selection_wrong_kind, catalog_trust_eligibility, catalog_trust_provenance, catalog_trust_snapshot, catalog_trust_snapshot_absent, catalog_trust_snapshot_absent_status, catalog_trust_snapshot_current, catalog_trust_snapshot_current_status, catalog_trust_snapshot_downgraded, catalog_trust_snapshot_downgraded_status, catalog_trust_snapshot_malformed, catalog_trust_snapshot_malformed_status, catalog_trust_snapshot_revoked, catalog_trust_snapshot_revoked_status, catalog_trust_snapshot_schema_version, catalog_trust_snapshot_stale, catalog_trust_snapshot_stale_status, catalog_trust_snapshot_unsupported, catalog_trust_snapshot_unsupported_status, catalog_trust_source, catalog_trust_tier, catalog_unavailable_error, catalog_unavailable_reason, catalog_unavailable_transport_error, catalog_unavailable_transport_reason, catalog_unsafe_retrieval_error, catalog_unsafe_retrieval_reason, catalog_unsupported_kind_error, client_metadata, client_task_cancel_reason, client_task_cancel_request, client_task_cancel_result, command_list, commands_finalize_invocation_effect_request, commands_finalize_invocation_effect_result, commands_handle_pending_command_request, commands_handle_pending_command_result, commands_invocation_effect_outcome, commands_invocation_origin, commands_invoke_request, commands_list_request, commands_respond_to_queued_command_request, commands_respond_to_queued_command_result, completions_get_trigger_characters_result, completions_request_request, completions_request_result, configure_session_extensions_params, connect_client_info, connected_remote_session_metadata, connected_remote_session_metadata_kind, connected_remote_session_metadata_repository, connector_account_request, connector_authorization_requirement, connector_authorization_scope, connector_availability, connector_capabilities, connector_catalog_entry, connector_catalog_result, connector_catalog_status, connector_connect_request, connector_connect_result, connector_continue_request, connector_disconnect_result, connector_mcp_status, connector_reconcile_request, connector_runtime_status, connector_status, connect_remote_session_params, connect_request, connect_result, content_exclusion_check_paths_request, content_exclusion_check_paths_result, content_exclusion_path_check, content_filter_mode, context_heaviest_message, copilot_api_token_auth_info, copilot_user_response, copilot_user_response_endpoints, copilot_user_response_quota_snapshots, copilot_user_response_quota_snapshots_chat, copilot_user_response_quota_snapshots_completions, copilot_user_response_quota_snapshots_premium_interactions, current_model, current_tool_metadata, debug_collect_logs_collected_entry, debug_collect_logs_destination, debug_collect_logs_entry, debug_collect_logs_entry_kind, debug_collect_logs_include, debug_collect_logs_redaction, debug_collect_logs_request, debug_collect_logs_result, debug_collect_logs_result_kind, debug_collect_logs_skipped_entry, debug_collect_logs_source, diagnostic_cursor_status, diagnostic_entry, diagnostic_log_level, diagnostics_configuration, diagnostics_configure_request, diagnostic_severity, diagnostic_source, diagnostic_sources_configuration, diagnostics_read_request, diagnostics_read_result, discovered_canvas, discovered_extension, discovered_extension_mode, discovered_extension_plugin, discovered_extensions, discovered_extensions_disable_request, discovered_extensions_enable_request, discovered_extension_source, discovered_hook, discovered_mcp_server, discovered_mcp_server_type, enqueue_command_params, enqueue_command_result, entra_token_acquire_request, entra_token_acquire_result, entra_token_interaction, env_auth_info, event_log_read_request, event_log_release_interest_result, event_log_tail_result, event_log_types, events_agent_scope, events_cursor_status, events_read_direction, events_read_result, execute_command_params, execute_command_result, extension, extension_context_push_input, extension_launch_profile, extension_launch_provider_resolve_request, extension_launch_provider_resolve_result, extension_list, extensions_disable_request, extensions_enable_request, extension_source, extension_status, external_tool_result, external_tool_text_result_for_llm, external_tool_text_result_for_llm_binary_results_for_llm, external_tool_text_result_for_llm_binary_results_for_llm_type, external_tool_text_result_for_llm_content, external_tool_text_result_for_llm_content_audio, external_tool_text_result_for_llm_content_image, external_tool_text_result_for_llm_content_resource, external_tool_text_result_for_llm_content_resource_details, external_tool_text_result_for_llm_content_resource_link, external_tool_text_result_for_llm_content_resource_link_icon, external_tool_text_result_for_llm_content_resource_link_icon_theme, external_tool_text_result_for_llm_content_shell_exit, external_tool_text_result_for_llm_content_terminal, external_tool_text_result_for_llm_content_text, filter_mapping, fleet_start_request, fleet_start_result, folder_trust_add_params, folder_trust_check_params, folder_trust_check_result, gh_cli_auth_info, git_hub_telemetry_client_info, git_hub_telemetry_event, git_hub_telemetry_notification, git_hub_token_acquire_reason, git_hub_token_acquire_request, git_hub_token_acquire_result, handle_pending_tool_call_request, handle_pending_tool_call_result, history_abort_manual_compaction_result, history_cancel_background_compaction_result, history_clear_context_request, history_clear_context_result, history_compact_context_window, history_compact_request, history_compact_result, history_file_restore_skip_reason, history_list_rewind_points_result, history_preview_rewind_request, history_preview_rewind_result, history_rewind_change_type, history_rewind_file_preview, history_rewind_mode, history_rewind_outcome, history_rewind_point, history_rewind_request, history_rewind_result, history_rewind_unavailable_reason, history_skipped_file_restore, history_summarize_for_handoff_result, history_truncate_request, history_truncate_result, hmac_auth_info, hook_invoke_request, hook_invoke_response, hook_origin, hooks_discover_request, hooks_discover_result, hook_type, installation_confirmation_request, installation_confirmation_response, installation_decision, installation_review, installed_plugin, installed_plugin_info, installed_plugin_source, installed_plugin_source_git_hub, installed_plugin_source_local, installed_plugin_source_url, instruction_discovery_path, instruction_discovery_path_kind, instruction_discovery_path_list, instruction_discovery_path_location, instructions_discover_request, instructions_get_discovery_paths_request, instructions_get_sources_result, instruction_source, instruction_source_location, instruction_source_type, interrupt_main_turn_request, interrupt_main_turn_result, json_schema_response_format, llm_inference_headers, llm_inference_http_request_chunk_request, llm_inference_http_request_chunk_result, llm_inference_http_request_start_request, llm_inference_http_request_start_result, llm_inference_http_request_start_transport, llm_inference_http_response_chunk_error, llm_inference_http_response_chunk_request, llm_inference_http_response_chunk_result, llm_inference_http_response_start_request, llm_inference_http_response_start_result, llm_inference_set_provider_result, local_session_metadata_value, login_provider_kind, log_request, log_result, lsp_initialize_request, managed_mcp_server_config, managed_settings_read_result, managed_settings_resolved_data, marketplace_add_result, marketplace_browse_result, marketplace_info, marketplace_list_result, marketplace_plugin_info, marketplace_refresh_entry, marketplace_refresh_result, marketplace_remove_result, mcp_allowed_server, mcp_apply_install_request, mcp_apply_uninstall_request, mcp_apps_call_tool_request, mcp_apps_diagnose_capability, mcp_apps_diagnose_request, mcp_apps_diagnose_result, mcp_apps_diagnose_server, mcp_apps_host_context, mcp_apps_host_context_details, mcp_apps_host_context_details_available_display_mode, mcp_apps_host_context_details_display_mode, mcp_apps_host_context_details_platform, mcp_apps_host_context_details_theme, mcp_apps_list_tools_request, mcp_apps_list_tools_result, mcp_apps_read_resource_request, mcp_apps_read_resource_result, mcp_apps_resource_content, mcp_apps_set_host_context_details, mcp_apps_set_host_context_details_available_display_mode, mcp_apps_set_host_context_details_display_mode, mcp_apps_set_host_context_details_platform, mcp_apps_set_host_context_details_theme, mcp_apps_set_host_context_request, mcp_cancel_sampling_execution_params, mcp_cancel_sampling_execution_result, mcp_config_add_request, mcp_config_disable_request, mcp_config_enable_request, mcp_config_list, mcp_config_remove_request, mcp_config_update_request, mcp_configure_git_hub_request, mcp_configure_git_hub_result, mcp_diagnostic_details, mcp_diagnostic_direction, mcp_diagnostic_kind, mcp_diagnostic_source_configuration, mcp_disable_request, mcp_discover_request, mcp_discover_result, mcp_elicitation_form_mode, mcp_enable_request, mcp_execute_sampling_params, mcp_execute_sampling_request, mcp_execute_sampling_result, mcp_failed_server, mcp_filtered_server, mcp_headers_handle_pending_headers_refresh_request, mcp_headers_handle_pending_headers_refresh_request_request, mcp_headers_handle_pending_headers_refresh_request_result, mcp_host_state, mcp_installation_failure_reason, mcp_installation_input, mcp_installation_management_outcome, mcp_installation_management_result, mcp_installation_operation_request, mcp_installation_operation_status, mcp_installation_outcome, mcp_installation_remote_configuration, mcp_installation_result, mcp_installation_review, mcp_installation_secret, mcp_installation_secret_storage, mcp_installations_request, mcp_installation_state, mcp_installation_summary, mcp_install_plan, mcp_is_server_running_request, mcp_is_server_running_result, mcp_list_tools_request, mcp_list_tools_result, mcp_oauth_authentication_state_changed_request, mcp_oauth_cancel_login_request, mcp_oauth_cancel_login_result, mcp_oauth_handle_pending_request, mcp_oauth_handle_pending_result, mcp_oauth_login_grant_type, mcp_oauth_login_request, mcp_oauth_login_result, mcp_oauth_pending_request_response, mcp_oauth_prepare_login_request, mcp_oauth_prepare_login_result, mcp_oauth_probe_needs_auth_reason, mcp_oauth_probe_request, mcp_oauth_probe_result, mcp_oauth_respond_request, mcp_oauth_respond_result, mcp_owned_oauth_login_status, mcp_plan_configuration_change, mcp_plan_configuration_operation, mcp_plan_enum_value_type, mcp_plan_install_planned, mcp_plan_install_request, mcp_plan_install_result, mcp_plan_install_source, mcp_plan_install_source_candidate, mcp_plan_install_source_candidate_kind, mcp_plan_install_source_card, mcp_plan_install_source_card_kind, mcp_plan_package_install_method, mcp_plan_package_transport, mcp_plan_policy_decision, mcp_plan_policy_result, mcp_plan_policy_source, mcp_plan_provenance, mcp_plan_remote_install_method, mcp_plan_remote_transport, mcp_plan_required_value, mcp_plan_required_value_enum, mcp_plan_required_value_enum_kind, mcp_plan_required_value_scalar, mcp_plan_required_value_scalar_kind, mcp_plan_resource_identity, mcp_plan_scalar_value_type, mcp_plan_scope, mcp_plan_secret_placeholder, mcp_plan_secret_reference, mcp_plan_target, mcp_plan_transport_choice, mcp_plan_transport_choice_package, mcp_plan_transport_choice_remote, mcp_plan_uninstall_request, mcp_plan_value_category, mcp_prepared_install, mcp_prepare_install_request, mcp_register_external_client_request, mcp_reload_config, mcp_reload_with_config_request, mcp_remove_git_hub_result, mcp_resource, mcp_resource_annotations, mcp_resource_content, mcp_resource_icon, mcp_resources_list_request, mcp_resources_list_result, mcp_resources_list_templates_request, mcp_resources_list_templates_result, mcp_resources_read_request, mcp_resources_read_result, mcp_resource_template, mcp_restart_server_request, mcp_safe_for_telemetry, mcp_safe_for_telemetry_fields, mcp_sampling_execution_action, mcp_sampling_execution_result, mcp_serializable_server_config, mcp_server, mcp_server_auth_config, mcp_server_auth_config_redirect_port, mcp_server_card_embedded, mcp_server_card_embedded_kind, mcp_server_card_media_type, mcp_server_card_reference, mcp_server_card_url, mcp_server_card_url_kind, mcp_server_config, mcp_server_config_defer_tools, mcp_server_config_http, mcp_server_config_http_oauth_grant_type, mcp_server_config_http_type, mcp_server_config_memory, mcp_server_config_memory_type, mcp_server_config_stdio, mcp_server_config_stdio_type, mcp_server_failure_info, mcp_server_list, mcp_server_needs_auth_info, mcp_server_ownership, mcp_set_env_value_mode_details, mcp_set_env_value_mode_params, mcp_set_env_value_mode_result, mcp_source_file, mcp_source_plugin, mcp_source_ref, mcp_start_server_request, mcp_start_servers_result, mcp_stop_server_request, mcp_task_metadata, mcp_tools, mcp_tool_ui, mcp_tool_ui_visibility, mcp_uninstall_plan, mcp_unregister_external_client_request, memory_configuration, metadata_context_attribution_result, metadata_context_heaviest_messages_request, metadata_context_heaviest_messages_result, metadata_context_info_request, metadata_context_info_result, metadata_is_processing_result, metadata_recompute_context_tokens_request, metadata_recompute_context_tokens_result, metadata_record_context_change_request, metadata_record_context_change_result, metadata_set_working_directory_request, metadata_set_working_directory_result, metadata_snapshot_current_mode, metadata_snapshot_remote_metadata, metadata_snapshot_remote_metadata_repository, metadata_snapshot_remote_metadata_task_type, metadata_update_client_metadata_request, model, model_apply_startup_overlay_request, model_billing, model_billing_promo, model_billing_token_prices, model_billing_token_prices_long_context, model_capabilities, model_capabilities_limits, model_capabilities_limits_vision, model_capabilities_override, model_capabilities_override_limits, model_capabilities_override_limits_vision, model_capabilities_override_supports, model_capabilities_supports, model_list, model_list_request, model_message, model_picker_category, model_picker_persistence_request, model_picker_price_category, model_picker_settings_context, model_policy, model_policy_state, model_provider_descriptor, model_provider_kind, model_provider_ref, model_set_allowed_models_request, model_set_allowed_models_result, model_set_reasoning_effort_request, model_set_reasoning_effort_result, models_list_request, model_switch_auto_tier_request, model_switch_auto_tier_result, model_switch_auto_tier_status, model_switch_confirmation, model_switch_to_request, model_switch_to_result, model_warning_text, mode_set_request, mode_set_result, move_mcp_loading_to_background_result, named_provider_config, name_get_result, name_set_auto_request, name_set_auto_result, name_set_request, open_canvas_instance, options_update_additional_content_exclusion_policy, options_update_additional_content_exclusion_policy_rule, options_update_additional_content_exclusion_policy_rule_source, options_update_additional_content_exclusion_policy_scope, options_update_context_tier, options_update_env_value_mode, options_update_reasoning_summary, options_update_tool_filter_precedence, pending_permission_request, pending_permission_request_list, permission_decision, permission_decision_approved, permission_decision_approved_for_location, permission_decision_approved_for_session, permission_decision_approve_for_location, permission_decision_approve_for_location_approval, permission_decision_approve_for_location_approval_commands, permission_decision_approve_for_location_approval_custom_tool, permission_decision_approve_for_location_approval_extension_env_access, permission_decision_approve_for_location_approval_extension_management, permission_decision_approve_for_location_approval_extension_permission_access, permission_decision_approve_for_location_approval_mcp, permission_decision_approve_for_location_approval_mcp_sampling, permission_decision_approve_for_location_approval_memory, permission_decision_approve_for_location_approval_read, permission_decision_approve_for_location_approval_workflow, permission_decision_approve_for_location_approval_write, permission_decision_approve_for_session, permission_decision_approve_for_session_approval, permission_decision_approve_for_session_approval_commands, permission_decision_approve_for_session_approval_custom_tool, permission_decision_approve_for_session_approval_extension_env_access, permission_decision_approve_for_session_approval_extension_management, permission_decision_approve_for_session_approval_extension_permission_access, permission_decision_approve_for_session_approval_mcp, permission_decision_approve_for_session_approval_mcp_sampling, permission_decision_approve_for_session_approval_memory, permission_decision_approve_for_session_approval_read, permission_decision_approve_for_session_approval_workflow, permission_decision_approve_for_session_approval_write, permission_decision_approve_once, permission_decision_approve_permanently, permission_decision_cancelled, permission_decision_context, permission_decision_denied_by_content_exclusion_policy, permission_decision_denied_by_permission_request_hook, permission_decision_denied_by_rules, permission_decision_denied_interactively_by_user, permission_decision_denied_no_approval_rule_and_could_not_request_from_user, permission_decision_outcome, permission_decision_reject, permission_decision_request, permission_decision_surface, permission_decision_user_not_available, permission_location_add_tool_approval_params, permission_location_apply_params, permission_location_apply_result, permission_location_resolve_params, permission_location_resolve_result, permission_location_type, permission_mode_source, permission_paths_add_params, permission_paths_allowed_check_params, permission_paths_allowed_check_result, permission_paths_config, permission_paths_list, permission_paths_update_primary_params, permission_paths_workspace_check_params, permission_paths_workspace_check_result, permission_prompt_shown_notification, permission_request_result, permission_response_capability, permission_rules_set, permissions_configure_additional_content_exclusion_policy, permissions_configure_additional_content_exclusion_policy_rule, permissions_configure_additional_content_exclusion_policy_rule_source, permissions_configure_additional_content_exclusion_policy_scope, permissions_configure_params, permissions_configure_result, permissions_folder_trust_add_trusted_result, permissions_get_mode_request, permissions_get_mode_result, permissions_locations_add_tool_approval_details, permissions_locations_add_tool_approval_details_commands, permissions_locations_add_tool_approval_details_custom_tool, permissions_locations_add_tool_approval_details_extension_env_access, permissions_locations_add_tool_approval_details_extension_management, permissions_locations_add_tool_approval_details_extension_permission_access, permissions_locations_add_tool_approval_details_mcp, permissions_locations_add_tool_approval_details_mcp_sampling, permissions_locations_add_tool_approval_details_memory, permissions_locations_add_tool_approval_details_read, permissions_locations_add_tool_approval_details_workflow, permissions_locations_add_tool_approval_details_write, permissions_locations_add_tool_approval_result, permissions_modify_rules_params, permissions_modify_rules_result, permissions_modify_rules_scope, permissions_notify_prompt_shown_result, permissions_paths_add_result, permissions_paths_list_request, permissions_paths_update_primary_result, permissions_pending_requests_request, permissions_reset_session_approvals_request, permissions_reset_session_approvals_result, permissions_set_approve_all_request, permissions_set_approve_all_result, permissions_set_approve_all_source, permissions_set_mode_request, permissions_set_mode_result, permissions_set_required_request, permissions_set_required_result, permissions_urls_set_unrestricted_mode_result, permission_urls_config, permission_urls_set_unrestricted_mode_params, ping_request, ping_result, plan_read_result, plan_read_sql_todos_result, plan_read_sql_todos_with_dependencies_result, plan_sql_todo_dependency, plan_sql_todos_row, plan_update_request, plugin, plugin_install_result, plugin_install_staging_mode, plugin_list, plugin_list_result, plugins_builtin_set_request, plugins_disable_request, plugins_enable_request, plugins_install_request, plugins_marketplaces_add_request, plugins_marketplaces_browse_request, plugins_marketplaces_refresh_request, plugins_marketplaces_remove_request, plugins_reload_request, plugins_uninstall_request, plugins_update_request, plugin_update_all_entry, plugin_update_all_result, plugin_update_result, protocol_append_mode, protocol_customize_mode, protocol_external_tool_defer, protocol_external_tool_definition, protocol_marker_section_override, protocol_replace_mode, protocol_section_override, protocol_static_section_action, protocol_static_section_override, protocol_system_message_append_config, protocol_system_message_config, protocol_system_message_customize_config, protocol_system_message_replace_config, provider_add_request, provider_add_result, provider_config, provider_config_azure, provider_config_transport, provider_config_type, provider_config_wire_api, provider_descriptor, provider_endpoint, provider_endpoint_transport, provider_endpoint_type, provider_endpoint_wire_api, provider_get_endpoint_request, provider_model_config, provider_session_token, provider_sync_request, provider_sync_result, provider_token_acquire_request, provider_token_acquire_result, push_attachment, push_attachment_blob, push_attachment_directory, push_attachment_file, push_attachment_file_line_range, push_attachment_git_hub_actions_job, push_attachment_git_hub_commit, push_attachment_git_hub_file, push_attachment_git_hub_file_diff, push_attachment_git_hub_file_diff_side, push_attachment_git_hub_reference, push_attachment_git_hub_reference_type, push_attachment_git_hub_release, push_attachment_git_hub_repository, push_attachment_git_hub_snippet, push_attachment_git_hub_tree_comparison, push_attachment_git_hub_tree_comparison_side, push_attachment_git_hub_url, push_attachment_selection, push_attachment_selection_details, push_attachment_selection_details_end, push_attachment_selection_details_start, push_git_hub_repo_ref, queue_append_steering_request, queue_begin_deferred_idle_drain_request, queue_begin_deferred_idle_drain_result, queue_consume_system_notifications_request, queued_command_handled, queued_command_not_handled, queued_command_result, queue_defer_session_idle_request, queue_duplicate_at_request, queue_duplicate_at_result, queue_enqueue_resume_pending_result, queue_finish_deferred_idle_drain_request, queue_finish_deferred_idle_drain_result, queue_has_pending_result, queue_insert_at_request, queue_insert_at_result, queue_insert_message, queue_move_item_request, queue_move_item_result, queue_pending_items, queue_pending_items_kind, queue_pending_items_result, queue_remove_at_request, queue_remove_at_result, queue_remove_most_recent_result, queue_send_now_request, queue_send_now_result, queue_set_drain_paused_request, queue_snapshot_result, queue_update_text_request, queue_update_text_result, queue_withdraw_message_request, queue_withdraw_message_result, register_event_interest_params, register_event_interest_result, release_event_interest_params, remote_control_config, remote_control_config_existing_mc_session, remote_control_status, remote_control_status_active, remote_control_status_connecting, remote_control_status_error, remote_control_status_off, remote_control_status_result, remote_control_stop_result, remote_control_transfer_result, remote_enable_request, remote_enable_result, remote_notify_steerable_changed_request, remote_notify_steerable_changed_result, remote_session_connection_result, remote_session_host_status, remote_session_metadata_repository, remote_session_metadata_task_type, remote_session_metadata_value, remote_session_mode, remote_session_repository, response_format, sandbox_config, sandbox_config_auth, sandbox_config_source, sandbox_config_user_policy, sandbox_config_user_policy_experimental, sandbox_config_user_policy_experimental_seatbelt, sandbox_config_user_policy_filesystem, sandbox_config_user_policy_network, sandbox_config_user_policy_network_proxy, sandbox_config_user_policy_seatbelt, sandbox_disable_for_session_request, sandbox_disable_for_session_result, sandbox_enforcement_status, sandbox_host_capability, sandbox_host_capability_name, sandbox_host_support, sandbox_session_change, schedule_add_at_request, schedule_add_cron_request, schedule_add_request, schedule_add_result, schedule_add_self_paced_request, schedule_entry, schedule_has_self_paced_result, schedule_list, schedule_rearm_self_paced_request, schedule_stop_request, schedule_stop_result, secrets_add_filter_values_request, secrets_add_filter_values_result, send_agent_mode, send_attachments_to_message_params, send_message_item, send_messages_request, send_messages_result, send_mode, send_request, send_result, send_system_notification_request, server_agent_list, server_instruction_source_list, server_skill, server_skill_list, session_activity, session_agent_list_request, session_auth_login_request, session_auth_logout_user_request, session_auth_status, session_auth_switch_request, session_bulk_delete_result, session_cancel_all_background_agents_result, session_capability, session_commands_list_request, session_completion_item, session_context, session_context_host_type, session_enrich_metadata_result, session_fs_append_file_request, session_fs_error, session_fs_error_code, session_fs_exists_request, session_fs_exists_result, session_fs_mkdir_request, session_fs_readdir_request, session_fs_readdir_result, session_fs_readdir_with_types_entry, session_fs_readdir_with_types_entry_type, session_fs_readdir_with_types_request, session_fs_readdir_with_types_result, session_fs_read_file_request, session_fs_read_file_result, session_fs_rename_request, session_fs_rm_request, session_fs_set_provider_capabilities, session_fs_set_provider_conventions, session_fs_set_provider_request, session_fs_set_provider_result, session_fs_sqlite_exists_request, session_fs_sqlite_exists_result, session_fs_sqlite_query_request, session_fs_sqlite_query_result, session_fs_sqlite_query_type, session_fs_sqlite_transaction_error, session_fs_sqlite_transaction_error_class, session_fs_sqlite_transaction_request, session_fs_sqlite_transaction_result, session_fs_sqlite_transaction_statement, session_fs_stat_request, session_fs_stat_result, session_fs_write_file_request, session_git_hub_auth_get_all_auth_available_result, session_git_hub_auth_logout_result, session_git_hub_auth_logout_user_result, session_history_compact_request, session_installed_plugin, session_installed_plugin_source, session_installed_plugin_source_git_hub, session_installed_plugin_source_local, session_installed_plugin_source_url, session_limit_prediction_baseline_data, session_limit_prediction_client_type, session_limit_prediction_details, session_limit_prediction_predict_request, session_limit_prediction_request, session_limit_prediction_result, session_limit_prediction_source, session_limit_prediction_tier, session_limit_prediction_tier_option, session_limit_prediction_unavailable_reason, session_list, session_list_entry, session_list_filter, session_load_deferred_repo_hooks_result, session_log_level, session_managed_permissions, session_managed_settings, session_mcp_apps_call_tool_result, session_mcp_oauth_cancel_login_request, session_mcp_oauth_cancel_login_result, session_mcp_oauth_prepare_login_request, session_mcp_oauth_prepare_login_result, session_metadata_snapshot, session_mode, session_model_list, session_model_list_request, session_model_price_category, session_open_options, session_open_options_additional_content_exclusion_policy, session_open_options_additional_content_exclusion_policy_rule, session_open_options_additional_content_exclusion_policy_rule_source, session_open_options_additional_content_exclusion_policy_scope, session_open_options_env_value_mode, session_open_options_reasoning_summary, session_open_params, session_open_result, session_plugins_disable_request, session_plugins_enable_request, session_plugins_install_request, session_plugins_marketplaces_refresh_request, session_plugins_reload_request, session_provider_get_endpoint_request, session_prune_result, sessions_bulk_delete_request, sessions_check_in_use_request, sessions_check_in_use_result, sessions_client_metadata_entry, sessions_close_request, sessions_close_result, sessions_delete_request, sessions_enrich_metadata_request, session_set_credentials_params, session_set_credentials_result, session_settings_built_in_tool_availability_snapshot, session_settings_evaluate_predicate_request, session_settings_evaluate_predicate_result, session_settings_job_snapshot, session_settings_model_snapshot, session_settings_online_evaluation_snapshot, session_settings_predicate_name, session_settings_repo_snapshot, session_settings_snapshot, session_settings_validation_snapshot, sessions_find_by_prefix_request, sessions_find_by_prefix_result, sessions_find_by_task_id_request, sessions_find_by_task_id_result, sessions_fork_request, sessions_fork_result, sessions_get_board_entry_count_request, sessions_get_board_entry_count_result, sessions_get_client_metadata_request, sessions_get_client_metadata_result, sessions_get_event_file_path_request, sessions_get_event_file_path_result, sessions_get_last_for_context_request, sessions_get_last_for_context_result, sessions_get_metadata_request, sessions_get_metadata_result, sessions_get_persisted_remote_steerable_request, sessions_get_persisted_remote_steerable_result, session_sizes, sessions_list_non_empty_session_ids_request, sessions_list_non_empty_session_ids_result, sessions_list_request, sessions_load_deferred_repo_hooks_request, sessions_open_attach, sessions_open_cloud, sessions_open_create, sessions_open_handoff, sessions_open_handoff_task_type, sessions_open_progress, sessions_open_progress_status, sessions_open_progress_step, sessions_open_remote, sessions_open_resume, sessions_open_resume_last, sessions_open_status, session_source, sessions_prune_old_request, sessions_read_persisted_events_request, sessions_release_lock_request, sessions_release_lock_result, sessions_reload_plugin_hooks_request, sessions_reload_plugin_hooks_result, sessions_save_request, sessions_save_result, sessions_set_additional_plugins_request, sessions_set_additional_plugins_result, sessions_set_remote_control_steering_request, sessions_start_remote_control_request, sessions_stop_remote_control_request, sessions_transfer_remote_control_request, session_telemetry_engagement, session_update_options_params, session_update_options_result, session_visibility_status, session_workflow_pause_at_checkpoint_result, session_working_directory_context, session_working_directory_context_host_type, settable_auth_info, settable_token_auth_info, shell_cancel_user_requested_request, shell_credentials, shell_exec_request, shell_exec_result, shell_execute_user_requested_request, shell_init_profile, shell_init_script, shell_init_script_shell, shell_kill_request, shell_kill_result, shell_kill_signal, shell_options, shutdown_request, skill, skill_discovery_path, skill_discovery_path_list, skill_discovery_scope, skill_list, skill_provider_descriptor, skill_provider_list_request, skill_provider_list_result, skill_provider_read_request, skill_provider_read_result, skills_config_set_disabled_skills_request, skills_config_set_skill_disabled_request, skills_disable_request, skills_discover_request, skills_enable_request, skills_get_discovery_paths_request, skills_get_invoked_result, skills_invoked_skill, skills_load_diagnostics, slash_command_add_timeline_entry_result, slash_command_agent_prompt_result, slash_command_completed_result, slash_command_info, slash_command_input, slash_command_input_choice, slash_command_input_completion, slash_command_invocation_result, slash_command_kind, slash_command_model_picker_dialog, slash_command_select_subcommand_option, slash_command_select_subcommand_result, slash_command_set_model_result, slash_command_set_plan_model_result, slash_command_show_dialog_result, slash_command_text_result, slash_command_timeline_entry, subagent_settings_entry, subagent_settings_entry_context_tier, system_message_block, task_agent_info, task_agent_progress, task_client_active_status, task_client_execution_mode, task_client_info, task_client_owner, task_client_owner_kind, task_client_owner_presence, task_client_progress, task_client_status, task_client_type, task_client_update, task_complete_data, task_completion_decision, task_execution_mode, task_info, task_kind, task_list, task_progress_line, tasks_cancel_request, tasks_cancel_result, tasks_get_current_promotable_result, tasks_get_progress_request, tasks_get_progress_result, task_shell_info, task_shell_info_attachment_mode, task_shell_progress, tasks_promote_current_to_background_result, tasks_promote_to_background_request, tasks_promote_to_background_result, tasks_refresh_result, tasks_register_request, tasks_register_result, tasks_remove_request, tasks_remove_result, tasks_send_message_request, tasks_send_message_result, tasks_start_agent_request, tasks_start_agent_result, task_status, tasks_update_request, tasks_update_result, tasks_wait_for_pending_result, telemetry_set_feature_overrides_request, token_auth_info, token_provider_auth_info, tool, tool_list, tool_result, tool_result_expanded, tool_result_new_message, tool_result_type, tools_execute_request, tools_get_builtin_descriptors_request, tools_get_builtin_descriptors_result, tools_get_current_metadata_result, tools_initialize_and_validate_result, tools_list_request, tools_set_request, tools_set_result, tools_shell_descriptor_config, tools_task_complete_event_data_request, tools_update_subagent_settings_result, ui_auto_mode_switch_response, ui_elicitation_array_any_of_field, ui_elicitation_array_any_of_field_items, ui_elicitation_array_any_of_field_items_any_of, ui_elicitation_array_enum_field, ui_elicitation_array_enum_field_items, ui_elicitation_field_value, ui_elicitation_request, ui_elicitation_response, ui_elicitation_response_action, ui_elicitation_response_content, ui_elicitation_result, ui_elicitation_schema, ui_elicitation_schema_property, ui_elicitation_schema_property_boolean, ui_elicitation_schema_property_number, ui_elicitation_schema_property_number_type, ui_elicitation_schema_property_string, ui_elicitation_schema_property_string_format, ui_elicitation_string_enum_field, ui_elicitation_string_one_of_field, ui_elicitation_string_one_of_field_one_of, ui_ephemeral_query_request, ui_ephemeral_query_result, ui_exit_plan_mode_action, ui_exit_plan_mode_response, ui_handle_pending_auto_mode_switch_request, ui_handle_pending_elicitation_request, ui_handle_pending_exit_plan_mode_request, ui_handle_pending_result, ui_handle_pending_sampling_request, ui_handle_pending_sampling_response, ui_handle_pending_session_limits_exhausted_request, ui_handle_pending_user_input_request, ui_register_direct_auto_mode_switch_handler_result, ui_session_limits_exhausted_response, ui_session_limits_exhausted_response_action, ui_unregister_direct_auto_mode_switch_handler_request, ui_unregister_direct_auto_mode_switch_handler_result, ui_user_input_response, unsupported_enqueue_command_result, update_subagent_settings_request, usage_get_metrics_result, usage_metrics_agent_metric, usage_metrics_code_changes, usage_metrics_model_metric, usage_metrics_model_metric_requests, usage_metrics_model_metric_token_detail, usage_metrics_model_metric_usage, usage_metrics_token_detail, user_auth_info, user_requested_shell_command_result, user_setting_metadata, user_settings_get_result, user_settings_set_request, user_settings_set_result, visibility_get_result, visibility_set_request, visibility_set_result, workflow_abort_request, workflow_ack_result, workflow_agent_options, workflow_agent_request, workflow_agent_result, workflow_agent_summary, workflow_cancel_request, workflow_current_phase, workflow_declared_limits, workflow_durable_operation, workflow_execute_request, workflow_execute_result, workflow_get_run_progress_request, workflow_get_run_request, workflow_journal_get_request, workflow_journal_get_result, workflow_journal_put_request, workflow_list_runs_request, workflow_list_runs_result, workflow_log_line, workflow_log_line_kind, workflow_log_request, workflow_pause_checkpoint_action, workflow_pause_checkpoint_request, workflow_pause_checkpoint_result, workflow_pause_info, workflow_pause_request, workflow_phase_observation, workflow_phase_status, workflow_progress_line, workflow_progress_page, workflow_resume_request, workflow_resume_result, workflow_run_consumed, workflow_run_detail, workflow_run_failure, workflow_run_failure_kind, workflow_run_limits, workflow_run_options, workflow_run_request, workflow_run_result, workflow_run_status, workflow_run_summary, workflow_run_terminal, workflow_tool_resume_request, workflow_tool_run_options, workflow_tool_run_request, workspace_diff_file_change, workspace_diff_file_change_type, workspace_diff_mode, workspace_diff_result, workspaces_add_summary_request, workspaces_add_summary_result, workspaces_autopilot_objective_exists_result, workspaces_checkpoints, workspaces_create_directory_request, workspaces_create_file_request, workspaces_delete_autopilot_objective_result, workspaces_diff_request, workspaces_ensure_request, workspaces_get_workspace_result, workspaces_list_checkpoints_result, workspaces_list_files_result, workspaces_read_autopilot_objective_result, workspaces_read_checkpoint_request, workspaces_read_checkpoint_result, workspaces_read_file_request, workspaces_read_file_result, workspaces_remove_path_request, workspaces_rename_path_request, workspaces_save_large_paste_request, workspaces_save_large_paste_result, workspaces_stat_file_request, workspaces_stat_file_result, workspaces_truncate_summaries_request, workspace_summary_host_type, workspaces_update_metadata_request, workspaces_workspace_details_host_type, workspaces_write_autopilot_objective_request, workspaces_write_autopilot_objective_result, session_auth_info_result, session_context_attribution, session_context_info, subagent_settings, task_progress, workspace_summary)
+        return RPC(abort_request, abort_result, accepted_enqueue_command_result, account_all_users, account_get_all_users_result, account_get_current_auth_result, account_get_quota_request, account_get_quota_result, account_kind, account_login_request, account_login_result, account_logout_request, account_logout_result, account_quota_snapshot, accounts_enumerate_request, accounts_get_request, accounts_set_request, account_status, adaptive_thinking_support, agent_discovery_path, agent_discovery_path_list, agent_discovery_path_scope, agent_get_current_result, agent_info, agent_info_source, agent_list, agent_list_request, agent_registry_live_target_entry, agent_registry_live_target_entry_attention_kind, agent_registry_live_target_entry_kind, agent_registry_live_target_entry_last_terminal_event, agent_registry_live_target_entry_status, agent_registry_log_capture, agent_registry_log_capture_open_error_reason, agent_registry_spawn_error, agent_registry_spawn_permission_mode, agent_registry_spawn_registry_timeout, agent_registry_spawn_request, agent_registry_spawn_result, agent_registry_spawn_spawned, agent_registry_spawn_validation_error, agent_registry_spawn_validation_error_field, agent_registry_spawn_validation_error_reason, agent_reload_result, agents_discover_request, agent_select_request, agent_select_result, agent_set_prompt_request, agents_get_discovery_paths_request, api_key_auth_info, auth_enumerate_query, auth_enumerate_value, auth_identity, auth_info, auth_info_type, auth_login_advance_request, auth_login_begin_request, auth_login_begun, auth_login_cancel_request, auth_login_result_dto, auth_login_result_status, auth_login_step, auth_read_query, auth_read_value, auth_status_dto, auth_validation_error, auth_validation_errors, auth_write, auth_write_result, autopilot_objective_credit_limit, autopilot_objective_get_state_result, autopilot_objective_state, autopilot_objective_status, built_in_model_catalog, built_in_model_catalog_entry, builtin_tool_descriptor, builtin_tool_format, builtin_tool_format_type, builtin_tool_input_schema, builtin_tool_input_schema_type, builtin_tool_safe_for_telemetry, builtin_tool_safe_telemetry_fields, cancel_user_requested_shell_command_result, canvas_action, canvas_action_invoke_request, canvas_action_invoke_result, canvas_close_request, canvas_host_context, canvas_host_context_capabilities, canvas_json_schema, canvas_list, canvas_list_open_result, canvas_open_request, canvas_provider_close_request, canvas_provider_invoke_action_request, canvas_provider_open_request, canvas_provider_open_result, canvas_provider_register_request, canvas_provider_unregister_request, canvas_session_context, capi_session_options, card_digest, card_digest_algorithm, card_digest_value, catalog_agent_plugin_candidate, catalog_agent_plugin_candidate_kind, catalog_agent_plugin_candidate_provenance, catalog_agent_plugin_compatibility_tag, catalog_agent_plugin_media_type, catalog_ai_skill_candidate, catalog_ai_skill_candidate_kind, catalog_ai_skill_candidate_provenance, catalog_ai_skill_installability, catalog_ai_skill_media_type, catalog_authentication_required_error, catalog_authentication_required_reason, catalog_candidate, catalog_candidate_kind, catalog_candidate_source, catalog_candidate_source_embedded, catalog_candidate_source_url, catalog_capability, catalog_capability_id, catalog_client_contract, catalog_contract_violation_error, catalog_contract_violation_reason, catalog_handle_rejected_error, catalog_handle_rejection_reason, catalog_handle_type, catalog_invalid_request_error, catalog_invalid_request_field, catalog_malformed_card_error, catalog_malformed_card_reason, catalog_mcp_server_candidate, catalog_mcp_server_candidate_kind, catalog_mcp_server_candidate_provenance, catalog_mcp_server_installability, catalog_media_type, catalog_negotiated_contract, catalog_negotiation_refused_error, catalog_negotiation_refused_reason, catalog_network_failure_error, catalog_network_failure_reason, catalog_not_installable_error, catalog_not_installable_reason, catalog_plugin_repository_source, catalog_policy_rejected_error, catalog_resource_identity, catalog_resource_version, catalog_search_page, catalog_search_pagination, catalog_search_request, catalog_search_result, catalog_search_succeeded, catalog_search_total_count_relation, catalog_selection_cancelled, catalog_selection_decision, catalog_selection_declined, catalog_selection_foreign, catalog_selection_invalid, catalog_selection_replayed, catalog_selection_request, catalog_selection_result, catalog_selection_selected, catalog_selection_stale, catalog_selection_timed_out, catalog_selection_wrong_kind, catalog_trust_eligibility, catalog_trust_provenance, catalog_trust_snapshot, catalog_trust_snapshot_absent, catalog_trust_snapshot_absent_status, catalog_trust_snapshot_current, catalog_trust_snapshot_current_status, catalog_trust_snapshot_downgraded, catalog_trust_snapshot_downgraded_status, catalog_trust_snapshot_malformed, catalog_trust_snapshot_malformed_status, catalog_trust_snapshot_revoked, catalog_trust_snapshot_revoked_status, catalog_trust_snapshot_schema_version, catalog_trust_snapshot_stale, catalog_trust_snapshot_stale_status, catalog_trust_snapshot_unsupported, catalog_trust_snapshot_unsupported_status, catalog_trust_source, catalog_trust_tier, catalog_unavailable_error, catalog_unavailable_reason, catalog_unavailable_transport_error, catalog_unavailable_transport_reason, catalog_unsafe_retrieval_error, catalog_unsafe_retrieval_reason, catalog_unsupported_kind_error, client_metadata, client_task_cancel_reason, client_task_cancel_request, client_task_cancel_result, command_list, commands_finalize_invocation_effect_request, commands_finalize_invocation_effect_result, commands_handle_pending_command_request, commands_handle_pending_command_result, commands_invocation_effect_outcome, commands_invocation_origin, commands_invoke_request, commands_list_request, commands_respond_to_queued_command_request, commands_respond_to_queued_command_result, completions_get_trigger_characters_result, completions_request_request, completions_request_result, configure_session_extensions_params, connect_client_info, connected_remote_session_metadata, connected_remote_session_metadata_kind, connected_remote_session_metadata_repository, connector_account_request, connector_authorization_requirement, connector_authorization_scope, connector_availability, connector_capabilities, connector_catalog_entry, connector_catalog_result, connector_catalog_status, connector_connect_request, connector_connect_result, connector_continue_request, connector_disconnect_result, connector_mcp_status, connector_reconcile_request, connector_runtime_status, connector_status, connect_remote_session_params, connect_request, connect_result, content_exclusion_check_paths_request, content_exclusion_check_paths_result, content_exclusion_path_check, content_filter_mode, context_heaviest_message, copilot_api_token_auth_info, copilot_user_response, copilot_user_response_endpoints, copilot_user_response_quota_snapshots, copilot_user_response_quota_snapshots_chat, copilot_user_response_quota_snapshots_completions, copilot_user_response_quota_snapshots_premium_interactions, current_model, current_tool_metadata, debug_collect_logs_collected_entry, debug_collect_logs_destination, debug_collect_logs_entry, debug_collect_logs_entry_kind, debug_collect_logs_include, debug_collect_logs_redaction, debug_collect_logs_request, debug_collect_logs_result, debug_collect_logs_result_kind, debug_collect_logs_skipped_entry, debug_collect_logs_source, diagnostic_cursor_status, diagnostic_entry, diagnostic_log_level, diagnostics_configuration, diagnostics_configure_request, diagnostic_severity, diagnostic_source, diagnostic_sources_configuration, diagnostics_read_request, diagnostics_read_result, discovered_canvas, discovered_extension, discovered_extension_mode, discovered_extension_plugin, discovered_extensions, discovered_extensions_disable_request, discovered_extensions_enable_request, discovered_extension_source, discovered_hook, discovered_mcp_server, discovered_mcp_server_type, enqueue_command_params, enqueue_command_result, entra_token_acquire_request, entra_token_acquire_result, entra_token_interaction, env_auth_info, event_log_read_request, event_log_release_interest_result, event_log_tail_result, event_log_types, events_agent_scope, events_cursor_status, events_read_direction, events_read_result, execute_command_params, execute_command_result, extension, extension_context_push_input, extension_launch_profile, extension_launch_provider_resolve_request, extension_launch_provider_resolve_result, extension_list, extensions_disable_request, extensions_enable_request, extension_source, extension_status, external_tool_result, external_tool_text_result_for_llm, external_tool_text_result_for_llm_binary_results_for_llm, external_tool_text_result_for_llm_binary_results_for_llm_type, external_tool_text_result_for_llm_content, external_tool_text_result_for_llm_content_audio, external_tool_text_result_for_llm_content_image, external_tool_text_result_for_llm_content_resource, external_tool_text_result_for_llm_content_resource_details, external_tool_text_result_for_llm_content_resource_link, external_tool_text_result_for_llm_content_resource_link_icon, external_tool_text_result_for_llm_content_resource_link_icon_theme, external_tool_text_result_for_llm_content_shell_exit, external_tool_text_result_for_llm_content_terminal, external_tool_text_result_for_llm_content_text, filter_mapping, fleet_start_request, fleet_start_result, folder_trust_add_params, folder_trust_check_params, folder_trust_check_result, gh_cli_auth_info, git_hub_telemetry_client_info, git_hub_telemetry_event, git_hub_telemetry_notification, git_hub_token_acquire_reason, git_hub_token_acquire_request, git_hub_token_acquire_result, handle_pending_tool_call_request, handle_pending_tool_call_result, history_abort_manual_compaction_result, history_cancel_background_compaction_result, history_clear_context_request, history_clear_context_result, history_compact_context_window, history_compact_request, history_compact_result, history_file_restore_skip_reason, history_list_rewind_points_result, history_preview_rewind_request, history_preview_rewind_result, history_rewind_change_type, history_rewind_file_preview, history_rewind_mode, history_rewind_outcome, history_rewind_point, history_rewind_request, history_rewind_result, history_rewind_unavailable_reason, history_skipped_file_restore, history_summarize_for_handoff_result, history_truncate_request, history_truncate_result, hmac_auth_info, hook_invoke_request, hook_invoke_response, hook_origin, hooks_discover_request, hooks_discover_result, hook_type, installation_catalogue_identity, installation_confirmation_request, installation_confirmation_response, installation_decision, installation_review, installed_plugin, installed_plugin_info, installed_plugin_source, installed_plugin_source_git_hub, installed_plugin_source_local, installed_plugin_source_url, instruction_discovery_path, instruction_discovery_path_kind, instruction_discovery_path_list, instruction_discovery_path_location, instructions_discover_request, instructions_get_discovery_paths_request, instructions_get_sources_result, instruction_source, instruction_source_location, instruction_source_type, interrupt_main_turn_request, interrupt_main_turn_result, json_schema_response_format, llm_inference_headers, llm_inference_http_request_chunk_request, llm_inference_http_request_chunk_result, llm_inference_http_request_start_request, llm_inference_http_request_start_result, llm_inference_http_request_start_transport, llm_inference_http_response_chunk_error, llm_inference_http_response_chunk_request, llm_inference_http_response_chunk_result, llm_inference_http_response_start_request, llm_inference_http_response_start_result, llm_inference_set_provider_result, local_session_metadata_value, login_provider_kind, log_request, log_result, lsp_initialize_request, managed_mcp_server_config, managed_settings_read_result, managed_settings_resolved_data, marketplace_add_result, marketplace_browse_result, marketplace_info, marketplace_list_result, marketplace_plugin_info, marketplace_refresh_entry, marketplace_refresh_result, marketplace_remove_result, mcp_allowed_server, mcp_apply_install_request, mcp_apply_uninstall_request, mcp_apps_call_tool_request, mcp_apps_diagnose_capability, mcp_apps_diagnose_request, mcp_apps_diagnose_result, mcp_apps_diagnose_server, mcp_apps_host_context, mcp_apps_host_context_details, mcp_apps_host_context_details_available_display_mode, mcp_apps_host_context_details_display_mode, mcp_apps_host_context_details_platform, mcp_apps_host_context_details_theme, mcp_apps_list_tools_request, mcp_apps_list_tools_result, mcp_apps_read_resource_request, mcp_apps_read_resource_result, mcp_apps_resource_content, mcp_apps_set_host_context_details, mcp_apps_set_host_context_details_available_display_mode, mcp_apps_set_host_context_details_display_mode, mcp_apps_set_host_context_details_platform, mcp_apps_set_host_context_details_theme, mcp_apps_set_host_context_request, mcp_cancel_sampling_execution_params, mcp_cancel_sampling_execution_result, mcp_config_add_request, mcp_config_disable_request, mcp_config_enable_request, mcp_config_list, mcp_config_remove_request, mcp_config_update_request, mcp_configure_git_hub_request, mcp_configure_git_hub_result, mcp_diagnostic_details, mcp_diagnostic_direction, mcp_diagnostic_kind, mcp_diagnostic_source_configuration, mcp_disable_request, mcp_discover_request, mcp_discover_result, mcp_elicitation_form_mode, mcp_enable_request, mcp_execute_sampling_params, mcp_execute_sampling_request, mcp_execute_sampling_result, mcp_failed_server, mcp_filtered_server, mcp_headers_handle_pending_headers_refresh_request, mcp_headers_handle_pending_headers_refresh_request_request, mcp_headers_handle_pending_headers_refresh_request_result, mcp_host_state, mcp_installation_failure_reason, mcp_installation_input, mcp_installation_management_outcome, mcp_installation_management_result, mcp_installation_operation_request, mcp_installation_operation_status, mcp_installation_outcome, mcp_installation_remote_configuration, mcp_installation_result, mcp_installation_review, mcp_installation_secret, mcp_installation_secret_storage, mcp_installations_request, mcp_installation_state, mcp_installation_summary, mcp_install_plan, mcp_is_server_running_request, mcp_is_server_running_result, mcp_list_tools_request, mcp_list_tools_result, mcp_oauth_authentication_state_changed_request, mcp_oauth_cancel_login_request, mcp_oauth_cancel_login_result, mcp_oauth_handle_pending_request, mcp_oauth_handle_pending_result, mcp_oauth_login_grant_type, mcp_oauth_login_request, mcp_oauth_login_result, mcp_oauth_pending_request_response, mcp_oauth_prepare_login_request, mcp_oauth_prepare_login_result, mcp_oauth_probe_needs_auth_reason, mcp_oauth_probe_request, mcp_oauth_probe_result, mcp_oauth_respond_request, mcp_oauth_respond_result, mcp_owned_oauth_login_status, mcp_plan_configuration_change, mcp_plan_configuration_operation, mcp_plan_enum_value_type, mcp_plan_install_planned, mcp_plan_install_request, mcp_plan_install_result, mcp_plan_install_source, mcp_plan_install_source_candidate, mcp_plan_install_source_candidate_kind, mcp_plan_install_source_card, mcp_plan_install_source_card_kind, mcp_plan_package_install_method, mcp_plan_package_transport, mcp_plan_policy_decision, mcp_plan_policy_result, mcp_plan_policy_source, mcp_plan_provenance, mcp_plan_remote_install_method, mcp_plan_remote_transport, mcp_plan_required_value, mcp_plan_required_value_enum, mcp_plan_required_value_enum_kind, mcp_plan_required_value_scalar, mcp_plan_required_value_scalar_kind, mcp_plan_resource_identity, mcp_plan_scalar_value_type, mcp_plan_scope, mcp_plan_secret_placeholder, mcp_plan_secret_reference, mcp_plan_target, mcp_plan_transport_choice, mcp_plan_transport_choice_package, mcp_plan_transport_choice_remote, mcp_plan_uninstall_request, mcp_plan_value_category, mcp_prepared_install, mcp_prepare_install_request, mcp_register_external_client_request, mcp_reload_config, mcp_reload_with_config_request, mcp_remove_git_hub_result, mcp_resource, mcp_resource_annotations, mcp_resource_content, mcp_resource_icon, mcp_resources_list_request, mcp_resources_list_result, mcp_resources_list_templates_request, mcp_resources_list_templates_result, mcp_resources_read_request, mcp_resources_read_result, mcp_resource_template, mcp_restart_server_request, mcp_safe_for_telemetry, mcp_safe_for_telemetry_fields, mcp_sampling_execution_action, mcp_sampling_execution_result, mcp_serializable_server_config, mcp_server, mcp_server_auth_config, mcp_server_auth_config_redirect_port, mcp_server_card_embedded, mcp_server_card_embedded_kind, mcp_server_card_media_type, mcp_server_card_reference, mcp_server_card_url, mcp_server_card_url_kind, mcp_server_config, mcp_server_config_defer_tools, mcp_server_config_http, mcp_server_config_http_oauth_grant_type, mcp_server_config_http_type, mcp_server_config_memory, mcp_server_config_memory_type, mcp_server_config_stdio, mcp_server_config_stdio_type, mcp_server_failure_info, mcp_server_list, mcp_server_needs_auth_info, mcp_server_ownership, mcp_set_env_value_mode_details, mcp_set_env_value_mode_params, mcp_set_env_value_mode_result, mcp_source_file, mcp_source_plugin, mcp_source_ref, mcp_start_server_request, mcp_start_servers_result, mcp_stop_server_request, mcp_task_metadata, mcp_tools, mcp_tool_ui, mcp_tool_ui_visibility, mcp_uninstall_plan, mcp_unregister_external_client_request, memory_configuration, metadata_context_attribution_result, metadata_context_heaviest_messages_request, metadata_context_heaviest_messages_result, metadata_context_info_request, metadata_context_info_result, metadata_is_processing_result, metadata_recompute_context_tokens_request, metadata_recompute_context_tokens_result, metadata_record_context_change_request, metadata_record_context_change_result, metadata_set_working_directory_request, metadata_set_working_directory_result, metadata_snapshot_current_mode, metadata_snapshot_remote_metadata, metadata_snapshot_remote_metadata_repository, metadata_snapshot_remote_metadata_task_type, metadata_update_client_metadata_request, model, model_apply_startup_overlay_request, model_billing, model_billing_promo, model_billing_token_prices, model_billing_token_prices_long_context, model_capabilities, model_capabilities_limits, model_capabilities_limits_vision, model_capabilities_override, model_capabilities_override_limits, model_capabilities_override_limits_vision, model_capabilities_override_supports, model_capabilities_supports, model_list, model_list_request, model_message, model_picker_category, model_picker_persistence_request, model_picker_price_category, model_picker_settings_context, model_policy, model_policy_state, model_provider_descriptor, model_provider_kind, model_provider_ref, model_set_allowed_models_request, model_set_allowed_models_result, model_set_reasoning_effort_request, model_set_reasoning_effort_result, models_list_request, model_switch_auto_tier_request, model_switch_auto_tier_result, model_switch_auto_tier_status, model_switch_confirmation, model_switch_to_request, model_switch_to_result, model_warning_text, mode_set_request, mode_set_result, move_mcp_loading_to_background_result, named_provider_config, name_get_result, name_set_auto_request, name_set_auto_result, name_set_request, open_canvas_instance, options_update_additional_content_exclusion_policy, options_update_additional_content_exclusion_policy_rule, options_update_additional_content_exclusion_policy_rule_source, options_update_additional_content_exclusion_policy_scope, options_update_context_tier, options_update_env_value_mode, options_update_reasoning_summary, options_update_tool_filter_precedence, pending_permission_request, pending_permission_request_list, permission_decision, permission_decision_approved, permission_decision_approved_for_location, permission_decision_approved_for_session, permission_decision_approve_for_location, permission_decision_approve_for_location_approval, permission_decision_approve_for_location_approval_commands, permission_decision_approve_for_location_approval_custom_tool, permission_decision_approve_for_location_approval_extension_env_access, permission_decision_approve_for_location_approval_extension_management, permission_decision_approve_for_location_approval_extension_permission_access, permission_decision_approve_for_location_approval_mcp, permission_decision_approve_for_location_approval_mcp_sampling, permission_decision_approve_for_location_approval_memory, permission_decision_approve_for_location_approval_read, permission_decision_approve_for_location_approval_workflow, permission_decision_approve_for_location_approval_write, permission_decision_approve_for_session, permission_decision_approve_for_session_approval, permission_decision_approve_for_session_approval_commands, permission_decision_approve_for_session_approval_custom_tool, permission_decision_approve_for_session_approval_extension_env_access, permission_decision_approve_for_session_approval_extension_management, permission_decision_approve_for_session_approval_extension_permission_access, permission_decision_approve_for_session_approval_mcp, permission_decision_approve_for_session_approval_mcp_sampling, permission_decision_approve_for_session_approval_memory, permission_decision_approve_for_session_approval_read, permission_decision_approve_for_session_approval_workflow, permission_decision_approve_for_session_approval_write, permission_decision_approve_once, permission_decision_approve_permanently, permission_decision_cancelled, permission_decision_context, permission_decision_denied_by_content_exclusion_policy, permission_decision_denied_by_permission_request_hook, permission_decision_denied_by_rules, permission_decision_denied_interactively_by_user, permission_decision_denied_no_approval_rule_and_could_not_request_from_user, permission_decision_outcome, permission_decision_reject, permission_decision_request, permission_decision_surface, permission_decision_user_not_available, permission_location_add_tool_approval_params, permission_location_apply_params, permission_location_apply_result, permission_location_resolve_params, permission_location_resolve_result, permission_location_type, permission_mode_source, permission_paths_add_params, permission_paths_allowed_check_params, permission_paths_allowed_check_result, permission_paths_config, permission_paths_list, permission_paths_update_primary_params, permission_paths_workspace_check_params, permission_paths_workspace_check_result, permission_prompt_shown_notification, permission_request_result, permission_response_capability, permission_rules_set, permissions_configure_additional_content_exclusion_policy, permissions_configure_additional_content_exclusion_policy_rule, permissions_configure_additional_content_exclusion_policy_rule_source, permissions_configure_additional_content_exclusion_policy_scope, permissions_configure_params, permissions_configure_result, permissions_folder_trust_add_trusted_result, permissions_get_mode_request, permissions_get_mode_result, permissions_locations_add_tool_approval_details, permissions_locations_add_tool_approval_details_commands, permissions_locations_add_tool_approval_details_custom_tool, permissions_locations_add_tool_approval_details_extension_env_access, permissions_locations_add_tool_approval_details_extension_management, permissions_locations_add_tool_approval_details_extension_permission_access, permissions_locations_add_tool_approval_details_mcp, permissions_locations_add_tool_approval_details_mcp_sampling, permissions_locations_add_tool_approval_details_memory, permissions_locations_add_tool_approval_details_read, permissions_locations_add_tool_approval_details_workflow, permissions_locations_add_tool_approval_details_write, permissions_locations_add_tool_approval_result, permissions_modify_rules_params, permissions_modify_rules_result, permissions_modify_rules_scope, permissions_notify_prompt_shown_result, permissions_paths_add_result, permissions_paths_list_request, permissions_paths_update_primary_result, permissions_pending_requests_request, permissions_reset_session_approvals_request, permissions_reset_session_approvals_result, permissions_set_approve_all_request, permissions_set_approve_all_result, permissions_set_approve_all_source, permissions_set_mode_request, permissions_set_mode_result, permissions_set_required_request, permissions_set_required_result, permissions_urls_set_unrestricted_mode_result, permission_urls_config, permission_urls_set_unrestricted_mode_params, ping_request, ping_result, plan_read_result, plan_read_sql_todos_result, plan_read_sql_todos_with_dependencies_result, plan_sql_todo_dependency, plan_sql_todos_row, plan_update_request, plugin, plugin_install_result, plugin_install_staging_mode, plugin_list, plugin_list_result, plugins_builtin_set_request, plugins_disable_request, plugins_enable_request, plugins_install_request, plugins_marketplaces_add_request, plugins_marketplaces_browse_request, plugins_marketplaces_refresh_request, plugins_marketplaces_remove_request, plugins_reload_request, plugins_uninstall_request, plugins_update_request, plugin_update_all_entry, plugin_update_all_result, plugin_update_result, protocol_append_mode, protocol_customize_mode, protocol_external_tool_defer, protocol_external_tool_definition, protocol_marker_section_override, protocol_replace_mode, protocol_section_override, protocol_static_section_action, protocol_static_section_override, protocol_system_message_append_config, protocol_system_message_config, protocol_system_message_customize_config, protocol_system_message_replace_config, provider_add_request, provider_add_result, provider_config, provider_config_azure, provider_config_transport, provider_config_type, provider_config_wire_api, provider_descriptor, provider_endpoint, provider_endpoint_transport, provider_endpoint_type, provider_endpoint_wire_api, provider_get_endpoint_request, provider_model_config, provider_session_token, provider_sync_request, provider_sync_result, provider_token_acquire_request, provider_token_acquire_result, push_attachment, push_attachment_blob, push_attachment_directory, push_attachment_file, push_attachment_file_line_range, push_attachment_git_hub_actions_job, push_attachment_git_hub_commit, push_attachment_git_hub_file, push_attachment_git_hub_file_diff, push_attachment_git_hub_file_diff_side, push_attachment_git_hub_reference, push_attachment_git_hub_reference_type, push_attachment_git_hub_release, push_attachment_git_hub_repository, push_attachment_git_hub_snippet, push_attachment_git_hub_tree_comparison, push_attachment_git_hub_tree_comparison_side, push_attachment_git_hub_url, push_attachment_selection, push_attachment_selection_details, push_attachment_selection_details_end, push_attachment_selection_details_start, push_git_hub_repo_ref, queue_append_steering_request, queue_begin_deferred_idle_drain_request, queue_begin_deferred_idle_drain_result, queue_consume_system_notifications_request, queued_command_handled, queued_command_not_handled, queued_command_result, queue_defer_session_idle_request, queue_duplicate_at_request, queue_duplicate_at_result, queue_enqueue_resume_pending_result, queue_finish_deferred_idle_drain_request, queue_finish_deferred_idle_drain_result, queue_has_pending_result, queue_insert_at_request, queue_insert_at_result, queue_insert_message, queue_move_item_request, queue_move_item_result, queue_pending_items, queue_pending_items_kind, queue_pending_items_result, queue_remove_at_request, queue_remove_at_result, queue_remove_most_recent_result, queue_send_now_request, queue_send_now_result, queue_set_drain_paused_request, queue_snapshot_result, queue_update_text_request, queue_update_text_result, queue_withdraw_message_request, queue_withdraw_message_result, register_event_interest_params, register_event_interest_result, release_event_interest_params, remote_control_config, remote_control_config_existing_mc_session, remote_control_status, remote_control_status_active, remote_control_status_connecting, remote_control_status_error, remote_control_status_off, remote_control_status_result, remote_control_stop_result, remote_control_transfer_result, remote_enable_request, remote_enable_result, remote_notify_steerable_changed_request, remote_notify_steerable_changed_result, remote_session_connection_result, remote_session_host_status, remote_session_metadata_repository, remote_session_metadata_task_type, remote_session_metadata_value, remote_session_mode, remote_session_repository, response_format, sandbox_config, sandbox_config_auth, sandbox_config_source, sandbox_config_user_policy, sandbox_config_user_policy_experimental, sandbox_config_user_policy_experimental_seatbelt, sandbox_config_user_policy_filesystem, sandbox_config_user_policy_network, sandbox_config_user_policy_network_proxy, sandbox_config_user_policy_seatbelt, sandbox_disable_for_session_request, sandbox_disable_for_session_result, sandbox_enforcement_status, sandbox_host_capability, sandbox_host_capability_name, sandbox_host_support, sandbox_session_change, schedule_add_at_request, schedule_add_cron_request, schedule_add_request, schedule_add_result, schedule_add_self_paced_request, schedule_entry, schedule_has_self_paced_result, schedule_list, schedule_rearm_self_paced_request, schedule_stop_request, schedule_stop_result, secrets_add_filter_values_request, secrets_add_filter_values_result, send_agent_mode, send_attachments_to_message_params, send_message_item, send_messages_request, send_messages_result, send_mode, send_request, send_result, send_system_notification_request, server_agent_list, server_instruction_source_list, server_skill, server_skill_list, session_activity, session_agent_list_request, session_auth_login_request, session_auth_logout_user_request, session_auth_status, session_auth_switch_request, session_bulk_delete_result, session_cancel_all_background_agents_result, session_capability, session_commands_list_request, session_completion_item, session_context, session_context_host_type, session_enrich_metadata_result, session_fs_append_file_request, session_fs_error, session_fs_error_code, session_fs_exists_request, session_fs_exists_result, session_fs_mkdir_request, session_fs_readdir_request, session_fs_readdir_result, session_fs_readdir_with_types_entry, session_fs_readdir_with_types_entry_type, session_fs_readdir_with_types_request, session_fs_readdir_with_types_result, session_fs_read_file_request, session_fs_read_file_result, session_fs_rename_request, session_fs_rm_request, session_fs_set_provider_capabilities, session_fs_set_provider_conventions, session_fs_set_provider_request, session_fs_set_provider_result, session_fs_sqlite_exists_request, session_fs_sqlite_exists_result, session_fs_sqlite_query_request, session_fs_sqlite_query_result, session_fs_sqlite_query_type, session_fs_sqlite_transaction_error, session_fs_sqlite_transaction_error_class, session_fs_sqlite_transaction_request, session_fs_sqlite_transaction_result, session_fs_sqlite_transaction_statement, session_fs_stat_request, session_fs_stat_result, session_fs_write_file_request, session_git_hub_auth_get_all_auth_available_result, session_git_hub_auth_logout_result, session_git_hub_auth_logout_user_result, session_history_compact_request, session_installed_plugin, session_installed_plugin_source, session_installed_plugin_source_git_hub, session_installed_plugin_source_local, session_installed_plugin_source_url, session_limit_prediction_baseline_data, session_limit_prediction_client_type, session_limit_prediction_details, session_limit_prediction_predict_request, session_limit_prediction_request, session_limit_prediction_result, session_limit_prediction_source, session_limit_prediction_tier, session_limit_prediction_tier_option, session_limit_prediction_unavailable_reason, session_list, session_list_entry, session_list_filter, session_load_deferred_repo_hooks_result, session_log_level, session_managed_permissions, session_managed_settings, session_mcp_apps_call_tool_result, session_mcp_oauth_cancel_login_request, session_mcp_oauth_cancel_login_result, session_mcp_oauth_prepare_login_request, session_mcp_oauth_prepare_login_result, session_metadata_snapshot, session_mode, session_model_list, session_model_list_request, session_model_price_category, session_open_options, session_open_options_additional_content_exclusion_policy, session_open_options_additional_content_exclusion_policy_rule, session_open_options_additional_content_exclusion_policy_rule_source, session_open_options_additional_content_exclusion_policy_scope, session_open_options_env_value_mode, session_open_options_reasoning_summary, session_open_params, session_open_result, session_plugins_disable_request, session_plugins_enable_request, session_plugins_install_request, session_plugins_marketplaces_refresh_request, session_plugins_reload_request, session_provider_get_endpoint_request, session_prune_result, sessions_bulk_delete_request, sessions_check_in_use_request, sessions_check_in_use_result, sessions_client_metadata_entry, sessions_close_request, sessions_close_result, sessions_delete_request, sessions_enrich_metadata_request, session_set_credentials_params, session_set_credentials_result, session_settings_built_in_tool_availability_snapshot, session_settings_evaluate_predicate_request, session_settings_evaluate_predicate_result, session_settings_job_snapshot, session_settings_model_snapshot, session_settings_online_evaluation_snapshot, session_settings_predicate_name, session_settings_repo_snapshot, session_settings_snapshot, session_settings_validation_snapshot, sessions_find_by_prefix_request, sessions_find_by_prefix_result, sessions_find_by_task_id_request, sessions_find_by_task_id_result, sessions_fork_request, sessions_fork_result, sessions_get_board_entry_count_request, sessions_get_board_entry_count_result, sessions_get_client_metadata_request, sessions_get_client_metadata_result, sessions_get_event_file_path_request, sessions_get_event_file_path_result, sessions_get_last_for_context_request, sessions_get_last_for_context_result, sessions_get_metadata_request, sessions_get_metadata_result, sessions_get_persisted_remote_steerable_request, sessions_get_persisted_remote_steerable_result, session_sizes, sessions_list_non_empty_session_ids_request, sessions_list_non_empty_session_ids_result, sessions_list_request, sessions_load_deferred_repo_hooks_request, sessions_open_attach, sessions_open_cloud, sessions_open_create, sessions_open_handoff, sessions_open_handoff_task_type, sessions_open_progress, sessions_open_progress_status, sessions_open_progress_step, sessions_open_remote, sessions_open_resume, sessions_open_resume_last, sessions_open_status, session_source, sessions_prune_old_request, sessions_read_persisted_events_request, sessions_release_lock_request, sessions_release_lock_result, sessions_reload_plugin_hooks_request, sessions_reload_plugin_hooks_result, sessions_save_request, sessions_save_result, sessions_set_additional_plugins_request, sessions_set_additional_plugins_result, sessions_set_remote_control_steering_request, sessions_start_remote_control_request, sessions_stop_remote_control_request, sessions_transfer_remote_control_request, session_telemetry_engagement, session_update_options_params, session_update_options_result, session_visibility_status, session_workflow_pause_at_checkpoint_result, session_working_directory_context, session_working_directory_context_host_type, settable_auth_info, settable_token_auth_info, shell_cancel_user_requested_request, shell_credentials, shell_exec_request, shell_exec_result, shell_execute_user_requested_request, shell_init_profile, shell_init_script, shell_init_script_shell, shell_kill_request, shell_kill_result, shell_kill_signal, shell_options, shutdown_request, skill, skill_apply_install_request, skill_apply_uninstall_request, skill_discovery_path, skill_discovery_path_list, skill_discovery_scope, skill_installation_failure_reason, skill_installation_file_review, skill_installation_location, skill_installation_management_outcome, skill_installation_management_result, skill_installation_operation_request, skill_installation_operation_status, skill_installation_outcome, skill_installation_ownership_state, skill_installation_result, skill_installation_review, skill_installation_scope, skill_installation_session_state, skill_installation_source, skill_installations_request, skill_installation_summary, skill_install_plan, skill_list, skill_plan_install_request, skill_plan_uninstall_request, skill_provider_descriptor, skill_provider_list_request, skill_provider_list_result, skill_provider_read_request, skill_provider_read_result, skills_config_set_disabled_skills_request, skills_config_set_skill_disabled_request, skills_disable_request, skills_discover_request, skills_enable_request, skill_set_enabled_request, skills_get_discovery_paths_request, skills_get_invoked_result, skills_invoked_skill, skills_load_diagnostics, skill_uninstall_plan, slash_command_add_timeline_entry_result, slash_command_agent_prompt_result, slash_command_completed_result, slash_command_info, slash_command_input, slash_command_input_choice, slash_command_input_completion, slash_command_invocation_result, slash_command_kind, slash_command_model_picker_dialog, slash_command_select_subcommand_option, slash_command_select_subcommand_result, slash_command_set_model_result, slash_command_set_plan_model_result, slash_command_show_dialog_result, slash_command_text_result, slash_command_timeline_entry, subagent_settings_entry, subagent_settings_entry_context_tier, system_message_block, task_agent_info, task_agent_progress, task_client_active_status, task_client_execution_mode, task_client_info, task_client_owner, task_client_owner_kind, task_client_owner_presence, task_client_progress, task_client_status, task_client_type, task_client_update, task_complete_data, task_completion_decision, task_execution_mode, task_info, task_kind, task_list, task_progress_line, tasks_cancel_request, tasks_cancel_result, tasks_get_current_promotable_result, tasks_get_progress_request, tasks_get_progress_result, task_shell_info, task_shell_info_attachment_mode, task_shell_progress, tasks_promote_current_to_background_result, tasks_promote_to_background_request, tasks_promote_to_background_result, tasks_refresh_result, tasks_register_request, tasks_register_result, tasks_remove_request, tasks_remove_result, tasks_send_message_request, tasks_send_message_result, tasks_start_agent_request, tasks_start_agent_result, task_status, tasks_update_request, tasks_update_result, tasks_wait_for_pending_result, telemetry_set_feature_overrides_request, token_auth_info, token_provider_auth_info, tool, tool_list, tool_result, tool_result_expanded, tool_result_new_message, tool_result_type, tools_execute_request, tools_get_builtin_descriptors_request, tools_get_builtin_descriptors_result, tools_get_current_metadata_result, tools_initialize_and_validate_result, tools_list_request, tools_set_request, tools_set_result, tools_shell_descriptor_config, tools_task_complete_event_data_request, tools_update_subagent_settings_result, ui_auto_mode_switch_response, ui_elicitation_array_any_of_field, ui_elicitation_array_any_of_field_items, ui_elicitation_array_any_of_field_items_any_of, ui_elicitation_array_enum_field, ui_elicitation_array_enum_field_items, ui_elicitation_field_value, ui_elicitation_request, ui_elicitation_response, ui_elicitation_response_action, ui_elicitation_response_content, ui_elicitation_result, ui_elicitation_schema, ui_elicitation_schema_property, ui_elicitation_schema_property_boolean, ui_elicitation_schema_property_number, ui_elicitation_schema_property_number_type, ui_elicitation_schema_property_string, ui_elicitation_schema_property_string_format, ui_elicitation_string_enum_field, ui_elicitation_string_one_of_field, ui_elicitation_string_one_of_field_one_of, ui_ephemeral_query_request, ui_ephemeral_query_result, ui_exit_plan_mode_action, ui_exit_plan_mode_response, ui_handle_pending_auto_mode_switch_request, ui_handle_pending_elicitation_request, ui_handle_pending_exit_plan_mode_request, ui_handle_pending_result, ui_handle_pending_sampling_request, ui_handle_pending_sampling_response, ui_handle_pending_session_limits_exhausted_request, ui_handle_pending_user_input_request, ui_register_direct_auto_mode_switch_handler_result, ui_session_limits_exhausted_response, ui_session_limits_exhausted_response_action, ui_unregister_direct_auto_mode_switch_handler_request, ui_unregister_direct_auto_mode_switch_handler_result, ui_user_input_response, unsupported_enqueue_command_result, update_subagent_settings_request, usage_get_metrics_result, usage_metrics_agent_metric, usage_metrics_code_changes, usage_metrics_model_metric, usage_metrics_model_metric_requests, usage_metrics_model_metric_token_detail, usage_metrics_model_metric_usage, usage_metrics_token_detail, user_auth_info, user_requested_shell_command_result, user_setting_metadata, user_settings_get_result, user_settings_set_request, user_settings_set_result, visibility_get_result, visibility_set_request, visibility_set_result, workflow_abort_request, workflow_ack_result, workflow_agent_options, workflow_agent_request, workflow_agent_result, workflow_agent_summary, workflow_cancel_request, workflow_current_phase, workflow_declared_limits, workflow_durable_operation, workflow_execute_request, workflow_execute_result, workflow_get_run_progress_request, workflow_get_run_request, workflow_journal_get_request, workflow_journal_get_result, workflow_journal_put_request, workflow_list_runs_request, workflow_list_runs_result, workflow_log_line, workflow_log_line_kind, workflow_log_request, workflow_pause_checkpoint_action, workflow_pause_checkpoint_request, workflow_pause_checkpoint_result, workflow_pause_info, workflow_pause_request, workflow_phase_observation, workflow_phase_status, workflow_progress_line, workflow_progress_page, workflow_resume_request, workflow_resume_result, workflow_run_consumed, workflow_run_detail, workflow_run_failure, workflow_run_failure_kind, workflow_run_limits, workflow_run_options, workflow_run_request, workflow_run_result, workflow_run_status, workflow_run_summary, workflow_run_terminal, workflow_tool_resume_request, workflow_tool_run_options, workflow_tool_run_request, workspace_diff_file_change, workspace_diff_file_change_type, workspace_diff_mode, workspace_diff_result, workspaces_add_summary_request, workspaces_add_summary_result, workspaces_autopilot_objective_exists_result, workspaces_checkpoints, workspaces_create_directory_request, workspaces_create_file_request, workspaces_delete_autopilot_objective_result, workspaces_diff_request, workspaces_ensure_request, workspaces_get_workspace_result, workspaces_list_checkpoints_result, workspaces_list_files_result, workspaces_read_autopilot_objective_result, workspaces_read_checkpoint_request, workspaces_read_checkpoint_result, workspaces_read_file_request, workspaces_read_file_result, workspaces_remove_path_request, workspaces_rename_path_request, workspaces_save_large_paste_request, workspaces_save_large_paste_result, workspaces_stat_file_request, workspaces_stat_file_result, workspaces_truncate_summaries_request, workspace_summary_host_type, workspaces_update_metadata_request, workspaces_workspace_details_host_type, workspaces_write_autopilot_objective_request, workspaces_write_autopilot_objective_result, session_auth_info_result, session_context_attribution, session_context_info, subagent_settings, task_progress, workspace_summary)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -45867,7 +47423,7 @@ class RPC:
         result["CatalogMcpServerCandidate"] = to_class(CatalogMCPServerCandidate, self.catalog_mcp_server_candidate)
         result["CatalogMcpServerCandidateKind"] = to_enum(CatalogMCPServerCandidateKind, self.catalog_mcp_server_candidate_kind)
         result["CatalogMcpServerCandidateProvenance"] = to_class(CatalogMCPServerCandidateProvenance, self.catalog_mcp_server_candidate_provenance)
-        result["CatalogMcpServerInstallability"] = to_enum(CatalogMCPServerInstallabilityEnum, self.catalog_mcp_server_installability)
+        result["CatalogMcpServerInstallability"] = to_enum(CatalogMCPServerInstallability, self.catalog_mcp_server_installability)
         result["CatalogMediaType"] = to_enum(CatalogMediaType, self.catalog_media_type)
         result["CatalogNegotiatedContract"] = to_class(CatalogNegotiatedContract, self.catalog_negotiated_contract)
         result["CatalogNegotiationRefusedError"] = to_class(CatalogNegotiationRefusedError, self.catalog_negotiation_refused_error)
@@ -46099,6 +47655,7 @@ class RPC:
         result["HooksDiscoverRequest"] = to_class(HooksDiscoverRequest, self.hooks_discover_request)
         result["HooksDiscoverResult"] = to_class(HooksDiscoverResult, self.hooks_discover_result)
         result["HookType"] = to_enum(HookType, self.hook_type)
+        result["InstallationCatalogueIdentity"] = to_class(InstallationCatalogueIdentity, self.installation_catalogue_identity)
         result["InstallationConfirmationRequest"] = to_class(InstallationConfirmationRequest, self.installation_confirmation_request)
         result["InstallationConfirmationResponse"] = to_class(InstallationConfirmationResponse, self.installation_confirmation_response)
         result["InstallationDecision"] = to_enum(InstallationDecision, self.installation_decision)
@@ -46269,7 +47826,7 @@ class RPC:
         result["McpPlanScope"] = to_enum(MCPPlanScope, self.mcp_plan_scope)
         result["McpPlanSecretPlaceholder"] = to_class(MCPPlanSecretPlaceholder, self.mcp_plan_secret_placeholder)
         result["McpPlanSecretReference"] = from_str(self.mcp_plan_secret_reference)
-        result["McpPlanTarget"] = to_class(MCPPlanTarget, self.mcp_plan_target)
+        result["McpPlanTarget"] = to_class(MCPPlanTargetClass, self.mcp_plan_target)
         result["McpPlanTransportChoice"] = (self.mcp_plan_transport_choice).to_dict()
         result["McpPlanTransportChoicePackage"] = to_class(MCPPlanTransportChoicePackage, self.mcp_plan_transport_choice_package)
         result["McpPlanTransportChoiceRemote"] = to_class(MCPPlanTransportChoiceRemote, self.mcp_plan_transport_choice_remote)
@@ -46890,10 +48447,31 @@ class RPC:
         result["ShellOptions"] = to_class(ShellOptions, self.shell_options)
         result["ShutdownRequest"] = to_class(ShutdownRequest, self.shutdown_request)
         result["Skill"] = to_class(Skill, self.skill)
+        result["SkillApplyInstallRequest"] = to_class(SkillApplyInstallRequest, self.skill_apply_install_request)
+        result["SkillApplyUninstallRequest"] = to_class(SkillApplyUninstallRequest, self.skill_apply_uninstall_request)
         result["SkillDiscoveryPath"] = to_class(SkillDiscoveryPath, self.skill_discovery_path)
         result["SkillDiscoveryPathList"] = to_class(SkillDiscoveryPathList, self.skill_discovery_path_list)
         result["SkillDiscoveryScope"] = to_enum(SkillDiscoveryScope, self.skill_discovery_scope)
+        result["SkillInstallationFailureReason"] = to_enum(SkillInstallationFailureReason, self.skill_installation_failure_reason)
+        result["SkillInstallationFileReview"] = to_class(SkillInstallationFileReview, self.skill_installation_file_review)
+        result["SkillInstallationLocation"] = to_class(SkillInstallationLocation, self.skill_installation_location)
+        result["SkillInstallationManagementOutcome"] = to_class(SkillInstallationManagementOutcome, self.skill_installation_management_outcome)
+        result["SkillInstallationManagementResult"] = to_class(SkillInstallationManagementResult, self.skill_installation_management_result)
+        result["SkillInstallationOperationRequest"] = to_class(SkillInstallationOperationRequest, self.skill_installation_operation_request)
+        result["SkillInstallationOperationStatus"] = to_class(SkillInstallationOperationStatus, self.skill_installation_operation_status)
+        result["SkillInstallationOutcome"] = to_class(SkillInstallationOutcome, self.skill_installation_outcome)
+        result["SkillInstallationOwnershipState"] = to_enum(SkillInstallationOwnershipState, self.skill_installation_ownership_state)
+        result["SkillInstallationResult"] = to_class(SkillInstallationResult, self.skill_installation_result)
+        result["SkillInstallationReview"] = to_class(SkillInstallationReview, self.skill_installation_review)
+        result["SkillInstallationScope"] = to_enum(SkillInstallationScope, self.skill_installation_scope)
+        result["SkillInstallationSessionState"] = to_enum(SkillInstallationSessionState, self.skill_installation_session_state)
+        result["SkillInstallationSource"] = to_class(SkillInstallationSource, self.skill_installation_source)
+        result["SkillInstallationsRequest"] = to_class(SkillInstallationsRequest, self.skill_installations_request)
+        result["SkillInstallationSummary"] = to_class(SkillInstallationSummary, self.skill_installation_summary)
+        result["SkillInstallPlan"] = to_class(SkillInstallPlan, self.skill_install_plan)
         result["SkillList"] = to_class(SkillList, self.skill_list)
+        result["SkillPlanInstallRequest"] = to_class(SkillPlanInstallRequest, self.skill_plan_install_request)
+        result["SkillPlanUninstallRequest"] = to_class(SkillPlanUninstallRequest, self.skill_plan_uninstall_request)
         result["SkillProviderDescriptor"] = to_class(SkillProviderDescriptor, self.skill_provider_descriptor)
         result["SkillProviderListRequest"] = to_class(SkillProviderListRequest, self.skill_provider_list_request)
         result["SkillProviderListResult"] = to_class(_SkillProviderListResult, self.skill_provider_list_result)
@@ -46904,10 +48482,12 @@ class RPC:
         result["SkillsDisableRequest"] = to_class(SkillsDisableRequest, self.skills_disable_request)
         result["SkillsDiscoverRequest"] = to_class(SkillsDiscoverRequest, self.skills_discover_request)
         result["SkillsEnableRequest"] = to_class(SkillsEnableRequest, self.skills_enable_request)
+        result["SkillSetEnabledRequest"] = to_class(SkillSetEnabledRequest, self.skill_set_enabled_request)
         result["SkillsGetDiscoveryPathsRequest"] = to_class(SkillsGetDiscoveryPathsRequest, self.skills_get_discovery_paths_request)
         result["SkillsGetInvokedResult"] = to_class(SkillsGetInvokedResult, self.skills_get_invoked_result)
         result["SkillsInvokedSkill"] = to_class(SkillsInvokedSkill, self.skills_invoked_skill)
         result["SkillsLoadDiagnostics"] = to_class(SkillsLoadDiagnostics, self.skills_load_diagnostics)
+        result["SkillUninstallPlan"] = to_class(SkillUninstallPlan, self.skill_uninstall_plan)
         result["SlashCommandAddTimelineEntryResult"] = to_class(SlashCommandAddTimelineEntryResult, self.slash_command_add_timeline_entry_result)
         result["SlashCommandAgentPromptResult"] = to_class(SlashCommandAgentPromptResult, self.slash_command_agent_prompt_result)
         result["SlashCommandCompletedResult"] = to_class(SlashCommandCompletedResult, self.slash_command_completed_result)
@@ -47548,7 +49128,6 @@ CanvasActionInvokeResult = Any
 CanvasJsonSchema = Any
 CardDigestValue = str
 CatalogCapabilityId = str
-CatalogMcpServerInstallability = CatalogMCPServerInstallabilityEnum
 CatalogResourceIdentity = str
 CatalogResourceVersion = str
 ClientMetadata = dict
@@ -47821,7 +49400,7 @@ class ServerMcpApi:
         return _load_MCPPlanInstallResult(await self._client.request("mcp.planInstall", params_dict, **_timeout_kwargs(timeout)))
 
     async def prepare_install(self, params: MCPPrepareInstallRequest, *, timeout: float | None = None) -> MCPInstallationManagementResult:
-        "Consumes a bound catalogue plan and retains one exact fully resolved personal remote MCP operation requiring no supplied values or configured secrets. Returns its runtime operation ID and original expiry before any confirmation, activation, writer initialisation or installation effect. Register the original connection, operation and selected-session binding before calling applyInstall. Missing lower owned admission is unavailable, never a raw-config fallback.\n\nArgs:\n    params: Side-effect-free preparation of one original bound, input-free remote MCP choice.\n\nReturns:\n    Management result with contract receipt, or a typed request/negotiation refusal."
+        "Consumes a bound catalogue plan and retains one exact fully resolved personal remote MCP operation requiring no supplied values or configured secrets. Returns its runtime operation ID and original expiry before any confirmation, activation, writer initialisation or installation effect. Register the original connection, operation and selected-session binding before calling applyInstall. Missing lower owned admission is unavailable, never a raw-config fallback.\n\nArgs:\n    params: Side-effect-free preparation of one original bound remote MCP choice.\n\nReturns:\n    Management result with contract receipt, or a typed request/negotiation refusal."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         return MCPInstallationManagementResult.from_dict(await self._client.request("mcp.prepareInstall", params_dict, **_timeout_kwargs(timeout)))
 
@@ -47859,6 +49438,91 @@ class ServerExtensionsApi:
         "Persistently disables extension IDs for future sessions. Active sessions are unchanged; use session.extensions.disable to update them.\n\nArgs:\n    params: Source-qualified extension identifiers to persistently disable for future sessions."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         await self._client.request("extensions.disable", params_dict, **_timeout_kwargs(timeout))
+
+
+# Experimental: this API group is experimental and may change or be removed.
+class ServerSkillsInstallationsApi:
+    def __init__(self, client: "JsonRpcClient"):
+        self._client = client
+
+    async def list(self, params: SkillInstallationsRequest, *, timeout: float | None = None) -> SkillInstallationManagementResult:
+        "Lists owned verified Agent Finder Skill installations for the selected existing session. Listing is never gated by the Skill-install feature flag.\n\nArgs:\n    params: Inventory request under an explicitly selected existing session.\n\nReturns:\n    Skill installation management result with the honoured contract, or a typed refusal."
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
+        return SkillInstallationManagementResult.from_dict(await self._client.request("skills.installations.list", params_dict, **_timeout_kwargs(timeout)))
+
+    async def recover(self, params: SkillInstallationsRequest, *, timeout: float | None = None) -> SkillInstallationManagementResult:
+        "Reconciles interrupted owned Skill installation work for the selected existing session, then inspects owned inventory. Recovery is never gated by the Skill-install feature flag.\n\nArgs:\n    params: Inventory request under an explicitly selected existing session.\n\nReturns:\n    Skill installation management result with the honoured contract, or a typed refusal."
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
+        return SkillInstallationManagementResult.from_dict(await self._client.request("skills.installations.recover", params_dict, **_timeout_kwargs(timeout)))
+
+    async def status(self, params: SkillInstallationOperationRequest, *, timeout: float | None = None) -> SkillInstallationManagementResult:
+        "Inspects a known Skill installation operation on its original runtime connection. Status is never gated by the Skill-install feature flag.\n\nArgs:\n    params: Existing-operation control. A new session selector is deliberately not accepted.\n\nReturns:\n    Skill installation management result with the honoured contract, or a typed refusal."
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
+        return SkillInstallationManagementResult.from_dict(await self._client.request("skills.installations.status", params_dict, **_timeout_kwargs(timeout)))
+
+    async def cancel(self, params: SkillInstallationOperationRequest, *, timeout: float | None = None) -> SkillInstallationManagementResult:
+        "Requests cancellation of a known Skill installation operation before commit. Already-started durable work requires recovery instead of silent replay.\n\nArgs:\n    params: Existing-operation control. A new session selector is deliberately not accepted.\n\nReturns:\n    Skill installation management result with the honoured contract, or a typed refusal."
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
+        return SkillInstallationManagementResult.from_dict(await self._client.request("skills.installations.cancel", params_dict, **_timeout_kwargs(timeout)))
+
+    async def set_enabled(self, params: SkillSetEnabledRequest, *, timeout: float | None = None) -> SkillInstallationManagementResult:
+        "Atomically persists enablement for one owned Agent Finder Skill and reconciles the selected bound session. Enablement is installation-scoped by receipt identity and is never gated by the Skill-install feature flag.\n\nArgs:\n    params: Persisted enablement update for one owned Skill installation.\n\nReturns:\n    Skill installation management result with the honoured contract, or a typed refusal."
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
+        return SkillInstallationManagementResult.from_dict(await self._client.request("skills.installations.setEnabled", params_dict, **_timeout_kwargs(timeout)))
+
+
+# Experimental: this API group is experimental and may change or be removed.
+class ServerSkillsConfigApi:
+    def __init__(self, client: "JsonRpcClient"):
+        self._client = client
+
+    async def set_disabled_skills(self, params: SkillsConfigSetDisabledSkillsRequest, *, timeout: float | None = None) -> None:
+        "Replaces the global list of disabled skills.\n\nArgs:\n    params: Skill names to mark as disabled in global configuration, replacing any previous list."
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
+        await self._client.request("skills.config.setDisabledSkills", params_dict, **_timeout_kwargs(timeout))
+
+    async def set_skill_disabled(self, params: SkillsConfigSetSkillDisabledRequest, *, timeout: float | None = None) -> None:
+        "Atomically adds or removes one skill from the disabled list.\n\nArgs:\n    params: Adds or removes a single skill from the global disabled list, leaving every other entry untouched."
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
+        await self._client.request("skills.config.setSkillDisabled", params_dict, **_timeout_kwargs(timeout))
+
+
+# Experimental: this API group is experimental and may change or be removed.
+class ServerSkillsApi:
+    def __init__(self, client: "JsonRpcClient"):
+        self._client = client
+        self.installations = ServerSkillsInstallationsApi(client)
+        self.config = ServerSkillsConfigApi(client)
+
+    async def plan_install(self, params: SkillPlanInstallRequest, *, timeout: float | None = None) -> SkillInstallationManagementResult:
+        "Plans installation of a verified Agent Finder Skill candidate without writing files. The returned review is safe to present to a user and installing always leaves the Skill disabled until separately enabled.\n\nArgs:\n    params: Side-effect-free planning of one verified Agent Finder Skill candidate.\n\nReturns:\n    Skill installation management result with the honoured contract, or a typed refusal."
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
+        return SkillInstallationManagementResult.from_dict(await self._client.request("skills.planInstall", params_dict, **_timeout_kwargs(timeout)))
+
+    async def apply_install(self, params: SkillApplyInstallRequest, *, timeout: float | None = None) -> SkillInstallationResult:
+        "Consumes one verified Skill installation plan, requests explicit human consent through installations.confirm on the original connection, then revalidates and installs the Skill disabled.\n\nArgs:\n    params: Applies exactly one retained verified Skill installation plan.\n\nReturns:\n    Skill installation result with the honoured contract, or a typed request/negotiation refusal."
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
+        return SkillInstallationResult.from_dict(await self._client.request("skills.applyInstall", params_dict, **_timeout_kwargs(timeout)))
+
+    async def plan_uninstall(self, params: SkillPlanUninstallRequest, *, timeout: float | None = None) -> SkillInstallationManagementResult:
+        "Prepares a read-only removal plan for an owned verified Agent Finder Skill installation. Uninstall planning is never gated by the Skill-install feature flag.\n\nArgs:\n    params: Read-only preparation of one owned Skill removal under fresh selected-session authority.\n\nReturns:\n    Skill installation management result with the honoured contract, or a typed refusal."
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
+        return SkillInstallationManagementResult.from_dict(await self._client.request("skills.planUninstall", params_dict, **_timeout_kwargs(timeout)))
+
+    async def apply_uninstall(self, params: SkillApplyUninstallRequest, *, timeout: float | None = None) -> SkillInstallationResult:
+        "Consumes an owned Skill removal plan, requests explicit human consent through installations.confirm, refuses drift, and removes the exact owned files through quarantine.\n\nArgs:\n    params: One-use application of the exact retained Skill removal plan.\n\nReturns:\n    Skill installation result with the honoured contract, or a typed request/negotiation refusal."
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
+        return SkillInstallationResult.from_dict(await self._client.request("skills.applyUninstall", params_dict, **_timeout_kwargs(timeout)))
+
+    async def discover(self, params: SkillsDiscoverRequest, *, timeout: float | None = None) -> ServerSkillList:
+        "Discovers skills across global and project sources.\n\nArgs:\n    params: Optional project paths and additional skill directories to include in discovery.\n\nReturns:\n    Skills discovered across global and project sources."
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
+        return ServerSkillList.from_dict(await self._client.request("skills.discover", params_dict, **_timeout_kwargs(timeout)))
+
+    async def get_discovery_paths(self, params: SkillsGetDiscoveryPathsRequest, *, timeout: float | None = None) -> SkillDiscoveryPathList:
+        "Returns the canonical directories where a client may create skills that the runtime will recognize, including ones that do not exist yet. Project directories become active once created.\n\nArgs:\n    params: Optional project paths to enumerate.\n\nReturns:\n    Canonical locations where skills can be created so the runtime will recognize them."
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
+        return SkillDiscoveryPathList.from_dict(await self._client.request("skills.getDiscoveryPaths", params_dict, **_timeout_kwargs(timeout)))
 
 
 # Experimental: this API group is experimental and may change or be removed.
@@ -47957,39 +49621,6 @@ class ServerPluginsApi:
         "Disables installed plugins for new sessions.\n\nArgs:\n    params: Plugin names (or specs) to disable, plus the optional working directory the repository-controlled guard is evaluated against."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         await self._client.request("plugins.disable", params_dict, **_timeout_kwargs(timeout))
-
-
-# Experimental: this API group is experimental and may change or be removed.
-class ServerSkillsConfigApi:
-    def __init__(self, client: "JsonRpcClient"):
-        self._client = client
-
-    async def set_disabled_skills(self, params: SkillsConfigSetDisabledSkillsRequest, *, timeout: float | None = None) -> None:
-        "Replaces the global list of disabled skills.\n\nArgs:\n    params: Skill names to mark as disabled in global configuration, replacing any previous list."
-        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
-        await self._client.request("skills.config.setDisabledSkills", params_dict, **_timeout_kwargs(timeout))
-
-    async def set_skill_disabled(self, params: SkillsConfigSetSkillDisabledRequest, *, timeout: float | None = None) -> None:
-        "Atomically adds or removes one skill from the disabled list.\n\nArgs:\n    params: Adds or removes a single skill from the global disabled list, leaving every other entry untouched."
-        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
-        await self._client.request("skills.config.setSkillDisabled", params_dict, **_timeout_kwargs(timeout))
-
-
-# Experimental: this API group is experimental and may change or be removed.
-class ServerSkillsApi:
-    def __init__(self, client: "JsonRpcClient"):
-        self._client = client
-        self.config = ServerSkillsConfigApi(client)
-
-    async def discover(self, params: SkillsDiscoverRequest, *, timeout: float | None = None) -> ServerSkillList:
-        "Discovers skills across global and project sources.\n\nArgs:\n    params: Optional project paths and additional skill directories to include in discovery.\n\nReturns:\n    Skills discovered across global and project sources."
-        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
-        return ServerSkillList.from_dict(await self._client.request("skills.discover", params_dict, **_timeout_kwargs(timeout)))
-
-    async def get_discovery_paths(self, params: SkillsGetDiscoveryPathsRequest, *, timeout: float | None = None) -> SkillDiscoveryPathList:
-        "Returns the canonical directories where a client may create skills that the runtime will recognize, including ones that do not exist yet. Project directories become active once created.\n\nArgs:\n    params: Optional project paths to enumerate.\n\nReturns:\n    Canonical locations where skills can be created so the runtime will recognize them."
-        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
-        return SkillDiscoveryPathList.from_dict(await self._client.request("skills.getDiscoveryPaths", params_dict, **_timeout_kwargs(timeout)))
 
 
 # Experimental: this API group is experimental and may change or be removed.
@@ -48267,9 +49898,9 @@ class ServerRpc:
         self.secrets = ServerSecretsApi(client)
         self.mcp = ServerMcpApi(client)
         self.extensions = ServerExtensionsApi(client)
+        self.skills = ServerSkillsApi(client)
         self.catalog = ServerCatalogApi(client)
         self.plugins = ServerPluginsApi(client)
-        self.skills = ServerSkillsApi(client)
         self.agents = ServerAgentsApi(client)
         self.instructions = ServerInstructionsApi(client)
         self.commands = ServerCommandsApi(client)
@@ -50905,6 +52536,11 @@ def register_client_global_api_handlers(
         return result.to_dict()
     client.set_request_handler("installations.confirm", handle_installations_confirm)
 
+# Backward-compatible public aliases retained across typed-review generation.
+CatalogCandidateInstallability = CatalogInstallability
+CatalogMCPServerInstallabilityEnum = CatalogMCPServerInstallability
+CatalogMcpServerInstallability = CatalogMCPServerInstallability
+
 __all__ = [
     "APIKeyAuthInfo",
     "APIKeyAuthInfoType",
@@ -51061,12 +52697,14 @@ __all__ = [
     "CatalogHandleRejectedErrorKind",
     "CatalogHandleRejectionReason",
     "CatalogHandleType",
+    "CatalogInstallability",
     "CatalogInvalidRequestError",
     "CatalogInvalidRequestErrorKind",
     "CatalogInvalidRequestField",
     "CatalogMCPServerCandidate",
     "CatalogMCPServerCandidateKind",
     "CatalogMCPServerCandidateProvenance",
+    "CatalogMCPServerInstallability",
     "CatalogMCPServerInstallabilityEnum",
     "CatalogMalformedCardError",
     "CatalogMalformedCardErrorKind",
@@ -51361,6 +52999,7 @@ __all__ = [
     "Host",
     "HostType",
     "InstallMethod",
+    "InstallationCatalogueIdentity",
     "InstallationConfirmationRequest",
     "InstallationConfirmationResponse",
     "InstallationDecision",
@@ -51533,6 +53172,7 @@ __all__ = [
     "MCPPlanScope",
     "MCPPlanSecretPlaceholder",
     "MCPPlanTarget",
+    "MCPPlanTargetClass",
     "MCPPlanTransportChoice",
     "MCPPlanTransportChoicePackage",
     "MCPPlanTransportChoiceRemote",
@@ -51698,6 +53338,7 @@ __all__ = [
     "ModelWarningText",
     "ModelsListRequest",
     "MoveMCPLoadingToBackgroundResult",
+    "NScope",
     "NameApi",
     "NameGetResult",
     "NameSetAutoRequest",
@@ -51857,6 +53498,7 @@ __all__ = [
     "PingRequest",
     "PingResult",
     "PlanApi",
+    "PlanClass",
     "PlanReadResult",
     "PlanReadSQLTodosResult",
     "PlanReadSQLTodosWithDependenciesResult",
@@ -52026,8 +53668,10 @@ __all__ = [
     "RemoteSessionMetadataValue",
     "RemoteSessionMode",
     "RemoteSessionRepository",
+    "Resource",
     "ResponseFormat",
     "ResponseFormatType",
+    "ReviewClass",
     "SandboxApi",
     "SandboxConfig",
     "SandboxConfigAuth",
@@ -52099,6 +53743,7 @@ __all__ = [
     "ServerSkillList",
     "ServerSkillsApi",
     "ServerSkillsConfigApi",
+    "ServerSkillsInstallationsApi",
     "ServerToolsApi",
     "ServerUserApi",
     "ServerUserSettingsApi",
@@ -52310,12 +53955,36 @@ __all__ = [
     "ShellOptions",
     "ShutdownRequest",
     "Skill",
+    "SkillApplyInstallRequest",
+    "SkillApplyUninstallRequest",
     "SkillDiscoveryPath",
     "SkillDiscoveryPathList",
     "SkillDiscoveryScope",
+    "SkillInstallPlan",
+    "SkillInstallationFailureReason",
+    "SkillInstallationFileReview",
+    "SkillInstallationLocation",
+    "SkillInstallationManagementOutcome",
+    "SkillInstallationManagementOutcomeKind",
+    "SkillInstallationManagementResult",
+    "SkillInstallationOperationRequest",
+    "SkillInstallationOperationStatus",
+    "SkillInstallationOutcome",
+    "SkillInstallationOwnershipState",
+    "SkillInstallationResult",
+    "SkillInstallationReview",
+    "SkillInstallationScope",
+    "SkillInstallationSessionState",
+    "SkillInstallationSource",
+    "SkillInstallationSummary",
+    "SkillInstallationsRequest",
     "SkillList",
+    "SkillPlanInstallRequest",
+    "SkillPlanUninstallRequest",
     "SkillProviderDescriptor",
     "SkillProviderListRequest",
+    "SkillSetEnabledRequest",
+    "SkillUninstallPlan",
     "SkillsApi",
     "SkillsConfigSetDisabledSkillsRequest",
     "SkillsConfigSetSkillDisabledRequest",

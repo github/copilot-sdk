@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * An inert AI skill catalog result. AI skills are discovery-only and cannot be represented as installable through this surface.
+ * An inert AI skill catalog result. Verified Skill candidates may be installable only when the runtime reports installability and the selected session is permitted to plan installation.
  *
  * @since 1.0.0
  */
@@ -40,7 +40,7 @@ public final class CatalogAiSkillCandidate extends CatalogCandidate {
     @JsonProperty("mediaType")
     private CatalogAiSkillMediaType mediaType;
 
-    /** AI skills are discovery-only and cannot be installed through this surface */
+    /** Whether this AI skill candidate can be planned for verified installation in the selected session. */
     @JsonProperty("installability")
     private CatalogAiSkillInstallability installability;
 

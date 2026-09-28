@@ -241,6 +241,7 @@ All options are kw-only parameters:
 - `github_token` (str | None): GitHub token for authentication. When provided, takes priority over other auth methods.
 - `base_directory` (str | None): Base directory for Copilot data (session state, config, etc.). Sets `COPILOT_HOME` on the spawned CLI process. When `None`, the CLI defaults to `~/.copilot`. Useful in restricted environments where only specific directories are writable. Ignored when using a `UriRuntimeConnection`.
 - `extension_launch_provider` (ExtensionLaunchProviderHandler | None): Experimental connection-level resolver for extension launch profiles. The client installs the reverse-RPC handler and registers the provider during startup before sessions can be created.
+- `installation_confirmation_handler` (InstallationConfirmationHandler | None): Experimental connection-global human review for `installations.confirm`. Receives the typed request and one cancellation signal, and returns an explicit decision. Does not enable installation capabilities.
 - `use_logged_in_user` (bool | None): Whether to use logged-in user for authentication (default: True, but False when `github_token` is provided).
 - `telemetry` (dict | None): OpenTelemetry configuration for the CLI process. Providing this enables telemetry — no separate flag needed. See [Telemetry](#telemetry) below.
 - `session_fs` (dict | None): Connection-level session filesystem provider configuration.
@@ -269,6 +270,51 @@ conn = RuntimeConnection.for_stdio()
 conn.env = {"MY_VAR": "value"}
 client = CopilotClient(connection=conn)  # do NOT also pass env=... here
 ```
+
+### Installation confirmation (experimental)
+
+Set `installation_confirmation_handler` on `CopilotClient` to receive the
+runtime's `installations.confirm` callback through
+`InstallationConfirmationHandler`. The handler receives the generated
+`InstallationConfirmationRequest` and an `InstallationConfirmationContext`, and
+returns only an explicit `InstallationDecision` (or `"confirm"`, `"decline"` or
+`"cancel"`). The SDK echoes the original challenge and review fingerprint; it
+never infers approval.
+
+Match `operation_id` and `policy_session_id` against the original action on this
+exact connection before presenting the complete review. Missing legacy session
+metadata does not select a default session. Refuse unknown operations or
+incomplete reviews. Concurrent reviews are independent and do not block the
+request router.
+
+`context.cancelled` is an `asyncio.Event` set when this review is retired,
+whether by the runtime's numeric `$/cancelRequest`, runtime-enforced expiry, or
+loss of the original connection. Separately spawned UI work must observe this
+signal and close itself when it is set. A late handler result cannot approve a
+retired request. Dropping an outbound installation or OAuth future does not
+cancel that operation.
+
+Call `client.rpc.mcp.prepare_install(...)` before `apply_install(...)`. Register
+its inert runtime-issued `operation_id`, original expiry and captured session on
+this client before applying. Removal uses `plan_uninstall(...)` then
+`apply_uninstall(...)`; its `operation_id` identifies the operation, while
+`plan_handle` is the one-use removal input. Never interchange them. The
+`installations` namespace exposes `list`, `recover`, `status` and `cancel`.
+Control uncertain work using its original connection and operation ID, without
+selecting a replacement session or replaying apply.
+
+Owned OAuth uses `session.rpc.mcp.oauth.prepare_login(...)` to return `login_id`
+before browser, network or cached-reconnect work. Keep that ID with the original
+session and `expected_installation_id` for `login(...)` and `cancel_login(...)`.
+Preparation freezes reauthentication and display options. Dropping the login
+future is not a substitute for `cancel_login(...)`. Manual MCP OAuth retains its
+direct `login(...)` path.
+
+These methods require a matching runtime and available owned-lifecycle support.
+Capability negotiation does not promise availability; preserve typed refusals
+instead of falling back to raw configuration writes. Generated presence and
+transport tests do not establish a working installer, live OAuth or restart
+safety.
 
 ### In-process (FFI) transport
 

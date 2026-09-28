@@ -1065,6 +1065,9 @@ type AssistantFusionPhaseCompletedData struct {
 	// Projection action for the exact internal message.
 	// Internal: ProjectionMode is part of the SDK's internal API surface and is not intended for external use.
 	ProjectionMode *FusionProjectionMode `json:"projectionMode,omitempty"`
+	// Explicit reasoning effort selected for this phase, if supplied.
+	// Experimental: ReasoningEffort is part of an experimental API and may change or be removed.
+	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
 	// Semantic role assigned to the completed phase.
 	Role string `json:"role"`
 	// Terminal request held outside canonical state until selected by the final commit.
@@ -1174,6 +1177,9 @@ type AssistantFusionPhaseFailedData struct {
 	PhaseKind FusionPhaseKind `json:"phaseKind"`
 	// Stable machine-readable reason for the phase failure.
 	Reason string `json:"reason"`
+	// Explicit reasoning effort selected for this phase, if supplied.
+	// Experimental: ReasoningEffort is part of an experimental API and may change or be removed.
+	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
 	// Semantic role assigned to the failed phase.
 	Role string `json:"role"`
 	// Durable outcome status of the phase.
@@ -1192,6 +1198,9 @@ func (*AssistantFusionPhaseFailedData) Type() SessionEventType {
 type SessionFusionResolvedData struct {
 	// Version of the validated HydraFusion event contract.
 	ContractVersion int64 `json:"contractVersion"`
+	// Planned Critique phase identities, including independent critics with repeated model IDs. May be absent in older events; consumers then use secondaryModel for the legacy critic.
+	// Experimental: Critics is part of an experimental API and may change or be removed.
+	Critics []FusionCritic `json:"critics,omitzero"`
 	// Concrete model used when the planned primary model cannot execute.
 	FallbackModel string `json:"fallbackModel"`
 	// Router recommendation controlling reuse or rerouting on later turns.
@@ -1203,6 +1212,9 @@ type SessionFusionResolvedData struct {
 	// Short human-readable summary of the selected workflow, suitable for immediate client display after routing. May be absent in older durable events; omit the explanation or derive one from pattern and phasePlan. Display text, not a stable machine-readable value.
 	// Experimental: Hint is part of an experimental API and may change or be removed.
 	Hint *string `json:"hint,omitempty"`
+	// Concrete model selected for Cascade escalation-gate calls, when required.
+	// Experimental: JudgeModel is part of an experimental API and may change or be removed.
+	JudgeModel *string `json:"judgeModel,omitempty"`
 	// Version of the executable model universe used for selection.
 	ModelUniverseVersion *string `json:"modelUniverseVersion,omitempty"`
 	// Validated orchestration pattern selected for the turn.
@@ -1218,6 +1230,9 @@ type SessionFusionResolvedData struct {
 	PolicyVersion *string `json:"policyVersion,omitempty"`
 	// Concrete model selected for the primary solver phase.
 	PrimaryModel string `json:"primaryModel"`
+	// Concrete model selected for Cascade repair, when required.
+	// Experimental: RepairModel is part of an experimental API and may change or be removed.
+	RepairModel *string `json:"repairModel,omitempty"`
 	// Router implementation that supplied the plan.
 	RouteSource *string `json:"routeSource,omitempty"`
 	// Elapsed time in milliseconds required to resolve and validate the route.
@@ -1230,7 +1245,7 @@ type SessionFusionResolvedData struct {
 	RuleName *string `json:"ruleName,omitempty"`
 	// Validated capability scores used to select the route.
 	Scores *FusionScores `json:"scores,omitempty"`
-	// Concrete model selected for the review or judge phase, when required.
+	// Concrete model selected for Critique review, or the legacy Cascade judge/repair model when role-specific fields are absent.
 	SecondaryModel *string `json:"secondaryModel"`
 	// Synthetic HydraFusion model selected for the session.
 	SyntheticModel string `json:"syntheticModel"`
@@ -1258,6 +1273,9 @@ type AssistantFusionPhaseStartedData struct {
 	PhaseID string `json:"phaseId"`
 	// Kind of phase being executed.
 	PhaseKind FusionPhaseKind `json:"phaseKind"`
+	// Explicit reasoning effort selected for this phase, if supplied.
+	// Experimental: ReasoningEffort is part of an experimental API and may change or be removed.
+	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
 	// Semantic role assigned to the phase.
 	Role string `json:"role"`
 }
@@ -3718,6 +3736,19 @@ type FusionAttribution struct {
 	SourcePhaseID *string `json:"sourcePhaseId,omitempty"`
 	// Synthetic HydraFusion model selected for the session.
 	SyntheticModel string `json:"syntheticModel"`
+}
+
+// Experimental: FusionCritic is part of an experimental API and may change or be removed.
+type FusionCritic struct {
+	// Concrete model selected for this critic.
+	// Experimental: Model is part of an experimental API and may change or be removed.
+	Model string `json:"model"`
+	// Unique execution phase identifier for this critic.
+	// Experimental: PhaseID is part of an experimental API and may change or be removed.
+	PhaseID string `json:"phaseId"`
+	// Explicit reasoning effort selected for this critic, if supplied.
+	// Experimental: ReasoningEffort is part of an experimental API and may change or be removed.
+	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
 }
 
 // Durable server recommendation for subsequent HydraFusion turns.

@@ -119,6 +119,11 @@ from .generated.session_events import (
     SessionEvent,
     SessionEventType,
 )
+from .installation_confirmation import (
+    InstallationConfirmationContext,
+    InstallationConfirmationDecision,
+    InstallationConfirmationHandler,
+)
 from .session import (
     AgentMessageSource,
     AgentStopHandler,
@@ -312,6 +317,9 @@ __all__ = [
     "GitHubTokenResult",
     "GitHubTokenCancelledResult",
     "InfiniteSessionConfig",
+    "InstallationConfirmationContext",
+    "InstallationConfirmationDecision",
+    "InstallationConfirmationHandler",
     "InProcessRuntimeConnection",
     "InputOptions",
     "LargeToolOutputConfig",

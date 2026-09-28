@@ -217,6 +217,191 @@ test("nested discriminated array items use their named Java type", () => {
     assert.deepEqual([...promotedUnionTypes], ["ActionChoice", "ActionSource"]);
 });
 
+test("RPC records promote nested discriminated union references to sealed interfaces", async () => {
+    const definitions: Record<string, JSONSchema7> = {
+        InstallationConfirmationRequest: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+                review: { $ref: "#/definitions/InstallationReview" },
+            },
+        },
+        InstallationReview: {
+            anyOf: [
+                {
+                    type: "object",
+                    additionalProperties: false,
+                    properties: {
+                        resource: { type: "string", const: "mcp" },
+                        review: { $ref: "#/definitions/McpInstallationReview" },
+                    },
+                    required: ["resource", "review"],
+                },
+            ],
+        },
+        McpInstallationReview: {
+            anyOf: [
+                {
+                    type: "object",
+                    additionalProperties: false,
+                    properties: {
+                        action: { type: "string", const: "install" },
+                        selectedChoice: { $ref: "#/definitions/McpPlanTransportChoice" },
+                    },
+                    required: ["action", "selectedChoice"],
+                },
+                {
+                    type: "object",
+                    additionalProperties: false,
+                    properties: {
+                        action: { type: "string", const: "uninstall" },
+                        installationId: { type: "string" },
+                    },
+                    required: ["action", "installationId"],
+                },
+            ],
+        },
+        McpInstallPlan: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+                transportChoices: {
+                    type: "array",
+                    items: { $ref: "#/definitions/McpPlanTransportChoice" },
+                },
+            },
+        },
+        McpPlanTransportChoice: {
+            anyOf: [
+                { $ref: "#/definitions/McpPlanTransportChoicePackage" },
+                { $ref: "#/definitions/McpPlanTransportChoiceRemote" },
+            ],
+        },
+        McpPlanTransportChoicePackage: {
+            type: "object",
+            title: "McpPlanTransportChoicePackage",
+            additionalProperties: false,
+            properties: {
+                installMethod: { type: "string", const: "package" },
+                packageIdentifier: { type: "string" },
+            },
+            required: ["installMethod", "packageIdentifier"],
+        },
+        McpPlanTransportChoiceRemote: {
+            type: "object",
+            title: "McpPlanTransportChoiceRemote",
+            additionalProperties: false,
+            properties: {
+                installMethod: { type: "string", const: "remote" },
+                endpoint: { type: "string" },
+            },
+            required: ["installMethod", "endpoint"],
+        },
+        McpInstallationManagementResult: {
+            anyOf: [
+                {
+                    type: "object",
+                    additionalProperties: false,
+                    properties: {
+                        kind: { type: "string", const: "outcome" },
+                        outcome: { $ref: "#/definitions/McpInstallationManagementOutcome" },
+                    },
+                    required: ["kind", "outcome"],
+                },
+                {
+                    type: "object",
+                    additionalProperties: false,
+                    properties: {
+                        kind: { type: "string", const: "invalid-request" },
+                        message: { type: "string" },
+                    },
+                    required: ["kind", "message"],
+                },
+            ],
+        },
+        McpInstallationManagementOutcome: {
+            anyOf: [
+                {
+                    type: "object",
+                    additionalProperties: false,
+                    properties: {
+                        kind: { type: "string", const: "operation" },
+                        operation: { $ref: "#/definitions/McpInstallationOperationStatus" },
+                    },
+                    required: ["kind", "operation"],
+                },
+                {
+                    type: "object",
+                    additionalProperties: false,
+                    properties: {
+                        kind: { type: "string", const: "refused" },
+                        reason: { type: "string" },
+                    },
+                    required: ["kind", "reason"],
+                },
+            ],
+        },
+        McpInstallationOperationStatus: {
+            anyOf: [
+                {
+                    type: "object",
+                    additionalProperties: false,
+                    properties: {
+                        phase: { type: "string", const: "preparing" },
+                        operationId: { type: "string" },
+                    },
+                    required: ["phase", "operationId"],
+                },
+                {
+                    type: "object",
+                    additionalProperties: false,
+                    properties: {
+                        phase: { type: "string", const: "completed" },
+                        operationId: { type: "string" },
+                    },
+                    required: ["phase", "operationId"],
+                },
+            ],
+        },
+    };
+
+    const files = await renderRpcTypes({
+        definitions,
+        clientGlobal: {
+            confirm: {
+                rpcMethod: "confirm",
+                params: { $ref: "#/definitions/InstallationConfirmationRequest" },
+                result: null,
+            },
+            plan: {
+                rpcMethod: "plan",
+                params: { $ref: "#/definitions/McpInstallPlan" },
+                result: null,
+            },
+        },
+        server: {
+            status: {
+                rpcMethod: "status",
+                params: null,
+                result: { $ref: "#/definitions/McpInstallationManagementResult" },
+            },
+        },
+    }, {});
+
+    assert.match(rpcSource(files, "InstallationConfirmationRequest"), /@JsonProperty\("review"\) McpInstallationReview review/);
+    assert.match(rpcSource(files, "McpInstallPlan"), /@JsonProperty\("transportChoices"\) List<McpPlanTransportChoice> transportChoices/);
+    assert.match(rpcSource(files, "McpInstallationManagementResultOutcome"), /private McpInstallationManagementOutcome outcome/);
+    assert.match(rpcSource(files, "McpInstallationManagementOutcomeOperation"), /@JsonProperty\("operation"\) McpInstallationOperationStatus operation/);
+    assert.match(rpcSource(files, "McpInstallationReview"), /public sealed interface McpInstallationReview permits McpInstallationReviewInstall, McpInstallationReviewUninstall/);
+    assert.match(rpcSource(files, "McpInstallationReview"), /JsonTypeInfo\.Id\.NAME, include = JsonTypeInfo\.As\.EXISTING_PROPERTY, property = "action", visible = true/);
+    assert.match(rpcSource(files, "McpInstallationReviewInstall"), /public record McpInstallationReviewInstall\(/);
+    assert.match(rpcSource(files, "McpInstallationReviewInstall"), /action = "install"/);
+    assert.match(rpcSource(files, "McpInstallationReviewInstall"), /import com\.fasterxml\.jackson\.annotation\.JsonTypeInfo;/);
+    assert.match(rpcSource(files, "McpInstallationReviewInstall"), /@JsonTypeInfo\(use = JsonTypeInfo\.Id\.NONE\)/);
+    assert.match(rpcSource(files, "McpPlanTransportChoice"), /property = "installMethod"/);
+    assert.match(rpcSource(files, "McpInstallationOperationStatus"), /property = "phase"/);
+});
+
 function sharedUnionFixture(roots: string[]) {
     const definitions: Record<string, JSONSchema7> = {
         SharedError: {
@@ -467,4 +652,76 @@ test("x-legacy-parameters rejects metadata that would not preserve the original 
     client.clientSession = client.server;
     delete client.server;
     await assert.rejects(renderRpcTypes(client as Parameters<typeof renderRpcTypes>[0], {}), /only server and session requests are supported/);
+});
+
+/** A response record published with `name`, `status` and `error`, then extended with optional fields. */
+function legacyRecordSchema(additions: string[], legacy: string[] | undefined = ["name", "status", "error"]): JSONSchema7 {
+    const properties: Record<string, JSONSchema7> = {
+        name: { type: "string", description: "Server name." },
+        status: { type: "string" },
+    };
+    for (const addition of additions.filter((name) => name === "owned")) properties[addition] = { type: "string" };
+    properties.error = { type: "string" };
+    for (const addition of additions.filter((name) => name !== "owned")) properties[addition] = { type: "string" };
+    const schema: JSONSchema7 & Record<string, unknown> = { type: "object", properties, required: ["name", "status"] };
+    if (additions.length > 0 && legacy) schema["x-legacy-parameters"] = legacy;
+    return schema;
+}
+
+function recordSource(schema: JSONSchema7): string {
+    return generateRpcClass("SampleServer", schema, new Map(), "com.github.copilot.generated.rpc").code;
+}
+
+function legacyConstructors(source: string): string[] {
+    return [...source.matchAll(/public SampleServer\(([^)]*)\) \{\s*this\(([^)]*)\);/g)].map(
+        (match) => `${match[1].replace(/\s+/g, " ").trim()} => ${match[2]}`
+    );
+}
+
+test("x-legacy-parameters response records keep every component and add the previous constructor", () => {
+    const original = recordSource(legacyRecordSchema([]));
+    assert.deepEqual(legacyConstructors(original), [], "unmarked records keep their existing generation");
+
+    const trailing = recordSource(legacyRecordSchema(["traceId"]));
+    assert.match(trailing, /record SampleServer\(\s*\/\*\* Server name\. \*\/\s*@JsonProperty\("name"\) String name,\s*@JsonProperty\("status"\) String status,\s*@JsonProperty\("error"\) String error,\s*@JsonProperty\("traceId"\) String traceId\s*\)/);
+    assert.deepEqual(legacyConstructors(trailing), ["String name, String status, String error => name, status, error, null"]);
+
+    const middle = recordSource(legacyRecordSchema(["owned"]));
+    assert.deepEqual(legacyConstructors(middle), ["String name, String status, String error => name, status, null, error"]);
+
+    const twice = recordSource(legacyRecordSchema(["owned", "traceId"]));
+    assert.deepEqual(legacyConstructors(twice), ["String name, String status, String error => name, status, null, error, null"]);
+});
+
+test("x-legacy-parameters response records reject metadata a positional constructor cannot preserve", () => {
+    assert.throws(
+        () => recordSource(legacyRecordSchema(["traceId"], ["status", "name", "error"])),
+        /Invalid x-legacy-parameters for SampleServer: legacy parameters must follow schema property order/
+    );
+    assert.throws(
+        () => recordSource(legacyRecordSchema(["traceId"], ["name", "error"])),
+        /required property status must be a legacy parameter/
+    );
+});
+
+test("x-legacy-parameters response records get the constructor through standalone generation", async () => {
+    const files = await renderRpcTypes({
+        server: {
+            sample: {
+                list: {
+                    rpcMethod: "sample.list",
+                    params: null,
+                    result: {
+                        type: "object",
+                        properties: { servers: { type: "array", items: { $ref: "#/definitions/SampleServer" } } },
+                        required: ["servers"],
+                    },
+                },
+            },
+        },
+        definitions: { SampleServer: legacyRecordSchema(["owned"]) },
+    } as Parameters<typeof renderRpcTypes>[0], {});
+    assert.deepEqual(legacyConstructors(rpcSource(files, "SampleServer")), [
+        "String name, String status, String error => name, status, null, error",
+    ]);
 });

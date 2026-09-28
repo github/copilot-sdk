@@ -797,13 +797,23 @@ export type CatalogAiSkillCandidateKind = /** An AI skill. */ "ai-skill";
 /** @experimental */
 export type CatalogAiSkillMediaType = /** An AI skill card. */ "application/ai-skill";
 /**
- * Typed non-installable state for an AI skill candidate
+ * Typed installability state for an AI skill candidate
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "CatalogAiSkillInstallability".
  */
 /** @experimental */
-export type CatalogAiSkillInstallability = /** AI skills are discovery-only on this surface. */ "not-installable-kind";
+export type CatalogAiSkillInstallability =
+  /** This AI skill candidate carries verified materialisation metadata and the selected session may plan installation. */
+  | "installable"
+  /** Skill installation is understood but disabled for the selected session. */
+  | "feature-disabled"
+  /** The candidate lacks verified materialisation metadata required for installation. */
+  | "materialisation-unavailable"
+  /** Policy refuses Skill installation for the selected session or authority. */
+  | "policy-forbids"
+  /** Compatibility value for discovery-only callers that did not negotiate Skill installation. */
+  | "not-installable-kind";
 /**
  * Where a candidate's card came from. Exactly one of a URL or embedded data: the union has no variant carrying both, and no variant carrying neither, so the rule holds structurally rather than by validation.
  *
@@ -911,7 +921,11 @@ export type CatalogCapability =
   /** Captures the exact existing native session, account, host and connection for authenticated catalogue search, selection and planning. Requires catalog-search-credential-required; does not grant installation or create a session. */
   | "catalog-search-session-bound"
   /** Understands effect-free preparation, exact human-confirmed apply and owned removal for fully resolved personal remote MCP choices without supplied inputs or configured secrets. Advertised only when the real producer and lower owned admission are linked; requires original connection and bound session authority for new work. */
-  | "mcp-confirmed-remote-installation";
+  | "mcp-confirmed-remote-installation"
+  /** Extends mcp-confirmed-remote-installation to declared non-secret header and URL values and receipt-owned header secrets for personal remote MCP choices. Requires mcp-confirmed-remote-installation and bound session authority. Secret values are written only to the reviewed backend after confirmation and are never returned; package and stdio choices remain unsupported. Advertised only when owned secret effects and owned secret activation are linked. */
+  | "mcp-configured-remote-installation"
+  /** Understands verified Agent Finder Skill install, uninstall, recovery and installation-scoped enablement APIs. Advertised only by runtimes with the Skill installation engine linked; acquisition may still be refused as feature-disabled per selected session. */
+  | "skill-confirmed-installation";
 /**
  * Bounded extensible wire-feature identifier. Known values are described by `CatalogCapability`; newer callers may send future identifiers so an older runtime can return a typed negotiation refusal instead of failing schema validation. Capability negotiation establishes contract understanding, while each operation's result separately reports runtime availability.
  *
@@ -2113,13 +2127,21 @@ export type HistoryRewindOutcome =
  * via the `definition` "InstallationReview".
  */
 /** @experimental */
-export type InstallationReview = {
-  review: McpInstallationReview;
-  /**
-   * Reviewed resource discriminator.
-   */
-  resource: "mcp";
-};
+export type InstallationReview =
+  | {
+      review: McpInstallationReview;
+      /**
+       * Reviewed resource discriminator.
+       */
+      resource: "mcp";
+    }
+  | {
+      review: SkillInstallationReview;
+      /**
+       * Reviewed resource discriminator.
+       */
+      resource: "skill";
+    };
 /**
  * Safe MCP review fields. No raw card, retrieval URL, plan handle or secret value.
  *
@@ -2132,6 +2154,7 @@ export type McpInstallationReview =
       identity: McpPlanResourceIdentity;
       provenance: McpPlanProvenance;
       catalogueTrust?: CatalogTrustSnapshot;
+      catalogue?: InstallationCatalogueIdentity;
       target: McpPlanTarget;
       policy: McpPlanPolicyResult;
       selectedChoice: McpPlanTransportChoice;
@@ -2345,6 +2368,105 @@ export type McpInstallationSecretStorage =
   | "keychain"
   /** The explicitly selected private file backend. */
   | "private-file";
+/**
+ * Safe verified Skill review fields. No raw credential, candidate handle or plan handle.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SkillInstallationReview".
+ */
+/** @experimental */
+export type SkillInstallationReview =
+  | {
+      /**
+       * Skill invocation name from SKILL.md.
+       */
+      name: string;
+      /**
+       * Skill description from SKILL.md when present.
+       */
+      description?: string;
+      catalogue: InstallationCatalogueIdentity;
+      source: SkillInstallationSource;
+      target: SkillInstallationLocation;
+      /**
+       * Installing never grants immediate use; the Skill is written disabled.
+       */
+      installsDisabled: boolean;
+      /**
+       * Reviewed files and digests.
+       */
+      files: SkillInstallationFileReview[];
+      /**
+       * Total reviewed payload size in bytes.
+       */
+      totalBytes: number;
+      /**
+       * Relative path of the verified Skill entrypoint.
+       */
+      entrypointPath: string;
+      /**
+       * Complete verified SKILL.md content. Planning refuses with review-too-large
+       * when this exceeds 262144 UTF-8 bytes; it is never truncated.
+       */
+      entrypointContent: string;
+      /**
+       * Exact reviewed Skill installation action.
+       */
+      action: "install";
+    }
+  | {
+      installation: SkillInstallationSummary;
+      /**
+       * Whether current files differ from the receipt. Apply refuses drift.
+       */
+      filesModified: boolean;
+      /**
+       * Files recorded by the installation receipt.
+       */
+      files: SkillInstallationFileReview[];
+      /**
+       * Total receipt-owned payload size in bytes.
+       */
+      totalBytes: number;
+      catalogue: InstallationCatalogueIdentity;
+      /**
+       * Exact reviewed Skill installation action.
+       */
+      action: "uninstall";
+    };
+
+/** @experimental */
+export type SkillInstallationScope = /** The user's personal Copilot home. */ "personal";
+/**
+ * Bound-session observation after reconciling persisted enablement.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SkillInstallationSessionState".
+ */
+/** @experimental */
+export type SkillInstallationSessionState =
+  /** The selected session has loaded this Skill and it is enabled. */
+  | "loaded-enabled"
+  /** The selected session has loaded this Skill or settings and it is disabled. */
+  | "loaded-disabled"
+  /** The selected session has not loaded Skills after the latest change. */
+  | "not-loaded"
+  /** The selected session could not be inspected. */
+  | "unknown";
+/**
+ * Owned Skill state observed from files and receipts.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SkillInstallationOwnershipState".
+ */
+/** @experimental */
+export type SkillInstallationOwnershipState =
+  /** Owned files and receipt evidence match. */
+  | "intact"
+  /** Owned files no longer match the receipt. */
+  | "modified"
+  /** Ownership evidence requires recovery before mutation. */
+  | "recovery-required";
 /**
  * Explicit user decisions, never inferred from a permission grant or model response.
  *
@@ -4835,6 +4957,350 @@ export type SkillDiscoveryScope =
   | "personal-agents"
   /** A configured custom skill directory. */
   | "custom";
+/**
+ * Bounded refusal categories for verified Skill installation management.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SkillInstallationFailureReason".
+ */
+/** @experimental */
+export type SkillInstallationFailureReason =
+  /** The selected session does not have the Agent Finder Skill installation feature flag enabled for acquisition. */
+  | "feature-disabled"
+  /** The request is unsupported or malformed. */
+  | "invalid-request"
+  /** The bounded operation limit was reached. */
+  | "operation-limit"
+  /** The original operation was cancelled. */
+  | "cancelled"
+  /** The original host cannot receive human confirmation. */
+  | "confirmation-unavailable"
+  /** The confirmation response is malformed or mismatched. */
+  | "confirmation-invalid"
+  /** Existing authenticated session and host authority is unavailable. */
+  | "policy-context-unavailable"
+  /** The original authority or policy changed. */
+  | "policy-changed"
+  /** No matching owned resource or original operation exists. */
+  | "resource-not-found"
+  /** The original plan deadline elapsed. */
+  | "plan-expired"
+  /** The one-use plan was already consumed. */
+  | "plan-replayed"
+  /** The handle belongs to a different runtime, session or connection. */
+  | "foreign-runtime"
+  /** The handle is not the expected Skill handle kind. */
+  | "wrong-kind"
+  /** The handle was minted for a different search result or authority. */
+  | "search-mismatch"
+  /** The handle or operation expired. */
+  | "expired"
+  /** The candidate handle is not a verified installable Skill candidate. */
+  | "invalid-candidate"
+  /** The verified Skill descriptor could not be retrieved safely. */
+  | "descriptor-unavailable"
+  /** The verified Skill descriptor failed validation. */
+  | "descriptor-invalid"
+  /** The Skill entrypoint could not be retrieved or verified. */
+  | "entrypoint-unavailable"
+  /** The Skill entrypoint is not a valid Skill. */
+  | "invalid-skill"
+  /** The reviewed Skill payload could not be acquired. */
+  | "payload-unavailable"
+  /** The acquired payload no longer matches the reviewed descriptor. */
+  | "payload-mismatch"
+  /** The retained Skill source changed after planning. */
+  | "source-changed"
+  /** The selected runtime cannot inspect or control the requested lifecycle operation. */
+  | "lifecycle-unavailable"
+  /** Durable Skill installation evidence requires recovery before mutation. */
+  | "recovery-required"
+  /** The Skill entrypoint exceeds the bounded complete review size. */
+  | "review-too-large"
+  /** Skill installation storage or admission is busy. */
+  | "busy"
+  /** An owned Skill with the same identity or target already exists. */
+  | "already-installed"
+  /** Installed Skill files no longer match ownership evidence. */
+  | "configuration-modified"
+  /** A storage operation failed; inspect durable state before retrying. */
+  | "write-failed";
+/**
+ * Management outcome for verified Skill inventory, planning and removal.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SkillInstallationManagementOutcome".
+ */
+/** @experimental */
+export type SkillInstallationManagementOutcome =
+  | {
+      /**
+       * Skill installation management outcome discriminator.
+       */
+      kind: "recovery-required";
+    }
+  | {
+      plan: SkillInstallPlan;
+      /**
+       * Skill installation management outcome discriminator.
+       */
+      kind: "install-planned";
+    }
+  | {
+      /**
+       * Owned Skill installation summaries.
+       */
+      installations: SkillInstallationSummary[];
+      /**
+       * Skill installation management outcome discriminator.
+       */
+      kind: "listed";
+    }
+  | {
+      /**
+       * Owned Skill installation summaries after recovery.
+       */
+      installations: SkillInstallationSummary[];
+      /**
+       * Skill installation management outcome discriminator.
+       */
+      kind: "recovered";
+    }
+  | {
+      reason: SkillInstallationFailureReason;
+      /**
+       * Original operation identity.
+       */
+      operation_id: string;
+      /**
+       * Skill installation management outcome discriminator.
+       */
+      kind: "rolled-back";
+    }
+  | {
+      plan: SkillUninstallPlan;
+      /**
+       * Skill installation management outcome discriminator.
+       */
+      kind: "uninstall-planned";
+    }
+  | {
+      operation: SkillInstallationOperationStatus;
+      /**
+       * Skill installation management outcome discriminator.
+       */
+      kind: "operation";
+    }
+  | {
+      installation: SkillInstallationSummary;
+      /**
+       * Safe reload or reconciliation diagnostics.
+       */
+      diagnostics: string[];
+      /**
+       * Skill installation management outcome discriminator.
+       */
+      kind: "enabled-changed";
+    }
+  | {
+      reason: SkillInstallationFailureReason;
+      /**
+       * Skill installation management outcome discriminator.
+       */
+      kind: "refused";
+    };
+/**
+ * Status snapshot from the original connection, independent of new-work account availability.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SkillInstallationOperationStatus".
+ */
+/** @experimental */
+export type SkillInstallationOperationStatus =
+  | {
+      /**
+       * Original runtime-issued operation identity.
+       */
+      operationId: string;
+      /**
+       * Whether cancellation has been requested.
+       */
+      cancellationRequested: boolean;
+      phase: "preparing";
+    }
+  | {
+      /**
+       * Original runtime-issued operation identity.
+       */
+      operationId: string;
+      /**
+       * Whether cancellation has been requested.
+       */
+      cancellationRequested: boolean;
+      phase: "prepared";
+    }
+  | {
+      /**
+       * Original runtime-issued operation identity.
+       */
+      operationId: string;
+      /**
+       * Whether cancellation has been requested.
+       */
+      cancellationRequested: boolean;
+      phase: "awaiting-confirmation";
+    }
+  | {
+      /**
+       * Original runtime-issued operation identity.
+       */
+      operationId: string;
+      /**
+       * Whether cancellation has been requested.
+       */
+      cancellationRequested: boolean;
+      phase: "revalidating";
+    }
+  | {
+      /**
+       * Original runtime-issued operation identity.
+       */
+      operationId: string;
+      /**
+       * Whether cancellation has been requested; already-started effects require recovery.
+       */
+      cancellationRequested: boolean;
+      phase: "applying";
+    }
+  | {
+      /**
+       * Original runtime-issued operation identity.
+       */
+      operationId: string;
+      /**
+       * Whether cancellation was requested before the terminal result.
+       */
+      cancellationRequested: boolean;
+      outcome: SkillInstallationOutcome;
+      phase: "completed";
+    };
+/**
+ * Terminal verified Skill mutation result.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SkillInstallationOutcome".
+ */
+/** @experimental */
+export type SkillInstallationOutcome =
+  | {
+      installation: SkillInstallationSummary;
+      /**
+       * Terminal Skill installation outcome discriminator.
+       */
+      kind: "installed";
+    }
+  | {
+      /**
+       * Removed installation identity.
+       */
+      installationId: string;
+      /**
+       * Original removal operation identity.
+       */
+      operationId: string;
+      /**
+       * Terminal Skill installation outcome discriminator.
+       */
+      kind: "uninstalled";
+    }
+  | {
+      reason: SkillInstallationFailureReason;
+      /**
+       * Original operation identity.
+       */
+      operationId: string;
+      /**
+       * Terminal Skill installation outcome discriminator.
+       */
+      kind: "rolled-back";
+    }
+  | {
+      /**
+       * Operation whose durable result must be recovered and inspected.
+       */
+      operationId: string;
+      /**
+       * Terminal Skill installation outcome discriminator.
+       */
+      kind: "recovery-required";
+    }
+  | {
+      /**
+       * Original operation identity.
+       */
+      operationId: string;
+      /**
+       * Terminal Skill installation outcome discriminator.
+       */
+      kind: "declined";
+    }
+  | {
+      /**
+       * Original operation identity.
+       */
+      operationId: string;
+      /**
+       * Terminal Skill installation outcome discriminator.
+       */
+      kind: "cancelled";
+    }
+  | {
+      reason: SkillInstallationFailureReason;
+      /**
+       * Present once an operation has been allocated.
+       */
+      operationId?: string;
+      /**
+       * Terminal Skill installation outcome discriminator.
+       */
+      kind: "refused";
+    };
+/**
+ * Skill installation management result with the honoured contract, or a typed refusal.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SkillInstallationManagementResult".
+ */
+/** @experimental */
+export type SkillInstallationManagementResult =
+  | {
+      /**
+       * Discriminator: handled management outcome.
+       */
+      kind: "outcome";
+      outcome: SkillInstallationManagementOutcome;
+      negotiated: CatalogNegotiatedContract;
+    }
+  | CatalogNegotiationRefusedError
+  | CatalogInvalidRequestError;
+/**
+ * Skill installation result with the honoured contract, or a typed request/negotiation refusal.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SkillInstallationResult".
+ */
+/** @experimental */
+export type SkillInstallationResult =
+  | {
+      /**
+       * Discriminator: handled operation outcome.
+       */
+      kind: "outcome";
+      outcome: SkillInstallationOutcome;
+      negotiated: CatalogNegotiatedContract;
+    }
+  | CatalogNegotiationRefusedError
+  | CatalogInvalidRequestError;
 /**
  * Result of invoking the slash command (text output, prompt to send to the agent, completion, or subcommand selection).
  *
@@ -7740,7 +8206,7 @@ export interface CatalogTrustSnapshotMalformed {
   provenance: CatalogTrustProvenance;
 }
 /**
- * An inert AI skill catalog result. AI skills are discovery-only and cannot be represented as installable through this surface.
+ * An inert AI skill catalog result. Verified Skill candidates may be installable only when the runtime reports installability and the selected session is permitted to plan installation.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "CatalogAiSkillCandidate".
@@ -11051,6 +11517,44 @@ export interface HooksDiscoverResult {
   errors: string[];
 }
 /**
+ * Catalogue identity retained from a bound candidate or plan at installation time.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "InstallationCatalogueIdentity".
+ */
+/** @experimental */
+export interface InstallationCatalogueIdentity {
+  /**
+   * Authority resource identifier when supplied by the catalogue.
+   */
+  resourceId?: string;
+  /**
+   * Catalogue item URL when supplied by the authority.
+   */
+  itemUrl?: string;
+  /**
+   * Human display name retained from the catalogue candidate.
+   */
+  displayName: string;
+  /**
+   * Catalogue description retained at install planning time.
+   */
+  description?: string;
+  /**
+   * Catalogue publisher retained at install planning time.
+   */
+  publisher?: string;
+  /**
+   * Catalogue version retained at install planning time.
+   */
+  version?: string;
+  /**
+   * Catalogue authority/source string that supplied the candidate.
+   */
+  source: string;
+  trustAtInstall?: CatalogTrustSnapshot;
+}
+/**
  * One connection-owned, expiring request for a trusted host's explicit user decision.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -11350,8 +11854,10 @@ export interface McpInstallationInput {
   value: string;
 }
 /**
- * Final remote configuration, not a template. The producer refuses configured
- * secrets and external-value expansion before presenting this review.
+ * Final remote configuration, not a template. The producer refuses external-value
+ * expansion before presenting this review. Receipt-owned secrets appear only as
+ * `${installation-secret:<id>}` references whose `<id>` matches a reviewed
+ * `${secret:<id>}` placeholder; values are never included.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "McpInstallationRemoteConfiguration".
@@ -11364,7 +11870,8 @@ export interface McpInstallationRemoteConfiguration {
    */
   url: string;
   /**
-   * Literal configured headers, excluding separately authorised OAuth tokens.
+   * Configured headers, excluding separately authorised OAuth tokens. Values may
+   * contain owned secret references, never secret values.
    */
   headers: {
     [k: string]: string | undefined;
@@ -11373,6 +11880,132 @@ export interface McpInstallationRemoteConfiguration {
    * Configured tool selection, not permission to invoke those tools.
    */
   tools: string[];
+}
+/**
+ * Source identity retained from Agent Finder and the pinned GitHub descriptor.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SkillInstallationSource".
+ */
+/** @experimental */
+export interface SkillInstallationSource {
+  /**
+   * Agent Finder resource identifier.
+   */
+  resourceId: string;
+  /**
+   * Agent Finder materialisation revision identifier.
+   */
+  catalogRevisionId: string;
+  /**
+   * GitHub repository database identifier.
+   */
+  repositoryId: string;
+  /**
+   * Repository full name, for example owner/name.
+   */
+  repository: string;
+  /**
+   * Pinned Git commit revision.
+   */
+  revision: string;
+  /**
+   * Root path within the pinned repository.
+   */
+  root: string;
+  /**
+   * Digest of the canonical materialisation descriptor.
+   */
+  descriptorDigest: string;
+  /**
+   * Digest of the descriptor's bundle manifest.
+   */
+  bundleDigest: string;
+}
+/**
+ * A user-facing personal Skill installation location without absolute host paths.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SkillInstallationLocation".
+ */
+/** @experimental */
+export interface SkillInstallationLocation {
+  scope: SkillInstallationScope;
+  /**
+   * Path relative to the Copilot home.
+   */
+  relativePath: string;
+  /**
+   * Safe display label, for example ~/.copilot/skills/run-checks.
+   */
+  displayLabel: string;
+  /**
+   * Diagnostics-only absolute host path. Hosts must not display it by default.
+   */
+  diagnosticsAbsolutePath?: string;
+}
+/**
+ * One reviewed Skill file.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SkillInstallationFileReview".
+ */
+/** @experimental */
+export interface SkillInstallationFileReview {
+  /**
+   * Relative file path within the Skill root.
+   */
+  path: string;
+  /**
+   * Exact reviewed file size in bytes.
+   */
+  sizeBytes: number;
+  /**
+   * Declared media type for the file.
+   */
+  mediaType: string;
+  /**
+   * Whether the file is installed with executable permissions.
+   */
+  executable: boolean;
+  /**
+   * SHA-256 digest of the exact file bytes.
+   */
+  digest: string;
+}
+/**
+ * Durable verified Skill ownership summary.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SkillInstallationSummary".
+ */
+/** @experimental */
+export interface SkillInstallationSummary {
+  /**
+   * Exact durable installation receipt identity.
+   */
+  installationId: string;
+  /**
+   * Operation that installed this Skill.
+   */
+  operationId: string;
+  /**
+   * Skill invocation name.
+   */
+  name: string;
+  target: SkillInstallationLocation;
+  /**
+   * Persisted enablement requested for this installation.
+   */
+  configuredEnabled: boolean;
+  sessionState: SkillInstallationSessionState;
+  source: SkillInstallationSource;
+  catalogue: InstallationCatalogueIdentity;
+  /**
+   * ISO 8601 wall-clock installation time.
+   */
+  installedAt: string;
+  ownershipState: SkillInstallationOwnershipState;
 }
 /**
  * A response is meaningful only on the connection and request that issued its challenge.
@@ -13238,6 +13871,11 @@ export interface McpInstallationSummary {
    */
   choiceId: string;
   state: McpInstallationState;
+  catalogue?: InstallationCatalogueIdentity;
+  /**
+   * ISO 8601 wall-clock installation time when available.
+   */
+  installedAt?: string;
 }
 /**
  * Exact inert removal plan. No configuration or credentials have changed.
@@ -13783,7 +14421,7 @@ export interface McpPlanUninstallRequest {
   policySessionId: string;
 }
 /**
- * Side-effect-free preparation of one original bound, input-free remote MCP choice.
+ * Side-effect-free preparation of one original bound remote MCP choice.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "McpPrepareInstallRequest".
@@ -13804,11 +14442,13 @@ export interface McpPrepareInstallRequest {
    */
   policySessionId: string;
   /**
-   * Must be empty for the initial input-free remote installation capability.
+   * Declared non-secret values. Non-empty only when the caller requires
+   * `mcp-configured-remote-installation`; omitted values use the card default.
    */
   inputs: McpInstallationInput[];
   /**
-   * Must be empty; this capability does not allocate configured-input secrets.
+   * One entry per declared secret placeholder of the selected choice. Non-empty
+   * only when the caller requires `mcp-configured-remote-installation`.
    */
   secrets: McpInstallationSecret[];
   source: McpServerCardReference;
@@ -23215,6 +23855,42 @@ export interface Skill {
   argumentHint?: string;
 }
 /**
+ * Applies exactly one retained verified Skill installation plan.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SkillApplyInstallRequest".
+ */
+/** @experimental */
+export interface SkillApplyInstallRequest {
+  contract: CatalogClientContract;
+  /**
+   * Opaque original plan, consumed once.
+   */
+  planHandle: string;
+  /**
+   * Same existing selected session as planning.
+   */
+  policySessionId: string;
+}
+/**
+ * One-use application of the exact retained Skill removal plan.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SkillApplyUninstallRequest".
+ */
+/** @experimental */
+export interface SkillApplyUninstallRequest {
+  contract: CatalogClientContract;
+  /**
+   * Opaque original removal plan, consumed once.
+   */
+  planHandle: string;
+  /**
+   * Same existing selected session as removal preparation.
+   */
+  policySessionId: string;
+}
+/**
  * Canonical directory where skills can be discovered or created, with scope, preference, and optional project path.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -23250,6 +23926,79 @@ export interface SkillDiscoveryPathList {
   paths: SkillDiscoveryPath[];
 }
 /**
+ * A computed Skill install plan. Nothing has been applied.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SkillInstallPlan".
+ */
+/** @experimental */
+export interface SkillInstallPlan {
+  /**
+   * One-use plan handle, bound to the original candidate authority.
+   */
+  planHandle: string;
+  /**
+   * Original operation identifier returned before confirmation.
+   */
+  operationId: string;
+  /**
+   * Original wall-clock expiry as an ISO 8601 timestamp.
+   */
+  expiresAt: string;
+  review: SkillInstallationReview;
+}
+/**
+ * A computed Skill uninstall plan. Nothing has been removed.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SkillUninstallPlan".
+ */
+/** @experimental */
+export interface SkillUninstallPlan {
+  /**
+   * One-use uninstall plan handle.
+   */
+  planHandle: string;
+  /**
+   * Original removal operation identifier returned before confirmation.
+   */
+  operationId: string;
+  /**
+   * Original wall-clock expiry as an ISO 8601 timestamp.
+   */
+  expiresAt: string;
+  installation: SkillInstallationSummary;
+  review: SkillInstallationReview;
+}
+/**
+ * Existing-operation control. A new session selector is deliberately not accepted.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SkillInstallationOperationRequest".
+ */
+/** @experimental */
+export interface SkillInstallationOperationRequest {
+  contract: CatalogClientContract;
+  /**
+   * Exact runtime-issued operation ID on the original connection.
+   */
+  operationId: string;
+}
+/**
+ * Inventory request under an explicitly selected existing session.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SkillInstallationsRequest".
+ */
+/** @experimental */
+export interface SkillInstallationsRequest {
+  contract: CatalogClientContract;
+  /**
+   * Existing selected local session on this connection.
+   */
+  policySessionId: string;
+}
+/**
  * Skills available to the session, with their enabled state.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -23261,6 +24010,42 @@ export interface SkillList {
    * Available skills
    */
   skills: Skill[];
+}
+/**
+ * Side-effect-free planning of one verified Agent Finder Skill candidate.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SkillPlanInstallRequest".
+ */
+/** @experimental */
+export interface SkillPlanInstallRequest {
+  contract: CatalogClientContract;
+  /**
+   * Fresh single-use AI skill candidate handle returned by a bound catalogue search.
+   */
+  candidateHandle: string;
+  /**
+   * Existing local session attached to this connection.
+   */
+  policySessionId: string;
+}
+/**
+ * Read-only preparation of one owned Skill removal under fresh selected-session authority.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SkillPlanUninstallRequest".
+ */
+/** @experimental */
+export interface SkillPlanUninstallRequest {
+  contract: CatalogClientContract;
+  /**
+   * Exact receipt to inspect.
+   */
+  installationId: string;
+  /**
+   * Existing selected local session on this connection.
+   */
+  policySessionId: string;
 }
 /**
  * Catalog-only metadata for one SDK-provided skill. The complete SKILL.md is fetched separately and lazily.
@@ -23419,6 +24204,28 @@ export interface SkillsEnableRequest {
    * Name of the skill to enable
    */
   name: string;
+}
+/**
+ * Persisted enablement update for one owned Skill installation.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SkillSetEnabledRequest".
+ */
+/** @experimental */
+export interface SkillSetEnabledRequest {
+  contract: CatalogClientContract;
+  /**
+   * Exact receipt identity to update.
+   */
+  installationId: string;
+  /**
+   * Persisted enablement value.
+   */
+  enabled: boolean;
+  /**
+   * Existing selected local session to reconcile after persistence.
+   */
+  policySessionId: string;
 }
 /**
  * Optional project paths to enumerate.
@@ -27814,7 +28621,7 @@ export function createServerRpc(connection: MessageConnection) {
             /**
              * Consumes a bound catalogue plan and retains one exact fully resolved personal remote MCP operation requiring no supplied values or configured secrets. Returns its runtime operation ID and original expiry before any confirmation, activation, writer initialisation or installation effect. Register the original connection, operation and selected-session binding before calling applyInstall. Missing lower owned admission is unavailable, never a raw-config fallback.
              *
-             * @param params Side-effect-free preparation of one original bound, input-free remote MCP choice.
+             * @param params Side-effect-free preparation of one original bound remote MCP choice.
              *
              * @returns Management result with contract receipt, or a typed request/negotiation refusal.
              */
@@ -27910,6 +28717,128 @@ export function createServerRpc(connection: MessageConnection) {
              */
             disable: async (params: DiscoveredExtensionsDisableRequest): Promise<void> =>
                 connection.sendRequest("extensions.disable", params),
+        },
+        /** @experimental */
+        skills: {
+            /**
+             * Plans installation of a verified Agent Finder Skill candidate without writing files. The returned review is safe to present to a user and installing always leaves the Skill disabled until separately enabled.
+             *
+             * @param params Side-effect-free planning of one verified Agent Finder Skill candidate.
+             *
+             * @returns Skill installation management result with the honoured contract, or a typed refusal.
+             */
+            planInstall: async (params: SkillPlanInstallRequest): Promise<SkillInstallationManagementResult> =>
+                connection.sendRequest("skills.planInstall", params),
+            /**
+             * Consumes one verified Skill installation plan, requests explicit human consent through installations.confirm on the original connection, then revalidates and installs the Skill disabled.
+             *
+             * @param params Applies exactly one retained verified Skill installation plan.
+             *
+             * @returns Skill installation result with the honoured contract, or a typed request/negotiation refusal.
+             */
+            applyInstall: async (params: SkillApplyInstallRequest): Promise<SkillInstallationResult> =>
+                connection.sendRequest("skills.applyInstall", params),
+            /** @experimental */
+            installations: {
+                /**
+                 * Lists owned verified Agent Finder Skill installations for the selected existing session. Listing is never gated by the Skill-install feature flag.
+                 *
+                 * @param params Inventory request under an explicitly selected existing session.
+                 *
+                 * @returns Skill installation management result with the honoured contract, or a typed refusal.
+                 */
+                list: async (params: SkillInstallationsRequest): Promise<SkillInstallationManagementResult> =>
+                    connection.sendRequest("skills.installations.list", params),
+                /**
+                 * Reconciles interrupted owned Skill installation work for the selected existing session, then inspects owned inventory. Recovery is never gated by the Skill-install feature flag.
+                 *
+                 * @param params Inventory request under an explicitly selected existing session.
+                 *
+                 * @returns Skill installation management result with the honoured contract, or a typed refusal.
+                 */
+                recover: async (params: SkillInstallationsRequest): Promise<SkillInstallationManagementResult> =>
+                    connection.sendRequest("skills.installations.recover", params),
+                /**
+                 * Inspects a known Skill installation operation on its original runtime connection. Status is never gated by the Skill-install feature flag.
+                 *
+                 * @param params Existing-operation control. A new session selector is deliberately not accepted.
+                 *
+                 * @returns Skill installation management result with the honoured contract, or a typed refusal.
+                 */
+                status: async (params: SkillInstallationOperationRequest): Promise<SkillInstallationManagementResult> =>
+                    connection.sendRequest("skills.installations.status", params),
+                /**
+                 * Requests cancellation of a known Skill installation operation before commit. Already-started durable work requires recovery instead of silent replay.
+                 *
+                 * @param params Existing-operation control. A new session selector is deliberately not accepted.
+                 *
+                 * @returns Skill installation management result with the honoured contract, or a typed refusal.
+                 */
+                cancel: async (params: SkillInstallationOperationRequest): Promise<SkillInstallationManagementResult> =>
+                    connection.sendRequest("skills.installations.cancel", params),
+                /**
+                 * Atomically persists enablement for one owned Agent Finder Skill and reconciles the selected bound session. Enablement is installation-scoped by receipt identity and is never gated by the Skill-install feature flag.
+                 *
+                 * @param params Persisted enablement update for one owned Skill installation.
+                 *
+                 * @returns Skill installation management result with the honoured contract, or a typed refusal.
+                 */
+                setEnabled: async (params: SkillSetEnabledRequest): Promise<SkillInstallationManagementResult> =>
+                    connection.sendRequest("skills.installations.setEnabled", params),
+            },
+            /**
+             * Prepares a read-only removal plan for an owned verified Agent Finder Skill installation. Uninstall planning is never gated by the Skill-install feature flag.
+             *
+             * @param params Read-only preparation of one owned Skill removal under fresh selected-session authority.
+             *
+             * @returns Skill installation management result with the honoured contract, or a typed refusal.
+             */
+            planUninstall: async (params: SkillPlanUninstallRequest): Promise<SkillInstallationManagementResult> =>
+                connection.sendRequest("skills.planUninstall", params),
+            /**
+             * Consumes an owned Skill removal plan, requests explicit human consent through installations.confirm, refuses drift, and removes the exact owned files through quarantine.
+             *
+             * @param params One-use application of the exact retained Skill removal plan.
+             *
+             * @returns Skill installation result with the honoured contract, or a typed request/negotiation refusal.
+             */
+            applyUninstall: async (params: SkillApplyUninstallRequest): Promise<SkillInstallationResult> =>
+                connection.sendRequest("skills.applyUninstall", params),
+            /** @experimental */
+            config: {
+                /**
+                 * Replaces the global list of disabled skills.
+                 *
+                 * @param params Skill names to mark as disabled in global configuration, replacing any previous list.
+                 */
+                setDisabledSkills: async (params: SkillsConfigSetDisabledSkillsRequest): Promise<void> =>
+                    connection.sendRequest("skills.config.setDisabledSkills", params),
+                /**
+                 * Atomically adds or removes one skill from the disabled list.
+                 *
+                 * @param params Adds or removes a single skill from the global disabled list, leaving every other entry untouched.
+                 */
+                setSkillDisabled: async (params: SkillsConfigSetSkillDisabledRequest): Promise<void> =>
+                    connection.sendRequest("skills.config.setSkillDisabled", params),
+            },
+            /**
+             * Discovers skills across global and project sources.
+             *
+             * @param params Optional project paths and additional skill directories to include in discovery.
+             *
+             * @returns Skills discovered across global and project sources.
+             */
+            discover: async (params: SkillsDiscoverRequest): Promise<ServerSkillList> =>
+                connection.sendRequest("skills.discover", params),
+            /**
+             * Returns the canonical directories where a client may create skills that the runtime will recognize, including ones that do not exist yet. Project directories become active once created.
+             *
+             * @param params Optional project paths to enumerate.
+             *
+             * @returns Canonical locations where skills can be created so the runtime will recognize them.
+             */
+            getDiscoveryPaths: async (params: SkillsGetDiscoveryPathsRequest): Promise<SkillDiscoveryPathList> =>
+                connection.sendRequest("skills.getDiscoveryPaths", params),
         },
         /**
          * Registers the calling SDK client as the per-entrypoint extension launch provider. Call before creating any sessions. When omitted, the runtime uses its built-in extension launcher.
@@ -28050,44 +28979,6 @@ export function createServerRpc(connection: MessageConnection) {
                 refresh: async (params: PluginsMarketplacesRefreshRequest): Promise<MarketplaceRefreshResult> =>
                     connection.sendRequest("plugins.marketplaces.refresh", params),
             },
-        },
-        /** @experimental */
-        skills: {
-            /** @experimental */
-            config: {
-                /**
-                 * Replaces the global list of disabled skills.
-                 *
-                 * @param params Skill names to mark as disabled in global configuration, replacing any previous list.
-                 */
-                setDisabledSkills: async (params: SkillsConfigSetDisabledSkillsRequest): Promise<void> =>
-                    connection.sendRequest("skills.config.setDisabledSkills", params),
-                /**
-                 * Atomically adds or removes one skill from the disabled list.
-                 *
-                 * @param params Adds or removes a single skill from the global disabled list, leaving every other entry untouched.
-                 */
-                setSkillDisabled: async (params: SkillsConfigSetSkillDisabledRequest): Promise<void> =>
-                    connection.sendRequest("skills.config.setSkillDisabled", params),
-            },
-            /**
-             * Discovers skills across global and project sources.
-             *
-             * @param params Optional project paths and additional skill directories to include in discovery.
-             *
-             * @returns Skills discovered across global and project sources.
-             */
-            discover: async (params: SkillsDiscoverRequest): Promise<ServerSkillList> =>
-                connection.sendRequest("skills.discover", params),
-            /**
-             * Returns the canonical directories where a client may create skills that the runtime will recognize, including ones that do not exist yet. Project directories become active once created.
-             *
-             * @param params Optional project paths to enumerate.
-             *
-             * @returns Canonical locations where skills can be created so the runtime will recognize them.
-             */
-            getDiscoveryPaths: async (params: SkillsGetDiscoveryPathsRequest): Promise<SkillDiscoveryPathList> =>
-                connection.sendRequest("skills.getDiscoveryPaths", params),
         },
         /** @experimental */
         agents: {

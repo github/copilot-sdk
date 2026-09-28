@@ -1,0 +1,52 @@
+{
+  "confirmationId": "confirmation-a",
+  "operationId": "operation-a",
+  "policySessionId": "original-session",
+  "expiresAt": "2026-09-24T03:00:00Z",
+  "reviewFingerprint": "fingerprint-a",
+  "review": {
+    "resource": "mcp",
+    "review": {
+      "action": "install",
+      "identity": {
+        "canonicalName": "io.example/server",
+        "serverName": "example"
+      },
+      "provenance": {
+        "authority": "cards.example.test",
+        "validatedAt": "2026-09-24T02:59:00Z",
+        "cardDigest": {
+          "algorithm": "sha256-rfc8785",
+          "value": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+        },
+        "mediaType": "application/mcp-server-card+json"
+      },
+      "target": { "scope": "user", "configKey": "example" },
+      "policy": { "decision": "allowed", "source": "none" },
+      "selectedChoice": {
+        "choiceId": "remote-choice",
+        "installMethod": "remote",
+        "endpoint": "https://example.test/mcp",
+        "transport": "streamable-http",
+        "requiredValues": [],
+        "secretPlaceholders": []
+      },
+      "configurationChange": {
+        "operation": "add",
+        "scope": "user",
+        "configKey": "example",
+        "changedFields": ["type", "url", "headers", "tools"],
+        "secretReferences": []
+      },
+      "inputs": [],
+      "suppliedSecrets": [],
+      "secretStorage": "keychain",
+      "effectiveConfiguration": {
+        "transport": "streamable-http",
+        "url": "https://example.test/mcp",
+        "headers": { "X-Region": "eu" },
+        "tools": ["*"]
+      }
+    }
+  }
+}

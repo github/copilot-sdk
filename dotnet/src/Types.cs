@@ -320,6 +320,7 @@ public sealed class CopilotClientOptions
         SessionFs = other.SessionFs;
         RequestHandler = other.RequestHandler;
         ExtensionLaunchProvider = other.ExtensionLaunchProvider;
+        InstallationConfirmationHandler = other.InstallationConfirmationHandler;
         OnGitHubTelemetry = other.OnGitHubTelemetry;
         SessionIdleTimeoutSeconds = other.SessionIdleTimeoutSeconds;
         EnableRemoteSessions = other.EnableRemoteSessions;
@@ -441,6 +442,13 @@ public sealed class CopilotClientOptions
     /// </summary>
     [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
     public IExtensionLaunchProviderHandler? ExtensionLaunchProvider { get; set; }
+
+    /// <summary>
+    /// Connection-global human review for experimental installation operations.
+    /// Does not register or enable installation capabilities on the runtime.
+    /// </summary>
+    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+    public InstallationConfirmationHandler? InstallationConfirmationHandler { get; set; }
 
     /// <summary>
     /// Experimental. Receives GitHub telemetry events the runtime forwards to this

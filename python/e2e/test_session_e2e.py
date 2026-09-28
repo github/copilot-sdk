@@ -220,7 +220,6 @@ class TestSessions:
                 await s.get_events()
 
     async def test_should_resume_a_session_using_the_same_client(self, ctx: E2ETestContext):
-        # Create initial session
         session1 = await ctx.client.create_session(
             on_permission_request=PermissionHandler.approve_all
         )
@@ -247,7 +246,6 @@ class TestSessions:
         assert "4" in answer3.data.content
 
     async def test_should_resume_a_session_using_a_new_client(self, ctx: E2ETestContext):
-        # Create initial session
         session1 = await ctx.client.create_session(
             on_permission_request=PermissionHandler.approve_all
         )
@@ -437,7 +435,6 @@ class TestSessions:
         session_ids = [s.session_id for s in sessions]
         assert session_id in session_ids
 
-        # Delete the session
         await ctx.client.delete_session(session_id)
 
         # Verify session no longer exists in the list
@@ -594,7 +591,6 @@ class TestSessions:
                 "run the shell command 'sleep 100' (note this works on both bash and PowerShell)"
             )
 
-            # Wait for the tool to start executing
             _ = await wait_for_tool_start
 
             # Abort the session while the tool is running

@@ -4014,6 +4014,12 @@ export interface FusionResolvedData {
    */
   contractVersion: number;
   /**
+   * Planned Critique phase identities, including independent critics with repeated model IDs. May be absent in older events; consumers then use secondaryModel for the legacy critic.
+   *
+   * @experimental
+   */
+  critics?: FusionCritic[];
+  /**
    * Concrete model used when the planned primary model cannot execute.
    */
   fallbackModel: string;
@@ -4032,6 +4038,12 @@ export interface FusionResolvedData {
    * @experimental
    */
   hint?: string;
+  /**
+   * Concrete model selected for Cascade escalation-gate calls, when required.
+   *
+   * @experimental
+   */
+  judgeModel?: string;
   /**
    * Version of the executable model universe used for selection.
    */
@@ -4060,6 +4072,12 @@ export interface FusionResolvedData {
    */
   primaryModel: string;
   /**
+   * Concrete model selected for Cascade repair, when required.
+   *
+   * @experimental
+   */
+  repairModel?: string;
+  /**
    * Router implementation that supplied the plan.
    */
   routeSource?: string;
@@ -4081,7 +4099,7 @@ export interface FusionResolvedData {
   ruleName?: string;
   scores?: FusionScores;
   /**
-   * Concrete model selected for the review or judge phase, when required.
+   * Concrete model selected for Critique review, or the legacy Cascade judge/repair model when role-specific fields are absent.
    */
   secondaryModel: string | null;
   /**
@@ -4092,6 +4110,27 @@ export interface FusionResolvedData {
    * Identifier of the session turn associated with the route.
    */
   turnId: string;
+}
+/** @experimental */
+export interface FusionCritic {
+  /**
+   * Concrete model selected for this critic.
+   *
+   * @experimental
+   */
+  model: string;
+  /**
+   * Unique execution phase identifier for this critic.
+   *
+   * @experimental
+   */
+  phaseId: string;
+  /**
+   * Explicit reasoning effort selected for this critic, if supplied.
+   *
+   * @experimental
+   */
+  reasoningEffort?: string;
 }
 /**
  * Durable server recommendation for subsequent HydraFusion turns.
@@ -4971,6 +5010,12 @@ export interface FusionPhaseStartedData {
   phaseId: string;
   phaseKind: FusionPhaseKind;
   /**
+   * Explicit reasoning effort selected for this phase, if supplied.
+   *
+   * @experimental
+   */
+  reasoningEffort?: string;
+  /**
    * Semantic role assigned to the phase.
    */
   role: string;
@@ -5107,6 +5152,12 @@ export interface FusionPhaseCompletedData {
    */
   projectionMode?: FusionProjectionMode;
   /**
+   * Explicit reasoning effort selected for this phase, if supplied.
+   *
+   * @experimental
+   */
+  reasoningEffort?: string;
+  /**
    * Semantic role assigned to the completed phase.
    */
   role: string;
@@ -5231,6 +5282,12 @@ export interface FusionPhaseFailedData {
    * Stable machine-readable reason for the phase failure.
    */
   reason: string;
+  /**
+   * Explicit reasoning effort selected for this phase, if supplied.
+   *
+   * @experimental
+   */
+  reasoningEffort?: string;
   /**
    * Semantic role assigned to the failed phase.
    */

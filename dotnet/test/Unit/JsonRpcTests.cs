@@ -94,6 +94,38 @@ public class JsonRpcTests
         await Assert.ThrowsAnyAsync<ObjectDisposedException>(() => pending);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task JsonRpc_Cancels_Incoming_Handler_Token_When_Connection_Disposed(bool requestHasId)
+    {
+        using var pair = JsonRpcReflectionPair.Create();
+        var handlerStarted = new TaskCompletionSource<CancellationToken>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        pair.Server.SetLocalRpcMethod("waitForShutdown", (Func<CancellationToken, Task>)(async cancellationToken =>
+        {
+            handlerStarted.SetResult(cancellationToken);
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+        }));
+
+        if (requestHasId)
+        {
+            await pair.SendClientFrameAsync(CreateRequestFrame(1, "waitForShutdown", "{}"));
+        }
+        else
+        {
+            await pair.SendClientFrameAsync(CreateNotificationFrame("waitForShutdown", "{}"));
+        }
+
+        var handlerToken = await WaitForCancellationAsync(handlerStarted.Task);
+        Assert.False(handlerToken.IsCancellationRequested);
+
+        pair.Server.Dispose();
+
+        await WaitForCancellationAsync(handlerToken);
+    }
+
     [Fact]
     public async Task JsonRpc_Dispose_Completes_Cleanup_When_Cancellation_Callback_Throws()
     {
@@ -150,14 +182,14 @@ public class JsonRpcTests
 
         var responseCompleted = await Task.WhenAny(
             carriedResponse,
-            Task.Delay(TimeSpan.FromSeconds(5)));
+            Task.Delay(TimeSpan.FromSeconds(5), CancellationToken.None));
         Assert.Same(carriedResponse, responseCompleted);
         Assert.Equal("carried", await carriedResponse);
         Assert.True(receiveStream.FramesWereCoalesced);
 
         var readCompleted = await Task.WhenAny(
             receiveStream.PostFrameReadBufferSize,
-            Task.Delay(TimeSpan.FromSeconds(5)));
+            Task.Delay(TimeSpan.FromSeconds(5), CancellationToken.None));
         Assert.Same(receiveStream.PostFrameReadBufferSize, readCompleted);
         Assert.InRange(await receiveStream.PostFrameReadBufferSize, 1, 1024 * 1024);
     }
@@ -288,6 +320,9 @@ public class JsonRpcTests
     private static byte[] CreateNotificationFrame(string method, string paramsJson)
         => CreateFrame($$"""{"jsonrpc":"2.0","method":"{{method}}","params":{{paramsJson}}}""");
 
+    private static byte[] CreateRequestFrame(long id, string method, string paramsJson)
+        => CreateFrame($$"""{"jsonrpc":"2.0","id":{{id}},"method":"{{method}}","params":{{paramsJson}}}""");
+
     private static byte[] CreateFrame(string json)
     {
         var body = Encoding.UTF8.GetBytes(json);
@@ -306,6 +341,28 @@ public class JsonRpcTests
             stream.Write(frame);
         }
         return stream.ToArray();
+    }
+
+    private static async Task WaitForCancellationAsync(CancellationToken token)
+    {
+        if (token.IsCancellationRequested)
+        {
+            return;
+        }
+
+        var cancelled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var registration = token.Register(
+            static state => ((TaskCompletionSource)state!).TrySetResult(),
+            cancelled);
+        var completed = await Task.WhenAny(cancelled.Task, Task.Delay(TimeSpan.FromSeconds(5), CancellationToken.None));
+        Assert.Same(cancelled.Task, completed);
+    }
+
+    private static async Task<T> WaitForCancellationAsync<T>(Task<T> task)
+    {
+        var completed = await Task.WhenAny(task, Task.Delay(TimeSpan.FromSeconds(5), CancellationToken.None));
+        Assert.Same(task, completed);
+        return await task;
     }
 
     private static int GetRemoteErrorCode(Exception exception)
@@ -362,6 +419,12 @@ public class JsonRpcTests
         }
 
         public void StartListening() => Client.StartListening();
+
+        public async Task SendClientFrameAsync(byte[] frame)
+        {
+            await _clientStream.WriteAsync(frame.AsMemory());
+            await _clientStream.FlushAsync();
+        }
 
         public void Dispose()
         {

@@ -183,6 +183,30 @@ connection-level resolver for extension launch profiles. The client installs the
 reverse-RPC handler and registers the provider during startup before sessions can
 be created.
 
+### Installation confirmation (experimental)
+
+`CopilotClientOptions.setInstallationConfirmationHandler(...)` configures the
+connection-global `installations.confirm` receiver. The handler receives the
+generated `InstallationConfirmationRequest` and an
+`InstallationConfirmationContext`, then returns only an explicit
+generated `InstallationDecision.CONFIRM`, `InstallationDecision.DECLINE` or
+`InstallationDecision.CANCEL`. The SDK echoes the original challenge and review
+fingerprint; it never infers approval and does not enable installation
+capabilities or call a runtime registration RPC.
+
+Match `operationId` and `policySessionId` against the original action on this
+exact connection before presenting the complete review. Missing legacy session
+metadata does not select a default session. Refuse unknown operations or
+incomplete reviews.
+
+Concurrent reviews are independent and do not block other client-global RPCs.
+`context.getCancelled()` returns the single cancellation signal for the review.
+It completes when the runtime's numeric `$/cancelRequest`, runtime-enforced
+expiry, or loss of the original connection retires the review. Separately
+spawned UI work should observe this signal and retire itself when it completes.
+Dropping an outbound installation or OAuth future does not cancel that
+operation.
+
 `SessionConfig.setAskUserVariant(AskUserVariant.ELICITATION)` selects the
 structured form-based `ask_user` tool when an elicitation handler is also set.
 The default is `AskUserVariant.LEGACY`. Re-supply the option and handler through
@@ -213,6 +237,18 @@ Initial acquisition runs during session creation or resume. Cancellation,
 provider errors, and invalid token responses reject that operation instead of
 falling back to ambient authentication. Idle sessions refresh only before their
 next credential-consuming operation; there is no background refresh timer.
+
+### Typed MCP installation and removal payloads (breaking change)
+
+Three payloads in the experimental MCP installation and removal workflow are now sealed
+interfaces with one record per variant, instead of `Object`, which brings Java into line
+with the other SDKs. No other generated type changes.
+
+| Field | Before | After |
+| --- | --- | --- |
+| `InstallationConfirmationRequest.review()` | `Object` | `InstallationReview` sealed interface (`InstallationReviewMcp` / `InstallationReviewSkill`, by `resource`); the MCP variant carries `McpInstallationReview` (`McpInstallationReviewInstall` / `McpInstallationReviewUninstall`, by `action`) and the Skill variant carries `SkillInstallationReview` |
+| `McpInstallPlan.transportChoices()` | `List<Object>` | `List<McpPlanTransportChoice>` (`McpPlanTransportChoicePackage` / `McpPlanTransportChoiceRemote`, by `installMethod`) |
+| `McpInstallationManagementResultOutcome.getOutcome()` / `setOutcome(...)` | `Object` | `McpInstallationManagementOutcome`, whose operation variant carries `McpInstallationOperationStatus` (by `phase`) |
 
 ## Message source
 

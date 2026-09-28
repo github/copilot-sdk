@@ -96,6 +96,10 @@ from .generated.session_events import (
     SessionEvent,
     session_event_from_dict,
 )
+from .installation_confirmation import (
+    InstallationConfirmationHandler,
+    _InstallationConfirmationAdapter,
+)
 from .session import (
     AutoModeSwitchHandler,
     AutoTier,
@@ -819,6 +823,7 @@ class _CopilotClientOptions:
     base_directory: str | None = None
     builtin_plugin_directories: tuple[str, ...] = ()
     extension_launch_provider: ExtensionLaunchProviderHandler | None = None
+    installation_confirmation_handler: InstallationConfirmationHandler | None = None
     use_logged_in_user: bool | None = None
     telemetry: TelemetryConfig | None = None
     session_fs: SessionFsConfig | None = None
@@ -1575,6 +1580,7 @@ class CopilotClient:
         base_directory: str | None = None,
         builtin_plugin_directories: Sequence[str] | None = None,
         extension_launch_provider: ExtensionLaunchProviderHandler | None = None,
+        installation_confirmation_handler: InstallationConfirmationHandler | None = None,
         use_logged_in_user: bool | None = None,
         telemetry: TelemetryConfig | None = None,
         session_fs: SessionFsConfig | None = None,
@@ -1617,6 +1623,11 @@ class CopilotClient:
             extension_launch_provider: Connection-level extension launch profile
                 provider. When set, it is registered during startup before any
                 session can be created.
+            installation_confirmation_handler: Experimental connection-global
+                human review handler for ``installations.confirm``. Receives the
+                typed request and independent request/connection cancellation
+                signals, and returns only an explicit decision. This does not
+                enable installation capabilities.
             use_logged_in_user: Use the logged-in user for authentication.
                 ``None`` (default) resolves to ``True`` unless ``github_token``
                 is set.
@@ -1671,6 +1682,7 @@ class CopilotClient:
             base_directory=base_directory,
             builtin_plugin_directories=tuple(builtin_plugin_directories or ()),
             extension_launch_provider=extension_launch_provider,
+            installation_confirmation_handler=installation_confirmation_handler,
             use_logged_in_user=use_logged_in_user,
             telemetry=telemetry,
             session_fs=session_fs,
@@ -1785,6 +1797,7 @@ class CopilotClient:
         self._session_fs_config = options.session_fs
         self._request_handler = options.request_handler
         self._llm_inference_adapter: _CopilotRequestAdapterHandler | None = None
+        self._installation_confirmation_adapter: _InstallationConfirmationAdapter | None = None
 
     def _resolve_runtime_entrypoint(
         self,
@@ -2080,6 +2093,8 @@ class CopilotClient:
             ...         print(f"Cleanup error: {error.message}")
         """
         errors: list[StopError] = []
+        if self._installation_confirmation_adapter is not None:
+            self._installation_confirmation_adapter.close_connection()
         if self._llm_inference_adapter is not None:
             self._llm_inference_adapter.cancel_pending()
 
@@ -2133,6 +2148,7 @@ class CopilotClient:
             await self._client.stop()
             self._client = None
         self._rpc = None
+        self._installation_confirmation_adapter = None
 
         # Clear models cache
         async with self._models_cache_lock:
@@ -2216,6 +2232,8 @@ class CopilotClient:
             ... except asyncio.TimeoutError:
             ...     await client.force_stop()
         """
+        if self._installation_confirmation_adapter is not None:
+            self._installation_confirmation_adapter.close_connection()
         if self._llm_inference_adapter is not None:
             self._llm_inference_adapter.cancel_pending()
 
@@ -2267,6 +2285,7 @@ class CopilotClient:
                 )
             self._client = None
         self._rpc = None
+        self._installation_confirmation_adapter = None
 
         # Clear models cache
         async with self._models_cache_lock:
@@ -4890,6 +4909,7 @@ class CopilotClient:
         if not self._client:
             return
         self._llm_inference_adapter = None
+        self._installation_confirmation_adapter = None
         if self._request_handler is not None:
             self._llm_inference_adapter = create_copilot_request_adapter(
                 self._request_handler,
@@ -4908,6 +4928,11 @@ class CopilotClient:
                 git_hub_token=self._github_token_provider_adapter,
             ),
         )
+        self._installation_confirmation_adapter = _InstallationConfirmationAdapter(
+            self._client,
+            self._options.installation_confirmation_handler,
+        )
+        self._installation_confirmation_adapter.register()
 
     def _register_github_token_provider(
         self, provider: GitHubTokenProvider | None, session_id: str | None
@@ -4923,6 +4948,8 @@ class CopilotClient:
 
     def _handle_connection_close(self) -> None:
         self._state = "disconnected"
+        if self._installation_confirmation_adapter is not None:
+            self._installation_confirmation_adapter.close_connection()
         with self._sessions_lock:
             sessions = list(self._sessions.values())
         with self._github_token_providers_lock:

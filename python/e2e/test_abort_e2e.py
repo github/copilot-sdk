@@ -115,7 +115,6 @@ class TestAbort:
                 session.send("Use slow_analysis with value 'test_abort'. Wait for the result.")
             )
 
-            # Wait for the tool to start executing
             tool_value = await asyncio.wait_for(tool_started, timeout=60.0)
             assert tool_value == "test_abort"
 

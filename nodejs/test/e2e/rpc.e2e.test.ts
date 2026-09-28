@@ -88,7 +88,6 @@ describe("Session RPC", async () => {
             model: "claude-sonnet-5",
         });
 
-        // Get initial model
         const before = await session.rpc.model.getCurrent();
         expect(before.modelId).toBeDefined();
 
@@ -143,7 +142,6 @@ describe("Session RPC", async () => {
         expect(afterUpdate.exists).toBe(true);
         expect(afterUpdate.content).toBe(planContent);
 
-        // Delete plan
         await session.rpc.plan.delete();
 
         // Verify plan is deleted

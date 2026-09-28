@@ -2389,6 +2389,46 @@ pub struct SessionFusionRouteFailedData {
     pub synthetic_model: String,
 }
 
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FusionCritic {
+    /// Concrete model selected for this critic.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    pub model: String,
+    /// Unique execution phase identifier for this critic.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    pub phase_id: String,
+    /// Explicit reasoning effort selected for this critic, if supplied.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning_effort: Option<String>,
+}
+
 /// Durable server recommendation for subsequent HydraFusion turns.
 ///
 /// <div class="warning">
@@ -2461,6 +2501,16 @@ pub struct FusionScores {
 pub struct SessionFusionResolvedData {
     /// Version of the validated HydraFusion event contract.
     pub contract_version: i64,
+    /// Planned Critique phase identities, including independent critics with repeated model IDs. May be absent in older events; consumers then use secondaryModel for the legacy critic.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub critics: Option<Vec<FusionCritic>>,
     /// Concrete model used when the planned primary model cannot execute.
     pub fallback_model: String,
     /// Router recommendation controlling reuse or rerouting on later turns.
@@ -2480,6 +2530,16 @@ pub struct SessionFusionResolvedData {
     /// </div>
     #[serde(skip_serializing_if = "Option::is_none")]
     pub hint: Option<String>,
+    /// Concrete model selected for Cascade escalation-gate calls, when required.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub judge_model: Option<String>,
     /// Version of the executable model universe used for selection.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model_universe_version: Option<String>,
@@ -2505,6 +2565,16 @@ pub struct SessionFusionResolvedData {
     pub policy_version: Option<String>,
     /// Concrete model selected for the primary solver phase.
     pub primary_model: String,
+    /// Concrete model selected for Cascade repair, when required.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub repair_model: Option<String>,
     /// Router implementation that supplied the plan.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub route_source: Option<String>,
@@ -2523,7 +2593,7 @@ pub struct SessionFusionResolvedData {
     /// Validated capability scores used to select the route.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub scores: Option<FusionScores>,
-    /// Concrete model selected for the review or judge phase, when required.
+    /// Concrete model selected for Critique review, or the legacy Cascade judge/repair model when role-specific fields are absent.
     pub secondary_model: Option<String>,
     /// Synthetic HydraFusion model selected for the session.
     pub synthetic_model: String,
@@ -2755,6 +2825,16 @@ pub struct AssistantFusionPhaseStartedData {
     pub phase_id: String,
     /// Kind of phase being executed.
     pub phase_kind: FusionPhaseKind,
+    /// Explicit reasoning effort selected for this phase, if supplied.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning_effort: Option<String>,
     /// Semantic role assigned to the phase.
     pub role: String,
 }
@@ -2869,6 +2949,16 @@ pub struct AssistantFusionPhaseCompletedData {
     #[doc(hidden)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) projection_mode: Option<FusionProjectionMode>,
+    /// Explicit reasoning effort selected for this phase, if supplied.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning_effort: Option<String>,
     /// Semantic role assigned to the completed phase.
     pub role: String,
     /// Terminal request held outside canonical state until selected by the final commit.
@@ -2914,6 +3004,16 @@ pub struct AssistantFusionPhaseFailedData {
     pub phase_kind: FusionPhaseKind,
     /// Stable machine-readable reason for the phase failure.
     pub reason: String,
+    /// Explicit reasoning effort selected for this phase, if supplied.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning_effort: Option<String>,
     /// Semantic role assigned to the failed phase.
     pub role: String,
     /// Durable outcome status of the phase.

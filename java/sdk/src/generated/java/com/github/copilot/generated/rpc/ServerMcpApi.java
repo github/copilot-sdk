@@ -70,7 +70,7 @@ public final class ServerMcpApi {
     }
 
     /**
-     * Side-effect-free preparation of one original bound, input-free remote MCP choice.
+     * Side-effect-free preparation of one original bound remote MCP choice.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0

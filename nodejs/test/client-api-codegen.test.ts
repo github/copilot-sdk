@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import { emitClientSessionApiRegistration as emitGoClientSessionApiRegistration } from "../../scripts/codegen/go.ts";
 import { emitClientSessionApiRegistration as emitPythonClientSessionApiRegistration } from "../../scripts/codegen/python.ts";
-import { emitClientSessionApiRegistration as emitTypeScriptClientSessionApiRegistration } from "../../scripts/codegen/typescript.ts";
+import {
+    emitClientGlobalApiRegistration as emitTypeScriptClientGlobalApiRegistration,
+    emitClientSessionApiRegistration as emitTypeScriptClientSessionApiRegistration,
+} from "../../scripts/codegen/typescript.ts";
 
 const clientSessionSchema: Record<string, unknown> = {
     mixed: {
@@ -71,6 +74,14 @@ describe("client-session API codegen", () => {
         expect(allInternalCode).toContain("export interface ClientSessionApiHandlers {");
         expect(allInternalCode).toContain("export function registerClientSessionApiHandlers(");
         expect(allInternalCode).not.toContain("InternalOnlyHandler");
+    });
+
+    describe("client-global API codegen", () => {
+        it("keeps internal methods out of global registration", () => {
+            const code = emitTypeScriptClientGlobalApiRegistration(clientSessionSchema).join("\n");
+            expectOnlyPublicClientSessionHandlers(code);
+            expect(code).not.toContain("InternalOnlyHandler");
+        });
     });
 
     it("excludes internal methods from Go handlers", () => {

@@ -58,7 +58,7 @@ import {
     type RpcMethod,
     type SessionEventEnvelopeProperty,
 } from "./utils.js";
-import { validateLegacyRequests } from "./legacy-parameters.js";
+import { validateLegacyRequests, validateLegacyDefinitions } from "./legacy-parameters.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -3858,6 +3858,8 @@ async function generateRpc(schemaPath?: string): Promise<void> {
         getMethodParamsSchema,
         (method) => !!method.params && !!getNullableInner(method.params)
     );
+    // Response structs gain optional pointer fields, so keyed literals are unchanged.
+    validateLegacyDefinitions(rpcDefinitions);
     const allDefinitions: Record<string, JSONSchema7> = {
         ...Object.fromEntries(
             Object.entries(rpcDefinitions.$defs ?? {}).filter(([, value]) => typeof value === "object" && value !== null)

@@ -46,6 +46,8 @@ public final class AssistantFusionPhaseFailedEvent extends SessionEvent {
         @JsonProperty("conversationScope") FusionConversationScope conversationScope,
         /** Concrete model that attempted the phase. */
         @JsonProperty("model") String model,
+        /** Explicit reasoning effort selected for this phase, if supplied. */
+        @JsonProperty("reasoningEffort") String reasoningEffort,
         /** Durable outcome status of the phase. */
         @JsonProperty("status") FusionPhaseStatus status,
         /** Stable machine-readable reason for the phase failure. */

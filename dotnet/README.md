@@ -99,6 +99,7 @@ new CopilotClient(CopilotClientOptions? options = null)
 - `GitHubToken` - GitHub token for authentication. When provided, takes priority over other auth methods.
 - `UseLoggedInUser` - Whether to use logged-in user for authentication (default: true, but false when `GitHubToken` is provided). Cannot be used with `RuntimeConnection.ForUri(...)`.
 - `Telemetry` - OpenTelemetry configuration for the runtime process. Providing this enables telemetry — no separate flag needed. See [Telemetry](#telemetry) below.
+- `InstallationConfirmationHandler` - Experimental connection-global human review for `installations.confirm`. Receives the typed request and one cancellation token that is cancelled when the request is retired or the connection closes, and returns an explicit decision. Does not enable installation capabilities.
 
 #### RuntimeConnection
 
@@ -112,6 +113,49 @@ Managed stdio and TCP connections use the bundled `copilot-runtime[.exe]` and
 adjacent `runtime.node` by default. An explicit connection path or
 `COPILOT_CLI_PATH` overrides the bundled runtime.
 Managed launch fails if the bundled wrapper pair is unavailable.
+
+#### Installation confirmation (experimental)
+
+Set `CopilotClientOptions.InstallationConfirmationHandler` to receive the
+runtime's `installations.confirm` callback. The handler receives the generated
+`GitHub.Copilot.Rpc.InstallationsConfirmRequest` and an
+`InstallationConfirmationContext`, and returns only an explicit
+`GitHub.Copilot.Rpc.InstallationDecision.Confirm`, `.Decline` or `.Cancel`. The
+SDK echoes the original challenge and review fingerprint; it never infers approval.
+
+Match `OperationId` and `PolicySessionId` against the original action on this
+exact connection before presenting the complete review. Missing legacy session
+metadata does not select a default session. Refuse unknown operations or
+incomplete reviews. Concurrent reviews are independent and do not block other
+connection callbacks.
+
+`context.CancellationToken` is cancelled when the runtime sends numeric
+`$/cancelRequest`, including runtime-enforced expiry, or when the original
+connection closes. Observe it to close pending UI. Late handler results cannot
+approve a retired request, and this incoming signal does not cancel outbound
+installation or OAuth RPCs.
+
+Call `client.Rpc.Mcp.PrepareInstallAsync(...)` before
+`ApplyInstallAsync(...)`. Register its inert runtime-issued `OperationId`,
+original expiry and captured session on this client before applying. Removal
+uses `PlanUninstallAsync(...)` then `ApplyUninstallAsync(...)`; its
+`OperationId` identifies the operation, while `PlanHandle` is the one-use
+removal input. Never interchange them. The `Installations` namespace exposes
+`ListAsync`, `RecoverAsync`, `StatusAsync` and `CancelAsync`. Control uncertain
+work using its original connection and operation ID, without selecting a
+replacement session or replaying apply.
+
+Owned OAuth uses `session.Rpc.Mcp.Oauth.PrepareLoginAsync(...)` to return
+`LoginId` before browser, network or cached-reconnect work. Keep that ID with
+the original session and `ExpectedInstallationId` for `LoginAsync(...)` and
+`CancelLoginAsync(...)`. Preparation freezes reauthentication and display
+options. Dropping the login future is not a substitute for `CancelLoginAsync(...)`.
+Manual MCP OAuth retains its direct `LoginAsync(...)` path.
+
+A matching runtime contract and available owned-lifecycle support are required.
+Capability negotiation does not promise availability; preserve typed refusals
+instead of falling back to raw configuration writes. Generated presence and
+transport tests do not establish live OAuth, activation or cross-process recovery.
 
 #### Methods
 

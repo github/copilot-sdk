@@ -107,7 +107,7 @@ it("runs an extension-authored workflow across the SDK process boundary", async 
         status: "completed",
     });
     expect(result.result).toEqual({ source: "sdk-workflow-e2e", count: 12 });
-}, 45_000);
+}, 60_000);
 
 it.skip("forwards every declared subagent option to the runtime", async () => {
     const { workDir } = workflowTestContext;

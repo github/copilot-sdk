@@ -41,8 +41,8 @@ class RpcSurfaceParityE2ETest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final long TIMEOUT_SECONDS = 30;
-    private static final int EXPECTED_RPC_METHOD_COUNT = 431;
-    private static final String EXPECTED_RPC_SIGNATURE_SHA256 = "eb64e8b62c5fd82909e1def82c6d1ce0f9542646708d8a9c5daa5d6f4652c007";
+    private static final int EXPECTED_RPC_METHOD_COUNT = 440;
+    private static final String EXPECTED_RPC_SIGNATURE_SHA256 = "ba2205f94be05f808734e5f7bd5ba0ce18d7816c68395bff90415fd97574936b";
     private static final Map<String, Integer> EXPECTED_METHODS_BY_DECLARING_TYPE = Map.ofEntries(
             Map.entry("RpcCaller", 2), Map.entry("ServerAccountApi", 6), Map.entry("ServerAccountsApi", 1),
             Map.entry("ServerAgentRegistryApi", 1), Map.entry("ServerAgentsApi", 2), Map.entry("ServerCatalogApi", 3),
@@ -53,7 +53,8 @@ class RpcSurfaceParityE2ETest {
             Map.entry("ServerPluginsApi", 7), Map.entry("ServerPluginsBuiltinApi", 1),
             Map.entry("ServerPluginsMarketplacesApi", 6), Map.entry("ServerRpc", 3), Map.entry("ServerRuntimeApi", 1),
             Map.entry("ServerSandboxApi", 1), Map.entry("ServerSecretsApi", 1), Map.entry("ServerSessionFsApi", 1),
-            Map.entry("ServerSessionsApi", 34), Map.entry("ServerSkillsApi", 2), Map.entry("ServerSkillsConfigApi", 2),
+            Map.entry("ServerSessionsApi", 34), Map.entry("ServerSkillsApi", 6), Map.entry("ServerSkillsConfigApi", 2),
+            Map.entry("ServerSkillsInstallationsApi", 5),
             Map.entry("ServerToolsApi", 1), Map.entry("ServerUserSettingsApi", 3), Map.entry("SessionAccountsApi", 3),
             Map.entry("SessionAccountsLoginApi", 3), Map.entry("SessionAgentApi", 7),
             Map.entry("SessionAutopilotObjectiveApi", 1), Map.entry("SessionCanvasActionApi", 1),

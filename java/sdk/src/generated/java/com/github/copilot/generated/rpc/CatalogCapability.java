@@ -39,7 +39,11 @@ public enum CatalogCapability {
     /** The {@code catalog-search-session-bound} variant. */
     CATALOG_SEARCH_SESSION_BOUND("catalog-search-session-bound"),
     /** The {@code mcp-confirmed-remote-installation} variant. */
-    MCP_CONFIRMED_REMOTE_INSTALLATION("mcp-confirmed-remote-installation");
+    MCP_CONFIRMED_REMOTE_INSTALLATION("mcp-confirmed-remote-installation"),
+    /** The {@code mcp-configured-remote-installation} variant. */
+    MCP_CONFIGURED_REMOTE_INSTALLATION("mcp-configured-remote-installation"),
+    /** The {@code skill-confirmed-installation} variant. */
+    SKILL_CONFIRMED_INSTALLATION("skill-confirmed-installation");
 
     private final String value;
     CatalogCapability(String value) { this.value = value; }

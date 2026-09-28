@@ -124,6 +124,7 @@ type (
 	ExternalToolRequestedData                                      = rpc.ExternalToolRequestedData
 	FusionAttribution                                              = rpc.FusionAttribution
 	FusionConversationScope                                        = rpc.FusionConversationScope
+	FusionCritic                                                   = rpc.FusionCritic
 	FusionFollowUpAction                                           = rpc.FusionFollowUpAction
 	FusionFollowUpRecommendation                                   = rpc.FusionFollowUpRecommendation
 	FusionPattern                                                  = rpc.FusionPattern

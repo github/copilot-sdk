@@ -30,14 +30,14 @@ public final class McpInstallationManagementResultOutcome extends McpInstallatio
 
     /** Observed management outcome. */
     @JsonProperty("outcome")
-    private Object outcome;
+    private McpInstallationManagementOutcome outcome;
 
     /** Capabilities actually honoured for this request. */
     @JsonProperty("negotiated")
     private CatalogNegotiatedContract negotiated;
 
-    public Object getOutcome() { return outcome; }
-    public void setOutcome(Object outcome) { this.outcome = outcome; }
+    public McpInstallationManagementOutcome getOutcome() { return outcome; }
+    public void setOutcome(McpInstallationManagementOutcome outcome) { this.outcome = outcome; }
 
     public CatalogNegotiatedContract getNegotiated() { return negotiated; }
     public void setNegotiated(CatalogNegotiatedContract negotiated) { this.negotiated = negotiated; }

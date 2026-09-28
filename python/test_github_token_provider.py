@@ -19,6 +19,7 @@ class FakeJsonRpcClient:
         self.fail_method = fail_method
         self.requests: list[tuple[str, dict[str, Any]]] = []
         self.request_handlers: dict[str, Any] = {}
+        self.raw_request_handlers: dict[str, Any] = {}
         self.notification_method_handlers: dict[str, Any] = {}
 
     async def request(self, method: str, params: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
@@ -42,6 +43,9 @@ class FakeJsonRpcClient:
 
     def set_request_handler(self, method: str, handler: Any) -> None:
         self.request_handlers[method] = handler
+
+    def set_raw_request_handler(self, method: str, handler: Any) -> None:
+        self.raw_request_handlers[method] = handler
 
     def set_notification_method_handler(self, method: str, handler: Any) -> None:
         self.notification_method_handlers[method] = handler
