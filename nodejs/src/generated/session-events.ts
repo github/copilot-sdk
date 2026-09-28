@@ -4137,7 +4137,7 @@ export interface FusionResolvedData {
   ruleName?: string;
   scores?: FusionScores;
   /**
-   * Concrete model selected for the review or judge phase, when required.
+   * Concrete model selected for Critique review, or the legacy Cascade judge/repair model when role-specific fields are absent.
    */
   secondaryModel: string | null;
   /**

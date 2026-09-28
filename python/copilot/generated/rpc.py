@@ -1381,10 +1381,18 @@ class CatalogTrustTier(Enum):
     T1 = "T1"
     T2 = "T2"
 
-class Installability(Enum):
-    """Typed non-installable state for an AI skill candidate"""
+# Experimental: this type is part of an experimental API and may change or be removed.
+class CatalogAISkillInstallability(Enum):
+    """Whether this AI skill candidate can be planned for verified installation in the selected
+    session.
 
+    Typed installability state for an AI skill candidate
+    """
+    FEATURE_DISABLED = "feature-disabled"
+    INSTALLABLE = "installable"
+    MATERIALISATION_UNAVAILABLE = "materialisation-unavailable"
     NOT_INSTALLABLE_KIND = "not-installable-kind"
+    POLICY_FORBIDS = "policy-forbids"
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 class CatalogAISkillCandidateKind(Enum):
@@ -1406,16 +1414,6 @@ class CatalogCandidateSourceKind(Enum):
     EMBEDDED = "embedded"
     URL = "url"
 
-# Experimental: this type is part of an experimental API and may change or be removed.
-class CatalogAISkillInstallability(Enum):
-    """Typed non-installable state for an AI skill candidate"""
-
-    FEATURE_DISABLED = "feature-disabled"
-    INSTALLABLE = "installable"
-    MATERIALISATION_UNAVAILABLE = "materialisation-unavailable"
-    NOT_INSTALLABLE_KIND = "not-installable-kind"
-    POLICY_FORBIDS = "policy-forbids"
-
 class CatalogAuthenticationRequiredErrorKind(Enum):
     AUTHENTICATION_REQUIRED = "authentication-required"
 
@@ -1430,16 +1428,22 @@ class CatalogAuthenticationRequiredReason(Enum):
     CREDENTIAL_REJECTED = "credential-rejected"
     NO_CREDENTIAL = "no-credential"
 
-class CatalogCandidateInstallability(Enum):
+class CatalogInstallability(Enum):
     """Whether this MCP server can be planned for installation, and if policy prevents it.
 
     Whether an MCP server candidate can be planned for installation
 
-    Typed non-installable state for an AI skill candidate
+    Whether this AI skill candidate can be planned for verified installation in the selected
+    session.
+
+    Typed installability state for an AI skill candidate
     """
+    FEATURE_DISABLED = "feature-disabled"
     INSTALLABLE = "installable"
+    MATERIALISATION_UNAVAILABLE = "materialisation-unavailable"
     NOT_INSTALLABLE_KIND = "not-installable-kind"
     NOT_INSTALLABLE_POLICY = "not-installable-policy"
+    POLICY_FORBIDS = "policy-forbids"
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 class MCPServerCardEmbeddedKind(Enum):
@@ -1552,7 +1556,7 @@ class CatalogMalformedCardReason(Enum):
     UNSUPPORTED_MEDIA_TYPE = "unsupported-media-type"
 
 # Experimental: this type is part of an experimental API and may change or be removed.
-class CatalogMCPServerInstallabilityEnum(Enum):
+class CatalogMCPServerInstallability(Enum):
     """Whether this MCP server can be planned for installation, and if policy prevents it.
 
     Whether an MCP server candidate can be planned for installation
@@ -1645,9 +1649,11 @@ class MCPPlanPolicySource(Enum):
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class CatalogSearchPage:
-    """An explicit numbered-page request. The SDK treats the token as opaque; only the runtime
-    decodes it and changes its targetPage. Authority validation binds navigation to the
-    original search. No snapshot stability or token TTL is promised.
+    """An explicit numbered-page request. SDK consumers treat the token as opaque. For bound
+    search, the runtime unwraps an expiring owner-bound reference to the private authority
+    token; only the runtime changes the authority token's targetPage. Legacy unbound
+    navigation keeps its authority-issued token semantics. No snapshot stability is
+    promised.
 
     Numbered navigation using metadata from an earlier response. Requires
     catalog-search-pagination and the same query, kinds and effective limit. Omit for a fresh
@@ -1659,8 +1665,9 @@ class CatalogSearchPage:
     available pages beyond that signed pageCount.
     """
     token: str
-    """Opaque authority-issued pagination token from an earlier response. Never decode, modify
-    or log it in an SDK consumer.
+    """Opaque pagination token from an earlier response, owner-bound when session-bound search
+    was requested. Never decode, modify or log it in an SDK consumer. Expired or foreign
+    bound references require a fresh bound search, not a legacy retry.
     """
 
     @staticmethod
@@ -10647,12 +10654,15 @@ class SandboxConfigUserPolicySeatbelt:
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
-# Internal: this type is an internal SDK API and is not part of the public surface.
-class _SandboxConfigSource(Enum):
-    """Origin of the sandbox choice supplied by an internal client.
+class SandboxConfigSource(Enum):
+    """Origin of the sandbox choice supplied by the host. Settings-derived origins let managed
+    policy floor the host preference; do not tag explicit session overrides as
+    settings-derived.
 
-    Origin of the sandbox choice. The runtime uses this only for internal telemetry
-    provenance; managed policy is derived independently.
+    Origin of the sandbox choice. Settings-derived origins (never_configured, user_enabled,
+    user_disabled, repository_policy) let managed policy floor a host preference; explicit
+    below-floor changes remain policy conflicts unless a session opt-out is authorized. Also
+    used for telemetry provenance.
     """
     NEVER_CONFIGURED = "never_configured"
     REPOSITORY_POLICY = "repository_policy"
@@ -18099,9 +18109,11 @@ class CatalogSearchPagination:
     """Page size bound to the search, equal to the effective request limit."""
 
     token: str
-    """Opaque authority-issued pagination token. Only the runtime decodes it or changes
-    targetPage; SDK consumers must not decode, modify or log it. It has no runtime-created
-    expiry or cache.
+    """Opaque pagination token. Session-bound search returns an expiring runtime-owned reference
+    retaining the exact private authority token, original search and authority. Legacy
+    unbound search returns the authority token unchanged, without a runtime-created expiry.
+    Only the runtime unwraps tokens or changes targetPage; SDK consumers must not decode,
+    modify or log them.
     """
     total_count: int
     """Backend-reported count for this response, not the number of returned candidates. Its
@@ -30418,8 +30430,9 @@ class CanvasListOpenResult:
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class CatalogAISkillCandidate:
-    """An inert AI skill catalog result. AI skills are discovery-only and cannot be represented
-    as installable through this surface.
+    """An inert AI skill catalog result. Verified Skill candidates may be installable only when
+    the runtime reports installability and the selected session is permitted to plan
+    installation.
     """
     display_name: str
     """Display name taken verbatim from the card. Inert untrusted text."""
@@ -30432,9 +30445,10 @@ class CatalogAISkillCandidate:
     handle_expires_at: str
     """ISO 8601 timestamp after which the handle is stale and will be rejected."""
 
-    installability: Installability
-    """AI skills are discovery-only and cannot be installed through this surface"""
-
+    installability: CatalogAISkillInstallability
+    """Whether this AI skill candidate can be planned for verified installation in the selected
+    session.
+    """
     kind: CatalogAISkillCandidateKind
     """Discriminator: this candidate describes an AI skill"""
 
@@ -30466,7 +30480,7 @@ class CatalogAISkillCandidate:
         display_name = from_str(obj.get("displayName"))
         handle = from_str(obj.get("handle"))
         handle_expires_at = from_str(obj.get("handleExpiresAt"))
-        installability = Installability(obj.get("installability"))
+        installability = CatalogAISkillInstallability(obj.get("installability"))
         kind = CatalogAISkillCandidateKind(obj.get("kind"))
         media_type = CatalogAISkillMediaType(obj.get("mediaType"))
         provenance = CatalogAISkillCandidateProvenance.from_dict(obj.get("provenance"))
@@ -30481,7 +30495,7 @@ class CatalogAISkillCandidate:
         result["displayName"] = from_str(self.display_name)
         result["handle"] = from_str(self.handle)
         result["handleExpiresAt"] = from_str(self.handle_expires_at)
-        result["installability"] = to_enum(Installability, self.installability)
+        result["installability"] = to_enum(CatalogAISkillInstallability, self.installability)
         result["kind"] = to_enum(CatalogAISkillCandidateKind, self.kind)
         result["mediaType"] = to_enum(CatalogAISkillMediaType, self.media_type)
         result["provenance"] = to_class(CatalogAISkillCandidateProvenance, self.provenance)
@@ -30512,7 +30526,7 @@ class CatalogMCPServerCandidate:
     handle_expires_at: str
     """ISO 8601 timestamp after which the handle is stale and will be rejected."""
 
-    installability: CatalogMCPServerInstallabilityEnum
+    installability: CatalogMCPServerInstallability
     """Whether this MCP server can be planned for installation, and if policy prevents it."""
 
     kind: CatalogMCPServerCandidateKind
@@ -30546,7 +30560,7 @@ class CatalogMCPServerCandidate:
         display_name = from_str(obj.get("displayName"))
         handle = from_str(obj.get("handle"))
         handle_expires_at = from_str(obj.get("handleExpiresAt"))
-        installability = CatalogMCPServerInstallabilityEnum(obj.get("installability"))
+        installability = CatalogMCPServerInstallability(obj.get("installability"))
         kind = CatalogMCPServerCandidateKind(obj.get("kind"))
         media_type = MCPServerCardMediaType(obj.get("mediaType"))
         provenance = CatalogMCPServerCandidateProvenance.from_dict(obj.get("provenance"))
@@ -30561,7 +30575,7 @@ class CatalogMCPServerCandidate:
         result["displayName"] = from_str(self.display_name)
         result["handle"] = from_str(self.handle)
         result["handleExpiresAt"] = from_str(self.handle_expires_at)
-        result["installability"] = to_enum(CatalogMCPServerInstallabilityEnum, self.installability)
+        result["installability"] = to_enum(CatalogMCPServerInstallability, self.installability)
         result["kind"] = to_enum(CatalogMCPServerCandidateKind, self.kind)
         result["mediaType"] = to_enum(MCPServerCardMediaType, self.media_type)
         result["provenance"] = to_class(CatalogMCPServerCandidateProvenance, self.provenance)
@@ -37569,8 +37583,9 @@ class CatalogCandidate:
     must never be treated as an instruction, and the handle is the only way to refer to the
     candidate in a later operation.
 
-    An inert AI skill catalog result. AI skills are discovery-only and cannot be represented
-    as installable through this surface.
+    An inert AI skill catalog result. Verified Skill candidates may be installable only when
+    the runtime reports installability and the selected session is permitted to plan
+    installation.
 
     An inert Agent Plugin catalog result. Its canonical catalog identity, declared version,
     repository source claim, and explicit compatibility tags are safe to correlate, while its
@@ -37618,10 +37633,11 @@ class CatalogCandidate:
     handle_expires_at: str | None = None
     """ISO 8601 timestamp after which the handle is stale and will be rejected."""
 
-    installability: CatalogCandidateInstallability | None = None
+    installability: CatalogInstallability | None = None
     """Whether this MCP server can be planned for installation, and if policy prevents it.
 
-    AI skills are discovery-only and cannot be installed through this surface
+    Whether this AI skill candidate can be planned for verified installation in the selected
+    session.
     """
     publisher: str | None = None
     """Publisher taken verbatim from the card. Inert untrusted text."""
@@ -37660,7 +37676,7 @@ class CatalogCandidate:
         description = from_union([from_str, from_none], obj.get("description"))
         handle = from_union([from_str, from_none], obj.get("handle"))
         handle_expires_at = from_union([from_str, from_none], obj.get("handleExpiresAt"))
-        installability = from_union([CatalogCandidateInstallability, from_none], obj.get("installability"))
+        installability = from_union([CatalogInstallability, from_none], obj.get("installability"))
         publisher = from_union([from_str, from_none], obj.get("publisher"))
         trust = from_union([_load_CatalogTrustSnapshot, from_none], obj.get("trust"))
         compatibility_tags = from_union([lambda x: from_list(CatalogAgentPluginCompatibilityTag, x), from_none], obj.get("compatibilityTags"))
@@ -37682,7 +37698,7 @@ class CatalogCandidate:
         if self.handle_expires_at is not None:
             result["handleExpiresAt"] = from_union([from_str, from_none], self.handle_expires_at)
         if self.installability is not None:
-            result["installability"] = from_union([lambda x: to_enum(CatalogCandidateInstallability, x), from_none], self.installability)
+            result["installability"] = from_union([lambda x: to_enum(CatalogInstallability, x), from_none], self.installability)
         if self.publisher is not None:
             result["publisher"] = from_union([from_str, from_none], self.publisher)
         if self.trust is not None:
@@ -39156,10 +39172,11 @@ class SessionUpdateOptionsParams:
     sandbox_config: SandboxConfig | None = None
     """Resolved sandbox configuration."""
 
-    # Internal: this field is an internal SDK API and is not part of the public surface.
-    sandbox_config_source: _SandboxConfigSource | None = None
-    """Origin of the sandbox choice. The runtime uses this only for internal telemetry
-    provenance; managed policy is derived independently.
+    sandbox_config_source: SandboxConfigSource | None = None
+    """Origin of the sandbox choice. Settings-derived origins (never_configured, user_enabled,
+    user_disabled, repository_policy) let managed policy floor a host preference; explicit
+    below-floor changes remain policy conflicts unless a session opt-out is authorized. Also
+    used for telemetry provenance.
     """
     session_capabilities: list[SessionCapability] | None = None
     """Replaces the session's capability set with the given list. Use to enable or disable
@@ -39254,7 +39271,7 @@ class SessionUpdateOptionsParams:
         reasoning_summary = from_union([ReasoningSummary, from_none], obj.get("reasoningSummary"))
         running_in_interactive_mode = from_union([from_bool, from_none], obj.get("runningInInteractiveMode"))
         sandbox_config = from_union([SandboxConfig.from_dict, from_none], obj.get("sandboxConfig"))
-        sandbox_config_source = from_union([_SandboxConfigSource, from_none], obj.get("sandboxConfigSource"))
+        sandbox_config_source = from_union([SandboxConfigSource, from_none], obj.get("sandboxConfigSource"))
         session_capabilities = from_union([lambda x: from_list(SessionCapability, x), from_none], obj.get("sessionCapabilities"))
         session_limits = from_union([SessionLimitsConfig.from_dict, from_none], obj.get("sessionLimits"))
         shell = from_union([ShellOptions.from_dict, from_none], obj.get("shell"))
@@ -39365,7 +39382,7 @@ class SessionUpdateOptionsParams:
         if self.sandbox_config is not None:
             result["sandboxConfig"] = from_union([lambda x: to_class(SandboxConfig, x), from_none], self.sandbox_config)
         if self.sandbox_config_source is not None:
-            result["sandboxConfigSource"] = from_union([lambda x: to_enum(_SandboxConfigSource, x), from_none], self.sandbox_config_source)
+            result["sandboxConfigSource"] = from_union([lambda x: to_enum(SandboxConfigSource, x), from_none], self.sandbox_config_source)
         if self.session_capabilities is not None:
             result["sessionCapabilities"] = from_union([lambda x: from_list(lambda x: to_enum(SessionCapability, x), x), from_none], self.session_capabilities)
         if self.session_limits is not None:
@@ -42429,8 +42446,9 @@ class ModelSwitchToRequest:
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 class PermissionModeSource(Enum):
-    """Optional source for permission-mode telemetry. Defaults to `rpc` when omitted for SDK
-    callers.
+    """Optional source for permission-mode telemetry. `organization_targeting` is reserved for
+    startup selection after the authenticated account matches an organization targeting
+    policy; SDK callers default to `rpc` and cannot claim targeting provenance.
     """
     AUTOPILOT_CONFIRMATION = "autopilot_confirmation"
     CLI_FLAG = "cli_flag"
@@ -42488,8 +42506,9 @@ class PermissionsSetModeRequest:
     sessions.
     """
     source: PermissionModeSource | None = None
-    """Optional source for permission-mode telemetry. Defaults to `rpc` when omitted for SDK
-    callers.
+    """Optional source for permission-mode telemetry. `organization_targeting` is reserved for
+    startup selection after the authenticated account matches an organization targeting
+    policy; SDK callers default to `rpc` and cannot claim targeting provenance.
     """
 
     @staticmethod
@@ -43093,10 +43112,11 @@ class SessionOpenOptions:
     sandbox_config: SandboxConfig | None = None
     """Resolved sandbox configuration."""
 
-    # Internal: this field is an internal SDK API and is not part of the public surface.
-    sandbox_config_source: _SandboxConfigSource | None = None
-    """Origin of the sandbox choice. The runtime uses this only for internal telemetry
-    provenance; managed policy is derived independently.
+    sandbox_config_source: SandboxConfigSource | None = None
+    """Origin of the sandbox choice. Settings-derived origins (never_configured, user_enabled,
+    user_disabled, repository_policy) let managed policy floor a host preference; explicit
+    below-floor changes remain policy conflicts unless a session opt-out is authorized. Also
+    used for telemetry provenance.
     """
     session_capabilities: list[SessionCapability] | None = None
     """Capabilities enabled for this session."""
@@ -43199,7 +43219,7 @@ class SessionOpenOptions:
         remote_steerable = from_union([from_bool, from_none], obj.get("remoteSteerable"))
         running_in_interactive_mode = from_union([from_bool, from_none], obj.get("runningInInteractiveMode"))
         sandbox_config = from_union([SandboxConfig.from_dict, from_none], obj.get("sandboxConfig"))
-        sandbox_config_source = from_union([_SandboxConfigSource, from_none], obj.get("sandboxConfigSource"))
+        sandbox_config_source = from_union([SandboxConfigSource, from_none], obj.get("sandboxConfigSource"))
         session_capabilities = from_union([lambda x: from_list(SessionCapability, x), from_none], obj.get("sessionCapabilities"))
         session_id = from_union([from_str, from_none], obj.get("sessionId"))
         session_limits = from_union([SessionLimitsConfig.from_dict, from_none], obj.get("sessionLimits"))
@@ -43341,7 +43361,7 @@ class SessionOpenOptions:
         if self.sandbox_config is not None:
             result["sandboxConfig"] = from_union([lambda x: to_class(SandboxConfig, x), from_none], self.sandbox_config)
         if self.sandbox_config_source is not None:
-            result["sandboxConfigSource"] = from_union([lambda x: to_enum(_SandboxConfigSource, x), from_none], self.sandbox_config_source)
+            result["sandboxConfigSource"] = from_union([lambda x: to_enum(SandboxConfigSource, x), from_none], self.sandbox_config_source)
         if self.session_capabilities is not None:
             result["sessionCapabilities"] = from_union([lambda x: from_list(lambda x: to_enum(SessionCapability, x), x), from_none], self.session_capabilities)
         if self.session_id is not None:
@@ -44574,7 +44594,7 @@ class RPC:
     catalog_mcp_server_candidate: CatalogMCPServerCandidate
     catalog_mcp_server_candidate_kind: CatalogMCPServerCandidateKind
     catalog_mcp_server_candidate_provenance: CatalogMCPServerCandidateProvenance
-    catalog_mcp_server_installability: CatalogMCPServerInstallabilityEnum
+    catalog_mcp_server_installability: CatalogMCPServerInstallability
     catalog_media_type: CatalogMediaType
     catalog_negotiated_contract: CatalogNegotiatedContract
     catalog_negotiation_refused_error: CatalogNegotiationRefusedError
@@ -45365,7 +45385,7 @@ class RPC:
     response_format: ResponseFormat
     sandbox_config: SandboxConfig
     sandbox_config_auth: SandboxConfigAuth
-    sandbox_config_source: _SandboxConfigSource
+    sandbox_config_source: SandboxConfigSource
     sandbox_config_user_policy: SandboxConfigUserPolicy
     sandbox_config_user_policy_experimental: SandboxConfigUserPolicyExperimental
     sandbox_config_user_policy_experimental_seatbelt: SandboxConfigUserPolicyExperimentalSeatbelt
@@ -46007,7 +46027,7 @@ class RPC:
         catalog_mcp_server_candidate = CatalogMCPServerCandidate.from_dict(obj.get("CatalogMcpServerCandidate"))
         catalog_mcp_server_candidate_kind = CatalogMCPServerCandidateKind(obj.get("CatalogMcpServerCandidateKind"))
         catalog_mcp_server_candidate_provenance = CatalogMCPServerCandidateProvenance.from_dict(obj.get("CatalogMcpServerCandidateProvenance"))
-        catalog_mcp_server_installability = CatalogMCPServerInstallabilityEnum(obj.get("CatalogMcpServerInstallability"))
+        catalog_mcp_server_installability = CatalogMCPServerInstallability(obj.get("CatalogMcpServerInstallability"))
         catalog_media_type = CatalogMediaType(obj.get("CatalogMediaType"))
         catalog_negotiated_contract = CatalogNegotiatedContract.from_dict(obj.get("CatalogNegotiatedContract"))
         catalog_negotiation_refused_error = CatalogNegotiationRefusedError.from_dict(obj.get("CatalogNegotiationRefusedError"))
@@ -46798,7 +46818,7 @@ class RPC:
         response_format = ResponseFormat.from_dict(obj.get("ResponseFormat"))
         sandbox_config = SandboxConfig.from_dict(obj.get("SandboxConfig"))
         sandbox_config_auth = SandboxConfigAuth.from_dict(obj.get("SandboxConfigAuth"))
-        sandbox_config_source = _SandboxConfigSource(obj.get("SandboxConfigSource"))
+        sandbox_config_source = SandboxConfigSource(obj.get("SandboxConfigSource"))
         sandbox_config_user_policy = SandboxConfigUserPolicy.from_dict(obj.get("SandboxConfigUserPolicy"))
         sandbox_config_user_policy_experimental = SandboxConfigUserPolicyExperimental.from_dict(obj.get("SandboxConfigUserPolicyExperimental"))
         sandbox_config_user_policy_experimental_seatbelt = SandboxConfigUserPolicyExperimentalSeatbelt.from_dict(obj.get("SandboxConfigUserPolicyExperimentalSeatbelt"))
@@ -47440,7 +47460,7 @@ class RPC:
         result["CatalogMcpServerCandidate"] = to_class(CatalogMCPServerCandidate, self.catalog_mcp_server_candidate)
         result["CatalogMcpServerCandidateKind"] = to_enum(CatalogMCPServerCandidateKind, self.catalog_mcp_server_candidate_kind)
         result["CatalogMcpServerCandidateProvenance"] = to_class(CatalogMCPServerCandidateProvenance, self.catalog_mcp_server_candidate_provenance)
-        result["CatalogMcpServerInstallability"] = to_enum(CatalogMCPServerInstallabilityEnum, self.catalog_mcp_server_installability)
+        result["CatalogMcpServerInstallability"] = to_enum(CatalogMCPServerInstallability, self.catalog_mcp_server_installability)
         result["CatalogMediaType"] = to_enum(CatalogMediaType, self.catalog_media_type)
         result["CatalogNegotiatedContract"] = to_class(CatalogNegotiatedContract, self.catalog_negotiated_contract)
         result["CatalogNegotiationRefusedError"] = to_class(CatalogNegotiationRefusedError, self.catalog_negotiation_refused_error)
@@ -48231,7 +48251,7 @@ class RPC:
         result["ResponseFormat"] = to_class(ResponseFormat, self.response_format)
         result["SandboxConfig"] = to_class(SandboxConfig, self.sandbox_config)
         result["SandboxConfigAuth"] = to_class(SandboxConfigAuth, self.sandbox_config_auth)
-        result["SandboxConfigSource"] = to_enum(_SandboxConfigSource, self.sandbox_config_source)
+        result["SandboxConfigSource"] = to_enum(SandboxConfigSource, self.sandbox_config_source)
         result["SandboxConfigUserPolicy"] = to_class(SandboxConfigUserPolicy, self.sandbox_config_user_policy)
         result["SandboxConfigUserPolicyExperimental"] = to_class(SandboxConfigUserPolicyExperimental, self.sandbox_config_user_policy_experimental)
         result["SandboxConfigUserPolicyExperimentalSeatbelt"] = to_class(SandboxConfigUserPolicyExperimentalSeatbelt, self.sandbox_config_user_policy_experimental_seatbelt)
@@ -49145,7 +49165,6 @@ CanvasActionInvokeResult = Any
 CanvasJsonSchema = Any
 CardDigestValue = str
 CatalogCapabilityId = str
-CatalogMcpServerInstallability = CatalogMCPServerInstallabilityEnum
 CatalogResourceIdentity = str
 CatalogResourceVersion = str
 ClientMetadata = dict
@@ -50695,7 +50714,7 @@ class McpOauthApi:
         return SessionMCPOauthPrepareLoginResult.from_dict(await self._client.request("session.mcp.oauth.prepareLogin", params_dict, **_timeout_kwargs(timeout)))
 
     async def login(self, params: MCPOauthLoginRequest, *, timeout: float | None = None) -> MCPOauthLoginResult:
-        "Starts OAuth authentication for a remote MCP server.\n\nArgs:\n    params: Remote MCP server name and optional overrides controlling reauthentication, OAuth client display name, callback success-page copy, and static OAuth client selection.\n\nReturns:\n    OAuth authorization URL the caller should open, or empty when cached tokens already authenticated the server."
+        "Starts OAuth authentication for a remote MCP server. Owned servers require the original one-use prepareLogin handle and exact installation ID; manual servers retain the existing direct login behaviour.\n\nArgs:\n    params: Remote MCP server name and optional overrides controlling reauthentication, OAuth client display name, callback success-page copy, and static OAuth client selection.\n\nReturns:\n    OAuth authorization URL the caller should open, or empty when cached tokens already authenticated the server."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return MCPOauthLoginResult.from_dict(await self._client.request("session.mcp.oauth.login", params_dict, **_timeout_kwargs(timeout)))
@@ -52554,6 +52573,11 @@ def register_client_global_api_handlers(
         return result.to_dict()
     client.set_request_handler("installations.confirm", handle_installations_confirm)
 
+# Backward-compatible public aliases retained across typed-review generation.
+CatalogCandidateInstallability = CatalogInstallability
+CatalogMCPServerInstallabilityEnum = CatalogMCPServerInstallability
+CatalogMcpServerInstallability = CatalogMCPServerInstallability
+
 __all__ = [
     "APIKeyAuthInfo",
     "APIKeyAuthInfoType",
@@ -52710,12 +52734,14 @@ __all__ = [
     "CatalogHandleRejectedErrorKind",
     "CatalogHandleRejectionReason",
     "CatalogHandleType",
+    "CatalogInstallability",
     "CatalogInvalidRequestError",
     "CatalogInvalidRequestErrorKind",
     "CatalogInvalidRequestField",
     "CatalogMCPServerCandidate",
     "CatalogMCPServerCandidateKind",
     "CatalogMCPServerCandidateProvenance",
+    "CatalogMCPServerInstallability",
     "CatalogMCPServerInstallabilityEnum",
     "CatalogMalformedCardError",
     "CatalogMalformedCardErrorKind",
@@ -53010,7 +53036,6 @@ __all__ = [
     "Host",
     "HostType",
     "InstallMethod",
-    "Installability",
     "InstallationCatalogueIdentity",
     "InstallationConfirmationRequest",
     "InstallationConfirmationResponse",
@@ -53687,6 +53712,7 @@ __all__ = [
     "SandboxApi",
     "SandboxConfig",
     "SandboxConfigAuth",
+    "SandboxConfigSource",
     "SandboxConfigUserPolicy",
     "SandboxConfigUserPolicyExperimental",
     "SandboxConfigUserPolicyExperimentalSeatbelt",

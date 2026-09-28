@@ -10,7 +10,7 @@ package com.github.copilot.generated.rpc;
 import javax.annotation.processing.Generated;
 
 /**
- * Origin of the sandbox choice supplied by an internal client.
+ * Origin of the sandbox choice supplied by the host. Settings-derived origins let managed policy floor the host preference; do not tag explicit session overrides as settings-derived.
  *
  * @since 1.0.0
  */

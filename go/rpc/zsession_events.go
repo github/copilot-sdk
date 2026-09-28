@@ -1245,7 +1245,7 @@ type SessionFusionResolvedData struct {
 	RuleName *string `json:"ruleName,omitempty"`
 	// Validated capability scores used to select the route.
 	Scores *FusionScores `json:"scores,omitempty"`
-	// Concrete model selected for the review or judge phase, when required.
+	// Concrete model selected for Critique review, or the legacy Cascade judge/repair model when role-specific fields are absent.
 	SecondaryModel *string `json:"secondaryModel"`
 	// Synthetic HydraFusion model selected for the session.
 	SyntheticModel string `json:"syntheticModel"`

@@ -798,7 +798,7 @@ export type CatalogAiSkillCandidateKind = /** An AI skill. */ "ai-skill";
 /** @experimental */
 export type CatalogAiSkillMediaType = /** An AI skill card. */ "application/ai-skill";
 /**
- * Typed non-installable state for an AI skill candidate
+ * Typed installability state for an AI skill candidate
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "CatalogAiSkillInstallability".
@@ -813,7 +813,7 @@ export type CatalogAiSkillInstallability =
   | "materialisation-unavailable"
   /** Policy refuses Skill installation for the selected session or authority. */
   | "policy-forbids"
-  /** AI skills are discovery-only on this surface. */
+  /** Compatibility value for discovery-only callers that did not negotiate Skill installation. */
   | "not-installable-kind";
 /**
  * Where a candidate's card came from. Exactly one of a URL or embedded data: the union has no variant carrying both, and no variant carrying neither, so the rule holds structurally rather than by validation.
@@ -3949,7 +3949,7 @@ export type PermissionLocationType =
   /** The permission location is persisted at the working directory. */
   | "dir";
 /**
- * Optional source for permission-mode telemetry. Defaults to `rpc` when omitted for SDK callers.
+ * Optional source for permission-mode telemetry. `organization_targeting` is reserved for startup selection after the authenticated account matches an organization targeting policy; SDK callers default to `rpc` and cannot claim targeting provenance.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "PermissionModeSource".
@@ -3964,7 +3964,7 @@ export type PermissionModeSource =
   | "autopilot_confirmation"
   /** The mode was set at startup by the `defaultPermissionMode` user setting. */
   | "user_setting"
-  /** Historical compatibility value for runtimes that selected Assisted mode through organization targeting. Current runtimes do not produce this source. */
+  /** The mode was set at startup because the authenticated account matched an organization targeting policy. */
   | "organization_targeting"
   /** The mode was set through an RPC caller. */
   | "rpc";
@@ -4312,13 +4312,12 @@ export type ResponseFormat = {
   type: "json_schema";
 };
 /**
- * Origin of the sandbox choice supplied by an internal client.
+ * Origin of the sandbox choice supplied by the host. Settings-derived origins let managed policy floor the host preference; do not tag explicit session overrides as settings-derived.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SandboxConfigSource".
  */
 /** @experimental */
-/** @internal */
 export type SandboxConfigSource =
   /** The client applied the default because no sandbox preference was configured. */
   | "never_configured"
@@ -8208,7 +8207,7 @@ export interface CatalogTrustSnapshotMalformed {
   provenance: CatalogTrustProvenance;
 }
 /**
- * An inert AI skill catalog result. AI skills are discovery-only and cannot be represented as installable through this surface.
+ * An inert AI skill catalog result. Verified Skill candidates may be installable only when the runtime reports installability and the selected session is permitted to plan installation.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "CatalogAiSkillCandidate".
@@ -8572,7 +8571,7 @@ export interface CatalogPolicyRejectedError {
   message: string;
 }
 /**
- * An explicit numbered-page request. The SDK treats the token as opaque; only the runtime decodes it and changes its targetPage. Authority validation binds navigation to the original search. No snapshot stability or token TTL is promised.
+ * An explicit numbered-page request. SDK consumers treat the token as opaque. For bound search, the runtime unwraps an expiring owner-bound reference to the private authority token; only the runtime changes the authority token's targetPage. Legacy unbound navigation keeps its authority-issued token semantics. No snapshot stability is promised.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "CatalogSearchPage".
@@ -8580,7 +8579,7 @@ export interface CatalogPolicyRejectedError {
 /** @experimental */
 export interface CatalogSearchPage {
   /**
-   * Opaque authority-issued pagination token from an earlier response. Never decode, modify or log it in an SDK consumer.
+   * Opaque pagination token from an earlier response, owner-bound when session-bound search was requested. Never decode, modify or log it in an SDK consumer. Expired or foreign bound references require a fresh bound search, not a legacy retry.
    */
   token: string;
   /**
@@ -8597,7 +8596,7 @@ export interface CatalogSearchPage {
 /** @experimental */
 export interface CatalogSearchPagination {
   /**
-   * Opaque authority-issued pagination token. Only the runtime decodes it or changes targetPage; SDK consumers must not decode, modify or log it. It has no runtime-created expiry or cache.
+   * Opaque pagination token. Session-bound search returns an expiring runtime-owned reference retaining the exact private authority token, original search and authority. Legacy unbound search returns the authority token unchanged, without a runtime-created expiry. Only the runtime unwraps tokens or changes targetPage; SDK consumers must not decode, modify or log them.
    */
   token: string;
   /**
@@ -22032,11 +22031,6 @@ export interface SessionOpenOptions {
    */
   shellProcessFlags?: string[];
   sandboxConfig?: SandboxConfig;
-  /**
-   * Origin of the sandbox choice. The runtime uses this only for internal telemetry provenance; managed policy is derived independently.
-   *
-   * @internal
-   */
   sandboxConfigSource?: SandboxConfigSource;
   /**
    * Whether interactive shell sessions are logged.
@@ -23563,11 +23557,6 @@ export interface SessionUpdateOptionsParams {
    */
   shellProcessFlags?: string[];
   sandboxConfig?: SandboxConfig;
-  /**
-   * Origin of the sandbox choice. The runtime uses this only for internal telemetry provenance; managed policy is derived independently.
-   *
-   * @internal
-   */
   sandboxConfigSource?: SandboxConfigSource;
   /**
    * Whether interactive shell sessions are logged.
@@ -30521,7 +30510,7 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
                 prepareLogin: async (params: SessionMcpOauthPrepareLoginRequest): Promise<SessionMcpOauthPrepareLoginResult> =>
                     connection.sendRequest("session.mcp.oauth.prepareLogin", { sessionId, ...params }),
                 /**
-                 * Starts OAuth authentication for a remote MCP server.
+                 * Starts OAuth authentication for a remote MCP server. Owned servers require the original one-use prepareLogin handle and exact installation ID; manual servers retain the existing direct login behaviour.
                  *
                  * @param params Remote MCP server name and optional overrides controlling reauthentication, OAuth client display name, callback success-page copy, and static OAuth client selection.
                  *

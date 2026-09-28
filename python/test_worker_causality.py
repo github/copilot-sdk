@@ -68,3 +68,41 @@ def test_invalid_unicode_scalar_identities_are_unavailable(case):
         {"sent": True, "workerCausality": json.loads(case["json"])}
     )
     assert result.to_dict() == {"sent": True}
+
+
+def test_uppercase_worker_uuid_identities_round_trip_exactly():
+    value = {
+        "sent": True,
+        "workerCausality": {
+            "version": 1,
+            "observationProvenance": "native",
+            "sources": [
+                {
+                    "input": {
+                        "queueItemId": "ABCDEFAB-CDEF-4ABC-8ABC-ABCDEFABCDEF",
+                        "agentId": "worker",
+                        "sender": {
+                            "sessionId": "session-uppercase",
+                            "eventId": "FEDCBAFE-DCBA-4FED-8FED-FEDCBAFEDCBA",
+                            "eventType": "tool.execution_start",
+                            "provenance": "native",
+                        },
+                    },
+                    "admissions": [
+                        {
+                            "kind": "queued_input",
+                            "messageId": "message-uppercase",
+                            "ahpTurnId": "AAAABBBB-CCCC-4DDD-8EEE-FFFFAAAABBBB",
+                        }
+                    ],
+                    "captureComplete": True,
+                    "notification": {
+                        "deliveryId": "BBBBCCCC-DDDD-4EEE-8FFF-AAAABBBBCCCC",
+                        "mode": "queued",
+                    },
+                }
+            ],
+            "captureComplete": True,
+        },
+    }
+    assert TasksSendMessageResult.from_dict(value).to_dict() == value

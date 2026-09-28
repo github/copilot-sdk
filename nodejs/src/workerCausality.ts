@@ -155,12 +155,11 @@ export function withWorkerCausalityEvents<T extends object>(result: T): T {
     if (!("events" in result) || !Array.isArray(result.events)) return result;
     const originalEvents = result.events;
     const events = originalEvents.map((event) => {
+        if (!object(event) || !object(event.data)) return event;
         if (
-            !object(event) ||
-            !["user.message", "system.notification", "assistant.turn_start"].includes(
-                String(event.type)
-            ) ||
-            !object(event.data)
+            event.type !== "user.message" &&
+            event.type !== "system.notification" &&
+            event.type !== "assistant.turn_start"
         ) {
             return event;
         }

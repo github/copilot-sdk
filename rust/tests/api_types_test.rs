@@ -380,11 +380,11 @@ fn permission_event_exposes_managed_approval_required() {
 fn queue_pending_item_metadata_uses_camel_case_wire_names() {
     let item = QueuePendingItems {
         agent_mode: SendAgentMode::Interactive,
+        client_correlation_id: None,
         display_text: "second message".to_string(),
         id: "batch-1".to_string(),
         kind: QueuePendingItemsKind::Message,
         message_id: Some("message-2".to_string()),
-        client_correlation_id: None,
         source: Some("api".to_string()),
     };
 

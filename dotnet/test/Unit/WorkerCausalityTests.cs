@@ -14,7 +14,7 @@ namespace GitHub.Copilot.Test.Unit;
 public class WorkerCausalityTests
 {
     private static readonly JsonNode Corpus = JsonNode.Parse(File.ReadAllText(
-        Path.Join(AppContext.BaseDirectory, "worker-causality.json")))!;
+        Path.Combine(AppContext.BaseDirectory, "worker-causality.json")))!;
     private static readonly JsonSerializerOptions RpcOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -96,5 +96,45 @@ public class WorkerCausalityTests
             Assert.Null(result.WorkerCausality);
             Assert.True(result.Sent);
         }
+    }
+
+    [Fact]
+    public void UppercaseWorkerUuidIdentitiesRoundTripExactly()
+    {
+        const string wire = """
+            {
+              "sent": true,
+              "workerCausality": {
+                "version": 1,
+                "observationProvenance": "native",
+                "sources": [{
+                  "input": {
+                    "queueItemId": "ABCDEFAB-CDEF-4ABC-8ABC-ABCDEFABCDEF",
+                    "agentId": "worker",
+                    "sender": {
+                      "sessionId": "session-uppercase",
+                      "eventId": "FEDCBAFE-DCBA-4FED-8FED-FEDCBAFEDCBA",
+                      "eventType": "tool.execution_start",
+                      "provenance": "native"
+                    }
+                  },
+                  "admissions": [{
+                    "kind": "queued_input",
+                    "messageId": "message-uppercase",
+                    "ahpTurnId": "AAAABBBB-CCCC-4DDD-8EEE-FFFFAAAABBBB"
+                  }],
+                  "captureComplete": true,
+                  "notification": {
+                    "deliveryId": "BBBBCCCC-DDDD-4EEE-8FFF-AAAABBBBCCCC",
+                    "mode": "queued"
+                  }
+                }],
+                "captureComplete": true
+              }
+            }
+            """;
+        var source = JsonNode.Parse(wire)!;
+        var observed = JsonNode.Parse(Decode(source, false))!;
+        Assert.True(JsonNode.DeepEquals(source["workerCausality"], observed["workerCausality"]));
     }
 }

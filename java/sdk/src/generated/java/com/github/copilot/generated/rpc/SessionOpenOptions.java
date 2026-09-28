@@ -101,7 +101,7 @@ public record SessionOpenOptions(
     @JsonProperty("shellProcessFlags") List<String> shellProcessFlags,
     /** Resolved sandbox configuration. */
     @JsonProperty("sandboxConfig") SandboxConfig sandboxConfig,
-    /** Origin of the sandbox choice. The runtime uses this only for internal telemetry provenance; managed policy is derived independently. */
+    /** Origin of the sandbox choice. Settings-derived origins (never_configured, user_enabled, user_disabled, repository_policy) let managed policy floor a host preference; explicit below-floor changes remain policy conflicts unless a session opt-out is authorized. Also used for telemetry provenance. */
     @JsonProperty("sandboxConfigSource") SandboxConfigSource sandboxConfigSource,
     /** Whether interactive shell sessions are logged. */
     @JsonProperty("logInteractiveShells") Boolean logInteractiveShells,

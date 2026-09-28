@@ -69,7 +69,7 @@ public final class SessionFusionResolvedEvent extends SessionEvent {
         @JsonProperty("phasePlan") List<FusionPhasePlanStep> phasePlan,
         /** Concrete model selected for the primary solver phase. */
         @JsonProperty("primaryModel") String primaryModel,
-        /** Concrete model selected for the review or judge phase, when required. */
+        /** Concrete model selected for Critique review, or the legacy Cascade judge/repair model when role-specific fields are absent. */
         @JsonProperty("secondaryModel") String secondaryModel,
         /** Concrete model selected for Cascade escalation-gate calls, when required. */
         @JsonProperty("judgeModel") String judgeModel,

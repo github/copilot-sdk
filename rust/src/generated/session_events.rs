@@ -2593,7 +2593,7 @@ pub struct SessionFusionResolvedData {
     /// Validated capability scores used to select the route.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub scores: Option<FusionScores>,
-    /// Concrete model selected for the review or judge phase, when required.
+    /// Concrete model selected for Critique review, or the legacy Cascade judge/repair model when role-specific fields are absent.
     pub secondary_model: Option<String>,
     /// Synthetic HydraFusion model selected for the session.
     pub synthetic_model: String,

@@ -1949,8 +1949,9 @@ func (CatalogAgentPluginCandidate) Kind() CatalogCandidateKind {
 	return CatalogCandidateKindPlugin
 }
 
-// An inert AI skill catalog result. AI skills are discovery-only and cannot be represented
-// as installable through this surface.
+// An inert AI skill catalog result. Verified Skill candidates may be installable only when
+// the runtime reports installability and the selected session is permitted to plan
+// installation.
 // Experimental: CatalogAiSkillCandidate is part of an experimental API and may change or be
 // removed.
 type CatalogAiSkillCandidate struct {
@@ -1964,7 +1965,8 @@ type CatalogAiSkillCandidate struct {
 	Handle string `json:"handle"`
 	// ISO 8601 timestamp after which the handle is stale and will be rejected.
 	HandleExpiresAt string `json:"handleExpiresAt"`
-	// AI skills are discovery-only and cannot be installed through this surface
+	// Whether this AI skill candidate can be planned for verified installation in the selected
+	// session.
 	Installability CatalogAiSkillInstallability `json:"installability"`
 	// Media type of the underlying AI skill card
 	MediaType CatalogAiSkillMediaType `json:"mediaType"`
@@ -2152,9 +2154,10 @@ type CatalogResourceIdentity string
 // removed.
 type CatalogResourceVersion string
 
-// An explicit numbered-page request. The SDK treats the token as opaque; only the runtime
-// decodes it and changes its targetPage. Authority validation binds navigation to the
-// original search. No snapshot stability or token TTL is promised.
+// An explicit numbered-page request. SDK consumers treat the token as opaque. For bound
+// search, the runtime unwraps an expiring owner-bound reference to the private authority
+// token; only the runtime changes the authority token's targetPage. Legacy unbound
+// navigation keeps its authority-issued token semantics. No snapshot stability is promised.
 // Experimental: CatalogSearchPage is part of an experimental API and may change or be
 // removed.
 type CatalogSearchPage struct {
@@ -2162,8 +2165,9 @@ type CatalogSearchPage struct {
 	// navigation window ceil(1000 / pageSize). Repeat the search without page to discover newly
 	// available pages beyond that signed pageCount.
 	Number int32 `json:"number"`
-	// Opaque authority-issued pagination token from an earlier response. Never decode, modify
-	// or log it in an SDK consumer.
+	// Opaque pagination token from an earlier response, owner-bound when session-bound search
+	// was requested. Never decode, modify or log it in an SDK consumer. Expired or foreign
+	// bound references require a fresh bound search, not a legacy retry.
 	Token string `json:"token"`
 }
 
@@ -2189,9 +2193,11 @@ type CatalogSearchPagination struct {
 	PageCount int64 `json:"pageCount"`
 	// Page size bound to the search, equal to the effective request limit.
 	PageSize int32 `json:"pageSize"`
-	// Opaque authority-issued pagination token. Only the runtime decodes it or changes
-	// targetPage; SDK consumers must not decode, modify or log it. It has no runtime-created
-	// expiry or cache.
+	// Opaque pagination token. Session-bound search returns an expiring runtime-owned reference
+	// retaining the exact private authority token, original search and authority. Legacy
+	// unbound search returns the authority token unchanged, without a runtime-created expiry.
+	// Only the runtime unwraps tokens or changes targetPage; SDK consumers must not decode,
+	// modify or log them.
 	Token string `json:"token"`
 	// Backend-reported count for this response, not the number of returned candidates. Its
 	// relationship to the full query result set is unknown.
@@ -10751,8 +10757,9 @@ type PermissionsSetModeRequest struct {
 	AssistedApprovalModel *string `json:"assistedApprovalModel,omitempty"`
 	// Permission mode to apply
 	Mode PermissionMode `json:"mode"`
-	// Optional source for permission-mode telemetry. Defaults to `rpc` when omitted for SDK
-	// callers.
+	// Optional source for permission-mode telemetry. `organization_targeting` is reserved for
+	// startup selection after the authenticated account matches an organization targeting
+	// policy; SDK callers default to `rpc` and cannot claim targeting provenance.
 	Source *PermissionModeSource `json:"source,omitempty"`
 }
 
@@ -14593,10 +14600,10 @@ type SessionOpenOptions struct {
 	RunningInInteractiveMode *bool `json:"runningInInteractiveMode,omitempty"`
 	// Resolved sandbox configuration.
 	SandboxConfig *SandboxConfig `json:"sandboxConfig,omitempty"`
-	// Origin of the sandbox choice. The runtime uses this only for internal telemetry
-	// provenance; managed policy is derived independently.
-	// Internal: SandboxConfigSource is part of the SDK's internal API surface and is not
-	// intended for external use.
+	// Origin of the sandbox choice. Settings-derived origins (never_configured, user_enabled,
+	// user_disabled, repository_policy) let managed policy floor a host preference; explicit
+	// below-floor changes remain policy conflicts unless a session opt-out is authorized. Also
+	// used for telemetry provenance.
 	SandboxConfigSource *SandboxConfigSource `json:"sandboxConfigSource,omitempty"`
 	// Capabilities enabled for this session.
 	SessionCapabilities []SessionCapability `json:"sessionCapabilities,omitzero"`
@@ -15845,10 +15852,10 @@ type SessionUpdateOptionsParams struct {
 	RunningInInteractiveMode *bool `json:"runningInInteractiveMode,omitempty"`
 	// Resolved sandbox configuration.
 	SandboxConfig *SandboxConfig `json:"sandboxConfig,omitempty"`
-	// Origin of the sandbox choice. The runtime uses this only for internal telemetry
-	// provenance; managed policy is derived independently.
-	// Internal: SandboxConfigSource is part of the SDK's internal API surface and is not
-	// intended for external use.
+	// Origin of the sandbox choice. Settings-derived origins (never_configured, user_enabled,
+	// user_disabled, repository_policy) let managed policy floor a host preference; explicit
+	// below-floor changes remain policy conflicts unless a session opt-out is authorized. Also
+	// used for telemetry provenance.
 	SandboxConfigSource *SandboxConfigSource `json:"sandboxConfigSource,omitempty"`
 	// Replaces the session's capability set with the given list. Use to enable or disable
 	// capabilities mid-session (e.g., remove `memory` for reproducible scripted runs). Omit the
@@ -20727,7 +20734,7 @@ const (
 	CatalogAiSkillCandidateKindAiSkill CatalogAiSkillCandidateKind = "ai-skill"
 )
 
-// Typed non-installable state for an AI skill candidate
+// Typed installability state for an AI skill candidate
 // Experimental: CatalogAiSkillInstallability is part of an experimental API and may change
 // or be removed.
 type CatalogAiSkillInstallability string
@@ -20740,7 +20747,7 @@ const (
 	CatalogAiSkillInstallabilityInstallable CatalogAiSkillInstallability = "installable"
 	// The candidate lacks verified materialisation metadata required for installation.
 	CatalogAiSkillInstallabilityMaterialisationUnavailable CatalogAiSkillInstallability = "materialisation-unavailable"
-	// AI skills are discovery-only on this surface.
+	// Compatibility value for discovery-only callers that did not negotiate Skill installation.
 	CatalogAiSkillInstallabilityNotInstallableKind CatalogAiSkillInstallability = "not-installable-kind"
 	// Policy refuses Skill installation for the selected session or authority.
 	CatalogAiSkillInstallabilityPolicyForbids CatalogAiSkillInstallability = "policy-forbids"
@@ -23264,8 +23271,9 @@ const (
 	PermissionModeManual PermissionMode = "manual"
 )
 
-// Optional source for permission-mode telemetry. Defaults to `rpc` when omitted for SDK
-// callers.
+// Optional source for permission-mode telemetry. `organization_targeting` is reserved for
+// startup selection after the authenticated account matches an organization targeting
+// policy; SDK callers default to `rpc` and cannot claim targeting provenance.
 // Experimental: PermissionModeSource is part of an experimental API and may change or be
 // removed.
 type PermissionModeSource string
@@ -23275,8 +23283,8 @@ const (
 	PermissionModeSourceAutopilotConfirmation PermissionModeSource = "autopilot_confirmation"
 	// The mode was set from a CLI command-line flag.
 	PermissionModeSourceCLIFlag PermissionModeSource = "cli_flag"
-	// Historical compatibility value for runtimes that selected Assisted mode through
-	// organization targeting. Current runtimes do not produce this source.
+	// The mode was set at startup because the authenticated account matched an organization
+	// targeting policy.
 	PermissionModeSourceOrganizationTargeting PermissionModeSource = "organization_targeting"
 	// The mode was set through an RPC caller.
 	PermissionModeSourceRPC PermissionModeSource = "rpc"
@@ -23772,7 +23780,9 @@ const (
 	ResponseFormatTypeJSONSchema ResponseFormatType = "json_schema"
 )
 
-// Origin of the sandbox choice supplied by an internal client.
+// Origin of the sandbox choice supplied by the host. Settings-derived origins let managed
+// policy floor the host preference; do not tag explicit session overrides as
+// settings-derived.
 // Experimental: SandboxConfigSource is part of an experimental API and may change or be
 // removed.
 type SandboxConfigSource string
@@ -30080,7 +30090,9 @@ func (a *MCPOauthAPI) HandlePendingRequest(ctx context.Context, params *MCPOauth
 	return &result, nil
 }
 
-// Login starts OAuth authentication for a remote MCP server.
+// Login starts OAuth authentication for a remote MCP server. Owned servers require the
+// original one-use prepareLogin handle and exact installation ID; manual servers retain the
+// existing direct login behaviour.
 //
 // RPC method: session.mcp.oauth.login.
 //

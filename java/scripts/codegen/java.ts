@@ -247,7 +247,6 @@ let currentDefinitions: Record<string, JSONSchema7> = {};
 const pendingStandaloneTypes = new Map<string, JSONSchema7>();
 const promotedNestedUnionTypes = new Set<string>();
 const promotedSealedUnionTypes = new Set<string>();
-const SESSION_EVENT_PROMOTED_UNION_TYPES = new Set(["SystemNotification"]);
 const generatedSessionEventTypeNames = new Set<string>();
 
 // Cross-schema definitions: keyed by schema filename (e.g. "session-events.schema.json"),
@@ -666,42 +665,6 @@ export function collectNestedDiscriminatedUnionTypeNames(
     };
 
     for (const items of nestedUnionItems) visit(items);
-    return promotedTypes;
-}
-
-function collectReferencedDiscriminatedUnionTypeNames(
-    schema: JSONSchema7 | null,
-    definitions: Record<string, JSONSchema7>
-): Set<string> {
-    const promotedTypes = new Set<string>();
-    const visitedDefinitions = new Set<string>();
-    const visit = (candidate: JSONSchema7): void => {
-        const name = referencedDefinitionName(candidate);
-        if (name) {
-            if (visitedDefinitions.has(name)) return;
-            visitedDefinitions.add(name);
-            const resolved = definitions[name];
-            if (!resolved) return;
-            if (isSealedStandaloneUnionCandidate(resolved, definitions)) promotedTypes.add(name);
-            visit(resolved);
-            return;
-        }
-        for (const property of Object.values(candidate.properties ?? {})) {
-            if (property && typeof property === "object") visit(property as JSONSchema7);
-        }
-        if (candidate.items && !Array.isArray(candidate.items)) visit(candidate.items as JSONSchema7);
-        if (candidate.additionalProperties && typeof candidate.additionalProperties === "object") {
-            visit(candidate.additionalProperties as JSONSchema7);
-        }
-        for (const branch of [
-            ...(candidate.anyOf ?? []),
-            ...(candidate.oneOf ?? []),
-            ...(candidate.allOf ?? []),
-        ]) {
-            if (branch && typeof branch === "object") visit(branch as JSONSchema7);
-        }
-    };
-    if (schema) visit(schema);
     return promotedTypes;
 }
 
@@ -1243,8 +1206,50 @@ const WORKER_STRING_UUID_PROPERTIES = new Set([
     "WorkerNotificationReference.deliveryId",
 ]);
 
+const COMPATIBILITY_FIELD_ORDER: Readonly<Record<string, readonly string[]>> = {
+    AssistantTurnStartEventData: ["turnId", "model", "interactionId", "parentToolCallId", "workerCausality"],
+    SystemNotificationEventData: ["content", "kind", "responsesReasoning", "workerCausality"],
+    ToolExecutionStartEventData: [
+        "toolCallId", "toolName", "toolTitle", "arguments", "shellToolInfo", "model", "rte",
+        "mcpServerName", "mcpConfigServerName", "mcpToolName", "mcpTransport", "mcpConfigSource",
+        "turnId", "displayVerbatim", "toolDescription", "parentToolCallId", "fusion", "traceparent",
+        "tracestate",
+    ],
+    UserMessageEventData: [
+        "content", "responsesReasoning", "messageId", "transformedContent", "attachments",
+        "supportedNativeDocumentMimeTypes", "nativeDocumentPathFallbackPaths", "source", "delivery",
+        "agentMode", "isAutopilotContinuation", "interactionId", "turnId", "parentAgentTaskId",
+        "workerCausality", "clientCorrelationId",
+    ],
+    QueuePendingItems: ["id", "messageId", "kind", "displayText", "agentMode", "source", "clientCorrelationId"],
+    SendMessageItem: ["prompt", "displayPrompt", "attachments", "billable", "requiredTool", "source", "clientCorrelationId"],
+    SessionSendParams: [
+        "sessionId", "prompt", "displayPrompt", "attachments", "mode", "prepend", "billable",
+        "requiredTool", "source", "agentMode", "requestHeaders", "responseFormat", "traceparent",
+        "tracestate", "wait", "clientCorrelationId", "jsonSchema", "type",
+    ],
+    SessionTasksSendMessageResult: ["sent", "error", "workerCausality"],
+};
+
 function isWorkerStringUuidProperty(context: string, propName: string): boolean {
     return WORKER_STRING_UUID_PROPERTIES.has(`${context}.${propName}`);
+}
+
+function orderCompatibilityFields<T>(
+    className: string,
+    fields: T[],
+    name: (field: T) => string,
+): T[] {
+    const order = COMPATIBILITY_FIELD_ORDER[className];
+    if (!order) return fields;
+    const indexes = new Map(order.map((fieldName, index) => [fieldName, index]));
+    return fields
+        .map((field, originalIndex) => ({ field, originalIndex }))
+        .sort((left, right) =>
+            (indexes.get(name(left.field)) ?? order.length + left.originalIndex) -
+            (indexes.get(name(right.field)) ?? order.length + right.originalIndex)
+        )
+        .map(({ field }) => field);
 }
 
 export function schemaTypeToJava(
@@ -1453,21 +1458,9 @@ interface EventVariant {
 }
 
 const LEGACY_FACTORY_EVENT_VARIANTS: EventVariant[] = [
-    {
-        typeName: "factory.run_updated",
-        className: "FactoryRunUpdatedEvent",
-        dataSchema: null,
-    },
-    {
-        typeName: "factory.run_started",
-        className: "FactoryRunStartedEvent",
-        dataSchema: null,
-    },
-    {
-        typeName: "factory.run_settled",
-        className: "FactoryRunSettledEvent",
-        dataSchema: null,
-    },
+    { typeName: "factory.run_updated", className: "FactoryRunUpdatedEvent", dataSchema: null },
+    { typeName: "factory.run_started", className: "FactoryRunStartedEvent", dataSchema: null },
+    { typeName: "factory.run_settled", className: "FactoryRunSettledEvent", dataSchema: null },
 ];
 
 const LEGACY_FACTORY_EVENT_FILES = [
@@ -1523,6 +1516,9 @@ async function generateSessionEvents(schemaPath: string): Promise<void> {
     pendingStandaloneTypes.clear();
     promotedNestedUnionTypes.clear();
     promotedSealedUnionTypes.clear();
+    if (currentDefinitions.SystemNotification) {
+        promotedNestedUnionTypes.add("SystemNotification");
+    }
 
     const variants = extractEventVariants(schema);
     const legacyVariants = variants.some((variant) => variant.typeName === "workflow.run_updated")
@@ -1530,13 +1526,6 @@ async function generateSessionEvents(schemaPath: string): Promise<void> {
             (legacy) => !variants.some((variant) => variant.typeName === legacy.typeName)
         )
         : [];
-    for (const variant of variants) {
-        for (const typeName of collectReferencedDiscriminatedUnionTypeNames(variant.dataSchema, currentDefinitions)) {
-            if (SESSION_EVENT_PROMOTED_UNION_TYPES.has(typeName)) {
-                promotedNestedUnionTypes.add(typeName);
-            }
-        }
-    }
     const packageName = "com.github.copilot.generated";
     const packageDir = `sdk/src/generated/java/com/github/copilot/generated`;
 
@@ -1820,10 +1809,11 @@ export function renderEventVariantClass(variant: EventVariant, packageName: stri
         jsonName: string;
         javaName: string;
         javaType: string;
+        typedAccessorType?: string;
         description?: string;
     }
 
-    const dataFields: FieldInfo[] = [];
+    let dataFields: FieldInfo[] = [];
 
     if (!hasUnionData && variant.dataSchema?.properties) {
         for (const [propName, propSchema] of Object.entries(variant.dataSchema.properties)) {
@@ -1832,14 +1822,24 @@ export function renderEventVariantClass(variant: EventVariant, packageName: stri
             // Record components are always boxed (nullable by design).
             const result = schemaTypeToJava(prop, false, `${variant.className}Data`, propName, nestedTypes);
             for (const imp of result.imports) allImports.add(imp);
+            const preserveSystemNotificationKindAbi =
+                variant.className === "SystemNotificationEvent" &&
+                propName === "kind" &&
+                result.javaType === "SystemNotification";
             dataFields.push({
                 jsonName: propName,
                 javaName: toCamelCase(propName),
-                javaType: result.javaType,
+                javaType: preserveSystemNotificationKindAbi ? "Object" : result.javaType,
+                typedAccessorType: preserveSystemNotificationKindAbi ? result.javaType : undefined,
                 description: prop.description,
             });
         }
     }
+    dataFields = orderCompatibilityFields(
+        `${variant.className}Data`,
+        dataFields,
+        (field) => field.jsonName,
+    );
 
     // Whether a data record should be emitted (always when dataSchema is present)
     const hasDataSchema = variant.dataSchema !== null;
@@ -1925,11 +1925,22 @@ export function renderEventVariantClass(variant: EventVariant, packageName: stri
                 if (field.jsonName === "workerCausality") {
                     lines.push(`        @com.fasterxml.jackson.databind.annotation.JsonDeserialize(using = com.github.copilot.WorkerCausalityDeserializer.class)`);
                 }
+                if (field.typedAccessorType) {
+                    lines.push(`        @com.fasterxml.jackson.databind.annotation.JsonDeserialize(as = ${field.typedAccessorType}.class)`);
+                }
                 lines.push(`        @JsonProperty("${field.jsonName}") ${field.javaType} ${field.javaName}${comma}`);
             }
             lines.push(`    ) {`);
         }
         lines.push(...renderCompatibilityConstructors(`${variant.className}Data`, dataFields, "        "));
+        for (const field of dataFields) {
+            if (!field.typedAccessorType) continue;
+            lines.push("");
+            lines.push(`        /** Returns the typed ${field.javaName} value when decoded from the wire. */`);
+            lines.push(`        public ${field.typedAccessorType} typed${toPascalCase(field.javaName)}() {`);
+            lines.push(`            return ${field.javaName} instanceof ${field.typedAccessorType} typed ? typed : null;`);
+            lines.push(`        }`);
+        }
         // Render nested types inside Data record
         for (const [, nested] of nestedTypes) {
             lines.push(...renderNestedType(nested, 2, nestedTypes, allImports));
@@ -2152,7 +2163,7 @@ function schemaAllowsNull(schema: JSONSchema7): boolean {
     );
 }
 
-/** Preserve public record descriptors while adding optional diagnostic components. */
+/** Preserve existing Java record descriptors when optional diagnostics are added. */
 function renderCompatibilityConstructors(
     className: string,
     fields: { javaName: string; javaType: string }[],
@@ -2218,7 +2229,7 @@ export function generateRpcClass(
 
     const properties = Object.entries(schema.properties || {}).filter(([propName]) => !omittedProperties.has(propName));
     const required = new Set(schema.required || []);
-    const fields = properties.flatMap(([propName, propSchema]) => {
+    let fields = properties.flatMap(([propName, propSchema]) => {
         if (typeof propSchema !== "object") return [];
         const prop = propSchema as JSONSchema7;
         // Record components are always boxed (nullable by design).
@@ -2232,6 +2243,7 @@ export function generateRpcClass(
             includeNull: preserveRequiredNulls && required.has(propName) && schemaAllowsNull(prop),
         }];
     });
+    fields = orderCompatibilityFields(className, fields, (field) => field.propName);
 
     lines.push(`@JsonInclude(JsonInclude.Include.NON_NULL)`);
     lines.push(`@JsonIgnoreProperties(ignoreUnknown = true)`);

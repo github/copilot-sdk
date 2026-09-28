@@ -8191,7 +8191,7 @@ impl<'a> SessionRpcMcpOauth<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
-    /// Starts OAuth authentication for a remote MCP server.
+    /// Starts OAuth authentication for a remote MCP server. Owned servers require the original one-use prepareLogin handle and exact installation ID; manual servers retain the existing direct login behaviour.
     ///
     /// Wire method: `session.mcp.oauth.login`.
     ///
@@ -8221,7 +8221,7 @@ impl<'a> SessionRpcMcpOauth<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
-    /// Starts OAuth authentication for a remote MCP server.
+    /// Starts OAuth authentication for a remote MCP server. Owned servers require the original one-use prepareLogin handle and exact installation ID; manual servers retain the existing direct login behaviour.
     ///
     /// Wire method: `session.mcp.oauth.login`.
     ///

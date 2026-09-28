@@ -268,7 +268,6 @@
         "data": {
           "turnId": "1",
           "interactionId": "test-interaction",
-          "parentToolCallId": "parent-tool-call",
           "workerCausality": {
             "version": 1,
             "observationProvenance": "native",
@@ -460,43 +459,6 @@
                 "agentId": "worker",
                 "eventType": "subagent.completed",
                 "provenance": "native"
-              }
-            }
-          ],
-          "captureComplete": true
-        }
-      }
-    },
-    {
-      "name": "uppercase_worker_uuid_identities",
-      "result": {
-        "sent": true,
-        "workerCausality": {
-          "version": 1,
-          "observationProvenance": "native",
-          "sources": [
-            {
-              "input": {
-                "queueItemId": "ABCDEFAB-CDEF-4ABC-8ABC-ABCDEFABCDEF",
-                "agentId": "worker",
-                "sender": {
-                  "sessionId": "session-uppercase",
-                  "eventId": "FEDCBAFE-DCBA-4FED-8FED-FEDCBAFEDCBA",
-                  "eventType": "tool.execution_start",
-                  "provenance": "native"
-                }
-              },
-              "admissions": [
-                {
-                  "kind": "queued_input",
-                  "messageId": "message-uppercase",
-                  "ahpTurnId": "AAAABBBB-CCCC-4DDD-8EEE-FFFFAAAABBBB"
-                }
-              ],
-              "captureComplete": true,
-              "notification": {
-                "deliveryId": "BBBBCCCC-DDDD-4EEE-8FFF-AAAABBBBCCCC",
-                "mode": "queued"
               }
             }
           ],
@@ -1462,6 +1424,244 @@
               {
                 "kind": "queued_input",
                 "messageId": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+                "event": {
+                  "sessionId": "s",
+                  "eventId": "33333333-3333-4333-8333-333333333333",
+                  "agentId": "worker",
+                  "eventType": "user.message",
+                  "provenance": "native"
+                }
+              }
+            ],
+            "captureComplete": true
+          }
+        ],
+        "captureComplete": true
+      },
+      "accepted": true
+    },
+    {
+      "name": "exact_4096_u2028",
+      "value": {
+        "version": 1,
+        "observationProvenance": "native",
+        "sources": [
+          {
+            "input": {
+              "queueItemId": "46fc3a43-7f19-4b0a-9e32-d5ef4dc25552",
+              "agentId": "worker"
+            },
+            "admissions": [
+              {
+                "kind": "queued_input",
+                "messageId": "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+                "event": {
+                  "sessionId": "s",
+                  "eventId": "33333333-3333-4333-8333-333333333333",
+                  "agentId": "worker",
+                  "eventType": "user.message",
+                  "provenance": "native"
+                }
+              },
+              {
+                "kind": "queued_input",
+                "messageId": "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+                "event": {
+                  "sessionId": "s",
+                  "eventId": "33333333-3333-4333-8333-333333333333",
+                  "agentId": "worker",
+                  "eventType": "user.message",
+                  "provenance": "native"
+                }
+              },
+              {
+                "kind": "queued_input",
+                "messageId": "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+                "event": {
+                  "sessionId": "s",
+                  "eventId": "33333333-3333-4333-8333-333333333333",
+                  "agentId": "worker",
+                  "eventType": "user.message",
+                  "provenance": "native"
+                }
+              },
+              {
+                "kind": "queued_input",
+                "messageId": "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+                "event": {
+                  "sessionId": "s",
+                  "eventId": "33333333-3333-4333-8333-333333333333",
+                  "agentId": "worker",
+                  "eventType": "user.message",
+                  "provenance": "native"
+                }
+              },
+              {
+                "kind": "queued_input",
+                "messageId": "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+                "event": {
+                  "sessionId": "s",
+                  "eventId": "33333333-3333-4333-8333-333333333333",
+                  "agentId": "worker",
+                  "eventType": "user.message",
+                  "provenance": "native"
+                }
+              },
+              {
+                "kind": "queued_input",
+                "messageId": "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+                "event": {
+                  "sessionId": "s",
+                  "eventId": "33333333-3333-4333-8333-333333333333",
+                  "agentId": "worker",
+                  "eventType": "user.message",
+                  "provenance": "native"
+                }
+              },
+              {
+                "kind": "queued_input",
+                "messageId": "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+                "event": {
+                  "sessionId": "s",
+                  "eventId": "33333333-3333-4333-8333-333333333333",
+                  "agentId": "worker",
+                  "eventType": "user.message",
+                  "provenance": "native"
+                }
+              },
+              {
+                "kind": "queued_input",
+                "messageId": "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+                "event": {
+                  "sessionId": "s",
+                  "eventId": "33333333-3333-4333-8333-333333333333",
+                  "agentId": "worker",
+                  "eventType": "user.message",
+                  "provenance": "native"
+                }
+              },
+              {
+                "kind": "queued_input",
+                "messageId": " xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+                "event": {
+                  "sessionId": "s",
+                  "eventId": "33333333-3333-4333-8333-333333333333",
+                  "agentId": "worker",
+                  "eventType": "user.message",
+                  "provenance": "native"
+                }
+              }
+            ],
+            "captureComplete": true
+          }
+        ],
+        "captureComplete": true
+      },
+      "accepted": true
+    },
+    {
+      "name": "exact_4096_u2029",
+      "value": {
+        "version": 1,
+        "observationProvenance": "native",
+        "sources": [
+          {
+            "input": {
+              "queueItemId": "46fc3a43-7f19-4b0a-9e32-d5ef4dc25552",
+              "agentId": "worker"
+            },
+            "admissions": [
+              {
+                "kind": "queued_input",
+                "messageId": "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+                "event": {
+                  "sessionId": "s",
+                  "eventId": "33333333-3333-4333-8333-333333333333",
+                  "agentId": "worker",
+                  "eventType": "user.message",
+                  "provenance": "native"
+                }
+              },
+              {
+                "kind": "queued_input",
+                "messageId": "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+                "event": {
+                  "sessionId": "s",
+                  "eventId": "33333333-3333-4333-8333-333333333333",
+                  "agentId": "worker",
+                  "eventType": "user.message",
+                  "provenance": "native"
+                }
+              },
+              {
+                "kind": "queued_input",
+                "messageId": "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+                "event": {
+                  "sessionId": "s",
+                  "eventId": "33333333-3333-4333-8333-333333333333",
+                  "agentId": "worker",
+                  "eventType": "user.message",
+                  "provenance": "native"
+                }
+              },
+              {
+                "kind": "queued_input",
+                "messageId": "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+                "event": {
+                  "sessionId": "s",
+                  "eventId": "33333333-3333-4333-8333-333333333333",
+                  "agentId": "worker",
+                  "eventType": "user.message",
+                  "provenance": "native"
+                }
+              },
+              {
+                "kind": "queued_input",
+                "messageId": "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+                "event": {
+                  "sessionId": "s",
+                  "eventId": "33333333-3333-4333-8333-333333333333",
+                  "agentId": "worker",
+                  "eventType": "user.message",
+                  "provenance": "native"
+                }
+              },
+              {
+                "kind": "queued_input",
+                "messageId": "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+                "event": {
+                  "sessionId": "s",
+                  "eventId": "33333333-3333-4333-8333-333333333333",
+                  "agentId": "worker",
+                  "eventType": "user.message",
+                  "provenance": "native"
+                }
+              },
+              {
+                "kind": "queued_input",
+                "messageId": "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+                "event": {
+                  "sessionId": "s",
+                  "eventId": "33333333-3333-4333-8333-333333333333",
+                  "agentId": "worker",
+                  "eventType": "user.message",
+                  "provenance": "native"
+                }
+              },
+              {
+                "kind": "queued_input",
+                "messageId": "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+                "event": {
+                  "sessionId": "s",
+                  "eventId": "33333333-3333-4333-8333-333333333333",
+                  "agentId": "worker",
+                  "eventType": "user.message",
+                  "provenance": "native"
+                }
+              },
+              {
+                "kind": "queued_input",
+                "messageId": " xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
                 "event": {
                   "sessionId": "s",
                   "eventId": "33333333-3333-4333-8333-333333333333",

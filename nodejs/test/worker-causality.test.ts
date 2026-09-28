@@ -110,24 +110,35 @@ function readers() {
 }
 
 describe("worker causality public readers", () => {
-    it("preserves unrelated event payloads that reuse the diagnostic field name", () => {
-        const result = {
-            events: [
-                {
-                    type: "session.start",
-                    data: { workerCausality: { extensionPayload: true } },
-                },
-            ],
-        };
-        expect(withWorkerCausalityEvents(result)).toBe(result);
-        expect(result.events[0].data.workerCausality).toEqual({ extensionPayload: true });
-    });
-
     it.each([
         ["absent events", { method: "session.eventLog.read", state: { phase: "covered" } }],
         ["non-array events", { events: { state: "covered" } }],
     ])("leaves RPC results with $0 unchanged", (_name, result) => {
         expect(withWorkerCausalityEvents(result)).toBe(result);
+    });
+
+    it("preserves unrelated workerCausality product data on unsupported event types", async () => {
+        const reader = readers();
+        const event = {
+            type: "session.start",
+            data: {
+                sessionId: "codec-session",
+                version: 1,
+                producer: "extension",
+                copilotVersion: "test",
+                startTime: "2026-01-02T03:04:05.000Z",
+                workerCausality: {
+                    owner: "extension-product-data",
+                },
+            },
+            id: "10000000-0000-4000-8000-000000000001",
+            timestamp: "2026-01-02T03:04:05.000Z",
+            parentId: null,
+        };
+        const expected = JSON.stringify(event);
+        for (const history of await reader.history(event)) {
+            expect(JSON.stringify(history.events[0]), history.name).toBe(expected);
+        }
     });
 
     it.each(corpus.valid)(

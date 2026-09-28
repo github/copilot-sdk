@@ -75,6 +75,7 @@ class WorkerCausalityTest {
             SystemNotificationEvent notification = assertInstanceOf(SystemNotificationEvent.class, parsed);
             SystemNotificationWorkflowCompleted completion = assertInstanceOf(SystemNotificationWorkflowCompleted.class,
                     notification.getData().kind());
+            assertEquals(completion, notification.getData().typedKind());
             assertEquals("fix-ci", completion.getWorkflowName());
             assertEquals("run-1", completion.getRunId());
             assertEquals(SystemNotificationWorkflowCompletedStatus.COMPLETED, completion.getStatus());
@@ -90,5 +91,43 @@ class WorkerCausalityTest {
             assertEquals(true, result.sent(), test.path("name").asText());
             assertEquals(null, result.workerCausality(), test.path("name").asText());
         }
+    }
+
+    @Test
+    void uppercaseWorkerUuidIdentitiesRoundTripExactly() throws Exception {
+        JsonNode source = MAPPER.readTree("""
+                {
+                  "sent": true,
+                  "workerCausality": {
+                    "version": 1,
+                    "observationProvenance": "native",
+                    "sources": [{
+                      "input": {
+                        "queueItemId": "ABCDEFAB-CDEF-4ABC-8ABC-ABCDEFABCDEF",
+                        "agentId": "worker",
+                        "sender": {
+                          "sessionId": "session-uppercase",
+                          "eventId": "FEDCBAFE-DCBA-4FED-8FED-FEDCBAFEDCBA",
+                          "eventType": "tool.execution_start",
+                          "provenance": "native"
+                        }
+                      },
+                      "admissions": [{
+                        "kind": "queued_input",
+                        "messageId": "message-uppercase",
+                        "ahpTurnId": "AAAABBBB-CCCC-4DDD-8EEE-FFFFAAAABBBB"
+                      }],
+                      "captureComplete": true,
+                      "notification": {
+                        "deliveryId": "BBBBCCCC-DDDD-4EEE-8FFF-AAAABBBBCCCC",
+                        "mode": "queued"
+                      }
+                    }],
+                    "captureComplete": true
+                  }
+                }
+                """);
+        JsonNode observed = MAPPER.readTree(decode(source, false));
+        assertEquals(source.get("workerCausality"), observed.get("workerCausality"));
     }
 }

@@ -111,36 +111,42 @@ func TestWorkerCausalityPublicReaders(t *testing.T) {
 }
 
 func TestAssistantTurnStartPreservesParentToolCallIDWithWorkerCausality(t *testing.T) {
-	for _, test := range workerCorpus(t).Valid {
-		if test.Name != "two_source_assistant_turn_start" {
-			continue
+	var event rpc.SessionEvent
+	wire := []byte(`{
+		"type":"assistant.turn_start",
+		"data":{
+			"turnId":"1",
+			"parentToolCallId":"parent-tool-call",
+			"workerCausality":{
+				"version":1,
+				"observationProvenance":"native",
+				"sources":[],
+				"captureComplete":true
+			}
 		}
-		var event rpc.SessionEvent
-		if err := json.Unmarshal(test.Event, &event); err != nil {
-			t.Fatal(err)
-		}
-		data, ok := event.Data.(*rpc.AssistantTurnStartData)
-		if !ok {
-			t.Fatalf("data type = %T", event.Data)
-		}
-		if data.ParentToolCallID == nil || *data.ParentToolCallID != "parent-tool-call" {
-			t.Fatalf("parent tool call ID = %v", data.ParentToolCallID)
-		}
-		encoded, err := json.Marshal(event)
-		if err != nil {
-			t.Fatal(err)
-		}
-		var roundTrip map[string]any
-		if err := json.Unmarshal(encoded, &roundTrip); err != nil {
-			t.Fatal(err)
-		}
-		payload := roundTrip["data"].(map[string]any)
-		if payload["parentToolCallId"] != "parent-tool-call" {
-			t.Fatalf("round-trip parent tool call ID = %v", payload["parentToolCallId"])
-		}
-		return
+	}`)
+	if err := json.Unmarshal(wire, &event); err != nil {
+		t.Fatal(err)
 	}
-	t.Fatal("two_source_assistant_turn_start fixture not found")
+	data, ok := event.Data.(*rpc.AssistantTurnStartData)
+	if !ok {
+		t.Fatalf("data type = %T", event.Data)
+	}
+	if data.ParentToolCallID == nil || *data.ParentToolCallID != "parent-tool-call" {
+		t.Fatalf("parent tool call ID = %v", data.ParentToolCallID)
+	}
+	encoded, err := json.Marshal(event)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var roundTrip map[string]any
+	if err := json.Unmarshal(encoded, &roundTrip); err != nil {
+		t.Fatal(err)
+	}
+	payload := roundTrip["data"].(map[string]any)
+	if payload["parentToolCallId"] != "parent-tool-call" {
+		t.Fatalf("round-trip parent tool call ID = %v", payload["parentToolCallId"])
+	}
 }
 
 func TestWorkerCausalityExactUTF8Budget(t *testing.T) {

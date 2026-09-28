@@ -3469,7 +3469,7 @@ public sealed partial class SessionFusionResolvedData
     [JsonPropertyName("scores")]
     public FusionScores? Scores { get; set; }
 
-    /// <summary>Concrete model selected for the review or judge phase, when required.</summary>
+    /// <summary>Concrete model selected for Critique review, or the legacy Cascade judge/repair model when role-specific fields are absent.</summary>
     [JsonPropertyName("secondaryModel")]
     public string? SecondaryModel { get; set; }
 

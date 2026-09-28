@@ -5,9 +5,9 @@ package diagnosticmetadata
 
 import (
 	"encoding/json"
-	"errors"
 	"log"
 	"regexp"
+	"strconv"
 	"unicode"
 	"unicode/utf8"
 )
@@ -199,16 +199,70 @@ func source(value any) bool {
 	return true
 }
 
-type budget struct{ count int }
-
-func (b *budget) Write(p []byte) (int, error) {
-	b.count += len(p)
-	// Encoder adds one newline; the compact single-property field is limited to 4096.
-	if b.count > 4097 {
-		b.count = 4098
-		return 0, errors.New("worker metadata budget")
+func compactJSONStringSize(value string) int {
+	size := 2
+	for _, character := range value {
+		switch character {
+		case '"', '\\', '\b', '\f', '\n', '\r', '\t':
+			size += 2
+		default:
+			if character < 0x20 {
+				size += 6
+			} else {
+				size += utf8.RuneLen(character)
+			}
+		}
 	}
-	return len(p), nil
+	return size
+}
+
+func compactJSONSize(value any, depth int) (int, bool) {
+	if depth > 32 {
+		return 0, false
+	}
+	switch value := value.(type) {
+	case nil:
+		return 4, true
+	case bool:
+		if value {
+			return 4, true
+		}
+		return 5, true
+	case float64:
+		return len(strconv.AppendFloat(nil, value, 'g', -1, 64)), true
+	case string:
+		return compactJSONStringSize(value), true
+	case []any:
+		size := 2
+		for index, item := range value {
+			itemSize, ok := compactJSONSize(item, depth+1)
+			if !ok {
+				return 0, false
+			}
+			if index > 0 {
+				size++
+			}
+			size += itemSize
+		}
+		return size, true
+	case map[string]any:
+		size := 2
+		index := 0
+		for key, item := range value {
+			itemSize, ok := compactJSONSize(item, depth+1)
+			if !ok {
+				return 0, false
+			}
+			if index > 0 {
+				size++
+			}
+			size += compactJSONStringSize(key) + 1 + itemSize
+			index++
+		}
+		return size, true
+	default:
+		return 0, false
+	}
 }
 
 func small(value any, remaining *int, depth int) bool {
@@ -259,10 +313,8 @@ func ReadWorkerCausality(raw json.RawMessage, target any) bool {
 	var value map[string]any
 	remaining := 4096
 	if json.Unmarshal(raw, &value) == nil && small(value, &remaining, 0) && supported(value) {
-		writer := &budget{}
-		encoder := json.NewEncoder(writer)
-		encoder.SetEscapeHTML(false)
-		if encoder.Encode(map[string]any{"workerCausality": value}) == nil && json.Unmarshal(raw, target) == nil {
+		size, ok := compactJSONSize(map[string]any{"workerCausality": value}, 0)
+		if ok && size <= 4096 && json.Unmarshal(raw, target) == nil {
 			return true
 		}
 	}

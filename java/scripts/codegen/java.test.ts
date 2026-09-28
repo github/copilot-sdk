@@ -82,7 +82,7 @@ test("admission correlation preserves existing Java record constructors", async 
     }, {});
     const code = [...files.values()].join("\n");
     assert.match(code, /public SessionSendParams\(String prompt, String displayPrompt\)/);
-    assert.match(code, /this\(prompt, null, displayPrompt\);/);
+    assert.match(code, /this\(prompt, displayPrompt, null\);/);
 
     const pending = generateRpcClass("QueuePendingItems", {
         type: "object",
@@ -97,7 +97,7 @@ test("admission correlation preserves existing Java record constructors", async 
         pending,
         /public QueuePendingItems\(String id, String messageId, String source\)/
     );
-    assert.match(pending, /this\(id, messageId, null, source\);/);
+    assert.match(pending, /this\(id, messageId, source, null\);/);
     assert.match(pending, /public QueuePendingItems\(String id, String messageId\)/);
     assert.match(pending, /this\(id, messageId, null, null\);/);
 
@@ -114,7 +114,7 @@ test("admission correlation preserves existing Java record constructors", async 
         },
     }, "com.github.copilot.generated");
     assert.match(event, /public UserMessageEventData\(String content, String messageId\)/);
-    assert.match(event, /this\(content, null, messageId\);/);
+    assert.match(event, /this\(content, messageId, null\);/);
 });
 
 test("worker causality preserves existing Java event and RPC record constructors", () => {
@@ -133,15 +133,15 @@ test("worker causality preserves existing Java event and RPC record constructors
     }, "com.github.copilot.generated");
     assert.match(
         event,
-        /public UserMessageEventData\(String content, String clientCorrelationId, String messageId\)/
+        /public UserMessageEventData\(String content, String messageId, String clientCorrelationId\)/
     );
     assert.match(
         event,
         /@com\.fasterxml\.jackson\.databind\.annotation\.JsonDeserialize\(using = com\.github\.copilot\.WorkerCausalityDeserializer\.class\)/
     );
-    assert.match(event, /this\(null, content, clientCorrelationId, messageId\);/);
+    assert.match(event, /this\(content, messageId, null, clientCorrelationId\);/);
     assert.match(event, /public UserMessageEventData\(String content, String messageId\)/);
-    assert.match(event, /this\(null, content, null, messageId\);/);
+    assert.match(event, /this\(content, messageId, null, null\);/);
 
     const notification = renderEventVariantClass({
         typeName: "system.notification",
@@ -159,7 +159,7 @@ test("worker causality preserves existing Java event and RPC record constructors
         notification,
         /public SystemNotificationEventData\(String content, Map<String, Object> kind\)/
     );
-    assert.match(notification, /this\(null, content, kind\);/);
+    assert.match(notification, /this\(content, kind, null\);/);
 
     const result = generateRpcClass("SessionTasksSendMessageResult", {
         type: "object",
@@ -174,7 +174,7 @@ test("worker causality preserves existing Java event and RPC record constructors
         /@com\.fasterxml\.jackson\.databind\.annotation\.JsonDeserialize\(using = com\.github\.copilot\.WorkerCausalityDeserializer\.class\)/
     );
     assert.match(result, /public SessionTasksSendMessageResult\(Boolean sent, String error\)/);
-    assert.match(result, /this\(null, sent, error\);/);
+    assert.match(result, /this\(sent, error, null\);/);
 });
 
 test("worker UUID identities remain strings without changing ordinary UUID fields", () => {

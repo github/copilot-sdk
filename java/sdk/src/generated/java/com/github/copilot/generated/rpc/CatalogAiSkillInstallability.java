@@ -10,7 +10,7 @@ package com.github.copilot.generated.rpc;
 import javax.annotation.processing.Generated;
 
 /**
- * Typed non-installable state for an AI skill candidate
+ * Typed installability state for an AI skill candidate
  *
  * @since 1.0.0
  */

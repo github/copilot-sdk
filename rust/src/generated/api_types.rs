@@ -4011,7 +4011,7 @@ pub struct CatalogCandidateSourceEmbedded {
     pub kind: CatalogCandidateSourceEmbeddedKind,
 }
 
-/// An inert AI skill catalog result. AI skills are discovery-only and cannot be represented as installable through this surface.
+/// An inert AI skill catalog result. Verified Skill candidates may be installable only when the runtime reports installability and the selected session is permitted to plan installation.
 ///
 /// <div class="warning">
 ///
@@ -4031,8 +4031,7 @@ pub struct CatalogAiSkillCandidate {
     pub handle: String,
     /// ISO 8601 timestamp after which the handle is stale and will be rejected.
     pub handle_expires_at: String,
-    /// AI skills are discovery-only and cannot be installed through this surface
-    #[serde(deserialize_with = "CatalogAiSkillCandidate::deserialize_installability")]
+    /// Whether this AI skill candidate can be planned for verified installation in the selected session.
     pub installability: CatalogAiSkillInstallability,
     /// Discriminator: this candidate describes an AI skill
     #[serde(deserialize_with = "CatalogAiSkillCandidate::deserialize_kind")]
@@ -4053,24 +4052,6 @@ pub struct CatalogAiSkillCandidate {
 }
 
 impl CatalogAiSkillCandidate {
-    fn deserialize_installability<'de, D>(
-        deserializer: D,
-    ) -> Result<CatalogAiSkillInstallability, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let value = String::deserialize(deserializer)?;
-        if value != "not-installable-kind" {
-            return Err(serde::de::Error::unknown_variant(
-                &value,
-                &["not-installable-kind"],
-            ));
-        }
-        <CatalogAiSkillInstallability>::deserialize(
-            serde::de::value::StringDeserializer::<D::Error>::new(value),
-        )
-    }
-
     fn deserialize_kind<'de, D>(deserializer: D) -> Result<CatalogAiSkillCandidateKind, D::Error>
     where
         D: serde::Deserializer<'de>,
@@ -4398,7 +4379,7 @@ pub struct CatalogPolicyRejectedError {
     pub source: McpPlanPolicySource,
 }
 
-/// An explicit numbered-page request. The SDK treats the token as opaque; only the runtime decodes it and changes its targetPage. Authority validation binds navigation to the original search. No snapshot stability or token TTL is promised.
+/// An explicit numbered-page request. SDK consumers treat the token as opaque. For bound search, the runtime unwraps an expiring owner-bound reference to the private authority token; only the runtime changes the authority token's targetPage. Legacy unbound navigation keeps its authority-issued token semantics. No snapshot stability is promised.
 ///
 /// <div class="warning">
 ///
@@ -4411,7 +4392,7 @@ pub struct CatalogPolicyRejectedError {
 pub struct CatalogSearchPage {
     /// Requested one-based page. Must not exceed either the token's signed pageCount or the navigation window ceil(1000 / pageSize). Repeat the search without page to discover newly available pages beyond that signed pageCount.
     pub number: i32,
-    /// Opaque authority-issued pagination token from an earlier response. Never decode, modify or log it in an SDK consumer.
+    /// Opaque pagination token from an earlier response, owner-bound when session-bound search was requested. Never decode, modify or log it in an SDK consumer. Expired or foreign bound references require a fresh bound search, not a legacy retry.
     pub token: String,
 }
 
@@ -4436,7 +4417,7 @@ pub struct CatalogSearchPagination {
     pub page_count: i64,
     /// Page size bound to the search, equal to the effective request limit.
     pub page_size: i32,
-    /// Opaque authority-issued pagination token. Only the runtime decodes it or changes targetPage; SDK consumers must not decode, modify or log it. It has no runtime-created expiry or cache.
+    /// Opaque pagination token. Session-bound search returns an expiring runtime-owned reference retaining the exact private authority token, original search and authority. Legacy unbound search returns the authority token unchanged, without a runtime-created expiry. Only the runtime unwraps tokens or changes targetPage; SDK consumers must not decode, modify or log them.
     pub token: String,
     /// Backend-reported count for this response, not the number of returned candidates. Its relationship to the full query result set is unknown.
     pub total_count: i64,
@@ -15514,7 +15495,7 @@ pub struct PermissionsSetModeRequest {
     pub assisted_approval_model: Option<String>,
     /// Permission mode to apply
     pub mode: PermissionMode,
-    /// Optional source for permission-mode telemetry. Defaults to `rpc` when omitted for SDK callers.
+    /// Optional source for permission-mode telemetry. `organization_targeting` is reserved for startup selection after the authenticated account matches an organization targeting policy; SDK callers default to `rpc` and cannot claim targeting provenance.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source: Option<PermissionModeSource>,
 }
@@ -20410,10 +20391,9 @@ pub struct SessionOpenOptions {
     /// Resolved sandbox configuration.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sandbox_config: Option<SandboxConfig>,
-    /// Origin of the sandbox choice. The runtime uses this only for internal telemetry provenance; managed policy is derived independently.
-    #[doc(hidden)]
+    /// Origin of the sandbox choice. Settings-derived origins (never_configured, user_enabled, user_disabled, repository_policy) let managed policy floor a host preference; explicit below-floor changes remain policy conflicts unless a session opt-out is authorized. Also used for telemetry provenance.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) sandbox_config_source: Option<SandboxConfigSource>,
+    pub sandbox_config_source: Option<SandboxConfigSource>,
     /// Capabilities enabled for this session.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_capabilities: Option<Vec<SessionCapability>>,
@@ -21913,10 +21893,9 @@ pub struct SessionUpdateOptionsParams {
     /// Resolved sandbox configuration.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sandbox_config: Option<SandboxConfig>,
-    /// Origin of the sandbox choice. The runtime uses this only for internal telemetry provenance; managed policy is derived independently.
-    #[doc(hidden)]
+    /// Origin of the sandbox choice. Settings-derived origins (never_configured, user_enabled, user_disabled, repository_policy) let managed policy floor a host preference; explicit below-floor changes remain policy conflicts unless a session opt-out is authorized. Also used for telemetry provenance.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) sandbox_config_source: Option<SandboxConfigSource>,
+    pub sandbox_config_source: Option<SandboxConfigSource>,
     /// Replaces the session's capability set with the given list. Use to enable or disable capabilities mid-session (e.g., remove `memory` for reproducible scripted runs). Omit the field to leave the existing capability set unchanged.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_capabilities: Option<Vec<SessionCapability>>,
@@ -34969,7 +34948,7 @@ pub enum CatalogAgentPluginMediaType {
     Unknown,
 }
 
-/// Typed non-installable state for an AI skill candidate
+/// Typed installability state for an AI skill candidate
 ///
 /// <div class="warning">
 ///
@@ -34991,7 +34970,7 @@ pub enum CatalogAiSkillInstallability {
     /// Policy refuses Skill installation for the selected session or authority.
     #[serde(rename = "policy-forbids")]
     PolicyForbids,
-    /// AI skills are discovery-only on this surface.
+    /// Compatibility value for discovery-only callers that did not negotiate Skill installation.
     #[serde(rename = "not-installable-kind")]
     NotInstallableKind,
     /// Unknown variant for forward compatibility.
@@ -40200,7 +40179,7 @@ pub enum PermissionLocationType {
     Unknown,
 }
 
-/// Optional source for permission-mode telemetry. Defaults to `rpc` when omitted for SDK callers.
+/// Optional source for permission-mode telemetry. `organization_targeting` is reserved for startup selection after the authenticated account matches an organization targeting policy; SDK callers default to `rpc` and cannot claim targeting provenance.
 ///
 /// <div class="warning">
 ///
@@ -40222,7 +40201,7 @@ pub enum PermissionModeSource {
     /// The mode was set at startup by the `defaultPermissionMode` user setting.
     #[serde(rename = "user_setting")]
     UserSetting,
-    /// Historical compatibility value for runtimes that selected Assisted mode through organization targeting. Current runtimes do not produce this source.
+    /// The mode was set at startup because the authenticated account matched an organization targeting policy.
     #[serde(rename = "organization_targeting")]
     OrganizationTargeting,
     /// The mode was set through an RPC caller.
@@ -40816,7 +40795,7 @@ pub enum ResponseFormatType {
     JsonSchema,
 }
 
-/// Origin of the sandbox choice supplied by an internal client.
+/// Origin of the sandbox choice supplied by the host. Settings-derived origins let managed policy floor the host preference; do not tag explicit session overrides as settings-derived.
 ///
 /// <div class="warning">
 ///

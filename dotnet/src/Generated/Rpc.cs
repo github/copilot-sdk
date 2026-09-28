@@ -4842,7 +4842,7 @@ public sealed class CatalogAiSkillCandidateProvenance
     public string ObservedAt { get; set; } = string.Empty;
 }
 
-/// <summary>An inert AI skill catalog result. AI skills are discovery-only and cannot be represented as installable through this surface.</summary>
+/// <summary>An inert AI skill catalog result. Verified Skill candidates may be installable only when the runtime reports installability and the selected session is permitted to plan installation.</summary>
 /// <remarks>The <c>ai-skill</c> variant of <see cref="CatalogCandidate"/>.</remarks>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public partial class CatalogCandidateAiSkill : CatalogCandidate
@@ -4874,7 +4874,7 @@ public partial class CatalogCandidateAiSkill : CatalogCandidate
     [JsonPropertyName("handleExpiresAt")]
     public required string HandleExpiresAt { get; set; }
 
-    /// <summary>AI skills are discovery-only and cannot be installed through this surface.</summary>
+    /// <summary>Whether this AI skill candidate can be planned for verified installation in the selected session.</summary>
     [JsonPropertyName("installability")]
     public required CatalogAiSkillInstallability Installability { get; set; }
 
@@ -5026,7 +5026,7 @@ public sealed class CatalogSearchPagination
     [JsonPropertyName("pageSize")]
     public int PageSize { get; set; }
 
-    /// <summary>Opaque authority-issued pagination token. Only the runtime decodes it or changes targetPage; SDK consumers must not decode, modify or log it. It has no runtime-created expiry or cache.</summary>
+    /// <summary>Opaque pagination token. Session-bound search returns an expiring runtime-owned reference retaining the exact private authority token, original search and authority. Legacy unbound search returns the authority token unchanged, without a runtime-created expiry. Only the runtime unwraps tokens or changes targetPage; SDK consumers must not decode, modify or log them.</summary>
     [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
     [MinLength(1)]
     [MaxLength(4096)]
@@ -5311,7 +5311,7 @@ public partial class CatalogSearchResultUnavailable : CatalogSearchResult
     public required CatalogUnavailableReason Reason { get; set; }
 }
 
-/// <summary>An explicit numbered-page request. The SDK treats the token as opaque; only the runtime decodes it and changes its targetPage. Authority validation binds navigation to the original search. No snapshot stability or token TTL is promised.</summary>
+/// <summary>An explicit numbered-page request. SDK consumers treat the token as opaque. For bound search, the runtime unwraps an expiring owner-bound reference to the private authority token; only the runtime changes the authority token's targetPage. Legacy unbound navigation keeps its authority-issued token semantics. No snapshot stability is promised.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public sealed class CatalogSearchPage
 {
@@ -5319,7 +5319,7 @@ public sealed class CatalogSearchPage
     [JsonPropertyName("number")]
     public int Number { get; set; }
 
-    /// <summary>Opaque authority-issued pagination token from an earlier response. Never decode, modify or log it in an SDK consumer.</summary>
+    /// <summary>Opaque pagination token from an earlier response, owner-bound when session-bound search was requested. Never decode, modify or log it in an SDK consumer. Expired or foreign bound references require a fresh bound search, not a legacy retry.</summary>
     [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
     [MinLength(1)]
     [MaxLength(4096)]
@@ -17499,10 +17499,9 @@ internal sealed class SessionUpdateOptionsParams
     [JsonPropertyName("sandboxConfig")]
     public SandboxConfig? SandboxConfig { get; set; }
 
-    /// <summary>Origin of the sandbox choice. The runtime uses this only for internal telemetry provenance; managed policy is derived independently.</summary>
-    [JsonInclude]
+    /// <summary>Origin of the sandbox choice. Settings-derived origins (never_configured, user_enabled, user_disabled, repository_policy) let managed policy floor a host preference; explicit below-floor changes remain policy conflicts unless a session opt-out is authorized. Also used for telemetry provenance.</summary>
     [JsonPropertyName("sandboxConfigSource")]
-    internal SandboxConfigSource? SandboxConfigSource { get; set; }
+    public SandboxConfigSource? SandboxConfigSource { get; set; }
 
     /// <summary>Replaces the session's capability set with the given list. Use to enable or disable capabilities mid-session (e.g., remove `memory` for reproducible scripted runs). Omit the field to leave the existing capability set unchanged.</summary>
     [JsonPropertyName("sessionCapabilities")]
@@ -20742,7 +20741,7 @@ internal sealed class PermissionsSetModeRequest
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
 
-    /// <summary>Optional source for permission-mode telemetry. Defaults to `rpc` when omitted for SDK callers.</summary>
+    /// <summary>Optional source for permission-mode telemetry. `organization_targeting` is reserved for startup selection after the authenticated account matches an organization targeting policy; SDK callers default to `rpc` and cannot claim targeting provenance.</summary>
     [JsonPropertyName("source")]
     public PermissionModeSource? Source { get; set; }
 }
@@ -28705,7 +28704,7 @@ public readonly struct CatalogMcpServerInstallability : IEquatable<CatalogMcpSer
 }
 
 
-/// <summary>Typed non-installable state for an AI skill candidate.</summary>
+/// <summary>Typed installability state for an AI skill candidate.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
@@ -28737,7 +28736,7 @@ public readonly struct CatalogAiSkillInstallability : IEquatable<CatalogAiSkillI
     /// <summary>Policy refuses Skill installation for the selected session or authority.</summary>
     public static CatalogAiSkillInstallability PolicyForbids { get; } = new("policy-forbids");
 
-    /// <summary>AI skills are discovery-only on this surface.</summary>
+    /// <summary>Compatibility value for discovery-only callers that did not negotiate Skill installation.</summary>
     public static CatalogAiSkillInstallability NotInstallableKind { get; } = new("not-installable-kind");
 
     /// <summary>Returns a value indicating whether two <see cref="CatalogAiSkillInstallability"/> instances are equivalent.</summary>
@@ -35920,7 +35919,7 @@ public readonly struct OptionsUpdateReasoningSummary : IEquatable<OptionsUpdateR
 }
 
 
-/// <summary>Origin of the sandbox choice supplied by an internal client.</summary>
+/// <summary>Origin of the sandbox choice supplied by the host. Settings-derived origins let managed policy floor the host preference; do not tag explicit session overrides as settings-derived.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
@@ -37579,7 +37578,7 @@ public readonly struct PermissionsSetApproveAllSource : IEquatable<PermissionsSe
 }
 
 
-/// <summary>Optional source for permission-mode telemetry. Defaults to `rpc` when omitted for SDK callers.</summary>
+/// <summary>Optional source for permission-mode telemetry. `organization_targeting` is reserved for startup selection after the authenticated account matches an organization targeting policy; SDK callers default to `rpc` and cannot claim targeting provenance.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
@@ -37611,7 +37610,7 @@ public readonly struct PermissionModeSource : IEquatable<PermissionModeSource>
     /// <summary>The mode was set at startup by the `defaultPermissionMode` user setting.</summary>
     public static PermissionModeSource UserSetting { get; } = new("user_setting");
 
-    /// <summary>Historical compatibility value for runtimes that selected Assisted mode through organization targeting. Current runtimes do not produce this source.</summary>
+    /// <summary>The mode was set at startup because the authenticated account matched an organization targeting policy.</summary>
     public static PermissionModeSource OrganizationTargeting { get; } = new("organization_targeting");
 
     /// <summary>The mode was set through an RPC caller.</summary>
@@ -44063,7 +44062,7 @@ public sealed class McpOauthApi
         return await CopilotClient.InvokeRpcAsync<SessionMcpOauthPrepareLoginResult>(_session.Rpc, "session.mcp.oauth.prepareLogin", [request], cancellationToken);
     }
 
-    /// <summary>Starts OAuth authentication for a remote MCP server.</summary>
+    /// <summary>Starts OAuth authentication for a remote MCP server. Owned servers require the original one-use prepareLogin handle and exact installation ID; manual servers retain the existing direct login behaviour.</summary>
     /// <param name="serverName">Name of the remote MCP server to authenticate.</param>
     /// <param name="forceReauth">When true, clears any cached OAuth token for the server and runs a full new authorization. Use when the user explicitly wants to switch accounts or believes their session is stuck.</param>
     /// <param name="clientName">Optional override for the OAuth client display name shown on the consent screen. Applies to newly registered dynamic clients only — existing registrations keep the name they were created with. When omitted, the runtime applies a neutral fallback; callers driving interactive auth should pass their own surface-specific label so the consent screen matches the product the user sees.</param>
@@ -44083,7 +44082,7 @@ public sealed class McpOauthApi
         return await CopilotClient.InvokeRpcAsync<McpOauthLoginResult>(_session.Rpc, "session.mcp.oauth.login", [request], cancellationToken);
     }
 
-    /// <summary>Starts OAuth authentication for a remote MCP server.</summary>
+    /// <summary>Starts OAuth authentication for a remote MCP server. Owned servers require the original one-use prepareLogin handle and exact installation ID; manual servers retain the existing direct login behaviour.</summary>
     /// <param name="request">Remote MCP server name and optional overrides controlling reauthentication, OAuth client display name, callback success-page copy, and static OAuth client selection.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>OAuth authorization URL the caller should open, or empty when cached tokens already authenticated the server.</returns>
@@ -44816,7 +44815,7 @@ public sealed class OptionsApi
     /// <param name="shellInitProfile">Use shell.initProfile instead. Shell init profile (`None` or `NonInteractive`).</param>
     /// <param name="shellProcessFlags">PowerShell process flags applied to built-in and user-requested shell commands.</param>
     /// <param name="sandboxConfig">Resolved sandbox configuration.</param>
-    /// <param name="sandboxConfigSource">Origin of the sandbox choice. The runtime uses this only for internal telemetry provenance; managed policy is derived independently.</param>
+    /// <param name="sandboxConfigSource">Origin of the sandbox choice. Settings-derived origins (never_configured, user_enabled, user_disabled, repository_policy) let managed policy floor a host preference; explicit below-floor changes remain policy conflicts unless a session opt-out is authorized. Also used for telemetry provenance.</param>
     /// <param name="logInteractiveShells">Whether interactive shell sessions are logged.</param>
     /// <param name="envValueMode">How env values are passed to MCP servers (`direct` inlines literal values; `indirect` resolves at launch).</param>
     /// <param name="allowAllMcpServerInstructions">Whether to include instructions from every MCP server in the system prompt instead of only allowlisted servers.</param>
@@ -45454,7 +45453,7 @@ public sealed class PermissionsApi
     /// <summary>Sets the permission mode for the session. `manual` follows the normal approval flow, `assisted` attaches LLM safety recommendations, and `allow-all` automatically approves permission requests. The result returns the authoritative post-mutation mode so callers can update local state without racing the `session.permissions_changed` notification.</summary>
     /// <param name="mode">Permission mode to apply.</param>
     /// <param name="assistedApprovalModel">Optional judge model id for assisted mode. When omitted, the session resolves the provider default: `gpt-5.5` for CAPI sessions and the active session model for BYOK sessions.</param>
-    /// <param name="source">Optional source for permission-mode telemetry. Defaults to `rpc` when omitted for SDK callers.</param>
+    /// <param name="source">Optional source for permission-mode telemetry. `organization_targeting` is reserved for startup selection after the authenticated account matches an organization targeting policy; SDK callers default to `rpc` and cannot claim targeting provenance.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Indicates whether the requested permission mode was applied and reports the authoritative post-mutation mode.</returns>
     public async Task<PermissionsSetModeResult> SetModeAsync(PermissionMode mode, string? assistedApprovalModel = null, PermissionModeSource? source = null, CancellationToken cancellationToken = default)
