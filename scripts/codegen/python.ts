@@ -2150,6 +2150,17 @@ function getOrCreatePyEnum(
     return enumName;
 }
 
+const WORKER_STRING_UUID_PROPERTIES = new Set([
+    "WorkerAdmission.ahpTurnId",
+    "WorkerEventReference.eventId",
+    "WorkerInput.queueItemId",
+    "WorkerNotificationReference.deliveryId",
+]);
+
+function isWorkerStringUuidProperty(parentTypeName: string, jsonPropName: string): boolean {
+    return WORKER_STRING_UUID_PROPERTIES.has(`${parentTypeName}.${jsonPropName}`);
+}
+
 function resolvePyPropertyType(
     propSchema: JSONSchema7,
     parentTypeName: string,
@@ -2335,6 +2346,10 @@ function resolvePyPropertyType(
             return isRequired ? resolved : pyOptionalResolvedType(resolved);
         }
         if (format === "uuid") {
+            if (isWorkerStringUuidProperty(parentTypeName, jsonPropName)) {
+                const resolved = pyPrimitiveResolvedType("str", "from_str");
+                return isRequired ? resolved : pyOptionalResolvedType(resolved);
+            }
             const resolved = pyPrimitiveResolvedType("UUID", "from_uuid", "to_uuid");
             return isRequired ? resolved : pyOptionalResolvedType(resolved);
         }

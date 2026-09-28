@@ -10,7 +10,6 @@ package com.github.copilot.generated;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import java.util.UUID;
 import javax.annotation.processing.Generated;
 
 /**
@@ -25,7 +24,7 @@ public record WorkerEventReference(
     /** Actual runtime session scope, at most 256 UTF-8 bytes. */
     @JsonProperty("sessionId") String sessionId,
     /** Actual event occurrence UUID; copied without normalization. */
-    @JsonProperty("eventId") UUID eventId,
+    @JsonProperty("eventId") String eventId,
     /** Actual event agent scope, absent for a root occurrence; at most 256 UTF-8 bytes. */
     @JsonProperty("agentId") String agentId,
     /** Type of the observed occurrence. */

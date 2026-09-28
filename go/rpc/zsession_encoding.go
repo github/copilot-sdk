@@ -234,6 +234,24 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
+	case SessionEventTypeFactoryRunSettled:
+		var d FactoryRunSettledData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeFactoryRunStarted:
+		var d FactoryRunStartedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeFactoryRunUpdated:
+		var d FactoryRunUpdatedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
 	case SessionEventTypeHookEnd:
 		var d HookEndData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
@@ -1028,10 +1046,11 @@ func (r *UserMessageData) UnmarshalJSON(data []byte) error {
 
 func (r *AssistantTurnStartData) UnmarshalJSON(data []byte) error {
 	type rawAssistantTurnStartData struct {
-		InteractionID   *string         `json:"interactionId,omitempty"`
-		Model           *string         `json:"model,omitempty"`
-		TurnID          string          `json:"turnId"`
-		WorkerCausality json.RawMessage `json:"workerCausality,omitempty"`
+		InteractionID    *string         `json:"interactionId,omitempty"`
+		Model            *string         `json:"model,omitempty"`
+		ParentToolCallID *string         `json:"parentToolCallId,omitempty"`
+		TurnID           string          `json:"turnId"`
+		WorkerCausality  json.RawMessage `json:"workerCausality,omitempty"`
 	}
 	var raw rawAssistantTurnStartData
 	if err := json.Unmarshal(data, &raw); err != nil {
@@ -1039,6 +1058,7 @@ func (r *AssistantTurnStartData) UnmarshalJSON(data []byte) error {
 	}
 	r.InteractionID = raw.InteractionID
 	r.Model = raw.Model
+	r.ParentToolCallID = raw.ParentToolCallID
 	r.TurnID = raw.TurnID
 	if !diagnosticmetadata.ReadWorkerCausality(raw.WorkerCausality, &r.WorkerCausality) {
 		r.WorkerCausality = nil

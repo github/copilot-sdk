@@ -396,6 +396,17 @@ function requiresArgumentNullCheck(typeName: string, isRequired: boolean): boole
     return isRequired && !typeName.endsWith("?") && !isNonNullableCSharpValueType(typeName);
 }
 
+const WORKER_STRING_UUID_PROPERTIES = new Set([
+    "WorkerAdmission.AhpTurnId",
+    "WorkerEventReference.EventId",
+    "WorkerInput.QueueItemId",
+    "WorkerNotificationReference.DeliveryId",
+]);
+
+function isWorkerStringUuidProperty(parentClassName: string, propName: string, schema: JSONSchema7): boolean {
+    return schema.format === "uuid" && WORKER_STRING_UUID_PROPERTIES.has(`${parentClassName}.${propName}`);
+}
+
 async function formatCSharpFile(filePath: string): Promise<void> {
     try {
         const projectFile = path.join(REPO_ROOT, "dotnet/src/GitHub.Copilot.SDK.csproj");
@@ -1290,6 +1301,9 @@ function resolveSessionPropertyType(
     nestedClasses: Map<string, string>,
     enumOutput: string[]
 ): string {
+    if (isWorkerStringUuidProperty(parentClassName, propName, propSchema)) {
+        return isRequired ? "string" : "string?";
+    }
     if (isOpaqueJson(propSchema)) {
         return isRequired ? "JsonElement" : "JsonElement?";
     }
@@ -1791,6 +1805,9 @@ function getRpcUnionMatchExpression(schema: JSONSchema7, seenRefs: ReadonlySet<s
 }
 
 function resolveRpcType(schema: JSONSchema7, isRequired: boolean, parentClassName: string, propName: string, classes: string[]): string {
+    if (isWorkerStringUuidProperty(parentClassName, propName, schema)) {
+        return isRequired ? "string" : "string?";
+    }
     if (isOpaqueJson(schema)) {
         return isRequired ? "JsonElement" : "JsonElement?";
     }

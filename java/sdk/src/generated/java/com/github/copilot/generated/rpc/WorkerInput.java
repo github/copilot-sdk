@@ -11,7 +11,6 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
-import java.util.UUID;
 import javax.annotation.processing.Generated;
 
 /**
@@ -24,7 +23,7 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record WorkerInput(
     /** UUID allocated for this queue item by the admitting producer. */
-    @JsonProperty("queueItemId") UUID queueItemId,
+    @JsonProperty("queueItemId") String queueItemId,
     /** Actual recipient task, at most 256 UTF-8 bytes. */
     @JsonProperty("agentId") String agentId,
     /** Original invoking occurrence, never replaced by a reported/root alias. */

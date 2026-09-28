@@ -10,7 +10,6 @@ package com.github.copilot.generated;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import java.util.UUID;
 import javax.annotation.processing.Generated;
 
 /**
@@ -23,7 +22,7 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record WorkerNotificationReference(
     /** Actual notificationDeliveryId UUID. */
-    @JsonProperty("deliveryId") UUID deliveryId,
+    @JsonProperty("deliveryId") String deliveryId,
     /** May be omitted only on the matching current system.notification. */
     @JsonProperty("event") WorkerEventReference event,
     /** Actual consumption mode. */

@@ -215,6 +215,50 @@ describe("C# root event payload unions", () => {
                 '    [JsonPropertyName("workerCausality")]'
         );
     });
+
+    it("projects worker UUID identities as strings", () => {
+        const code = generateSessionEventsCode({
+            definitions: {
+                WorkerEventReference: {
+                    type: "object",
+                    properties: {
+                        eventId: { type: "string", format: "uuid" },
+                    },
+                    required: ["eventId"],
+                },
+                WorkerCausality: {
+                    type: "object",
+                    properties: {
+                        event: { $ref: "#/definitions/WorkerEventReference" },
+                    },
+                    required: ["event"],
+                },
+                SessionEvent: {
+                    anyOf: [
+                        {
+                            type: "object",
+                            properties: {
+                                type: { const: "user.message" },
+                                data: {
+                                    type: "object",
+                                    properties: {
+                                        content: { type: "string" },
+                                        workerCausality: {
+                                            $ref: "#/definitions/WorkerCausality",
+                                        },
+                                    },
+                                    required: ["content"],
+                                },
+                            },
+                            required: ["type", "data"],
+                        },
+                    ],
+                },
+            },
+        });
+        expect(code).toContain("public required string EventId { get; set; }");
+        expect(code).not.toContain("public required Guid EventId { get; set; }");
+    });
 });
 
 describe("C# RPC codegen", () => {

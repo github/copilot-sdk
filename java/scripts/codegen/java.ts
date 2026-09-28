@@ -815,6 +815,17 @@ interface JavaTypeResolution {
     promotedUnionTypes: Set<string>;
 }
 
+const WORKER_STRING_UUID_PROPERTIES = new Set([
+    "WorkerAdmission.ahpTurnId",
+    "WorkerEventReference.eventId",
+    "WorkerInput.queueItemId",
+    "WorkerNotificationReference.deliveryId",
+]);
+
+function isWorkerStringUuidProperty(context: string, propName: string): boolean {
+    return WORKER_STRING_UUID_PROPERTIES.has(`${context}.${propName}`);
+}
+
 export function schemaTypeToJava(
     schema: JSONSchema7,
     required: boolean,
@@ -892,6 +903,9 @@ export function schemaTypeToJava(
 
     if (schema.type === "string") {
         if (schema.format === "uuid") {
+            if (isWorkerStringUuidProperty(context, propName)) {
+                return { javaType: "String", imports };
+            }
             imports.add("java.util.UUID");
             return { javaType: "UUID", imports };
         }

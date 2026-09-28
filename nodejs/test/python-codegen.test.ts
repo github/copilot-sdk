@@ -49,6 +49,52 @@ describe("Python root event payload unions", () => {
         expect(code).toContain("data = SampleUnionData.from_dict(data_obj)");
         expect(code).toContain("return SampleEmptyData()");
     });
+
+    it("projects worker UUID identities as strings", () => {
+        const code = generatePythonSessionEventsCode({
+            definitions: {
+                WorkerEventReference: {
+                    type: "object",
+                    properties: {
+                        eventId: { type: "string", format: "uuid" },
+                    },
+                    required: ["eventId"],
+                },
+                WorkerCausality: {
+                    type: "object",
+                    properties: {
+                        event: { $ref: "#/definitions/WorkerEventReference" },
+                    },
+                    required: ["event"],
+                },
+                SessionEvent: {
+                    anyOf: [
+                        {
+                            type: "object",
+                            properties: {
+                                type: { const: "user.message" },
+                                data: {
+                                    type: "object",
+                                    properties: {
+                                        content: { type: "string" },
+                                        workerCausality: {
+                                            $ref: "#/definitions/WorkerCausality",
+                                        },
+                                    },
+                                    required: ["content"],
+                                },
+                            },
+                            required: ["type", "data"],
+                        },
+                    ],
+                },
+            },
+        });
+        expect(code).toContain("class WorkerEventReference:");
+        expect(code).toContain("    event_id: str");
+        expect(code).toContain('event_id = from_str(obj.get("eventId"))');
+        expect(code).not.toContain('event_id = from_uuid(obj.get("eventId"))');
+    });
 });
 
 function pythonRequestSnippet(additions: 1 | 2): string {

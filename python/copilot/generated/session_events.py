@@ -12933,7 +12933,7 @@ class WorkerAdmission:
     "An observed worker admission, not a claim that execution succeeded."
     kind: WorkerAdmissionKind
     message_id: str
-    ahp_turn_id: UUID | None = None
+    ahp_turn_id: str | None = None
     event: WorkerEventReference | None = None
 
     @staticmethod
@@ -12941,7 +12941,7 @@ class WorkerAdmission:
         assert isinstance(obj, dict)
         kind = parse_enum(WorkerAdmissionKind, obj.get("kind"))
         message_id = from_str(obj.get("messageId"))
-        ahp_turn_id = from_union([from_none, from_uuid], obj.get("ahpTurnId"))
+        ahp_turn_id = from_union([from_none, from_str], obj.get("ahpTurnId"))
         event = from_union([from_none, WorkerEventReference.from_dict], obj.get("event"))
         return WorkerAdmission(
             kind=kind,
@@ -12955,7 +12955,7 @@ class WorkerAdmission:
         result["kind"] = to_enum(WorkerAdmissionKind, self.kind)
         result["messageId"] = from_str(self.message_id)
         if self.ahp_turn_id is not None:
-            result["ahpTurnId"] = from_union([from_none, to_uuid], self.ahp_turn_id)
+            result["ahpTurnId"] = from_union([from_none, from_str], self.ahp_turn_id)
         if self.event is not None:
             result["event"] = from_union([from_none, lambda x: to_class(WorkerEventReference, x)], self.event)
         return result
@@ -13018,7 +13018,7 @@ class WorkerCausality:
 @dataclass
 class WorkerEventReference:
     "Exact observed event identity. No private registration generation or execution handle."
-    event_id: UUID
+    event_id: str
     event_type: WorkerEventType
     provenance: WorkerObservationProvenance
     session_id: str
@@ -13027,7 +13027,7 @@ class WorkerEventReference:
     @staticmethod
     def from_dict(obj: Any) -> "WorkerEventReference":
         assert isinstance(obj, dict)
-        event_id = from_uuid(obj.get("eventId"))
+        event_id = from_str(obj.get("eventId"))
         event_type = parse_enum(WorkerEventType, obj.get("eventType"))
         provenance = parse_enum(WorkerObservationProvenance, obj.get("provenance"))
         session_id = from_str(obj.get("sessionId"))
@@ -13042,7 +13042,7 @@ class WorkerEventReference:
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["eventId"] = to_uuid(self.event_id)
+        result["eventId"] = from_str(self.event_id)
         result["eventType"] = to_enum(WorkerEventType, self.event_type)
         result["provenance"] = to_enum(WorkerObservationProvenance, self.provenance)
         result["sessionId"] = from_str(self.session_id)
@@ -13055,7 +13055,7 @@ class WorkerEventReference:
 class WorkerInput:
     "Exact accepted worker input, distinct from a message, event, caller correlation or Turn."
     agent_id: str
-    queue_item_id: UUID
+    queue_item_id: str
     sender: WorkerEventReference | None = None
     sender_bridges: list[WorkerBridgeObservation] | None = None
 
@@ -13063,7 +13063,7 @@ class WorkerInput:
     def from_dict(obj: Any) -> "WorkerInput":
         assert isinstance(obj, dict)
         agent_id = from_str(obj.get("agentId"))
-        queue_item_id = from_uuid(obj.get("queueItemId"))
+        queue_item_id = from_str(obj.get("queueItemId"))
         sender = from_union([from_none, WorkerEventReference.from_dict], obj.get("sender"))
         sender_bridges = from_union([from_none, lambda x: from_list(WorkerBridgeObservation.from_dict, x)], obj.get("senderBridges"))
         return WorkerInput(
@@ -13076,7 +13076,7 @@ class WorkerInput:
     def to_dict(self) -> dict:
         result: dict = {}
         result["agentId"] = from_str(self.agent_id)
-        result["queueItemId"] = to_uuid(self.queue_item_id)
+        result["queueItemId"] = from_str(self.queue_item_id)
         if self.sender is not None:
             result["sender"] = from_union([from_none, lambda x: to_class(WorkerEventReference, x)], self.sender)
         if self.sender_bridges is not None:
@@ -13087,14 +13087,14 @@ class WorkerInput:
 @dataclass
 class WorkerNotificationReference:
     "Exact delivery and optional occurrence of a consumed worker notification."
-    delivery_id: UUID
+    delivery_id: str
     mode: WorkerNotificationMode
     event: WorkerEventReference | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "WorkerNotificationReference":
         assert isinstance(obj, dict)
-        delivery_id = from_uuid(obj.get("deliveryId"))
+        delivery_id = from_str(obj.get("deliveryId"))
         mode = parse_enum(WorkerNotificationMode, obj.get("mode"))
         event = from_union([from_none, WorkerEventReference.from_dict], obj.get("event"))
         return WorkerNotificationReference(
@@ -13105,7 +13105,7 @@ class WorkerNotificationReference:
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["deliveryId"] = to_uuid(self.delivery_id)
+        result["deliveryId"] = from_str(self.delivery_id)
         result["mode"] = to_enum(WorkerNotificationMode, self.mode)
         if self.event is not None:
             result["event"] = from_union([from_none, lambda x: to_class(WorkerEventReference, x)], self.event)

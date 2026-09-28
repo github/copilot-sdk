@@ -169,6 +169,30 @@ test("worker causality preserves existing Java event and RPC record constructors
     assert.match(result, /this\(null, sent, error\);/);
 });
 
+test("worker UUID identities remain strings without changing ordinary UUID fields", () => {
+    const nestedTypes = new Map();
+    assert.equal(
+        schemaTypeToJava(
+            { type: "string", format: "uuid" },
+            true,
+            "WorkerEventReference",
+            "eventId",
+            nestedTypes,
+        ).javaType,
+        "String",
+    );
+    assert.equal(
+        schemaTypeToJava(
+            { type: "string", format: "uuid" },
+            true,
+            "OtherReference",
+            "eventId",
+            nestedTypes,
+        ).javaType,
+        "UUID",
+    );
+});
+
 for (const keyword of ["anyOf", "oneOf"] as const) {
     test(`root ${keyword} payload preserves raw JSON and existing data descriptors`, () => {
         const source = renderPayload({

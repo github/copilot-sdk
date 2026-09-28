@@ -10,7 +10,6 @@ package com.github.copilot.generated;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import java.util.UUID;
 import javax.annotation.processing.Generated;
 
 /**
@@ -29,6 +28,6 @@ public record WorkerAdmission(
     /** May be omitted only for the matching current worker user.message. */
     @JsonProperty("event") WorkerEventReference event,
     /** Actual AHP participant Turn UUID, not a native turn counter or provenance signal. */
-    @JsonProperty("ahpTurnId") UUID ahpTurnId
+    @JsonProperty("ahpTurnId") String ahpTurnId
 ) {
 }

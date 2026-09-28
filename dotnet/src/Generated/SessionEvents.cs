@@ -8114,7 +8114,7 @@ public sealed partial class WorkerEventReference
 
     /// <summary>Actual event occurrence UUID; copied without normalization.</summary>
     [JsonPropertyName("eventId")]
-    public required Guid EventId { get; set; }
+    public required string EventId { get; set; }
 
     /// <summary>Type of the observed occurrence.</summary>
     [JsonPropertyName("eventType")]
@@ -8139,7 +8139,7 @@ public sealed partial class WorkerAdmission
     /// <summary>Actual AHP participant Turn UUID, not a native turn counter or provenance signal.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("ahpTurnId")]
-    public Guid? AhpTurnId { get; set; }
+    public string? AhpTurnId { get; set; }
 
     /// <summary>May be omitted only for the matching current worker user.message.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -8184,7 +8184,7 @@ public sealed partial class WorkerInput
 
     /// <summary>UUID allocated for this queue item by the admitting producer.</summary>
     [JsonPropertyName("queueItemId")]
-    public required Guid QueueItemId { get; set; }
+    public required string QueueItemId { get; set; }
 
     /// <summary>Original invoking occurrence, never replaced by a reported/root alias.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -8203,7 +8203,7 @@ public sealed partial class WorkerNotificationReference
 {
     /// <summary>Actual notificationDeliveryId UUID.</summary>
     [JsonPropertyName("deliveryId")]
-    public required Guid DeliveryId { get; set; }
+    public required string DeliveryId { get; set; }
 
     /// <summary>May be omitted only on the matching current system.notification.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
