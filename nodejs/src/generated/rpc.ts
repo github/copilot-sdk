@@ -4,8 +4,9 @@
  */
 
 import type { MessageConnection } from "vscode-jsonrpc/node.js";
+import { withWorkerCausality, withWorkerCausalityEvents } from "../workerCausality.js";
 
-import type { AbortReason, AgentModelPolicy, Attachment, AutoTier, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, IndexedSearchState, ManagedSettingsResolvedData, McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerMetadata, McpServerSource, McpServerStatus, ModelChangeSource, PermissionDecisionSource, PermissionMode, PermissionPromptRequest, PermissionRule, ReasoningSummary, RemediationAction, SessionEvent, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskCompleteData, TaskCompletionOutcome, UserToolSessionApproval, Verbosity } from "./session-events.js";
+import type { AbortReason, AgentModelPolicy, Attachment, AutoTier, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, IndexedSearchState, ManagedSettingsResolvedData, McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerMetadata, McpServerSource, McpServerStatus, ModelChangeSource, PermissionDecisionSource, PermissionMode, PermissionPromptRequest, PermissionRule, ReasoningSummary, RemediationAction, SessionEvent, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskCompleteData, TaskCompletionOutcome, UserToolSessionApproval, Verbosity, WorkerCausality } from "./session-events.js";
 
 /** A value that can be represented losslessly on the SDK JSON wire. */
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
@@ -4312,7 +4313,7 @@ export type ResponseFormat = {
   type: "json_schema";
 };
 /**
- * Origin of the sandbox choice supplied by the host. This value describes preference or session intent; it does not authorize bypassing managed policy.
+ * Origin of the sandbox choice supplied by the host. Settings-derived origins let managed policy floor the host preference; do not tag explicit session overrides as settings-derived.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SandboxConfigSource".
@@ -4325,7 +4326,7 @@ export type SandboxConfigSource =
   | "user_enabled"
   /** The user's persisted settings disabled the sandbox. */
   | "user_disabled"
-  /** An explicit session-scoped choice selected the sandbox state, such as a command-line flag. */
+  /** A command-line flag selected the sandbox state for this session. */
   | "session_flag"
   /** The user disabled the sandbox for the current session. */
   | "session_disabled"
@@ -19509,6 +19510,10 @@ export interface QueuePendingItems {
    * Optional source tag associated with this pending queue entry. This is an open string, not authenticated authorship. In particular, `user` does not prove that a person typed the message. If the source is absent or unrecognized, consumers must not infer human or agent authorship and should handle the entry neutrally. Consumers should tolerate future source values.
    */
   source?: string;
+  /**
+   * Caller-owned diagnostic UUID from the exact accepted native session.send or sendMessages item, when RUNTIME_ADMISSION_TRACE_CONTEXT is enabled. Omitted for unsupported or identity-less rows, including snapshot-only mirrors. Not an idempotency key, authorization, or permission to retry; repeated values remain ambiguous.
+   */
+  clientCorrelationId?: string;
 }
 /**
  * Snapshot of the session's pending queued items and immediate-steering messages.
@@ -20723,6 +20728,10 @@ export interface SendMessageItem {
    * @internal
    */
   source?: string;
+  /**
+   * Optional caller-generated diagnostic UUID for this item only, with the same validation and opt-in native echo as session.send.clientCorrelationId. The batch has no request-level correlation value; each item retains its own value, including preceding context messages. Reused values do not deduplicate messages and remain ambiguous.
+   */
+  clientCorrelationId?: string;
 }
 /**
  * Parameters for sending zero or more user messages to the session in a single turn. Remote-backed (Mission Control) sessions do not support this method and will return an error.
@@ -20834,6 +20843,10 @@ export interface SendRequest {
    * If true, await completion of the agentic loop for this message before returning. Defaults to false (fire-and-forget). When true, the result still contains the same `messageId`; the caller can rely on the agent having processed the message before the call resolves. Transport-dependent tail semantics: on a LOCAL (in-process) session the wait additionally blocks until the completed turn's event tail has been dispatched to this session's in-process subscribers, so a subsequent read of subscriber state already reflects the turn; on a REMOTE session the wait resolves once the loop completes and mirrored delivery follows over the wire. Callers that need the stronger local guarantee on remote sessions should await the event stream explicitly.
    */
   wait?: boolean;
+  /**
+   * Optional caller-generated diagnostic UUID for this single message. Native sessions with RUNTIME_ADMISSION_TRACE_CONTEXT enabled echo the exact lowercase, hyphenated 36-character UUID on user.message and its existing pending message row. Missing, invalid, disabled, or unsupported metadata is ignored without rejecting the send. Does not change messageId, deduplicate submissions, authorize work, or make an uncertain retry safe.
+   */
+  clientCorrelationId?: string;
 }
 /**
  * Result of sending a user message
@@ -25276,6 +25289,7 @@ export interface TasksSendMessageResult {
    * Error message if delivery failed
    */
   error?: string;
+  workerCausality?: WorkerCausality;
 }
 /**
  * Agent type, prompt, name, and optional description and model override for the new task.
@@ -29263,7 +29277,7 @@ export function createServerRpc(connection: MessageConnection) {
              * @returns Batch of session events returned by a read, with cursor and continuation metadata.
              */
             readPersistedEvents: async (params: SessionsReadPersistedEventsRequest): Promise<EventsReadResult> =>
-                connection.sendRequest("sessions.readPersistedEvents", params),
+                connection.sendRequest<EventsReadResult>("sessions.readPersistedEvents", params).then(withWorkerCausalityEvents),
             /**
              * Finds the local session bound to a GitHub task ID, if any.
              *
@@ -30410,7 +30424,7 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
              * @returns Indicates whether the message was delivered, with an error message when delivery failed.
              */
             sendMessage: async (params: TasksSendMessageRequest): Promise<TasksSendMessageResult> =>
-                connection.sendRequest("session.tasks.sendMessage", { sessionId, ...params }),
+                connection.sendRequest<TasksSendMessageResult>("session.tasks.sendMessage", { sessionId, ...params }).then(withWorkerCausality),
         },
         /** @experimental */
         skills: {
@@ -31799,7 +31813,7 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
              * @returns Batch of session events returned by a read, with cursor and continuation metadata.
              */
             read: async (params: EventLogReadRequest): Promise<EventsReadResult> =>
-                connection.sendRequest("session.eventLog.read", { sessionId, ...params }),
+                connection.sendRequest<EventsReadResult>("session.eventLog.read", { sessionId, ...params }).then(withWorkerCausalityEvents),
             /**
              * Returns a snapshot of the current tail cursor without consuming events.
              *

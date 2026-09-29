@@ -61,8 +61,22 @@ public final class UserMessageEvent extends SessionEvent {
         @JsonProperty("interactionId") String interactionId,
         /** The agent-loop turn ID that consumed this message; absent when no agent-loop turn consumed it */
         @JsonProperty("turnId") String turnId,
-        /** Parent agent task ID for background telemetry correlated to this user turn */
-        @JsonProperty("parentAgentTaskId") String parentAgentTaskId
+        /** Task ID minted when the runtime prepares this user-message run. This is not a parent interaction ID or worker instance ID and must not be equated with CAPI's X-Parent-Agent-Id. */
+        @JsonProperty("parentAgentTaskId") String parentAgentTaskId,
+        /** Optional worker admission observations; self identity requires the matching enclosing message and agent. */
+        @com.fasterxml.jackson.databind.annotation.JsonDeserialize(using = com.github.copilot.WorkerCausalityDeserializer.class)
+        @JsonProperty("workerCausality") WorkerCausality workerCausality,
+        /** Exact caller-owned diagnostic UUID carried by this accepted native session.send or sendMessages item when RUNTIME_ADMISSION_TRACE_CONTEXT is enabled. Omitted when input, native ownership, or support is missing. Independent of the canonical messageId; not an idempotency key, authorization, or permission to retry. Multiple messages with the same value remain ambiguous. */
+        @JsonProperty("clientCorrelationId") String clientCorrelationId
     ) {
+        /** Creates a value without optional worker diagnostics. */
+        public UserMessageEventData(String content, ResponsesReasoning responsesReasoning, String messageId, String transformedContent, List<Object> attachments, List<String> supportedNativeDocumentMimeTypes, List<String> nativeDocumentPathFallbackPaths, String source, UserMessageDelivery delivery, UserMessageAgentMode agentMode, Boolean isAutopilotContinuation, String interactionId, String turnId, String parentAgentTaskId, String clientCorrelationId) {
+            this(content, responsesReasoning, messageId, transformedContent, attachments, supportedNativeDocumentMimeTypes, nativeDocumentPathFallbackPaths, source, delivery, agentMode, isAutopilotContinuation, interactionId, turnId, parentAgentTaskId, null, clientCorrelationId);
+        }
+
+        /** Creates a value without optional worker diagnostics. */
+        public UserMessageEventData(String content, ResponsesReasoning responsesReasoning, String messageId, String transformedContent, List<Object> attachments, List<String> supportedNativeDocumentMimeTypes, List<String> nativeDocumentPathFallbackPaths, String source, UserMessageDelivery delivery, UserMessageAgentMode agentMode, Boolean isAutopilotContinuation, String interactionId, String turnId, String parentAgentTaskId) {
+            this(content, responsesReasoning, messageId, transformedContent, attachments, supportedNativeDocumentMimeTypes, nativeDocumentPathFallbackPaths, source, delivery, agentMode, isAutopilotContinuation, interactionId, turnId, parentAgentTaskId, null, null);
+        }
     }
 }

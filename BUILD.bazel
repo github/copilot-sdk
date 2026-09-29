@@ -1,3 +1,5 @@
+exports_files(["test/worker-causality.json"])
+
 SHARED_CODEGEN_INPUTS = [
     "nodejs/scripts/releaseArtifacts.ts",
     "nodejs/src/cliVersion.ts",

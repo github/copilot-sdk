@@ -430,16 +430,17 @@ func newSession(
 func (s *Session) Send(ctx context.Context, options MessageOptions) (string, error) {
 	traceparent, tracestate := getTraceContext(ctx)
 	req := sessionSendRequest{
-		SessionID:      s.SessionID,
-		Prompt:         options.Prompt,
-		Source:         options.Source,
-		DisplayPrompt:  options.DisplayPrompt,
-		Attachments:    options.Attachments,
-		Mode:           options.Mode,
-		AgentMode:      options.AgentMode,
-		Traceparent:    traceparent,
-		Tracestate:     tracestate,
-		RequestHeaders: options.RequestHeaders,
+		SessionID:           s.SessionID,
+		Prompt:              options.Prompt,
+		ClientCorrelationID: options.ClientCorrelationID,
+		Source:              options.Source,
+		DisplayPrompt:       options.DisplayPrompt,
+		Attachments:         options.Attachments,
+		Mode:                options.Mode,
+		AgentMode:           options.AgentMode,
+		Traceparent:         traceparent,
+		Tracestate:          tracestate,
+		RequestHeaders:      options.RequestHeaders,
 	}
 	if options.ResponseSchema != nil {
 		strict := true

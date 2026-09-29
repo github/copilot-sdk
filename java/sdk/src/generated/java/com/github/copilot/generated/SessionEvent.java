@@ -173,7 +173,10 @@ import javax.annotation.processing.Generated;
     @JsonSubTypes.Type(value = SessionCanvasRecordedEvent.class, name = "session.canvas.recorded"),
     @JsonSubTypes.Type(value = SessionCanvasRemovedEvent.class, name = "session.canvas.removed"),
     @JsonSubTypes.Type(value = SessionExtensionsAttachmentsPushedEvent.class, name = "session.extensions.attachments_pushed"),
-    @JsonSubTypes.Type(value = McpAppToolCallCompleteEvent.class, name = "mcp_app.tool_call_complete")
+    @JsonSubTypes.Type(value = McpAppToolCallCompleteEvent.class, name = "mcp_app.tool_call_complete"),
+    @JsonSubTypes.Type(value = FactoryRunUpdatedEvent.class, name = "factory.run_updated"),
+    @JsonSubTypes.Type(value = FactoryRunStartedEvent.class, name = "factory.run_started"),
+    @JsonSubTypes.Type(value = FactoryRunSettledEvent.class, name = "factory.run_settled")
 })
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 public abstract sealed class SessionEvent permits
@@ -326,6 +329,9 @@ public abstract sealed class SessionEvent permits
         SessionCanvasRemovedEvent,
         SessionExtensionsAttachmentsPushedEvent,
         McpAppToolCallCompleteEvent,
+        FactoryRunUpdatedEvent,
+        FactoryRunStartedEvent,
+        FactoryRunSettledEvent,
         UnknownSessionEvent {
 
     /** Unique event identifier (UUID v4), generated when the event is emitted. */

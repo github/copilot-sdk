@@ -104,6 +104,15 @@ from .tools import (
 logger = logging.getLogger(__name__)
 TResponse = TypeVar("TResponse", bound=BaseModel)
 
+
+class _AdmissionCorrelationKwargs(TypedDict, total=False):
+    client_correlation_id: str
+
+
+def _admission_correlation_kwargs(value: str | None) -> _AdmissionCorrelationKwargs:
+    return {"client_correlation_id": value} if value is not None else {}
+
+
 # Fixed name of the runtime's built-in tool-search tool. A client can replace
 # its behavior by registering a tool with this exact name and
 # ``overrides_built_in_tool=True``.
@@ -1767,6 +1776,7 @@ class CopilotSession:
         request_headers: dict[str, str] | None = None,
         display_prompt: str | None = None,
         response_schema: dict[str, Any] | type[BaseModel] | None = None,
+        client_correlation_id: str | None = None,
     ) -> str:
         """
         Send a message to this session.
@@ -1791,6 +1801,9 @@ class CopilotSession:
                 ``prompt``.
             response_schema: JSON Schema or a Pydantic model for this run. Independent
                 sends do not inherit it. Immediate steering cannot specify a schema.
+            client_correlation_id: Optional caller-owned diagnostic UUID for this RPC
+                admission, sent unchanged. Supported runtimes echo accepted values only
+                with RUNTIME_ADMISSION_TRACE_CONTEXT enabled. Not an idempotency key.
 
         Returns:
             The message ID assigned by the server, which can be used to correlate events.
@@ -1808,6 +1821,8 @@ class CopilotSession:
             "sessionId": self.session_id,
             "prompt": prompt,
         }
+        if client_correlation_id is not None:
+            params["clientCorrelationId"] = client_correlation_id
         if attachments is not None:
             params["attachments"] = attachments
         if source is not None:
@@ -1859,6 +1874,7 @@ class CopilotSession:
         display_prompt: str | None = None,
         response_schema: dict[str, Any] | type[BaseModel] | None = None,
         timeout: float = 60.0,
+        client_correlation_id: str | None = None,
     ) -> SessionEvent | None:
         """
         Send a message to this session and wait until the session becomes idle.
@@ -1891,6 +1907,8 @@ class CopilotSession:
                 does not abort in-flight agent work.
             response_schema: A per-run schema. Waits for the last correlated root
                 assistant message without tool requests at non-autopilot idle.
+            client_correlation_id: Optional caller-owned admission UUID, forwarded
+                unchanged to :meth:`send`. The SDK never generates this value.
 
         Returns:
             The final assistant message event, or None if none was received.
@@ -1918,6 +1936,7 @@ class CopilotSession:
                     request_headers=request_headers,
                     display_prompt=display_prompt,
                     response_schema=response_schema,
+                    **_admission_correlation_kwargs(client_correlation_id),
                 ),
                 timeout,
             )
@@ -1966,6 +1985,7 @@ class CopilotSession:
                 agent_mode=agent_mode,
                 request_headers=request_headers,
                 display_prompt=display_prompt,
+                **_admission_correlation_kwargs(client_correlation_id),
             )
             await asyncio.wait_for(idle_event.wait(), timeout=timeout)
             if error_event:
@@ -2013,6 +2033,7 @@ class CopilotSession:
         request_headers: dict[str, str] | None = None,
         display_prompt: str | None = None,
         timeout: float = 60.0,
+        client_correlation_id: str | None = None,
     ) -> TResponse:
         """Infer a schema using Pydantic, then validate and return the final result.
 
@@ -2022,6 +2043,8 @@ class CopilotSession:
         nested models, regardless of model-level alias validation settings.
         Streaming events remain text. Timeout or cancellation
         only stops waiting, not the agent. Errors remain session-scoped.
+        ``client_correlation_id`` is optional caller-owned admission metadata,
+        forwarded unchanged to :meth:`send`.
         """
         if not isinstance(response_type, type) or not issubclass(response_type, BaseModel):
             raise TypeError("response_type must be a Pydantic BaseModel subclass")
@@ -2039,6 +2062,7 @@ class CopilotSession:
             display_prompt=display_prompt,
             response_schema=response_type,
             timeout=timeout,
+            **_admission_correlation_kwargs(client_correlation_id),
         )
         assert response is not None and isinstance(response.data, AssistantMessageData)
         return response_type.model_validate_json(

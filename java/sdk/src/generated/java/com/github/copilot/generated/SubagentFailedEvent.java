@@ -34,7 +34,7 @@ public final class SubagentFailedEvent extends SessionEvent {
     @JsonIgnoreProperties(ignoreUnknown = true)
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record SubagentFailedEventData(
-        /** Tool call ID of the parent tool invocation that spawned this sub-agent */
+        /** Spawning tool invocation ID, or the canonical sub-agent ID used as a fallback for an API launch without a tool invocation. The fallback is not evidence of a tool call. */
         @JsonProperty("toolCallId") String toolCallId,
         /** Internal name of the sub-agent */
         @JsonProperty("agentName") String agentName,

@@ -1199,6 +1199,59 @@ interface JavaTypeResolution {
     promotedUnionTypes: Set<string>;
 }
 
+const WORKER_STRING_UUID_PROPERTIES = new Set([
+    "WorkerAdmission.ahpTurnId",
+    "WorkerEventReference.eventId",
+    "WorkerInput.queueItemId",
+    "WorkerNotificationReference.deliveryId",
+]);
+
+const COMPATIBILITY_FIELD_ORDER: Readonly<Record<string, readonly string[]>> = {
+    AssistantTurnStartEventData: ["turnId", "model", "interactionId", "parentToolCallId", "workerCausality"],
+    SystemNotificationEventData: ["content", "kind", "responsesReasoning", "workerCausality"],
+    ToolExecutionStartEventData: [
+        "toolCallId", "toolName", "toolTitle", "arguments", "shellToolInfo", "model", "rte",
+        "mcpServerName", "mcpConfigServerName", "mcpToolName", "mcpTransport", "mcpConfigSource",
+        "turnId", "displayVerbatim", "toolDescription", "parentToolCallId", "fusion", "traceparent",
+        "tracestate",
+    ],
+    UserMessageEventData: [
+        "content", "responsesReasoning", "messageId", "transformedContent", "attachments",
+        "supportedNativeDocumentMimeTypes", "nativeDocumentPathFallbackPaths", "source", "delivery",
+        "agentMode", "isAutopilotContinuation", "interactionId", "turnId", "parentAgentTaskId",
+        "workerCausality", "clientCorrelationId",
+    ],
+    QueuePendingItems: ["id", "messageId", "kind", "displayText", "agentMode", "source", "clientCorrelationId"],
+    SendMessageItem: ["prompt", "displayPrompt", "attachments", "billable", "requiredTool", "source", "clientCorrelationId"],
+    SessionSendParams: [
+        "sessionId", "prompt", "displayPrompt", "attachments", "mode", "prepend", "billable",
+        "requiredTool", "source", "agentMode", "requestHeaders", "responseFormat", "traceparent",
+        "tracestate", "wait", "clientCorrelationId", "jsonSchema", "type",
+    ],
+    SessionTasksSendMessageResult: ["sent", "error", "workerCausality"],
+};
+
+function isWorkerStringUuidProperty(context: string, propName: string): boolean {
+    return WORKER_STRING_UUID_PROPERTIES.has(`${context}.${propName}`);
+}
+
+function orderCompatibilityFields<T>(
+    className: string,
+    fields: T[],
+    name: (field: T) => string,
+): T[] {
+    const order = COMPATIBILITY_FIELD_ORDER[className];
+    if (!order) return fields;
+    const indexes = new Map(order.map((fieldName, index) => [fieldName, index]));
+    return fields
+        .map((field, originalIndex) => ({ field, originalIndex }))
+        .sort((left, right) =>
+            (indexes.get(name(left.field)) ?? order.length + left.originalIndex) -
+            (indexes.get(name(right.field)) ?? order.length + right.originalIndex)
+        )
+        .map(({ field }) => field);
+}
+
 export function schemaTypeToJava(
     schema: JSONSchema7,
     required: boolean,
@@ -1289,6 +1342,9 @@ export function schemaTypeToJava(
 
     if (schema.type === "string") {
         if (schema.format === "uuid") {
+            if (isWorkerStringUuidProperty(context, propName)) {
+                return { javaType: "String", imports };
+            }
             imports.add("java.util.UUID");
             return { javaType: "UUID", imports };
         }
@@ -1401,6 +1457,19 @@ interface EventVariant {
     deprecated?: boolean;
 }
 
+const LEGACY_FACTORY_EVENT_VARIANTS: EventVariant[] = [
+    { typeName: "factory.run_updated", className: "FactoryRunUpdatedEvent", dataSchema: null },
+    { typeName: "factory.run_started", className: "FactoryRunStartedEvent", dataSchema: null },
+    { typeName: "factory.run_settled", className: "FactoryRunSettledEvent", dataSchema: null },
+];
+
+const LEGACY_FACTORY_EVENT_FILES = [
+    "FactoryRunUpdatedEvent.java",
+    "FactoryRunStartedEvent.java",
+    "FactoryRunSettledEvent.java",
+    "FactoryRunSettledStatus.java",
+];
+
 function extractEventVariants(schema: JSONSchema7): EventVariant[] {
     const definitions = schema.definitions as Record<string, JSONSchema7>;
     const sessionEvent = definitions?.SessionEvent;
@@ -1445,18 +1514,32 @@ async function generateSessionEvents(schemaPath: string): Promise<void> {
     // Set module-level definitions for $ref resolution
     currentDefinitions = (schema.definitions ?? {}) as Record<string, JSONSchema7>;
     pendingStandaloneTypes.clear();
+    promotedNestedUnionTypes.clear();
     promotedSealedUnionTypes.clear();
+    if (currentDefinitions.SystemNotification) {
+        promotedNestedUnionTypes.add("SystemNotification");
+    }
 
     const variants = extractEventVariants(schema);
+    const legacyVariants = variants.some((variant) => variant.typeName === "workflow.run_updated")
+        ? LEGACY_FACTORY_EVENT_VARIANTS.filter(
+            (legacy) => !variants.some((variant) => variant.typeName === legacy.typeName)
+        )
+        : [];
     const packageName = "com.github.copilot.generated";
     const packageDir = `sdk/src/generated/java/com/github/copilot/generated`;
 
     // Generate base SessionEvent class
-    await generateSessionEventBaseClass(variants, packageName, packageDir);
+    await generateSessionEventBaseClass([...variants, ...legacyVariants], packageName, packageDir);
 
     // Generate one class file per event variant
     for (const variant of variants) {
         await generateEventVariantClass(variant, packageName, packageDir);
+    }
+    for (const fileName of legacyVariants.length > 0 ? LEGACY_FACTORY_EVENT_FILES : []) {
+        const relativePath = `${packageDir}/${fileName}`;
+        const content = await fs.readFile(path.join(REPO_ROOT, relativePath), "utf-8");
+        await writeGeneratedFile(relativePath, content);
     }
 
     // Generate standalone types discovered via $ref resolution
@@ -1726,10 +1809,11 @@ export function renderEventVariantClass(variant: EventVariant, packageName: stri
         jsonName: string;
         javaName: string;
         javaType: string;
+        typedAccessorType?: string;
         description?: string;
     }
 
-    const dataFields: FieldInfo[] = [];
+    let dataFields: FieldInfo[] = [];
 
     if (!hasUnionData && variant.dataSchema?.properties) {
         for (const [propName, propSchema] of Object.entries(variant.dataSchema.properties)) {
@@ -1738,14 +1822,24 @@ export function renderEventVariantClass(variant: EventVariant, packageName: stri
             // Record components are always boxed (nullable by design).
             const result = schemaTypeToJava(prop, false, `${variant.className}Data`, propName, nestedTypes);
             for (const imp of result.imports) allImports.add(imp);
+            const preserveSystemNotificationKindAbi =
+                variant.className === "SystemNotificationEvent" &&
+                propName === "kind" &&
+                result.javaType === "SystemNotification";
             dataFields.push({
                 jsonName: propName,
                 javaName: toCamelCase(propName),
-                javaType: result.javaType,
+                javaType: preserveSystemNotificationKindAbi ? "Object" : result.javaType,
+                typedAccessorType: preserveSystemNotificationKindAbi ? result.javaType : undefined,
                 description: prop.description,
             });
         }
     }
+    dataFields = orderCompatibilityFields(
+        `${variant.className}Data`,
+        dataFields,
+        (field) => field.jsonName,
+    );
 
     // Whether a data record should be emitted (always when dataSchema is present)
     const hasDataSchema = variant.dataSchema !== null;
@@ -1828,9 +1922,24 @@ export function renderEventVariantClass(variant: EventVariant, packageName: stri
                 if (field.description) {
                     lines.push(`        /** ${field.description} */`);
                 }
+                if (field.jsonName === "workerCausality") {
+                    lines.push(`        @com.fasterxml.jackson.databind.annotation.JsonDeserialize(using = com.github.copilot.WorkerCausalityDeserializer.class)`);
+                }
+                if (field.typedAccessorType) {
+                    lines.push(`        @com.fasterxml.jackson.databind.annotation.JsonDeserialize(as = ${field.typedAccessorType}.class)`);
+                }
                 lines.push(`        @JsonProperty("${field.jsonName}") ${field.javaType} ${field.javaName}${comma}`);
             }
             lines.push(`    ) {`);
+        }
+        lines.push(...renderCompatibilityConstructors(`${variant.className}Data`, dataFields, "        "));
+        for (const field of dataFields) {
+            if (!field.typedAccessorType) continue;
+            lines.push("");
+            lines.push(`        /** Returns the typed ${field.javaName} value when decoded from the wire. */`);
+            lines.push(`        public ${field.typedAccessorType} typed${toPascalCase(field.javaName)}() {`);
+            lines.push(`            return ${field.javaName} instanceof ${field.typedAccessorType} typed ? typed : null;`);
+            lines.push(`        }`);
         }
         // Render nested types inside Data record
         for (const [, nested] of nestedTypes) {
@@ -2054,6 +2163,55 @@ function schemaAllowsNull(schema: JSONSchema7): boolean {
     );
 }
 
+/** Preserve existing Java record descriptors when optional diagnostics are added. */
+function renderCompatibilityConstructors(
+    className: string,
+    fields: { javaName: string; javaType: string }[],
+    indent: string,
+): string[] {
+    const names = new Set(fields.map((field) => field.javaName));
+    let omissions: string[][] = [];
+    if (className === "UserMessageEventData") {
+        omissions = names.has("workerCausality")
+            ? [["workerCausality"], ["workerCausality", "clientCorrelationId"]]
+            : [["clientCorrelationId"]];
+    } else if (className === "QueuePendingItems") {
+        omissions = [["clientCorrelationId"], ["clientCorrelationId", "source"]];
+    } else if (["SessionSendParams", "SendMessageItem"].includes(className)) {
+        omissions = [["clientCorrelationId"]];
+    } else if (["SystemNotificationEventData", "SessionTasksSendMessageResult"].includes(className)) {
+        omissions = [["workerCausality"]];
+    } else if (className === "AssistantTurnStartEventData") {
+        omissions = [
+            ["workerCausality"],
+            ["parentToolCallId"],
+            ["workerCausality", "parentToolCallId"],
+        ];
+    }
+    return omissions.flatMap((omitted, index) => {
+        if (!omitted.every((field) => names.has(field))) return [];
+        const previous = fields.filter((field) => !omitted.includes(field.javaName));
+        const parameters = previous.map((field) => `${field.javaType} ${field.javaName}`).join(", ");
+        const arguments_ = fields
+            .map((field) => omitted.includes(field.javaName) ? "null" : field.javaName)
+            .join(", ");
+        const description = omitted.includes("workerCausality") && omitted.includes("parentToolCallId")
+            ? "Creates a value without optional worker diagnostics or a parent task tool call ID."
+            : omitted.includes("workerCausality")
+                ? "Creates a value without optional worker diagnostics."
+                : omitted.includes("parentToolCallId")
+                    ? "Creates a value without an optional parent task tool call ID."
+                    : "Creates a value without optional admission correlation metadata.";
+        return [
+            ...(index === 0 ? [] : [""]),
+            `${indent}/** ${description} */`,
+            `${indent}public ${className}(${parameters}) {`,
+            `${indent}    this(${arguments_});`,
+            `${indent}}`,
+        ];
+    });
+}
+
 /** Generate a Java record for a JSON Schema object type. Returns the class content. */
 export function generateRpcClass(
     className: string,
@@ -2071,7 +2229,7 @@ export function generateRpcClass(
 
     const properties = Object.entries(schema.properties || {}).filter(([propName]) => !omittedProperties.has(propName));
     const required = new Set(schema.required || []);
-    const fields = properties.flatMap(([propName, propSchema]) => {
+    let fields = properties.flatMap(([propName, propSchema]) => {
         if (typeof propSchema !== "object") return [];
         const prop = propSchema as JSONSchema7;
         // Record components are always boxed (nullable by design).
@@ -2085,6 +2243,7 @@ export function generateRpcClass(
             includeNull: preserveRequiredNulls && required.has(propName) && schemaAllowsNull(prop),
         }];
     });
+    fields = orderCompatibilityFields(className, fields, (field) => field.propName);
 
     lines.push(`@JsonInclude(JsonInclude.Include.NON_NULL)`);
     lines.push(`@JsonIgnoreProperties(ignoreUnknown = true)`);
@@ -2101,10 +2260,15 @@ export function generateRpcClass(
             if (f.includeNull) {
                 lines.push(`    @JsonInclude(JsonInclude.Include.ALWAYS)`);
             }
+            if (f.propName === "workerCausality") {
+                lines.push(`    @com.fasterxml.jackson.databind.annotation.JsonDeserialize(using = com.github.copilot.WorkerCausalityDeserializer.class)`);
+            }
             lines.push(`    @JsonProperty("${f.propName}") ${f.javaType} ${f.javaName}${comma}`);
         }
         lines.push(`) {`);
     }
+
+    lines.push(...renderCompatibilityConstructors(className, fields, "    "));
 
     // Add nested types as nested records/enums inside this record
     for (const [, nested] of localNestedTypes) {

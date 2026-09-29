@@ -6,6 +6,7 @@ package rpc
 import (
 	"encoding/json"
 	"errors"
+	"github.com/github/copilot-sdk/go/internal/diagnosticmetadata"
 	"time"
 )
 
@@ -229,6 +230,24 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 		e.Data = &d
 	case SessionEventTypeExternalToolRequested:
 		var d ExternalToolRequestedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeFactoryRunSettled:
+		var d FactoryRunSettledData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeFactoryRunStarted:
+		var d FactoryRunStartedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeFactoryRunUpdated:
+		var d FactoryRunUpdatedData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}
@@ -976,6 +995,7 @@ func (r *UserMessageData) UnmarshalJSON(data []byte) error {
 	type rawUserMessageData struct {
 		AgentMode                        *UserMessageAgentMode `json:"agentMode,omitempty"`
 		Attachments                      []json.RawMessage     `json:"attachments,omitzero"`
+		ClientCorrelationID              *string               `json:"clientCorrelationId,omitempty"`
 		Content                          string                `json:"content"`
 		Delivery                         *UserMessageDelivery  `json:"delivery,omitempty"`
 		InteractionID                    *string               `json:"interactionId,omitempty"`
@@ -988,6 +1008,7 @@ func (r *UserMessageData) UnmarshalJSON(data []byte) error {
 		SupportedNativeDocumentMIMETypes []string              `json:"supportedNativeDocumentMimeTypes,omitzero"`
 		TransformedContent               *string               `json:"transformedContent,omitempty"`
 		TurnID                           *string               `json:"turnId,omitempty"`
+		WorkerCausality                  json.RawMessage       `json:"workerCausality,omitempty"`
 	}
 	var raw rawUserMessageData
 	if err := json.Unmarshal(data, &raw); err != nil {
@@ -1004,6 +1025,7 @@ func (r *UserMessageData) UnmarshalJSON(data []byte) error {
 			r.Attachments = append(r.Attachments, value)
 		}
 	}
+	r.ClientCorrelationID = raw.ClientCorrelationID
 	r.Content = raw.Content
 	r.Delivery = raw.Delivery
 	r.InteractionID = raw.InteractionID
@@ -1016,6 +1038,31 @@ func (r *UserMessageData) UnmarshalJSON(data []byte) error {
 	r.SupportedNativeDocumentMIMETypes = raw.SupportedNativeDocumentMIMETypes
 	r.TransformedContent = raw.TransformedContent
 	r.TurnID = raw.TurnID
+	if !diagnosticmetadata.ReadWorkerCausality(raw.WorkerCausality, &r.WorkerCausality) {
+		r.WorkerCausality = nil
+	}
+	return nil
+}
+
+func (r *AssistantTurnStartData) UnmarshalJSON(data []byte) error {
+	type rawAssistantTurnStartData struct {
+		InteractionID    *string         `json:"interactionId,omitempty"`
+		Model            *string         `json:"model,omitempty"`
+		ParentToolCallID *string         `json:"parentToolCallId,omitempty"`
+		TurnID           string          `json:"turnId"`
+		WorkerCausality  json.RawMessage `json:"workerCausality,omitempty"`
+	}
+	var raw rawAssistantTurnStartData
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	r.InteractionID = raw.InteractionID
+	r.Model = raw.Model
+	r.ParentToolCallID = raw.ParentToolCallID
+	r.TurnID = raw.TurnID
+	if !diagnosticmetadata.ReadWorkerCausality(raw.WorkerCausality, &r.WorkerCausality) {
+		r.WorkerCausality = nil
+	}
 	return nil
 }
 
@@ -1830,6 +1877,7 @@ func (r *SystemNotificationData) UnmarshalJSON(data []byte) error {
 		Content            string              `json:"content"`
 		Kind               json.RawMessage     `json:"kind"`
 		ResponsesReasoning *ResponsesReasoning `json:"responsesReasoning,omitempty"`
+		WorkerCausality    json.RawMessage     `json:"workerCausality,omitempty"`
 	}
 	var raw rawSystemNotificationData
 	if err := json.Unmarshal(data, &raw); err != nil {
@@ -1844,6 +1892,9 @@ func (r *SystemNotificationData) UnmarshalJSON(data []byte) error {
 		r.Kind = value
 	}
 	r.ResponsesReasoning = raw.ResponsesReasoning
+	if !diagnosticmetadata.ReadWorkerCausality(raw.WorkerCausality, &r.WorkerCausality) {
+		r.WorkerCausality = nil
+	}
 	return nil
 }
 

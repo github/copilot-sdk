@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from typing import ClassVar, TYPE_CHECKING
 
-from .session_events import AbortReason, AgentModelPolicy, Attachment, AutoTier, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, IndexedSearchState, ManagedSettingsResolvedSource, McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerMetadata, McpServerSource, McpServerStatus, ModelChangeSource, PermissionDecisionSource, PermissionMode, PermissionPromptRequest, PermissionRule, ReasoningSummary, RemediationAction, SessionEvent, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskBlocker, TaskCompletionOutcome, UserToolSessionApproval, Verbosity, _load_Attachment, _load_PermissionPromptRequest, _load_UserToolSessionApproval
+from .session_events import AbortReason, AgentModelPolicy, Attachment, AutoTier, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, IndexedSearchState, ManagedSettingsResolvedSource, McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerMetadata, McpServerSource, McpServerStatus, ModelChangeSource, PermissionDecisionSource, PermissionMode, PermissionPromptRequest, PermissionRule, ReasoningSummary, RemediationAction, SessionEvent, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskBlocker, TaskCompletionOutcome, UserToolSessionApproval, Verbosity, WorkerCausality, _load_Attachment, _load_PermissionPromptRequest, _load_UserToolSessionApproval
 
 if TYPE_CHECKING:
     from .._jsonrpc import JsonRpcClient
@@ -19,6 +19,7 @@ from typing import Any, Protocol, TypeVar, cast
 from uuid import UUID
 
 import dateutil.parser
+from .._worker_causality import optional_worker_causality
 
 T = TypeVar("T")
 EnumT = TypeVar("EnumT", bound=Enum)
@@ -10683,8 +10684,9 @@ class SandboxConfigUserPolicySeatbelt:
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 class SandboxConfigSource(Enum):
-    """Origin of the sandbox choice supplied by the host. This value describes preference or
-    session intent; it does not authorize bypassing managed policy.
+    """Origin of the sandbox choice supplied by the host. Settings-derived origins let managed
+    policy floor the host preference; do not tag explicit session overrides as
+    settings-derived.
 
     Origin of the sandbox choice. Settings-derived origins (never_configured, user_enabled,
     user_disabled, repository_policy) let managed policy floor a host preference; explicit
@@ -11190,6 +11192,12 @@ class SendMessageItem:
     """If false, this message will not trigger a Premium Request Unit charge. User messages
     default to billable.
     """
+    client_correlation_id: str | None = None
+    """Optional caller-generated diagnostic UUID for this item only, with the same validation
+    and opt-in native echo as session.send.clientCorrelationId. The batch has no
+    request-level correlation value; each item retains its own value, including preceding
+    context messages. Reused values do not deduplicate messages and remain ambiguous.
+    """
     display_prompt: str | None = None
     """If provided, this is shown in the timeline instead of `prompt`"""
 
@@ -11210,10 +11218,11 @@ class SendMessageItem:
         prompt = from_str(obj.get("prompt"))
         attachments = from_union([lambda x: from_list(_load_Attachment, x), from_none], obj.get("attachments"))
         billable = from_union([from_bool, from_none], obj.get("billable"))
+        client_correlation_id = from_union([from_str, from_none], obj.get("clientCorrelationId"))
         display_prompt = from_union([from_str, from_none], obj.get("displayPrompt"))
         required_tool = from_union([from_str, from_none], obj.get("requiredTool"))
         source = from_union([from_str, from_none], obj.get("source"))
-        return SendMessageItem(prompt, attachments, billable, display_prompt, required_tool, source)
+        return SendMessageItem(prompt, attachments, billable, client_correlation_id, display_prompt, required_tool, source)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -11222,6 +11231,8 @@ class SendMessageItem:
             result["attachments"] = from_union([lambda x: from_list(lambda x: to_class(Attachment, x), x), from_none], self.attachments)
         if self.billable is not None:
             result["billable"] = from_union([from_bool, from_none], self.billable)
+        if self.client_correlation_id is not None:
+            result["clientCorrelationId"] = from_union([from_str, from_none], self.client_correlation_id)
         if self.display_prompt is not None:
             result["displayPrompt"] = from_union([from_str, from_none], self.display_prompt)
         if self.required_tool is not None:
@@ -14815,18 +14826,26 @@ class TasksSendMessageResult:
     error: str | None = None
     """Error message if delivery failed"""
 
+    worker_causality: WorkerCausality | None = None
+    """Optional exact queue admission receipt on sent=true only. No implicit event or
+    execution-success claim.
+    """
+
     @staticmethod
     def from_dict(obj: Any) -> 'TasksSendMessageResult':
         assert isinstance(obj, dict)
         sent = from_bool(obj.get("sent"))
         error = from_union([from_str, from_none], obj.get("error"))
-        return TasksSendMessageResult(sent, error)
+        worker_causality = optional_worker_causality(obj.get("workerCausality"), lambda: from_union([WorkerCausality.from_dict, from_none], obj.get("workerCausality")))
+        return TasksSendMessageResult(sent, error, worker_causality)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["sent"] = from_bool(self.sent)
         if self.error is not None:
             result["error"] = from_union([from_str, from_none], self.error)
+        if self.worker_causality is not None:
+            result["workerCausality"] = from_union([lambda x: to_class(WorkerCausality, x), from_none], self.worker_causality)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -26056,6 +26075,12 @@ class QueuePendingItems:
     kind: QueuePendingItemsKind
     """Whether this item is a queued user message or a queued slash command / model change"""
 
+    client_correlation_id: str | None = None
+    """Caller-owned diagnostic UUID from the exact accepted native session.send or sendMessages
+    item, when RUNTIME_ADMISSION_TRACE_CONTEXT is enabled. Omitted for unsupported or
+    identity-less rows, including snapshot-only mirrors. Not an idempotency key,
+    authorization, or permission to retry; repeated values remain ambiguous.
+    """
     message_id: str | None = None
     """Stable identity of the queued user message. Present for message rows and absent for slash
     commands and model changes.
@@ -26075,9 +26100,10 @@ class QueuePendingItems:
         display_text = from_str(obj.get("displayText"))
         id = from_str(obj.get("id"))
         kind = QueuePendingItemsKind(obj.get("kind"))
+        client_correlation_id = from_union([from_str, from_none], obj.get("clientCorrelationId"))
         message_id = from_union([from_str, from_none], obj.get("messageId"))
         source = from_union([from_str, from_none], obj.get("source"))
-        return QueuePendingItems(agent_mode, display_text, id, kind, message_id, source)
+        return QueuePendingItems(agent_mode, display_text, id, kind, client_correlation_id, message_id, source)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -26085,6 +26111,8 @@ class QueuePendingItems:
         result["displayText"] = from_str(self.display_text)
         result["id"] = from_str(self.id)
         result["kind"] = to_enum(QueuePendingItemsKind, self.kind)
+        if self.client_correlation_id is not None:
+            result["clientCorrelationId"] = from_union([from_str, from_none], self.client_correlation_id)
         if self.message_id is not None:
             result["messageId"] = from_union([from_str, from_none], self.message_id)
         if self.source is not None:
@@ -33562,6 +33590,13 @@ class SendRequest:
     """If false, this message will not trigger a Premium Request Unit charge. User messages
     default to billable.
     """
+    client_correlation_id: str | None = None
+    """Optional caller-generated diagnostic UUID for this single message. Native sessions with
+    RUNTIME_ADMISSION_TRACE_CONTEXT enabled echo the exact lowercase, hyphenated 36-character
+    UUID on user.message and its existing pending message row. Missing, invalid, disabled, or
+    unsupported metadata is ignored without rejecting the send. Does not change messageId,
+    deduplicate submissions, authorize work, or make an uncertain retry safe.
+    """
     display_prompt: str | None = None
     """If provided, this is shown in the timeline instead of `prompt`"""
 
@@ -33619,6 +33654,7 @@ class SendRequest:
         agent_mode = from_union([SendAgentMode, from_none], obj.get("agentMode"))
         attachments = from_union([lambda x: from_list(_load_Attachment, x), from_none], obj.get("attachments"))
         billable = from_union([from_bool, from_none], obj.get("billable"))
+        client_correlation_id = from_union([from_str, from_none], obj.get("clientCorrelationId"))
         display_prompt = from_union([from_str, from_none], obj.get("displayPrompt"))
         mode = from_union([SendMode, from_none], obj.get("mode"))
         prepend = from_union([from_bool, from_none], obj.get("prepend"))
@@ -33629,7 +33665,7 @@ class SendRequest:
         traceparent = from_union([from_str, from_none], obj.get("traceparent"))
         tracestate = from_union([from_str, from_none], obj.get("tracestate"))
         wait = from_union([from_bool, from_none], obj.get("wait"))
-        return SendRequest(prompt, agent_mode, attachments, billable, display_prompt, mode, prepend, request_headers, required_tool, response_format, source, traceparent, tracestate, wait)
+        return SendRequest(prompt, agent_mode, attachments, billable, client_correlation_id, display_prompt, mode, prepend, request_headers, required_tool, response_format, source, traceparent, tracestate, wait)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -33640,6 +33676,8 @@ class SendRequest:
             result["attachments"] = from_union([lambda x: from_list(lambda x: to_class(Attachment, x), x), from_none], self.attachments)
         if self.billable is not None:
             result["billable"] = from_union([from_bool, from_none], self.billable)
+        if self.client_correlation_id is not None:
+            result["clientCorrelationId"] = from_union([from_str, from_none], self.client_correlation_id)
         if self.display_prompt is not None:
             result["displayPrompt"] = from_union([from_str, from_none], self.display_prompt)
         if self.mode is not None:

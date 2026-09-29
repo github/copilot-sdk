@@ -3601,6 +3601,11 @@ public sealed partial class UserMessageData
     [JsonPropertyName("attachments")]
     public Attachment[]? Attachments { get; set; }
 
+    /// <summary>Exact caller-owned diagnostic UUID carried by this accepted native session.send or sendMessages item when RUNTIME_ADMISSION_TRACE_CONTEXT is enabled. Omitted when input, native ownership, or support is missing. Independent of the canonical messageId; not an idempotency key, authorization, or permission to retry. Multiple messages with the same value remain ambiguous.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("clientCorrelationId")]
+    public string? ClientCorrelationId { get; set; }
+
     /// <summary>The user's message text as displayed in the timeline.</summary>
     [JsonPropertyName("content")]
     public required string Content { get; set; }
@@ -3630,7 +3635,7 @@ public sealed partial class UserMessageData
     [JsonPropertyName("nativeDocumentPathFallbackPaths")]
     public string[]? NativeDocumentPathFallbackPaths { get; set; }
 
-    /// <summary>Parent agent task ID for background telemetry correlated to this user turn.</summary>
+    /// <summary>Task ID minted when the runtime prepares this user-message run. This is not a parent interaction ID or worker instance ID and must not be equated with CAPI's X-Parent-Agent-Id.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("parentAgentTaskId")]
     public string? ParentAgentTaskId { get; set; }
@@ -3659,6 +3664,12 @@ public sealed partial class UserMessageData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("turnId")]
     public string? TurnId { get; set; }
+
+    /// <summary>Optional worker admission observations; self identity requires the matching enclosing message and agent.</summary>
+    [JsonConverter(typeof(WorkerCausalityConverter<WorkerCausality>))]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("workerCausality")]
+    public WorkerCausality? WorkerCausality { get; set; }
 }
 
 /// <summary>Empty payload; the event signals that the pending message queue has changed.</summary>
@@ -3687,6 +3698,12 @@ public sealed partial class AssistantTurnStartData
     /// <summary>Identifier for this turn within the agentic loop, typically a stringified turn number.</summary>
     [JsonPropertyName("turnId")]
     public required string TurnId { get; set; }
+
+    /// <summary>Optional bounded worker observations. Missing or invalid metadata is unavailable, not known-empty.</summary>
+    [JsonConverter(typeof(WorkerCausalityConverter<WorkerCausality>))]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("workerCausality")]
+    public WorkerCausality? WorkerCausality { get; set; }
 }
 
 /// <summary>Metadata for an additional model inference attempt within an existing assistant turn.</summary>
@@ -4944,6 +4961,16 @@ public sealed partial class ToolExecutionStartData
     [JsonPropertyName("toolTitle")]
     public string? ToolTitle { get; set; }
 
+    /// <summary>W3C traceparent of this tool's active runtime execute_tool span. Available on live events when tool-context propagation is enabled; absent when the span is unavailable or on persisted history. This diagnostic context does not authorize execution.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("traceparent")]
+    public string? Traceparent { get; set; }
+
+    /// <summary>Optional W3C tracestate associated with traceparent. Omitted when no valid vendor state is available.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("tracestate")]
+    public string? Tracestate { get; set; }
+
     /// <summary>Identifier for the agent loop turn this tool was invoked in, matching the corresponding assistant.turn_start event.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("turnId")]
@@ -5320,7 +5347,7 @@ public sealed partial class SubagentStartedData
     [JsonPropertyName("taskModelSource")]
     public SubagentTaskModelSource? TaskModelSource { get; set; }
 
-    /// <summary>Tool call ID of the parent tool invocation that spawned this sub-agent.</summary>
+    /// <summary>Spawning tool invocation ID, or the canonical sub-agent ID used as a fallback for an API launch without a tool invocation. The fallback is not evidence of a tool call.</summary>
     [JsonPropertyName("toolCallId")]
     public required string ToolCallId { get; set; }
 
@@ -5414,7 +5441,7 @@ public sealed partial class SubagentCompletedData
     [JsonPropertyName("modelSelectionSource")]
     public SubagentModelSelectionSource? ModelSelectionSource { get; set; }
 
-    /// <summary>Tool call ID of the parent tool invocation that spawned this sub-agent.</summary>
+    /// <summary>Spawning tool invocation ID, or the canonical sub-agent ID used as a fallback for an API launch without a tool invocation. The fallback is not evidence of a tool call.</summary>
     [JsonPropertyName("toolCallId")]
     public required string ToolCallId { get; set; }
 
@@ -5490,7 +5517,7 @@ public sealed partial class SubagentFailedData
     [JsonPropertyName("modelSelectionSource")]
     public SubagentModelSelectionSource? ModelSelectionSource { get; set; }
 
-    /// <summary>Tool call ID of the parent tool invocation that spawned this sub-agent.</summary>
+    /// <summary>Spawning tool invocation ID, or the canonical sub-agent ID used as a fallback for an API launch without a tool invocation. The fallback is not evidence of a tool call.</summary>
     [JsonPropertyName("toolCallId")]
     public required string ToolCallId { get; set; }
 
@@ -5674,6 +5701,12 @@ public sealed partial class SystemNotificationData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("responsesReasoning")]
     public ResponsesReasoning? ResponsesReasoning { get; set; }
+
+    /// <summary>Optional owned worker notification observations; an omitted notification event refers only to this occurrence.</summary>
+    [JsonConverter(typeof(WorkerCausalityConverter<WorkerCausality>))]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("workerCausality")]
+    public WorkerCausality? WorkerCausality { get; set; }
 }
 
 /// <summary>Permission request notification requiring client approval with request details.</summary>
@@ -8133,6 +8166,181 @@ public partial class Attachment
     public virtual string Type { get; set; } = string.Empty;
 }
 
+
+/// <summary>Exact observed event identity. No private registration generation or execution handle.</summary>
+/// <remarks>Nested data type for <c>WorkerEventReference</c>.</remarks>
+public sealed partial class WorkerEventReference
+{
+    /// <summary>Actual event agent scope, absent for a root occurrence; at most 256 UTF-8 bytes.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [MaxLength(256)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("agentId")]
+    public string? AgentId { get; set; }
+
+    /// <summary>Actual event occurrence UUID; copied without normalization.</summary>
+    [JsonPropertyName("eventId")]
+    public required string EventId { get; set; }
+
+    /// <summary>Type of the observed occurrence.</summary>
+    [JsonPropertyName("eventType")]
+    public required WorkerEventType EventType { get; set; }
+
+    /// <summary>Explicit provenance of this reference.</summary>
+    [JsonPropertyName("provenance")]
+    public required WorkerObservationProvenance Provenance { get; set; }
+
+    /// <summary>Actual runtime session scope, at most 256 UTF-8 bytes.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [MaxLength(256)]
+    [JsonPropertyName("sessionId")]
+    public required string SessionId { get; set; }
+}
+
+/// <summary>An observed worker admission, not a claim that execution succeeded.</summary>
+/// <remarks>Nested data type for <c>WorkerAdmission</c>.</remarks>
+public sealed partial class WorkerAdmission
+{
+    /// <summary>Actual AHP participant Turn UUID, not a native turn counter or provenance signal.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("ahpTurnId")]
+    public string? AhpTurnId { get; set; }
+
+    /// <summary>May be omitted only for the matching current worker user.message.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("event")]
+    public WorkerEventReference? Event { get; set; }
+
+    /// <summary>The producer's admission kind.</summary>
+    [JsonPropertyName("kind")]
+    public required WorkerAdmissionKind Kind { get; set; }
+
+    /// <summary>Canonical logical message identity, independent of queueItemId; at most 256 UTF-8 bytes.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [MaxLength(256)]
+    [JsonPropertyName("messageId")]
+    public required string MessageId { get; set; }
+}
+
+/// <summary>One indivisible source-to-reported bridge observation, not a root alias.</summary>
+/// <remarks>Nested data type for <c>WorkerBridgeObservation</c>.</remarks>
+public sealed partial class WorkerBridgeObservation
+{
+    /// <summary>Full occurrence actually emitted by that bridge.</summary>
+    [JsonPropertyName("reported")]
+    public required WorkerEventReference Reported { get; set; }
+
+    /// <summary>Full event received by this bridge.</summary>
+    [JsonPropertyName("source")]
+    public required WorkerEventReference Source { get; set; }
+}
+
+/// <summary>Exact accepted worker input, distinct from a message, event, caller correlation or Turn.</summary>
+/// <remarks>Nested data type for <c>WorkerInput</c>.</remarks>
+public sealed partial class WorkerInput
+{
+    /// <summary>Actual recipient task, at most 256 UTF-8 bytes.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [MaxLength(256)]
+    [JsonPropertyName("agentId")]
+    public required string AgentId { get; set; }
+
+    /// <summary>UUID allocated for this queue item by the admitting producer.</summary>
+    [JsonPropertyName("queueItemId")]
+    public required string QueueItemId { get; set; }
+
+    /// <summary>Original invoking occurrence, never replaced by a reported/root alias.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("sender")]
+    public WorkerEventReference? Sender { get; set; }
+
+    /// <summary>Exact captured edges in producer order. Requires sender; at most 32 whole pairs.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("senderBridges")]
+    public WorkerBridgeObservation[]? SenderBridges { get; set; }
+}
+
+/// <summary>Exact delivery and optional occurrence of a consumed worker notification.</summary>
+/// <remarks>Nested data type for <c>WorkerNotificationReference</c>.</remarks>
+public sealed partial class WorkerNotificationReference
+{
+    /// <summary>Actual notificationDeliveryId UUID.</summary>
+    [JsonPropertyName("deliveryId")]
+    public required string DeliveryId { get; set; }
+
+    /// <summary>May be omitted only on the matching current system.notification.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("event")]
+    public WorkerEventReference? Event { get; set; }
+
+    /// <summary>Actual consumption mode.</summary>
+    [JsonPropertyName("mode")]
+    public required WorkerNotificationMode Mode { get; set; }
+}
+
+/// <summary>One captured source at this placement and observation boundary.</summary>
+/// <remarks>Nested data type for <c>WorkerSource</c>.</remarks>
+public sealed partial class WorkerSource
+{
+    /// <summary>Actual admissions in capture order; at most 32.</summary>
+    [JsonPropertyName("admissions")]
+    public required WorkerAdmission[] Admissions { get; set; }
+
+    /// <summary>Exact already-open iteration when an immediate notification was consumed.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("admittedDuring")]
+    public WorkerEventReference? AdmittedDuring { get; set; }
+
+    /// <summary>Applicable observations were all captured here, never work completion or success.</summary>
+    [JsonPropertyName("captureComplete")]
+    public required bool CaptureComplete { get; set; }
+
+    /// <summary>Actual completion emission only. Absence is not an execution outcome.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("completion")]
+    public WorkerEventReference? Completion { get; set; }
+
+    /// <summary>Indivisible accepted input identity.</summary>
+    [JsonPropertyName("input")]
+    public required WorkerInput Input { get; set; }
+
+    /// <summary>Actual consumed notification, when observed.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("notification")]
+    public WorkerNotificationReference? Notification { get; set; }
+}
+
+/// <summary>
+/// Optional v1 worker diagnostics. The compact UTF-8 {"workerCausality":value}
+/// must fit 4096 bytes after materializing an allowed implicit self-reference.
+/// Ignore invalid/unknown/oversize metadata, not the product event.
+/// </summary>
+/// <remarks>Nested data type for <c>WorkerCausality</c>.</remarks>
+public sealed partial class WorkerCausality
+{
+    /// <summary>
+    /// Complete placement-aware observed capture, not global causality or execution success.
+    /// Empty true requires explicit native invocation attestation.
+    /// </summary>
+    [JsonPropertyName("captureComplete")]
+    public required bool CaptureComplete { get; set; }
+
+    /// <summary>Provenance of this enclosing observation; never inferred from other fields.</summary>
+    [JsonPropertyName("observationProvenance")]
+    public required WorkerObservationProvenance ObservationProvenance { get; set; }
+
+    /// <summary>Sources in capture order, at most 32. Absent/unknown is not known-empty.</summary>
+    [JsonPropertyName("sources")]
+    public required WorkerSource[] Sources { get; set; }
+
+    /// <summary>Supported version, exactly 1.</summary>
+    [JsonPropertyName("version")]
+    public required long Version { get; set; }
+}
 
 /// <summary>Internal durable terminal request staged by a HydraFusion phase until an idempotent final commit selects it.</summary>
 /// <remarks>Nested data type for <c>FusionStagedTerminal</c>.</remarks>
@@ -15302,6 +15510,259 @@ public readonly struct UserMessageDelivery : IEquatable<UserMessageDelivery>
     }
 }
 
+/// <summary>Producer of an observation, not the execution location of every referenced source.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct WorkerObservationProvenance : IEquatable<WorkerObservationProvenance>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="WorkerObservationProvenance"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="WorkerObservationProvenance"/>.</param>
+    [JsonConstructor]
+    public WorkerObservationProvenance(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="WorkerObservationProvenance"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Observed by the native runtime.</summary>
+    public static WorkerObservationProvenance Native { get; } = new("native");
+
+    /// <summary>Observed by the AHP coordinator.</summary>
+    public static WorkerObservationProvenance AhpCoordinator { get; } = new("ahp_coordinator");
+
+    /// <summary>Returns a value indicating whether two <see cref="WorkerObservationProvenance"/> instances are equivalent.</summary>
+    public static bool operator ==(WorkerObservationProvenance left, WorkerObservationProvenance right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="WorkerObservationProvenance"/> instances are not equivalent.</summary>
+    public static bool operator !=(WorkerObservationProvenance left, WorkerObservationProvenance right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is WorkerObservationProvenance other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(WorkerObservationProvenance other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{WorkerObservationProvenance}"/> for serializing <see cref="WorkerObservationProvenance"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<WorkerObservationProvenance>
+    {
+        /// <inheritdoc />
+        public override WorkerObservationProvenance Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, WorkerObservationProvenance value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(WorkerObservationProvenance));
+        }
+    }
+}
+
+/// <summary>Supported observed occurrences. Chronological parentId is not a causal reference.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct WorkerEventType : IEquatable<WorkerEventType>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="WorkerEventType"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="WorkerEventType"/>.</param>
+    [JsonConstructor]
+    public WorkerEventType(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="WorkerEventType"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Observed tool execution start occurrence.</summary>
+    public static WorkerEventType ToolExecutionStart { get; } = new("tool.execution_start");
+
+    /// <summary>Observed admitted user message occurrence.</summary>
+    public static WorkerEventType UserMessage { get; } = new("user.message");
+
+    /// <summary>Observed worker completion occurrence.</summary>
+    public static WorkerEventType SubagentCompleted { get; } = new("subagent.completed");
+
+    /// <summary>Observed worker notification occurrence.</summary>
+    public static WorkerEventType SystemNotification { get; } = new("system.notification");
+
+    /// <summary>Observed assistant turn start occurrence.</summary>
+    public static WorkerEventType AssistantTurnStart { get; } = new("assistant.turn_start");
+
+    /// <summary>Returns a value indicating whether two <see cref="WorkerEventType"/> instances are equivalent.</summary>
+    public static bool operator ==(WorkerEventType left, WorkerEventType right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="WorkerEventType"/> instances are not equivalent.</summary>
+    public static bool operator !=(WorkerEventType left, WorkerEventType right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is WorkerEventType other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(WorkerEventType other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{WorkerEventType}"/> for serializing <see cref="WorkerEventType"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<WorkerEventType>
+    {
+        /// <inheritdoc />
+        public override WorkerEventType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, WorkerEventType value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(WorkerEventType));
+        }
+    }
+}
+
+/// <summary>Why this exact worker admission was made.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct WorkerAdmissionKind : IEquatable<WorkerAdmissionKind>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="WorkerAdmissionKind"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="WorkerAdmissionKind"/>.</param>
+    [JsonConstructor]
+    public WorkerAdmissionKind(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="WorkerAdmissionKind"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>A queued worker input was admitted.</summary>
+    public static WorkerAdmissionKind QueuedInput { get; } = new("queued_input");
+
+    /// <summary>A system continuation was admitted.</summary>
+    public static WorkerAdmissionKind SystemContinuation { get; } = new("system_continuation");
+
+    /// <summary>Returns a value indicating whether two <see cref="WorkerAdmissionKind"/> instances are equivalent.</summary>
+    public static bool operator ==(WorkerAdmissionKind left, WorkerAdmissionKind right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="WorkerAdmissionKind"/> instances are not equivalent.</summary>
+    public static bool operator !=(WorkerAdmissionKind left, WorkerAdmissionKind right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is WorkerAdmissionKind other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(WorkerAdmissionKind other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{WorkerAdmissionKind}"/> for serializing <see cref="WorkerAdmissionKind"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<WorkerAdmissionKind>
+    {
+        /// <inheritdoc />
+        public override WorkerAdmissionKind Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, WorkerAdmissionKind value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(WorkerAdmissionKind));
+        }
+    }
+}
+
+/// <summary>How the owned notification was consumed.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct WorkerNotificationMode : IEquatable<WorkerNotificationMode>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="WorkerNotificationMode"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="WorkerNotificationMode"/>.</param>
+    [JsonConstructor]
+    public WorkerNotificationMode(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="WorkerNotificationMode"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The notification was consumed through the queued input path.</summary>
+    public static WorkerNotificationMode Queued { get; } = new("queued");
+
+    /// <summary>The notification was consumed during an already-open iteration.</summary>
+    public static WorkerNotificationMode Immediate { get; } = new("immediate");
+
+    /// <summary>Returns a value indicating whether two <see cref="WorkerNotificationMode"/> instances are equivalent.</summary>
+    public static bool operator ==(WorkerNotificationMode left, WorkerNotificationMode right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="WorkerNotificationMode"/> instances are not equivalent.</summary>
+    public static bool operator !=(WorkerNotificationMode left, WorkerNotificationMode right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is WorkerNotificationMode other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(WorkerNotificationMode other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{WorkerNotificationMode}"/> for serializing <see cref="WorkerNotificationMode"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<WorkerNotificationMode>
+    {
+        /// <inheritdoc />
+        public override WorkerNotificationMode Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, WorkerNotificationMode value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(WorkerNotificationMode));
+        }
+    }
+}
+
 /// <summary>What the agent was doing when the user interrupted it.</summary>
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
@@ -20938,6 +21399,13 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(UserToolSessionApprovalRead))]
 [JsonSerializable(typeof(UserToolSessionApprovalWorkflow))]
 [JsonSerializable(typeof(UserToolSessionApprovalWrite))]
+[JsonSerializable(typeof(WorkerAdmission))]
+[JsonSerializable(typeof(WorkerBridgeObservation))]
+[JsonSerializable(typeof(WorkerCausality))]
+[JsonSerializable(typeof(WorkerEventReference))]
+[JsonSerializable(typeof(WorkerInput))]
+[JsonSerializable(typeof(WorkerNotificationReference))]
+[JsonSerializable(typeof(WorkerSource))]
 [JsonSerializable(typeof(WorkflowPermissionPhase))]
 [JsonSerializable(typeof(WorkflowRunSettledData))]
 [JsonSerializable(typeof(WorkflowRunSettledEvent))]

@@ -29,6 +29,7 @@ pub(crate) type InlineResponseCallback =
 /// Internal pairing of the response delivery channel with an optional
 /// inline callback that the read loop runs synchronously before delivery.
 struct PendingRequest {
+    method: String,
     sender: oneshot::Sender<JsonRpcResponse>,
     inline_callback: Option<InlineResponseCallback>,
 }
@@ -250,6 +251,283 @@ fn repair_lone_surrogates(body: &[u8]) -> Option<Vec<u8>> {
     repaired
 }
 
+#[derive(Default)]
+struct RepairedWorkerPaths {
+    result: bool,
+    result_events: Vec<usize>,
+    notification_event: bool,
+}
+
+struct ReadMessage {
+    message: JsonRpcMessage,
+    repaired_worker_paths: RepairedWorkerPaths,
+}
+
+fn skip_json_string(raw: &[u8], index: &mut usize) -> bool {
+    if raw.get(*index) != Some(&b'"') {
+        return false;
+    }
+    *index += 1;
+    while let Some(byte) = raw.get(*index) {
+        match byte {
+            b'"' => {
+                *index += 1;
+                return true;
+            }
+            b'\\' => {
+                *index += if raw.get(*index + 1) == Some(&b'u') {
+                    6
+                } else {
+                    2
+                };
+            }
+            _ => *index += 1,
+        }
+    }
+    false
+}
+
+fn skip_json_whitespace(raw: &[u8], index: &mut usize) {
+    while raw
+        .get(*index)
+        .is_some_and(|byte| matches!(byte, b' ' | b'\n' | b'\r' | b'\t'))
+    {
+        *index += 1;
+    }
+}
+
+fn skip_json_value(raw: &[u8], index: &mut usize) -> bool {
+    skip_json_whitespace(raw, index);
+    match raw.get(*index) {
+        Some(b'"') => skip_json_string(raw, index),
+        Some(b'{' | b'[') => {
+            let mut stack = vec![if raw[*index] == b'{' { b'}' } else { b']' }];
+            *index += 1;
+            while let Some(byte) = raw.get(*index) {
+                match byte {
+                    b'"' => {
+                        if !skip_json_string(raw, index) {
+                            return false;
+                        }
+                    }
+                    b'{' => {
+                        stack.push(b'}');
+                        *index += 1;
+                    }
+                    b'[' => {
+                        stack.push(b']');
+                        *index += 1;
+                    }
+                    b'}' | b']' => {
+                        if stack.pop() != Some(*byte) {
+                            return false;
+                        }
+                        *index += 1;
+                        if stack.is_empty() {
+                            return true;
+                        }
+                    }
+                    _ => *index += 1,
+                }
+            }
+            false
+        }
+        Some(_) => {
+            while raw.get(*index).is_some_and(|byte| {
+                !matches!(byte, b',' | b'}' | b']' | b' ' | b'\n' | b'\r' | b'\t')
+            }) {
+                *index += 1;
+            }
+            true
+        }
+        None => false,
+    }
+}
+
+fn raw_ascii_string(raw: &[u8]) -> Option<String> {
+    if raw.first() != Some(&b'"') || raw.last() != Some(&b'"') {
+        return None;
+    }
+    let mut output = String::new();
+    let mut index = 1;
+    while index + 1 < raw.len() {
+        let byte = raw[index];
+        if byte != b'\\' {
+            if !byte.is_ascii() {
+                return None;
+            }
+            output.push(char::from(byte));
+            index += 1;
+            continue;
+        }
+        index += 1;
+        match raw.get(index)? {
+            b'"' | b'\\' | b'/' => output.push(char::from(raw[index])),
+            b'u' => {
+                let digits = std::str::from_utf8(raw.get(index + 1..index + 5)?).ok()?;
+                let value = u16::from_str_radix(digits, 16).ok()?;
+                if value > 0x7f {
+                    return None;
+                }
+                output.push(char::from(value as u8));
+                index += 4;
+            }
+            _ => return None,
+        }
+        index += 1;
+    }
+    Some(output)
+}
+
+fn raw_object_property<'a>(raw: &'a [u8], property: &str) -> Option<&'a [u8]> {
+    let mut index = 0;
+    skip_json_whitespace(raw, &mut index);
+    if raw.get(index) != Some(&b'{') {
+        return None;
+    }
+    index += 1;
+    let mut found = None;
+    loop {
+        skip_json_whitespace(raw, &mut index);
+        if raw.get(index) == Some(&b'}') {
+            return found;
+        }
+        let key_start = index;
+        if !skip_json_string(raw, &mut index) {
+            return None;
+        }
+        let key = raw_ascii_string(&raw[key_start..index]);
+        skip_json_whitespace(raw, &mut index);
+        if raw.get(index) != Some(&b':') {
+            return None;
+        }
+        index += 1;
+        skip_json_whitespace(raw, &mut index);
+        let value_start = index;
+        if !skip_json_value(raw, &mut index) {
+            return None;
+        }
+        if key.as_deref() == Some(property) {
+            found = Some(&raw[value_start..index]);
+        }
+        skip_json_whitespace(raw, &mut index);
+        if raw.get(index) == Some(&b',') {
+            index += 1;
+        } else if raw.get(index) == Some(&b'}') {
+            return found;
+        } else {
+            return None;
+        }
+    }
+}
+
+fn raw_array_values(raw: &[u8]) -> Option<Vec<&[u8]>> {
+    let mut index = 0;
+    skip_json_whitespace(raw, &mut index);
+    if raw.get(index) != Some(&b'[') {
+        return None;
+    }
+    index += 1;
+    let mut values = Vec::new();
+    loop {
+        skip_json_whitespace(raw, &mut index);
+        if raw.get(index) == Some(&b']') {
+            return Some(values);
+        }
+        let start = index;
+        if !skip_json_value(raw, &mut index) {
+            return None;
+        }
+        values.push(&raw[start..index]);
+        skip_json_whitespace(raw, &mut index);
+        match raw.get(index) {
+            Some(b',') => index += 1,
+            Some(b']') => return Some(values),
+            _ => return None,
+        }
+    }
+}
+
+fn raw_event_worker_needs_removal(raw: &[u8]) -> bool {
+    let Some(event_type) = raw_object_property(raw, "type").and_then(raw_ascii_string) else {
+        return false;
+    };
+    if !matches!(
+        event_type.as_str(),
+        "user.message" | "assistant.turn_start" | "system.notification"
+    ) {
+        return false;
+    }
+    let Some(data) = raw_object_property(raw, "data") else {
+        return false;
+    };
+    raw_object_property(data, "workerCausality")
+        .is_some_and(|worker| repair_lone_surrogates(worker).is_some())
+}
+
+fn repaired_worker_paths(body: &[u8]) -> RepairedWorkerPaths {
+    let mut paths = RepairedWorkerPaths::default();
+    if let Some(result) = raw_object_property(body, "result") {
+        paths.result = raw_object_property(result, "workerCausality")
+            .is_some_and(|worker| repair_lone_surrogates(worker).is_some());
+        if let Some(events) = raw_object_property(result, "events").and_then(raw_array_values) {
+            paths.result_events = events
+                .iter()
+                .enumerate()
+                .filter_map(|(index, event)| raw_event_worker_needs_removal(event).then_some(index))
+                .collect();
+        }
+    }
+    if let Some(params) = raw_object_property(body, "params") {
+        paths.notification_event =
+            raw_object_property(params, "event").is_some_and(raw_event_worker_needs_removal);
+    }
+    paths
+}
+
+fn remove_repaired_response_worker_causality(
+    response: &mut JsonRpcResponse,
+    paths: &RepairedWorkerPaths,
+    method: &str,
+) {
+    let Some(result) = response.result.as_mut() else {
+        return;
+    };
+    if method == "session.tasks.sendMessage" && paths.result {
+        result
+            .as_object_mut()
+            .map(|result| result.remove("workerCausality"));
+    }
+    if matches!(
+        method,
+        "session.eventLog.read" | "session.getMessages" | "sessions.readPersistedEvents"
+    ) && let Some(events) = result.get_mut("events").and_then(Value::as_array_mut)
+    {
+        for index in &paths.result_events {
+            events
+                .get_mut(*index)
+                .and_then(|event| event.get_mut("data"))
+                .and_then(Value::as_object_mut)
+                .map(|data| data.remove("workerCausality"));
+        }
+    }
+}
+
+fn remove_repaired_notification_worker_causality(
+    notification: &mut JsonRpcNotification,
+    paths: &RepairedWorkerPaths,
+) {
+    if paths.notification_event {
+        notification
+            .params
+            .as_mut()
+            .and_then(|params| params.get_mut("event"))
+            .and_then(|event| event.get_mut("data"))
+            .and_then(Value::as_object_mut)
+            .map(|data| data.remove("workerCausality"));
+    }
+}
+
 /// One framed JSON-RPC message handed to the writer actor.
 ///
 /// `frame` is the fully serialized bytes (header + body); the caller pays
@@ -413,15 +691,24 @@ impl JsonRpcClient {
 
         loop {
             match Self::read_message(&mut reader).await {
-                Ok(Some(message)) => match message {
+                Ok(Some(ReadMessage {
+                    message,
+                    repaired_worker_paths,
+                })) => match message {
                     JsonRpcMessage::Response(mut response) => {
                         let id = response.id;
                         let pending = pending_requests.write().remove(&id);
                         if let Some(PendingRequest {
+                            method,
                             sender,
                             inline_callback,
                         }) = pending
                         {
+                            remove_repaired_response_worker_causality(
+                                &mut response,
+                                &repaired_worker_paths,
+                                &method,
+                            );
                             // Run the inline callback synchronously on the
                             // read loop so any state it mutates (e.g.
                             // registering a server-assigned session id with
@@ -468,7 +755,13 @@ impl JsonRpcClient {
                             warn!(request_id = %id, "received response for unknown request id");
                         }
                     }
-                    JsonRpcMessage::Notification(notification) => {
+                    JsonRpcMessage::Notification(mut notification) => {
+                        if notification.method == "session.event" {
+                            remove_repaired_notification_worker_causality(
+                                &mut notification,
+                                &repaired_worker_paths,
+                            );
+                        }
                         if notification.method == "$/cancelRequest" {
                             if let Some(id) = notification
                                 .params
@@ -519,7 +812,7 @@ impl JsonRpcClient {
 
     async fn read_message(
         reader: &mut BufReader<impl AsyncRead + Unpin>,
-    ) -> Result<Option<JsonRpcMessage>, Error> {
+    ) -> Result<Option<ReadMessage>, Error> {
         let mut line = String::new();
         let mut content_length = None;
 
@@ -551,10 +844,14 @@ impl JsonRpcClient {
         reader.read_exact(&mut body).await?;
 
         match serde_json::from_slice::<JsonRpcMessage>(&body) {
-            Ok(message) => Ok(Some(message)),
+            Ok(message) => Ok(Some(ReadMessage {
+                message,
+                repaired_worker_paths: RepairedWorkerPaths::default(),
+            })),
             Err(error) => {
                 // Dropping an undecodable frame could leave its pending
                 // request waiting forever because this layer has no timeout.
+                let paths = repaired_worker_paths(&body);
                 match repair_lone_surrogates(&body)
                     .and_then(|repaired| serde_json::from_slice::<JsonRpcMessage>(&repaired).ok())
                 {
@@ -564,7 +861,10 @@ impl JsonRpcClient {
                             length,
                             "recovered JSON-RPC frame containing unpaired UTF-16 surrogates"
                         );
-                        Ok(Some(message))
+                        Ok(Some(ReadMessage {
+                            message,
+                            repaired_worker_paths: paths,
+                        }))
                     }
                     None => Err(error.into()),
                 }
@@ -622,6 +922,7 @@ impl JsonRpcClient {
         self.pending_requests.write().insert(
             id,
             PendingRequest {
+                method: method.to_owned(),
                 sender: tx,
                 inline_callback,
             },
@@ -854,6 +1155,116 @@ mod tests {
                 "{json}"
             );
         }
+    }
+
+    #[tokio::test]
+    async fn framed_response_drops_worker_metadata_changed_by_surrogate_repair() {
+        async fn read_response(body: &[u8], method: &str) -> JsonRpcResponse {
+            let frame = format!("Content-Length: {}\r\n\r\n", body.len());
+            let (mut writer, reader) = tokio::io::duplex(frame.len() + body.len());
+            writer.write_all(frame.as_bytes()).await.unwrap();
+            writer.write_all(body).await.unwrap();
+            writer.shutdown().await.unwrap();
+            let ReadMessage {
+                message,
+                repaired_worker_paths,
+            } = JsonRpcClient::read_message(&mut BufReader::new(reader))
+                .await
+                .unwrap()
+                .unwrap();
+            let JsonRpcMessage::Response(mut response) = message else {
+                panic!("expected response");
+            };
+            remove_repaired_response_worker_causality(
+                &mut response,
+                &repaired_worker_paths,
+                method,
+            );
+            response
+        }
+
+        async fn read_notification(body: &[u8]) -> JsonRpcNotification {
+            let frame = format!("Content-Length: {}\r\n\r\n", body.len());
+            let (mut writer, reader) = tokio::io::duplex(frame.len() + body.len());
+            writer.write_all(frame.as_bytes()).await.unwrap();
+            writer.write_all(body).await.unwrap();
+            writer.shutdown().await.unwrap();
+            let ReadMessage {
+                message,
+                repaired_worker_paths,
+            } = JsonRpcClient::read_message(&mut BufReader::new(reader))
+                .await
+                .unwrap()
+                .unwrap();
+            let JsonRpcMessage::Notification(mut notification) = message else {
+                panic!("expected notification");
+            };
+            if notification.method == "session.event" {
+                remove_repaired_notification_worker_causality(
+                    &mut notification,
+                    &repaired_worker_paths,
+                );
+            }
+            notification
+        }
+
+        let body = br#"{"jsonrpc":"2.0","id":1,"result":{"sent":true,"other":"\ud800","workerCausality":{"version":1,"observationProvenance":"native","sources":[{"input":{"queueItemId":"11111111-1111-4111-8111-111111111111","agentId":"\ud800"},"admissions":[],"captureComplete":true}],"captureComplete":true}}}"#;
+        let response = read_response(body, "session.tasks.sendMessage").await;
+        let result = response.result.unwrap();
+        assert_eq!(result["sent"], true);
+        assert_eq!(result["other"], "\u{fffd}");
+        assert!(result.get("workerCausality").is_none());
+
+        let body = br#"{"jsonrpc":"2.0","id":2,"result":{"sent":true,"other":"\ud800","workerCausality":{"version":1,"observationProvenance":"native","sources":[{"input":{"queueItemId":"11111111-1111-4111-8111-111111111111","agentId":"\ufffd"},"admissions":[],"captureComplete":true}],"captureComplete":true}}}"#;
+        let response = read_response(body, "session.tasks.sendMessage").await;
+        assert_eq!(
+            response.result.unwrap()["workerCausality"]["sources"][0]["input"]["agentId"],
+            "\u{fffd}"
+        );
+
+        let body = br#"{"jsonrpc":"2.0","id":3,"result":{"\ud800":"extension","sent":true,"workerCausality":{"version":1,"observationProvenance":"native","sources":[{"input":{"queueItemId":"11111111-1111-4111-8111-111111111111","agentId":"\ud800"},"admissions":[],"captureComplete":true}],"captureComplete":true}}}"#;
+        let response = read_response(body, "session.tasks.sendMessage").await;
+        assert!(response.result.unwrap().get("workerCausality").is_none());
+
+        let body = br#"{"jsonrpc":"2.0","id":4,"result":{"events":[{"type":"session.start","data":{"workerCausality":{"identity":"\ud800"}}}]}}"#;
+        let response = read_response(body, "session.eventLog.read").await;
+        assert_eq!(
+            response.result.unwrap()["events"][0]["data"]["workerCausality"]["identity"],
+            "\u{fffd}"
+        );
+
+        let body = br#"{"jsonrpc":"2.0","id":8,"result":{"events":[{"type":"user.message","data":{"workerCausality":{"identity":"\ud800"}}}]}}"#;
+        let response = read_response(body, "session.getMessages").await;
+        assert!(
+            response.result.unwrap()["events"][0]["data"]
+                .get("workerCausality")
+                .is_none()
+        );
+
+        let body = br#"{"jsonrpc":"2.0","id":5,"result":{"sent":true,"workerCausality":{"identity":"\ud800"}}}"#;
+        let response = read_response(body, "unrelated.method").await;
+        assert_eq!(
+            response.result.unwrap()["workerCausality"]["identity"],
+            "\u{fffd}"
+        );
+
+        let body = br#"{"jsonrpc":"2.0","id":6,"result":{"sent":true,"workerCausality":{"identity":"\ud800"},"workerCausality":{"identity":"\ufffd"}}}"#;
+        let response = read_response(body, "session.tasks.sendMessage").await;
+        assert_eq!(
+            response.result.unwrap()["workerCausality"]["identity"],
+            "\u{fffd}"
+        );
+
+        let body = br#"{"jsonrpc":"2.0","id":7,"result":{"sent":true,"workerCausality":{"identity":"\ufffd"},"workerCausality":{"identity":"\ud800"}}}"#;
+        let response = read_response(body, "session.tasks.sendMessage").await;
+        assert!(response.result.unwrap().get("workerCausality").is_none());
+
+        let body = br#"{"jsonrpc":"2.0","method":"unrelated.notification","params":{"event":{"type":"user.message","data":{"workerCausality":{"identity":"\ud800"}}}}}"#;
+        let notification = read_notification(body).await;
+        assert_eq!(
+            notification.params.unwrap()["event"]["data"]["workerCausality"]["identity"],
+            "\u{fffd}"
+        );
     }
 
     #[test]

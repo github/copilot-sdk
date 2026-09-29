@@ -62,6 +62,145 @@ function renderPayload(dataSchema: JSONSchema7): string {
     }, "com.github.copilot.generated");
 }
 
+test("admission correlation preserves existing Java record constructors", async () => {
+    const schema: JSONSchema7 = {
+        type: "object",
+        properties: {
+            prompt: { type: "string" },
+            clientCorrelationId: { type: "string" },
+            displayPrompt: { type: "string" },
+        },
+        required: ["prompt"],
+    };
+    const files = await renderRpcTypes({
+        session: {
+            send: {
+                rpcMethod: "session.send",
+                params: { ...schema, title: "SessionSendParams" },
+            },
+        },
+    }, {});
+    const code = [...files.values()].join("\n");
+    assert.match(code, /public SessionSendParams\(String prompt, String displayPrompt\)/);
+    assert.match(code, /this\(prompt, displayPrompt, null\);/);
+
+    const pending = generateRpcClass("QueuePendingItems", {
+        type: "object",
+        properties: {
+            id: { type: "string" },
+            messageId: { type: "string" },
+            clientCorrelationId: { type: "string" },
+            source: { type: "string" },
+        },
+    }, new Map(), "com.github.copilot.generated").code;
+    assert.match(
+        pending,
+        /public QueuePendingItems\(String id, String messageId, String source\)/
+    );
+    assert.match(pending, /this\(id, messageId, source, null\);/);
+    assert.match(pending, /public QueuePendingItems\(String id, String messageId\)/);
+    assert.match(pending, /this\(id, messageId, null, null\);/);
+
+    const event = renderEventVariantClass({
+        typeName: "user.message",
+        className: "UserMessageEvent",
+        dataSchema: {
+            type: "object",
+            properties: {
+                content: { type: "string" },
+                clientCorrelationId: { type: "string" },
+                messageId: { type: "string" },
+            },
+        },
+    }, "com.github.copilot.generated");
+    assert.match(event, /public UserMessageEventData\(String content, String messageId\)/);
+    assert.match(event, /this\(content, messageId, null\);/);
+});
+
+test("worker causality preserves existing Java event and RPC record constructors", () => {
+    const event = renderEventVariantClass({
+        typeName: "user.message",
+        className: "UserMessageEvent",
+        dataSchema: {
+            type: "object",
+            properties: {
+                workerCausality: { type: "object" },
+                content: { type: "string" },
+                clientCorrelationId: { type: "string" },
+                messageId: { type: "string" },
+            },
+        },
+    }, "com.github.copilot.generated");
+    assert.match(
+        event,
+        /public UserMessageEventData\(String content, String messageId, String clientCorrelationId\)/
+    );
+    assert.match(
+        event,
+        /@com\.fasterxml\.jackson\.databind\.annotation\.JsonDeserialize\(using = com\.github\.copilot\.WorkerCausalityDeserializer\.class\)/
+    );
+    assert.match(event, /this\(content, messageId, null, clientCorrelationId\);/);
+    assert.match(event, /public UserMessageEventData\(String content, String messageId\)/);
+    assert.match(event, /this\(content, messageId, null, null\);/);
+
+    const notification = renderEventVariantClass({
+        typeName: "system.notification",
+        className: "SystemNotificationEvent",
+        dataSchema: {
+            type: "object",
+            properties: {
+                workerCausality: { type: "object" },
+                content: { type: "string" },
+                kind: { type: "object" },
+            },
+        },
+    }, "com.github.copilot.generated");
+    assert.match(
+        notification,
+        /public SystemNotificationEventData\(String content, Map<String, Object> kind\)/
+    );
+    assert.match(notification, /this\(content, kind, null\);/);
+
+    const result = generateRpcClass("SessionTasksSendMessageResult", {
+        type: "object",
+        properties: {
+            workerCausality: { type: "object" },
+            sent: { type: "boolean" },
+            error: { type: "string" },
+        },
+    }, new Map(), "com.github.copilot.generated").code;
+    assert.match(
+        result,
+        /@com\.fasterxml\.jackson\.databind\.annotation\.JsonDeserialize\(using = com\.github\.copilot\.WorkerCausalityDeserializer\.class\)/
+    );
+    assert.match(result, /public SessionTasksSendMessageResult\(Boolean sent, String error\)/);
+    assert.match(result, /this\(sent, error, null\);/);
+});
+
+test("worker UUID identities remain strings without changing ordinary UUID fields", () => {
+    const nestedTypes = new Map();
+    assert.equal(
+        schemaTypeToJava(
+            { type: "string", format: "uuid" },
+            true,
+            "WorkerEventReference",
+            "eventId",
+            nestedTypes,
+        ).javaType,
+        "String",
+    );
+    assert.equal(
+        schemaTypeToJava(
+            { type: "string", format: "uuid" },
+            true,
+            "OtherReference",
+            "eventId",
+            nestedTypes,
+        ).javaType,
+        "UUID",
+    );
+});
+
 for (const keyword of ["anyOf", "oneOf"] as const) {
     test(`root ${keyword} payload preserves raw JSON and existing data descriptors`, () => {
         const source = renderPayload({

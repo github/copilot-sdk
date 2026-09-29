@@ -32,6 +32,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../src/GitHub.Copilot.SDK.csproj" />
+    <Content Include="../../test/worker-causality.json" Link="worker-causality.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net472'">

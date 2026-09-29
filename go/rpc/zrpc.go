@@ -12110,6 +12110,11 @@ type QueuePendingItems struct {
 	// the turn: a plan or autopilot session applies its own write gate, continuation loop and
 	// permission posture to every drained item regardless of the mode stored here.
 	AgentMode SendAgentMode `json:"agentMode"`
+	// Caller-owned diagnostic UUID from the exact accepted native session.send or sendMessages
+	// item, when RUNTIME_ADMISSION_TRACE_CONTEXT is enabled. Omitted for unsupported or
+	// identity-less rows, including snapshot-only mirrors. Not an idempotency key,
+	// authorization, or permission to retry; repeated values remain ambiguous.
+	ClientCorrelationID *string `json:"clientCorrelationId,omitempty"`
 	// Human-readable text to display for this queue entry in the UI
 	DisplayText string `json:"displayText"`
 	// Stable opaque id for the canonical queued item. Batch rows share one id.
@@ -13026,6 +13031,11 @@ type SendMessageItem struct {
 	// Internal: Billable is part of the SDK's internal API surface and is not intended for
 	// external use.
 	Billable *bool `json:"billable,omitempty"`
+	// Optional caller-generated diagnostic UUID for this item only, with the same validation
+	// and opt-in native echo as session.send.clientCorrelationId. The batch has no
+	// request-level correlation value; each item retains its own value, including preceding
+	// context messages. Reused values do not deduplicate messages and remain ambiguous.
+	ClientCorrelationID *string `json:"clientCorrelationId,omitempty"`
 	// If provided, this is shown in the timeline instead of `prompt`
 	DisplayPrompt *string `json:"displayPrompt,omitempty"`
 	// The user message text
@@ -13111,6 +13121,12 @@ type SendRequest struct {
 	// If false, this message will not trigger a Premium Request Unit charge. User messages
 	// default to billable.
 	Billable *bool `json:"billable,omitempty"`
+	// Optional caller-generated diagnostic UUID for this single message. Native sessions with
+	// RUNTIME_ADMISSION_TRACE_CONTEXT enabled echo the exact lowercase, hyphenated 36-character
+	// UUID on user.message and its existing pending message row. Missing, invalid, disabled, or
+	// unsupported metadata is ignored without rejecting the send. Does not change messageId,
+	// deduplicate submissions, authorize work, or make an uncertain retry safe.
+	ClientCorrelationID *string `json:"clientCorrelationId,omitempty"`
 	// If provided, this is shown in the timeline instead of `prompt`
 	DisplayPrompt *string `json:"displayPrompt,omitempty"`
 	// How to deliver the message. `enqueue` (default) appends to the message queue. `immediate`
@@ -17967,6 +17983,9 @@ type TasksSendMessageResult struct {
 	Error *string `json:"error,omitempty"`
 	// Whether the message was successfully delivered or steered
 	Sent bool `json:"sent"`
+	// Optional exact queue admission receipt on sent=true only. No implicit event or
+	// execution-success claim.
+	WorkerCausality *WorkerCausality `json:"workerCausality,omitempty"`
 }
 
 // Agent type, prompt, name, and optional description and model override for the new task.
@@ -19108,6 +19127,103 @@ type VisibilitySetResult struct {
 	// Whether the session has been synced to Mission Control (i.e. has a GitHub task). When
 	// false, the visibility change could not be applied and `status`/`shareUrl` are absent.
 	Synced bool `json:"synced"`
+}
+
+// An observed worker admission, not a claim that execution succeeded.
+// Experimental: WorkerAdmission is part of an experimental API and may change or be removed.
+type WorkerAdmission struct {
+	// Actual AHP participant Turn UUID, not a native turn counter or provenance signal.
+	AhpTurnID *string `json:"ahpTurnId,omitempty"`
+	// May be omitted only for the matching current worker user.message.
+	Event *WorkerEventReference `json:"event,omitempty"`
+	// The producer's admission kind.
+	Kind WorkerAdmissionKind `json:"kind"`
+	// Canonical logical message identity, independent of queueItemId; at most 256 UTF-8 bytes.
+	MessageID string `json:"messageId"`
+}
+
+// One indivisible source-to-reported bridge observation, not a root alias.
+// Experimental: WorkerBridgeObservation is part of an experimental API and may change or be
+// removed.
+type WorkerBridgeObservation struct {
+	// Full occurrence actually emitted by that bridge.
+	Reported WorkerEventReference `json:"reported"`
+	// Full event received by this bridge.
+	Source WorkerEventReference `json:"source"`
+}
+
+// Optional v1 worker diagnostics. The compact UTF-8 {"workerCausality":value}
+// must fit 4096 bytes after materializing an allowed implicit self-reference.
+// Ignore invalid/unknown/oversize metadata, not the product event.
+// Experimental: WorkerCausality is part of an experimental API and may change or be removed.
+type WorkerCausality struct {
+	// Complete placement-aware observed capture, not global causality or execution success.
+	// Empty true requires explicit native invocation attestation.
+	CaptureComplete bool `json:"captureComplete"`
+	// Provenance of this enclosing observation; never inferred from other fields.
+	ObservationProvenance WorkerObservationProvenance `json:"observationProvenance"`
+	// Sources in capture order, at most 32. Absent/unknown is not known-empty.
+	Sources []WorkerSource `json:"sources"`
+	// Supported version, exactly 1.
+	Version int64 `json:"version"`
+}
+
+// Exact observed event identity. No private registration generation or execution handle.
+// Experimental: WorkerEventReference is part of an experimental API and may change or be
+// removed.
+type WorkerEventReference struct {
+	// Actual event agent scope, absent for a root occurrence; at most 256 UTF-8 bytes.
+	AgentID *string `json:"agentId,omitempty"`
+	// Actual event occurrence UUID; copied without normalization.
+	EventID string `json:"eventId"`
+	// Type of the observed occurrence.
+	EventType WorkerEventType `json:"eventType"`
+	// Explicit provenance of this reference.
+	Provenance WorkerObservationProvenance `json:"provenance"`
+	// Actual runtime session scope, at most 256 UTF-8 bytes.
+	SessionID string `json:"sessionId"`
+}
+
+// Exact accepted worker input, distinct from a message, event, caller correlation or Turn.
+// Experimental: WorkerInput is part of an experimental API and may change or be removed.
+type WorkerInput struct {
+	// Actual recipient task, at most 256 UTF-8 bytes.
+	AgentID string `json:"agentId"`
+	// UUID allocated for this queue item by the admitting producer.
+	QueueItemID string `json:"queueItemId"`
+	// Original invoking occurrence, never replaced by a reported/root alias.
+	Sender *WorkerEventReference `json:"sender,omitempty"`
+	// Exact captured edges in producer order. Requires sender; at most 32 whole pairs.
+	SenderBridges []WorkerBridgeObservation `json:"senderBridges,omitzero"`
+}
+
+// Exact delivery and optional occurrence of a consumed worker notification.
+// Experimental: WorkerNotificationReference is part of an experimental API and may change
+// or be removed.
+type WorkerNotificationReference struct {
+	// Actual notificationDeliveryId UUID.
+	DeliveryID string `json:"deliveryId"`
+	// May be omitted only on the matching current system.notification.
+	Event *WorkerEventReference `json:"event,omitempty"`
+	// Actual consumption mode.
+	Mode WorkerNotificationMode `json:"mode"`
+}
+
+// One captured source at this placement and observation boundary.
+// Experimental: WorkerSource is part of an experimental API and may change or be removed.
+type WorkerSource struct {
+	// Actual admissions in capture order; at most 32.
+	Admissions []WorkerAdmission `json:"admissions"`
+	// Exact already-open iteration when an immediate notification was consumed.
+	AdmittedDuring *WorkerEventReference `json:"admittedDuring,omitempty"`
+	// Applicable observations were all captured here, never work completion or success.
+	CaptureComplete bool `json:"captureComplete"`
+	// Actual completion emission only. Absence is not an execution outcome.
+	Completion *WorkerEventReference `json:"completion,omitempty"`
+	// Indivisible accepted input identity.
+	Input WorkerInput `json:"input"`
+	// Actual consumed notification, when observed.
+	Notification *WorkerNotificationReference `json:"notification,omitempty"`
 }
 
 // Parameters for cooperatively aborting a workflow body.
@@ -23732,8 +23848,9 @@ const (
 	ResponseFormatTypeJSONSchema ResponseFormatType = "json_schema"
 )
 
-// Origin of the sandbox choice supplied by the host. This value describes preference or
-// session intent; it does not authorize bypassing managed policy.
+// Origin of the sandbox choice supplied by the host. Settings-derived origins let managed
+// policy floor the host preference; do not tag explicit session overrides as
+// settings-derived.
 // Experimental: SandboxConfigSource is part of an experimental API and may change or be
 // removed.
 type SandboxConfigSource string
@@ -23745,7 +23862,7 @@ const (
 	SandboxConfigSourceRepositoryPolicy SandboxConfigSource = "repository_policy"
 	// The user disabled the sandbox for the current session.
 	SandboxConfigSourceSessionDisabled SandboxConfigSource = "session_disabled"
-	// An explicit session-scoped choice selected the sandbox state, such as a command-line flag.
+	// A command-line flag selected the sandbox state for this session.
 	SandboxConfigSourceSessionFlag SandboxConfigSource = "session_flag"
 	// The client disabled the sandbox because the host cannot enforce it.
 	SandboxConfigSourceUnsupportedHost SandboxConfigSource = "unsupported_host"
@@ -24915,6 +25032,59 @@ const (
 	VerbosityLow Verbosity = "low"
 	// Request a medium amount of response detail.
 	VerbosityMedium Verbosity = "medium"
+)
+
+// Why this exact worker admission was made.
+// Experimental: WorkerAdmissionKind is part of an experimental API and may change or be
+// removed.
+type WorkerAdmissionKind string
+
+const (
+	// A queued worker input was admitted.
+	WorkerAdmissionKindQueuedInput WorkerAdmissionKind = "queued_input"
+	// A system continuation was admitted.
+	WorkerAdmissionKindSystemContinuation WorkerAdmissionKind = "system_continuation"
+)
+
+// Supported observed occurrences. Chronological parentId is not a causal reference.
+// Experimental: WorkerEventType is part of an experimental API and may change or be removed.
+type WorkerEventType string
+
+const (
+	// Observed assistant turn start occurrence.
+	WorkerEventTypeAssistantTurnStart WorkerEventType = "assistant.turn_start"
+	// Observed worker completion occurrence.
+	WorkerEventTypeSubagentCompleted WorkerEventType = "subagent.completed"
+	// Observed worker notification occurrence.
+	WorkerEventTypeSystemNotification WorkerEventType = "system.notification"
+	// Observed tool execution start occurrence.
+	WorkerEventTypeToolExecutionStart WorkerEventType = "tool.execution_start"
+	// Observed admitted user message occurrence.
+	WorkerEventTypeUserMessage WorkerEventType = "user.message"
+)
+
+// How the owned notification was consumed.
+// Experimental: WorkerNotificationMode is part of an experimental API and may change or be
+// removed.
+type WorkerNotificationMode string
+
+const (
+	// The notification was consumed during an already-open iteration.
+	WorkerNotificationModeImmediate WorkerNotificationMode = "immediate"
+	// The notification was consumed through the queued input path.
+	WorkerNotificationModeQueued WorkerNotificationMode = "queued"
+)
+
+// Producer of an observation, not the execution location of every referenced source.
+// Experimental: WorkerObservationProvenance is part of an experimental API and may change
+// or be removed.
+type WorkerObservationProvenance string
+
+const (
+	// Observed by the AHP coordinator.
+	WorkerObservationProvenanceAhpCoordinator WorkerObservationProvenance = "ahp_coordinator"
+	// Observed by the native runtime.
+	WorkerObservationProvenanceNative WorkerObservationProvenance = "native"
 )
 
 // Execution-critical workflow storage operation.
@@ -34820,6 +34990,9 @@ func (a *SessionRPC) Send(ctx context.Context, params *SendRequest) (*SendResult
 		}
 		if params.Billable != nil {
 			req["billable"] = *params.Billable
+		}
+		if params.ClientCorrelationID != nil {
+			req["clientCorrelationId"] = *params.ClientCorrelationID
 		}
 		if params.DisplayPrompt != nil {
 			req["displayPrompt"] = *params.DisplayPrompt

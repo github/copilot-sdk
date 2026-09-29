@@ -2669,6 +2669,116 @@ pub struct SessionPermissionRecoveryData {
     pub status: PermissionRecoveryStatus,
 }
 
+/// Exact observed event identity. No private registration generation or execution handle.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkerEventReference {
+    /// Actual event agent scope, absent for a root occurrence; at most 256 UTF-8 bytes.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub agent_id: Option<String>,
+    /// Actual event occurrence UUID; copied without normalization.
+    pub event_id: String,
+    /// Type of the observed occurrence.
+    pub event_type: WorkerEventType,
+    /// Explicit provenance of this reference.
+    pub provenance: WorkerObservationProvenance,
+    /// Actual runtime session scope, at most 256 UTF-8 bytes.
+    pub session_id: SessionId,
+}
+
+/// An observed worker admission, not a claim that execution succeeded.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkerAdmission {
+    /// Actual AHP participant Turn UUID, not a native turn counter or provenance signal.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ahp_turn_id: Option<String>,
+    /// May be omitted only for the matching current worker user.message.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub event: Option<WorkerEventReference>,
+    /// The producer's admission kind.
+    pub kind: WorkerAdmissionKind,
+    /// Canonical logical message identity, independent of queueItemId; at most 256 UTF-8 bytes.
+    pub message_id: String,
+}
+
+/// One indivisible source-to-reported bridge observation, not a root alias.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkerBridgeObservation {
+    /// Full occurrence actually emitted by that bridge.
+    pub reported: WorkerEventReference,
+    /// Full event received by this bridge.
+    pub source: WorkerEventReference,
+}
+
+/// Exact accepted worker input, distinct from a message, event, caller correlation or Turn.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkerInput {
+    /// Actual recipient task, at most 256 UTF-8 bytes.
+    pub agent_id: String,
+    /// UUID allocated for this queue item by the admitting producer.
+    pub queue_item_id: String,
+    /// Original invoking occurrence, never replaced by a reported/root alias.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sender: Option<WorkerEventReference>,
+    /// Exact captured edges in producer order. Requires sender; at most 32 whole pairs.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sender_bridges: Option<Vec<WorkerBridgeObservation>>,
+}
+
+/// Exact delivery and optional occurrence of a consumed worker notification.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkerNotificationReference {
+    /// Actual notificationDeliveryId UUID.
+    pub delivery_id: String,
+    /// May be omitted only on the matching current system.notification.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub event: Option<WorkerEventReference>,
+    /// Actual consumption mode.
+    pub mode: WorkerNotificationMode,
+}
+
+/// One captured source at this placement and observation boundary.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkerSource {
+    /// Actual admissions in capture order; at most 32.
+    pub admissions: Vec<WorkerAdmission>,
+    /// Exact already-open iteration when an immediate notification was consumed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub admitted_during: Option<WorkerEventReference>,
+    /// Applicable observations were all captured here, never work completion or success.
+    pub capture_complete: bool,
+    /// Actual completion emission only. Absence is not an execution outcome.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub completion: Option<WorkerEventReference>,
+    /// Indivisible accepted input identity.
+    pub input: WorkerInput,
+    /// Actual consumed notification, when observed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub notification: Option<WorkerNotificationReference>,
+}
+
+/// Optional v1 worker diagnostics. The compact UTF-8 {"workerCausality":value}
+/// must fit 4096 bytes after materializing an allowed implicit self-reference.
+/// Ignore invalid/unknown/oversize metadata, not the product event.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkerCausality {
+    /// Complete placement-aware observed capture, not global causality or execution success.
+    /// Empty true requires explicit native invocation attestation.
+    pub capture_complete: bool,
+    /// Provenance of this enclosing observation; never inferred from other fields.
+    pub observation_provenance: WorkerObservationProvenance,
+    /// Sources in capture order, at most 32. Absent/unknown is not known-empty.
+    pub sources: Vec<WorkerSource>,
+    /// Supported version, exactly 1.
+    pub version: serde_json::Value,
+}
+
 /// Session event "user.message". Payload of `user.message` with displayed and model-transformed content, attachments, source/delivery metadata, mode, and telemetry IDs.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -2679,6 +2789,9 @@ pub struct UserMessageData {
     /// Files, selections, or GitHub references attached to the message
     #[serde(skip_serializing_if = "Option::is_none")]
     pub attachments: Option<Vec<serde_json::Value>>,
+    /// Exact caller-owned diagnostic UUID carried by this accepted native session.send or sendMessages item when RUNTIME_ADMISSION_TRACE_CONTEXT is enabled. Omitted when input, native ownership, or support is missing. Independent of the canonical messageId; not an idempotency key, authorization, or permission to retry. Multiple messages with the same value remain ambiguous.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub client_correlation_id: Option<String>,
     /// The user's message text as displayed in the timeline
     pub content: String,
     /// How this message was delivered to the agentic loop relative to loop state (idle-start vs. steering/queued while busy). The timing axis; combine with `source` (origin) for the full picture. Used for telemetry attribution.
@@ -2696,7 +2809,7 @@ pub struct UserMessageData {
     /// Path-backed native document attachments that stayed on the tagged_files path flow because native upload could not read them or would exceed the request size limit
     #[serde(skip_serializing_if = "Option::is_none")]
     pub native_document_path_fallback_paths: Option<Vec<String>>,
-    /// Parent agent task ID for background telemetry correlated to this user turn
+    /// Task ID minted when the runtime prepares this user-message run. This is not a parent interaction ID or worker instance ID and must not be equated with CAPI's X-Parent-Agent-Id.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parent_agent_task_id: Option<String>,
     /// Provider reasoning settings anchored before this model-facing message for cache-stable replay; the historical responsesReasoning name is retained for compatibility
@@ -2714,6 +2827,13 @@ pub struct UserMessageData {
     /// The agent-loop turn ID that consumed this message; absent when no agent-loop turn consumed it
     #[serde(skip_serializing_if = "Option::is_none")]
     pub turn_id: Option<String>,
+    /// Optional worker admission observations; self identity requires the matching enclosing message and agent.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "crate::worker_causality::deserialize_optional"
+    )]
+    pub worker_causality: Option<WorkerCausality>,
 }
 
 /// Session event "pending_messages.modified". Empty payload; the event signals that the pending message queue has changed
@@ -2736,6 +2856,13 @@ pub struct AssistantTurnStartData {
     pub parent_tool_call_id: Option<String>,
     /// Identifier for this turn within the agentic loop, typically a stringified turn number
     pub turn_id: String,
+    /// Optional bounded worker observations. Missing or invalid metadata is unavailable, not known-empty.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "crate::worker_causality::deserialize_optional"
+    )]
+    pub worker_causality: Option<WorkerCausality>,
 }
 
 /// Session event "assistant.turn_retry". Metadata for an additional model inference attempt within an existing assistant turn
@@ -4058,6 +4185,12 @@ pub struct ToolExecutionStartData {
     /// Human-readable display title for the tool, when the selected tool descriptor has a non-empty title.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_title: Option<String>,
+    /// W3C traceparent of this tool's active runtime execute_tool span. Available on live events when tool-context propagation is enabled; absent when the span is unavailable or on persisted history. This diagnostic context does not authorize execution.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub traceparent: Option<String>,
+    /// Optional W3C tracestate associated with traceparent. Omitted when no valid vendor state is available.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tracestate: Option<String>,
     /// Identifier for the agent loop turn this tool was invoked in, matching the corresponding assistant.turn_start event
     #[serde(skip_serializing_if = "Option::is_none")]
     pub turn_id: Option<String>,
@@ -5038,7 +5171,7 @@ pub struct SubagentStartedData {
     /// Where the model input for this sub-agent came from. Present when the task planner resolved the launch (the task tool and workflow agents); absent for sub-agents created through other runtime paths.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub task_model_source: Option<SubagentTaskModelSource>,
-    /// Tool call ID of the parent tool invocation that spawned this sub-agent
+    /// Spawning tool invocation ID, or the canonical sub-agent ID used as a fallback for an API launch without a tool invocation. The fallback is not evidence of a tool call.
     pub tool_call_id: String,
     /// Root id of the workflow run that spawned this sub-agent, when it was spawned by one.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -5099,7 +5232,7 @@ pub struct SubagentCompletedData {
     /// Authority or runtime mechanism responsible for sub-agent model selection
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model_selection_source: Option<SubagentModelSelectionSource>,
-    /// Tool call ID of the parent tool invocation that spawned this sub-agent
+    /// Spawning tool invocation ID, or the canonical sub-agent ID used as a fallback for an API launch without a tool invocation. The fallback is not evidence of a tool call.
     pub tool_call_id: String,
     /// Total tokens (input + output) consumed by the sub-agent
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -5146,7 +5279,7 @@ pub struct SubagentFailedData {
     /// Authority or runtime mechanism responsible for sub-agent model selection
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model_selection_source: Option<SubagentModelSelectionSource>,
-    /// Tool call ID of the parent tool invocation that spawned this sub-agent
+    /// Spawning tool invocation ID, or the canonical sub-agent ID used as a fallback for an API launch without a tool invocation. The fallback is not evidence of a tool call.
     pub tool_call_id: String,
     /// Total tokens (input + output) consumed before the sub-agent failed
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -5305,17 +5438,172 @@ pub struct SystemMessageData {
     pub role: SystemMessageRole,
 }
 
-/// Session event "system.notification". System-generated notification for runtime events like background task completion
+/// System notification metadata for a background agent that completed or failed, including agent ID, type, status, description, and prompt.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SystemNotificationAgentCompleted {
+    /// Unique task identifier
+    pub agent_id: String,
+    /// Type of the agent (e.g., explore, task, general-purpose)
+    pub agent_type: String,
+    /// Human-readable description of the agent task
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Friendly, non-unique name intended for display
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub display_name: Option<String>,
+    /// The full prompt given to the background agent
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prompt: Option<String>,
+    /// Whether the agent completed successfully or failed
+    pub status: SystemNotificationAgentCompletedStatus,
+    /// Type discriminator. Always "agent_completed".
+    pub r#type: SystemNotificationAgentCompletedType,
+}
+
+/// System notification metadata for a background agent that became idle, including agent ID, type, and description.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SystemNotificationAgentIdle {
+    /// Unique task identifier
+    pub agent_id: String,
+    /// Type of the agent (e.g., explore, task, general-purpose)
+    pub agent_type: String,
+    /// Human-readable description of the agent task
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Friendly, non-unique name intended for display
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub display_name: Option<String>,
+    /// Type discriminator. Always "agent_idle".
+    pub r#type: SystemNotificationAgentIdleType,
+}
+
+/// System notification metadata for a new inbox message, including entry ID, sender details, and summary.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SystemNotificationNewInboxMessage {
+    /// Unique identifier of the inbox entry
+    pub entry_id: String,
+    /// Human-readable name of the sender
+    pub sender_name: String,
+    /// Category of the sender (e.g., sidekick-agent, plugin, hook)
+    pub sender_type: String,
+    /// Short summary shown before the agent decides whether to read the inbox
+    pub summary: String,
+    /// Type discriminator. Always "new_inbox_message".
+    pub r#type: SystemNotificationNewInboxMessageType,
+}
+
+/// System notification metadata for a shell session that completed, including shell ID, optional exit code, and description.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SystemNotificationShellCompleted {
+    /// Human-readable description of the command
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Exit code of the shell command, if available
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub exit_code: Option<i64>,
+    /// Unique identifier of the shell session
+    pub shell_id: String,
+    /// Type discriminator. Always "shell_completed".
+    pub r#type: SystemNotificationShellCompletedType,
+}
+
+/// System notification metadata for a detached shell session that completed, including shell ID and description.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SystemNotificationShellDetachedCompleted {
+    /// Human-readable description of the command
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Unique identifier of the detached shell session
+    pub shell_id: String,
+    /// Type discriminator. Always "shell_detached_completed".
+    pub r#type: SystemNotificationShellDetachedCompletedType,
+}
+
+/// System notification metadata for an instruction file discovered during tool access, including source, trigger file, and tool.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SystemNotificationInstructionDiscovered {
+    /// Human-readable label for the timeline (e.g., 'AGENTS.md from packages/billing/')
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Relative path to the discovered instruction file
+    pub source_path: String,
+    /// Path of the file access that triggered discovery
+    pub trigger_file: String,
+    /// Tool command that triggered discovery (currently always 'view')
+    pub trigger_tool: String,
+    /// Type discriminator. Always "instruction_discovered".
+    pub r#type: SystemNotificationInstructionDiscoveredType,
+}
+
+/// System notification metadata for a workflow execution attempt that reached a terminal state.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SystemNotificationWorkflowCompleted {
+    /// Execution attempt that reached this terminal state.
+    pub attempt: i64,
+    /// Consumed AI usage in nano-AIU.
+    pub consumed_nano_aiu: i64,
+    /// Subagents consumed by the run across all attempts.
+    pub consumed_subagents: i64,
+    /// Accumulated active execution time in milliseconds.
+    pub elapsed_ms: i64,
+    /// Machine-readable terminal failure details, when present.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub failure: Option<serde_json::Value>,
+    /// Pause initiator metadata when this attempt settled as paused.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pause_info: Option<serde_json::Value>,
+    /// Bounded prompt-safe preview of the completed result.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub result_preview: Option<String>,
+    /// Actionable run_dynamic_workflow resume guidance for a resource-limit failure.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub retry_guidance: Option<String>,
+    /// Workflow run identifier.
+    pub run_id: String,
+    /// Terminal status reached by this execution attempt.
+    pub status: SystemNotificationWorkflowCompletedStatus,
+    /// Type discriminator. Always "workflow_completed".
+    pub r#type: SystemNotificationWorkflowCompletedType,
+    /// Persisted workflow name.
+    pub workflow_name: String,
+}
+
+/// System notification metadata from an external host that does not match a runtime-owned notification kind.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SystemNotificationUnclassified {
+    /// Opaque metadata supplied by the external host, when present.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<serde_json::Value>,
+    /// Type discriminator. Always "unclassified".
+    pub r#type: SystemNotificationUnclassifiedType,
+}
+
+/// Session event "system.notification". System-generated notification for runtime events like background task completion
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SystemNotificationData {
     /// The notification text, typically wrapped in `<system_notification>` XML tags
     pub content: String,
     /// Structured metadata identifying what triggered this notification
-    pub kind: serde_json::Value,
+    pub kind: SystemNotification,
     /// Provider reasoning settings anchored before this model-facing message for cache-stable replay; the historical responsesReasoning name is retained for compatibility
     #[serde(skip_serializing_if = "Option::is_none")]
     pub responses_reasoning: Option<ResponsesReasoning>,
+    /// Optional owned worker notification observations; an omitted notification event refers only to this occurrence.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "crate::worker_causality::deserialize_optional"
+    )]
+    pub worker_causality: Option<WorkerCausality>,
 }
 
 /// A parsed command identifier in a shell permission request, including whether it is read-only.
@@ -8985,6 +9273,75 @@ pub enum UserMessageDelivery {
     Unknown,
 }
 
+/// Producer of an observation, not the execution location of every referenced source.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum WorkerObservationProvenance {
+    /// Observed by the native runtime.
+    #[serde(rename = "native")]
+    Native,
+    /// Observed by the AHP coordinator.
+    #[serde(rename = "ahp_coordinator")]
+    AhpCoordinator,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Supported observed occurrences. Chronological parentId is not a causal reference.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum WorkerEventType {
+    /// Observed tool execution start occurrence.
+    #[serde(rename = "tool.execution_start")]
+    ToolExecutionStart,
+    /// Observed admitted user message occurrence.
+    #[serde(rename = "user.message")]
+    UserMessage,
+    /// Observed worker completion occurrence.
+    #[serde(rename = "subagent.completed")]
+    SubagentCompleted,
+    /// Observed worker notification occurrence.
+    #[serde(rename = "system.notification")]
+    SystemNotification,
+    /// Observed assistant turn start occurrence.
+    #[serde(rename = "assistant.turn_start")]
+    AssistantTurnStart,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Why this exact worker admission was made.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum WorkerAdmissionKind {
+    /// A queued worker input was admitted.
+    #[serde(rename = "queued_input")]
+    QueuedInput,
+    /// A system continuation was admitted.
+    #[serde(rename = "system_continuation")]
+    SystemContinuation,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// How the owned notification was consumed.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum WorkerNotificationMode {
+    /// The notification was consumed through the queued input path.
+    #[serde(rename = "queued")]
+    Queued,
+    /// The notification was consumed during an already-open iteration.
+    #[serde(rename = "immediate")]
+    Immediate,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
 /// What the agent was doing when the user interrupted it.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AgentInterruptedActivity {
@@ -9985,6 +10342,123 @@ pub enum SystemMessageRole {
     #[default]
     #[serde(other)]
     Unknown,
+}
+
+/// Whether the agent completed successfully or failed
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SystemNotificationAgentCompletedStatus {
+    /// The agent completed successfully.
+    #[serde(rename = "completed")]
+    Completed,
+    /// The agent failed.
+    #[serde(rename = "failed")]
+    Failed,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Type discriminator. Always "agent_completed".
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SystemNotificationAgentCompletedType {
+    #[serde(rename = "agent_completed")]
+    #[default]
+    AgentCompleted,
+}
+
+/// Type discriminator. Always "agent_idle".
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SystemNotificationAgentIdleType {
+    #[serde(rename = "agent_idle")]
+    #[default]
+    AgentIdle,
+}
+
+/// Type discriminator. Always "new_inbox_message".
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SystemNotificationNewInboxMessageType {
+    #[serde(rename = "new_inbox_message")]
+    #[default]
+    NewInboxMessage,
+}
+
+/// Type discriminator. Always "shell_completed".
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SystemNotificationShellCompletedType {
+    #[serde(rename = "shell_completed")]
+    #[default]
+    ShellCompleted,
+}
+
+/// Type discriminator. Always "shell_detached_completed".
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SystemNotificationShellDetachedCompletedType {
+    #[serde(rename = "shell_detached_completed")]
+    #[default]
+    ShellDetachedCompleted,
+}
+
+/// Type discriminator. Always "instruction_discovered".
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SystemNotificationInstructionDiscoveredType {
+    #[serde(rename = "instruction_discovered")]
+    #[default]
+    InstructionDiscovered,
+}
+
+/// Terminal status reached by a workflow execution attempt.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SystemNotificationWorkflowCompletedStatus {
+    /// The workflow completed successfully.
+    #[serde(rename = "completed")]
+    Completed,
+    /// The workflow was halted.
+    #[serde(rename = "halted")]
+    Halted,
+    /// The workflow attempt paused intentionally.
+    #[serde(rename = "paused")]
+    Paused,
+    /// The workflow was cancelled.
+    #[serde(rename = "cancelled")]
+    Cancelled,
+    /// The workflow failed.
+    #[serde(rename = "error")]
+    Error,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Type discriminator. Always "workflow_completed".
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SystemNotificationWorkflowCompletedType {
+    #[serde(rename = "workflow_completed")]
+    #[default]
+    WorkflowCompleted,
+}
+
+/// Type discriminator. Always "unclassified".
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SystemNotificationUnclassifiedType {
+    #[serde(rename = "unclassified")]
+    #[default]
+    Unclassified,
+}
+
+/// Structured metadata identifying what triggered this notification
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum SystemNotification {
+    AgentCompleted(SystemNotificationAgentCompleted),
+    AgentIdle(SystemNotificationAgentIdle),
+    NewInboxMessage(SystemNotificationNewInboxMessage),
+    ShellCompleted(SystemNotificationShellCompleted),
+    ShellDetachedCompleted(SystemNotificationShellDetachedCompleted),
+    InstructionDiscovered(SystemNotificationInstructionDiscovered),
+    WorkflowCompleted(SystemNotificationWorkflowCompleted),
+    Unclassified(SystemNotificationUnclassified),
 }
 
 /// Permission kind discriminator

@@ -726,6 +726,7 @@ async function generateRpc(schemaPath?: string, sessionEventsSchema?: JSONSchema
  */
 
 import type { MessageConnection } from "vscode-jsonrpc/node.js";
+import { withWorkerCausality, withWorkerCausalityEvents } from "../workerCausality.js";
 `);
 
     const externalSchemaRefs = collectExternalSchemaRefNames(schema);
@@ -1033,7 +1034,17 @@ function emitGroup(
                 includeExperimental: (value as RpcMethod).stability === "experimental" && !parentExperimental,
             });
             lines.push(`${indent}${key}: async (${sigParams.join(", ")}): Promise<${resultType}> =>`);
-            lines.push(`${indent}    connection.sendRequest("${rpcMethod}", ${bodyArg}),`);
+            if (rpcMethod === "session.tasks.sendMessage") {
+                lines.push(`${indent}    connection.sendRequest<${resultType}>("${rpcMethod}", ${bodyArg}).then(withWorkerCausality),`);
+            } else if (
+                rpcMethod === "session.getMessages" ||
+                rpcMethod === "session.eventLog.read" ||
+                rpcMethod === "sessions.readPersistedEvents"
+            ) {
+                lines.push(`${indent}    connection.sendRequest<${resultType}>("${rpcMethod}", ${bodyArg}).then(withWorkerCausalityEvents),`);
+            } else {
+                lines.push(`${indent}    connection.sendRequest("${rpcMethod}", ${bodyArg}),`);
+            }
         } else if (typeof value === "object" && value !== null) {
             const groupExperimental = isNodeFullyExperimental(value as Record<string, unknown>);
             const groupDeprecated = isNodeFullyDeprecated(value as Record<string, unknown>);

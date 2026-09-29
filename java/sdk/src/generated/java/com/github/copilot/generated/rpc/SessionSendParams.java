@@ -55,8 +55,14 @@ public record SessionSendParams(
     /** W3C Trace Context tracestate header for distributed tracing */
     @JsonProperty("tracestate") String tracestate,
     /** If true, await completion of the agentic loop for this message before returning. Defaults to false (fire-and-forget). When true, the result still contains the same `messageId`; the caller can rely on the agent having processed the message before the call resolves. Transport-dependent tail semantics: on a LOCAL (in-process) session the wait additionally blocks until the completed turn's event tail has been dispatched to this session's in-process subscribers, so a subsequent read of subscriber state already reflects the turn; on a REMOTE session the wait resolves once the loop completes and mirrored delivery follows over the wire. Callers that need the stronger local guarantee on remote sessions should await the event stream explicitly. */
-    @JsonProperty("wait") Boolean wait_
+    @JsonProperty("wait") Boolean wait_,
+    /** Optional caller-generated diagnostic UUID for this single message. Native sessions with RUNTIME_ADMISSION_TRACE_CONTEXT enabled echo the exact lowercase, hyphenated 36-character UUID on user.message and its existing pending message row. Missing, invalid, disabled, or unsupported metadata is ignored without rejecting the send. Does not change messageId, deduplicate submissions, authorize work, or make an uncertain retry safe. */
+    @JsonProperty("clientCorrelationId") String clientCorrelationId
 ) {
+    /** Creates a value without optional admission correlation metadata. */
+    public SessionSendParams(String sessionId, String prompt, String displayPrompt, List<Object> attachments, SendMode mode, Boolean prepend, Boolean billable, String requiredTool, String source, SendAgentMode agentMode, Map<String, String> requestHeaders, SessionSendParamsResponseFormat responseFormat, String traceparent, String tracestate, Boolean wait_) {
+        this(sessionId, prompt, displayPrompt, attachments, mode, prepend, billable, requiredTool, source, agentMode, requestHeaders, responseFormat, traceparent, tracestate, wait_, null);
+    }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     @JsonInclude(JsonInclude.Include.NON_NULL)

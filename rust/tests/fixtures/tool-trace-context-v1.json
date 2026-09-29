@@ -1,0 +1,61 @@
+{
+  "version": 1,
+  "synthetic": true,
+  "runtimeCommit": "7ab2ab8ea278c812664eece9feab83ef376936eb",
+  "notifications": {
+    "sampled": {
+      "jsonrpc": "2.0",
+      "method": "session.event",
+      "params": {
+        "sessionId": "runtime-session-a",
+        "event": {
+          "id": "60000000-0000-4000-8000-000000000001",
+          "timestamp": "2026-09-23T00:00:01Z",
+          "parentId": "60000000-0000-4000-8000-000000000000",
+          "type": "tool.execution_start",
+          "data": {
+            "toolCallId": "tool-a",
+            "toolName": "client-tool",
+            "traceparent": "00-11111111111111111111111111111111-2222222222222222-01",
+            "tracestate": "vendor=value"
+          }
+        }
+      }
+    },
+    "unsampled": {
+      "jsonrpc": "2.0",
+      "method": "session.event",
+      "params": {
+        "sessionId": "runtime-session-a",
+        "event": {
+          "id": "60000000-0000-4000-8000-000000000002",
+          "timestamp": "2026-09-23T00:00:02Z",
+          "parentId": "60000000-0000-4000-8000-000000000001",
+          "type": "tool.execution_start",
+          "data": {
+            "toolCallId": "tool-b",
+            "toolName": "client-tool",
+            "traceparent": "00-11111111111111111111111111111111-2222222222222222-00"
+          }
+        }
+      }
+    },
+    "absent": {
+      "jsonrpc": "2.0",
+      "method": "session.event",
+      "params": {
+        "sessionId": "runtime-session-a",
+        "event": {
+          "id": "60000000-0000-4000-8000-000000000003",
+          "timestamp": "2026-09-23T00:00:03Z",
+          "parentId": "60000000-0000-4000-8000-000000000002",
+          "type": "tool.execution_start",
+          "data": {
+            "toolCallId": "tool-c",
+            "toolName": "client-tool"
+          }
+        }
+      }
+    }
+  }
+}

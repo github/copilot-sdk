@@ -37,9 +37,22 @@ public final class SystemNotificationEvent extends SessionEvent {
         /** The notification text, typically wrapped in <system_notification> XML tags */
         @JsonProperty("content") String content,
         /** Structured metadata identifying what triggered this notification */
+        @com.fasterxml.jackson.databind.annotation.JsonDeserialize(as = SystemNotification.class)
         @JsonProperty("kind") Object kind,
         /** Provider reasoning settings anchored before this model-facing message for cache-stable replay; the historical responsesReasoning name is retained for compatibility */
-        @JsonProperty("responsesReasoning") ResponsesReasoning responsesReasoning
+        @JsonProperty("responsesReasoning") ResponsesReasoning responsesReasoning,
+        /** Optional owned worker notification observations; an omitted notification event refers only to this occurrence. */
+        @com.fasterxml.jackson.databind.annotation.JsonDeserialize(using = com.github.copilot.WorkerCausalityDeserializer.class)
+        @JsonProperty("workerCausality") WorkerCausality workerCausality
     ) {
+        /** Creates a value without optional worker diagnostics. */
+        public SystemNotificationEventData(String content, Object kind, ResponsesReasoning responsesReasoning) {
+            this(content, kind, responsesReasoning, null);
+        }
+
+        /** Returns the typed kind value when decoded from the wire. */
+        public SystemNotification typedKind() {
+            return kind instanceof SystemNotification typed ? typed : null;
+        }
     }
 }

@@ -33,6 +33,12 @@ public record SendMessageItem(
     /** If set, the request will fail if the named tool is not available when this message is among the user messages at the start of the current exchange */
     @JsonProperty("requiredTool") String requiredTool,
     /** Optional provenance tag copied to the resulting user.message event. Must be `user`, `system`, `command-<command-id>` for command-originated messages, `schedule-<numeric-id>` for scheduled prompts, or `agent-<agent-id>` for prompts sent by another agent. */
-    @JsonProperty("source") String source
+    @JsonProperty("source") String source,
+    /** Optional caller-generated diagnostic UUID for this item only, with the same validation and opt-in native echo as session.send.clientCorrelationId. The batch has no request-level correlation value; each item retains its own value, including preceding context messages. Reused values do not deduplicate messages and remain ambiguous. */
+    @JsonProperty("clientCorrelationId") String clientCorrelationId
 ) {
+    /** Creates a value without optional admission correlation metadata. */
+    public SendMessageItem(String prompt, String displayPrompt, List<Object> attachments, Boolean billable, String requiredTool, String source) {
+        this(prompt, displayPrompt, attachments, billable, requiredTool, source, null);
+    }
 }

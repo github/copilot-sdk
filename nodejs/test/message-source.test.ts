@@ -46,6 +46,117 @@ function sessionPair(traceContextProvider?: ConstructorParameters<typeof Copilot
 const sources: (MessageSource | undefined)[] = [undefined, "user", "system", "agent-sender-id"];
 const modes: MessageOptions["mode"][] = [undefined, "enqueue", "immediate"];
 
+describe("RPC admission correlation", () => {
+    it.each([
+        undefined,
+        "01234567-89ab-4cde-8f01-23456789abcd",
+        "01234567-89AB-4CDE-8F01-23456789ABCD",
+        "not-a-uuid",
+        "",
+    ])(
+        "forwards only explicitly supplied strings without changing other options: %s",
+        async (clientCorrelationId) => {
+            const trace = {
+                traceparent: "00-11111111111111111111111111111111-2222222222222222-01",
+                tracestate: "vendor=preserved",
+            };
+            const { session, server } = sessionPair(() => trace);
+            const options = {
+                prompt: "hello",
+                source: "system",
+                mode: "enqueue",
+                displayPrompt: "display",
+                requestHeaders: { "X-Test": "preserved" },
+                clientCorrelationId,
+            } satisfies MessageOptions;
+            server.onRequest("session.send", (params: unknown) => {
+                expect(params).toEqual(
+                    JSON.parse(JSON.stringify({ sessionId: "session-1", ...trace, ...options }))
+                );
+                return { messageId: "canonical-1", futureField: true };
+            });
+            await expect(session.send(options)).resolves.toBe("canonical-1");
+            await expect(session.rpc.send({ ...trace, ...options })).resolves.toMatchObject({
+                messageId: "canonical-1",
+            });
+        }
+    );
+
+    it("omits null metadata at the untyped convenience boundary", async () => {
+        const { session, server } = sessionPair();
+        server.onRequest("session.send", (params: unknown) => {
+            expect(params).toEqual({ sessionId: "session-1", prompt: "hello" });
+            return { messageId: "canonical-1" };
+        });
+        await expect(
+            session.send({
+                prompt: "hello",
+                clientCorrelationId: null,
+            } as unknown as MessageOptions)
+        ).resolves.toBe("canonical-1");
+    });
+
+    it("retains admission metadata through sendAndWait", async () => {
+        const clientCorrelationId = "01234567-89ab-4cde-8f01-23456789abcd";
+        const { session, server } = sessionPair();
+        server.onRequest("session.send", (params: unknown) => {
+            expect(params).toEqual({
+                sessionId: "session-1",
+                prompt: "hello",
+                clientCorrelationId,
+            });
+            session._dispatchEvent({
+                type: "session.idle",
+                id: "idle-1",
+                parentId: null,
+                timestamp: "2026-09-24T18:00:00Z",
+                ephemeral: true,
+                data: {},
+            });
+            return { messageId: "canonical-1" };
+        });
+        await expect(
+            session.sendAndWait({ prompt: "hello", clientCorrelationId }, 1000)
+        ).resolves.toBeUndefined();
+    });
+
+    it("keeps concurrent and repeated values per input, not per batch", async () => {
+        const first = "01234567-89ab-4cde-8f01-23456789abcd";
+        const second = "abcdef01-2345-4678-9abc-def012345678";
+        const { session, server } = sessionPair();
+        const messages = [
+            { prompt: "context", clientCorrelationId: second },
+            { prompt: "plain" },
+            { prompt: "reused", clientCorrelationId: first },
+        ];
+        let sends = 0;
+        server.onRequest(
+            "session.send",
+            (params: { prompt: string; clientCorrelationId: string }) => {
+                sends++;
+                expect(params.clientCorrelationId).toBe(params.prompt === "first" ? first : second);
+                return { messageId: `${params.prompt}-id` };
+            }
+        );
+        server.onRequest("session.sendMessages", (params: unknown) => {
+            expect(params).toEqual({ sessionId: "session-1", messages });
+            return { messageIds: ["context-id", "plain-id", "reused-id"] };
+        });
+        await expect(
+            Promise.all([
+                session.send({ prompt: "first", clientCorrelationId: first }),
+                session.send({ prompt: "second", clientCorrelationId: second }),
+                session.rpc.sendMessages({ messages }),
+            ])
+        ).resolves.toEqual([
+            "first-id",
+            "second-id",
+            { messageIds: ["context-id", "plain-id", "reused-id"] },
+        ]);
+        expect(sends).toBe(2);
+    });
+});
+
 it("omits source when sending a plain human prompt", async () => {
     const { session, server } = sessionPair();
     server.onRequest("session.send", (params: unknown) => {

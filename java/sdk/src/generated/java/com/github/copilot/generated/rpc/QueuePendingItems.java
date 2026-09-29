@@ -32,6 +32,17 @@ public record QueuePendingItems(
     /** Agent mode stored on this queued entry, as stamped when it was enqueued. Items without an explicit mode report interactive. This is not necessarily the mode that will constrain the turn: a plan or autopilot session applies its own write gate, continuation loop and permission posture to every drained item regardless of the mode stored here. */
     @JsonProperty("agentMode") SendAgentMode agentMode,
     /** Optional source tag associated with this pending queue entry. This is an open string, not authenticated authorship. In particular, `user` does not prove that a person typed the message. If the source is absent or unrecognized, consumers must not infer human or agent authorship and should handle the entry neutrally. Consumers should tolerate future source values. */
-    @JsonProperty("source") String source
+    @JsonProperty("source") String source,
+    /** Caller-owned diagnostic UUID from the exact accepted native session.send or sendMessages item, when RUNTIME_ADMISSION_TRACE_CONTEXT is enabled. Omitted for unsupported or identity-less rows, including snapshot-only mirrors. Not an idempotency key, authorization, or permission to retry; repeated values remain ambiguous. */
+    @JsonProperty("clientCorrelationId") String clientCorrelationId
 ) {
+    /** Creates a value without optional admission correlation metadata. */
+    public QueuePendingItems(String id, String messageId, QueuePendingItemsKind kind, String displayText, SendAgentMode agentMode, String source) {
+        this(id, messageId, kind, displayText, agentMode, source, null);
+    }
+
+    /** Creates a value without optional admission correlation metadata. */
+    public QueuePendingItems(String id, String messageId, QueuePendingItemsKind kind, String displayText, SendAgentMode agentMode) {
+        this(id, messageId, kind, displayText, agentMode, null, null);
+    }
 }

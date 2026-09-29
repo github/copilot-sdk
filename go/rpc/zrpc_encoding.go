@@ -6,6 +6,7 @@ package rpc
 import (
 	"encoding/json"
 	"errors"
+	"github.com/github/copilot-sdk/go/internal/diagnosticmetadata"
 )
 
 func unmarshalAuthInfo(data []byte) (AuthInfo, error) {
@@ -7486,12 +7487,13 @@ func (r *SendAttachmentsToMessageParams) UnmarshalJSON(data []byte) error {
 
 func (r *SendMessageItem) UnmarshalJSON(data []byte) error {
 	type rawSendMessageItem struct {
-		Attachments   []json.RawMessage `json:"attachments,omitzero"`
-		Billable      *bool             `json:"billable,omitempty"`
-		DisplayPrompt *string           `json:"displayPrompt,omitempty"`
-		Prompt        string            `json:"prompt"`
-		RequiredTool  *string           `json:"requiredTool,omitempty"`
-		Source        *string           `json:"source,omitempty"`
+		Attachments         []json.RawMessage `json:"attachments,omitzero"`
+		Billable            *bool             `json:"billable,omitempty"`
+		ClientCorrelationID *string           `json:"clientCorrelationId,omitempty"`
+		DisplayPrompt       *string           `json:"displayPrompt,omitempty"`
+		Prompt              string            `json:"prompt"`
+		RequiredTool        *string           `json:"requiredTool,omitempty"`
+		Source              *string           `json:"source,omitempty"`
 	}
 	var raw rawSendMessageItem
 	if err := json.Unmarshal(data, &raw); err != nil {
@@ -7508,6 +7510,7 @@ func (r *SendMessageItem) UnmarshalJSON(data []byte) error {
 		}
 	}
 	r.Billable = raw.Billable
+	r.ClientCorrelationID = raw.ClientCorrelationID
 	r.DisplayPrompt = raw.DisplayPrompt
 	r.Prompt = raw.Prompt
 	r.RequiredTool = raw.RequiredTool
@@ -7517,20 +7520,21 @@ func (r *SendMessageItem) UnmarshalJSON(data []byte) error {
 
 func (r *SendRequest) UnmarshalJSON(data []byte) error {
 	type rawSendRequest struct {
-		AgentMode      *SendAgentMode    `json:"agentMode,omitempty"`
-		Attachments    []json.RawMessage `json:"attachments,omitzero"`
-		Billable       *bool             `json:"billable,omitempty"`
-		DisplayPrompt  *string           `json:"displayPrompt,omitempty"`
-		Mode           *SendMode         `json:"mode,omitempty"`
-		Prepend        *bool             `json:"prepend,omitempty"`
-		Prompt         string            `json:"prompt"`
-		RequestHeaders map[string]string `json:"requestHeaders,omitzero"`
-		RequiredTool   *string           `json:"requiredTool,omitempty"`
-		ResponseFormat *ResponseFormat   `json:"responseFormat,omitempty"`
-		Source         *string           `json:"source,omitempty"`
-		Traceparent    *string           `json:"traceparent,omitempty"`
-		Tracestate     *string           `json:"tracestate,omitempty"`
-		Wait           *bool             `json:"wait,omitempty"`
+		AgentMode           *SendAgentMode    `json:"agentMode,omitempty"`
+		Attachments         []json.RawMessage `json:"attachments,omitzero"`
+		Billable            *bool             `json:"billable,omitempty"`
+		ClientCorrelationID *string           `json:"clientCorrelationId,omitempty"`
+		DisplayPrompt       *string           `json:"displayPrompt,omitempty"`
+		Mode                *SendMode         `json:"mode,omitempty"`
+		Prepend             *bool             `json:"prepend,omitempty"`
+		Prompt              string            `json:"prompt"`
+		RequestHeaders      map[string]string `json:"requestHeaders,omitzero"`
+		RequiredTool        *string           `json:"requiredTool,omitempty"`
+		ResponseFormat      *ResponseFormat   `json:"responseFormat,omitempty"`
+		Source              *string           `json:"source,omitempty"`
+		Traceparent         *string           `json:"traceparent,omitempty"`
+		Tracestate          *string           `json:"tracestate,omitempty"`
+		Wait                *bool             `json:"wait,omitempty"`
 	}
 	var raw rawSendRequest
 	if err := json.Unmarshal(data, &raw); err != nil {
@@ -7548,6 +7552,7 @@ func (r *SendRequest) UnmarshalJSON(data []byte) error {
 		}
 	}
 	r.Billable = raw.Billable
+	r.ClientCorrelationID = raw.ClientCorrelationID
 	r.DisplayPrompt = raw.DisplayPrompt
 	r.Mode = raw.Mode
 	r.Prepend = raw.Prepend
@@ -9518,6 +9523,24 @@ func (r *TasksPromoteCurrentToBackgroundResult) UnmarshalJSON(data []byte) error
 			return err
 		}
 		r.Task = value
+	}
+	return nil
+}
+
+func (r *TasksSendMessageResult) UnmarshalJSON(data []byte) error {
+	type rawTasksSendMessageResult struct {
+		Error           *string         `json:"error,omitempty"`
+		Sent            bool            `json:"sent"`
+		WorkerCausality json.RawMessage `json:"workerCausality,omitempty"`
+	}
+	var raw rawTasksSendMessageResult
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	r.Error = raw.Error
+	r.Sent = raw.Sent
+	if !diagnosticmetadata.ReadWorkerCausality(raw.WorkerCausality, &r.WorkerCausality) {
+		r.WorkerCausality = nil
 	}
 	return nil
 }

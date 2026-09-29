@@ -10,6 +10,7 @@ import pytest
 
 from _session_test_helpers import get_next_event_of_type, wait_for_event
 from copilot import AgentMessageSource, MessageSource
+from copilot.rpc import SendMessageItem, SendMessagesRequest, SendRequest
 from copilot.session import Attachment, CopilotSession
 from copilot.session_events import (
     AssistantMessageData,
@@ -34,6 +35,87 @@ MESSAGE_SOURCE_CASES = [
         AgentMessageSource("agent-reviewer"), "agent-agent-reviewer", id="prefixed-agent-id"
     ),
 ]
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        None,
+        "01234567-89ab-4cde-8f01-23456789abcd",
+        "01234567-89AB-4CDE-8F01-23456789ABCD",
+        "not-a-uuid",
+        "",
+    ],
+)
+@pytest.mark.asyncio
+async def test_admission_correlation_preserves_send_and_wait_options(value, monkeypatch):
+    trace = {
+        "traceparent": "00-11111111111111111111111111111111-2222222222222222-01",
+        "tracestate": "vendor=preserved",
+    }
+    monkeypatch.setattr("copilot.session.get_trace_context", lambda: trace)
+    client = Mock()
+    session = CopilotSession("session-1", client)
+    expected = {
+        "sessionId": "session-1",
+        "prompt": "hello",
+        "source": "system",
+        "displayPrompt": "display",
+        "requestHeaders": {"X-Test": "preserved"},
+        **trace,
+    }
+    if value is not None:
+        expected["clientCorrelationId"] = value
+
+    async def respond(method, params, **_kwargs):
+        assert method == "session.send"
+        assert params == expected
+        session._dispatch_event(_event(SessionIdleData(), SessionEventType.SESSION_IDLE))
+        return {"messageId": "canonical-1", "futureField": True}
+
+    client.request = AsyncMock(side_effect=respond)
+    options = {
+        "source": "system",
+        "display_prompt": "display",
+        "request_headers": {"X-Test": "preserved"},
+        "client_correlation_id": value,
+    }
+    assert await session.send("hello", **options) == "canonical-1"
+    assert await session.send_and_wait("hello", **options, timeout=1) is None
+    request = SendRequest.from_dict(
+        {key: val for key, val in expected.items() if key != "sessionId"}
+    )
+    assert (await session.rpc.send(request)).message_id == "canonical-1"
+
+
+@pytest.mark.asyncio
+async def test_admission_correlation_is_per_item_not_per_batch():
+    first = "01234567-89ab-4cde-8f01-23456789abcd"
+    second = "abcdef01-2345-4678-9abc-def012345678"
+    client = Mock()
+    client.request = AsyncMock(return_value={"messageIds": ["context-id", "plain-id", "reused-id"]})
+    session = CopilotSession("session-1", client)
+    result = await session.rpc.send_messages(
+        SendMessagesRequest(
+            messages=[
+                SendMessageItem(prompt="context", client_correlation_id=second),
+                SendMessageItem(prompt="plain"),
+                SendMessageItem(prompt="reused", client_correlation_id=first),
+            ]
+        )
+    )
+    assert result.message_ids == ["context-id", "plain-id", "reused-id"]
+    client.request.assert_awaited_once_with(
+        "session.sendMessages",
+        {
+            "sessionId": "session-1",
+            "messages": [
+                {"prompt": "context", "clientCorrelationId": second},
+                {"prompt": "plain"},
+                {"prompt": "reused", "clientCorrelationId": first},
+            ],
+        },
+    )
 
 
 @pytest.mark.parametrize("agent_id", [None, 42, False, b"reviewer"])

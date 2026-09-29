@@ -2230,6 +2230,8 @@ type UserMessageData struct {
 	AgentMode *UserMessageAgentMode `json:"agentMode,omitempty"`
 	// Files, selections, or GitHub references attached to the message
 	Attachments []Attachment `json:"attachments,omitzero"`
+	// Exact caller-owned diagnostic UUID carried by this accepted native session.send or sendMessages item when RUNTIME_ADMISSION_TRACE_CONTEXT is enabled. Omitted when input, native ownership, or support is missing. Independent of the canonical messageId; not an idempotency key, authorization, or permission to retry. Multiple messages with the same value remain ambiguous.
+	ClientCorrelationID *string `json:"clientCorrelationId,omitempty"`
 	// The user's message text as displayed in the timeline
 	Content string `json:"content"`
 	// How this message was delivered to the agentic loop relative to loop state (idle-start vs. steering/queued while busy). The timing axis; combine with `source` (origin) for the full picture. Used for telemetry attribution.
@@ -2242,7 +2244,7 @@ type UserMessageData struct {
 	MessageID *string `json:"messageId,omitempty"`
 	// Path-backed native document attachments that stayed on the tagged_files path flow because native upload could not read them or would exceed the request size limit
 	NativeDocumentPathFallbackPaths []string `json:"nativeDocumentPathFallbackPaths,omitzero"`
-	// Parent agent task ID for background telemetry correlated to this user turn
+	// Task ID minted when the runtime prepares this user-message run. This is not a parent interaction ID or worker instance ID and must not be equated with CAPI's X-Parent-Agent-Id.
 	ParentAgentTaskID *string `json:"parentAgentTaskId,omitempty"`
 	// Provider reasoning settings anchored before this model-facing message for cache-stable replay; the historical responsesReasoning name is retained for compatibility
 	ResponsesReasoning *ResponsesReasoning `json:"responsesReasoning,omitempty"`
@@ -2254,6 +2256,8 @@ type UserMessageData struct {
 	TransformedContent *string `json:"transformedContent,omitempty"`
 	// The agent-loop turn ID that consumed this message; absent when no agent-loop turn consumed it
 	TurnID *string `json:"turnId,omitempty"`
+	// Optional worker admission observations; self identity requires the matching enclosing message and agent.
+	WorkerCausality *WorkerCausality `json:"workerCausality,omitempty"`
 }
 
 func (*UserMessageData) sessionEventData()      {}
@@ -2907,7 +2911,7 @@ type SubagentCompletedData struct {
 	ModelOverrideReason *string `json:"modelOverrideReason,omitempty"`
 	// Authority or runtime mechanism responsible for sub-agent model selection
 	ModelSelectionSource *SubagentModelSelectionSource `json:"modelSelectionSource,omitempty"`
-	// Tool call ID of the parent tool invocation that spawned this sub-agent
+	// Spawning tool invocation ID, or the canonical sub-agent ID used as a fallback for an API launch without a tool invocation. The fallback is not evidence of a tool call.
 	ToolCallID string `json:"toolCallId"`
 	// Total tokens (input + output) consumed by the sub-agent
 	TotalTokens *int64 `json:"totalTokens,omitempty"`
@@ -2944,7 +2948,7 @@ type SubagentFailedData struct {
 	ModelOverrideReason *string `json:"modelOverrideReason,omitempty"`
 	// Authority or runtime mechanism responsible for sub-agent model selection
 	ModelSelectionSource *SubagentModelSelectionSource `json:"modelSelectionSource,omitempty"`
-	// Tool call ID of the parent tool invocation that spawned this sub-agent
+	// Spawning tool invocation ID, or the canonical sub-agent ID used as a fallback for an API launch without a tool invocation. The fallback is not evidence of a tool call.
 	ToolCallID string `json:"toolCallId"`
 	// Total tokens (input + output) consumed before the sub-agent failed
 	TotalTokens *int64 `json:"totalTokens,omitempty"`
@@ -2979,7 +2983,7 @@ type SubagentStartedData struct {
 	Resumable *bool `json:"resumable,omitempty"`
 	// Where the model input for this sub-agent came from. Present when the task planner resolved the launch (the task tool and workflow agents); absent for sub-agents created through other runtime paths.
 	TaskModelSource *SubagentTaskModelSource `json:"taskModelSource,omitempty"`
-	// Tool call ID of the parent tool invocation that spawned this sub-agent
+	// Spawning tool invocation ID, or the canonical sub-agent ID used as a fallback for an API launch without a tool invocation. The fallback is not evidence of a tool call.
 	ToolCallID string `json:"toolCallId"`
 	// Root id of the workflow run that spawned this sub-agent, when it was spawned by one.
 	WorkflowRunID *string `json:"workflowRunId,omitempty"`
@@ -2996,6 +3000,8 @@ type SystemNotificationData struct {
 	Kind SystemNotification `json:"kind"`
 	// Provider reasoning settings anchored before this model-facing message for cache-stable replay; the historical responsesReasoning name is retained for compatibility
 	ResponsesReasoning *ResponsesReasoning `json:"responsesReasoning,omitempty"`
+	// Optional owned worker notification observations; an omitted notification event refers only to this occurrence.
+	WorkerCausality *WorkerCausality `json:"workerCausality,omitempty"`
 }
 
 func (*SystemNotificationData) sessionEventData()      {}
@@ -3146,6 +3152,10 @@ type ToolExecutionStartData struct {
 	ToolName string `json:"toolName"`
 	// Human-readable display title for the tool, when the selected tool descriptor has a non-empty title.
 	ToolTitle *string `json:"toolTitle,omitempty"`
+	// W3C traceparent of this tool's active runtime execute_tool span. Available on live events when tool-context propagation is enabled; absent when the span is unavailable or on persisted history. This diagnostic context does not authorize execution.
+	Traceparent *string `json:"traceparent,omitempty"`
+	// Optional W3C tracestate associated with traceparent. Omitted when no valid vendor state is available.
+	Tracestate *string `json:"tracestate,omitempty"`
 	// Identifier for the agent loop turn this tool was invoked in, matching the corresponding assistant.turn_start event
 	TurnID *string `json:"turnId,omitempty"`
 }
@@ -3210,6 +3220,8 @@ type AssistantTurnStartData struct {
 	ParentToolCallID *string `json:"parentToolCallId,omitempty"`
 	// Identifier for this turn within the agentic loop, typically a stringified turn number
 	TurnID string `json:"turnId"`
+	// Optional bounded worker observations. Missing or invalid metadata is unavailable, not known-empty.
+	WorkerCausality *WorkerCausality `json:"workerCausality,omitempty"`
 }
 
 func (*AssistantTurnStartData) sessionEventData()      {}

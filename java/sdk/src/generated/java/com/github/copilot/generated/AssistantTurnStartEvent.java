@@ -41,7 +41,24 @@ public final class AssistantTurnStartEvent extends SessionEvent {
         /** CAPI interaction ID for correlating this turn with upstream telemetry */
         @JsonProperty("interactionId") String interactionId,
         /** Parent task tool call ID when this turn belongs to a sub-agent */
-        @JsonProperty("parentToolCallId") String parentToolCallId
+        @JsonProperty("parentToolCallId") String parentToolCallId,
+        /** Optional bounded worker observations. Missing or invalid metadata is unavailable, not known-empty. */
+        @com.fasterxml.jackson.databind.annotation.JsonDeserialize(using = com.github.copilot.WorkerCausalityDeserializer.class)
+        @JsonProperty("workerCausality") WorkerCausality workerCausality
     ) {
+        /** Creates a value without optional worker diagnostics. */
+        public AssistantTurnStartEventData(String turnId, String model, String interactionId, String parentToolCallId) {
+            this(turnId, model, interactionId, parentToolCallId, null);
+        }
+
+        /** Creates a value without an optional parent task tool call ID. */
+        public AssistantTurnStartEventData(String turnId, String model, String interactionId, WorkerCausality workerCausality) {
+            this(turnId, model, interactionId, null, workerCausality);
+        }
+
+        /** Creates a value without optional worker diagnostics or a parent task tool call ID. */
+        public AssistantTurnStartEventData(String turnId, String model, String interactionId) {
+            this(turnId, model, interactionId, null, null);
+        }
     }
 }

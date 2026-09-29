@@ -16,7 +16,7 @@ use futures_util::FutureExt;
 use github_copilot_sdk::handler::{
     McpAuthHandler, McpAuthRequest, McpAuthResult, PermissionHandler, PermissionResult,
 };
-use github_copilot_sdk::session::PreparedSession;
+use github_copilot_sdk::session::{PreparedSession, Session};
 use github_copilot_sdk::subscription::{EventSubscription, RecvErrorKind};
 use github_copilot_sdk::types::{
     CloudSessionOptions, CloudSessionRepository, MessageOptions, PermissionRequestData, RequestId,
@@ -134,6 +134,10 @@ impl FakeServer {
             },
         });
         write_framed(&mut self.write, &serde_json::to_vec(&notification).unwrap()).await;
+    }
+
+    async fn send_notification(&mut self, notification: &Value) {
+        write_framed(&mut self.write, &serde_json::to_vec(notification).unwrap()).await;
     }
 
     /// Emit the startup burst the host cares about: `BURST` ordered events
@@ -1829,4 +1833,298 @@ async fn deferred_create_cancelled_after_callback_registered_is_cleaned_up() {
         "retry must hold exactly one registration"
     );
     drop(session);
+}
+
+fn identity_fixture() -> Value {
+    serde_json::from_str(include_str!("fixtures/execution-identity-v1.json")).unwrap()
+}
+
+async fn start_identity_session(
+    client: &Client,
+    server: &mut FakeServer,
+    session_id: &str,
+) -> (Session, EventSubscription) {
+    let prepared = client
+        .prepare_session(SessionConfig::default().with_session_id(session_id))
+        .unwrap();
+    let events = prepared.subscribe();
+    let start = tokio::spawn(prepared.start());
+    let request = server.read_request().await;
+    assert_eq!(request["method"], "session.create");
+    server
+        .respond(&request, json!({"sessionId": session_id}))
+        .await;
+    let session = timeout(TIMEOUT, start).await.unwrap().unwrap().unwrap();
+    assert_eq!(session.id().as_str(), session_id);
+    (session, events)
+}
+
+async fn expect_identity_event(events: &mut EventSubscription, notification: &Value) {
+    let event = timeout(TIMEOUT, events.recv()).await.unwrap().unwrap();
+    assert_eq!(
+        serde_json::to_value(event).unwrap(),
+        notification["params"]["event"]
+    );
+}
+
+#[tokio::test]
+async fn identity_delivery_does_not_depend_on_send_acknowledgement_order() {
+    let fixture = identity_fixture();
+    let (client, mut server) = make_client();
+    let session_id = fixture["notifications"]["user"]["params"]["sessionId"]
+        .as_str()
+        .unwrap();
+    let (session, mut events) = start_identity_session(&client, &mut server, session_id).await;
+    let session = Arc::new(session);
+
+    for (name, before_ack) in [("user", true), ("system", false)] {
+        let sending = tokio::spawn({
+            let session = session.clone();
+            async move {
+                let source = if name == "system" {
+                    github_copilot_sdk::MessageSource::System
+                } else {
+                    github_copilot_sdk::MessageSource::User
+                };
+                session
+                    .send(MessageOptions::new("").with_source(source))
+                    .await
+            }
+        });
+        let request = server.read_request().await;
+        assert_eq!(request["method"], "session.send");
+        let notification = &fixture["notifications"][name];
+        if before_ack {
+            server.send_notification(notification).await;
+            expect_identity_event(&mut events, notification).await;
+        }
+        server
+            .respond(&request, fixture["sendResults"][name].clone())
+            .await;
+        let message_id = timeout(TIMEOUT, sending).await.unwrap().unwrap().unwrap();
+        assert_eq!(
+            message_id,
+            fixture["sendResults"][name]["messageId"].as_str().unwrap()
+        );
+        if !before_ack {
+            server.send_notification(notification).await;
+            expect_identity_event(&mut events, notification).await;
+        }
+    }
+}
+
+#[tokio::test]
+async fn cancelled_send_response_does_not_supply_the_next_message_identity() {
+    let fixture = identity_fixture();
+    let (client, mut server) = make_client();
+    let session_id = fixture["notifications"]["user"]["params"]["sessionId"]
+        .as_str()
+        .unwrap();
+    let (session, mut events) = start_identity_session(&client, &mut server, session_id).await;
+    let session = Arc::new(session);
+    let abandoned = tokio::spawn({
+        let session = session.clone();
+        async move { session.send("").await }
+    });
+    let abandoned_request = server.read_request().await;
+    assert_eq!(abandoned_request["method"], "session.send");
+    abandoned.abort();
+    assert!(
+        timeout(TIMEOUT, abandoned)
+            .await
+            .unwrap()
+            .unwrap_err()
+            .is_cancelled()
+    );
+
+    let next = tokio::spawn({
+        let session = session.clone();
+        async move {
+            session
+                .send(
+                    MessageOptions::new("").with_source(github_copilot_sdk::MessageSource::System),
+                )
+                .await
+        }
+    });
+    let next_request = server.read_request().await;
+    assert_eq!(next_request["method"], "session.send");
+    assert_ne!(abandoned_request["id"], next_request["id"]);
+    server
+        .respond(&abandoned_request, fixture["sendResults"]["user"].clone())
+        .await;
+    server
+        .send_notification(&fixture["notifications"]["user"])
+        .await;
+    server
+        .respond(&next_request, fixture["sendResults"]["system"].clone())
+        .await;
+    server
+        .send_notification(&fixture["notifications"]["system"])
+        .await;
+    assert_eq!(
+        timeout(TIMEOUT, next).await.unwrap().unwrap().unwrap(),
+        fixture["sendResults"]["system"]["messageId"]
+            .as_str()
+            .unwrap()
+    );
+    for name in ["user", "system"] {
+        expect_identity_event(&mut events, &fixture["notifications"][name]).await;
+    }
+}
+
+#[tokio::test]
+async fn identity_delivery_preserves_duplicates_workers_and_session_isolation() {
+    let fixture = identity_fixture();
+    let notifications = &fixture["notifications"];
+    let (client, mut server) = make_client();
+    let (_first, mut first_events) = start_identity_session(
+        &client,
+        &mut server,
+        notifications["user"]["params"]["sessionId"]
+            .as_str()
+            .unwrap(),
+    )
+    .await;
+    let (_second, mut second_events) = start_identity_session(
+        &client,
+        &mut server,
+        notifications["otherSession"]["params"]["sessionId"]
+            .as_str()
+            .unwrap(),
+    )
+    .await;
+
+    for name in [
+        "user",
+        "otherSession",
+        "system",
+        "worker",
+        "workerStarted",
+        "user",
+        "legacy",
+    ] {
+        server.send_notification(&notifications[name]).await;
+    }
+    let mut conflicting_duplicate = notifications["user"].clone();
+    conflicting_duplicate["params"]["event"]["data"]["messageId"] =
+        fixture["sendResults"]["system"]["messageId"].clone();
+    server.send_notification(&conflicting_duplicate).await;
+    for name in [
+        "user",
+        "system",
+        "worker",
+        "workerStarted",
+        "user",
+        "legacy",
+    ] {
+        expect_identity_event(&mut first_events, &notifications[name]).await;
+    }
+    expect_identity_event(&mut first_events, &conflicting_duplicate).await;
+    expect_identity_event(&mut second_events, &notifications["otherSession"]).await;
+    assert!(timeout(QUIET, first_events.recv()).await.is_err());
+    assert!(timeout(QUIET, second_events.recv()).await.is_err());
+}
+
+#[tokio::test]
+async fn routed_replay_and_missing_identity_survive_resume_without_reassociation() {
+    let fixture = identity_fixture();
+    let notifications = &fixture["notifications"];
+    let session_id = notifications["user"]["params"]["sessionId"]
+        .as_str()
+        .unwrap();
+    let (client, mut server) = make_client();
+    let (session, mut events) = start_identity_session(&client, &mut server, session_id).await;
+    server.send_notification(&notifications["user"]).await;
+    expect_identity_event(&mut events, &notifications["user"]).await;
+    drop(session);
+    expect_closed(&mut events).await;
+
+    let prepared = client
+        .prepare_resume_session(
+            ResumeSessionConfig::new(SessionId::new(session_id)).with_continue_pending_work(true),
+        )
+        .unwrap();
+    let mut resumed_events = prepared.subscribe();
+    let start = tokio::spawn(prepared.start());
+    let request = server.read_request().await;
+    assert_eq!(request["method"], "session.resume");
+    assert_eq!(request["params"]["continuePendingWork"], true);
+    for name in ["resume", "user", "legacy", "worker"] {
+        server.send_notification(&notifications[name]).await;
+    }
+    server
+        .respond(&request, json!({"sessionId": session_id}))
+        .await;
+    server.answer_skills_reload().await;
+    let resumed = timeout(TIMEOUT, start).await.unwrap().unwrap().unwrap();
+    assert_eq!(resumed.id().as_str(), session_id);
+    for name in ["resume", "user", "legacy", "worker"] {
+        expect_identity_event(&mut resumed_events, &notifications[name]).await;
+    }
+}
+
+#[tokio::test]
+async fn a_new_connection_does_not_reuse_observed_identity_for_the_same_session_id() {
+    let fixture = identity_fixture();
+    let notifications = &fixture["notifications"];
+    let session_id = notifications["user"]["params"]["sessionId"]
+        .as_str()
+        .unwrap();
+    for name in ["user", "legacy"] {
+        let (client, mut server) = make_client();
+        let (session, mut events) = start_identity_session(&client, &mut server, session_id).await;
+        server.send_notification(&notifications[name]).await;
+        expect_identity_event(&mut events, &notifications[name]).await;
+        drop(session);
+        expect_closed(&mut events).await;
+    }
+}
+
+#[tokio::test]
+async fn early_tool_context_is_delivered_without_waiting_for_a_callback_or_reusing_context() {
+    use github_copilot_sdk::session_events::ToolExecutionStartData;
+
+    let fixture: Value =
+        serde_json::from_str(include_str!("fixtures/tool-trace-context-v1.json")).unwrap();
+    let notifications = &fixture["notifications"];
+    let session_id = notifications["sampled"]["params"]["sessionId"]
+        .as_str()
+        .unwrap();
+    let (client, mut server) = make_client();
+    let (_session, mut events) = start_identity_session(&client, &mut server, session_id).await;
+
+    for name in ["sampled", "unsampled", "absent", "sampled"] {
+        server.send_notification(&notifications[name]).await;
+    }
+    let mut persisted = notifications["sampled"].clone();
+    let data = persisted["params"]["event"]["data"]
+        .as_object_mut()
+        .unwrap();
+    data.remove("traceparent");
+    data.remove("tracestate");
+    server.send_notification(&persisted).await;
+
+    for wire in [
+        &notifications["sampled"],
+        &notifications["unsampled"],
+        &notifications["absent"],
+        &notifications["sampled"],
+        &persisted,
+    ] {
+        let event = timeout(TIMEOUT, events.recv()).await.unwrap().unwrap();
+        let data = event.typed_data::<ToolExecutionStartData>().unwrap();
+        let expected = &wire["params"]["event"]["data"];
+        assert_eq!(data.tool_call_id, expected["toolCallId"].as_str().unwrap());
+        assert_eq!(
+            data.traceparent.as_deref(),
+            expected["traceparent"].as_str()
+        );
+        assert_eq!(data.tracestate.as_deref(), expected["tracestate"].as_str());
+        assert_eq!(
+            serde_json::to_value(event).unwrap(),
+            wire["params"]["event"]
+        );
+    }
+    server.expect_quiet().await;
 }

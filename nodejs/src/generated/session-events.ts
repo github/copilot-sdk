@@ -772,6 +772,44 @@ export type UserMessageDelivery =
   /** Enqueued while the agent was busy; processed as its own run afterward. */
   | "queued";
 /**
+ * Producer of an observation, not the execution location of every referenced source.
+ */
+export type WorkerObservationProvenance =
+  /** Observed by the native runtime. */
+  | "native"
+  /** Observed by the AHP coordinator. */
+  | "ahp_coordinator";
+/**
+ * Supported observed occurrences. Chronological parentId is not a causal reference.
+ */
+export type WorkerEventType =
+  /** Observed tool execution start occurrence. */
+  | "tool.execution_start"
+  /** Observed admitted user message occurrence. */
+  | "user.message"
+  /** Observed worker completion occurrence. */
+  | "subagent.completed"
+  /** Observed worker notification occurrence. */
+  | "system.notification"
+  /** Observed assistant turn start occurrence. */
+  | "assistant.turn_start";
+/**
+ * Why this exact worker admission was made.
+ */
+export type WorkerAdmissionKind =
+  /** A queued worker input was admitted. */
+  | "queued_input"
+  /** A system continuation was admitted. */
+  | "system_continuation";
+/**
+ * How the owned notification was consumed.
+ */
+export type WorkerNotificationMode =
+  /** The notification was consumed through the queued input path. */
+  | "queued"
+  /** The notification was consumed during an already-open iteration. */
+  | "immediate";
+/**
  * Content-safe activity observed while a HydraFusion phase is running.
  */
 /** @experimental */
@@ -4363,6 +4401,10 @@ export interface UserMessageData {
    */
   attachments?: Attachment[];
   /**
+   * Exact caller-owned diagnostic UUID carried by this accepted native session.send or sendMessages item when RUNTIME_ADMISSION_TRACE_CONTEXT is enabled. Omitted when input, native ownership, or support is missing. Independent of the canonical messageId; not an idempotency key, authorization, or permission to retry. Multiple messages with the same value remain ambiguous.
+   */
+  clientCorrelationId?: string;
+  /**
    * The user's message text as displayed in the timeline
    */
   content: string;
@@ -4384,7 +4426,7 @@ export interface UserMessageData {
    */
   nativeDocumentPathFallbackPaths?: string[];
   /**
-   * Parent agent task ID for background telemetry correlated to this user turn
+   * Task ID minted when the runtime prepares this user-message run. This is not a parent interaction ID or worker instance ID and must not be equated with CAPI's X-Parent-Agent-Id.
    */
   parentAgentTaskId?: string;
   responsesReasoning?: ResponsesReasoning;
@@ -4404,6 +4446,7 @@ export interface UserMessageData {
    * The agent-loop turn ID that consumed this message; absent when no agent-loop turn consumed it
    */
   turnId?: string;
+  workerCausality?: WorkerCausality;
 }
 /**
  * File attachment
@@ -4844,6 +4887,120 @@ export interface AttachmentExtensionContext {
   type: "extension_context";
 }
 /**
+ * Optional v1 worker diagnostics. The compact UTF-8 {"workerCausality":value}
+ * must fit 4096 bytes after materializing an allowed implicit self-reference.
+ * Ignore invalid/unknown/oversize metadata, not the product event.
+ */
+export interface WorkerCausality {
+  /**
+   * Complete placement-aware observed capture, not global causality or execution success.
+   * Empty true requires explicit native invocation attestation.
+   */
+  captureComplete: boolean;
+  observationProvenance: WorkerObservationProvenance;
+  /**
+   * Sources in capture order, at most 32. Absent/unknown is not known-empty.
+   *
+   * @maxItems 32
+   */
+  sources: WorkerSource[];
+  /**
+   * Supported version, exactly 1.
+   */
+  version: 1;
+}
+/**
+ * One captured source at this placement and observation boundary.
+ */
+export interface WorkerSource {
+  /**
+   * Actual admissions in capture order; at most 32.
+   *
+   * @maxItems 32
+   */
+  admissions: WorkerAdmission[];
+  admittedDuring?: WorkerEventReference;
+  /**
+   * Applicable observations were all captured here, never work completion or success.
+   */
+  captureComplete: boolean;
+  completion?: WorkerEventReference;
+  input: WorkerInput;
+  notification?: WorkerNotificationReference;
+}
+/**
+ * An observed worker admission, not a claim that execution succeeded.
+ */
+export interface WorkerAdmission {
+  /**
+   * Actual AHP participant Turn UUID, not a native turn counter or provenance signal.
+   */
+  ahpTurnId?: string;
+  event?: WorkerEventReference;
+  kind: WorkerAdmissionKind;
+  /**
+   * Canonical logical message identity, independent of queueItemId; at most 256 UTF-8 bytes.
+   */
+  messageId: string;
+}
+/**
+ * Exact observed event identity. No private registration generation or execution handle.
+ */
+export interface WorkerEventReference {
+  /**
+   * Actual event agent scope, absent for a root occurrence; at most 256 UTF-8 bytes.
+   */
+  agentId?: string;
+  /**
+   * Actual event occurrence UUID; copied without normalization.
+   */
+  eventId: string;
+  eventType: WorkerEventType;
+  provenance: WorkerObservationProvenance;
+  /**
+   * Actual runtime session scope, at most 256 UTF-8 bytes.
+   */
+  sessionId: string;
+}
+/**
+ * Exact accepted worker input, distinct from a message, event, caller correlation or Turn.
+ */
+export interface WorkerInput {
+  /**
+   * Actual recipient task, at most 256 UTF-8 bytes.
+   */
+  agentId: string;
+  /**
+   * UUID allocated for this queue item by the admitting producer.
+   */
+  queueItemId: string;
+  sender?: WorkerEventReference;
+  /**
+   * Exact captured edges in producer order. Requires sender; at most 32 whole pairs.
+   *
+   * @maxItems 32
+   */
+  senderBridges?: WorkerBridgeObservation[];
+}
+/**
+ * One indivisible source-to-reported bridge observation, not a root alias.
+ */
+export interface WorkerBridgeObservation {
+  reported: WorkerEventReference;
+  source: WorkerEventReference;
+}
+/**
+ * Exact delivery and optional occurrence of a consumed worker notification.
+ */
+export interface WorkerNotificationReference {
+  /**
+   * Actual notificationDeliveryId UUID.
+   */
+  deliveryId: string;
+  event?: WorkerEventReference;
+  mode: WorkerNotificationMode;
+}
+/**
  * Session event "pending_messages.modified". Empty payload; the event signals that the pending message queue has changed
  */
 export interface PendingMessagesModifiedEvent {
@@ -4927,6 +5084,7 @@ export interface AssistantTurnStartData {
    * Identifier for this turn within the agentic loop, typically a stringified turn number
    */
   turnId: string;
+  workerCausality?: WorkerCausality;
 }
 /**
  * Session event "assistant.intent". Agent intent description for current activity or plan
@@ -6837,6 +6995,14 @@ export interface ToolExecutionStartData {
    */
   toolTitle?: string;
   /**
+   * W3C traceparent of this tool's active runtime execute_tool span. Available on live events when tool-context propagation is enabled; absent when the span is unavailable or on persisted history. This diagnostic context does not authorize execution.
+   */
+  traceparent?: string;
+  /**
+   * Optional W3C tracestate associated with traceparent. Omitted when no valid vendor state is available.
+   */
+  tracestate?: string;
+  /**
    * Identifier for the agent loop turn this tool was invoked in, matching the corresponding assistant.turn_start event
    */
   turnId?: string;
@@ -7766,7 +7932,7 @@ export interface SubagentStartedData {
   resumable?: boolean;
   taskModelSource?: SubagentTaskModelSource;
   /**
-   * Tool call ID of the parent tool invocation that spawned this sub-agent
+   * Spawning tool invocation ID, or the canonical sub-agent ID used as a fallback for an API launch without a tool invocation. The fallback is not evidence of a tool call.
    */
   toolCallId: string;
   /**
@@ -7905,7 +8071,7 @@ export interface SubagentCompletedData {
   modelOverrideReason?: string;
   modelSelectionSource?: SubagentModelSelectionSource;
   /**
-   * Tool call ID of the parent tool invocation that spawned this sub-agent
+   * Spawning tool invocation ID, or the canonical sub-agent ID used as a fallback for an API launch without a tool invocation. The fallback is not evidence of a tool call.
    */
   toolCallId: string;
   /**
@@ -7997,7 +8163,7 @@ export interface SubagentFailedData {
   modelOverrideReason?: string;
   modelSelectionSource?: SubagentModelSelectionSource;
   /**
-   * Tool call ID of the parent tool invocation that spawned this sub-agent
+   * Spawning tool invocation ID, or the canonical sub-agent ID used as a fallback for an API launch without a tool invocation. The fallback is not evidence of a tool call.
    */
   toolCallId: string;
   /**
@@ -8445,6 +8611,7 @@ export interface SystemNotificationData {
   content: string;
   kind: SystemNotification;
   responsesReasoning?: ResponsesReasoning;
+  workerCausality?: WorkerCausality;
 }
 /**
  * System notification metadata for a background agent that completed or failed, including agent ID, type, status, description, and prompt.

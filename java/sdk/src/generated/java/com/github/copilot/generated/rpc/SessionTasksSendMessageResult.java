@@ -27,6 +27,13 @@ public record SessionTasksSendMessageResult(
     /** Whether the message was successfully delivered or steered */
     @JsonProperty("sent") Boolean sent,
     /** Error message if delivery failed */
-    @JsonProperty("error") String error
+    @JsonProperty("error") String error,
+    /** Optional exact queue admission receipt on sent=true only. No implicit event or execution-success claim. */
+    @com.fasterxml.jackson.databind.annotation.JsonDeserialize(using = com.github.copilot.WorkerCausalityDeserializer.class)
+    @JsonProperty("workerCausality") WorkerCausality workerCausality
 ) {
+    /** Creates a value without optional worker diagnostics. */
+    public SessionTasksSendMessageResult(Boolean sent, String error) {
+        this(sent, error, null);
+    }
 }
