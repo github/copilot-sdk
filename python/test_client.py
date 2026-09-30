@@ -39,6 +39,7 @@ from copilot.client import (
     ModelInfo,
     ModelLimits,
     ModelSupports,
+    ModelVisionLimits,
 )
 from copilot.generated.rpc import AutoTier as AutoTierEnum
 from copilot.generated.rpc import (
@@ -2066,6 +2067,30 @@ class TestModelBilling:
         assert long_context.cache_price is None
         assert long_context.context_max is None
         assert billing.to_dict() == {"tokenPrices": {"longContext": {}}}
+
+
+class TestModelLimits:
+    def test_max_output_tokens_round_trip(self):
+        wire = {
+            "max_prompt_tokens": 128000,
+            "max_output_tokens": 16384,
+            "max_context_window_tokens": 144384,
+        }
+
+        limits = ModelLimits.from_dict(wire)
+
+        assert limits.max_output_tokens == 16384
+        assert limits.to_dict() == wire
+
+    def test_max_output_tokens_preserves_positional_constructor(self):
+        vision = ModelVisionLimits()
+
+        limits = ModelLimits(128000, 144384, vision)
+
+        assert limits.max_prompt_tokens == 128000
+        assert limits.max_context_window_tokens == 144384
+        assert limits.vision is vision
+        assert limits.max_output_tokens is None
 
 
 class TestOnListModels:

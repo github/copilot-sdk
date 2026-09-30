@@ -1010,6 +1010,7 @@ class ModelLimits:
     """Model limits"""
 
     max_prompt_tokens: int | None = None
+    max_output_tokens: int | None = field(default=None, kw_only=True)
     max_context_window_tokens: int | None = None
     vision: ModelVisionLimits | None = None
 
@@ -1017,11 +1018,13 @@ class ModelLimits:
     def from_dict(obj: Any) -> ModelLimits:
         assert isinstance(obj, dict)
         max_prompt_tokens = obj.get("max_prompt_tokens")
+        max_output_tokens = obj.get("max_output_tokens")
         max_context_window_tokens = obj.get("max_context_window_tokens")
         vision_dict = obj.get("vision")
         vision = ModelVisionLimits.from_dict(vision_dict) if vision_dict else None
         return ModelLimits(
             max_prompt_tokens=max_prompt_tokens,
+            max_output_tokens=max_output_tokens,
             max_context_window_tokens=max_context_window_tokens,
             vision=vision,
         )
@@ -1030,6 +1033,8 @@ class ModelLimits:
         result: dict = {}
         if self.max_prompt_tokens is not None:
             result["max_prompt_tokens"] = self.max_prompt_tokens
+        if self.max_output_tokens is not None:
+            result["max_output_tokens"] = self.max_output_tokens
         if self.max_context_window_tokens is not None:
             result["max_context_window_tokens"] = self.max_context_window_tokens
         if self.vision is not None:
