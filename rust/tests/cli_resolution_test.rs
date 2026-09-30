@@ -9,15 +9,15 @@
 use std::path::PathBuf;
 
 #[cfg(any(
-    all(feature = "bundled-cli", has_bundled_cli),
-    all(not(feature = "bundled-cli"), has_extracted_cli)
+    all(feature = "bundled-runtime", has_bundled_runtime),
+    all(not(feature = "bundled-runtime"), has_extracted_cli)
 ))]
 use github_copilot_sdk::ErrorKind;
 use github_copilot_sdk::{
-    CliProgram, Client, ClientOptions, HAS_BUNDLED_CLI, install_bundled_cli,
+    CliProgram, Client, ClientOptions, HAS_BUNDLED_CLI, HAS_BUNDLED_RUNTIME, install_bundled_cli,
     install_bundled_runtime,
 };
-#[cfg(all(feature = "bundled-cli", has_bundled_cli))]
+#[cfg(all(feature = "bundled-runtime", has_bundled_runtime))]
 use github_copilot_sdk::{SessionConfig, Transport};
 use serial_test::serial;
 
@@ -85,8 +85,8 @@ async fn env_override_resolves_to_pointed_file() {
 /// A stale (non-existent) COPILOT_CLI_PATH falls through to the next
 /// resolution source (embed or dev) rather than failing outright.
 #[cfg(any(
-    all(feature = "bundled-cli", has_bundled_cli),
-    all(not(feature = "bundled-cli"), has_extracted_cli)
+    all(feature = "bundled-runtime", has_bundled_runtime),
+    all(not(feature = "bundled-runtime"), has_extracted_cli)
 ))]
 #[tokio::test(flavor = "current_thread")]
 #[serial(copilot_cli_path)]
@@ -112,7 +112,7 @@ async fn stale_env_override_falls_through() {
 /// `COPILOT_SDK_CLI_VERSION` + the OS-derived binary name. This test
 /// mirrors that convention and asserts the file is on disk where the
 /// resolver expects to find it.
-#[cfg(all(not(feature = "bundled-cli"), has_extracted_cli))]
+#[cfg(all(not(feature = "bundled-runtime"), has_extracted_cli))]
 #[test]
 fn extracted_binary_present_at_conventional_path() {
     let version = env!("COPILOT_SDK_CLI_VERSION");
@@ -135,7 +135,7 @@ fn extracted_binary_present_at_conventional_path() {
     );
 }
 
-#[cfg(all(not(feature = "bundled-cli"), has_extracted_cli))]
+#[cfg(all(not(feature = "bundled-runtime"), has_extracted_cli))]
 fn sanitize_version_for_test(version: &str) -> String {
     version
         .chars()
@@ -150,7 +150,7 @@ fn sanitize_version_for_test(version: &str) -> String {
 /// binary without any runtime configuration. Observed via
 /// `Client::start`: any outcome other than `BinaryNotFound` means the
 /// resolver succeeded.
-#[cfg(all(not(feature = "bundled-cli"), has_extracted_cli))]
+#[cfg(all(not(feature = "bundled-runtime"), has_extracted_cli))]
 #[tokio::test(flavor = "current_thread")]
 #[serial(copilot_cli_path)]
 async fn unbundled_resolver_finds_extracted_binary() {
@@ -170,7 +170,7 @@ async fn unbundled_resolver_finds_extracted_binary() {
 /// With `bundled-cli` off, `COPILOT_CLI_EXTRACT_DIR` set at runtime
 /// redirects the resolver to look directly under the named directory
 /// (no per-version subdir, matching the build-time write semantics).
-#[cfg(all(not(feature = "bundled-cli"), has_extracted_cli))]
+#[cfg(all(not(feature = "bundled-runtime"), has_extracted_cli))]
 #[tokio::test(flavor = "current_thread")]
 #[serial(copilot_cli_path)]
 async fn extract_dir_runtime_override_is_honored() {
@@ -330,9 +330,10 @@ fn install_bundled_cli_is_none_without_embed() {
     );
 }
 
-#[cfg(all(feature = "bundled-cli", has_bundled_cli))]
+#[cfg(all(feature = "bundled-runtime", has_bundled_runtime))]
 #[test]
 fn install_bundled_runtime_returns_wrapper_bundle() {
+    const { assert!(HAS_BUNDLED_RUNTIME) };
     let first = install_bundled_runtime().expect("bundled runtime should install");
     assert_eq!(
         first.file_name().and_then(|name| name.to_str()),
@@ -373,7 +374,7 @@ fn install_bundled_runtime_returns_wrapper_bundle() {
     assert_eq!(first, second);
 }
 
-#[cfg(all(feature = "bundled-cli", has_bundled_cli))]
+#[cfg(all(feature = "bundled-runtime", has_bundled_runtime))]
 #[tokio::test(flavor = "current_thread")]
 #[serial(copilot_cli_path)]
 async fn bundled_runtime_clean_extract_starts_without_cli_host() {
@@ -433,11 +434,66 @@ async fn bundled_runtime_clean_extract_starts_without_cli_host() {
     );
 }
 
-#[cfg(not(all(feature = "bundled-cli", has_bundled_cli)))]
+#[cfg(not(all(feature = "bundled-runtime", has_bundled_runtime)))]
 #[test]
 fn install_bundled_runtime_is_none_without_embed() {
+    const { assert!(!HAS_BUNDLED_RUNTIME) };
     assert!(
         install_bundled_runtime().is_none(),
         "install_bundled_runtime must not fall back to the dev-cache path"
+    );
+}
+
+/// Inspect the build output as well as the public installer: returning None
+/// alone does not prove the unused SEA payload was omitted from the build.
+#[cfg(all(
+    feature = "bundled-runtime",
+    not(feature = "bundled-cli"),
+    any(target_os = "macos", target_os = "windows", target_os = "linux"),
+    any(target_arch = "aarch64", target_arch = "x86_64")
+))]
+#[test]
+fn native_only_build_does_not_generate_or_embed_cli_payload() {
+    if option_env!("COPILOT_SKIP_CLI_DOWNLOAD").is_some() || option_env!("DOCS_RS").is_some() {
+        return;
+    }
+    assert_eq!((HAS_BUNDLED_RUNTIME, HAS_BUNDLED_CLI), (true, false));
+    let out = PathBuf::from(env!("OUT_DIR"));
+    assert!(out.join("copilot_runtime.archive").is_file());
+    assert!(out.join("bundled_runtime.rs").is_file());
+    assert!(!out.join("copilot_cli.archive").exists());
+    assert!(!out.join("bundled_cli.rs").exists());
+    assert!(install_bundled_cli().is_none());
+}
+
+#[cfg(all(has_bundled_runtime, feature = "in-process"))]
+#[tokio::test(flavor = "current_thread")]
+#[serial(copilot_cli_path)]
+async fn bundled_runtime_clean_extract_starts_in_process() {
+    unset_env("COPILOT_CLI_PATH");
+    let temp = tempfile::tempdir().expect("create tempdir");
+    let options = ClientOptions::new()
+        .with_bundled_cli_extract_dir(temp.path())
+        .with_transport(Transport::InProcess)
+        .with_use_logged_in_user(false);
+    let client = Client::start(options)
+        .await
+        .expect("start bundled in-process runtime from clean extraction");
+    let response = client
+        .ping(Some("in-process runtime"))
+        .await
+        .expect("ping runtime");
+    assert_eq!(response.message, "pong: in-process runtime");
+    client.stop().await.expect("stop in-process runtime");
+    assert!(temp.path().join("runtime.node").is_file());
+    assert!(
+        !temp
+            .path()
+            .join(if cfg!(windows) {
+                "copilot.exe"
+            } else {
+                "copilot"
+            })
+            .exists()
     );
 }

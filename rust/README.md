@@ -74,7 +74,7 @@ runtime without embedding its bundle, use
 `Client::start` should select this feature explicitly.
 The `in-process` and `local-runtime` features also enable runtime management;
 `local-runtime` continues to use application-supplied artifacts without downloading
-them. Enabling `bundled-cli` alongside `local-runtime` retains normal bundling.
+them. Enabling `bundled-runtime` or `bundled-cli` alongside `local-runtime` retains the selected bundling.
 
 ## API Reference
 
@@ -1380,7 +1380,7 @@ none of them are scheduled for removal.
 | `tool.rs`         | `ToolHandler` trait, `define_tool`, `schema_for::<T>()` (with `derive` feature)                                            |
 | `types.rs`        | CLI protocol types (`SessionId`, `SessionEvent`, `SessionConfig`, `Tool`, etc.)                                            |
 | `resolve.rs`      | Bundled-CLI resolution (`copilot_binary`)                                                                                  |
-| `embeddedcli.rs`  | Embedded CLI extraction (gated on the default `bundled-cli` feature)                                                       |
+| `embeddedcli.rs`  | Embedded runtime and CLI extraction (gated on `bundled-runtime`)                                                       |
 | `router.rs`       | Internal connection-global request dispatch and per-session event demux                                                   |
 | `jsonrpc.rs`      | Internal Content-Length framed JSON-RPC transport                                                                          |
 
@@ -1398,6 +1398,21 @@ in the runtime bundle and use `Transport::InProcess`:
 github-copilot-sdk = { version = "1", features = ["bundled-in-process"] }
 ```
 
+To embed native assets while managing the Node executable yourself, opt in to
+`bundled-runtime` with defaults disabled:
+
+```toml
+github-copilot-sdk = { version = "1", default-features = false, features = ["bundled-runtime"] }
+```
+
+This downloads and embeds only the runtime package. `install_bundled_runtime`
+and managed native startup work as usual; `HAS_BUNDLED_CLI` is `false` and
+`install_bundled_cli()` returns `None`. `HAS_BUNDLED_RUNTIME` reports native
+bundle availability. Add `in-process` to this configuration if you also need
+the native runtime library. Existing defaults and `bundled-in-process` continue
+to include both artifacts. Features are additive: another dependency enabling
+`bundled-cli` also enables the full CLI archive.
+
 `CliProgram::Path` and raw `ClientOptions::extra_args` apply only to
 child-process transports. Set `COPILOT_CLI_PATH` only when using an externally
 provisioned compatible runtime package with in-process transport.
@@ -1410,21 +1425,21 @@ or embedding SDK-managed runtime artifacts:
 github-copilot-sdk = { version = "1", default-features = false, features = ["local-runtime"] }
 ```
 
-The default `bundled-cli` feature takes precedence when both features are
-enabled, preserving bundled behavior for `--all-features` builds.
+Bundling features take precedence over `local-runtime`, preserving the default
+full bundle for `--all-features` builds.
 
 `COPILOT_CLI_PATH` must point to the application's CLI entrypoint, with the
 compatible native runtime library next to it.
 
-For managed transports without embedded artifacts, disable `bundled-cli` while
-enabling `runtime`:
+For managed transports without embedded artifacts, disable the default features while
+enabling only `runtime`:
 
 ```toml
 github-copilot-sdk = { version = "1", default-features = false, features = ["runtime"] }
 ```
 
 > **You become responsible for supplying the runtime at deployment.** With
-> `runtime` enabled and `bundled-cli` disabled, the produced binary does not contain these artifacts
+> `runtime` enabled and `bundled-runtime` disabled, the produced binary does not contain these artifacts
 > and will not search the system for them. For managed child-process transports,
 > supply a compatible wrapper pair via an explicit [`CliProgram::Path`].
 > `COPILOT_CLI_PATH` remains a direct program override.
@@ -1436,7 +1451,7 @@ github-copilot-sdk = { version = "1", default-features = false, features = ["run
 > makes local development and CI ergonomic, but it does **not** carry
 > over when you copy the built binary to another machine — distributed
 > builds (release artifacts, signed installers, container images, etc.)
-> must either keep `bundled-cli` enabled or ship the runtime pair and set
+> must either keep `bundled-runtime` enabled or ship the runtime pair and set
 > `CliProgram::Path`.
 
 With no features enabled (`default-features = false` alone), the SDK is
@@ -1453,27 +1468,29 @@ explicit program path is supplied.
 
    When SDK-managed acquisition is enabled, the resolved version is baked into the crate via `cargo:rustc-env=COPILOT_SDK_CLI_VERSION`. The runtime resolver consumes it to recompute the on-disk path by convention, so no absolute paths leak into the rlib.
 
-2. **Build time:** `build.rs` downloads the platform-specific full CLI archive
-   and runtime package, then verifies both SHA-256 hashes against the release's
+2. **Build time:** `build.rs` downloads the selected platform-specific archives
+   and verifies their SHA-256 hashes against the release's
    `SHA256SUMS.txt` or the publish snapshots.
    Then:
    - **`bundled-cli` on (default):** embeds the full CLI release archive and a
      separately filtered runtime archive containing `copilot-runtime[.exe]`,
      `runtime.node`, and required assets.
+   - **`bundled-runtime` on without `bundled-cli`:** embeds only the filtered
+     runtime archive; the full CLI archive is neither downloaded nor embedded.
    - **`in-process` on:** the runtime archive additionally contains the
      platform-native runtime library (`.dll`, `.so`, or `.dylib`).
-   - **`local-runtime` on and `bundled-cli` off:** skips this acquisition step
+   - **`local-runtime` on and `bundled-runtime` off:** skips this acquisition step
      entirely because the application supplies the runtime package.
    - **`runtime` off:** skips acquisition entirely; only externally supplied
      streams are supported.
-   - **`runtime` on, `bundled-cli` and `local-runtime` off:** downloads only the runtime package and extracts its
+   - **`runtime` on, `bundled-runtime` and `local-runtime` off:** downloads only the runtime package and extracts its
      managed runtime artifacts directly into the platform cache using staging
      files and atomic renames.
 
 3. **Runtime:** embedded CLI artifacts and build-time-extracted hostless runtime
    artifacts use separate versioned namespaces:
 
-   | OS | `bundled-cli` on | `runtime` on, `bundled-cli` and `local-runtime` off |
+   | OS | `bundled-runtime` on | `runtime` on, `bundled-runtime` and `local-runtime` off |
    |----|------------------|-------------------|
    | macOS | `~/Library/Caches/github-copilot-sdk/cli/<version>/` | `~/Library/Caches/github-copilot-sdk/runtime/<version>/` |
    | Linux | `${XDG_CACHE_HOME:-~/.cache}/github-copilot-sdk/cli/<version>/` | `${XDG_CACHE_HOME:-~/.cache}/github-copilot-sdk/runtime/<version>/` |
@@ -1497,7 +1514,7 @@ let options = ClientOptions::new()
 let client = Client::start(options).await?;
 ```
 
-With `runtime` enabled and both `bundled-cli` and `local-runtime` disabled, the equivalent knob is the **`COPILOT_CLI_EXTRACT_DIR`** environment variable, which is honored symmetrically at build time (where `build.rs` writes the binary) and at runtime (where the resolver reads it). When set, the binary lives directly under the named directory (no per-version subdir). The most ergonomic way to pin it from a consumer crate is `.cargo/config.toml`:
+With `runtime` enabled and both `bundled-runtime` and `local-runtime` disabled, the equivalent knob is the **`COPILOT_CLI_EXTRACT_DIR`** environment variable, which is honored symmetrically at build time (where `build.rs` writes the binary) and at runtime (where the resolver reads it). When set, the binary lives directly under the named directory (no per-version subdir). The most ergonomic way to pin it from a consumer crate is `.cargo/config.toml`:
 
 ```toml
 # .cargo/config.toml at the consumer's repo root
@@ -1516,7 +1533,7 @@ resolution requires `COPILOT_CLI_PATH` to identify the supplied package.
 
 `COPILOT_SKIP_CLI_DOWNLOAD=1` remains available as an explicit build-time
 override for managed child-process consumers. It works regardless of the
-`bundled-cli` feature state; runtime resolution falls through to
+bundling feature state; runtime resolution falls through to
 `Error::BinaryNotFound` unless an applicable explicit source resolves.
 
 ### Resolution priority
@@ -1525,8 +1542,8 @@ For managed child-process transports (`runtime` enabled), `Client::start` resolv
 
 1. Explicit `CliProgram::Path(path)` on `ClientOptions::program`.
 2. `COPILOT_CLI_PATH` environment variable, if it points at a real file.
-3. **`bundled-cli` on:** the embedded wrapper pair, lazily extracted on first call.
-4. **`bundled-cli` and `local-runtime` off:** the build-time-extracted wrapper pair in the per-user cache.
+3. **`bundled-runtime` on:** the embedded wrapper pair, lazily extracted on first call.
+4. **`bundled-runtime` and `local-runtime` off:** the build-time-extracted wrapper pair in the per-user cache.
 
 In-process transport loads the native runtime library adjacent to the runtime
 wrapper selected from `COPILOT_CLI_PATH`, the embedded runtime archive, or the
@@ -1571,12 +1588,12 @@ returns the wrapper path.
 
 ### Download cache (build-time, embed mode)
 
-In embed mode `build.rs` downloads both verified archives on every clean build
+In embed mode `build.rs` downloads the selected verified archives on every clean build
 by default. Set `BUNDLED_CLI_CACHE_DIR=<path>` to cache them between builds (CI
 keys this on `<os>-<version>` for near-zero-cost rebuilds on cache hits). For
 Copilot CLI 1.0.83-5, the two upstream archives total roughly 132-157 MB per
 platform before the runtime package is filtered. With `runtime` enabled and both
-`bundled-cli` and `local-runtime` disabled,
+`bundled-runtime` and `local-runtime` disabled,
 there is no separate archive cache: the extracted runtime bundle is the cache.
 
 ### Platforms
@@ -1591,9 +1608,10 @@ and `CARGO_CFG_TARGET_ENV` (cross-compilation works).
 | Feature | Default | Description |
 | ------- | ------- | ----------- |
 | `runtime` | ✓ (via `bundled-cli`) | Enables managed runtime startup and discovery. With no runtime feature, use `Client::from_streams`; no runtime artifacts are acquired. |
-| `bundled-cli` | ✓ | Enables `runtime` and embeds the managed wrapper pair and compatible CLI artifact. |
+| `bundled-runtime` | ✓ (via `bundled-cli`) | Enables `runtime` and embeds the native wrapper and required assets without the full CLI/Node SEA. |
+| `bundled-cli` | ✓ | Enables `bundled-runtime` and also embeds the compatible full CLI/Node SEA. |
 | `in-process` | — | Enables `Transport::InProcess` while preserving the selected runtime acquisition policy. |
-| `local-runtime` | — | Enables `in-process` and, when `bundled-cli` is disabled, disables SDK-managed runtime download, extraction, and embedding. The application must supply a compatible runtime package through `COPILOT_CLI_PATH`. |
+| `local-runtime` | — | Enables `in-process` and, when `bundled-runtime` is disabled, disables SDK-managed runtime download, extraction, and embedding. The application must supply a compatible runtime package through `COPILOT_CLI_PATH`. |
 | `bundled-in-process` | — | Enables `in-process`, implies `bundled-cli`, and additionally embeds the platform-native runtime library. |
 | `derive` | — | `schema_for::<T>()` for generating JSON Schema from Rust types (adds `schemars`). |
 

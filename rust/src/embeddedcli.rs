@@ -1,9 +1,9 @@
-//! Lazy runtime installer for the CLI binary that build.rs embedded in this
-//! crate (gated on the `bundled-cli` cargo feature, which is in the default
-//! feature set).
+//! Lazy installers for the native runtime and optional full CLI embedded by
+//! build.rs. `bundled-runtime` embeds native assets; the default `bundled-cli`
+//! feature additionally embeds the Node SEA.
 //!
-//! Builds embed two platform release payloads from GitHub Releases: the full
-//! CLI archive and a filtered runtime archive containing the wrapper,
+//! Builds embed selected platform release payloads from GitHub Releases: the
+//! optional full CLI archive and a filtered runtime archive containing the wrapper,
 //! `runtime.node`, auxiliary runtime assets, and optionally the in-process
 //! runtime library. Extraction to a real on-disk path is deferred until the
 //! relevant installer is called.
@@ -31,61 +31,62 @@
 // The atomic-publish + verify helpers (and their unit tests) are pure
 // std-only logic that doesn't touch the embedded archive, so they compile
 // whenever the binary is bundled *or* we're building the test harness —
-// the standard `cargo test --no-default-features` job has `has_bundled_cli`
+// the standard `cargo test --no-default-features` job has `has_bundled_runtime`
 // off but still needs to exercise them.
-#[cfg(has_bundled_cli)]
+#[cfg(has_bundled_runtime)]
 use std::collections::HashSet;
-#[cfg(any(has_bundled_cli, test))]
+#[cfg(any(has_bundled_runtime, test))]
 use std::fs;
-#[cfg(has_bundled_cli)]
+#[cfg(has_bundled_runtime)]
 use std::io::Read;
-#[cfg(any(has_bundled_cli, test))]
+#[cfg(any(has_bundled_runtime, test))]
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
-#[cfg(any(has_bundled_cli, test))]
+#[cfg(any(has_bundled_runtime, test))]
 use std::sync::atomic::{AtomicU64, Ordering};
 
-#[cfg(has_bundled_cli)]
+#[cfg(has_bundled_runtime)]
 use tracing::{info, warn};
 
-// When the `bundled-cli` cargo feature is enabled and the target platform is
-// supported, build.rs generates `bundled_cli.rs` exposing both selected archives.
+// On supported targets, build.rs generates glue for each selected archive.
 // The CLI version is exposed crate-wide via the
 // `cargo:rustc-env=COPILOT_SDK_CLI_VERSION` emit (see `build.rs`), and the
 // binary name is OS-derived — so no other generated constants are needed.
-#[cfg(has_bundled_cli)]
+#[cfg(has_bundled_runtime)]
 mod build_time {
+    #[cfg(has_bundled_cli)]
     include!(concat!(env!("OUT_DIR"), "/bundled_cli.rs"));
+    include!(concat!(env!("OUT_DIR"), "/bundled_runtime.rs"));
 }
 
 // Pinned at build time and consumed by both install paths (path/install_at).
 // Sourced from the unconditional `COPILOT_SDK_CLI_VERSION` env emit in
 // build.rs — the single source of truth for "what version did build.rs
 // target", shared with the runtime resolver used when `bundled-cli` is off.
-#[cfg(has_bundled_cli)]
+#[cfg(has_bundled_runtime)]
 const CLI_VERSION: &str = env!("COPILOT_SDK_CLI_VERSION");
 
 // OS-derived; matches the release-archive entry name and the on-disk
 // filename. No need to bake this — `cfg(windows)` reflects the target
 // the runtime is running on, which by definition is the same target
 // build.rs targeted.
-#[cfg(all(has_bundled_cli, windows))]
+#[cfg(all(has_bundled_runtime, windows))]
 const CLI_BINARY_NAME: &str = "copilot.exe";
-#[cfg(all(has_bundled_cli, not(windows)))]
+#[cfg(all(has_bundled_runtime, not(windows)))]
 const CLI_BINARY_NAME: &str = "copilot";
-#[cfg(all(has_bundled_cli, windows))]
+#[cfg(all(has_bundled_runtime, windows))]
 const RUNTIME_BINARY_NAME: &str = "copilot-runtime.exe";
-#[cfg(all(has_bundled_cli, not(windows)))]
+#[cfg(all(has_bundled_runtime, not(windows)))]
 const RUNTIME_BINARY_NAME: &str = "copilot-runtime";
-#[cfg(has_bundled_cli)]
+#[cfg(has_bundled_runtime)]
 const RUNTIME_NODE_NAME: &str = "runtime.node";
-#[cfg(has_bundled_cli)]
+#[cfg(has_bundled_runtime)]
 const RUNTIME_VERSION_MARKER: &str = ".copilot-runtime-version";
 
 #[cfg(feature = "bundled-cli")]
 static INSTALLED_PATH: OnceLock<Option<PathBuf>> = OnceLock::new();
-#[cfg(feature = "bundled-cli")]
+#[cfg(feature = "bundled-runtime")]
 static INSTALLED_RUNTIME_PATH: OnceLock<Option<PathBuf>> = OnceLock::new();
 
 /// Returns the path to the installed CLI binary, lazily extracting the
@@ -165,11 +166,11 @@ pub(crate) fn install_at(extract_dir: &Path) -> Option<PathBuf> {
 
 /// Returns the path to the bundled runtime wrapper, extracting the wrapper and
 /// adjacent `runtime.node` on first call.
-#[cfg(feature = "bundled-cli")]
+#[cfg(feature = "bundled-runtime")]
 pub(crate) fn runtime_path() -> Option<PathBuf> {
     INSTALLED_RUNTIME_PATH
         .get_or_init(|| {
-            #[cfg(has_bundled_cli)]
+            #[cfg(has_bundled_runtime)]
             {
                 let dir = default_install_dir(CLI_VERSION);
                 match install_runtime(&dir, build_time::RUNTIME_ARCHIVE) {
@@ -189,9 +190,9 @@ pub(crate) fn runtime_path() -> Option<PathBuf> {
 
 /// Installs the bundled runtime wrapper and adjacent `runtime.node` into a
 /// caller-specified directory.
-#[cfg(feature = "bundled-cli")]
+#[cfg(feature = "bundled-runtime")]
 pub(crate) fn install_runtime_at(extract_dir: &Path) -> Option<PathBuf> {
-    #[cfg(has_bundled_cli)]
+    #[cfg(has_bundled_runtime)]
     {
         let install_dir = match runtime_install_dir(extract_dir, CLI_VERSION) {
             Ok(dir) => dir,
@@ -210,14 +211,14 @@ pub(crate) fn install_runtime_at(extract_dir: &Path) -> Option<PathBuf> {
             }
         }
     }
-    #[cfg(not(has_bundled_cli))]
+    #[cfg(not(has_bundled_runtime))]
     {
         let _ = extract_dir;
     }
     None
 }
 
-#[cfg(has_bundled_cli)]
+#[cfg(has_bundled_runtime)]
 fn runtime_install_dir(base_dir: &Path, version: &str) -> Result<PathBuf, EmbeddedCliError> {
     fs::create_dir_all(base_dir)
         .map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::CreateDir, e))?;
@@ -250,7 +251,7 @@ fn runtime_install_dir(base_dir: &Path, version: &str) -> Result<PathBuf, Embedd
     }
 }
 
-#[cfg(has_bundled_cli)]
+#[cfg(has_bundled_runtime)]
 fn default_install_dir(version: &str) -> PathBuf {
     let cache = dirs::cache_dir().unwrap_or_else(std::env::temp_dir);
     let root = cache.join("github-copilot-sdk").join("cli");
@@ -269,19 +270,19 @@ fn default_install_dir(version: &str) -> PathBuf {
 const MAX_PUBLISH_ATTEMPTS: u32 = 3;
 
 // Natural platform shared-library name for the in-process FFI runtime.
-#[cfg(all(has_bundled_cli, feature = "in-process", windows))]
+#[cfg(all(has_bundled_runtime, feature = "in-process", windows))]
 const RUNTIME_LIBRARY_NAME: &str = "copilot_runtime.dll";
-#[cfg(all(has_bundled_cli, feature = "in-process", target_os = "macos"))]
+#[cfg(all(has_bundled_runtime, feature = "in-process", target_os = "macos"))]
 const RUNTIME_LIBRARY_NAME: &str = "libcopilot_runtime.dylib";
 #[cfg(all(
-    has_bundled_cli,
+    has_bundled_runtime,
     feature = "in-process",
     not(windows),
     not(target_os = "macos")
 ))]
 const RUNTIME_LIBRARY_NAME: &str = "libcopilot_runtime.so";
 
-#[cfg(has_bundled_cli)]
+#[cfg(has_bundled_runtime)]
 fn install_runtime(install_dir: &Path, archive: &[u8]) -> Result<PathBuf, EmbeddedCliError> {
     fs::create_dir_all(install_dir)
         .map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::CreateDir, e))?;
@@ -389,7 +390,7 @@ fn install_runtime(install_dir: &Path, archive: &[u8]) -> Result<PathBuf, Embedd
     Ok(install_dir.join(RUNTIME_BINARY_NAME))
 }
 
-#[cfg(all(has_bundled_cli, unix))]
+#[cfg(all(has_bundled_runtime, unix))]
 fn check_runtime_wrapper_execute_access(path: &Path) -> std::io::Result<()> {
     use std::ffi::{CString, c_char, c_int};
     use std::os::unix::ffi::OsStrExt;
@@ -422,7 +423,7 @@ fn check_runtime_wrapper_execute_access(path: &Path) -> std::io::Result<()> {
     }
 }
 
-#[cfg(has_bundled_cli)]
+#[cfg(has_bundled_runtime)]
 fn selected_runtime_asset(path: &Path) -> bool {
     if path == Path::new(CLI_BINARY_NAME) {
         return false;
@@ -439,7 +440,7 @@ fn selected_runtime_asset(path: &Path) -> bool {
     true
 }
 
-#[cfg(has_bundled_cli)]
+#[cfg(has_bundled_runtime)]
 fn runtime_asset_path(path: &Path) -> Result<PathBuf, EmbeddedCliError> {
     let invalid = || {
         EmbeddedCliError::with_message(
@@ -495,7 +496,7 @@ fn runtime_asset_path(path: &Path) -> Result<PathBuf, EmbeddedCliError> {
     Ok(normalized)
 }
 
-#[cfg(has_bundled_cli)]
+#[cfg(has_bundled_runtime)]
 fn check_runtime_asset_parent(
     root: &Path,
     parent: &Path,
@@ -533,13 +534,13 @@ fn check_runtime_asset_parent(
     Ok(())
 }
 
-#[cfg(has_bundled_cli)]
+#[cfg(has_bundled_runtime)]
 struct StagedRuntimeFile {
     temporary: PathBuf,
     target: PathBuf,
 }
 
-#[cfg(has_bundled_cli)]
+#[cfg(has_bundled_runtime)]
 impl Drop for StagedRuntimeFile {
     fn drop(&mut self) {
         if let Err(error) = fs::remove_file(&self.temporary)
@@ -550,7 +551,7 @@ impl Drop for StagedRuntimeFile {
     }
 }
 
-#[cfg(has_bundled_cli)]
+#[cfg(has_bundled_runtime)]
 fn existing_runtime_file(target: &Path, size: u64) -> Result<Option<fs::File>, EmbeddedCliError> {
     let metadata = match fs::symlink_metadata(target) {
         Ok(metadata) if metadata.is_file() => Some(metadata),
@@ -578,7 +579,7 @@ fn existing_runtime_file(target: &Path, size: u64) -> Result<Option<fs::File>, E
     Ok(None)
 }
 
-#[cfg(has_bundled_cli)]
+#[cfg(has_bundled_runtime)]
 fn runtime_entry_matches<R: Read>(
     entry: &mut tar::Entry<'_, R>,
     installed: &mut fs::File,
@@ -609,7 +610,7 @@ fn runtime_entry_matches<R: Read>(
     }
 }
 
-#[cfg(has_bundled_cli)]
+#[cfg(has_bundled_runtime)]
 fn stage_runtime_entry<R: Read>(
     entry: &mut tar::Entry<'_, R>,
     target: &Path,
@@ -627,7 +628,7 @@ fn stage_runtime_entry<R: Read>(
     Ok(staged)
 }
 
-#[cfg(has_bundled_cli)]
+#[cfg(has_bundled_runtime)]
 fn write_runtime_entry<R: Read>(
     entry: &mut tar::Entry<'_, R>,
     file: &mut fs::File,
@@ -826,7 +827,7 @@ fn write_temp_file(dir: &Path, contents: &[u8]) -> Result<PathBuf, EmbeddedCliEr
     Ok(tmp)
 }
 
-#[cfg(any(has_bundled_cli, test))]
+#[cfg(any(has_bundled_runtime, test))]
 fn create_temp_file(dir: &Path) -> Result<(PathBuf, fs::File), EmbeddedCliError> {
     static COUNTER: AtomicU64 = AtomicU64::new(0);
     let nanos = std::time::SystemTime::now()
@@ -852,7 +853,7 @@ fn create_temp_file(dir: &Path) -> Result<(PathBuf, fs::File), EmbeddedCliError>
 /// Rust uses rename on POSIX and MoveFileExW with MOVEFILE_REPLACE_EXISTING on
 /// Windows. Never unlink the destination on failure: readers must retain the
 /// previous complete file if replacement is blocked.
-#[cfg(any(has_bundled_cli, test))]
+#[cfg(any(has_bundled_runtime, test))]
 fn publish(tmp: &Path, final_path: &Path) -> Result<(), EmbeddedCliError> {
     fs::rename(tmp, final_path).map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Publish, e))
 }
@@ -964,7 +965,7 @@ fn extract_cli_binary(archive: &[u8]) -> Result<Vec<u8>, EmbeddedCliError> {
     Err(EmbeddedCliErrorKind::BinaryNotFoundInArchive.into())
 }
 
-#[cfg(all(has_bundled_cli, any(not(windows), test)))]
+#[cfg(any(all(has_bundled_cli, not(windows)), all(has_bundled_runtime, test)))]
 fn extract_binary(archive: &[u8], binary_name: &str) -> Result<Vec<u8>, EmbeddedCliError> {
     let gz = flate2::read::GzDecoder::new(archive);
     let mut tar = tar::Archive::new(gz);
@@ -989,7 +990,7 @@ fn extract_binary(archive: &[u8], binary_name: &str) -> Result<Vec<u8>, Embedded
     Err(EmbeddedCliErrorKind::BinaryNotFoundInArchive.into())
 }
 
-#[cfg(has_bundled_cli)]
+#[cfg(has_bundled_runtime)]
 fn sanitize_version(version: &str) -> String {
     version
         .chars()
@@ -1000,7 +1001,7 @@ fn sanitize_version(version: &str) -> String {
         .collect()
 }
 
-#[cfg(any(has_bundled_cli, test))]
+#[cfg(any(has_bundled_runtime, test))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[allow(dead_code)]
 enum EmbeddedCliErrorKind {
@@ -1017,7 +1018,7 @@ enum EmbeddedCliErrorKind {
     Blocked,
 }
 
-#[cfg(any(has_bundled_cli, test))]
+#[cfg(any(has_bundled_runtime, test))]
 impl std::fmt::Display for EmbeddedCliErrorKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -1041,13 +1042,13 @@ impl std::fmt::Display for EmbeddedCliErrorKind {
     }
 }
 
-#[cfg(any(has_bundled_cli, test))]
+#[cfg(any(has_bundled_runtime, test))]
 #[allow(dead_code)]
 struct EmbeddedCliError {
     repr: crate::errors::Repr<EmbeddedCliErrorKind>,
 }
 
-#[cfg(any(has_bundled_cli, test))]
+#[cfg(any(has_bundled_runtime, test))]
 #[allow(dead_code)]
 impl EmbeddedCliError {
     fn new<E>(kind: EmbeddedCliErrorKind, error: E) -> Self
@@ -1083,7 +1084,7 @@ impl EmbeddedCliError {
     }
 }
 
-#[cfg(any(has_bundled_cli, test))]
+#[cfg(any(has_bundled_runtime, test))]
 impl From<EmbeddedCliErrorKind> for EmbeddedCliError {
     fn from(kind: EmbeddedCliErrorKind) -> Self {
         Self {
@@ -1092,7 +1093,7 @@ impl From<EmbeddedCliErrorKind> for EmbeddedCliError {
     }
 }
 
-#[cfg(any(has_bundled_cli, test))]
+#[cfg(any(has_bundled_runtime, test))]
 impl std::fmt::Display for EmbeddedCliError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match &self.repr {
@@ -1105,14 +1106,14 @@ impl std::fmt::Display for EmbeddedCliError {
     }
 }
 
-#[cfg(any(has_bundled_cli, test))]
+#[cfg(any(has_bundled_runtime, test))]
 impl std::fmt::Debug for EmbeddedCliError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "EmbeddedCliError({self})")
     }
 }
 
-#[cfg(any(has_bundled_cli, test))]
+#[cfg(any(has_bundled_runtime, test))]
 impl std::error::Error for EmbeddedCliError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match &self.repr {
@@ -1126,7 +1127,7 @@ impl std::error::Error for EmbeddedCliError {
 mod tests {
     use super::*;
 
-    #[cfg(all(has_bundled_cli, feature = "in-process"))]
+    #[cfg(has_bundled_runtime)]
     #[test]
     fn embedded_runtime_archive_contains_runtime_assets_and_excludes_cli() {
         let gz = flate2::read::GzDecoder::new(build_time::RUNTIME_ARCHIVE);
@@ -1145,7 +1146,10 @@ mod tests {
             .collect();
         names.sort();
 
+        #[cfg(feature = "in-process")]
         assert!(names.contains(&RUNTIME_LIBRARY_NAME.to_string()));
+        #[cfg(not(feature = "in-process"))]
+        assert!(!names.iter().any(|name| name.contains("copilot_runtime")));
         assert!(names.contains(&RUNTIME_BINARY_NAME.to_string()));
         assert!(names.contains(&RUNTIME_NODE_NAME.to_string()));
         assert!(names.iter().any(|name| name.starts_with("ripgrep/")));
@@ -1317,7 +1321,7 @@ mod tests {
         }
     }
 
-    #[cfg(has_bundled_cli)]
+    #[cfg(has_bundled_runtime)]
     #[test]
     fn runtime_install_replaces_stale_pair() {
         let dir = tempfile::tempdir().expect("tempdir");
@@ -1338,7 +1342,7 @@ mod tests {
         );
     }
 
-    #[cfg(has_bundled_cli)]
+    #[cfg(has_bundled_runtime)]
     #[test]
     fn custom_runtime_install_dir_isolated_by_version() {
         let dir = tempfile::tempdir().expect("tempdir");
@@ -1357,7 +1361,7 @@ mod tests {
         );
     }
 
-    #[cfg(has_bundled_cli)]
+    #[cfg(has_bundled_runtime)]
     fn runtime_fixture(extra: &[(&str, &[u8], u32)]) -> Vec<u8> {
         let encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast());
         let mut archive = tar::Builder::new(encoder);
@@ -1381,7 +1385,7 @@ mod tests {
         archive.into_inner().unwrap().finish().unwrap()
     }
 
-    #[cfg(has_bundled_cli)]
+    #[cfg(has_bundled_runtime)]
     #[test]
     fn warm_runtime_rejects_same_size_corruption_despite_unchanged_metadata() {
         let dir = tempfile::tempdir().unwrap();
@@ -1402,7 +1406,7 @@ mod tests {
         assert_eq!(fs::read(&runtime).unwrap(), b"runtime");
     }
 
-    #[cfg(has_bundled_cli)]
+    #[cfg(has_bundled_runtime)]
     fn assert_no_runtime_temps(dir: &Path) {
         for entry in fs::read_dir(dir).unwrap() {
             let entry = entry.unwrap();
@@ -1418,7 +1422,7 @@ mod tests {
         }
     }
 
-    #[cfg(has_bundled_cli)]
+    #[cfg(has_bundled_runtime)]
     #[test]
     fn runtime_cold_install_and_warm_reuse_preserve_bytes_and_modes() {
         let dir = tempfile::tempdir().unwrap();
@@ -1455,7 +1459,7 @@ mod tests {
         assert_no_runtime_temps(dir.path());
     }
 
-    #[cfg(has_bundled_cli)]
+    #[cfg(has_bundled_runtime)]
     #[test]
     fn runtime_repairs_same_size_corruption_truncation_and_extra_bytes() {
         let dir = tempfile::tempdir().unwrap();
@@ -1471,7 +1475,7 @@ mod tests {
         }
     }
 
-    #[cfg(has_bundled_cli)]
+    #[cfg(has_bundled_runtime)]
     #[test]
     fn runtime_repairs_corruption_across_comparison_chunks() {
         let dir = tempfile::tempdir().unwrap();
@@ -1488,7 +1492,7 @@ mod tests {
         }
     }
 
-    #[cfg(all(has_bundled_cli, unix))]
+    #[cfg(all(has_bundled_runtime, unix))]
     #[test]
     fn runtime_reuse_preserves_executable_caller_selected_permissions() {
         use std::os::unix::fs::PermissionsExt;
@@ -1507,7 +1511,7 @@ mod tests {
         assert_no_runtime_temps(dir.path());
     }
 
-    #[cfg(all(has_bundled_cli, unix))]
+    #[cfg(all(has_bundled_runtime, unix))]
     #[test]
     fn runtime_repairs_nonexecutable_wrapper() {
         use std::os::unix::fs::PermissionsExt;
@@ -1527,7 +1531,7 @@ mod tests {
         }
     }
 
-    #[cfg(all(has_bundled_cli, unix))]
+    #[cfg(all(has_bundled_runtime, unix))]
     #[test]
     fn runtime_rejects_nonexecutable_wrapper_in_readonly_cache() {
         use std::os::unix::fs::PermissionsExt;
@@ -1561,7 +1565,7 @@ mod tests {
         assert_no_runtime_temps(dir.path());
     }
 
-    #[cfg(has_bundled_cli)]
+    #[cfg(has_bundled_runtime)]
     #[test]
     fn runtime_archive_errors_do_not_publish_and_clean_up_staging() {
         let dir = tempfile::tempdir().unwrap();
@@ -1592,7 +1596,7 @@ mod tests {
         }
     }
 
-    #[cfg(has_bundled_cli)]
+    #[cfg(has_bundled_runtime)]
     #[test]
     fn runtime_short_entry_is_rejected_without_publishing() {
         let dir = tempfile::tempdir().unwrap();
@@ -1611,7 +1615,7 @@ mod tests {
         assert_no_runtime_temps(dir.path());
     }
 
-    #[cfg(has_bundled_cli)]
+    #[cfg(has_bundled_runtime)]
     #[test]
     fn runtime_missing_required_entry_is_rejected_before_publish() {
         let dir = tempfile::tempdir().unwrap();
@@ -1631,7 +1635,7 @@ mod tests {
         assert_no_runtime_temps(dir.path());
     }
 
-    #[cfg(has_bundled_cli)]
+    #[cfg(has_bundled_runtime)]
     #[test]
     fn runtime_rejects_traversal_and_cleans_preceding_entries() {
         let dir = tempfile::tempdir().unwrap();
@@ -1643,7 +1647,7 @@ mod tests {
         assert_no_runtime_temps(&install_dir);
     }
 
-    #[cfg(all(has_bundled_cli, unix))]
+    #[cfg(all(has_bundled_runtime, unix))]
     #[test]
     fn runtime_rejects_symlink_parents_and_targets() {
         use std::os::unix::fs::symlink;
@@ -1668,7 +1672,7 @@ mod tests {
         assert_no_runtime_temps(dir.path());
     }
 
-    #[cfg(has_bundled_cli)]
+    #[cfg(has_bundled_runtime)]
     #[test]
     fn concurrent_runtime_installers_publish_complete_files() {
         let dir = tempfile::tempdir().unwrap();
@@ -1691,7 +1695,7 @@ mod tests {
         assert_no_runtime_temps(dir.path());
     }
 
-    #[cfg(has_bundled_cli)]
+    #[cfg(has_bundled_runtime)]
     #[test]
     fn runtime_duplicate_destinations_fail_on_cold_and_warm_installs() {
         for name in ["asset", "./asset"] {
@@ -1720,7 +1724,7 @@ mod tests {
         assert_no_runtime_temps(dir.path());
     }
 
-    #[cfg(has_bundled_cli)]
+    #[cfg(has_bundled_runtime)]
     #[test]
     fn runtime_case_aliases_cannot_overwrite_required_artifacts() {
         let names = [
@@ -1749,7 +1753,7 @@ mod tests {
         }
     }
 
-    #[cfg(has_bundled_cli)]
+    #[cfg(has_bundled_runtime)]
     #[test]
     fn runtime_mixed_separator_and_case_aliases_are_rejected() {
         let dir = tempfile::tempdir().unwrap();
@@ -1771,7 +1775,7 @@ mod tests {
         assert_no_runtime_temps(dir.path());
     }
 
-    #[cfg(has_bundled_cli)]
+    #[cfg(has_bundled_runtime)]
     #[test]
     fn runtime_nonportable_alias_paths_are_rejected_before_publish() {
         for name in [
@@ -1800,7 +1804,7 @@ mod tests {
         }
     }
 
-    #[cfg(all(has_bundled_cli, feature = "in-process"))]
+    #[cfg(all(has_bundled_runtime, feature = "in-process"))]
     #[test]
     fn runtime_library_aliases_are_rejected_before_repair() {
         let alias = format!("./{RUNTIME_LIBRARY_NAME}");
@@ -1822,26 +1826,26 @@ mod tests {
         }
     }
 
-    #[cfg(all(has_bundled_cli, unix))]
+    #[cfg(all(has_bundled_runtime, unix))]
     #[test]
     fn warm_runtime_install_needs_no_writable_cache() {
         assert_read_only_runtime_cache(0o555, false);
     }
 
-    #[cfg(all(has_bundled_cli, unix))]
+    #[cfg(all(has_bundled_runtime, unix))]
     #[test]
     fn warm_runtime_reuses_owner_only_immutable_cache() {
         assert_read_only_runtime_cache(0o500, false);
     }
 
-    #[cfg(all(has_bundled_cli, unix))]
+    #[cfg(all(has_bundled_runtime, unix))]
     #[test]
     fn warm_runtime_reuses_nonexecutable_native_library() {
         assert_read_only_runtime_cache(0o555, true);
         assert_read_only_runtime_cache(0o500, true);
     }
 
-    #[cfg(all(has_bundled_cli, unix))]
+    #[cfg(all(has_bundled_runtime, unix))]
     fn assert_read_only_runtime_cache(permission_mask: u32, readonly_native_library: bool) {
         use std::os::unix::fs::PermissionsExt;
 
@@ -1890,7 +1894,7 @@ mod tests {
         assert_no_runtime_temps(dir.path());
     }
 
-    #[cfg(all(has_bundled_cli, unix))]
+    #[cfg(all(has_bundled_runtime, unix))]
     #[test]
     fn runtime_repairs_unreadable_but_replaceable_file() {
         use std::os::unix::fs::PermissionsExt;
@@ -1912,7 +1916,7 @@ mod tests {
         assert_no_runtime_temps(dir.path());
     }
 
-    #[cfg(has_bundled_cli)]
+    #[cfg(has_bundled_runtime)]
     #[test]
     fn runtime_replacement_preserves_open_reader_contents() {
         let dir = tempfile::tempdir().unwrap();

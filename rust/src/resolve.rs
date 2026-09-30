@@ -6,9 +6,9 @@
 //!    [`CliProgram::Path`](crate::CliProgram::Path).
 //! 2. The `COPILOT_CLI_PATH` environment variable.
 //! 3. The bundled program embedded in this crate at build time (when the
-//!    `bundled-cli` cargo feature is on, the default).
+//!    `bundled-runtime` cargo feature is on, including the default `bundled-cli`).
 //! 4. The build-time-extracted program in the per-user cache (when
-//!    `bundled-cli` is off).
+//!    `bundled-runtime` is off).
 //!
 //! There is no PATH scanning and no walking of standard install locations.
 //! If none of the above resolves to a real file,
@@ -26,7 +26,7 @@ use crate::{Error, ErrorKind};
 /// CLI is extracted to. Called by `Client::start` to thread
 /// `ClientOptions::bundled_cli_extract_dir` through to
 /// `embeddedcli::install_at`. `extract_dir` only applies when the
-/// `bundled-cli` feature is on — with it off the binary lives at a
+/// `bundled-runtime` feature is on — with it off the binary lives at a
 /// build-time-known conventional location and `extract_dir` is ignored
 /// (there's no archive to re-extract; pointing the lookup elsewhere
 /// would be exactly equivalent to setting `CliProgram::Path`). Set
@@ -48,7 +48,7 @@ pub(crate) fn copilot_binary_with_extract_dir(
         );
     }
 
-    #[cfg(feature = "bundled-cli")]
+    #[cfg(feature = "bundled-runtime")]
     {
         let bundled = if use_runtime_wrapper {
             match extract_dir {
@@ -56,9 +56,16 @@ pub(crate) fn copilot_binary_with_extract_dir(
                 None => crate::embeddedcli::runtime_path(),
             }
         } else {
-            match extract_dir {
-                Some(dir) => crate::embeddedcli::install_at(dir),
-                None => crate::embeddedcli::path(),
+            #[cfg(feature = "bundled-cli")]
+            {
+                match extract_dir {
+                    Some(dir) => crate::embeddedcli::install_at(dir),
+                    None => crate::embeddedcli::path(),
+                }
+            }
+            #[cfg(not(feature = "bundled-cli"))]
+            {
+                None
             }
         };
         if let Some(path) = bundled {
@@ -69,7 +76,7 @@ pub(crate) fn copilot_binary_with_extract_dir(
         }
     }
 
-    #[cfg(not(feature = "bundled-cli"))]
+    #[cfg(not(feature = "bundled-runtime"))]
     {
         let _ = extract_dir;
         if let Some(program) = extracted_program(use_runtime_wrapper) {
@@ -96,7 +103,7 @@ pub(crate) fn copilot_binary_with_extract_dir(
 }
 
 /// Path to the program extracted into the per-user cache by `build.rs` when
-/// `bundled-cli` is disabled. Returns `None` if the cached file is missing
+/// `bundled-runtime` is disabled. Returns `None` if the cached file is missing
 /// (e.g. the user deleted the cache after building, or built with
 /// `COPILOT_SKIP_CLI_DOWNLOAD`).
 ///
@@ -108,7 +115,7 @@ pub(crate) fn copilot_binary_with_extract_dir(
 /// crate at build time: an absolute path leaks the build machine's `$HOME`
 /// / `$LOCALAPPDATA` into the artifact, breaks sccache across machines,
 /// and prevents copying `target/` between hosts.
-#[cfg(all(not(feature = "bundled-cli"), has_extracted_cli))]
+#[cfg(all(not(feature = "bundled-runtime"), has_extracted_cli))]
 fn extracted_program(use_runtime_wrapper: bool) -> Option<PathBuf> {
     let version = env!("COPILOT_SDK_CLI_VERSION");
     let dir = crate::cache_paths::extracted_runtime_install_dir(version);
@@ -135,12 +142,12 @@ fn extracted_program(use_runtime_wrapper: bool) -> Option<PathBuf> {
 /// `has_extracted_cli` is absent when the target is unsupported or the
 /// build opted out via `COPILOT_SKIP_CLI_DOWNLOAD`. In both cases there's
 /// no binary to look up, so the resolver returns `None` immediately.
-#[cfg(all(not(feature = "bundled-cli"), not(has_extracted_cli)))]
+#[cfg(all(not(feature = "bundled-runtime"), not(has_extracted_cli)))]
 fn extracted_program(_use_runtime_wrapper: bool) -> Option<PathBuf> {
     None
 }
 
-#[cfg(any(feature = "bundled-cli", has_extracted_cli, test))]
+#[cfg(any(feature = "bundled-runtime", has_extracted_cli, test))]
 fn validate_runtime_pair(wrapper: &Path) -> Result<(), Error> {
     let wrapper_valid = wrapper
         .metadata()

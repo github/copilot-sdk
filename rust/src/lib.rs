@@ -13,15 +13,15 @@ pub use ahp_host::{
 
 #[cfg(all(
     feature = "runtime",
-    not(feature = "bundled-cli"),
+    not(feature = "bundled-runtime"),
     not(feature = "local-runtime")
 ))]
 mod cache_paths;
 /// Canvas declarations, provider callbacks, and host-side canvas RPC types.
 pub mod canvas;
 mod canvas_dispatch;
-/// Bundled CLI binary extraction and caching.
-#[cfg(feature = "bundled-cli")]
+/// Bundled runtime and CLI extraction and caching.
+#[cfg(feature = "bundled-runtime")]
 pub(crate) mod embeddedcli;
 mod errors;
 /// Connection-level extension launch profile provider.
@@ -243,6 +243,13 @@ impl From<PathBuf> for CliProgram {
 /// extraction triggered by [`install_bundled_cli`].
 pub const HAS_BUNDLED_CLI: bool = cfg!(has_bundled_cli);
 
+/// `true` when this build embeds the native runtime wrapper and its assets.
+///
+/// Enabled by `bundled-runtime` (also implied by the default `bundled-cli`)
+/// on supported targets unless build-time acquisition was disabled. This does
+/// not trigger the lazy extraction performed by [`install_bundled_runtime`].
+pub const HAS_BUNDLED_RUNTIME: bool = cfg!(has_bundled_runtime);
+
 /// Returns the path to the bundled Copilot CLI, extracting it from the
 /// embedded archive on first call.
 ///
@@ -281,15 +288,15 @@ pub fn install_bundled_cli() -> Option<PathBuf> {
 /// concrete managed runtime path before [`Client::start`]. Subsequent calls
 /// return the cached result.
 ///
-/// Returns `None` when the `bundled-cli` feature is off, the target platform
+/// Returns `None` when the `bundled-runtime` feature is off, the target platform
 /// isn't supported, or extraction failed. It does not fall back to the
 /// build-time extraction cache.
 pub fn install_bundled_runtime() -> Option<PathBuf> {
-    #[cfg(feature = "bundled-cli")]
+    #[cfg(feature = "bundled-runtime")]
     {
         embeddedcli::runtime_path()
     }
-    #[cfg(not(feature = "bundled-cli"))]
+    #[cfg(not(feature = "bundled-runtime"))]
     {
         None
     }
@@ -300,7 +307,7 @@ pub fn install_bundled_runtime() -> Option<PathBuf> {
 /// When `program` is [`CliProgram::Resolve`] (the default), [`Client::start`]
 /// uses `COPILOT_CLI_PATH` when set to a real file. Managed child-process
 /// transports next use the bundled `copilot-runtime` wrapper. In-process
-/// transport loads the wrapper's adjacent runtime library. With `bundled-cli`
+/// transport loads the wrapper's adjacent runtime library. With `bundled-runtime`
 /// disabled, the corresponding artifact is resolved from the build-time
 /// extraction cache.
 ///
@@ -432,8 +439,8 @@ pub struct ClientOptions {
     /// redirect the extraction (e.g. to a session-scoped temp directory in
     /// CI runners) without changing the global cache layout.
     ///
-    /// Only applies when the `bundled-cli` cargo feature is on (the
-    /// default). With `bundled-cli` disabled (`default-features = false`)
+    /// Only applies when the `bundled-runtime` cargo feature is on (the
+    /// default via `bundled-cli`). With bundling disabled
     /// there is no archive to re-extract at runtime — the binary lives
     /// at a build-time-known conventional path. To relocate that
     /// extraction, set `COPILOT_CLI_EXTRACT_DIR` (honored symmetrically
@@ -1070,8 +1077,8 @@ impl ClientOptions {
     /// Override the directory where bundled CLI and runtime artifacts are
     /// extracted on first use. See [`Self::bundled_cli_extract_dir`].
     ///
-    /// Only applies when the `bundled-cli` cargo feature is on. With
-    /// `bundled-cli` disabled (`default-features = false`), set
+    /// Only applies when the `bundled-runtime` cargo feature is on. With
+    /// bundling disabled, set
     /// `COPILOT_CLI_EXTRACT_DIR` to relocate the build-time extraction
     /// (honored symmetrically at build and runtime), or use
     /// [`CliProgram::Path`] / `COPILOT_CLI_PATH` to point at a different

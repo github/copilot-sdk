@@ -16,6 +16,7 @@ pub(crate) fn main() {
     println!("cargo:rerun-if-env-changed=COPILOT_CLI_EXTRACT_DIR");
     println!("cargo:rerun-if-env-changed=BUNDLED_CLI_CACHE_DIR");
     println!("cargo::rustc-check-cfg=cfg(has_bundled_cli)");
+    println!("cargo::rustc-check-cfg=cfg(has_bundled_runtime)");
     println!("cargo::rustc-check-cfg=cfg(has_extracted_cli)");
 
     // Declare only the version sources that exist. Cargo treats a missing
@@ -36,7 +37,7 @@ pub(crate) fn main() {
     }
 
     if std::env::var_os("CARGO_FEATURE_LOCAL_RUNTIME").is_some()
-        && std::env::var_os("CARGO_FEATURE_BUNDLED_CLI").is_none()
+        && std::env::var_os("CARGO_FEATURE_BUNDLED_RUNTIME").is_none()
     {
         println!(
             "cargo:warning=local-runtime is enabled — using the runtime supplied by the application"
@@ -55,8 +56,8 @@ pub(crate) fn main() {
     // in one step. For consumers who always supply the CLI via
     // `CliProgram::Path` or `COPILOT_CLI_PATH` and don't want build.rs to
     // touch the network (offline builds, locked-down CI, etc.). Works
-    // regardless of the `bundled-cli` cargo feature state — with neither
-    // `has_bundled_cli` nor `has_extracted_cli` emitted, runtime resolution
+    // regardless of bundling features — without `has_bundled_cli`,
+    // `has_bundled_runtime`, or `has_extracted_cli`, runtime resolution
     // falls straight through to `Error::BinaryNotFound` unless an explicit
     // path source resolves first.
     if std::env::var_os("COPILOT_SKIP_CLI_DOWNLOAD").is_some() {
@@ -92,7 +93,7 @@ pub(crate) fn main() {
     // Bake the version into the crate regardless of mode. This is the
     // single source of truth for "what CLI version did build.rs target",
     // consumed by both the embed-mode path computation in embeddedcli.rs
-    // and the runtime path computation in resolve.rs (when `bundled-cli`
+    // and the runtime path computation in resolve.rs (when `bundled-runtime`
     // is off). It's a small, machine-independent datum: no absolute
     // paths, no username/home leakage, so sccache / cross-machine
     // `target/` reuse stays cache-coherent.
@@ -113,7 +114,7 @@ pub(crate) fn main() {
     let cache_key = format!("v{version}-{archive_name}");
     let include_runtime = std::env::var_os("CARGO_FEATURE_IN_PROCESS").is_some();
 
-    if std::env::var_os("CARGO_FEATURE_BUNDLED_CLI").is_some() {
+    if std::env::var_os("CARGO_FEATURE_BUNDLED_RUNTIME").is_some() {
         let runtime_expected_hash = local_expected_hash
             .clone()
             .unwrap_or_else(|| fetch_in_process_release_hash(&version, platform.package_name));
@@ -125,29 +126,26 @@ pub(crate) fn main() {
         );
         verify_runtime_package(&runtime_package, platform, &archive_name);
 
-        let cli_asset_name = platform.cli_asset_name();
-        let cli_expected_hash = resolve_cli_hash(&version, &cli_asset_name);
-        let cli_archive = cached_download(
-            &format!(
-                "https://github.com/github/copilot-cli/releases/download/v{version}/{cli_asset_name}"
-            ),
-            &format!("v{version}-{cli_asset_name}"),
-            &cli_expected_hash,
-            &cache_dir,
-        );
-        let cli_binary_size = verify_cli_archive(&cli_archive, platform, &cli_asset_name);
+        emit_embedded_runtime(out, &runtime_package, platform, include_runtime);
+        println!("cargo:rustc-cfg=has_bundled_runtime");
 
-        emit_embedded(
-            out,
-            &cli_archive,
-            cli_binary_size,
-            &runtime_package,
-            platform,
-            include_runtime,
-        );
-        println!("cargo:rustc-cfg=has_bundled_cli");
+        if std::env::var_os("CARGO_FEATURE_BUNDLED_CLI").is_some() {
+            let cli_asset_name = platform.cli_asset_name();
+            let cli_expected_hash = resolve_cli_hash(&version, &cli_asset_name);
+            let cli_archive = cached_download(
+                &format!(
+                    "https://github.com/github/copilot-cli/releases/download/v{version}/{cli_asset_name}"
+                ),
+                &format!("v{version}-{cli_asset_name}"),
+                &cli_expected_hash,
+                &cache_dir,
+            );
+            let cli_binary_size = verify_cli_archive(&cli_archive, platform, &cli_asset_name);
+            emit_embedded_cli(out, &cli_archive, cli_binary_size);
+            println!("cargo:rustc-cfg=has_bundled_cli");
+        }
     } else {
-        // With `bundled-cli` off the extracted runtime pair *is* the cache.
+        // Without bundling the extracted runtime pair *is* the cache.
         // Skip the upstream download entirely when both files already exist.
         //
         // Runtime resolution (see `src/resolve.rs::extracted_program`)
@@ -210,31 +208,34 @@ pub(crate) fn main() {
     }
 }
 
-/// Emit separate full-CLI and runtime payloads into `OUT_DIR` for embed mode.
-fn emit_embedded(
+fn emit_embedded_cli(out: &Path, archive: &[u8], binary_size: u64) {
+    std::fs::write(out.join("copilot_cli.archive"), archive)
+        .expect("failed to write copilot_cli.archive");
+    let generated = format!(
+        r#"// Auto-generated by github-copilot-sdk build.rs. Do not edit.
+pub(super) static CLI_ARCHIVE: &[u8] = include_bytes!("copilot_cli.archive");
+pub(super) const CLI_BINARY_SIZE: u64 = {binary_size};
+"#
+    );
+    std::fs::write(out.join("bundled_cli.rs"), generated).expect("failed to write bundled_cli.rs");
+}
+
+fn emit_embedded_runtime(
     out: &Path,
-    cli_archive: &[u8],
-    cli_binary_size: u64,
     runtime_package: &[u8],
     platform: Platform,
     include_runtime: bool,
 ) {
-    let runtime_archive =
-        build_embedded_runtime_archive(runtime_package, platform, include_runtime);
-    std::fs::write(out.join("copilot_cli.archive"), cli_archive)
-        .expect("failed to write copilot_cli.archive");
-    std::fs::write(out.join("copilot_runtime.archive"), runtime_archive)
+    let archive = build_embedded_runtime_archive(runtime_package, platform, include_runtime);
+    std::fs::write(out.join("copilot_runtime.archive"), archive)
         .expect("failed to write copilot_runtime.archive");
-
-    let generated = format!(
+    std::fs::write(
+        out.join("bundled_runtime.rs"),
         r#"// Auto-generated by github-copilot-sdk build.rs. Do not edit.
-pub(super) static CLI_ARCHIVE: &[u8] = include_bytes!("copilot_cli.archive");
 pub(super) static RUNTIME_ARCHIVE: &[u8] = include_bytes!("copilot_runtime.archive");
-pub(super) const CLI_BINARY_SIZE: u64 = {cli_binary_size};
-"#
-    );
-
-    std::fs::write(out.join("bundled_cli.rs"), generated).expect("failed to write bundled_cli.rs");
+"#,
+    )
+    .expect("failed to write bundled_runtime.rs");
 }
 
 fn build_embedded_runtime_archive(
