@@ -92,9 +92,10 @@ pub(crate) fn copilot_binary_with_extract_dir(
     Err(ErrorKind::BinaryNotFound {
         name: binary_name.into(),
         hint: Some(
-            "the Copilot CLI is not bundled in this build of github-copilot-sdk and \
-             no applicable path override is set. Either keep the default `bundled-cli` cargo \
-             feature enabled, set COPILOT_CLI_PATH, or supply an explicit path via \
+            "no usable Copilot program could be resolved. Enable the `bundled-runtime` cargo \
+             feature for the native runtime, or keep the default `bundled-cli` feature for \
+             both the native runtime and Node CLI. If bundling is enabled, check the \
+             extraction warnings. Alternatively, set COPILOT_CLI_PATH or supply an explicit path via \
              `CliProgram::Path(...)` on `ClientOptions::program`."
                 .into(),
         ),

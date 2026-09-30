@@ -80,6 +80,11 @@ jobs:
         run: cargo doc --no-deps --no-default-features --features local-runtime,derive
       - name: External-stream-only SDK
         run: cargo test --no-default-features --features test-support --test protocol_version_test
+      # Nested checkouts use unreleased artifacts; only standalone pins can
+      # exercise build.rs downloads from published releases.
+      - name: Native-only bundled runtime
+        if: inputs.sdk-home == '.'
+        run: bash scripts/check-bundled-runtime.sh default
       - run: npm ci --ignore-scripts
         working-directory: ${{ inputs.sdk-home }}/test/harness
       - if: runner.os == 'Windows'
@@ -126,6 +131,9 @@ jobs:
           cache-bin: false
       - run: npm ci --ignore-scripts
         working-directory: ${{ inputs.sdk-home }}/test/harness
+      - name: Native-only bundled in-process runtime
+        if: inputs.sdk-home == '.'
+        run: bash scripts/check-bundled-runtime.sh inprocess
       - env:
           COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
         run: >-
@@ -195,6 +203,10 @@ jobs:
             export CARGO_INCREMENTAL=0
             export CARGO_PROFILE_TEST_DEBUG=0
             cd "$COPILOT_SDK_ROOT/rust"
+            # Nested checkouts have development pins, not published releases.
+            if [ "${{ inputs.sdk-home }}" = "." ]; then
+              bash scripts/check-bundled-runtime.sh "$COPILOT_SDK_TEST_TRANSPORT"
+            fi
             if [ "$COPILOT_SDK_TEST_TRANSPORT" = "inprocess" ]; then
               unset RUST_E2E_CONCURRENCY
               cargo test --no-default-features --features test-support,local-runtime,derive \
