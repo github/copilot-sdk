@@ -325,6 +325,61 @@ impl<'a> ClientRpcAccount<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
+    /// Gets enterprise managed settings for the authenticated user or supplied GitHub token, resolved without an active session.
+    ///
+    /// Wire method: `account.getManagedSettings`.
+    ///
+    /// # Returns
+    ///
+    /// Enterprise managed-settings snapshot resolved for the authenticated user or supplied GitHub token, without an active session.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn get_managed_settings(&self) -> Result<AccountGetManagedSettingsResult, Error> {
+        let wire_params = serde_json::json!({});
+        let _value = self
+            .client
+            .call(rpc_methods::ACCOUNT_GETMANAGEDSETTINGS, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Gets enterprise managed settings for the authenticated user or supplied GitHub token, resolved without an active session.
+    ///
+    /// Wire method: `account.getManagedSettings`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Optional GitHub token used to resolve managed settings for a specific user instead of the global auth context.
+    ///
+    /// # Returns
+    ///
+    /// Enterprise managed-settings snapshot resolved for the authenticated user or supplied GitHub token, without an active session.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn get_managed_settings_with_params(
+        &self,
+        params: AccountGetManagedSettingsRequest,
+    ) -> Result<AccountGetManagedSettingsResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::ACCOUNT_GETMANAGEDSETTINGS, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
     /// Gets the currently active authentication credentials from the global auth manager.
     ///
     /// Wire method: `account.getCurrentAuth`.

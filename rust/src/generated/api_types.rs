@@ -52,6 +52,8 @@ pub mod rpc_methods {
     pub const TOOLS_LIST: &str = "tools.list";
     /// `account.getQuota`
     pub const ACCOUNT_GETQUOTA: &str = "account.getQuota";
+    /// `account.getManagedSettings`
+    pub const ACCOUNT_GETMANAGEDSETTINGS: &str = "account.getManagedSettings";
     /// `account.getCurrentAuth`
     pub const ACCOUNT_GETCURRENTAUTH: &str = "account.getCurrentAuth";
     /// `account.getAllUsers`
@@ -27244,6 +27246,40 @@ pub struct WorkspacesWriteAutopilotObjectiveRequest {
 pub struct WorkspacesWriteAutopilotObjectiveResult {
     /// Filesystem operation performed.
     pub operation: String,
+}
+
+/// Optional GitHub token used to resolve managed settings for a specific user instead of the global auth context.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountGetManagedSettingsRequest {
+    /// GitHub token for per-user managed-settings lookup. When provided, resolves this token to determine the account whose enterprise-managed policy is fetched instead of using the global auth.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub git_hub_token: Option<String>,
+}
+
+/// Enterprise managed-settings snapshot resolved for the authenticated user or supplied GitHub token, without an active session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountGetManagedSettingsResult {
+    /// The account identity (host + login) this snapshot was resolved for, or absent when unauthenticated (device-MDM-only resolution).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub account: Option<String>,
+    /// The resolved managed settings and their source/precedence — the identical payload carried by the `session.managed_settings_resolved` event.
+    pub resolved: ManagedSettingsResolvedData,
 }
 
 /// The resident session the application has materialized on its own connection.
