@@ -37,6 +37,25 @@ tool name is `<server-key>-<tool-name>`. For `available_tools` and
 or the raw `mcp:<server-key>-<tool-name>` form. For `custom_agents[].tools`
 and `default_agent.excluded_tools`, use `<server-key>-<tool-name>` directly.
 
+## Canvas icons
+
+Canvas authoring is experimental. Set the optional PNG path with
+`CanvasDeclaration::with_icon` or the `icon: Option<String>` field:
+
+```rust
+use github_copilot_sdk::canvas::CanvasDeclaration;
+
+let canvas = CanvasDeclaration::new("counter", "Counter", "Count things")
+    .with_icon("icons/counter.png");
+```
+
+Supply the declaration through `SessionConfig::with_canvases` or
+`ResumeSessionConfig::with_canvases`, alongside your canvas handler. For
+extensions, the runtime resolves relative icon paths relative to
+`extension.mjs`, not the current working directory. Include the PNG with your
+extension; the SDK forwards the path unchanged. Omit the icon (the default is
+`None`) to declare a canvas without a custom icon.
+
 ## Architecture
 
 ```text

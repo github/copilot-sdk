@@ -67,6 +67,64 @@ func TestCanvasDeclaration_OmitsEmptyActions(t *testing.T) {
 	}
 }
 
+func TestCanvasDeclaration_RoundtripsIcon(t *testing.T) {
+	data := []byte(`{"id":"counter","displayName":"Counter","description":"Count things","icon":"icons/counter.png"}`)
+	var decl CanvasDeclaration
+	if err := json.Unmarshal(data, &decl); err != nil {
+		t.Fatalf("unmarshal declaration failed: %v", err)
+	}
+	if decl.Icon == nil || *decl.Icon != "icons/counter.png" {
+		t.Fatalf("expected icon path on declaration, got %v", decl.Icon)
+	}
+	encoded, err := json.Marshal(decl)
+	if err != nil {
+		t.Fatalf("marshal declaration failed: %v", err)
+	}
+	var decoded map[string]any
+	if err := json.Unmarshal(encoded, &decoded); err != nil {
+		t.Fatalf("unmarshal payload failed: %v", err)
+	}
+	if decoded["icon"] != "icons/counter.png" {
+		t.Fatalf("expected icon path to be preserved, got %v", decoded["icon"])
+	}
+}
+
+func TestCanvasDeclaration_SerializesIcon(t *testing.T) {
+	icon := "icons/counter.png"
+	decl := CanvasDeclaration{
+		ID:          "counter",
+		DisplayName: "Counter",
+		Description: "Count things",
+		Icon:        &icon,
+	}
+	data, err := json.Marshal(decl)
+	if err != nil {
+		t.Fatalf("marshal failed: %v", err)
+	}
+	var decoded map[string]any
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("unmarshal failed: %v", err)
+	}
+	if decoded["icon"] != icon {
+		t.Fatalf("expected icon path to be preserved, got %v", decoded["icon"])
+	}
+}
+
+func TestCanvasDeclaration_OmitsUnspecifiedIcon(t *testing.T) {
+	decl := CanvasDeclaration{ID: "counter", DisplayName: "Counter", Description: "Count things"}
+	data, err := json.Marshal(decl)
+	if err != nil {
+		t.Fatalf("marshal failed: %v", err)
+	}
+	var decoded map[string]any
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("unmarshal failed: %v", err)
+	}
+	if _, present := decoded["icon"]; present {
+		t.Fatalf("icon should be omitted when nil, got %v", decoded["icon"])
+	}
+}
+
 func TestCanvasHandlerDefaults_OnAction_ReturnsNoHandler(t *testing.T) {
 	d := CanvasHandlerDefaults{}
 	_, err := d.OnAction(context.Background(), rpc.CanvasProviderInvokeActionRequest{})

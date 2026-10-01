@@ -119,6 +119,10 @@ class CanvasDeclaration:
     actions: list[CanvasAction] | None = None
     """Agent-callable actions this canvas exposes."""
 
+    icon: str | None = None
+    """Optional PNG icon path. For extensions, the runtime resolves relative paths
+    relative to ``extension.mjs``."""
+
     def to_dict(self) -> dict[str, Any]:
         result: dict[str, Any] = {
             "id": self.id,
@@ -129,6 +133,8 @@ class CanvasDeclaration:
             result["inputSchema"] = self.input_schema
         if self.actions is not None:
             result["actions"] = [action.to_dict() for action in self.actions]
+        if self.icon is not None:
+            result["icon"] = self.icon
         return result
 
 

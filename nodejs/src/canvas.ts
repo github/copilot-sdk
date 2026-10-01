@@ -67,6 +67,11 @@ export interface CanvasDeclaration {
     displayName: string;
     /** Short, single-sentence description shown to the agent in canvas catalogs. */
     description: string;
+    /**
+     * Optional PNG path for the canvas icon. For extensions, relative paths are
+     * resolved by the runtime relative to `extension.mjs`.
+     */
+    icon?: string;
     /** Optional JSON Schema for the `input` payload accepted by `canvas.open`. */
     inputSchema?: CanvasJsonSchema;
     /** Agent-invocable actions exposed via `invoke_canvas_action`. */
@@ -111,6 +116,8 @@ export interface CanvasOptions {
     displayName: string;
     /** @see CanvasDeclaration.description */
     description: string;
+    /** @see CanvasDeclaration.icon */
+    icon?: string;
     /** @see CanvasDeclaration.inputSchema */
     inputSchema?: CanvasJsonSchema;
     /**
@@ -165,6 +172,7 @@ export class Canvas {
             id: options.id,
             displayName: options.displayName,
             description: options.description,
+            icon: options.icon,
             inputSchema: options.inputSchema,
             actions: wireActions,
         };

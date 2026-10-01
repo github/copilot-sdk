@@ -25,7 +25,7 @@ if [[ ! -f "${PACKAGE_FILE}" ]]; then
   exit 1
 fi
 
-VERSION="$(node -e "console.log(require('${PACKAGE_FILE}').copilotCliVersion)")"
+VERSION="$(cd "$(dirname "${PACKAGE_FILE}")" && node -e "console.log(require('./package.json').copilotCliVersion)")"
 if [[ -z "${VERSION}" ]]; then
   echo "error: could not read copilotCliVersion from ${PACKAGE_FILE}" >&2
   exit 1

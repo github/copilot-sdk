@@ -33,6 +33,13 @@ public sealed class CanvasDeclaration
     [JsonPropertyName("description")]
     public string Description { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Optional PNG path for the canvas icon. For extensions, the runtime resolves
+    /// relative paths relative to <c>extension.mjs</c>.
+    /// </summary>
+    [JsonPropertyName("icon")]
+    public string? Icon { get; set; }
+
     /// <summary>JSON Schema for the <c>input</c> payload accepted by <c>canvas.open</c>.</summary>
     [JsonPropertyName("inputSchema")]
     public JsonElement? InputSchema { get; set; }
