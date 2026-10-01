@@ -22,6 +22,7 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { findRuntimeRoot } from '../../../scripts/runtime-layout.mjs';
+import { runtimeReleaseUrl } from '../../../scripts/runtime-release.mjs';
 
 const excludedTopLevel = new Set([
   'app.js',
@@ -123,11 +124,7 @@ if (process.env.COPILOT_CLI_RELEASE_TARBALL) {
   stageDirectory(localPackageRoot);
 } else {
   console.log(`Downloading ${assetName} ...`);
-  const releaseBase = (
-    process.env.COPILOT_CLI_DOWNLOAD_BASE_URL ??
-    'https://github.com/github/copilot-cli/releases/download'
-  ).replace(/\/+$/, '');
-  const releaseUrl = `${releaseBase}/v${version}`;
+  const releaseUrl = runtimeReleaseUrl(version);
   const checksums = (await download(`${releaseUrl}/SHA256SUMS.txt`)).toString('utf8');
   expectedHash = findChecksum(checksums, assetName);
   const archive = await download(`${releaseUrl}/${assetName}`);

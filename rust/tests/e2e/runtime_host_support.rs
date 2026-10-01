@@ -176,15 +176,10 @@ pub async fn exit(exits: &Arc<Mutex<Vec<AhpHostExit>>>) -> AhpHostExit {
     .await
 }
 
-/// Boxes eagerly so callers do not embed large wrapped futures, such as
-/// `WebSocketTransport::connect`, whose size depends on consumer TLS features.
-pub fn deadline<T>(future: impl Future<Output = T>) -> impl Future<Output = T> {
-    let future = Box::pin(future);
-    async move {
-        tokio::time::timeout(DEADLINE, future)
-            .await
-            .expect("AHP operation deadline")
-    }
+pub async fn deadline<T>(future: impl Future<Output = T>) -> T {
+    tokio::time::timeout(DEADLINE, future)
+        .await
+        .expect("AHP operation deadline")
 }
 
 pub struct Ahp {

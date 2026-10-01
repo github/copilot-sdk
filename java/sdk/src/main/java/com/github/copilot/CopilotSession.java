@@ -914,8 +914,7 @@ public final class CopilotSession implements AutoCloseable {
      * The handler will be invoked for every event in this session, including
      * assistant messages, tool calls, and session state changes. For type-safe
      * handling of specific event types, prefer {@link #on(Class, Consumer)}
-     * instead. A handler registered from an event handler does not receive the
-     * event currently being delivered.
+     * instead.
      *
      * <p>
      * <b>Exception handling:</b> If a handler throws an exception, the error is

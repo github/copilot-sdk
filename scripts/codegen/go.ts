@@ -8,6 +8,7 @@
 
 import { execFile } from "child_process";
 import fs from "fs/promises";
+import { realpathSync } from "node:fs";
 import type { JSONSchema7 } from "json-schema";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -4278,12 +4279,6 @@ function emitMethod(lines: string[], receiver: string, name: string, method: Rpc
         }
         lines.push(`\traw, err := ${clientRef}.Request(ctx, "${method.rpcMethod}", req)`);
     } else {
-        if (method.rpcMethod === "managedSettings.resolve") {
-            // A typed nil inside Request's any argument marshals as null, not omitted params.
-            lines.push(`\tif ${paramsRef} == nil {`);
-            lines.push(`\t\t${paramsRef} = &${paramsType}{}`);
-            lines.push(`\t}`);
-        }
         const arg = hasParams ? paramsRef : "nil";
         lines.push(`\traw, err := ${clientRef}.Request(ctx, "${method.rpcMethod}", ${arg})`);
     }
@@ -4588,7 +4583,7 @@ async function generate(sessionSchemaPath?: string, apiSchemaPath?: string): Pro
 
 const __filename = fileURLToPath(import.meta.url);
 
-if (process.argv[1] && path.resolve(process.argv[1]) === __filename) {
+if (process.argv[1] && realpathSync(process.argv[1]) === realpathSync(__filename)) {
     const sessionArg = process.argv[2] || undefined;
     const apiArg = process.argv[3] || undefined;
     generate(sessionArg, apiArg).catch((err) => {

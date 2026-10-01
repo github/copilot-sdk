@@ -1,3 +1,5 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+
 //! Lazy runtime installer for the CLI binary that build.rs embedded in this
 //! crate (gated on the `bundled-cli` cargo feature, which is in the default
 //! feature set).
@@ -53,18 +55,19 @@ use tracing::{info, warn};
 // supported, build.rs generates `bundled_cli.rs` exposing both selected archives.
 // The CLI version is exposed crate-wide via the
 // `cargo:rustc-env=COPILOT_SDK_CLI_VERSION` emit (see `build.rs`), and the
-// binary name is OS-derived — so no other generated constants are needed.
+// release-scoped cache identity is emitted separately to avoid destination
+// collisions. The binary name is OS-derived.
 #[cfg(has_bundled_cli)]
 mod build_time {
     include!(concat!(env!("OUT_DIR"), "/bundled_cli.rs"));
 }
 
-// Pinned at build time and consumed by both install paths (path/install_at).
-// Sourced from the unconditional `COPILOT_SDK_CLI_VERSION` env emit in
-// build.rs — the single source of truth for "what version did build.rs
-// target", shared with the runtime resolver used when `bundled-cli` is off.
+// Keep the actual version for diagnostics and a release-scoped identity for
+// cache paths. Legacy releases use the version unchanged for both.
 #[cfg(has_bundled_cli)]
 const CLI_VERSION: &str = env!("COPILOT_SDK_CLI_VERSION");
+#[cfg(has_bundled_cli)]
+const CLI_CACHE_ID: &str = env!("COPILOT_SDK_CLI_CACHE_ID");
 
 // OS-derived; matches the release-archive entry name and the on-disk
 // filename. No need to bake this — `cfg(windows)` reflects the target
@@ -109,7 +112,7 @@ pub(crate) fn path() -> Option<PathBuf> {
         .get_or_init(|| {
             #[cfg(has_bundled_cli)]
             {
-                let dir = default_install_dir(CLI_VERSION);
+                let dir = default_install_dir(CLI_CACHE_ID);
                 match install_cli(
                     &dir,
                     build_time::CLI_ARCHIVE,
@@ -171,7 +174,7 @@ pub(crate) fn runtime_path() -> Option<PathBuf> {
         .get_or_init(|| {
             #[cfg(has_bundled_cli)]
             {
-                let dir = default_install_dir(CLI_VERSION);
+                let dir = default_install_dir(CLI_CACHE_ID);
                 match install_runtime(&dir, build_time::RUNTIME_ARCHIVE) {
                     Ok(path) => {
                         info!(path = %path.display(), version = CLI_VERSION, "embedded runtime installed");
@@ -193,7 +196,7 @@ pub(crate) fn runtime_path() -> Option<PathBuf> {
 pub(crate) fn install_runtime_at(extract_dir: &Path) -> Option<PathBuf> {
     #[cfg(has_bundled_cli)]
     {
-        let install_dir = match runtime_install_dir(extract_dir, CLI_VERSION) {
+        let install_dir = match runtime_install_dir(extract_dir, CLI_CACHE_ID) {
             Ok(dir) => dir,
             Err(e) => {
                 warn!(error = %e, "embedded runtime install directory selection failed");

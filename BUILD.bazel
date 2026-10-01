@@ -5,6 +5,7 @@ SHARED_CODEGEN_INPUTS = [
     "scripts/codegen/package.json",
     "scripts/codegen/utils.ts",
     "scripts/runtime-layout.mjs",
+    "scripts/runtime-release.mjs",
 ]
 
 HAND_WRITTEN_DOTNET_INPUTS = glob(
@@ -222,6 +223,7 @@ genrule(
         "java/scripts/codegen/package.json",
         "nodejs/package.json",
         "scripts/runtime-layout.mjs",
+        "scripts/runtime-release.mjs",
     ],
     outs = ["projections/java.tar"],
     cmd = """

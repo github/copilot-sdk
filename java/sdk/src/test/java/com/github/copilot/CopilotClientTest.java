@@ -6,7 +6,6 @@ package com.github.copilot;
 
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 
 import com.github.copilot.generated.ExternalToolRequestedEvent;
 import com.github.copilot.rpc.CopilotClientOptions;
@@ -21,12 +20,6 @@ import com.github.copilot.rpc.ToolDefinition;
 
 import java.io.OutputStream;
 import java.lang.reflect.Field;
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -37,7 +30,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -260,111 +252,6 @@ public class CopilotClientTest {
             assertNotNull(message);
             assertTrue(message.contains("--nonexistent-flag-for-testing"),
                     "Error should include the CLI's invalid-flag diagnostic: " + message);
-        }
-    }
-
-    @Test
-    void testStartupWriteFailureDrainsStderrBeforeKillingChild(@TempDir Path tempDir) throws Exception {
-        var script = tempDir.resolve("startup-error.js");
-        Files.writeString(script, """
-                const fs = require('node:fs');
-                fs.watch(__dirname, () => {
-                    if (fs.existsSync(__dirname + '/release-stderr')) {
-                        fs.writeSync(2, 'error: --nonexistent-flag-for-testing\\n');
-                        process.exit(1);
-                    }
-                });
-                fs.closeSync(0);
-                process.stdout.write('started\\n');
-                """);
-        var options = new CopilotClientOptions().setCliPath(script.toString()).setUseStdio(true);
-        var manager = spy(new CliServerManager(options));
-        var child = new AtomicReference<Process>();
-        doAnswer(invocation -> {
-            Process process = invocation.getArgument(0);
-            child.set(process);
-            var reader = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8));
-            assertEquals("started", reader.readLine());
-            return invocation.callRealMethod();
-        }).when(manager).connectToServer(any(Process.class), isNull(), isNull());
-        doAnswer(invocation -> {
-            // Release stderr only when startup drains it, while the child is still alive.
-            Files.createFile(tempDir.resolve("release-stderr"));
-            return invocation.callRealMethod();
-        }).when(manager).awaitStderrReader();
-
-        try (var client = new CopilotClient(options)) {
-            Field managerField = CopilotClient.class.getDeclaredField("serverManager");
-            managerField.setAccessible(true);
-            managerField.set(client, manager);
-
-            var error = assertThrows(ExecutionException.class, () -> client.start().get(10, TimeUnit.SECONDS));
-            var cause = error.getCause();
-            assertTrue(cause.getMessage().contains("--nonexistent-flag-for-testing"),
-                    "Startup lost the child's stderr: " + cause);
-            assertInstanceOf(IOException.class, cause);
-            Throwable original = cause;
-            while (original.getCause() != null) {
-                original = original.getCause();
-            }
-            assertInstanceOf(IOException.class, original);
-            assertNotSame(cause, original, "The startup error must retain its original transport failure.");
-            assertFalse(child.get().isAlive(), "Failed startup retained its child process.");
-        } finally {
-            if (child.get() != null && child.get().isAlive()) {
-                child.get().destroyForcibly();
-                assertTrue(child.get().waitFor(10, TimeUnit.SECONDS), "Could not reap the controlled child.");
-            }
-        }
-    }
-
-    @Test
-    void testProtocolMismatchTerminatesLiveChildBeforeDrainingStderr(@TempDir Path tempDir) throws Exception {
-        var script = tempDir.resolve("incompatible-server.js");
-        Files.writeString(script, """
-                let input = Buffer.alloc(0);
-                process.stdin.on('data', chunk => {
-                    input = Buffer.concat([input, chunk]);
-                    const headerEnd = input.indexOf('\\r\\n\\r\\n');
-                    if (headerEnd < 0) return;
-                    const length = Number(/Content-Length:\\s*(\\d+)/i.exec(input.toString())[1]);
-                    if (input.length < headerEnd + 4 + length) return;
-                    const request = JSON.parse(input.subarray(headerEnd + 4, headerEnd + 4 + length));
-                    const response = JSON.stringify({
-                        jsonrpc: '2.0', id: request.id, result: { protocolVersion: 1 }
-                    });
-                    process.stdout.write(`Content-Length: ${Buffer.byteLength(response)}\\r\\n\\r\\n${response}`);
-                    input = input.subarray(headerEnd + 4 + length);
-                });
-                setInterval(() => {}, 1000);
-                """);
-        var options = new CopilotClientOptions().setCliPath(script.toString()).setUseStdio(true);
-        var manager = spy(new CliServerManager(options));
-        var child = new AtomicReference<Process>();
-        doAnswer(invocation -> {
-            child.set(invocation.getArgument(0));
-            return invocation.callRealMethod();
-        }).when(manager).connectToServer(any(Process.class), isNull(), isNull());
-        doAnswer(invocation -> {
-            assertFalse(child.get().isAlive(), "A rejected live server must exit before its stderr reader is joined.");
-            return invocation.callRealMethod();
-        }).when(manager).awaitStderrReader();
-
-        try (var client = new CopilotClient(options)) {
-            Field managerField = CopilotClient.class.getDeclaredField("serverManager");
-            managerField.setAccessible(true);
-            managerField.set(client, manager);
-
-            var error = assertThrows(ExecutionException.class, () -> client.start().get(10, TimeUnit.SECONDS));
-            assertTrue(error.getCause().getMessage().contains("SDK protocol version mismatch"),
-                    "Startup must report the incompatible protocol: " + error.getCause());
-            assertFalse(child.get().isAlive(), "Failed startup retained its child process.");
-            verify(manager).awaitStderrReader();
-        } finally {
-            if (child.get() != null && child.get().isAlive()) {
-                child.get().destroyForcibly();
-                assertTrue(child.get().waitFor(10, TimeUnit.SECONDS), "Could not reap the incompatible server.");
-            }
         }
     }
 

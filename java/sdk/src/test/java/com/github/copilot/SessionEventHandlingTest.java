@@ -21,7 +21,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -84,35 +83,6 @@ public class SessionEventHandlingTest {
         assertInstanceOf(SessionStartEvent.class, receivedEvents.get(0));
         assertInstanceOf(AssistantMessageEvent.class, receivedEvents.get(1));
         assertInstanceOf(SessionIdleEvent.class, receivedEvents.get(2));
-    }
-
-    @Test
-    void testHandlerAddedDuringDispatchStartsWithNextEvent() {
-        var received = new ArrayList<SessionEvent>();
-        // Fixed hashes make the old weakly consistent iterator visit the new handler
-        // after the registering handlers, without relying on scheduling or identity
-        // hashes.
-        record Handler(int hash, Consumer<SessionEvent> callback) implements Consumer<SessionEvent> {
-            @Override
-            public int hashCode() {
-                return hash;
-            }
-
-            @Override
-            public void accept(SessionEvent event) {
-                callback.accept(event);
-            }
-        }
-        var added = new Handler(15, received::add);
-        session.on(new Handler(0, event -> session.on(added)));
-        session.on(new Handler(1, event -> session.on(added)));
-
-        dispatchEvent(createSessionIdleEvent());
-        assertTrue(received.isEmpty(), "A new wait must not receive the idle event already being dispatched");
-
-        var next = createAssistantMessageEvent("HELLO");
-        dispatchEvent(next);
-        assertEquals(List.of(next), received);
     }
 
     @Test

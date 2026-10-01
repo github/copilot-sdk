@@ -6094,104 +6094,9 @@ type ManagedMCPServerConfig struct {
 	URL string `json:"url"`
 }
 
-// Lock state and provenance of one managed setting.
-// Experimental: ManagedSettingMeta is part of an experimental API and may change or be
-// removed.
-type ManagedSettingMeta struct {
-	// Whether users and repositories may choose a different value. `false` means policy locks
-	// the value.
-	Overridable bool `json:"overridable"`
-	// Channel that supplied this scalar value, matching a `layers[].source`: `device`,
-	// `server`, or `policyHelper`. These scalar defaults select one winning channel, not a
-	// mixed source. Treat unknown values as additional channels; more may be added.
-	Source string `json:"source"`
-}
-
 // Experimental: ManagedSettingsClearCacheResult is part of an experimental API and may
 // change or be removed.
 type ManagedSettingsClearCacheResult struct {
-}
-
-// One candidate channel; absent settings represents a channel that delivered no document.
-// Experimental: ManagedSettingsComposeLayer is part of an experimental API and may change
-// or be removed.
-type ManagedSettingsComposeLayer struct {
-	// Candidate managed-settings document. Omit when the channel delivered none, as in resolve
-	// output.
-	Settings any `json:"settings,omitempty"`
-	// The channel whose candidate document is being supplied.
-	Source ManagedSettingsChannel `json:"source"`
-}
-
-// Candidate managed-settings documents to merge without applying them.
-// Experimental: ManagedSettingsComposeRequest is part of an experimental API and may change
-// or be removed.
-type ManagedSettingsComposeRequest struct {
-	// One entry per channel. `source` must be `device`, `server`, or `policyHelper`, each at
-	// most once (checked at runtime); order does not matter, because channel precedence is
-	// fixed. To preview documents from resolve output, map recognized source strings to
-	// ManagedSettingsChannel and copy their settings; generated resolve and compose layer types
-	// are distinct. Omitted settings means this channel delivered no document. Supplied
-	// documents must be valid within the preview limits; warnings are returned in diagnostics.
-	// Compose does not reproduce source-failure state or retained enforcement floors from
-	// resolve.
-	Layers []ManagedSettingsComposeLayer `json:"layers"`
-}
-
-// The effective managed settings the runtime would enforce for the given documents, in the
-// same shape `managedSettings.resolve` returns.
-// Experimental: ManagedSettingsComposeResult is part of an experimental API and may change
-// or be removed.
-type ManagedSettingsComposeResult struct {
-	// Warnings about ignored content, with paths prefixed by the channel name.
-	Diagnostics []ManagedSettingsDiagnostic `json:"diagnostics"`
-	// Only the supplied channels, strongest first, with canonical documents. Empty canonical
-	// documents are represented as absent settings, as in live resolution.
-	Layers []ManagedSettingsLayer `json:"layers"`
-	// Per-key lock state and provenance for `values`.
-	Meta *ManagedSettingsMeta `json:"meta,omitempty"`
-	// Effective managed settings, in the same shape as `session.managedSettings.get`.
-	Resolved ManagedSettingsResolvedData `json:"resolved"`
-	// Typed effective values, as in `managedSettings.resolve`.
-	Values *ManagedSettingsValues `json:"values,omitempty"`
-}
-
-// One validation finding for a managed-settings document.
-// Experimental: ManagedSettingsDiagnostic is part of an experimental API and may change or
-// be removed.
-type ManagedSettingsDiagnostic struct {
-	// Human-readable description of the finding.
-	Message string `json:"message"`
-	// Dot-separated path of the offending setting, such as `autoTier.overridable`. Empty for
-	// the document as a whole.
-	Path string `json:"path"`
-	// Whether the finding rejects the document.
-	Severity ManagedSettingsDiagnosticSeverity `json:"severity"`
-}
-
-// One managed-settings channel and the document it delivered.
-// Experimental: ManagedSettingsLayer is part of an experimental API and may change or be
-// removed.
-type ManagedSettingsLayer struct {
-	// Validated managed-settings document this channel delivered. Absent when the channel
-	// delivered none.
-	Settings any `json:"settings,omitempty"`
-	// Channel identifier: `device` (MDM, plist, registry, or managed file), `server` (account
-	// or organization policy), or `policyHelper` (session-local helper output, supported by
-	// compose). Treat unknown output values as additional channels; more may be added.
-	Source string `json:"source"`
-}
-
-// Per-key lock state and provenance for `ManagedSettingsValues`, with the same field names.
-// Producers emit each typed key in values and meta together; both outer objects are omitted
-// when no typed key is set.
-// Experimental: ManagedSettingsMeta is part of an experimental API and may change or be
-// removed.
-type ManagedSettingsMeta struct {
-	// Lock state and provenance of `values.autoTier`.
-	AutoTier *ManagedSettingMeta `json:"autoTier,omitempty"`
-	// Lock state and provenance of `values.model`.
-	Model *ManagedSettingMeta `json:"model,omitempty"`
 }
 
 // Validated device-managed settings discovered before a session exists.
@@ -6205,12 +6110,16 @@ type ManagedSettingsReadResult struct {
 	SettingsJSON any `json:"settingsJson,omitempty"`
 }
 
-// Effective enterprise managed settings and contributing channels. Session events report
-// applied policy; sessionless resolve reports an account/device snapshot, and compose
-// reports a non-applying preview of candidate documents. Device values take precedence over
-// server values, then the policy helper, per ordinary key, while permissions compose
-// restrictively. Session-local SDK-client policy is included only in session results.
-// Marked experimental while the managed-settings surface stabilizes.
+// Enterprise managed-settings resolution: the effective managed settings the session
+// applied and which channels contributed, so SDK clients can show users what is
+// enterprise-managed. Fires whenever managed policy is (re)applied — at session start, on
+// resume, and on account switch. This is an ephemeral live snapshot (delivered to
+// subscribers but not persisted to the session event log), because at session start it
+// resolves before `session.start` is emitted. Device values take precedence over server
+// values, then the policy helper, per ordinary key, while permissions compose restrictively
+// across device, server, policy-helper, and SDK-client layers. The account-scoped
+// `getManagedSettings()` API does not include session-local client injection. Marked
+// experimental while the managed-settings surface stabilizes.
 // Experimental: ManagedSettingsResolvedData is part of an experimental API and may change
 // or be removed.
 type ManagedSettingsResolvedData struct {
@@ -6248,100 +6157,6 @@ type ManagedSettingsResolvedData struct {
 	// contributed; `mixed` when multiple channels contributed; otherwise `none`. Consult the
 	// per-channel booleans for exact provenance.
 	Source ManagedSettingsResolvedSource `json:"source"`
-}
-
-// Experimental: ManagedSettingsResolveRequest is part of an experimental API and may change
-// or be removed.
-type ManagedSettingsResolveRequest struct {
-	// Embedding client identity for server policy requests, as in session creation. Omit for
-	// the CLI identity.
-	ClientName *string `json:"clientName,omitempty"`
-	// GitHub token to resolve instead of the current account. The call fails when the token
-	// cannot be resolved.
-	GitHubToken *string `json:"gitHubToken,omitempty"`
-	// Opaque account identifier returned by `account.getAllUsers`. When omitted, the current
-	// account is used, or device policy only when no account is signed in.
-	SelectionID *string `json:"selectionId,omitempty"`
-}
-
-// Effective enterprise managed settings for an account, resolved without a session.
-// Experimental: ManagedSettingsResolveResult is part of an experimental API and may change
-// or be removed.
-type ManagedSettingsResolveResult struct {
-	// Printable opaque identity of the account the settings were resolved for, suitable for
-	// comparison and storage, not an account selectionId. Absent when no account was available,
-	// in which case only device policy is reported.
-	Account *string `json:"account,omitempty"`
-	// Warnings about unavailable policy sources or a failed refresh served from cache. A cached
-	// response is not proof of a successful live fetch; `resolved.failClosed` separately
-	// describes enforcement.
-	Diagnostics []ManagedSettingsDiagnostic `json:"diagnostics"`
-	// Each managed-settings channel consulted, strongest first, with the validated document it
-	// delivered before merging. `resolved.settings` is the merged result. More channels may be
-	// added over time.
-	Layers []ManagedSettingsLayer `json:"layers"`
-	// Per-key lock state and provenance for the entries in `values`, using the same key names.
-	Meta *ManagedSettingsMeta `json:"meta,omitempty"`
-	// Effective managed settings from the device and account (server) channels, in the same
-	// shape as `session.managedSettings.get`, excluding session-local injection.
-	Resolved ManagedSettingsResolvedData `json:"resolved"`
-	// Typed effective values of managed settings, keyed like the managed-settings schema and
-	// already resolved across channels, with the `{ "overridable": ... }` wrapper removed.
-	// Present when policy sets at least one typed key. Keys not typed here are available in
-	// `resolved.settings`.
-	Values *ManagedSettingsValues `json:"values,omitempty"`
-}
-
-// The authoring JSON schema for managed settings recognized by this runtime.
-// Experimental: ManagedSettingsSchemaResult is part of an experimental API and may change
-// or be removed.
-type ManagedSettingsSchemaResult struct {
-	// Version of the runtime that owns this schema.
-	RuntimeVersion string `json:"runtimeVersion"`
-	// JSON schema (draft 2020-12) with descriptive shared `x-composition` annotations, not a
-	// complete runtime composition contract. Model, effortLevel, and contextTier remain
-	// coupled; use `managedSettings.compose` for the runtime's effective result.
-	Schema any `json:"schema"`
-}
-
-// A candidate managed-settings document to validate without applying it.
-// Experimental: ManagedSettingsValidateRequest is part of an experimental API and may
-// change or be removed.
-type ManagedSettingsValidateRequest struct {
-	// The document to validate: a JSON object, or a string containing the document's JSON text.
-	// Preview documents are limited to 1 MiB and 64 levels of nesting, a stricter resource
-	// limit than delivered-policy parsing; violations are returned as diagnostics.
-	Content any `json:"content"`
-	// Channel the document is meant for (`device`, `server`, or `policyHelper`). Some keys are
-	// only honored in some channels; for example, a `policyHelper` registration is ignored in
-	// policy-helper output. When omitted, no channel-specific checks run.
-	Layer *string `json:"layer,omitempty"`
-}
-
-// Result of validating a managed-settings document.
-// Experimental: ManagedSettingsValidateResult is part of an experimental API and may change
-// or be removed.
-type ManagedSettingsValidateResult struct {
-	// Errors that reject the document and warnings about content the runtime ignores.
-	Diagnostics []ManagedSettingsDiagnostic `json:"diagnostics"`
-	// Canonical form of the document the runtime would apply, with unrecognized keys removed.
-	// Absent when the document is invalid.
-	Settings any `json:"settings,omitempty"`
-	// Whether the runtime would accept the document within the preview resource limits. Always
-	// equals whether `settings` is present. An invalid document is rejected as a whole.
-	Valid bool `json:"valid"`
-}
-
-// Typed effective values of managed settings. Each field mirrors the managed-settings
-// schema key of the same name; more keys are added as they are typed.
-// Experimental: ManagedSettingsValues is part of an experimental API and may change or be
-// removed.
-type ManagedSettingsValues struct {
-	// Managed Auto routing preference, used when the selected model is `auto`.
-	AutoTier *AutoTier `json:"autoTier,omitempty"`
-	// Managed default model identifier, as configured. New sessions start with it; it can name
-	// a model the account cannot use, so hosts match it against the listed models.
-	Model *string `json:"model,omitempty"`
 }
 
 // Result of registering a new marketplace.
@@ -22698,32 +22513,6 @@ const (
 	LoginProviderKindProxima LoginProviderKind = "proxima"
 )
 
-// A channel accepted by managedSettings.compose.
-// Experimental: ManagedSettingsChannel is part of an experimental API and may change or be
-// removed.
-type ManagedSettingsChannel string
-
-const (
-	// Device policy, the strongest channel.
-	ManagedSettingsChannelDevice ManagedSettingsChannel = "device"
-	// Session-local helper output, the weakest channel.
-	ManagedSettingsChannelPolicyHelper ManagedSettingsChannel = "policyHelper"
-	// Account or organization policy.
-	ManagedSettingsChannelServer ManagedSettingsChannel = "server"
-)
-
-// Severity of a managed-settings validation finding.
-// Experimental: ManagedSettingsDiagnosticSeverity is part of an experimental API and may
-// change or be removed.
-type ManagedSettingsDiagnosticSeverity string
-
-const (
-	// The runtime rejects the document.
-	ManagedSettingsDiagnosticSeverityError ManagedSettingsDiagnosticSeverity = "error"
-	// The runtime accepts the document but ignores the flagged content.
-	ManagedSettingsDiagnosticSeverityWarning ManagedSettingsDiagnosticSeverity = "warning"
-)
-
 // Summary of which managed-settings channels contributed to the effective session policy.
 // Use the per-channel booleans for exact provenance.
 // Experimental: ManagedSettingsResolvedSource is part of an experimental API and may change
@@ -26343,11 +26132,11 @@ type ServerManagedSettingsAPI serverAPI
 // account, that resolution re-fetches the account's org policy from the network instead of
 // serving a cached response. Note that `managedSettings.read` returns only device/MDM
 // settings and never triggers the account server-policy fetch, so a host implementing "sync
-// account policy" should call `managedSettings.resolve` or start a fresh session resolution
-// rather than treat a subsequent `managedSettings.read` as the refreshed org policy.
-// Mirrors the invalidation a sign-out performs, broadened from the one signing-out account
-// to all of them; device/MDM layers describe the machine, not the account, and are left
-// untouched. Rejects if the on-disk cache cannot be removed.
+// account policy" should start a fresh session resolution rather than treat a subsequent
+// `managedSettings.read` as the refreshed org policy. Mirrors the invalidation a sign-out
+// performs, broadened from the one signing-out account to all of them; device/MDM layers
+// describe the machine, not the account, and are left untouched. Rejects if the on-disk
+// cache cannot be removed.
 //
 // RPC method: managedSettings.clearCache.
 func (a *ServerManagedSettingsAPI) ClearCache(ctx context.Context) (*ManagedSettingsClearCacheResult, error) {
@@ -26362,36 +26151,9 @@ func (a *ServerManagedSettingsAPI) ClearCache(ctx context.Context) (*ManagedSett
 	return &result, nil
 }
 
-// Compose merges candidate managed-settings documents for the device, server, and
-// policy-helper channels into the effective settings the runtime would enforce on this
-// host, using the same precedence and composition rules as live resolution, without
-// applying them. Like live resolution, a server's advisory sandbox force-enable is declined
-// on a host that cannot run the sandbox. Does not fetch policy or read policy files, but
-// may perform blocking OS or subprocess probes for sandbox support. Preview documents are
-// limited to 1 MiB and 64 levels of nesting.
-//
-// RPC method: managedSettings.compose.
-//
-// Parameters: Candidate managed-settings documents to merge without applying them.
-//
-// Returns: The effective managed settings the runtime would enforce for the given
-// documents, in the same shape `managedSettings.resolve` returns.
-func (a *ServerManagedSettingsAPI) Compose(ctx context.Context, params *ManagedSettingsComposeRequest) (*ManagedSettingsComposeResult, error) {
-	raw, err := a.client.Request(ctx, "managedSettings.compose", params)
-	if err != nil {
-		return nil, err
-	}
-	var result ManagedSettingsComposeResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
 // Read discovers device-managed settings from production MDM and managed-file sources,
 // validates them against the runtime-owned managed-settings schema, and returns the
-// canonical JSON without requiring a session. `managedSettings.resolve` returns the same
-// device settings together with the account's server policy.
+// canonical JSON without requiring a session.
 //
 // RPC method: managedSettings.read.
 //
@@ -26402,82 +26164,6 @@ func (a *ServerManagedSettingsAPI) Read(ctx context.Context) (*ManagedSettingsRe
 		return nil, err
 	}
 	var result ManagedSettingsReadResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// Resolves the effective enterprise managed settings without a session, from the device
-// channel and, when an account is available, the account's server policy through the same
-// per-account cache sessions use. A cached server policy less than an hour old is used
-// without a fetch; otherwise the policy is fetched, and when the fetch fails a cached
-// policy up to 24 hours old is used instead, unless `forceRemoteSettingsRefresh` requires a
-// live fetch. With no account requested or signed in, it reports device policy only;
-// signing out removes the account's cached policy. It can fetch server policy over the
-// network when the cache is stale, so call it off latency-critical paths such as startup
-// rather than before listing models. The policy helper is not run. `layers` lists each
-// channel's document before merging, and `values` and `meta` carry typed effective values
-// and their lock state for the keys typed so far.
-//
-// RPC method: managedSettings.resolve.
-//
-// Parameters: Optional opaque account selection or GitHub token whose managed settings are
-// resolved.
-//
-// Returns: Effective enterprise managed settings for an account, resolved without a session.
-func (a *ServerManagedSettingsAPI) Resolve(ctx context.Context, params *ManagedSettingsResolveRequest) (*ManagedSettingsResolveResult, error) {
-	if params == nil {
-		params = &ManagedSettingsResolveRequest{}
-	}
-	raw, err := a.client.Request(ctx, "managedSettings.resolve", params)
-	if err != nil {
-		return nil, err
-	}
-	var result ManagedSettingsResolveResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// Schema returns the managed-settings authoring JSON schema with descriptive
-// `x-composition` annotations aligned with the shared settings-engine vocabulary. These
-// annotations are not a complete runtime composition contract: model, effortLevel, and
-// contextTier remain coupled. Use `managedSettings.compose` for the runtime's effective
-// result. Performs no I/O.
-//
-// RPC method: managedSettings.schema.
-//
-// Returns: The authoring JSON schema for managed settings recognized by this runtime.
-func (a *ServerManagedSettingsAPI) Schema(ctx context.Context) (*ManagedSettingsSchemaResult, error) {
-	raw, err := a.client.Request(ctx, "managedSettings.schema", nil)
-	if err != nil {
-		return nil, err
-	}
-	var result ManagedSettingsSchemaResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// Validates a candidate managed-settings document the way the runtime validates delivered
-// policy, without applying it. Reports errors that would reject the document, warnings for
-// content the runtime ignores, and the canonical document it would apply. Document text
-// nested more than 64 levels deep is rejected. Performs no I/O.
-//
-// RPC method: managedSettings.validate.
-//
-// Parameters: A candidate managed-settings document to validate without applying it.
-//
-// Returns: Result of validating a managed-settings document.
-func (a *ServerManagedSettingsAPI) Validate(ctx context.Context, params *ManagedSettingsValidateRequest) (*ManagedSettingsValidateResult, error) {
-	raw, err := a.client.Request(ctx, "managedSettings.validate", params)
-	if err != nil {
-		return nil, err
-	}
-	var result ManagedSettingsValidateResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -30350,12 +30036,16 @@ type ManagedSettingsAPI sessionAPI
 //
 // RPC method: session.managedSettings.get.
 //
-// Returns: Effective enterprise managed settings and contributing channels. Session events
-// report applied policy; sessionless resolve reports an account/device snapshot, and
-// compose reports a non-applying preview of candidate documents. Device values take
-// precedence over server values, then the policy helper, per ordinary key, while
-// permissions compose restrictively. Session-local SDK-client policy is included only in
-// session results. Marked experimental while the managed-settings surface stabilizes.
+// Returns: Enterprise managed-settings resolution: the effective managed settings the
+// session applied and which channels contributed, so SDK clients can show users what is
+// enterprise-managed. Fires whenever managed policy is (re)applied — at session start, on
+// resume, and on account switch. This is an ephemeral live snapshot (delivered to
+// subscribers but not persisted to the session event log), because at session start it
+// resolves before `session.start` is emitted. Device values take precedence over server
+// values, then the policy helper, per ordinary key, while permissions compose restrictively
+// across device, server, policy-helper, and SDK-client layers. The account-scoped
+// `getManagedSettings()` API does not include session-local client injection. Marked
+// experimental while the managed-settings surface stabilizes.
 func (a *ManagedSettingsAPI) Get(ctx context.Context) (*ManagedSettingsResolvedData, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request(ctx, "session.managedSettings.get", req)

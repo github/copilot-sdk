@@ -85,17 +85,13 @@ jobs:
             dist-bin/
             dist-pkg-tarballs/
             src/core/sharedApi/runtime-generated/index.d.ts
+            src/native/runtime/runtime.*.node
             src/native/runtime/runtime.*.node.metadata
-            src/native/runtime/copilot-runtime.*.profile
+            src/native/runtime/copilot-runtime.*
             src/native/runtime/index.d.ts
+            src/native/cli/cli-native.*.node
             src/native/cli/index.d.ts
-            !dist-cli/sea.blob
-            !dist-cli/github-copilot-*.tgz
-          key: ${{ inputs.shared-cli-build-compatible && format('project-build-v3-sea-{0}-{1}-{2}-release-{3}-{4}-{5}', inputs.os, runner.os, runner.arch, inputs.bazel-config, inputs.use-bazel-addons-on-darwin, github.sha) || format('sdk-project-build-v3-{0}-{1}-{2}-{3}-release-{4}-{5}-{6}', inputs.target, inputs.os, runner.os, runner.arch, inputs.bazel-config, inputs.use-bazel-addons-on-darwin, github.sha) }}
-
-      - name: Restore cached source-layout addons and executable bits
-        if: inputs.runtime-source == 'checkout' && steps.cache.outputs.cache-hit == 'true'
-        run: node script/restore-cli-build.mjs
+          key: ${{ inputs.shared-cli-build-compatible && format('project-build-v1-sea-{0}-{1}-{2}-release-{3}-{4}-{5}', inputs.os, runner.os, runner.arch, inputs.bazel-config, inputs.use-bazel-addons-on-darwin, github.sha) || format('sdk-project-build-v1-{0}-{1}-{2}-{3}-release-{4}-{5}-{6}', inputs.target, inputs.os, runner.os, runner.arch, inputs.bazel-config, inputs.use-bazel-addons-on-darwin, github.sha) }}
 
       - if: inputs.runtime-source == 'checkout' && steps.cache.outputs.cache-hit != 'true'
         uses: ./.github/actions/setup-node
@@ -172,12 +168,12 @@ jobs:
             dist-bin/
             dist-pkg-tarballs/
             src/core/sharedApi/runtime-generated/index.d.ts
+            src/native/runtime/runtime.*.node
             src/native/runtime/runtime.*.node.metadata
-            src/native/runtime/copilot-runtime.*.profile
+            src/native/runtime/copilot-runtime.*
             src/native/runtime/index.d.ts
+            src/native/cli/cli-native.*.node
             src/native/cli/index.d.ts
-            !dist-cli/sea.blob
-            !dist-cli/github-copilot-*.tgz
           key: ${{ steps.cache.outputs.cache-primary-key }}
 
       - name: Upload SDK runtime artifact
@@ -187,8 +183,6 @@ jobs:
           path: |
             dist-cli/
             dist-bin/${{ inputs.target }}/
-            !dist-cli/sea.blob
-            !dist-cli/github-copilot-*.tgz
           include-hidden-files: true
           if-no-files-found: error
           retention-days: 1

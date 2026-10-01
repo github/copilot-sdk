@@ -1,18 +1,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { EventEmitter, once } from "node:events";
+import { EventEmitter } from "node:events";
 import { PassThrough } from "stream";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { createRequire } from "node:module";
-import { createServer, type Socket } from "node:net";
+import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
-import {
-    createMessageConnection,
-    StreamMessageReader,
-    StreamMessageWriter,
-    type MessageConnection,
-} from "vscode-jsonrpc/node.js";
 import {
     approveAll,
     createAttributedPermissionResult,
@@ -28,7 +20,6 @@ import {
 } from "../src/index.js";
 import { CopilotSession } from "../src/session.js";
 import { defaultJoinSessionPermissionHandler } from "../src/types.js";
-import { getSdkProtocolVersion } from "../src/sdkProtocolVersion.js";
 
 // This file is for unit tests. Where relevant, prefer to add e2e tests in e2e/*.test.ts instead
 
@@ -202,7 +193,7 @@ describe("CopilotClient", () => {
 
         const stdin = new PassThrough();
         const stdout = new PassThrough();
-        (client as any).cliProcess = Object.assign(new EventEmitter(), { stdin, stdout });
+        (client as any).cliProcess = { stdin, stdout };
         await (client as any).connectToChildProcessViaStdio();
 
         const dispose = vi.spyOn((client as any).connection, "dispose");
@@ -3466,185 +3457,6 @@ describe("CopilotClient", () => {
     });
 
     describe("unexpected disconnection", () => {
-        it("stops after the runtime exits even when its TCP peer stays open", async () => {
-            const directory = mkdtempSync(join(tmpdir(), "copilot-surviving-tcp-peer-"));
-            const runtimePath = join(directory, "runtime.js");
-            const client = new CopilotClient({
-                connection: RuntimeConnection.forTcp({ path: runtimePath }),
-            });
-            let peer: Socket | undefined;
-            let serverConnection: MessageConnection | undefined;
-            // Retain the peer after FIN, independently of the owned runtime process.
-            const server = createServer({ allowHalfOpen: true }, (socket) => {
-                peer = socket;
-                serverConnection = createMessageConnection(
-                    new StreamMessageReader(socket),
-                    new StreamMessageWriter(socket)
-                );
-                serverConnection.onRequest("connect", () => ({
-                    protocolVersion: getSdkProtocolVersion(),
-                }));
-                serverConnection.onRequest("session.create", (params) => ({
-                    sessionId: params.sessionId,
-                }));
-                serverConnection.listen();
-            });
-            onTestFinished(async () => {
-                peer?.destroy();
-                serverConnection?.dispose();
-                await client.forceStop();
-                await new Promise<void>((resolve, reject) =>
-                    server.close((error) => (error ? reject(error) : resolve()))
-                );
-                rmSync(directory, { recursive: true, force: true });
-            });
-            await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-            const address = server.address();
-            if (!address || typeof address === "string") {
-                throw new Error("Expected a TCP listening address");
-            }
-            writeFileSync(
-                runtimePath,
-                `console.log("listening on port ${address.port}"); setInterval(() => {}, 1000);`
-            );
-            await client.createSession({ onPermissionRequest: approveAll });
-            const socket = client["socket"]!;
-            const child = client["cliProcess"]!;
-            const closed = once(socket, "close", { signal: AbortSignal.timeout(10_000) });
-            const exited = once(child, "exit");
-            expect(child.kill()).toBe(true);
-            await exited;
-            await closed;
-            expect(client["state"]).toBe("disconnected");
-            expect(await client.stop()).toEqual([]);
-            expect(peer?.destroyed).toBe(false);
-        });
-
-        it("disconnects when the runtime exits before an inherited output pipe closes", async () => {
-            const directory = mkdtempSync(join(tmpdir(), "copilot-inherited-output-"));
-            const runtimePath = join(directory, "runtime.js");
-            const holderPidPath = join(directory, "holder.pid");
-            const jsonrpcPath = createRequire(import.meta.url).resolve("vscode-jsonrpc/node");
-            writeFileSync(
-                runtimePath,
-                `
-const { spawn } = require("node:child_process");
-const { once } = require("node:events");
-const { createMessageConnection, StreamMessageReader, StreamMessageWriter } = require(${JSON.stringify(jsonrpcPath)});
-const holder = spawn(process.execPath, ["-e", "process.send('ready'); setInterval(() => {}, 1000);"], {
-    stdio: ["ignore", process.stdout, process.stderr, "ipc"],
-    // Survive the runtime's Windows kill-on-close job while retaining its pipes.
-    detached: true,
-    windowsHide: true,
-});
-require("node:fs").writeFileSync(${JSON.stringify(holderPidPath)}, String(holder.pid));
-const ready = once(holder, "message");
-const connection = createMessageConnection(new StreamMessageReader(process.stdin), new StreamMessageWriter(process.stdout));
-connection.onRequest("connect", async () => {
-    await ready;
-    return { protocolVersion: ${getSdkProtocolVersion()} };
-});
-connection.onRequest("session.create", (params) => ({ sessionId: params.sessionId }));
-connection.onRequest("ping", async () => {
-    await connection.sendNotification("test.pingReceived");
-    return new Promise(() => {});
-});
-connection.listen();
-`
-            );
-            const client = new CopilotClient({
-                connection: RuntimeConnection.forStdio({ path: runtimePath }),
-            });
-            let closedPromise: Promise<unknown> | undefined;
-            const stopHolder = () => {
-                if (existsSync(holderPidPath)) {
-                    try {
-                        process.kill(Number(readFileSync(holderPidPath, "utf8")));
-                    } catch (error) {
-                        if (
-                            !(error instanceof Error && "code" in error && error.code === "ESRCH")
-                        ) {
-                            throw error;
-                        }
-                    }
-                }
-            };
-            onTestFinished(async () => {
-                stopHolder();
-                await client.forceStop();
-                await closedPromise;
-                rmSync(directory, { recursive: true, force: true });
-            });
-            await client.start();
-
-            let signal: AbortSignal | undefined;
-            let started!: () => void;
-            const toolStarted = new Promise<void>((resolve) => {
-                started = resolve;
-            });
-            const session = await client.createSession({
-                onPermissionRequest: approveAll,
-                tools: [
-                    {
-                        name: "blocked_tool",
-                        description: "blocks until cancelled",
-                        handler: async (_args, invocation) => {
-                            signal = invocation.signal;
-                            started();
-                            await new Promise<void>((resolve) =>
-                                invocation.signal?.addEventListener("abort", () => resolve(), {
-                                    once: true,
-                                })
-                            );
-                            return "cancelled";
-                        },
-                    },
-                ],
-            });
-            (session as any)._handleBroadcastEvent({
-                type: "external_tool.requested",
-                data: {
-                    requestId: "inherited-output-request",
-                    sessionId: session.sessionId,
-                    toolCallId: "inherited-output-tool",
-                    toolName: "blocked_tool",
-                    arguments: {},
-                },
-            });
-            await toolStarted;
-            const pingReceived = new Promise<void>((resolve) =>
-                client["connection"]!.onNotification("test.pingReceived", resolve)
-            );
-            let pingError: unknown;
-            const ping = client.ping().catch((error) => {
-                pingError = error;
-            });
-            await pingReceived;
-            const child = client["cliProcess"]!;
-            const exited = once(child, "exit");
-            closedPromise = once(child, "close");
-            let closed = false;
-            child.once("close", () => {
-                closed = true;
-            });
-            child.kill();
-            await exited;
-            expect(() =>
-                process.kill(Number(readFileSync(holderPidPath, "utf8")), 0)
-            ).not.toThrow();
-            await vi.waitFor(() =>
-                expect(pingError).toMatchObject({
-                    message: "Pending response rejected since connection got disposed",
-                })
-            );
-            await ping;
-            expect(closed).toBe(false);
-            expect(client["state"]).toBe("disconnected");
-            expect(signal?.aborted).toBe(true);
-            stopHolder();
-            await closedPromise;
-        });
-
         // No child process exists over the in-process (FFI) transport, so this
         // child-process-kill scenario does not apply there. Covered by the default
         // (stdio) cell.
@@ -3654,12 +3466,6 @@ connection.listen();
                 const client = new CopilotClient();
                 await client.start();
                 onTestFinished(() => stopClient(client));
-                vi.spyOn(client["connection"]!, "sendRequest").mockResolvedValueOnce({
-                    models: [{ id: "before-restart" }],
-                });
-                expect((await client.listModels()).map((model) => model.id)).toEqual([
-                    "before-restart",
-                ]);
                 let invocationSignal: AbortSignal | undefined;
                 let toolStarted!: () => void;
                 const started = new Promise<void>((resolve) => {
@@ -3709,20 +3515,6 @@ connection.listen();
                     expect((client as any).state).toBe("disconnected");
                     expect(invocationSignal?.aborted).toBe(true);
                 });
-                await expect(client.listModels()).rejects.toThrow("Client not connected");
-
-                await client.start();
-                expect(client["state"]).toBe("connected");
-                await expect(client.ping("restarted")).resolves.toMatchObject({
-                    message: "pong: restarted",
-                });
-                const sendRequest = vi
-                    .spyOn(client["connection"]!, "sendRequest")
-                    .mockResolvedValueOnce({ models: [{ id: "after-restart" }] });
-                expect((await client.listModels()).map((model) => model.id)).toEqual([
-                    "after-restart",
-                ]);
-                expect(sendRequest).toHaveBeenCalledWith("models.list", {});
             }
         );
     });

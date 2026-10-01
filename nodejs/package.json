@@ -5,7 +5,7 @@
         "url": "https://github.com/github/copilot-sdk.git"
     },
     "version": "0.0.0-dev",
-    "copilotCliVersion": "1.0.91-0",
+    "copilotCliVersion": "1.0.89-1.unstable.r36793206303.g13aa136",
     "description": "TypeScript SDK for programmatic control of GitHub Copilot CLI via JSON-RPC",
     "main": "./dist/cjs/index.js",
     "types": "./dist/index.d.ts",
@@ -36,7 +36,6 @@
         "auth:refresh": "node ../scripts/npm-auth-refresh.mjs --run",
         "clean": "rimraf --glob dist *.tgz",
         "build": "tsx esbuild-copilotsdk-nodejs.ts",
-        "acquire:runtime-packages": "tsx scripts/runtime-package-acquisition.ts",
         "pack:release": "npm run verify:dependency-policy && tsx scripts/package-sdk.ts",
         "verify:dependency-policy": "tsx scripts/verify-dependency-policy.ts",
         "verify:release-packages": "tsx scripts/verify-release-packages.ts",

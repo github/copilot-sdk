@@ -69,6 +69,8 @@ jobs:
           cache-bin: false
       - if: github.event_name != 'merge_group' && runner.os == 'Linux'
         run: cargo +nightly-2026-04-14 fmt --all -- --config-path .rustfmt.nightly.toml --check
+      - name: Verify release snapshot generation
+        run: node --test scripts/snapshot-version.test.mjs
       - if: github.event_name != 'merge_group' && runner.os == 'Linux'
         run: cargo clippy --all-targets --no-default-features --features test-support,local-runtime,derive -- --no-deps -D warnings -D clippy::unwrap_used -D clippy::disallowed_macros -D clippy::await_holding_invalid_type
       # Path-dependency consumers must not rerun build.rs on unchanged rebuilds.

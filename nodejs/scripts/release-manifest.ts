@@ -1,7 +1,10 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
 import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { basename, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { globSync } from "glob";
 import * as semver from "semver";
@@ -11,7 +14,6 @@ import {
     SDK_PACKAGE_NAMES,
     verifyPackageSetManifestFiles,
 } from "./package-set-manifest.js";
-import { validateRuntimeReleaseIdentity } from "./runtime-release-identity.js";
 import { getRuntimePackageName, RUNTIME_PLATFORMS } from "../src/runtimeArtifacts.js";
 
 export interface ReleaseManifestPackage {
@@ -29,43 +31,6 @@ export interface PackageSetManifest {
     };
 }
 
-export interface ReleaseManifest extends PackageSetManifest {
-    channel: "canary" | "unstable";
-    runtime: {
-        repository: "github/copilot-agent-runtime";
-        runId: string;
-        sha: string;
-        source: "github-packages";
-        version: string;
-    };
-    sdk: {
-        ref: string;
-        repository: "github/copilot-sdk";
-        sha: string;
-        version: string;
-    };
-    workflow: {
-        createdAt: string;
-        runId: string;
-        runNumber: string;
-        testPolicy: "advisory" | "required" | "skipped";
-    };
-}
-
-export interface ReleaseManifestMetadata {
-    channel: ReleaseManifest["channel"];
-    createdAt: string;
-    runtimeSha: string;
-    runtimeRunId: string;
-    runtimeVersion: string;
-    sdkRef: string;
-    sdkSha: string;
-    sdkVersion: string;
-    testPolicy: ReleaseManifest["workflow"]["testPolicy"];
-    workflowRunId: string;
-    workflowRunNumber: string;
-}
-
 const expectedPackageNames = new Set(SDK_PACKAGE_NAMES);
 assert.deepEqual(
     [...expectedPackageNames].sort(),
@@ -74,7 +39,7 @@ assert.deepEqual(
 );
 
 async function readPackedManifest(archive: string): Promise<{ name: string; version: string }> {
-    const root = mkdtempSync(join(tmpdir(), "copilot-sdk-release-manifest-"));
+    const root = mkdtempSync(join(dirname(archive), ".copilot-sdk-release-manifest-"));
     try {
         await extractTar({
             cwd: root,
@@ -89,48 +54,6 @@ async function readPackedManifest(archive: string): Promise<{ name: string; vers
     } finally {
         rmSync(root, { recursive: true, force: true });
     }
-}
-
-function validateFullSha(value: string, label: string): void {
-    assert.match(value, /^[0-9a-f]{40}$/i, `${label} must be a full 40-character SHA`);
-}
-
-export async function createReleaseManifest(
-    packageDirectory: string,
-    metadata: ReleaseManifestMetadata
-): Promise<ReleaseManifest> {
-    validateFullSha(metadata.sdkSha, "SDK SHA");
-    validateRuntimeReleaseIdentity({
-        channel: metadata.channel,
-        runId: metadata.runtimeRunId,
-        sha: metadata.runtimeSha,
-        version: metadata.runtimeVersion,
-    });
-    assert(Number.isFinite(Date.parse(metadata.createdAt)), "Workflow creation time is invalid");
-    const packageSet = await createPackageSetManifest(packageDirectory, metadata.sdkVersion);
-    return {
-        ...packageSet,
-        channel: metadata.channel,
-        sdk: {
-            ...packageSet.sdk,
-            sha: metadata.sdkSha,
-            ref: metadata.sdkRef,
-            repository: "github/copilot-sdk",
-        },
-        runtime: {
-            version: metadata.runtimeVersion,
-            sha: metadata.runtimeSha,
-            source: "github-packages",
-            repository: "github/copilot-agent-runtime",
-            runId: metadata.runtimeRunId,
-        },
-        workflow: {
-            runId: metadata.workflowRunId,
-            runNumber: metadata.workflowRunNumber,
-            createdAt: metadata.createdAt,
-            testPolicy: metadata.testPolicy,
-        },
-    };
 }
 
 export async function createPackageSetManifest(
@@ -178,36 +101,6 @@ export function verifyPackageSetManifest(
     assert(semver.valid(manifest.sdk.version), "Invalid SDK version");
 }
 
-export function verifyReleaseManifest(manifest: ReleaseManifest, packageDirectory: string): void {
-    verifyPackageSetManifest(manifest, packageDirectory);
-    assert(
-        manifest.channel === "canary" || manifest.channel === "unstable",
-        "Invalid release channel"
-    );
-    validateFullSha(manifest.sdk.sha, "SDK SHA");
-    validateRuntimeReleaseIdentity({
-        channel: manifest.channel,
-        runId: manifest.runtime.runId,
-        sha: manifest.runtime.sha,
-        version: manifest.runtime.version,
-    });
-    assert.match(manifest.workflow.runId, /^[0-9]+$/, "Invalid SDK workflow run ID");
-    assert.match(manifest.workflow.runNumber, /^[0-9]+$/, "Invalid SDK workflow run number");
-    assert(
-        manifest.workflow.testPolicy === "required" ||
-            manifest.workflow.testPolicy === "advisory" ||
-            manifest.workflow.testPolicy === "skipped",
-        "Invalid runtime E2E test policy"
-    );
-    assert(
-        Number.isFinite(Date.parse(manifest.workflow.createdAt)),
-        "Invalid workflow creation time"
-    );
-    assert.equal(manifest.sdk.repository, "github/copilot-sdk");
-    assert.equal(manifest.runtime.repository, "github/copilot-agent-runtime");
-    assert.equal(manifest.runtime.source, "github-packages", "Invalid runtime package source");
-}
-
 function requiredEnvironment(name: string): string {
     const value = process.env[name]?.trim();
     if (!value) {
@@ -228,38 +121,13 @@ async function main(): Promise<void> {
         verifyPackageSetManifest(manifest, packageDirectory);
         return;
     }
-    if (command === "create") {
-        const manifest = await createReleaseManifest(packageDirectory, {
-            channel: requiredEnvironment("RELEASE_CHANNEL") as ReleaseManifest["channel"],
-            createdAt: requiredEnvironment("WORKFLOW_CREATED_AT"),
-            runtimeSha: requiredEnvironment("RUNTIME_SHA"),
-            runtimeRunId: requiredEnvironment("RUNTIME_RUN_ID"),
-            runtimeVersion: requiredEnvironment("RUNTIME_VERSION"),
-            sdkRef: requiredEnvironment("SDK_REF"),
-            sdkSha: requiredEnvironment("SDK_SHA"),
-            sdkVersion: requiredEnvironment("SDK_VERSION"),
-            testPolicy: requiredEnvironment(
-                "TEST_POLICY"
-            ) as ReleaseManifest["workflow"]["testPolicy"],
-            workflowRunId: requiredEnvironment("WORKFLOW_RUN_ID"),
-            workflowRunNumber: requiredEnvironment("WORKFLOW_RUN_NUMBER"),
-        });
-        writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
-        verifyReleaseManifest(manifest, packageDirectory);
-        return;
-    }
-    if (command === "verify") {
-        const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as ReleaseManifest;
-        verifyReleaseManifest(manifest, packageDirectory);
-        return;
-    }
     if (command === "verify-package-set") {
         const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as PackageSetManifest;
         verifyPackageSetManifest(manifest, packageDirectory);
         return;
     }
     throw new Error(
-        "Usage: release-manifest.ts create|verify|create-package-set|verify-package-set [manifest-path] [package-directory]"
+        "Usage: release-manifest.ts create-package-set|verify-package-set [manifest-path] [package-directory]"
     );
 }
 

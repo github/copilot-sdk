@@ -276,13 +276,10 @@ export COPILOT_CLI_PATH="$(npm --prefix nodejs run --silent prepare:runtime -- -
 export COPILOT_LEGACY_CLI_PATH="$(npm --prefix nodejs run --silent prepare:runtime -- --print-legacy-path)"
 npm --prefix nodejs test -- test/e2e/structured_output.e2e.test.ts
 (cd dotnet && dotnet test test/GitHub.Copilot.SDK.Test.csproj \
-  -p:CopilotSkipCliDownload=true \
   --filter FullyQualifiedName~StructuredOutputE2ETests)
 ```
 
 These are shell-local overrides for focused runs, not machine-wide settings.
-The .NET flag skips MSBuild's separate release download; the tests use the
-prepared runtime from `COPILOT_CLI_PATH`.
 The facade sets runtime paths only for its own child processes and clears
 stale or cross-target overrides before building the host CLI. Cross-target CI
 instead stages explicit artifacts and uses native test commands; do not copy

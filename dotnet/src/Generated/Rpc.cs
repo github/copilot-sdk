@@ -6769,260 +6769,6 @@ public sealed class ManagedSettingsReadResult
     public JsonElement? SettingsJson { get; set; }
 }
 
-/// <summary>One validation finding for a managed-settings document.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class ManagedSettingsDiagnostic
-{
-    /// <summary>Human-readable description of the finding.</summary>
-    [JsonPropertyName("message")]
-    public string Message { get; set; } = string.Empty;
-
-    /// <summary>Dot-separated path of the offending setting, such as `autoTier.overridable`. Empty for the document as a whole.</summary>
-    [JsonPropertyName("path")]
-    public string Path { get; set; } = string.Empty;
-
-    /// <summary>Whether the finding rejects the document.</summary>
-    [JsonPropertyName("severity")]
-    public ManagedSettingsDiagnosticSeverity Severity { get; set; }
-}
-
-/// <summary>One managed-settings channel and the document it delivered.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class ManagedSettingsLayer
-{
-    /// <summary>Validated managed-settings document this channel delivered. Absent when the channel delivered none.</summary>
-    [JsonPropertyName("settings")]
-    public JsonElement? Settings { get; set; }
-
-    /// <summary>Channel identifier: `device` (MDM, plist, registry, or managed file), `server` (account or organization policy), or `policyHelper` (session-local helper output, supported by compose). Treat unknown output values as additional channels; more may be added.</summary>
-    [JsonPropertyName("source")]
-    public string Source { get; set; } = string.Empty;
-}
-
-/// <summary>Lock state and provenance of one managed setting.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class ManagedSettingMeta
-{
-    /// <summary>Whether users and repositories may choose a different value. `false` means policy locks the value.</summary>
-    [JsonPropertyName("overridable")]
-    public bool Overridable { get; set; }
-
-    /// <summary>Channel that supplied this scalar value, matching a `layers[].source`: `device`, `server`, or `policyHelper`. These scalar defaults select one winning channel, not a mixed source. Treat unknown values as additional channels; more may be added.</summary>
-    [JsonPropertyName("source")]
-    public string Source { get; set; } = string.Empty;
-}
-
-/// <summary>Per-key lock state and provenance for `ManagedSettingsValues`, with the same field names. Producers emit each typed key in values and meta together; both outer objects are omitted when no typed key is set.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class ManagedSettingsMeta
-{
-    /// <summary>Lock state and provenance of `values.autoTier`.</summary>
-    [JsonPropertyName("autoTier")]
-    public ManagedSettingMeta? AutoTier { get; set; }
-
-    /// <summary>Lock state and provenance of `values.model`.</summary>
-    [JsonPropertyName("model")]
-    public ManagedSettingMeta? Model { get; set; }
-}
-
-/// <summary>Effective enterprise managed settings and contributing channels. Session events report applied policy; sessionless resolve reports an account/device snapshot, and compose reports a non-applying preview of candidate documents. Device values take precedence over server values, then the policy helper, per ordinary key, while permissions compose restrictively. Session-local SDK-client policy is included only in session results. Marked experimental while the managed-settings surface stabilizes.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class ManagedSettingsResolvedData
-{
-    /// <summary>Whether enterprise policy disables bypass-permissions ("yolo") mode for this session. Deny-wins across layers, and forced on when `failClosed` is true.</summary>
-    [JsonPropertyName("bypassPermissionsDisabled")]
-    public bool BypassPermissionsDisabled { get; set; }
-
-    /// <summary>Whether a session-local permissions layer injected by the SDK host was present.</summary>
-    [JsonPropertyName("clientManaged")]
-    public bool? ClientManaged { get; set; }
-
-    /// <summary>Whether an actual device MDM/plist/registry/file managed-settings layer was present.</summary>
-    [JsonPropertyName("deviceManaged")]
-    public bool DeviceManaged { get; set; }
-
-    /// <summary>Whether managed policy could not be determined (e.g. a failed server fetch) and the session fell back to the fail-closed restriction. When true, restrictions such as disabling bypass-permissions are enforced even though `settings` may be absent.</summary>
-    [JsonPropertyName("failClosed")]
-    public bool FailClosed { get; set; }
-
-    /// <summary>The setting keys under enterprise management in the effective managed settings (e.g. `model`, `enabledPlugins`, `permissions`). Empty when no managed settings are in force.</summary>
-    [JsonPropertyName("managedKeys")]
-    public IList<string> ManagedKeys { get => field ??= []; set; }
-
-    /// <summary>Whether at least two managed sources supplied permission allowlists, so enforcement intersects them and the flattened settings payload omits `permissions.allow`.</summary>
-    [JsonPropertyName("permissionsAllowIntersected")]
-    public bool? PermissionsAllowIntersected { get; set; }
-
-    /// <summary>Whether the policy-helper managed-settings layer was present. The policy helper is the weakest channel: it fills keys no enterprise source set and can never replace one.</summary>
-    [JsonPropertyName("policyHelperManaged")]
-    public bool? PolicyHelperManaged { get; set; }
-
-    /// <summary>Whether the effective sandbox policy forces the sandbox on *only* because managed policy could not be determined, rather than because the policy requires it. Lets clients tell a user whose `--no-sandbox` was overridden that the sandbox stayed on as a fail-closed fallback, instead of attributing it to an administrator who set no such policy.</summary>
-    [JsonPropertyName("sandboxEnabledByUndeterminedPolicy")]
-    public bool? SandboxEnabledByUndeterminedPolicy { get; set; }
-
-    /// <summary>Whether the server (account/org) managed-settings layer was present.</summary>
-    [JsonPropertyName("serverManaged")]
-    public bool ServerManaged { get; set; }
-
-    /// <summary>The effective (resolved) managed settings values, so clients can render exactly what is enforced. Absent when no managed policy is in force.</summary>
-    [JsonPropertyName("settings")]
-    public JsonElement? Settings { get; set; }
-
-    /// <summary>Channel summary: `server`, `device`, `client`, or `policyHelper` when exactly one channel contributed; `mixed` when multiple channels contributed; otherwise `none`. Consult the per-channel booleans for exact provenance.</summary>
-    [JsonPropertyName("source")]
-    public ManagedSettingsResolvedSource Source { get; set; }
-}
-
-/// <summary>Typed effective values of managed settings. Each field mirrors the managed-settings schema key of the same name; more keys are added as they are typed.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class ManagedSettingsValues
-{
-    /// <summary>Managed Auto routing preference, used when the selected model is `auto`.</summary>
-    [JsonPropertyName("autoTier")]
-    public AutoTier? AutoTier { get; set; }
-
-    /// <summary>Managed default model identifier, as configured. New sessions start with it; it can name a model the account cannot use, so hosts match it against the listed models.</summary>
-    [JsonPropertyName("model")]
-    public string? Model { get; set; }
-}
-
-/// <summary>Effective enterprise managed settings for an account, resolved without a session.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class ManagedSettingsResolveResult
-{
-    /// <summary>Printable opaque identity of the account the settings were resolved for, suitable for comparison and storage, not an account selectionId. Absent when no account was available, in which case only device policy is reported.</summary>
-    [JsonPropertyName("account")]
-    public string? Account { get; set; }
-
-    /// <summary>Warnings about unavailable policy sources or a failed refresh served from cache. A cached response is not proof of a successful live fetch; `resolved.failClosed` separately describes enforcement.</summary>
-    [JsonPropertyName("diagnostics")]
-    public IList<ManagedSettingsDiagnostic> Diagnostics { get => field ??= []; set; }
-
-    /// <summary>Each managed-settings channel consulted, strongest first, with the validated document it delivered before merging. `resolved.settings` is the merged result. More channels may be added over time.</summary>
-    [JsonPropertyName("layers")]
-    public IList<ManagedSettingsLayer> Layers { get => field ??= []; set; }
-
-    /// <summary>Per-key lock state and provenance for the entries in `values`, using the same key names.</summary>
-    [JsonPropertyName("meta")]
-    public ManagedSettingsMeta? Meta { get; set; }
-
-    /// <summary>Effective managed settings from the device and account (server) channels, in the same shape as `session.managedSettings.get`, excluding session-local injection.</summary>
-    [JsonPropertyName("resolved")]
-    public ManagedSettingsResolvedData Resolved { get => field ??= new(); set; }
-
-    /// <summary>Typed effective values of managed settings, keyed like the managed-settings schema and already resolved across channels, with the `{ "overridable": ... }` wrapper removed. Present when policy sets at least one typed key. Keys not typed here are available in `resolved.settings`.</summary>
-    [JsonPropertyName("values")]
-    public ManagedSettingsValues? Values { get; set; }
-}
-
-/// <summary>RPC data type for ManagedSettingsResolve operations.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class ManagedSettingsResolveRequest
-{
-    /// <summary>Embedding client identity for server policy requests, as in session creation. Omit for the CLI identity.</summary>
-    [JsonPropertyName("clientName")]
-    public string? ClientName { get; set; }
-
-    /// <summary>GitHub token to resolve instead of the current account. The call fails when the token cannot be resolved.</summary>
-    [JsonPropertyName("gitHubToken")]
-    public string? GitHubToken { get; set; }
-
-    /// <summary>Opaque account identifier returned by `account.getAllUsers`. When omitted, the current account is used, or device policy only when no account is signed in.</summary>
-    [JsonPropertyName("selectionId")]
-    public string? SelectionId { get; set; }
-}
-
-/// <summary>The authoring JSON schema for managed settings recognized by this runtime.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class ManagedSettingsSchemaResult
-{
-    /// <summary>Version of the runtime that owns this schema.</summary>
-    [JsonPropertyName("runtimeVersion")]
-    public string RuntimeVersion { get; set; } = string.Empty;
-
-    /// <summary>JSON schema (draft 2020-12) with descriptive shared `x-composition` annotations, not a complete runtime composition contract. Model, effortLevel, and contextTier remain coupled; use `managedSettings.compose` for the runtime's effective result.</summary>
-    [JsonPropertyName("schema")]
-    public JsonElement Schema { get; set; }
-}
-
-/// <summary>Result of validating a managed-settings document.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class ManagedSettingsValidateResult
-{
-    /// <summary>Errors that reject the document and warnings about content the runtime ignores.</summary>
-    [JsonPropertyName("diagnostics")]
-    public IList<ManagedSettingsDiagnostic> Diagnostics { get => field ??= []; set; }
-
-    /// <summary>Canonical form of the document the runtime would apply, with unrecognized keys removed. Absent when the document is invalid.</summary>
-    [JsonPropertyName("settings")]
-    public JsonElement? Settings { get; set; }
-
-    /// <summary>Whether the runtime would accept the document within the preview resource limits. Always equals whether `settings` is present. An invalid document is rejected as a whole.</summary>
-    [JsonPropertyName("valid")]
-    public bool Valid { get; set; }
-}
-
-/// <summary>A candidate managed-settings document to validate without applying it.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class ManagedSettingsValidateRequest
-{
-    /// <summary>The document to validate: a JSON object, or a string containing the document's JSON text. Preview documents are limited to 1 MiB and 64 levels of nesting, a stricter resource limit than delivered-policy parsing; violations are returned as diagnostics.</summary>
-    [JsonPropertyName("content")]
-    public JsonElement Content { get; set; }
-
-    /// <summary>Channel the document is meant for (`device`, `server`, or `policyHelper`). Some keys are only honored in some channels; for example, a `policyHelper` registration is ignored in policy-helper output. When omitted, no channel-specific checks run.</summary>
-    [JsonPropertyName("layer")]
-    public string? Layer { get; set; }
-}
-
-/// <summary>The effective managed settings the runtime would enforce for the given documents, in the same shape `managedSettings.resolve` returns.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class ManagedSettingsComposeResult
-{
-    /// <summary>Warnings about ignored content, with paths prefixed by the channel name.</summary>
-    [JsonPropertyName("diagnostics")]
-    public IList<ManagedSettingsDiagnostic> Diagnostics { get => field ??= []; set; }
-
-    /// <summary>Only the supplied channels, strongest first, with canonical documents. Empty canonical documents are represented as absent settings, as in live resolution.</summary>
-    [JsonPropertyName("layers")]
-    public IList<ManagedSettingsLayer> Layers { get => field ??= []; set; }
-
-    /// <summary>Per-key lock state and provenance for `values`.</summary>
-    [JsonPropertyName("meta")]
-    public ManagedSettingsMeta? Meta { get; set; }
-
-    /// <summary>Effective managed settings, in the same shape as `session.managedSettings.get`.</summary>
-    [JsonPropertyName("resolved")]
-    public ManagedSettingsResolvedData Resolved { get => field ??= new(); set; }
-
-    /// <summary>Typed effective values, as in `managedSettings.resolve`.</summary>
-    [JsonPropertyName("values")]
-    public ManagedSettingsValues? Values { get; set; }
-}
-
-/// <summary>One candidate channel; absent settings represents a channel that delivered no document.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class ManagedSettingsComposeLayer
-{
-    /// <summary>Candidate managed-settings document. Omit when the channel delivered none, as in resolve output.</summary>
-    [JsonPropertyName("settings")]
-    public JsonElement? Settings { get; set; }
-
-    /// <summary>The channel whose candidate document is being supplied.</summary>
-    [JsonPropertyName("source")]
-    public ManagedSettingsChannel Source { get; set; }
-}
-
-/// <summary>Candidate managed-settings documents to merge without applying them.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class ManagedSettingsComposeRequest
-{
-    /// <summary>One entry per channel. `source` must be `device`, `server`, or `policyHelper`, each at most once (checked at runtime); order does not matter, because channel precedence is fixed. To preview documents from resolve output, map recognized source strings to ManagedSettingsChannel and copy their settings; generated resolve and compose layer types are distinct. Omitted settings means this channel delivered no document. Supplied documents must be valid within the preview limits; warnings are returned in diagnostics. Compose does not reproduce source-failure state or retained enforcement floors from resolve.</summary>
-    [JsonPropertyName("layers")]
-    public IList<ManagedSettingsComposeLayer> Layers { get => field ??= []; set; }
-}
-
 /// <summary>Indicates whether the calling client was registered as the session filesystem provider.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public sealed class SessionFsSetProviderResult
@@ -16643,6 +16389,55 @@ internal sealed class SessionConnectorsWithdrawProjectionRequest
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Enterprise managed-settings resolution: the effective managed settings the session applied and which channels contributed, so SDK clients can show users what is enterprise-managed. Fires whenever managed policy is (re)applied — at session start, on resume, and on account switch. This is an ephemeral live snapshot (delivered to subscribers but not persisted to the session event log), because at session start it resolves before `session.start` is emitted. Device values take precedence over server values, then the policy helper, per ordinary key, while permissions compose restrictively across device, server, policy-helper, and SDK-client layers. The account-scoped `getManagedSettings()` API does not include session-local client injection. Marked experimental while the managed-settings surface stabilizes.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class ManagedSettingsResolvedData
+{
+    /// <summary>Whether enterprise policy disables bypass-permissions ("yolo") mode for this session. Deny-wins across layers, and forced on when `failClosed` is true.</summary>
+    [JsonPropertyName("bypassPermissionsDisabled")]
+    public bool BypassPermissionsDisabled { get; set; }
+
+    /// <summary>Whether a session-local permissions layer injected by the SDK host was present.</summary>
+    [JsonPropertyName("clientManaged")]
+    public bool? ClientManaged { get; set; }
+
+    /// <summary>Whether an actual device MDM/plist/registry/file managed-settings layer was present.</summary>
+    [JsonPropertyName("deviceManaged")]
+    public bool DeviceManaged { get; set; }
+
+    /// <summary>Whether managed policy could not be determined (e.g. a failed server fetch) and the session fell back to the fail-closed restriction. When true, restrictions such as disabling bypass-permissions are enforced even though `settings` may be absent.</summary>
+    [JsonPropertyName("failClosed")]
+    public bool FailClosed { get; set; }
+
+    /// <summary>The setting keys under enterprise management in the effective managed settings (e.g. `model`, `enabledPlugins`, `permissions`). Empty when no managed settings are in force.</summary>
+    [JsonPropertyName("managedKeys")]
+    public IList<string> ManagedKeys { get => field ??= []; set; }
+
+    /// <summary>Whether at least two managed sources supplied permission allowlists, so enforcement intersects them and the flattened settings payload omits `permissions.allow`.</summary>
+    [JsonPropertyName("permissionsAllowIntersected")]
+    public bool? PermissionsAllowIntersected { get; set; }
+
+    /// <summary>Whether the policy-helper managed-settings layer was present. The policy helper is the weakest channel: it fills keys no enterprise source set and can never replace one.</summary>
+    [JsonPropertyName("policyHelperManaged")]
+    public bool? PolicyHelperManaged { get; set; }
+
+    /// <summary>Whether the effective sandbox policy forces the sandbox on *only* because managed policy could not be determined, rather than because the policy requires it. Lets clients tell a user whose `--no-sandbox` was overridden that the sandbox stayed on as a fail-closed fallback, instead of attributing it to an administrator who set no such policy.</summary>
+    [JsonPropertyName("sandboxEnabledByUndeterminedPolicy")]
+    public bool? SandboxEnabledByUndeterminedPolicy { get; set; }
+
+    /// <summary>Whether the server (account/org) managed-settings layer was present.</summary>
+    [JsonPropertyName("serverManaged")]
+    public bool ServerManaged { get; set; }
+
+    /// <summary>The effective (resolved) managed settings values, so clients can render exactly what is enforced. Absent when no managed policy is in force.</summary>
+    [JsonPropertyName("settings")]
+    public JsonElement? Settings { get; set; }
+
+    /// <summary>Channel summary: `server`, `device`, `client`, or `policyHelper` when exactly one channel contributed; `mixed` when multiple channels contributed; otherwise `none`. Consult the per-channel booleans for exact provenance.</summary>
+    [JsonPropertyName("source")]
+    public ManagedSettingsResolvedSource Source { get; set; }
 }
 
 /// <summary>Identifies the target session.</summary>
@@ -30500,135 +30295,6 @@ public readonly struct SlashCommandKind : IEquatable<SlashCommandKind>
 }
 
 
-/// <summary>Severity of a managed-settings validation finding.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct ManagedSettingsDiagnosticSeverity : IEquatable<ManagedSettingsDiagnosticSeverity>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="ManagedSettingsDiagnosticSeverity"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="ManagedSettingsDiagnosticSeverity"/>.</param>
-    [JsonConstructor]
-    public ManagedSettingsDiagnosticSeverity(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="ManagedSettingsDiagnosticSeverity"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>The runtime rejects the document.</summary>
-    public static ManagedSettingsDiagnosticSeverity Error { get; } = new("error");
-
-    /// <summary>The runtime accepts the document but ignores the flagged content.</summary>
-    public static ManagedSettingsDiagnosticSeverity Warning { get; } = new("warning");
-
-    /// <summary>Returns a value indicating whether two <see cref="ManagedSettingsDiagnosticSeverity"/> instances are equivalent.</summary>
-    public static bool operator ==(ManagedSettingsDiagnosticSeverity left, ManagedSettingsDiagnosticSeverity right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="ManagedSettingsDiagnosticSeverity"/> instances are not equivalent.</summary>
-    public static bool operator !=(ManagedSettingsDiagnosticSeverity left, ManagedSettingsDiagnosticSeverity right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is ManagedSettingsDiagnosticSeverity other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(ManagedSettingsDiagnosticSeverity other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{ManagedSettingsDiagnosticSeverity}"/> for serializing <see cref="ManagedSettingsDiagnosticSeverity"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<ManagedSettingsDiagnosticSeverity>
-    {
-        /// <inheritdoc />
-        public override ManagedSettingsDiagnosticSeverity Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, ManagedSettingsDiagnosticSeverity value, JsonSerializerOptions options)
-        {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ManagedSettingsDiagnosticSeverity));
-        }
-    }
-}
-
-
-/// <summary>A channel accepted by managedSettings.compose.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct ManagedSettingsChannel : IEquatable<ManagedSettingsChannel>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="ManagedSettingsChannel"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="ManagedSettingsChannel"/>.</param>
-    [JsonConstructor]
-    public ManagedSettingsChannel(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="ManagedSettingsChannel"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>Device policy, the strongest channel.</summary>
-    public static ManagedSettingsChannel Device { get; } = new("device");
-
-    /// <summary>Account or organization policy.</summary>
-    public static ManagedSettingsChannel Server { get; } = new("server");
-
-    /// <summary>Session-local helper output, the weakest channel.</summary>
-    public static ManagedSettingsChannel PolicyHelper { get; } = new("policyHelper");
-
-    /// <summary>Returns a value indicating whether two <see cref="ManagedSettingsChannel"/> instances are equivalent.</summary>
-    public static bool operator ==(ManagedSettingsChannel left, ManagedSettingsChannel right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="ManagedSettingsChannel"/> instances are not equivalent.</summary>
-    public static bool operator !=(ManagedSettingsChannel left, ManagedSettingsChannel right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is ManagedSettingsChannel other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(ManagedSettingsChannel other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{ManagedSettingsChannel}"/> for serializing <see cref="ManagedSettingsChannel"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<ManagedSettingsChannel>
-    {
-        /// <inheritdoc />
-        public override ManagedSettingsChannel Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, ManagedSettingsChannel value, JsonSerializerOptions options)
-        {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ManagedSettingsChannel));
-        }
-    }
-}
-
-
 /// <summary>Path conventions used by this filesystem.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
@@ -42022,7 +41688,7 @@ public sealed class ServerManagedSettingsApi
         _rpc = rpc;
     }
 
-    /// <summary>Discovers device-managed settings from production MDM and managed-file sources, validates them against the runtime-owned managed-settings schema, and returns the canonical JSON without requiring a session. `managedSettings.resolve` returns the same device settings together with the account's server policy.</summary>
+    /// <summary>Discovers device-managed settings from production MDM and managed-file sources, validates them against the runtime-owned managed-settings schema, and returns the canonical JSON without requiring a session.</summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Validated device-managed settings discovered before a session exists.</returns>
     public async Task<ManagedSettingsReadResult> ReadAsync(CancellationToken cancellationToken = default)
@@ -42030,56 +41696,11 @@ public sealed class ServerManagedSettingsApi
         return await CopilotClient.InvokeRpcAsync<ManagedSettingsReadResult>(_rpc, "managedSettings.read", [], cancellationToken);
     }
 
-    /// <summary>Force-refreshes enterprise managed settings for every account: wipes the persistent server-policy cache (the whole `&lt;cacheHome&gt;/managed-settings` directory) and drops this runtime process's in-memory retained server policy. It does not itself fetch policy — the effect is that the next time a session resolves managed settings for an account, that resolution re-fetches the account's org policy from the network instead of serving a cached response. Note that `managedSettings.read` returns only device/MDM settings and never triggers the account server-policy fetch, so a host implementing "sync account policy" should call `managedSettings.resolve` or start a fresh session resolution rather than treat a subsequent `managedSettings.read` as the refreshed org policy. Mirrors the invalidation a sign-out performs, broadened from the one signing-out account to all of them; device/MDM layers describe the machine, not the account, and are left untouched. Rejects if the on-disk cache cannot be removed.</summary>
+    /// <summary>Force-refreshes enterprise managed settings for every account: wipes the persistent server-policy cache (the whole `&lt;cacheHome&gt;/managed-settings` directory) and drops this runtime process's in-memory retained server policy. It does not itself fetch policy — the effect is that the next time a session resolves managed settings for an account, that resolution re-fetches the account's org policy from the network instead of serving a cached response. Note that `managedSettings.read` returns only device/MDM settings and never triggers the account server-policy fetch, so a host implementing "sync account policy" should start a fresh session resolution rather than treat a subsequent `managedSettings.read` as the refreshed org policy. Mirrors the invalidation a sign-out performs, broadened from the one signing-out account to all of them; device/MDM layers describe the machine, not the account, and are left untouched. Rejects if the on-disk cache cannot be removed.</summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task ClearCacheAsync(CancellationToken cancellationToken = default)
     {
         await CopilotClient.InvokeRpcAsync(_rpc, "managedSettings.clearCache", [], cancellationToken);
-    }
-
-    /// <summary>Resolves the effective enterprise managed settings without a session, from the device channel and, when an account is available, the account's server policy through the same per-account cache sessions use. A cached server policy less than an hour old is used without a fetch; otherwise the policy is fetched, and when the fetch fails a cached policy up to 24 hours old is used instead, unless `forceRemoteSettingsRefresh` requires a live fetch. With no account requested or signed in, it reports device policy only; signing out removes the account's cached policy. It can fetch server policy over the network when the cache is stale, so call it off latency-critical paths such as startup rather than before listing models. The policy helper is not run. `layers` lists each channel's document before merging, and `values` and `meta` carry typed effective values and their lock state for the keys typed so far.</summary>
-    /// <param name="selectionId">Opaque account identifier returned by `account.getAllUsers`. When omitted, the current account is used, or device policy only when no account is signed in.</param>
-    /// <param name="gitHubToken">GitHub token to resolve instead of the current account. The call fails when the token cannot be resolved.</param>
-    /// <param name="clientName">Embedding client identity for server policy requests, as in session creation. Omit for the CLI identity.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>Effective enterprise managed settings for an account, resolved without a session.</returns>
-    public async Task<ManagedSettingsResolveResult> ResolveAsync(string? selectionId = null, string? gitHubToken = null, string? clientName = null, CancellationToken cancellationToken = default)
-    {
-        var request = new ManagedSettingsResolveRequest { SelectionId = selectionId, GitHubToken = gitHubToken, ClientName = clientName };
-        return await CopilotClient.InvokeRpcAsync<ManagedSettingsResolveResult>(_rpc, "managedSettings.resolve", [request], cancellationToken);
-    }
-
-    /// <summary>Returns the managed-settings authoring JSON schema with descriptive `x-composition` annotations aligned with the shared settings-engine vocabulary. These annotations are not a complete runtime composition contract: model, effortLevel, and contextTier remain coupled. Use `managedSettings.compose` for the runtime's effective result. Performs no I/O.</summary>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>The authoring JSON schema for managed settings recognized by this runtime.</returns>
-    public async Task<ManagedSettingsSchemaResult> SchemaAsync(CancellationToken cancellationToken = default)
-    {
-        return await CopilotClient.InvokeRpcAsync<ManagedSettingsSchemaResult>(_rpc, "managedSettings.schema", [], cancellationToken);
-    }
-
-    /// <summary>Validates a candidate managed-settings document the way the runtime validates delivered policy, without applying it. Reports errors that would reject the document, warnings for content the runtime ignores, and the canonical document it would apply. Document text nested more than 64 levels deep is rejected. Performs no I/O.</summary>
-    /// <param name="content">The document to validate: a JSON object, or a string containing the document's JSON text. Preview documents are limited to 1 MiB and 64 levels of nesting, a stricter resource limit than delivered-policy parsing; violations are returned as diagnostics.</param>
-    /// <param name="layer">Channel the document is meant for (`device`, `server`, or `policyHelper`). Some keys are only honored in some channels; for example, a `policyHelper` registration is ignored in policy-helper output. When omitted, no channel-specific checks run.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>Result of validating a managed-settings document.</returns>
-    public async Task<ManagedSettingsValidateResult> ValidateAsync(object content, string? layer = null, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(content);
-
-        var request = new ManagedSettingsValidateRequest { Content = CopilotClient.ToJsonElementForWire(content)!.Value, Layer = layer };
-        return await CopilotClient.InvokeRpcAsync<ManagedSettingsValidateResult>(_rpc, "managedSettings.validate", [request], cancellationToken);
-    }
-
-    /// <summary>Merges candidate managed-settings documents for the device, server, and policy-helper channels into the effective settings the runtime would enforce on this host, using the same precedence and composition rules as live resolution, without applying them. Like live resolution, a server's advisory sandbox force-enable is declined on a host that cannot run the sandbox. Does not fetch policy or read policy files, but may perform blocking OS or subprocess probes for sandbox support. Preview documents are limited to 1 MiB and 64 levels of nesting.</summary>
-    /// <param name="layers">One entry per channel. `source` must be `device`, `server`, or `policyHelper`, each at most once (checked at runtime); order does not matter, because channel precedence is fixed. To preview documents from resolve output, map recognized source strings to ManagedSettingsChannel and copy their settings; generated resolve and compose layer types are distinct. Omitted settings means this channel delivered no document. Supplied documents must be valid within the preview limits; warnings are returned in diagnostics. Compose does not reproduce source-failure state or retained enforcement floors from resolve.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>The effective managed settings the runtime would enforce for the given documents, in the same shape `managedSettings.resolve` returns.</returns>
-    public async Task<ManagedSettingsComposeResult> ComposeAsync(IList<ManagedSettingsComposeLayer> layers, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(layers);
-
-        var request = new ManagedSettingsComposeRequest { Layers = layers };
-        return await CopilotClient.InvokeRpcAsync<ManagedSettingsComposeResult>(_rpc, "managedSettings.compose", [request], cancellationToken);
     }
 }
 
@@ -45681,7 +45302,7 @@ public sealed class ManagedSettingsApi
 
     /// <summary>Waits for the live session's in-flight managed-settings application, then returns the retained effective snapshot used by runtime enforcement and by `session.managed_settings_resolved`. It does not perform another account, device, or server resolution, and rejects when resolution has not produced a snapshot.</summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>Effective enterprise managed settings and contributing channels. Session events report applied policy; sessionless resolve reports an account/device snapshot, and compose reports a non-applying preview of candidate documents. Device values take precedence over server values, then the policy helper, per ordinary key, while permissions compose restrictively. Session-local SDK-client policy is included only in session results. Marked experimental while the managed-settings surface stabilizes.</returns>
+    /// <returns>Enterprise managed-settings resolution: the effective managed settings the session applied and which channels contributed, so SDK clients can show users what is enterprise-managed. Fires whenever managed policy is (re)applied — at session start, on resume, and on account switch. This is an ephemeral live snapshot (delivered to subscribers but not persisted to the session event log), because at session start it resolves before `session.start` is emitted. Device values take precedence over server values, then the policy helper, per ordinary key, while permissions compose restrictively across device, server, policy-helper, and SDK-client layers. The account-scoped `getManagedSettings()` API does not include session-local client injection. Marked experimental while the managed-settings surface stabilizes.</returns>
     public async Task<ManagedSettingsResolvedData> GetAsync(CancellationToken cancellationToken = default)
     {
         _session.ThrowIfDisposed();
@@ -49053,21 +48674,8 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(LogRequest))]
 [JsonSerializable(typeof(LogResult))]
 [JsonSerializable(typeof(LspInitializeRequest))]
-[JsonSerializable(typeof(ManagedSettingMeta))]
-[JsonSerializable(typeof(ManagedSettingsComposeLayer))]
-[JsonSerializable(typeof(ManagedSettingsComposeRequest))]
-[JsonSerializable(typeof(ManagedSettingsComposeResult))]
-[JsonSerializable(typeof(ManagedSettingsDiagnostic))]
-[JsonSerializable(typeof(ManagedSettingsLayer))]
-[JsonSerializable(typeof(ManagedSettingsMeta))]
 [JsonSerializable(typeof(ManagedSettingsReadResult))]
-[JsonSerializable(typeof(ManagedSettingsResolveRequest))]
-[JsonSerializable(typeof(ManagedSettingsResolveResult))]
 [JsonSerializable(typeof(ManagedSettingsResolvedData))]
-[JsonSerializable(typeof(ManagedSettingsSchemaResult))]
-[JsonSerializable(typeof(ManagedSettingsValidateRequest))]
-[JsonSerializable(typeof(ManagedSettingsValidateResult))]
-[JsonSerializable(typeof(ManagedSettingsValues))]
 [JsonSerializable(typeof(MarketplaceAddResult))]
 [JsonSerializable(typeof(MarketplaceBrowseResult))]
 [JsonSerializable(typeof(MarketplaceInfo))]

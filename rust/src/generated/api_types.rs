@@ -188,14 +188,6 @@ pub mod rpc_methods {
     pub const MANAGEDSETTINGS_READ: &str = "managedSettings.read";
     /// `managedSettings.clearCache`
     pub const MANAGEDSETTINGS_CLEARCACHE: &str = "managedSettings.clearCache";
-    /// `managedSettings.resolve`
-    pub const MANAGEDSETTINGS_RESOLVE: &str = "managedSettings.resolve";
-    /// `managedSettings.schema`
-    pub const MANAGEDSETTINGS_SCHEMA: &str = "managedSettings.schema";
-    /// `managedSettings.validate`
-    pub const MANAGEDSETTINGS_VALIDATE: &str = "managedSettings.validate";
-    /// `managedSettings.compose`
-    pub const MANAGEDSETTINGS_COMPOSE: &str = "managedSettings.compose";
     /// `runtime.shutdown`
     pub const RUNTIME_SHUTDOWN: &str = "runtime.shutdown";
     /// `sessionFs.setProvider`
@@ -9714,7 +9706,7 @@ pub struct ManagedMcpServerConfig {
     pub url: String,
 }
 
-/// Lock state and provenance of one managed setting.
+/// Validated device-managed settings discovered before a session exists.
 ///
 /// <div class="warning">
 ///
@@ -9724,103 +9716,16 @@ pub struct ManagedMcpServerConfig {
 /// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ManagedSettingMeta {
-    /// Whether users and repositories may choose a different value. `false` means policy locks the value.
-    pub overridable: bool,
-    /// Channel that supplied this scalar value, matching a `layers[].source`: `device`, `server`, or `policyHelper`. These scalar defaults select one winning channel, not a mixed source. Treat unknown values as additional channels; more may be added.
-    pub source: String,
-}
-
-/// One candidate channel; absent settings represents a channel that delivered no document.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ManagedSettingsComposeLayer {
-    /// Candidate managed-settings document. Omit when the channel delivered none, as in resolve output.
+pub struct ManagedSettingsReadResult {
+    /// Discovery or validation error text when managed settings could not be read safely.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub settings: Option<serde_json::Value>,
-    /// The channel whose candidate document is being supplied.
-    pub source: ManagedSettingsChannel,
-}
-
-/// Candidate managed-settings documents to merge without applying them.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ManagedSettingsComposeRequest {
-    /// One entry per channel. `source` must be `device`, `server`, or `policyHelper`, each at most once (checked at runtime); order does not matter, because channel precedence is fixed. To preview documents from resolve output, map recognized source strings to ManagedSettingsChannel and copy their settings; generated resolve and compose layer types are distinct. Omitted settings means this channel delivered no document. Supplied documents must be valid within the preview limits; warnings are returned in diagnostics. Compose does not reproduce source-failure state or retained enforcement floors from resolve.
-    pub layers: Vec<ManagedSettingsComposeLayer>,
-}
-
-/// One validation finding for a managed-settings document.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ManagedSettingsDiagnostic {
-    /// Human-readable description of the finding.
-    pub message: String,
-    /// Dot-separated path of the offending setting, such as `autoTier.overridable`. Empty for the document as a whole.
-    pub path: String,
-    /// Whether the finding rejects the document.
-    pub severity: ManagedSettingsDiagnosticSeverity,
-}
-
-/// One managed-settings channel and the document it delivered.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ManagedSettingsLayer {
-    /// Validated managed-settings document this channel delivered. Absent when the channel delivered none.
+    pub error_message: Option<String>,
+    /// Validated, canonical managed-settings JSON. Omitted when no managed settings were discovered or when discovered settings failed validation.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub settings: Option<serde_json::Value>,
-    /// Channel identifier: `device` (MDM, plist, registry, or managed file), `server` (account or organization policy), or `policyHelper` (session-local helper output, supported by compose). Treat unknown output values as additional channels; more may be added.
-    pub source: String,
+    pub settings_json: Option<serde_json::Value>,
 }
 
-/// Per-key lock state and provenance for `ManagedSettingsValues`, with the same field names. Producers emit each typed key in values and meta together; both outer objects are omitted when no typed key is set.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ManagedSettingsMeta {
-    /// Lock state and provenance of `values.autoTier`.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub auto_tier: Option<ManagedSettingMeta>,
-    /// Lock state and provenance of `values.model`.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub model: Option<ManagedSettingMeta>,
-}
-
-/// Effective enterprise managed settings and contributing channels. Session events report applied policy; sessionless resolve reports an account/device snapshot, and compose reports a non-applying preview of candidate documents. Device values take precedence over server values, then the policy helper, per ordinary key, while permissions compose restrictively. Session-local SDK-client policy is included only in session results. Marked experimental while the managed-settings surface stabilizes.
+/// Enterprise managed-settings resolution: the effective managed settings the session applied and which channels contributed, so SDK clients can show users what is enterprise-managed. Fires whenever managed policy is (re)applied — at session start, on resume, and on account switch. This is an ephemeral live snapshot (delivered to subscribers but not persisted to the session event log), because at session start it resolves before `session.start` is emitted. Device values take precedence over server values, then the policy helper, per ordinary key, while permissions compose restrictively across device, server, policy-helper, and SDK-client layers. The account-scoped `getManagedSettings()` API does not include session-local client injection. Marked experimental while the managed-settings surface stabilizes.
 ///
 /// <div class="warning">
 ///
@@ -9858,174 +9763,6 @@ pub struct ManagedSettingsResolvedData {
     pub settings: Option<serde_json::Value>,
     /// Channel summary: `server`, `device`, `client`, or `policyHelper` when exactly one channel contributed; `mixed` when multiple channels contributed; otherwise `none`. Consult the per-channel booleans for exact provenance.
     pub source: ManagedSettingsResolvedSource,
-}
-
-/// Typed effective values of managed settings. Each field mirrors the managed-settings schema key of the same name; more keys are added as they are typed.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ManagedSettingsValues {
-    /// Managed Auto routing preference, used when the selected model is `auto`.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub auto_tier: Option<AutoTier>,
-    /// Managed default model identifier, as configured. New sessions start with it; it can name a model the account cannot use, so hosts match it against the listed models.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub model: Option<String>,
-}
-
-/// The effective managed settings the runtime would enforce for the given documents, in the same shape `managedSettings.resolve` returns.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ManagedSettingsComposeResult {
-    /// Warnings about ignored content, with paths prefixed by the channel name.
-    pub diagnostics: Vec<ManagedSettingsDiagnostic>,
-    /// Only the supplied channels, strongest first, with canonical documents. Empty canonical documents are represented as absent settings, as in live resolution.
-    pub layers: Vec<ManagedSettingsLayer>,
-    /// Per-key lock state and provenance for `values`.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub meta: Option<ManagedSettingsMeta>,
-    /// Effective managed settings, in the same shape as `session.managedSettings.get`.
-    pub resolved: ManagedSettingsResolvedData,
-    /// Typed effective values, as in `managedSettings.resolve`.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub values: Option<ManagedSettingsValues>,
-}
-
-/// Validated device-managed settings discovered before a session exists.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ManagedSettingsReadResult {
-    /// Discovery or validation error text when managed settings could not be read safely.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub error_message: Option<String>,
-    /// Validated, canonical managed-settings JSON. Omitted when no managed settings were discovered or when discovered settings failed validation.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub settings_json: Option<serde_json::Value>,
-}
-
-/// Optional opaque account selection or GitHub token whose managed settings are resolved.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ManagedSettingsResolveRequest {
-    /// Embedding client identity for server policy requests, as in session creation. Omit for the CLI identity.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub client_name: Option<String>,
-    /// GitHub token to resolve instead of the current account. The call fails when the token cannot be resolved.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub git_hub_token: Option<String>,
-    /// Opaque account identifier returned by `account.getAllUsers`. When omitted, the current account is used, or device policy only when no account is signed in.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub selection_id: Option<String>,
-}
-
-/// Effective enterprise managed settings for an account, resolved without a session.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ManagedSettingsResolveResult {
-    /// Printable opaque identity of the account the settings were resolved for, suitable for comparison and storage, not an account selectionId. Absent when no account was available, in which case only device policy is reported.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub account: Option<String>,
-    /// Warnings about unavailable policy sources or a failed refresh served from cache. A cached response is not proof of a successful live fetch; `resolved.failClosed` separately describes enforcement.
-    pub diagnostics: Vec<ManagedSettingsDiagnostic>,
-    /// Each managed-settings channel consulted, strongest first, with the validated document it delivered before merging. `resolved.settings` is the merged result. More channels may be added over time.
-    pub layers: Vec<ManagedSettingsLayer>,
-    /// Per-key lock state and provenance for the entries in `values`, using the same key names.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub meta: Option<ManagedSettingsMeta>,
-    /// Effective managed settings from the device and account (server) channels, in the same shape as `session.managedSettings.get`, excluding session-local injection.
-    pub resolved: ManagedSettingsResolvedData,
-    /// Typed effective values of managed settings, keyed like the managed-settings schema and already resolved across channels, with the `{ "overridable": ... }` wrapper removed. Present when policy sets at least one typed key. Keys not typed here are available in `resolved.settings`.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub values: Option<ManagedSettingsValues>,
-}
-
-/// The authoring JSON schema for managed settings recognized by this runtime.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ManagedSettingsSchemaResult {
-    /// Version of the runtime that owns this schema.
-    pub runtime_version: String,
-    /// JSON schema (draft 2020-12) with descriptive shared `x-composition` annotations, not a complete runtime composition contract. Model, effortLevel, and contextTier remain coupled; use `managedSettings.compose` for the runtime's effective result.
-    pub schema: serde_json::Value,
-}
-
-/// A candidate managed-settings document to validate without applying it.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ManagedSettingsValidateRequest {
-    /// The document to validate: a JSON object, or a string containing the document's JSON text. Preview documents are limited to 1 MiB and 64 levels of nesting, a stricter resource limit than delivered-policy parsing; violations are returned as diagnostics.
-    pub content: serde_json::Value,
-    /// Channel the document is meant for (`device`, `server`, or `policyHelper`). Some keys are only honored in some channels; for example, a `policyHelper` registration is ignored in policy-helper output. When omitted, no channel-specific checks run.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub layer: Option<String>,
-}
-
-/// Result of validating a managed-settings document.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ManagedSettingsValidateResult {
-    /// Errors that reject the document and warnings about content the runtime ignores.
-    pub diagnostics: Vec<ManagedSettingsDiagnostic>,
-    /// Canonical form of the document the runtime would apply, with unrecognized keys removed. Absent when the document is invalid.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub settings: Option<serde_json::Value>,
-    /// Whether the runtime would accept the document within the preview resource limits. Always equals whether `settings` is present. An invalid document is rejected as a whole.
-    pub valid: bool,
 }
 
 /// Result of registering a new marketplace.
@@ -31904,7 +31641,7 @@ pub struct SessionManagedSettingsGetParams {
     pub session_id: SessionId,
 }
 
-/// Effective enterprise managed settings and contributing channels. Session events report applied policy; sessionless resolve reports an account/device snapshot, and compose reports a non-applying preview of candidate documents. Device values take precedence over server values, then the policy helper, per ordinary key, while permissions compose restrictively. Session-local SDK-client policy is included only in session results. Marked experimental while the managed-settings surface stabilizes.
+/// Enterprise managed-settings resolution: the effective managed settings the session applied and which channels contributed, so SDK clients can show users what is enterprise-managed. Fires whenever managed policy is (re)applied — at session start, on resume, and on account switch. This is an ephemeral live snapshot (delivered to subscribers but not persisted to the session event log), because at session start it resolves before `session.start` is emitted. Device values take precedence over server values, then the policy helper, per ordinary key, while permissions compose restrictively across device, server, policy-helper, and SDK-client layers. The account-scoped `getManagedSettings()` API does not include session-local client injection. Marked experimental while the managed-settings surface stabilizes.
 ///
 /// <div class="warning">
 ///
@@ -39198,53 +38935,6 @@ pub enum SessionLogLevel {
     /// Error message describing a failure.
     #[serde(rename = "error")]
     Error,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// A channel accepted by managedSettings.compose.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ManagedSettingsChannel {
-    /// Device policy, the strongest channel.
-    #[serde(rename = "device")]
-    Device,
-    /// Account or organization policy.
-    #[serde(rename = "server")]
-    Server,
-    /// Session-local helper output, the weakest channel.
-    #[serde(rename = "policyHelper")]
-    PolicyHelper,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// Severity of a managed-settings validation finding.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ManagedSettingsDiagnosticSeverity {
-    /// The runtime rejects the document.
-    #[serde(rename = "error")]
-    Error,
-    /// The runtime accepts the document but ignores the flagged content.
-    #[serde(rename = "warning")]
-    Warning,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]

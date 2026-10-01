@@ -10,7 +10,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.AfterAll;
@@ -159,7 +158,7 @@ public class StreamingFidelityTest {
                 CopilotSession session2 = newClient.resumeSession(sessionId, new ResumeSessionConfig()
                         .setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setStreaming(true)).get();
 
-                List<SessionEvent> events = new CopyOnWriteArrayList<>();
+                List<SessionEvent> events = new ArrayList<>();
                 session2.on(events::add);
 
                 AssistantMessageEvent answer = session2

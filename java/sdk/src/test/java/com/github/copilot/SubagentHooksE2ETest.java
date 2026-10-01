@@ -5,10 +5,8 @@
 package com.github.copilot;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.InputStream;
 import java.net.http.HttpRequest;
@@ -16,14 +14,12 @@ import java.net.http.HttpResponse;
 import java.nio.file.Files;
 import java.util.HashMap;
 import java.util.List;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.Test;
 
-import com.github.copilot.generated.AssistantMessageEvent;
 import com.github.copilot.rpc.CopilotClientOptions;
 import com.github.copilot.rpc.MessageOptions;
 import com.github.copilot.rpc.PermissionHandler;
@@ -43,51 +39,28 @@ public class SubagentHooksE2ETest {
 
             ConcurrentLinkedQueue<HookEntry> hookLog = new ConcurrentLinkedQueue<>();
             RecordingForwardingRequestHandler requestHandler = new RecordingForwardingRequestHandler();
-            String waitingText = "I've launched an explore agent to read subagent-test.txt. Waiting for it to complete...";
-            String finalText = "The explore agent successfully read the file. The contents of **subagent-test.txt** are:\n\n```\nHello from subagent test!\n```";
-            String parentSessionId = UUID.randomUUID().toString();
-            CompletableFuture<Void> parentWaiting = new CompletableFuture<>();
             HashMap<String, String> env = new HashMap<>(ctx.getEnvironment());
             env.put("COPILOT_EXP_COPILOT_CLI_SESSION_BASED_SUBAGENTS", "true");
 
             try (CopilotClient client = ctx
                     .createClient(new CopilotClientOptions().setEnvironment(env).setRequestHandler(requestHandler))) {
-                CopilotSession session = client.createSession(new SessionConfig().setSessionId(parentSessionId)
-                        .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
-                        .setHooks(new SessionHooks().setOnPreToolUse((input, invocation) -> {
-                            hookLog.add(new HookEntry("pre", input.getToolName(), input.getSessionId()));
-                            return CompletableFuture.completedFuture(PreToolUseHookOutput.allow());
-                        }).setOnPostToolUse((input, invocation) -> {
-                            hookLog.add(new HookEntry("post", input.getToolName(), input.getSessionId()));
-                            // A fast child can inject its result before the fixture's waiting reply is
-                            // requested.
-                            if ("view".equals(input.getToolName()) && !parentSessionId.equals(input.getSessionId())) {
-                                return parentWaiting.thenApply(ignored -> null);
-                            }
-                            return CompletableFuture.completedFuture((PostToolUseHookOutput) null);
-                        }))).get();
-                try (var subscription = session.on(AssistantMessageEvent.class, message -> {
-                    if ((message.getAgentId() == null || message.getAgentId().isEmpty())
-                            && waitingText.equals(message.getData().content())) {
-                        parentWaiting.complete(null);
-                    }
-                })) {
+                CopilotSession session = client
+                        .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+                                .setHooks(new SessionHooks().setOnPreToolUse((input, invocation) -> {
+                                    hookLog.add(new HookEntry("pre", input.getToolName(), input.getSessionId()));
+                                    return CompletableFuture.completedFuture(PreToolUseHookOutput.allow());
+                                }).setOnPostToolUse((input, invocation) -> {
+                                    hookLog.add(new HookEntry("post", input.getToolName(), input.getSessionId()));
+                                    return CompletableFuture.completedFuture((PostToolUseHookOutput) null);
+                                })))
+                        .get();
+                try {
                     Files.writeString(ctx.getWorkDir().resolve("subagent-test.txt"), "Hello from subagent test!");
-                    var response = session.sendAndWait(new MessageOptions()
+                    session.sendAndWait(new MessageOptions()
                             .setPrompt("Use the task tool to spawn an explore agent that reads the file "
                                     + "subagent-test.txt in the current directory and reports its contents. "
                                     + "You must use the task tool."))
                             .get(120, TimeUnit.SECONDS);
-                    assertNotNull(response);
-                    assertTrue(response.getAgentId() == null || response.getAgentId().isEmpty());
-                    assertEquals(finalText, response.getData().content());
-                    var replies = session.getMessages().get().stream()
-                            .filter(event -> event instanceof AssistantMessageEvent
-                                    && (event.getAgentId() == null || event.getAgentId().isEmpty()))
-                            .map(event -> ((AssistantMessageEvent) event).getData().content())
-                            .filter(content -> waitingText.equals(content) || finalText.equals(content)).toList();
-                    assertEquals(List.of(waitingText, finalText), replies,
-                            "Durable history must contain the waiting reply before the final reply");
 
                     HookEntry taskPre = hookLog.stream()
                             .filter(h -> h.kind().equals("pre") && h.toolName().equals("task")).findFirst()
@@ -104,7 +77,6 @@ public class SubagentHooksE2ETest {
                             "Sub-agent tool hooks should have a different sessionId than parent tool hooks");
                     assertSubagentRequestMetadata(requestHandler.inferenceRequests());
                 } finally {
-                    parentWaiting.complete(null);
                     session.close();
                 }
             }

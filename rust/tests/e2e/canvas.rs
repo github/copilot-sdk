@@ -556,15 +556,6 @@ async fn resumed_canvas_reattaches_and_routes_all_callbacks() {
                     })
                     .await
                     .expect("open canvas");
-                // RPC completion can precede the event that updates the snapshot cache.
-                let mut events = session.subscribe();
-                tokio::time::timeout(Duration::from_secs(10), async {
-                    while session.open_canvases().is_empty() {
-                        events.recv().await.expect("opened canvas event");
-                    }
-                })
-                .await
-                .expect("opened canvas snapshot");
                 let snapshots = session.open_canvases();
                 assert_eq!(snapshots.len(), 1);
 
@@ -651,13 +642,6 @@ async fn resumed_canvas_reattaches_and_routes_all_callbacks() {
                         "close:counter-resume"
                     ]
                 );
-                tokio::time::timeout(Duration::from_secs(10), async {
-                    while !resumed.open_canvases().is_empty() {
-                        events.recv().await.expect("closed canvas event");
-                    }
-                })
-                .await
-                .expect("closed canvas snapshot");
                 assert!(resumed.open_canvases().is_empty());
 
                 resumed

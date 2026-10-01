@@ -20,10 +20,6 @@ public class SubagentHooksE2ETests(E2ETestFixture fixture, ITestOutputHelper out
     {
         var hookLog = new ConcurrentBag<(string Kind, string ToolName, string SessionId)>();
         var requestHandler = new RecordingForwardingRequestHandler();
-        const string waitingText = "I've launched an explore agent to read subagent-test.txt. Waiting for it to complete...";
-        const string finalText = "The explore agent successfully read the file. The contents of **subagent-test.txt** are:\n\n```\nHello from subagent test!\n```";
-        var parentSessionId = Guid.NewGuid().ToString();
-        var parentWaiting = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         // Create a client with the session-based subagents feature flag
         var env = new Dictionary<string, string>(Ctx.GetEnvironment());
@@ -36,7 +32,6 @@ public class SubagentHooksE2ETests(E2ETestFixture fixture, ITestOutputHelper out
 
         var session = await Ctx.CreateSessionAsync(client, new SessionConfig
         {
-            SessionId = parentSessionId,
             OnPermissionRequest = PermissionHandler.ApproveAll,
             Hooks = new SessionHooks
             {
@@ -48,15 +43,10 @@ public class SubagentHooksE2ETests(E2ETestFixture fixture, ITestOutputHelper out
                         PermissionDecision = "allow"
                     });
                 },
-                OnPostToolUse = async (input, invocation) =>
+                OnPostToolUse = (input, invocation) =>
                 {
                     hookLog.Add(("post", input.ToolName, input.SessionId));
-                    // A fast child can inject its result before the fixture's waiting reply is requested.
-                    if (input.ToolName == "view" && input.SessionId != parentSessionId)
-                    {
-                        await parentWaiting.Task;
-                    }
-                    return null;
+                    return Task.FromResult<PostToolUseHookOutput?>(null);
                 },
             },
         });
@@ -64,36 +54,14 @@ public class SubagentHooksE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         // Create a file for the sub-agent to read
         await File.WriteAllTextAsync(Path.Join(Ctx.WorkDir, "subagent-test.txt"), "Hello from subagent test!");
 
-        using var subscription = session.On<AssistantMessageEvent>(message =>
-        {
-            if (string.IsNullOrEmpty(message.AgentId) && message.Data.Content == waitingText)
+        await session.SendAndWaitAsync(
+            new MessageOptions
             {
-                parentWaiting.TrySetResult(true);
-            }
-        });
-        try
-        {
-            var response = await session.SendAndWaitAsync(
-                new MessageOptions
-                {
-                    Prompt = "Use the task tool to spawn an explore agent that reads the file "
-                        + "subagent-test.txt in the current directory and reports its contents. "
-                        + "You must use the task tool."
-                },
-                timeout: TimeSpan.FromSeconds(120));
-            Assert.NotNull(response);
-            Assert.True(string.IsNullOrEmpty(response.AgentId));
-            Assert.Equal(finalText, response.Data.Content);
-            var replies = (await session.GetEventsAsync()).OfType<AssistantMessageEvent>()
-                .Where(message => string.IsNullOrEmpty(message.AgentId))
-                .Select(message => message.Data.Content)
-                .Where(content => content == waitingText || content == finalText);
-            Assert.Equal([waitingText, finalText], replies);
-        }
-        finally
-        {
-            parentWaiting.TrySetResult(true);
-        }
+                Prompt = "Use the task tool to spawn an explore agent that reads the file "
+                    + "subagent-test.txt in the current directory and reports its contents. "
+                    + "You must use the task tool."
+            },
+            timeout: TimeSpan.FromSeconds(120));
 
         var log = hookLog.ToArray();
 

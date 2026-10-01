@@ -63,6 +63,8 @@ jobs:
         run: ./mvnw javadoc:javadoc
       - if: github.event_name != 'merge_group' && matrix.test-jdk == '25'
         run: ./mvnw spotless:check
+      - run: npm ci --ignore-scripts
+        working-directory: ${{ inputs.sdk-home }}/test/harness
       - if: matrix.test-jdk == '25'
         env:
           CI: "true"

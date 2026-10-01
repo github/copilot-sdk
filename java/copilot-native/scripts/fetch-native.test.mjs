@@ -18,6 +18,42 @@ const wrapperContent = 'wrapper content';
 const stagingSchema = 'hostless-runtime-v3';
 const scriptPath = fileURLToPath(new URL('./fetch-native.mjs', import.meta.url));
 
+test('stages verified unstable runtime assets downloaded from the SDK release', (t) => {
+  const fixture = createFixture(t, 'linux-x64');
+  const unstableVersion = '1.2.3-4.unstable.r123.gabcdef0';
+  fs.writeFileSync(path.join(fixture.repoRoot, 'nodejs', 'package.json'),
+    JSON.stringify({ copilotCliVersion: unstableVersion }));
+  const prebuild = path.join(fixture.root, 'package', 'prebuilds', fixture.classifier);
+  fs.mkdirSync(prebuild, { recursive: true });
+  fs.writeFileSync(path.join(prebuild, 'runtime.node'), 'unstable runtime');
+  fs.writeFileSync(path.join(prebuild, 'copilot-runtime'), 'unstable wrapper');
+  const tarball = path.join(fixture.root, 'runtime.tgz');
+  execFileSync('tar', ['-czf', 'runtime.tgz', 'package'], { cwd: fixture.root });
+  const hash = createHash('sha256').update(fs.readFileSync(tarball)).digest('hex');
+  const asset = `github-copilot-${unstableVersion}-${fixture.classifier}.tgz`;
+  const releaseUrl = `https://github.com/github/copilot-sdk/releases/download/runtime-${unstableVersion}`;
+  const mockFetch = `data:text/javascript,${encodeURIComponent(`
+    import fs from 'node:fs';
+    globalThis.fetch = async (url) => {
+      if (url === ${JSON.stringify(`${releaseUrl}/SHA256SUMS.txt`)})
+        return new Response(${JSON.stringify(`${hash}  ${asset}\n`)});
+      if (url === ${JSON.stringify(`${releaseUrl}/${asset}`)})
+        return new Response(fs.readFileSync(${JSON.stringify(tarball)}));
+      throw new Error('Unexpected download: ' + url);
+    };
+  `)}`;
+  const result = runScript(fixture, {
+    COPILOT_CLI_RELEASE_TARBALL: undefined,
+    COPILOT_CLI_DOWNLOAD_BASE_URL: undefined,
+    NODE_OPTIONS: `--import=${mockFetch}`,
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(fs.readFileSync(fixture.runtimePath, 'utf8'), 'unstable runtime');
+  assert.equal(fs.readFileSync(fixture.wrapperPath, 'utf8'), 'unstable wrapper');
+  assert.equal(fs.readFileSync(fixture.platformPropertiesPath, 'utf8'),
+    `classifier=linux-x64\nversion=${unstableVersion}\n`);
+});
+
 for (const classifier of ['linux-x64', 'linux-arm64', 'linuxmusl-x64', 'win32-x64', 'win32-arm64', 'darwin-x64', 'darwin-arm64']) {
   test(`${classifier}: complete hostless artifacts use incremental fast path without a CLI`, (t) => {
     const fixture = createFixture(t, classifier);

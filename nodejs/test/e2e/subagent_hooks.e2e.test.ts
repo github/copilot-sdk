@@ -3,7 +3,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { writeFile } from "fs/promises";
-import { randomUUID } from "node:crypto";
 import { join } from "path";
 import { describe, expect, it } from "vitest";
 import type {
@@ -86,18 +85,8 @@ describe("Subagent hooks", async () => {
 
     it("should invoke preToolUse and postToolUse hooks for sub-agent tool calls", async () => {
         const hookLog: { kind: "pre" | "post"; toolName: string; sessionId: string }[] = [];
-        const waitingText =
-            "I've launched an explore agent to read subagent-test.txt. Waiting for it to complete...";
-        const finalText =
-            "The explore agent successfully read the file. The contents of **subagent-test.txt** are:\n\n```\nHello from subagent test!\n```";
-        const parentSessionId = randomUUID();
-        let releaseView!: () => void;
-        const parentWaiting = new Promise<void>((resolve) => {
-            releaseView = resolve;
-        });
 
         const session = await client.createSession({
-            sessionId: parentSessionId,
             onPermissionRequest: approveAll,
             hooks: {
                 onPreToolUse: async (input: PreToolUseHookInput) => {
@@ -114,9 +103,6 @@ describe("Subagent hooks", async () => {
                         toolName: input.toolName,
                         sessionId: input.sessionId,
                     });
-                    // A fast child can inject its result before the parent ever asks for the fixture's waiting reply.
-                    if (input.toolName === "view" && input.sessionId !== parentSessionId)
-                        await parentWaiting;
                     return null as PostToolUseHookOutput;
                 },
             },
@@ -125,31 +111,9 @@ describe("Subagent hooks", async () => {
         // Create a file for the sub-agent to read
         await writeFile(join(workDir, "subagent-test.txt"), "Hello from subagent test!");
 
-        const unsubscribe = session.on((event) => {
-            if (
-                !event.agentId &&
-                event.type === "assistant.message" &&
-                event.data.content === waitingText
-            ) {
-                releaseView();
-            }
+        await session.sendAndWait({
+            prompt: "Use the task tool to spawn an explore agent that reads the file subagent-test.txt in the current directory and reports its contents. You must use the task tool.",
         });
-        try {
-            const response = await session.sendAndWait({
-                prompt: "Use the task tool to spawn an explore agent that reads the file subagent-test.txt in the current directory and reports its contents. You must use the task tool.",
-            });
-            expect(response?.agentId ?? "").toBe("");
-            expect(response?.data.content).toBe(finalText);
-            expect(
-                (await session.getEvents())
-                    .filter((event) => !event.agentId && event.type === "assistant.message")
-                    .map((event) => event.data.content)
-                    .filter((content) => content === waitingText || content === finalText)
-            ).toEqual([waitingText, finalText]);
-        } finally {
-            releaseView();
-            unsubscribe();
-        }
 
         // Parent tool hooks fire for "task"
         const taskPre = hookLog.find((h) => h.kind === "pre" && h.toolName === "task");

@@ -1,3 +1,5 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+
 //! Internal resolution of the GitHub Copilot CLI binary.
 //!
 //! Resolution order:
@@ -101,7 +103,7 @@ pub(crate) fn copilot_binary_with_extract_dir(
 /// `COPILOT_SKIP_CLI_DOWNLOAD`).
 ///
 /// The path is recomputed from the build-time-baked
-/// `COPILOT_SDK_CLI_VERSION`, the OS-derived binary name, and the
+/// `COPILOT_SDK_CLI_CACHE_ID`, the OS-derived binary name, and the
 /// optional `COPILOT_CLI_EXTRACT_DIR` env var. This must match
 /// the build script exactly; both use `cache_paths` so the convention
 /// cannot drift. We deliberately don't bake the resolved path into the
@@ -110,8 +112,8 @@ pub(crate) fn copilot_binary_with_extract_dir(
 /// and prevents copying `target/` between hosts.
 #[cfg(all(not(feature = "bundled-cli"), has_extracted_cli))]
 fn extracted_program(use_runtime_wrapper: bool) -> Option<PathBuf> {
-    let version = env!("COPILOT_SDK_CLI_VERSION");
-    let dir = crate::cache_paths::extracted_runtime_install_dir(version);
+    let cache_identity = env!("COPILOT_SDK_CLI_CACHE_ID");
+    let dir = crate::cache_paths::extracted_runtime_install_dir(cache_identity);
 
     let path = dir.join(if use_runtime_wrapper {
         runtime_binary_name()

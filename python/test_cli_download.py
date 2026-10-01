@@ -88,6 +88,33 @@ def test_release_asset_uses_platform_package_name(monkeypatch):
 
 
 @pytest.mark.parametrize(
+    ("version", "repository", "tag"),
+    [
+        ("1.2.3", "copilot-cli", "v1.2.3"),
+        ("1.2.3-4", "copilot-cli", "v1.2.3-4"),
+        ("1.2.3-unstable.r123.gabcdef0", "copilot-sdk", "runtime-1.2.3-unstable.r123.gabcdef0"),
+        ("1.2.3-4.unstable.r123.gabcdef0", "copilot-sdk", "runtime-1.2.3-4.unstable.r123.gabcdef0"),
+        ("0.0.0-0.unstable.r1.g0000000", "copilot-sdk", "runtime-0.0.0-0.unstable.r1.g0000000"),
+        ("01.2.3-unstable.r123.gabcdef0", "copilot-cli", "v01.2.3-unstable.r123.gabcdef0"),
+        ("1.02.3-unstable.r123.gabcdef0", "copilot-cli", "v1.02.3-unstable.r123.gabcdef0"),
+        ("1.2.03-unstable.r123.gabcdef0", "copilot-cli", "v1.2.03-unstable.r123.gabcdef0"),
+        ("1.2.3-04.unstable.r123.gabcdef0", "copilot-cli", "v1.2.3-04.unstable.r123.gabcdef0"),
+    ],
+)
+def test_pinned_runtime_uses_matching_release_and_mirror(monkeypatch, version, repository, tag):
+    monkeypatch.delenv("COPILOT_CLI_DOWNLOAD_BASE_URL", raising=False)
+    asset = _cli_version.get_release_asset_name(version, "linux-x64")
+    expected = f"https://github.com/github/{repository}/releases/download/{tag}"
+    assert _cli_version.get_download_url(version, asset) == f"{expected}/{asset}"
+    assert _cli_version.get_checksums_url(version) == f"{expected}/SHA256SUMS.txt"
+    monkeypatch.setenv("COPILOT_CLI_DOWNLOAD_BASE_URL", "https://mirror.example/releases/")
+    assert (
+        _cli_version.get_checksums_url(version)
+        == f"https://mirror.example/releases/{tag}/SHA256SUMS.txt"
+    )
+
+
+@pytest.mark.parametrize(
     "member_name",
     ["package/../outside", r"package\..\outside"],
 )
@@ -133,8 +160,8 @@ def test_rejects_release_package_without_checksum(tmp_path):
             _cli_download.ensure_runtime_wrapper(version="1.2.3")
 
 
-def test_cli_and_runtime_share_one_staged_bundle(tmp_path, monkeypatch):
-    version = "1.2.3"
+@pytest.mark.parametrize("version", ["1.2.3", "1.2.3-4.unstable.r123.gabcdef0"])
+def test_cli_and_runtime_share_one_staged_bundle(tmp_path, monkeypatch, version):
     runtime_platform = "linux-x64"
     cli_name = "copilot.exe" if os.name == "nt" else "copilot"
     wrapper_name = "copilot-runtime.exe" if os.name == "nt" else "copilot-runtime"

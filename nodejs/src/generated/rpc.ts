@@ -2627,32 +2627,6 @@ export type SessionLogLevel =
   /** Error message describing a failure. */
   | "error";
 /**
- * A channel accepted by managedSettings.compose.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "ManagedSettingsChannel".
- */
-/** @experimental */
-export type ManagedSettingsChannel =
-  /** Device policy, the strongest channel. */
-  | "device"
-  /** Account or organization policy. */
-  | "server"
-  /** Session-local helper output, the weakest channel. */
-  | "policyHelper";
-/**
- * Severity of a managed-settings validation finding.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "ManagedSettingsDiagnosticSeverity".
- */
-/** @experimental */
-export type ManagedSettingsDiagnosticSeverity =
-  /** The runtime rejects the document. */
-  | "error"
-  /** The runtime accepts the document but ignores the flagged content. */
-  | "warning";
-/**
  * UI theme preference per SEP-1865
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -13328,130 +13302,6 @@ export interface ManagedMcpServerConfig {
   headersRefreshTtlMs?: number;
 }
 /**
- * Lock state and provenance of one managed setting.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "ManagedSettingMeta".
- */
-/** @experimental */
-export interface ManagedSettingMeta {
-  /**
-   * Whether users and repositories may choose a different value. `false` means policy locks the value.
-   */
-  overridable: boolean;
-  /**
-   * Channel that supplied this scalar value, matching a `layers[].source`: `device`, `server`, or `policyHelper`. These scalar defaults select one winning channel, not a mixed source. Treat unknown values as additional channels; more may be added.
-   */
-  source: string;
-}
-/**
- * One candidate channel; absent settings represents a channel that delivered no document.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "ManagedSettingsComposeLayer".
- */
-/** @experimental */
-export interface ManagedSettingsComposeLayer {
-  source: ManagedSettingsChannel;
-  /**
-   * Candidate managed-settings document. Omit when the channel delivered none, as in resolve output.
-   */
-  settings?: JsonValue;
-}
-/**
- * Candidate managed-settings documents to merge without applying them.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "ManagedSettingsComposeRequest".
- */
-/** @experimental */
-export interface ManagedSettingsComposeRequest {
-  /**
-   * One entry per channel. `source` must be `device`, `server`, or `policyHelper`, each at most once (checked at runtime); order does not matter, because channel precedence is fixed. To preview documents from resolve output, map recognized source strings to ManagedSettingsChannel and copy their settings; generated resolve and compose layer types are distinct. Omitted settings means this channel delivered no document. Supplied documents must be valid within the preview limits; warnings are returned in diagnostics. Compose does not reproduce source-failure state or retained enforcement floors from resolve.
-   */
-  layers: ManagedSettingsComposeLayer[];
-}
-/**
- * The effective managed settings the runtime would enforce for the given documents, in the same shape `managedSettings.resolve` returns.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "ManagedSettingsComposeResult".
- */
-/** @experimental */
-export interface ManagedSettingsComposeResult {
-  resolved: ManagedSettingsResolvedData;
-  values?: ManagedSettingsValues;
-  meta?: ManagedSettingsMeta;
-  /**
-   * Only the supplied channels, strongest first, with canonical documents. Empty canonical documents are represented as absent settings, as in live resolution.
-   */
-  layers: ManagedSettingsLayer[];
-  /**
-   * Warnings about ignored content, with paths prefixed by the channel name.
-   */
-  diagnostics: ManagedSettingsDiagnostic[];
-}
-/**
- * Typed effective values of managed settings. Each field mirrors the managed-settings schema key of the same name; more keys are added as they are typed.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "ManagedSettingsValues".
- */
-/** @experimental */
-export interface ManagedSettingsValues {
-  /**
-   * Managed default model identifier, as configured. New sessions start with it; it can name a model the account cannot use, so hosts match it against the listed models.
-   */
-  model?: string;
-  autoTier?: AutoTier;
-}
-/**
- * Per-key lock state and provenance for `ManagedSettingsValues`, with the same field names. Producers emit each typed key in values and meta together; both outer objects are omitted when no typed key is set.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "ManagedSettingsMeta".
- */
-/** @experimental */
-export interface ManagedSettingsMeta {
-  model?: ManagedSettingMeta;
-  autoTier?: ManagedSettingMeta;
-}
-/**
- * One managed-settings channel and the document it delivered.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "ManagedSettingsLayer".
- */
-/** @experimental */
-export interface ManagedSettingsLayer {
-  /**
-   * Channel identifier: `device` (MDM, plist, registry, or managed file), `server` (account or organization policy), or `policyHelper` (session-local helper output, supported by compose). Treat unknown output values as additional channels; more may be added.
-   */
-  source: string;
-  /**
-   * Validated managed-settings document this channel delivered. Absent when the channel delivered none.
-   */
-  settings?: JsonValue;
-}
-/**
- * One validation finding for a managed-settings document.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "ManagedSettingsDiagnostic".
- */
-/** @experimental */
-export interface ManagedSettingsDiagnostic {
-  /**
-   * Dot-separated path of the offending setting, such as `autoTier.overridable`. Empty for the document as a whole.
-   */
-  path: string;
-  severity: ManagedSettingsDiagnosticSeverity;
-  /**
-   * Human-readable description of the finding.
-   */
-  message: string;
-}
-/**
  * Validated device-managed settings discovered before a session exists.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -13467,101 +13317,6 @@ export interface ManagedSettingsReadResult {
    * Discovery or validation error text when managed settings could not be read safely.
    */
   errorMessage?: string;
-}
-
-/** @experimental */
-export interface ManagedSettingsResolveRequest {
-  /**
-   * Opaque account identifier returned by `account.getAllUsers`. When omitted, the current account is used, or device policy only when no account is signed in.
-   */
-  selectionId?: string;
-  /**
-   * GitHub token to resolve instead of the current account. The call fails when the token cannot be resolved.
-   */
-  gitHubToken?: string;
-  /**
-   * Embedding client identity for server policy requests, as in session creation. Omit for the CLI identity.
-   */
-  clientName?: string;
-}
-/**
- * Effective enterprise managed settings for an account, resolved without a session.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "ManagedSettingsResolveResult".
- */
-/** @experimental */
-export interface ManagedSettingsResolveResult {
-  /**
-   * Printable opaque identity of the account the settings were resolved for, suitable for comparison and storage, not an account selectionId. Absent when no account was available, in which case only device policy is reported.
-   */
-  account?: string;
-  resolved: ManagedSettingsResolvedData;
-  values?: ManagedSettingsValues;
-  meta?: ManagedSettingsMeta;
-  /**
-   * Each managed-settings channel consulted, strongest first, with the validated document it delivered before merging. `resolved.settings` is the merged result. More channels may be added over time.
-   */
-  layers: ManagedSettingsLayer[];
-  /**
-   * Warnings about unavailable policy sources or a failed refresh served from cache. A cached response is not proof of a successful live fetch; `resolved.failClosed` separately describes enforcement.
-   */
-  diagnostics: ManagedSettingsDiagnostic[];
-}
-/**
- * The authoring JSON schema for managed settings recognized by this runtime.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "ManagedSettingsSchemaResult".
- */
-/** @experimental */
-export interface ManagedSettingsSchemaResult {
-  /**
-   * JSON schema (draft 2020-12) with descriptive shared `x-composition` annotations, not a complete runtime composition contract. Model, effortLevel, and contextTier remain coupled; use `managedSettings.compose` for the runtime's effective result.
-   */
-  schema: JsonValue;
-  /**
-   * Version of the runtime that owns this schema.
-   */
-  runtimeVersion: string;
-}
-/**
- * A candidate managed-settings document to validate without applying it.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "ManagedSettingsValidateRequest".
- */
-/** @experimental */
-export interface ManagedSettingsValidateRequest {
-  /**
-   * The document to validate: a JSON object, or a string containing the document's JSON text. Preview documents are limited to 1 MiB and 64 levels of nesting, a stricter resource limit than delivered-policy parsing; violations are returned as diagnostics.
-   */
-  content: JsonValue;
-  /**
-   * Channel the document is meant for (`device`, `server`, or `policyHelper`). Some keys are only honored in some channels; for example, a `policyHelper` registration is ignored in policy-helper output. When omitted, no channel-specific checks run.
-   */
-  layer?: string;
-}
-/**
- * Result of validating a managed-settings document.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "ManagedSettingsValidateResult".
- */
-/** @experimental */
-export interface ManagedSettingsValidateResult {
-  /**
-   * Whether the runtime would accept the document within the preview resource limits. Always equals whether `settings` is present. An invalid document is rejected as a whole.
-   */
-  valid: boolean;
-  /**
-   * Canonical form of the document the runtime would apply, with unrecognized keys removed. Absent when the document is invalid.
-   */
-  settings?: JsonValue;
-  /**
-   * Errors that reject the document and warnings about content the runtime ignores.
-   */
-  diagnostics: ManagedSettingsDiagnostic[];
 }
 /**
  * Result of registering a new marketplace.
@@ -30265,51 +30020,17 @@ export function createServerRpc(connection: MessageConnection) {
         /** @experimental */
         managedSettings: {
             /**
-             * Discovers device-managed settings from production MDM and managed-file sources, validates them against the runtime-owned managed-settings schema, and returns the canonical JSON without requiring a session. `managedSettings.resolve` returns the same device settings together with the account's server policy.
+             * Discovers device-managed settings from production MDM and managed-file sources, validates them against the runtime-owned managed-settings schema, and returns the canonical JSON without requiring a session.
              *
              * @returns Validated device-managed settings discovered before a session exists.
              */
             read: async (): Promise<ManagedSettingsReadResult> =>
                 connection.sendRequest("managedSettings.read", {}),
             /**
-             * Force-refreshes enterprise managed settings for every account: wipes the persistent server-policy cache (the whole `<cacheHome>/managed-settings` directory) and drops this runtime process's in-memory retained server policy. It does not itself fetch policy — the effect is that the next time a session resolves managed settings for an account, that resolution re-fetches the account's org policy from the network instead of serving a cached response. Note that `managedSettings.read` returns only device/MDM settings and never triggers the account server-policy fetch, so a host implementing "sync account policy" should call `managedSettings.resolve` or start a fresh session resolution rather than treat a subsequent `managedSettings.read` as the refreshed org policy. Mirrors the invalidation a sign-out performs, broadened from the one signing-out account to all of them; device/MDM layers describe the machine, not the account, and are left untouched. Rejects if the on-disk cache cannot be removed.
+             * Force-refreshes enterprise managed settings for every account: wipes the persistent server-policy cache (the whole `<cacheHome>/managed-settings` directory) and drops this runtime process's in-memory retained server policy. It does not itself fetch policy — the effect is that the next time a session resolves managed settings for an account, that resolution re-fetches the account's org policy from the network instead of serving a cached response. Note that `managedSettings.read` returns only device/MDM settings and never triggers the account server-policy fetch, so a host implementing "sync account policy" should start a fresh session resolution rather than treat a subsequent `managedSettings.read` as the refreshed org policy. Mirrors the invalidation a sign-out performs, broadened from the one signing-out account to all of them; device/MDM layers describe the machine, not the account, and are left untouched. Rejects if the on-disk cache cannot be removed.
              */
             clearCache: async (): Promise<void> =>
                 connection.sendRequest("managedSettings.clearCache", {}),
-            /**
-             * Resolves the effective enterprise managed settings without a session, from the device channel and, when an account is available, the account's server policy through the same per-account cache sessions use. A cached server policy less than an hour old is used without a fetch; otherwise the policy is fetched, and when the fetch fails a cached policy up to 24 hours old is used instead, unless `forceRemoteSettingsRefresh` requires a live fetch. With no account requested or signed in, it reports device policy only; signing out removes the account's cached policy. It can fetch server policy over the network when the cache is stale, so call it off latency-critical paths such as startup rather than before listing models. The policy helper is not run. `layers` lists each channel's document before merging, and `values` and `meta` carry typed effective values and their lock state for the keys typed so far.
-             *
-             * @param params Optional opaque account selection or GitHub token whose managed settings are resolved.
-             *
-             * @returns Effective enterprise managed settings for an account, resolved without a session.
-             */
-            resolve: async (params: ManagedSettingsResolveRequest): Promise<ManagedSettingsResolveResult> =>
-                connection.sendRequest("managedSettings.resolve", params),
-            /**
-             * Returns the managed-settings authoring JSON schema with descriptive `x-composition` annotations aligned with the shared settings-engine vocabulary. These annotations are not a complete runtime composition contract: model, effortLevel, and contextTier remain coupled. Use `managedSettings.compose` for the runtime's effective result. Performs no I/O.
-             *
-             * @returns The authoring JSON schema for managed settings recognized by this runtime.
-             */
-            schema: async (): Promise<ManagedSettingsSchemaResult> =>
-                connection.sendRequest("managedSettings.schema", {}),
-            /**
-             * Validates a candidate managed-settings document the way the runtime validates delivered policy, without applying it. Reports errors that would reject the document, warnings for content the runtime ignores, and the canonical document it would apply. Document text nested more than 64 levels deep is rejected. Performs no I/O.
-             *
-             * @param params A candidate managed-settings document to validate without applying it.
-             *
-             * @returns Result of validating a managed-settings document.
-             */
-            validate: async (params: ManagedSettingsValidateRequest): Promise<ManagedSettingsValidateResult> =>
-                connection.sendRequest("managedSettings.validate", params),
-            /**
-             * Merges candidate managed-settings documents for the device, server, and policy-helper channels into the effective settings the runtime would enforce on this host, using the same precedence and composition rules as live resolution, without applying them. Like live resolution, a server's advisory sandbox force-enable is declined on a host that cannot run the sandbox. Does not fetch policy or read policy files, but may perform blocking OS or subprocess probes for sandbox support. Preview documents are limited to 1 MiB and 64 levels of nesting.
-             *
-             * @param params Candidate managed-settings documents to merge without applying them.
-             *
-             * @returns The effective managed settings the runtime would enforce for the given documents, in the same shape `managedSettings.resolve` returns.
-             */
-            compose: async (params: ManagedSettingsComposeRequest): Promise<ManagedSettingsComposeResult> =>
-                connection.sendRequest("managedSettings.compose", params),
         },
         /** @experimental */
         runtime: {
@@ -32024,7 +31745,7 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
             /**
              * Waits for the live session's in-flight managed-settings application, then returns the retained effective snapshot used by runtime enforcement and by `session.managed_settings_resolved`. It does not perform another account, device, or server resolution, and rejects when resolution has not produced a snapshot.
              *
-             * @returns Effective enterprise managed settings and contributing channels. Session events report applied policy; sessionless resolve reports an account/device snapshot, and compose reports a non-applying preview of candidate documents. Device values take precedence over server values, then the policy helper, per ordinary key, while permissions compose restrictively. Session-local SDK-client policy is included only in session results. Marked experimental while the managed-settings surface stabilizes.
+             * @returns Enterprise managed-settings resolution: the effective managed settings the session applied and which channels contributed, so SDK clients can show users what is enterprise-managed. Fires whenever managed policy is (re)applied — at session start, on resume, and on account switch. This is an ephemeral live snapshot (delivered to subscribers but not persisted to the session event log), because at session start it resolves before `session.start` is emitted. Device values take precedence over server values, then the policy helper, per ordinary key, while permissions compose restrictively across device, server, policy-helper, and SDK-client layers. The account-scoped `getManagedSettings()` API does not include session-local client injection. Marked experimental while the managed-settings surface stabilizes.
              */
             get: async (): Promise<ManagedSettingsResolvedData> =>
                 connection.sendRequest("session.managedSettings.get", { sessionId }),

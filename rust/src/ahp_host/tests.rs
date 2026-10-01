@@ -643,18 +643,12 @@ async fn disconnect_notifies_all_callbacks_even_when_they_panic() {
 async fn callback_panic_does_not_break_other_callbacks_or_rpc() {
     let (client, mut peer) = fixture();
     let calls = Arc::new(AtomicUsize::new(0));
-    let (first_tx, mut first_exits) = mpsc::unbounded_channel();
-    // The second callback must not act as a completion barrier for the first.
-    let (unblock, gate) = std::sync::mpsc::channel::<()>();
-    let gate = std::sync::Mutex::new(gate);
     let pending = start(
         &client,
         local_options().with_on_exit({
             let calls = calls.clone();
-            move |exit| {
-                gate.lock().unwrap().recv().unwrap();
+            move |_| {
                 calls.fetch_add(1, Ordering::SeqCst);
-                first_tx.send(exit).unwrap();
                 panic!("test callback panic");
             }
         }),
@@ -671,15 +665,6 @@ async fn callback_panic_does_not_break_other_callbacks_or_rpc() {
     peer.exited(&first.host_id).await;
     peer.exited(&second.host_id).await;
     timeout(TIMEOUT, exits.recv()).await.unwrap().unwrap();
-    assert_eq!(calls.load(Ordering::SeqCst), 0);
-    unblock.send(()).unwrap();
-    timeout(TIMEOUT, first_exits.recv()).await.unwrap().unwrap();
-    assert!(
-        timeout(TIMEOUT, first_exits.recv())
-            .await
-            .unwrap()
-            .is_none()
-    );
     assert_eq!(calls.load(Ordering::SeqCst), 1);
     assert!(client.inner.ahp_host_callbacks.lock().is_empty());
     let dispose = tokio::spawn(async move { second.dispose().await });

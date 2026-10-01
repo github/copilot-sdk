@@ -243,7 +243,7 @@ export class FfiRuntimeHost {
             );
             if (!this.connectionId) {
                 this.unregisterCallback();
-                await this.shutdownHost();
+                this.lib.hostShutdown(this.serverId);
                 this.serverId = 0;
                 throw new Error("copilot_runtime_connection_open failed.");
             }
@@ -256,7 +256,7 @@ export class FfiRuntimeHost {
         } finally {
             this.starting = false;
             if (this.disposed) {
-                await this.tryFinalizeCleanup();
+                void this.tryFinalizeCleanup();
             }
         }
     }
@@ -303,19 +303,6 @@ export class FfiRuntimeHost {
                 `In-process FFI inbound callback failed: ${error instanceof Error ? (error.stack ?? error.message) : String(error)}`
             );
         }
-    }
-
-    private shutdownHost(): Promise<boolean> {
-        // Native shutdown waits for probe reaping; keep the JS event loop free while it joins.
-        return new Promise<boolean>((resolvePromise, rejectPromise) => {
-            this.lib.hostShutdown.async(this.serverId, (error: Error | null, result: boolean) => {
-                if (error) {
-                    rejectPromise(error);
-                } else {
-                    resolvePromise(result);
-                }
-            });
-        });
     }
 
     private unregisterCallback(): boolean {
@@ -400,7 +387,7 @@ export class FfiRuntimeHost {
 
             if (this.serverId) {
                 try {
-                    if (!(await this.shutdownHost())) {
+                    if (!this.lib.hostShutdown(this.serverId)) {
                         console.error(
                             `In-process FFI host shutdown did not recognize server ${this.serverId}.`
                         );

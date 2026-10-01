@@ -9,7 +9,6 @@ import (
 
 	copilot "github.com/github/copilot-sdk/go"
 	"github.com/github/copilot-sdk/go/internal/e2e/testharness"
-	"github.com/google/uuid"
 )
 
 type subagentRequestRecord struct {
@@ -97,15 +96,8 @@ func TestSubagentHooksE2E(t *testing.T) {
 		}
 		var hookLog []hookEntry
 		var mu sync.Mutex
-		const waitingText = "I've launched an explore agent to read subagent-test.txt. Waiting for it to complete..."
-		const finalText = "The explore agent successfully read the file. The contents of **subagent-test.txt** are:\n\n```\nHello from subagent test!\n```"
-		parentSessionID := uuid.NewString()
-		parentWaiting := make(chan struct{})
-		releaseView := sync.OnceFunc(func() { close(parentWaiting) })
-		defer releaseView()
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
-			SessionID:           parentSessionID,
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 			Hooks: &copilot.SessionHooks{
 				OnPreToolUse: func(input copilot.PreToolUseHookInput, invocation copilot.HookInvocation) (*copilot.PreToolUseHookOutput, error) {
@@ -118,14 +110,6 @@ func TestSubagentHooksE2E(t *testing.T) {
 					mu.Lock()
 					hookLog = append(hookLog, hookEntry{kind: "post", toolName: input.ToolName, sessionID: input.SessionID})
 					mu.Unlock()
-					// A fast child can inject its result before the fixture's waiting reply is requested.
-					if input.ToolName == "view" && input.SessionID != parentSessionID {
-						select {
-						case <-parentWaiting:
-						case <-t.Context().Done():
-							return nil, t.Context().Err()
-						}
-					}
 					return nil, nil
 				},
 			},
@@ -140,37 +124,11 @@ func TestSubagentHooksE2E(t *testing.T) {
 			t.Fatalf("Failed to write test file: %v", err)
 		}
 
-		unsubscribe := session.On(func(event copilot.SessionEvent) {
-			if message, ok := event.Data.(*copilot.AssistantMessageData); ok && (event.AgentID == nil || *event.AgentID == "") && message.Content == waitingText {
-				releaseView()
-			}
-		})
-		defer unsubscribe()
-		response, err := session.SendAndWait(t.Context(), copilot.MessageOptions{
+		_, err = session.SendAndWait(t.Context(), copilot.MessageOptions{
 			Prompt: "Use the task tool to spawn an explore agent that reads the file subagent-test.txt in the current directory and reports its contents. You must use the task tool.",
 		})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
-		}
-		if response == nil {
-			t.Fatal("Missing parent final response")
-		}
-		message, ok := response.Data.(*copilot.AssistantMessageData)
-		if !ok || (response.AgentID != nil && *response.AgentID != "") || message.Content != finalText {
-			t.Fatalf("Unexpected parent final response: %+v", response)
-		}
-		events, err := session.GetEvents(t.Context())
-		if err != nil {
-			t.Fatalf("Failed to read history: %v", err)
-		}
-		var replies []string
-		for _, event := range events {
-			if message, ok := event.Data.(*copilot.AssistantMessageData); ok && (event.AgentID == nil || *event.AgentID == "") && (message.Content == waitingText || message.Content == finalText) {
-				replies = append(replies, message.Content)
-			}
-		}
-		if len(replies) != 2 || replies[0] != waitingText || replies[1] != finalText {
-			t.Fatalf("Expected durable waiting reply followed by final reply, got %q", replies)
 		}
 
 		mu.Lock()

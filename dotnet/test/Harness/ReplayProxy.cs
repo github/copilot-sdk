@@ -139,17 +139,10 @@ public sealed partial class ReplayProxy : IAsyncDisposable
             catch { /* Best effort */ }
         }
 
-        try
+        if (_process is { HasExited: false })
         {
-            if (_process is { HasExited: false })
-            {
-                try { _process.Kill(entireProcessTree: true); await _process.WaitForExitAsync(); }
-                catch { /* Ignore */ }
-            }
-        }
-        catch (InvalidOperationException)
-        {
-            // Process.Start failed before this object was associated with a child.
+            try { _process.Kill(entireProcessTree: true); await _process.WaitForExitAsync(); }
+            catch { /* Ignore */ }
         }
 
         _process?.Dispose();

@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation. All rights reserved.
+
 [package]
 name = "github-copilot-sdk"
 version = "0.0.0-dev"
@@ -44,10 +46,6 @@ test-support = []
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
-[lints.clippy]
-# Threshold lives in clippy.toml; consumers run on 2 MiB Tokio worker stacks.
-large_futures = "warn"
-
 [dependencies]
 async-trait = "0.1"
 indexmap = { version = "2", features = ["serde"] }
@@ -85,15 +83,20 @@ windows-sys = { version = "0.61", default-features = false, features = [
 ] }
 
 [dev-dependencies]
-ureq = { version = "3", default-features = false, features = ["native-tls"] }
+flate2 = "1"
+native-tls = "0.2"
 ahp = { git = "https://github.com/microsoft/agent-host-protocol", tag = "rust/v0.9.0" }
 ahp-types = { git = "https://github.com/microsoft/agent-host-protocol", tag = "rust/v0.9.0" }
 ahp-ws = { git = "https://github.com/microsoft/agent-host-protocol", tag = "rust/v0.9.0", default-features = false }
 rusqlite = { version = "0.40", features = ["bundled"] }
 schemars = "1"
 serial_test = "4"
+sha2 = "0.10"
+tar = "0.4"
 tempfile = "3"
 tokio = { version = "1", features = ["rt-multi-thread"] }
+ureq = { version = "3", default-features = false, features = ["native-tls"] }
+zip = { version = "7.2.0", default-features = false, features = ["deflate"] }
 
 # Integration tests that call test-support-only Client methods (e.g.
 # `from_streams_with_connection_token`, `from_streams_with_trace_provider`)

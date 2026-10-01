@@ -20,7 +20,7 @@ public sealed class E2ETestContext : IAsyncDisposable
 
     public string HomeDir { get; }
     public string WorkDir { get; }
-    public string ProxyUrl { get; private set; }
+    public string ProxyUrl { get; }
     internal static bool UsesInProcessTransport => IsInProcess(null);
 
     /// <summary>Optional logger injected by tests; applied to all clients created via <see cref="CreateClient"/>.</summary>
@@ -47,12 +47,7 @@ public sealed class E2ETestContext : IAsyncDisposable
         _legacyCliPath = GetCachedCliPath(repoRoot, "--print-legacy-path");
     }
 
-    public static Task<E2ETestContext> CreateAsync() => CreateAsync(
-        new ReplayProxy(),
-        Path.Combine(Path.GetTempPath(), $"copilot-test-config-{Guid.NewGuid()}"),
-        Path.Combine(Path.GetTempPath(), $"copilot-test-work-{Guid.NewGuid()}"));
-
-    internal static async Task<E2ETestContext> CreateAsync(ReplayProxy proxy, string homeDir, string workDir)
+    public static async Task<E2ETestContext> CreateAsync()
     {
         // A previous in-process context may have left this process's cwd inside a work
         // directory that has since been deleted. getcwd() then fails, which breaks
@@ -62,45 +57,33 @@ public sealed class E2ETestContext : IAsyncDisposable
 
         var repoRoot = FindRepoRoot();
 
+        var homeDir = Path.Combine(Path.GetTempPath(), $"copilot-test-config-{Guid.NewGuid()}");
+        var workDir = Path.Combine(Path.GetTempPath(), $"copilot-test-work-{Guid.NewGuid()}");
+
+        Directory.CreateDirectory(homeDir);
+        Directory.CreateDirectory(workDir);
+
         // Resolve symlinks (e.g., macOS /var -> /private/var) so paths
         // match what spawned subprocesses see when they resolve their cwd.
         homeDir = ResolveSymlinks(homeDir);
         workDir = ResolveSymlinks(workDir);
 
-        var context = new E2ETestContext(homeDir, workDir, string.Empty, proxy, repoRoot);
-        try
-        {
-            Directory.CreateDirectory(homeDir);
-            Directory.CreateDirectory(workDir);
+        var proxy = new ReplayProxy();
+        var proxyUrl = await proxy.StartAsync();
+        // Creating an in-process fixture applies this URL before its first
+        // test-specific configuration is posted, so early runtime requests need
+        // an empty but valid replay state.
+        await proxy.ConfigureAsync(
+            Path.Combine(workDir, "__unconfigured__.yaml"),
+            workDir,
+            "capi");
+        await proxy.SetCopilotUserByTokenAsync(DefaultGitHubToken, new CopilotUserConfig(
+            Login: "e2e-test-user",
+            CopilotPlan: "individual_pro",
+            Endpoints: new CopilotUserEndpoints(Api: proxyUrl, Telemetry: "https://localhost:1/telemetry"),
+            AnalyticsTrackingId: "e2e-test-tracking-id", Id: 12345));
 
-            context.ProxyUrl = await proxy.StartAsync();
-            // Creating an in-process fixture applies this URL before its first
-            // test-specific configuration is posted, so early runtime requests need
-            // an empty but valid replay state.
-            await proxy.ConfigureAsync(
-                Path.Combine(workDir, "__unconfigured__.yaml"),
-                workDir,
-                "capi");
-            await proxy.SetCopilotUserByTokenAsync(DefaultGitHubToken, new CopilotUserConfig(
-                Login: "e2e-test-user",
-                CopilotPlan: "individual_pro",
-                Endpoints: new CopilotUserEndpoints(Api: context.ProxyUrl, Telemetry: "https://localhost:1/telemetry"),
-                AnalyticsTrackingId: "e2e-test-tracking-id", Id: 12345));
-
-            return context;
-        }
-        catch (Exception startupError)
-        {
-            try
-            {
-                await context.DisposeAsync();
-            }
-            catch (Exception cleanupError)
-            {
-                throw new AggregateException(startupError, cleanupError);
-            }
-            throw;
-        }
+        return new E2ETestContext(homeDir, workDir, proxyUrl, proxy, repoRoot);
     }
 
     /// <summary>

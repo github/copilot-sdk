@@ -46,6 +46,7 @@ describe("release packaging", () => {
                 "src/runtimeArtifacts.ts",
                 "src/cliVersion.ts",
                 "../scripts/runtime-layout.mjs",
+                "../scripts/runtime-release.mjs",
             ]) {
                 const destination = join(nodeRoot, file);
                 mkdirSync(dirname(destination), { recursive: true });

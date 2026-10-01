@@ -640,22 +640,10 @@ public final class CopilotClient implements AutoCloseable {
                         startNanos);
             }
             // Clean up the spawned process if connection setup failed
-            if (process != null) {
-                Throwable startupFailure = e;
-                while (startupFailure instanceof java.util.concurrent.ExecutionException
-                        || startupFailure instanceof CompletionException) {
-                    startupFailure = startupFailure.getCause();
-                }
-                // A broken pipe can precede the child's own exit and trailing stderr.
-                // Other setup failures must terminate a live server before waiting for EOF.
-                boolean drainBeforeCleanup = startupFailure instanceof IOException;
-                if (drainBeforeCleanup) {
-                    serverManager.awaitStderrReader();
-                }
-                cleanupCliProcess(process, true);
-                if (!drainBeforeCleanup) {
-                    serverManager.awaitStderrReader();
-                }
+            if (process != null && cleanupCliProcess(process, true)) {
+                // Cleanup observed an exited child and left its streams open.
+                // Drain stderr before rpc.close() destroys those streams.
+                serverManager.awaitStderrReader();
             }
             if (rpc != null) {
                 try {

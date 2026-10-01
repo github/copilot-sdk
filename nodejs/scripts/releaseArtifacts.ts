@@ -18,6 +18,7 @@ import {
     validateFile,
 } from "../src/runtimeArtifacts.js";
 import { COPILOT_CLI_USE_NPM_PACKAGE, COPILOT_CLI_VERSION } from "../src/cliVersion.js";
+import { runtimeReleaseUrl } from "../../scripts/runtime-release.mjs";
 
 export interface EnsureCopilotPackageOptions {
     cacheRoot?: string;
@@ -32,19 +33,18 @@ export async function downloadVerifiedReleaseAsset(
     assetName: string,
     options: Omit<EnsureCopilotPackageOptions, "platform"> = {}
 ): Promise<Buffer> {
-    const baseUrl = (
-        (options.environment ?? process.env).COPILOT_CLI_DOWNLOAD_BASE_URL ??
-        "https://github.com/github/copilot-cli/releases/download"
-    ).replace(/\/+$/, "");
+    const releaseUrl = runtimeReleaseUrl(
+        version,
+        (options.environment ?? process.env).COPILOT_CLI_DOWNLOAD_BASE_URL ?? null
+    );
     const fetcher = options.fetch ?? globalThis.fetch;
     if (!fetcher) {
         throw new Error("This Node.js runtime does not provide fetch().");
     }
     const fetchTimeoutMs = options.fetchTimeoutMs ?? DEFAULT_FETCH_TIMEOUT_MS;
     const expectedChecksum = await getReleaseChecksum(
-        version,
         assetName,
-        baseUrl,
+        releaseUrl,
         fetcher,
         fetchTimeoutMs
     );
@@ -53,7 +53,7 @@ export async function downloadVerifiedReleaseAsset(
     }
     const archive = await fetchWithRetry(
         fetcher,
-        `${baseUrl}/v${version}/${assetName}`,
+        `${releaseUrl}/${assetName}`,
         async (response) => Buffer.from(await response.arrayBuffer()),
         fetchTimeoutMs
     );
@@ -124,16 +124,15 @@ async function fetchWithRetry<T>(
 }
 
 async function getReleaseChecksum(
-    version: string,
     assetName: string,
-    baseUrl: string,
+    releaseUrl: string,
     fetcher: typeof globalThis.fetch,
     fetchTimeoutMs: number
 ): Promise<string | undefined> {
-    const key = `${baseUrl}\0${version}`;
+    const key = releaseUrl;
     let checksums = checksumDownloads.get(key);
     if (!checksums) {
-        checksums = downloadReleaseChecksums(version, baseUrl, fetcher, fetchTimeoutMs);
+        checksums = downloadReleaseChecksums(releaseUrl, fetcher, fetchTimeoutMs);
         checksumDownloads.set(key, checksums);
         try {
             return (await checksums).get(assetName);
@@ -146,14 +145,13 @@ async function getReleaseChecksum(
 }
 
 async function downloadReleaseChecksums(
-    version: string,
-    baseUrl: string,
+    releaseUrl: string,
     fetcher: typeof globalThis.fetch,
     fetchTimeoutMs: number
 ): Promise<Map<string, string>> {
     const contents = await fetchWithRetry(
         fetcher,
-        `${baseUrl}/v${version}/SHA256SUMS.txt`,
+        `${releaseUrl}/SHA256SUMS.txt`,
         (response) => response.text(),
         fetchTimeoutMs
     );
@@ -202,12 +200,10 @@ export async function ensureCopilotPackage(
         return cachedPackageRoot;
     }
 
-    const baseUrl = (
-        environment.COPILOT_CLI_DOWNLOAD_BASE_URL ??
-        "https://github.com/github/copilot-cli/releases/download"
-    ).replace(/\/+$/, "");
+    const baseUrl = environment.COPILOT_CLI_DOWNLOAD_BASE_URL;
+    const releaseUrl = runtimeReleaseUrl(version, baseUrl ?? null);
     const fetchTimeoutMs = options.fetchTimeoutMs ?? DEFAULT_FETCH_TIMEOUT_MS;
-    const key = `${cacheRoot}\0${version}\0${platform}\0${baseUrl}`;
+    const key = `${cacheRoot}\0${version}\0${platform}\0${releaseUrl}`;
     if (!options.fetch) {
         const existing = packageDownloads.get(key);
         if (existing) {
@@ -242,7 +238,7 @@ async function downloadCopilotPackage(
     version: string,
     platform: string,
     cacheRoot: string,
-    baseUrl: string,
+    baseUrl: string | undefined,
     fetcher: typeof globalThis.fetch,
     fetchTimeoutMs: number
 ): Promise<string> {

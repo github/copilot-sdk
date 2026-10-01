@@ -5,9 +5,7 @@ fire for tool calls made by sub-agents spawned via the task tool.
 
 from __future__ import annotations
 
-import asyncio
 import os
-from uuid import uuid4
 
 import httpx
 import pytest
@@ -72,17 +70,6 @@ class TestSubagentHooks:
         """Test that preToolUse/postToolUse hooks fire for sub-agent tool calls"""
         hook_log = []
         request_handler = _RecordingRequestHandler()
-        waiting_text = (
-            "I've launched an explore agent to read subagent-test.txt. "
-            "Waiting for it to complete..."
-        )
-        parent_waiting = asyncio.Event()
-        parent_session_id = str(uuid4())
-        final_text = (
-            "The explore agent successfully read the file. "
-            "The contents of **subagent-test.txt** are:\n\n"
-            "```\nHello from subagent test!\n```"
-        )
 
         async def on_pre_tool_use(input_data, invocation):
             hook_log.append(
@@ -102,12 +89,6 @@ class TestSubagentHooks:
                     "sessionId": input_data.get("sessionId"),
                 }
             )
-            # A fast child can inject its result before the fixture's waiting reply is requested.
-            if (
-                input_data.get("toolName") == "view"
-                and input_data.get("sessionId") != parent_session_id
-            ):
-                await parent_waiting.wait()
             return None
 
         # Create a client with the session-based subagents feature flag
@@ -125,7 +106,6 @@ class TestSubagentHooks:
         )
 
         session = await client.create_session(
-            session_id=parent_session_id,
             on_permission_request=PermissionHandler.approve_all,
             hooks={
                 "on_pre_tool_use": on_pre_tool_use,
@@ -136,34 +116,11 @@ class TestSubagentHooks:
         # Create a file for the sub-agent to read
         write_file(ctx.work_dir, "subagent-test.txt", "Hello from subagent test!")
 
-        def on_event(event):
-            if (
-                not event.agent_id
-                and event.type.value == "assistant.message"
-                and event.data.content == waiting_text
-            ):
-                parent_waiting.set()
-
-        unsubscribe = session.on(on_event)
-        try:
-            response = await session.send_and_wait(
-                "Use the task tool to spawn an explore agent that reads the file "
-                "subagent-test.txt in the current directory and reports its contents. "
-                "You must use the task tool."
-            )
-            assert response is not None and not response.agent_id
-            assert response.data.content == final_text
-            replies = [
-                event.data.content
-                for event in await session.get_events()
-                if not event.agent_id
-                and event.type.value == "assistant.message"
-                and event.data.content in (waiting_text, final_text)
-            ]
-            assert replies == [waiting_text, final_text]
-        finally:
-            parent_waiting.set()
-            unsubscribe()
+        await session.send_and_wait(
+            "Use the task tool to spawn an explore agent that reads the file "
+            "subagent-test.txt in the current directory and reports its contents. "
+            "You must use the task tool."
+        )
 
         # Parent tool hooks fire for "task"
         task_pre = [h for h in hook_log if h["kind"] == "pre" and h["toolName"] == "task"]

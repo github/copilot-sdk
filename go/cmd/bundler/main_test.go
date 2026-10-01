@@ -59,46 +59,82 @@ func TestCreateRuntimeAssetsArchiveRetainsUnknownAssetsAndFiltersCLIContent(t *t
 }
 
 func TestDownloadCLIBinaryUsesVerifiedReleasePackage(t *testing.T) {
-	dir := t.TempDir()
-	archivePath := filepath.Join(dir, "source.tgz")
-	writeTarGz(t, archivePath, map[string]string{
-		"package/prebuilds/linux-x64/copilot-runtime": "runtime wrapper",
-	})
-	archive, err := os.ReadFile(archivePath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	checksum := fmt.Sprintf("%x", sha256.Sum256(archive))
-	version := "1.2.3"
-	assetName := releaseAssetName(version, "linux-x64")
-	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		switch request.URL.Path {
-		case "/v1.2.3/SHA256SUMS.txt":
-			fmt.Fprintf(writer, "%s  %s\n", checksum, assetName)
-		case "/v1.2.3/" + assetName:
-			writer.Write(archive)
-		default:
-			http.NotFound(writer, request)
-		}
-	}))
-	defer server.Close()
-	t.Setenv(cliDownloadBaseURLEnvironment, server.URL)
-	releaseChecksumCache = map[string]map[string]string{}
+	for _, version := range []string{"1.2.3", "1.2.3-4.unstable.r123.gabcdef0"} {
+		t.Run(version, func(t *testing.T) {
+			dir := t.TempDir()
+			archivePath := filepath.Join(dir, "source.tgz")
+			writeTarGz(t, archivePath, map[string]string{
+				"package/prebuilds/linux-x64/copilot-runtime": "runtime wrapper",
+			})
+			archive, err := os.ReadFile(archivePath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			checksum := fmt.Sprintf("%x", sha256.Sum256(archive))
+			tag := "v" + version
+			if strings.Contains(version, ".unstable.") {
+				tag = "runtime-" + version
+			}
+			assetName := releaseAssetName(version, "linux-x64")
+			server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+				switch request.URL.Path {
+				case "/" + tag + "/SHA256SUMS.txt":
+					fmt.Fprintf(writer, "%s  %s\n", checksum, assetName)
+				case "/" + tag + "/" + assetName:
+					writer.Write(archive)
+				default:
+					http.NotFound(writer, request)
+				}
+			}))
+			defer server.Close()
+			t.Setenv(cliDownloadBaseURLEnvironment, server.URL)
+			releaseChecksumCache = map[string]map[string]string{}
 
-	binaryPath, downloadedArchive, err := downloadCLIBinary(
-		"linux-x64",
-		"copilot",
-		version,
-		t.TempDir(),
-	)
-	if err != nil {
-		t.Fatal(err)
+			binaryPath, downloadedArchive, err := downloadCLIBinary(
+				"linux-x64",
+				"copilot",
+				version,
+				t.TempDir(),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got, err := os.ReadFile(binaryPath); err != nil || string(got) != "runtime wrapper" {
+				t.Fatalf("downloaded CLI = %q, %v", got, err)
+			}
+			if filepath.Base(downloadedArchive) != assetName {
+				t.Fatalf("downloaded archive = %q, want basename %q", downloadedArchive, assetName)
+			}
+		})
 	}
-	if got, err := os.ReadFile(binaryPath); err != nil || string(got) != "runtime wrapper" {
-		t.Fatalf("downloaded CLI = %q, %v", got, err)
-	}
-	if filepath.Base(downloadedArchive) != assetName {
-		t.Fatalf("downloaded archive = %q, want basename %q", downloadedArchive, assetName)
+}
+
+func TestReleaseDownloadURL(t *testing.T) {
+	for _, tc := range []struct{ version, repository, tag string }{
+		{"1.2.3", "copilot-cli", "v1.2.3"},
+		{"1.2.3-4", "copilot-cli", "v1.2.3-4"},
+		{"1.2.3-unstable.r123.gabcdef0", "copilot-sdk", "runtime-1.2.3-unstable.r123.gabcdef0"},
+		{"1.2.3-4.unstable.r123.gabcdef0", "copilot-sdk", "runtime-1.2.3-4.unstable.r123.gabcdef0"},
+		{"0.0.0-0.unstable.r1.g0000000", "copilot-sdk", "runtime-0.0.0-0.unstable.r1.g0000000"},
+		{"01.2.3-unstable.r123.gabcdef0", "copilot-cli", "v01.2.3-unstable.r123.gabcdef0"},
+		{"1.02.3-unstable.r123.gabcdef0", "copilot-cli", "v1.02.3-unstable.r123.gabcdef0"},
+		{"1.2.03-unstable.r123.gabcdef0", "copilot-cli", "v1.2.03-unstable.r123.gabcdef0"},
+		{"1.2.3-04.unstable.r123.gabcdef0", "copilot-cli", "v1.2.3-04.unstable.r123.gabcdef0"},
+	} {
+		t.Run(tc.version, func(t *testing.T) {
+			t.Setenv(cliDownloadBaseURLEnvironment, "")
+			for _, asset := range []string{"SHA256SUMS.txt", releaseAssetName(tc.version, "linux-x64")} {
+				want := "https://github.com/github/" + tc.repository + "/releases/download/" + tc.tag + "/" + asset
+				if got := releaseDownloadURL(tc.version, asset); got != want {
+					t.Fatalf("releaseDownloadURL() = %q, want %q", got, want)
+				}
+			}
+			t.Setenv(cliDownloadBaseURLEnvironment, "https://mirror.example/releases/")
+			want := "https://mirror.example/releases/" + tc.tag + "/SHA256SUMS.txt"
+			if got := releaseDownloadURL(tc.version, "SHA256SUMS.txt"); got != want {
+				t.Fatalf("mirror URL = %q, want %q", got, want)
+			}
+		})
 	}
 }
 

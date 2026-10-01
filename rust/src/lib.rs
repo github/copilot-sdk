@@ -3105,11 +3105,8 @@ impl Client {
         self.inner.rpc.force_close();
         #[cfg(feature = "in-process")]
         {
-            let host = self.inner.ffi_host.lock().take();
-            if let Some(host) = host
-                && let Err(error) = tokio::task::spawn_blocking(move || host.close()).await
-            {
-                errors.push(Error::new(ErrorKind::Io, error));
+            if let Some(host) = self.inner.ffi_host.lock().take() {
+                host.close();
             }
         }
 

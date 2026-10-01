@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import os
-import threading
 from typing import Any, cast
 
 import pytest
@@ -84,9 +83,6 @@ class _Harness:
         await asyncio.sleep(0)
 
     async def close(self) -> None:
-        # Unblock both readers before closing either read descriptor (Windows CRT).
-        self.peer_process.stdin.close()
-        self.sdk_process.stdin.close()
         self.peer_process.terminate()
         self.sdk_process.terminate()
         await self.peer_rpc.stop()
@@ -184,50 +180,6 @@ async def _wait_for(predicate, *, timeout: float = 5.0) -> None:
         await asyncio.sleep(0)
 
 
-async def test_closes_both_writers_before_waiting_for_pipe_readers(monkeypatch) -> None:
-    loop = asyncio.get_running_loop()
-    reading = asyncio.Event()
-    sdk_process, peer_process = _pipe_process_pair()
-    reader_lock = threading.Lock()
-    original_readline = peer_process.stdout.readline
-    original_close = peer_process.stdout.close
-
-    # Windows' CRT holds the descriptor lock across a blocking read and takes
-    # that same lock on close. Reproduce that boundary on every platform.
-    def locked_readline():
-        with reader_lock:
-            loop.call_soon_threadsafe(reading.set)
-            return original_readline()
-
-    def locked_close():
-        with reader_lock:
-            original_close()
-
-    monkeypatch.setattr(peer_process.stdout, "readline", locked_readline)
-    monkeypatch.setattr(peer_process.stdout, "close", locked_close)
-    monkeypatch.setattr(f"{__name__}._pipe_process_pair", lambda: (sdk_process, peer_process))
-    harness = await _connect()
-    closing = None
-    try:
-        await asyncio.wait_for(reading.wait(), timeout=5)
-        closing = asyncio.create_task(asyncio.to_thread(lambda: asyncio.run(harness.close())))
-        await asyncio.wait_for(asyncio.shield(closing), timeout=5)
-        for rpc in (harness.peer_rpc, harness.sdk_rpc):
-            assert rpc._read_thread is not None  # noqa: SLF001
-            assert not rpc._read_thread.is_alive()  # noqa: SLF001
-        for process in (sdk_process, peer_process):
-            assert process.stdin.closed
-            assert process.stdout.closed
-    finally:
-        # Release a deadlocked close before awaiting its cleanup on failure.
-        sdk_process.stdin.close()
-        peer_process.stdin.close()
-        if closing is not None:
-            await closing
-        else:
-            await harness.close()
-
-
 async def test_presents_typed_full_review_and_echoes_challenge_and_fingerprint() -> None:
     seen: list[tuple[InstallationConfirmationRequest, InstallationConfirmationContext]] = []
 
@@ -279,7 +231,7 @@ async def test_keeps_concurrent_reviews_independent_and_serves_other_rpc() -> No
         second = asyncio.create_task(
             harness.peer.request(402, "installations.confirm", _request("b"))
         )
-        await _wait_for(lambda: sorted(seen) == ["a", "b"])
+        await _wait_for(lambda: seen == ["a", "b"])
 
         with pytest.raises(JsonRpcError, match="No GitHub token provider"):
             await harness.peer.request(

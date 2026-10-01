@@ -41,6 +41,7 @@ const (
 	packageJSONURLFmt             = "https://raw.githubusercontent.com/github/copilot-sdk/%s/nodejs/package.json"
 	packageLockURLFmt             = "https://raw.githubusercontent.com/github/copilot-sdk/%s/nodejs/package-lock.json"
 	defaultCLIDownloadBaseURL     = "https://github.com/github/copilot-cli/releases/download"
+	unstableDownloadBaseURL       = "https://github.com/github/copilot-sdk/releases/download"
 	cliDownloadBaseURLEnvironment = "COPILOT_CLI_DOWNLOAD_BASE_URL"
 	defaultPackageName            = "main"
 )
@@ -925,13 +926,17 @@ func mustDecodeBase64(s string) []byte {
 }
 
 var (
-	releaseChecksumCache = map[string]map[string]string{}
-	releaseHTTPClient    = &http.Client{Timeout: 10 * time.Minute}
+	releaseChecksumCache   = map[string]map[string]string{}
+	releaseHTTPClient      = &http.Client{Timeout: 10 * time.Minute}
+	unstableRuntimeVersion = regexp.MustCompile(`^(?:0|[1-9][0-9]*)(?:\.(?:0|[1-9][0-9]*)){2}(?:-unstable|-(?:0|[1-9][0-9]*)\.unstable)\.r[1-9][0-9]*\.g[0-9a-f]{7}$`)
 )
 
-func cliDownloadBaseURL() string {
+func cliDownloadBaseURL(version string) string {
 	if override := strings.TrimRight(os.Getenv(cliDownloadBaseURLEnvironment), "/"); override != "" {
 		return override
+	}
+	if unstableRuntimeVersion.MatchString(version) {
+		return unstableDownloadBaseURL
 	}
 	return defaultCLIDownloadBaseURL
 }
@@ -941,7 +946,11 @@ func releaseAssetName(version, runtimePlatform string) string {
 }
 
 func releaseDownloadURL(version, assetName string) string {
-	return fmt.Sprintf("%s/v%s/%s", cliDownloadBaseURL(), version, assetName)
+	tag := "v" + version
+	if unstableRuntimeVersion.MatchString(version) {
+		tag = "runtime-" + version
+	}
+	return fmt.Sprintf("%s/%s/%s", cliDownloadBaseURL(version), tag, assetName)
 }
 
 func parseReleaseChecksums(contents string) map[string]string {
@@ -958,11 +967,10 @@ func parseReleaseChecksums(contents string) map[string]string {
 }
 
 func getReleaseChecksum(version, assetName string) (string, error) {
-	baseURL := cliDownloadBaseURL()
-	cacheKey := baseURL + "\x00" + version
+	checksumsURL := releaseDownloadURL(version, "SHA256SUMS.txt")
+	cacheKey := checksumsURL
 	checksums, ok := releaseChecksumCache[cacheKey]
 	if !ok {
-		checksumsURL := fmt.Sprintf("%s/v%s/SHA256SUMS.txt", baseURL, version)
 		fmt.Printf("Downloading checksums from %s...\n", checksumsURL)
 		resp, err := releaseHTTPClient.Get(checksumsURL)
 		if err != nil {

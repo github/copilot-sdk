@@ -10,8 +10,53 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { runtimeReleaseUrl } from '../../../scripts/runtime-release.mjs';
 
 const scriptPath = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fetch-schemas.mjs');
+
+for (const [version, repository, tag] of [
+  ['1.2.3', 'copilot-cli', 'v1.2.3'],
+  ['1.2.3-4', 'copilot-cli', 'v1.2.3-4'],
+  ['1.2.3-unstable.r123.gabcdef0', 'copilot-sdk', 'runtime-1.2.3-unstable.r123.gabcdef0'],
+  ['1.2.3-4.unstable.r123.gabcdef0', 'copilot-sdk', 'runtime-1.2.3-4.unstable.r123.gabcdef0'],
+  ['0.0.0-0.unstable.r1.g0000000', 'copilot-sdk', 'runtime-0.0.0-0.unstable.r1.g0000000'],
+  ['01.2.3-unstable.r123.gabcdef0', 'copilot-cli', 'v01.2.3-unstable.r123.gabcdef0'],
+  ['1.02.3-unstable.r123.gabcdef0', 'copilot-cli', 'v1.02.3-unstable.r123.gabcdef0'],
+  ['1.2.03-unstable.r123.gabcdef0', 'copilot-cli', 'v1.2.03-unstable.r123.gabcdef0'],
+  ['1.2.3-04.unstable.r123.gabcdef0', 'copilot-cli', 'v1.2.3-04.unstable.r123.gabcdef0'],
+]) {
+  test(`resolves ${version} without changing mirror semantics`, () => {
+    assert.equal(runtimeReleaseUrl(version, null), `https://github.com/github/${repository}/releases/download/${tag}`);
+    assert.equal(runtimeReleaseUrl(version, 'https://mirror.example/releases/'), `https://mirror.example/releases/${tag}`);
+  });
+}
+
+test('downloads unstable schemas from the SDK runtime release with checksum verification', (t) => {
+  const fixture = createFixture(t);
+  const version = '1.2.3-4.unstable.r123.gabcdef0';
+  const releaseUrl = `https://github.com/github/copilot-sdk/releases/download/runtime-${version}`;
+  const asset = `github-copilot-${version}-linux-x64.tgz`;
+  const mockFetch = `data:text/javascript,${encodeURIComponent(`
+    import fs from 'node:fs';
+    globalThis.fetch = async (url) => {
+      if (url === ${JSON.stringify(`${releaseUrl}/SHA256SUMS.txt`)})
+        return new Response(${JSON.stringify(`${fixture.hash}  ${asset}\n`)});
+      if (url === ${JSON.stringify(`${releaseUrl}/${asset}`)})
+        return new Response(fs.readFileSync(${JSON.stringify(fixture.archivePath)}));
+      throw new Error('Unexpected download: ' + url);
+    };
+  `)}`;
+  const output = path.join(fixture.root, 'downloaded');
+  const result = runFetch(fixture, output, {
+    COPILOT_CLI_VERSION: version,
+    COPILOT_CLI_SCHEMA_PLATFORM: 'linux-x64',
+    COPILOT_CLI_RELEASE_TARBALL: undefined,
+    COPILOT_CLI_DOWNLOAD_BASE_URL: undefined,
+    NODE_OPTIONS: `--import=${mockFetch}`,
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(output, 'api.schema.json'), 'utf8')), { title: 'API' });
+});
 
 test('extracts schemas from a verified release archive', (t) => {
   const fixture = createFixture(t);
@@ -64,6 +109,10 @@ test('copied standalone generation retains pinned published acquisition', (t) =>
   fs.copyFileSync(
     path.resolve(path.dirname(scriptPath), '../../../scripts/runtime-layout.mjs'),
     standaloneLayoutHelper,
+  );
+  fs.copyFileSync(
+    path.resolve(path.dirname(scriptPath), '../../../scripts/runtime-release.mjs'),
+    path.join(standaloneRoot, 'scripts/runtime-release.mjs'),
   );
   fs.writeFileSync(
     path.join(standaloneRoot, 'nodejs/package.json'),

@@ -2183,7 +2183,7 @@ class CopilotClient:
         # Dispose the in-process FFI host and release the loaded native library.
         if self._ffi_host is not None:
             try:
-                await asyncio.to_thread(self._ffi_host.dispose)
+                self._ffi_host.dispose()
             except Exception:
                 logger.debug("Error while disposing in-process FFI host", exc_info=True)
             self._ffi_host = None
@@ -2268,8 +2268,7 @@ class CopilotClient:
         # Close the transport first to signal the server immediately.
         # For external servers (TCP), this closes the socket.
         # For spawned processes (stdio), this kills the process.
-        # The FFI adapter is disposed off-thread below.
-        if self._ffi_host is None and (self._process is not None or self._cli_process is not None):
+        if self._process is not None or self._cli_process is not None:
             try:
                 if self._is_external_server:
                     if self._process is not None:
@@ -2289,7 +2288,7 @@ class CopilotClient:
         # Force-dispose the in-process FFI host before tearing down JSON-RPC.
         if self._ffi_host is not None:
             try:
-                await asyncio.to_thread(self._ffi_host.dispose)
+                self._ffi_host.dispose()
             except Exception:
                 logger.debug("Error while force-disposing in-process FFI host", exc_info=True)
             self._ffi_host = None

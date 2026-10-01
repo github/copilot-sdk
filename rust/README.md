@@ -1,3 +1,5 @@
+<!-- Copyright (c) Microsoft Corporation. All rights reserved. -->
+
 # GitHub Copilot CLI SDK for Rust
 
 A Rust SDK for programmatic access to the GitHub Copilot CLI.
@@ -1451,7 +1453,21 @@ explicit program path is supplied.
      (present in published crate tarballs and vendored slots).
    - Otherwise, `../nodejs/package.json` (contributor build inside the github/copilot-sdk repo).
 
-   When SDK-managed acquisition is enabled, the resolved version is baked into the crate via `cargo:rustc-env=COPILOT_SDK_CLI_VERSION`. The runtime resolver consumes it to recompute the on-disk path by convention, so no absolute paths leak into the rlib.
+   When SDK-managed acquisition is enabled, the resolved version is baked into the crate via `cargo:rustc-env=COPILOT_SDK_CLI_VERSION`. A release-scoped `COPILOT_SDK_CLI_CACHE_ID` lets the runtime resolver recompute the on-disk path without leaking absolute build-machine paths into the rlib.
+
+   Stable/prerelease snapshots, including existing published crates, acquire
+   assets from `github/copilot-cli` at `v<runtime-version>`. Public unstable
+   snapshots additionally pin
+   `release-url=https://github.com/github/copilot-sdk/releases/download/runtime-<runtime-version>`.
+   Both snapshots must agree on the version and release URL. Executables,
+   runtime packages, and checksum lookups all use that exact public release;
+   consumers need no credentials or unstable-specific environment settings.
+
+   Source checkouts without snapshots infer the SDK-hosted release for canonical
+   unstable pins in `nodejs/package.json`, including both
+   `X.Y.Z-unstable.r<run-id>.g<sha>` and `X.Y.Z-N.unstable.r<run-id>.g<sha>`.
+   Other source pins and legacy snapshots without `release-url` continue to use
+   the CLI release location.
 
 2. **Build time:** `build.rs` downloads the platform-specific full CLI archive
    and runtime package, then verifies both SHA-256 hashes against the release's
@@ -1483,6 +1499,10 @@ explicit program path is supplied.
    non-bundled build from deleting a same-version bundled CLI used by another
    application. Old version directories accumulate in siblings; clean them up
    at your leisure.
+
+   Public unstable cache directories use
+   `copilot-sdk-runtime-<version>` instead of `<version>` to keep release
+   destinations separate. Legacy cache paths remain unchanged.
 
 ### Overriding the extraction location
 
@@ -1575,9 +1595,61 @@ In embed mode `build.rs` downloads both verified archives on every clean build
 by default. Set `BUNDLED_CLI_CACHE_DIR=<path>` to cache them between builds (CI
 keys this on `<os>-<version>` for near-zero-cost rebuilds on cache hits). For
 Copilot CLI 1.0.83-5, the two upstream archives total roughly 132-157 MB per
-platform before the runtime package is filtered. With `runtime` enabled and both
-`bundled-cli` and `local-runtime` disabled,
-there is no separate archive cache: the extracted runtime bundle is the cache.
+platform before the runtime package is filtered. With `runtime` enabled and
+both `bundled-cli` and `local-runtime` disabled,
+the extracted runtime bundle is the primary cache; a configured download
+cache can also supply its initial extraction.
+
+### Preparing release snapshots before publication
+
+The two scripts in `scripts/` retain their no-option behavior: read
+`../nodejs/package.json` and fetch the pinned CLI release's `SHA256SUMS.txt`.
+Release packaging can instead supply local checksums and the final public
+location, without waiting for that release to exist:
+
+```bash
+bash scripts/snapshot-bundled-cli-version.sh \
+  --version "$RUNTIME_VERSION" --release-url "$RELEASE_URL" \
+  --checksums "$LOCAL_SHA256SUMS"
+bash scripts/snapshot-bundled-in-process-version.sh \
+  --version "$RUNTIME_VERSION" --release-url "$RELEASE_URL" \
+  --checksums "$LOCAL_SHA256SUMS"
+```
+
+`RELEASE_URL` is the exact base URL described above, without a trailing slash.
+`LOCAL_SHA256SUMS` names the staged checksum file covering all eight executable
+archives and all eight `github-copilot-<runtime-version>-<target>.tgz` payloads.
+The existing `cli-version.txt` and `cli-version-in-process.txt` package entries
+carry the version, hashes, and optional `release-url`; no separate manifest or
+consumer configuration is required.
+
+For normal promotions from an older compatible source, invoke the reviewed
+producer scripts with `--output` pointing to each snapshot in the selected
+Rust source staging directory. Pass the selected runtime version explicitly.
+This preserves the older product's build code and does not require its source
+to contain these producer scripts. Public unstable releases still require
+selected-source support for the SDK-hosted acquisition location.
+
+For offline build/package verification, seed `BUNDLED_CLI_CACHE_DIR` with the
+host's executable and payload archives under these filenames:
+
+* CLI release: `v<runtime-version>-<asset-filename>`
+* SDK-hosted unstable release: `copilot-sdk-runtime-<runtime-version>-<asset-filename>`
+
+Archive bytes must match the snapshot hashes; cache hits are verified and
+corrupt entries are evicted. The executable is `copilot-<target>.tar.gz` (or
+`.zip` on Windows); the payload is
+`github-copilot-<runtime-version>-<target>.tgz`. A non-bundled build needs only
+the payload archive and can also use this seeded cache for initial extraction.
+Keep `COPILOT_SKIP_CLI_DOWNLOAD` unset during acquisition verification.
+
+The focused acquisition checks use tiny local archive fixtures and never
+download a runtime:
+
+```bash
+node --test scripts/snapshot-version.test.mjs
+cargo test --no-default-features --features local-runtime --test build_acquisition
+```
 
 ### Platforms
 

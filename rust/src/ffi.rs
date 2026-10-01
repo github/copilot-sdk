@@ -742,6 +742,3 @@ mod tests {
         assert_eq!(TEST_SHUTDOWN_CALLS.load(Ordering::SeqCst), 1);
     }
 }
-
-#[cfg(test)]
-mod shutdown_tests;

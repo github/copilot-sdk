@@ -58,7 +58,6 @@
        COPILOT_CLI_DOWNLOAD_BASE_URL is also honored. -->
   <PropertyGroup>
     <CopilotCliReleaseBaseUrl Condition="'$(CopilotCliReleaseBaseUrl)' == '' And '$(COPILOT_CLI_DOWNLOAD_BASE_URL)' != ''">$(COPILOT_CLI_DOWNLOAD_BASE_URL)</CopilotCliReleaseBaseUrl>
-    <CopilotCliReleaseBaseUrl Condition="'$(CopilotCliReleaseBaseUrl)' == ''">https://github.com/github/copilot-cli/releases/download</CopilotCliReleaseBaseUrl>
   </PropertyGroup>
 
   <!-- Timeout in seconds for downloading the Copilot CLI tarball.
@@ -103,8 +102,13 @@
       <_CopilotChecksumPath>$(_CopilotCacheDir)\SHA256SUMS.txt</_CopilotChecksumPath>
       <_CopilotAssetName>github-copilot-$(CopilotCliVersion)-$(_CopilotPlatform).tgz</_CopilotAssetName>
       <_CopilotAssetNameRegex>$([System.Text.RegularExpressions.Regex]::Escape('$(_CopilotAssetName)'))</_CopilotAssetNameRegex>
+      <_CopilotUnstableRuntime>$([System.Text.RegularExpressions.Regex]::IsMatch('$(CopilotCliVersion)', '^(?:0|[1-9][0-9]*)(?:\.(?:0|[1-9][0-9]*)){2}(?:-unstable|-(?:0|[1-9][0-9]*)\.unstable)\.r[1-9][0-9]*\.g[0-9a-f]{7}$'))</_CopilotUnstableRuntime>
+      <_CopilotReleaseTag>v$(CopilotCliVersion)</_CopilotReleaseTag>
+      <_CopilotReleaseTag Condition="'$(_CopilotUnstableRuntime)' == 'true'">runtime-$(CopilotCliVersion)</_CopilotReleaseTag>
+      <CopilotCliReleaseBaseUrl Condition="'$(CopilotCliReleaseBaseUrl)' == '' And '$(_CopilotUnstableRuntime)' == 'true'">https://github.com/github/copilot-sdk/releases/download</CopilotCliReleaseBaseUrl>
+      <CopilotCliReleaseBaseUrl Condition="'$(CopilotCliReleaseBaseUrl)' == ''">https://github.com/github/copilot-cli/releases/download</CopilotCliReleaseBaseUrl>
       <_CopilotNormalizedReleaseBaseUrl>$([System.String]::Copy('$(CopilotCliReleaseBaseUrl)').TrimEnd('/'))</_CopilotNormalizedReleaseBaseUrl>
-      <_CopilotReleaseUrl>$(_CopilotNormalizedReleaseBaseUrl)/v$(CopilotCliVersion)</_CopilotReleaseUrl>
+      <_CopilotReleaseUrl>$(_CopilotNormalizedReleaseBaseUrl)/$(_CopilotReleaseTag)</_CopilotReleaseUrl>
       <_CopilotDownloadUrl>$(_CopilotReleaseUrl)/$(_CopilotAssetName)</_CopilotDownloadUrl>
       <_CopilotChecksumsUrl>$(_CopilotReleaseUrl)/SHA256SUMS.txt</_CopilotChecksumsUrl>
       <_CopilotRuntimeBundleMissing Condition="!Exists('$(_CopilotCliBinaryPath)') Or !Exists('$(_CopilotRuntimeNodePath)') Or !Exists('$(_CopilotRuntimeBundleCompleteMarker)')">true</_CopilotRuntimeBundleMissing>

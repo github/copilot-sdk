@@ -3481,23 +3481,13 @@ export class CopilotClient {
             this.githubTokenProviders.clear();
             this.requestAdapter?.cancelPending();
             connection.dispose();
-            this.socket?.destroy();
-            this.connection = null;
-            this.messageWriter = null;
-            this._rpc = null;
-            this._internalRpc = null;
-            this.modelsCache = null;
         };
-        const drainAndDisconnect = () => {
+        this.connection.onClose(() => {
             if (messageWriter) messageWriter.suppressWriteErrors = true;
             // jsonrpc dispatches parsed messages asynchronously, one per event-loop
             // turn. Drain them before clearing callbacks and rejecting unanswered RPCs.
             void connection.drain().then(markDisconnected);
-        };
-        this.connection.onClose(drainAndDisconnect);
-        // Descendants can retain inherited output pipes after the runtime exits.
-        // Observe the owned process without waiting for those pipes to reach EOF.
-        this.cliProcess?.once("exit", drainAndDisconnect);
+        });
         this.connection.onError(() => {
             if (this.connection === connection) {
                 this.state = "disconnected";

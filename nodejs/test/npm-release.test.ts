@@ -1,8 +1,11 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join, resolve } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { assertVersionAbsent, publishManifest, publishTarball } from "../scripts/npm-release.js";
 
@@ -165,33 +168,4 @@ describe("npm release publishing", () => {
             rmSync(directory, { recursive: true, force: true });
         }
     });
-});
-
-const workflow = readFileSync(
-    resolve(dirname(fileURLToPath(import.meta.url)), "../../.github/workflows/publish.yml"),
-    "utf8"
-).replaceAll("\r\n", "\n");
-
-function workflowJob(jobId: string): string {
-    const marker = `  ${jobId}:\n`;
-    const start = workflow.indexOf(marker);
-    if (start < 0) throw new Error(`Workflow job not found: ${jobId}`);
-    const rest = workflow.slice(start + marker.length);
-    const nextJob = rest.search(/^  [a-z0-9-]+:\n/m);
-    return nextJob < 0 ? rest : rest.slice(0, nextJob);
-}
-
-describe("runtime-backed npm publishing workflow", () => {
-    it.each(["runtime-publish-internal", "runtime-publish-public"])(
-        "%s validates retained packages before using the shared publisher",
-        (jobId) => {
-            const job = workflowJob(jobId);
-            const validation = job.indexOf("- name: Validate retained release");
-            const publication = job.indexOf("npm-release.js publish-manifest");
-
-            expect(validation).toBeGreaterThanOrEqual(0);
-            expect(publication).toBeGreaterThan(validation);
-            expect(job.match(/npm-release\.js publish-manifest/g)).toHaveLength(1);
-        }
-    );
 });

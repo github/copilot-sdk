@@ -10,6 +10,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { findRuntimeRoot } from '../../../scripts/runtime-layout.mjs';
+import { runtimeReleaseUrl } from '../../../scripts/runtime-release.mjs';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, '../../..');
@@ -28,10 +29,6 @@ if (!version) {
 }
 
 const assetName = `github-copilot-${version}-${platform}.tgz`;
-const releaseBase = (
-  process.env.COPILOT_CLI_DOWNLOAD_BASE_URL ??
-  'https://github.com/github/copilot-cli/releases/download'
-).replace(/\/+$/, '');
 
 const schemaNames = ['api.schema.json', 'session-events.schema.json'];
 const schemaContents = new Map();
@@ -73,7 +70,7 @@ if (explicitSchemaDirectory) {
     archive = fs.readFileSync(process.env.COPILOT_CLI_RELEASE_TARBALL);
     expectedHash = process.env.COPILOT_CLI_RELEASE_SHA256;
   } else {
-    const releaseUrl = `${releaseBase}/v${version}`;
+    const releaseUrl = runtimeReleaseUrl(version);
     const checksums = (await download(`${releaseUrl}/SHA256SUMS.txt`)).toString('utf8');
     expectedHash = findChecksum(checksums, assetName);
     archive = await download(`${releaseUrl}/${assetName}`);

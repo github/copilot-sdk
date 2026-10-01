@@ -14,7 +14,6 @@ using System.Text.Json;
 using GitHub.Copilot.Rpc;
 using GitHub.Copilot.Test.Harness;
 using Microsoft.Extensions.AI;
-using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace GitHub.Copilot.Test.Unit;
@@ -216,7 +215,7 @@ public sealed partial class ClientSessionLifetimeTests
         await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
         await client.StartAsync();
         using var process = StartExitedProcess();
-        await ReplaceConnectionResourcesAsync(client, process);
+        await ReplaceConnectionCliProcessAsync(client, process);
 
         await client.StopAsync();
 
@@ -230,7 +229,7 @@ public sealed partial class ClientSessionLifetimeTests
         var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
         await client.StartAsync();
         using var process = StartExitedProcess();
-        await ReplaceConnectionResourcesAsync(client, process);
+        await ReplaceConnectionCliProcessAsync(client, process);
 
         await client.DisposeAsync();
 
@@ -245,7 +244,7 @@ public sealed partial class ClientSessionLifetimeTests
         await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
         await client.StartAsync();
         using var process = StartExitedProcess();
-        await ReplaceConnectionResourcesAsync(client, process);
+        await ReplaceConnectionCliProcessAsync(client, process);
 
         await client.StopAsync();
 
@@ -259,7 +258,7 @@ public sealed partial class ClientSessionLifetimeTests
         await using var forceClient = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(forceServer.Url) });
         await forceClient.StartAsync();
         using var process = StartExitedProcess();
-        await ReplaceConnectionResourcesAsync(forceClient, process);
+        await ReplaceConnectionCliProcessAsync(forceClient, process);
 
         await forceClient.ForceStopAsync();
 
@@ -272,62 +271,6 @@ public sealed partial class ClientSessionLifetimeTests
         await externalClient.StopAsync();
 
         Assert.Equal(0, externalServer.RuntimeShutdownCount);
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task Async_Stop_Keeps_Caller_Scheduler_Responsive_During_Native_Shutdown(bool force)
-    {
-        await using var server = await FakeCopilotServer.StartAsync();
-        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
-        await client.StartAsync();
-        var shutdownStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        using var releaseShutdown = new ManualResetEventSlim();
-        var shutdownCalls = 0;
-        var hostType = typeof(CopilotClient).Assembly.GetType("GitHub.Copilot.FfiRuntimeHost", throwOnError: true)!;
-        var constructor = hostType.GetConstructors(BindingFlags.Instance | BindingFlags.NonPublic)
-            .Single(candidate => candidate.GetParameters().Length == 8);
-        using var host = (IDisposable)constructor.Invoke(
-            [
-                "test-runtime",
-                null,
-                null,
-                Array.Empty<string>(),
-                NullLogger.Instance,
-                new Func<uint, bool>(_ => true),
-                new Func<uint, bool>(_ =>
-                {
-                    Interlocked.Increment(ref shutdownCalls);
-                    shutdownStarted.TrySetResult();
-                    releaseShutdown.Wait();
-                    return true;
-                }),
-                new Action(() => { }),
-            ]);
-        hostType.GetField("_serverId", BindingFlags.Instance | BindingFlags.NonPublic)!
-            .SetValue(host, (uint)11);
-        await ReplaceConnectionResourcesAsync(client, ffiHost: host);
-
-        var scheduler = new ConcurrentExclusiveSchedulerPair(TaskScheduler.Default, maxConcurrencyLevel: 1);
-        var factory = new TaskFactory(CancellationToken.None, TaskCreationOptions.None, TaskContinuationOptions.None, scheduler.ExclusiveScheduler);
-        var stop = factory.StartNew(() => force ? client.ForceStopAsync() : client.StopAsync()).Unwrap();
-        try
-        {
-            await shutdownStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
-            await factory.StartNew(() => { }).WaitAsync(TimeSpan.FromSeconds(5));
-            Assert.False(stop.IsCompleted, "Stop returned before native shutdown completed.");
-        }
-        finally
-        {
-            releaseShutdown.Set();
-            await stop.WaitAsync(TimeSpan.FromSeconds(5));
-            scheduler.Complete();
-            await scheduler.Completion.WaitAsync(TimeSpan.FromSeconds(5));
-        }
-
-        Assert.Equal(1, shutdownCalls);
-        Assert.Equal(force ? 0 : 1, server.RuntimeShutdownCount);
     }
 
     [Fact]
@@ -2643,7 +2586,7 @@ public sealed partial class ClientSessionLifetimeTests
         throw new TimeoutException($"Timed out waiting for RPC method '{method}'.");
     }
 
-    private static async Task ReplaceConnectionResourcesAsync(CopilotClient client, Process? process = null, IDisposable? ffiHost = null)
+    private static async Task ReplaceConnectionCliProcessAsync(CopilotClient client, Process process)
     {
         var field = typeof(CopilotClient).GetField("_connectionTask", BindingFlags.Instance | BindingFlags.NonPublic)
             ?? throw new InvalidOperationException("_connectionTask field was not found.");
@@ -2657,7 +2600,7 @@ public sealed partial class ClientSessionLifetimeTests
         var rpc = connectionType.GetProperty("Rpc")!.GetValue(connection);
         var networkStream = connectionType.GetProperty("NetworkStream")!.GetValue(connection);
         var constructor = connectionType.GetConstructors(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public).Single();
-        var updatedConnection = constructor.Invoke([rpc, process, networkStream, null, ffiHost]);
+        var updatedConnection = constructor.Invoke([rpc, process, networkStream, null, null]);
         var fromResult = typeof(Task).GetMethod(nameof(Task.FromResult))!.MakeGenericMethod(connectionType);
         field.SetValue(client, fromResult.Invoke(null, [updatedConnection]));
     }

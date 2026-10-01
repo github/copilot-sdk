@@ -108,62 +108,6 @@ describe("Server-scoped RPC", async () => {
         await expect(client.rpc.managedSettings.clearCache()).resolves.toBeNull();
     });
 
-    it.skipIf(isInProcessTransport)("should round trip sessionless managed settings", async () => {
-        const policyPath = path.join(workDir, "managed-settings.json");
-        const policy = { model: "gpt-5.4", autoTier: "balance" };
-        fs.writeFileSync(policyPath, JSON.stringify(policy));
-        const policyClient = new CopilotClient({
-            workingDirectory: workDir,
-            connection: RuntimeConnection.forStdio({ path: process.env.COPILOT_CLI_PATH }),
-            useLoggedInUser: false,
-            env: {
-                ...env,
-                GH_TOKEN: "",
-                GITHUB_TOKEN: "",
-                COPILOT_GITHUB_TOKEN: "",
-                GITHUB_COPILOT_API_TOKEN: "",
-                COPILOT_HMAC_KEY: "",
-                CAPI_HMAC_KEY: "",
-                COPILOT_E2E_TEST_HOOKS: "1",
-                COPILOT_TEST_MANAGED_SETTINGS_FILE_PATH: policyPath,
-            },
-        });
-        onTestFinished(() => policyClient.stop());
-        await policyClient.start();
-
-        const api = policyClient.rpc.managedSettings;
-        const schema = await api.schema();
-        expect(schema.runtimeVersion).toEqual(expect.any(String));
-        expect(schema.schema).toHaveProperty("properties.model");
-
-        const validated = await api.validate({ content: policy });
-        expect(validated.valid).toBe(true);
-        expect(validated.settings).toEqual(policy);
-        expect(validated.diagnostics).toEqual([]);
-
-        const resolved = await api.resolve({});
-        expect(resolved.account).toBeUndefined();
-        expect(resolved.resolved.deviceManaged).toBe(true);
-        expect(resolved.values?.model).toBe(policy.model);
-        const device = resolved.layers.find((layer) => layer.source === "device");
-        expect(device?.settings).toMatchObject(policy);
-
-        const composed = await api.compose({
-            layers: [{ source: "device", settings: device?.settings }],
-        });
-        expect(composed.resolved.settings).toEqual(resolved.resolved.settings);
-        expect(composed.values).toEqual(resolved.values);
-        expect(composed.diagnostics).toEqual([]);
-        await expect(
-            api.compose({
-                // @ts-expect-error Exercise invalid wire input through the real server.
-                layers: [{ source: "device", settings: null }],
-            })
-        ).rejects.toMatchObject({ code: -32602 });
-        const absent = await api.compose({ layers: [{ source: "device" }] });
-        expect(absent.resolved.source).toBe("none");
-    });
-
     it("should reject llm inference response frames for missing request", async () => {
         await client.start();
 

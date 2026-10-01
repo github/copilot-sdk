@@ -2295,15 +2295,16 @@ impl PreparedSession {
             event_tx,
             shutdown,
         } = self;
-        // The startup state machines exceed 16 KiB; boxing them keeps this
-        // future, and every public caller awaiting it, small enough for
-        // 2 MiB worker stacks and `clippy::large_futures`.
         match kind {
             PreparedKind::Create(config) => {
-                Box::pin(client.start_prepared_create(*config, event_tx, shutdown)).await
+                client
+                    .start_prepared_create(*config, event_tx, shutdown)
+                    .await
             }
             PreparedKind::Resume(config) => {
-                Box::pin(client.start_prepared_resume(*config, event_tx, shutdown)).await
+                client
+                    .start_prepared_resume(*config, event_tx, shutdown)
+                    .await
             }
         }
     }
