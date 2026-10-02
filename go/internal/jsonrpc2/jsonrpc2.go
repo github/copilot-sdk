@@ -5,10 +5,8 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
-	"os"
 	"reflect"
 	"sync"
 	"sync/atomic"
@@ -400,18 +398,12 @@ func (c *Client) readLoop() {
 		// Read the next frame.
 		data, err := c.reader.Read()
 		if err != nil {
-			if !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrClosedPipe) && !errors.Is(err, os.ErrClosed) && c.running.Load() {
-				fmt.Printf("Error reading message: %v\n", err)
-			}
 			return
 		}
 
 		// Decode using a single unmarshal into the combined wire format.
 		msg, err := decodeMessage(data)
 		if err != nil {
-			if c.running.Load() {
-				fmt.Printf("Error decoding message: %v\n", err)
-			}
 			continue
 		}
 
@@ -583,9 +575,7 @@ func (c *Client) sendResponse(ctx context.Context, id json.RawMessage, result js
 		ID:      id,
 		Result:  result,
 	}
-	if err := c.sendMessage(ctx, response); err != nil {
-		fmt.Printf("Failed to send JSON-RPC response: %v\n", err)
-	}
+	_ = c.sendMessage(ctx, response)
 }
 
 func (c *Client) sendErrorResponse(ctx context.Context, id json.RawMessage, rpcErr *Error) {
@@ -594,9 +584,7 @@ func (c *Client) sendErrorResponse(ctx context.Context, id json.RawMessage, rpcE
 		ID:      id,
 		Error:   rpcErr,
 	}
-	if err := c.sendMessage(ctx, response); err != nil {
-		fmt.Printf("Failed to send JSON-RPC error response: %v\n", err)
-	}
+	_ = c.sendMessage(ctx, response)
 }
 
 // generateUUID generates a simple UUID v4 without external dependencies

@@ -145,6 +145,12 @@ Avoid logging it indiscriminately: server-provided data may contain sensitive
 information. Its fields and data bytes are shared with the wrapped error; copy
 them before mutation.
 
+The JSON-RPC transport does not print read, decode, or response-send diagnostics
+to the hosting process's stdout or stderr. Errors returned by SDK calls remain
+available to the caller and can contain peer-provided text. `ClientOptions.LogLevel`
+configures runtime logging; apply your application's redaction policy before
+logging returned errors.
+
 ## Installation confirmation (experimental)
 
 Set `ClientOptions.InstallationConfirmationHandler` to receive the runtime's
