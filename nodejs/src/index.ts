@@ -22,6 +22,26 @@ export { BuiltInTools, ToolSet } from "./toolSet.js";
 export { CopilotSession, type AssistantMessageEvent } from "./session.js";
 export { defineWorkflow, WorkflowResumeError, isWorkflowRunTerminal } from "./workflow.js";
 export {
+    initialFusionProgressState,
+    reduceFusionProgress,
+    type FusionPlannedPhase,
+    type FusionProgressActivity,
+    type FusionProgressActivityKind,
+    type FusionProgressCompletion,
+    type FusionProgressEventInput,
+    type FusionProgressPattern,
+    type FusionProgressPermission,
+    type FusionProgressPhase,
+    type FusionProgressPhaseKind,
+    type FusionProgressPhaseStatus,
+    type FusionProgressScope,
+    type FusionProgressState,
+    type FusionProgressStatus,
+    type FusionProgressToolCall,
+    type FusionProgressToolCallStatus,
+    type FusionProgressTurnKind,
+} from "./fusionProgress.js";
+export {
     Canvas,
     CanvasError,
     createCanvas,
