@@ -2161,7 +2161,10 @@ function createGetModelsResponse(modelIds: string[]) {
       name: id,
       capabilities: {
         supports: { vision: true },
-        limits: { max_context_window_tokens: 128000 },
+        limits: {
+          max_context_window_tokens: 128000,
+          vision: { max_prompt_images: 2 },
+        },
       },
     })),
   };
