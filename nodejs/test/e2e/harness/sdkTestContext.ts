@@ -8,13 +8,11 @@ import os from "os";
 import { basename, dirname, join, resolve } from "path";
 import { rimraf } from "rimraf";
 import { fileURLToPath } from "url";
-import { afterAll, afterEach, beforeEach, onTestFailed, onTestFinished, TestContext } from "vitest";
+import { afterAll, afterEach, beforeEach, onTestFailed, TestContext } from "vitest";
 import { CopilotClient, CopilotClientOptions, RuntimeConnection } from "../../../src";
-import type { ResumeSessionConfig, SessionConfig } from "../../../src";
 import { CapiProxy } from "./CapiProxy";
 import { formatError, retry } from "./sdkTestHelper";
 import { resolvePreparedRuntimePath } from "../../../scripts/prepare-runtime.js";
-import { testBackend, withTestBackend } from "./testBackend";
 
 export const isCI = process.env.GITHUB_ACTIONS === "true";
 export const DEFAULT_GITHUB_TOKEN = "fake-token-for-e2e-tests";
@@ -62,13 +60,11 @@ export async function createSdkTestContext({
     logLevel,
     useStdio,
     copilotClientOptions,
-    modelNames,
 }: {
     logLevel?: "error" | "none" | "warning" | "info" | "debug" | "all";
     cliPath?: string;
     useStdio?: boolean;
     copilotClientOptions?: CopilotClientOptions;
-    modelNames?: Record<string, string>;
 } = {}) {
     const homeDir = realpathSync(fs.mkdtempSync(join(os.tmpdir(), "copilot-test-config-")));
     const copilotHomeDir = realpathSync(fs.mkdtempSync(join(os.tmpdir(), "copilot-test-home-")));
@@ -163,16 +159,6 @@ export async function createSdkTestContext({
 
     const mergedEnv = { ...env, ...userEnv };
 
-    class TestClient extends CopilotClient {
-        override createSession(config: SessionConfig) {
-            return super.createSession(withTestBackend(config, testBackend, proxyUrl));
-        }
-
-        override resumeSession(sessionId: string, config: ResumeSessionConfig) {
-            return super.resumeSession(sessionId, withTestBackend(config, testBackend, proxyUrl));
-        }
-    }
-
     // The in-process (FFI) transport loads the runtime into this test host process,
     // and its worker inherits this process's ambient environment rather than a
     // per-client env block (see https://github.com/github/copilot-sdk/issues/1934).
@@ -224,7 +210,7 @@ export async function createSdkTestContext({
         }
         const effectiveInProcess = effectiveConnection.kind === "inprocess";
 
-        return new TestClient({
+        return new CopilotClient({
             // The in-process transport rejects a per-client workingDirectory (it would have to
             // mutate the shared host process cwd). Instead the harness changes this process's
             // cwd to workDir around the in-process worker's startup (see beforeEach below), so
@@ -238,7 +224,7 @@ export async function createSdkTestContext({
             env: effectiveInProcess ? undefined : mergedEnv,
             logLevel: logLevel || "error",
             connection: effectiveConnection,
-            gitHubToken: effectiveConnection.kind === "uri" ? undefined : authTokenToUse,
+            gitHubToken: authTokenToUse,
             ...rest,
         });
     }
@@ -261,16 +247,6 @@ export async function createSdkTestContext({
         // Must be inside beforeEach - vitest requires test context
         onTestFailed(() => {
             anyTestFailed = true;
-        });
-        // Finished hooks run in reverse order, so test-owned clients stop before files are removed.
-        onTestFinished(async () => {
-            // The in-process runtime retains open state files until afterAll shuts it down.
-            // Keep its isolated home intact while it is alive; removing open files on POSIX
-            // can leave later tests using unlinked database state.
-            const cleanupPaths = isInProcess
-                ? [join(workDir, "*")]
-                : [join(homeDir, "*"), join(workDir, "*")];
-            await rimraf(cleanupPaths, { glob: true });
         });
 
         // Mirror this context's environment onto the real process for in-process
@@ -295,7 +271,6 @@ export async function createSdkTestContext({
         await openAiEndpoint.updateConfig({
             filePath: getTrafficCapturePath(testContext),
             workDir,
-            modelNames,
             testInfo: {
                 file: testContext.task.file.filepath,
                 line: testContext.task.location?.line,
@@ -318,6 +293,13 @@ export async function createSdkTestContext({
             process.chdir(restoreCwd);
             restoreCwd = undefined;
         }
+        // The in-process runtime retains open state files until afterAll shuts it down.
+        // Keep its isolated home intact while it is alive; removing open files on POSIX
+        // can leave later tests using unlinked database state.
+        const cleanupPaths = isInProcess
+            ? [join(workDir, "*")]
+            : [join(homeDir, "*"), join(workDir, "*")];
+        await rimraf(cleanupPaths, { glob: true });
     });
 
     afterAll(async () => {

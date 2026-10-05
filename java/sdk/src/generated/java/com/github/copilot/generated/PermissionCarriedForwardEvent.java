@@ -10,7 +10,6 @@ package com.github.copilot.generated;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
@@ -36,16 +35,12 @@ public final class PermissionCarriedForwardEvent extends SessionEvent {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record PermissionCarriedForwardEventData(
         /** Authorization edge minted for this admission. Not a prompt id: no prompt was raised, so no client should expect a request with this id. */
-        @CopilotExperimental
         @JsonProperty("requestId") String requestId,
         /** Tool call this admission authorizes. Its execution receipts the prior grant, which is how a single-effect approval is spent rather than carried forward again. */
-        @CopilotExperimental
         @JsonProperty("toolCallId") String toolCallId,
         /** Identity of the prior authorization record that contained the proposal. */
-        @CopilotExperimental
         @JsonProperty("recordId") String recordId,
         /** Always `authorization_carry_forward`. Stated explicitly so a consumer reading this event cannot mistake it for a human, host-policy, or assisted-approval decision. */
-        @CopilotExperimental
         @JsonProperty("decisionSource") PermissionDecisionSource decisionSource
     ) {
     }

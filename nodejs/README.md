@@ -270,19 +270,6 @@ new CopilotClient(options?: CopilotClientOptions)
 - `telemetry?: TelemetryConfig` - OpenTelemetry configuration for the runtime process. Providing this object enables telemetry — no separate flag needed. See [Telemetry](#telemetry) below.
 - `onGetTraceContext?: TraceContextProvider` - Advanced: callback for linking your application's own OpenTelemetry spans into the same distributed trace as the runtime's spans. Not needed for normal telemetry collection. See [Telemetry](#telemetry) below.
 - `sessionFs?: SessionFsConfig` - Custom session filesystem provider.
-
-For a custom provider to serve images to the `view` tool, declare
-`sessionFs.capabilities.binary: true` and implement
-`readFileBytes(path): Promise<Uint8Array>` and
-`writeFileBytes(path, content: Uint8Array, mode?: number): Promise<void>` on each session's provider. The
-adapter transmits exact bytes as standard base64; text-only providers still
-support text operations, but image reads fail rather than falling back to the
-runtime machine's filesystem. A missing binary implementation is rejected
-when a session is created.
-
-Binary reads and writes are limited to 50,330,880 raw bytes (approximately 48 MiB);
-larger results return a filesystem error before encoding or decoding.
-
 - `sessionIdleTimeoutSeconds?: number` - Server-wide idle timeout for sessions in seconds. Ignored when connecting via `RuntimeConnection.forUri`.
 - `enableRemoteSessions?: boolean` - Enable Mission Control remote session support. Ignored when connecting via `RuntimeConnection.forUri`.
 
@@ -657,24 +644,6 @@ if (result.status === "pending") {
 
 See [Auto tier persistence](../docs/features/session-persistence.md#auto-tier-persistence) for the full lifecycle rules.
 
-##### `setTools(tools: Tool[]): Promise<void>`
-
-Replace the tools this client supplies to the session, together with the handlers that serve them (experimental). `tools` takes the same definitions as `createSession` and becomes this client's complete tool set; pass `[]` to remove all of this client's tools. Built-in, MCP, and plugin tools, and tools other connected clients supply, are unaffected.
-
-Once the runtime accepts the replacement, every tool call this session dispatches uses the new handlers; calls already running finish on their original handlers. If the runtime rejects it, the promise rejects and the previous tools and handlers stay in place. Concurrent calls are applied one at a time, in call order.
-
-```typescript
-await session.setTools([
-    defineTool("search_issues", {
-        description: "Search the issues shown on the current page",
-        parameters: z.object({ query: z.string() }),
-        handler: async ({ query }) => searchIssues(query),
-    }),
-]);
-```
-
-The agent sees the new tools from its next model request, which can fall within a turn in progress, so a model request already in flight can still call a tool you removed. See [Changing tools during a session](../docs/features/changing-tools.md) for the details.
-
 ##### `abort(): Promise<void>`
 
 Abort the currently processing message in this session.
@@ -870,22 +839,6 @@ defineTool("edit_file", {
 });
 ```
 
-An `apply_patch` override can declare a string schema. The model sees a required
-`input` property, but the runtime restores the declared scalar shape before
-dispatching to any SDK. Both a Zod-inferred Node handler and
-`invocation.arguments` receive the patch text as a string:
-
-```ts
-defineTool("apply_patch", {
-    parameters: z.string(),
-    overridesBuiltInTool: true,
-    handler: (patch) => patch.trim(),
-});
-```
-
-String-schema `apply_patch` overrides cannot contain JSON Schema references;
-use an object schema if references are needed.
-
 #### Skipping Permission Prompts
 
 Set `skipPermission: true` on a tool definition to allow it to execute without triggering a permission prompt:
@@ -1035,8 +988,6 @@ Available section IDs: `preamble`, `identity`, `tone`, `tool_efficiency`, `envir
 
 `identity` and `tool_instructions` are section _groups_ that target a collection of related sub-sections as a unit. Use `preamble` to target just the identity preamble without affecting its sibling sub-sections.
 
-`last_instructions` includes configured subagent-model guidance when the `task` tool is available. Removing or replacing this section also removes that guidance; a transform callback receives the complete section, including the guidance, and its returned content is authoritative. Append, prepend, and preserve retain their usual section semantics. These overrides change prompt prose only, not configured subagent models, tool availability, or runtime dispatch policy. `runtime_instructions` is a separate section: removing it does not remove `last_instructions`.
-
 Each section override supports five actions:
 
 - **`replace`** — Replace the section content entirely
@@ -1044,8 +995,6 @@ Each section override supports five actions:
 - **`append`** — Add content after the existing section
 - **`prepend`** — Add content before the existing section
 - **`preserve`** — No-op that opts an individually-addressable section out of a group-level `remove`
-
-An `action` can also be a callback that receives the current section content and returns the replacement content, synchronously or asynchronously.
 
 Unknown section IDs are handled gracefully: content from `replace`/`append`/`prepend` overrides is appended to additional instructions, and `remove` overrides are silently ignored.
 
@@ -1494,20 +1443,6 @@ const session = await client.createSession({
                 };
             }
         },
-
-        // Called before a sub-agent's first turn (the input identifies the parent session)
-        onSubagentStart: (input, invocation) => {
-            console.log(`Starting ${input.agentDisplayName ?? input.agentName}`);
-            return { additionalContext: "Check the requested file before reporting back." };
-        },
-
-        // Called when a sub-agent completes a turn
-        onSubagentStop: (input, invocation) => {
-            console.log(`${input.agentName} replied: ${input.response}`);
-            // Return { decision: "block", reason: "Continue checking the file." }
-            // to request another child turn instead.
-            return { modifiedResponse: `Reviewed: ${input.response}` };
-        },
     },
 });
 ```
@@ -1522,8 +1457,6 @@ const session = await client.createSession({
 - `onSessionEnd` - Cleanup or logging when session ends.
 - `onErrorOccurred` - Handle errors with retry/skip/abort strategies.
 - `onAgentStop` - Observe natural top-level agent completion. Return `{ decision: "block", reason }` to request another turn; use `stopHookActive` to avoid repeated blocks.
-- `onSubagentStart` - Observe a sub-agent before its first turn and prepend `additionalContext` to the child's prompt.
-- `onSubagentStop` - Observe a sub-agent's final response. Return `{ decision: "block", reason }` to request another child turn, or `{ modifiedResponse }` to replace the response reported to the parent.
 
 ## Error Handling
 

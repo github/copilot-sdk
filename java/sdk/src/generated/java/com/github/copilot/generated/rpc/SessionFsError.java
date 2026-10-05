@@ -24,8 +24,6 @@ public record SessionFsError(
     /** Error classification */
     @JsonProperty("code") SessionFsErrorCode code,
     /** Free-form detail about the error, for logging/diagnostics */
-    @JsonProperty("message") String message,
-    /** For failed writeFile requests only: true if the provider changed the target before failing. Omit when unknown or unchanged. */
-    @JsonProperty("writeChanged") Boolean writeChanged
+    @JsonProperty("message") String message
 ) {
 }

@@ -8,7 +8,6 @@
 
 import { execFile } from "child_process";
 import fs from "fs/promises";
-import { realpathSync } from "fs";
 import type { JSONSchema7, JSONSchema7Definition } from "json-schema";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -24,32 +23,6 @@ const __dirname = path.dirname(__filename);
 
 /** Root of the copilot-sdk repo */
 export const REPO_ROOT = path.resolve(__dirname, "../..");
-
-/** Recognizes entrypoints reached through Bazel links or Windows path casing. */
-export function isCodegenEntrypoint(
-    entryPath: string | undefined,
-    modulePath: string,
-    platform = process.platform,
-): boolean {
-    if (!entryPath) {
-        return false;
-    }
-    const canonicalize = (filePath: string) => {
-        try {
-            return realpathSync.native(filePath);
-        } catch (error) {
-            if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
-                throw error;
-            }
-            return path.resolve(filePath);
-        }
-    };
-    const canonicalEntryPath = canonicalize(entryPath);
-    const canonicalModulePath = canonicalize(modulePath);
-    return platform === "win32"
-        ? canonicalEntryPath.toLowerCase() === canonicalModulePath.toLowerCase()
-        : canonicalEntryPath === canonicalModulePath;
-}
 
 /** Event types to exclude from generation (internal/legacy types) */
 export const EXCLUDED_EVENT_TYPES = new Set(["session.import_legacy"]);

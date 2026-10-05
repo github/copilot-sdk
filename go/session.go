@@ -67,8 +67,6 @@ type Session struct {
 	handlerMutex                sync.RWMutex
 	toolHandlers                map[string]ToolHandler
 	toolHandlersM               sync.RWMutex
-	setToolsOnce                sync.Once
-	setToolsGate                chan struct{}
 	pendingExternalTools        map[string]*pendingExternalTool
 	pendingExternalToolsM       sync.Mutex
 	externalToolsClosed         bool
@@ -638,24 +636,16 @@ func (s *Session) On(handler SessionEventHandler) func() {
 //
 // This method is internal and typically called when creating a session with tools.
 func (s *Session) registerTools(tools []Tool) {
-	s.replaceToolHandlers(buildToolHandlerMap(tools))
-}
+	s.toolHandlersM.Lock()
+	defer s.toolHandlersM.Unlock()
 
-func buildToolHandlerMap(tools []Tool) map[string]ToolHandler {
-	handlers := make(map[string]ToolHandler)
+	s.toolHandlers = make(map[string]ToolHandler)
 	for _, tool := range tools {
 		if tool.Name == "" || tool.Handler == nil {
 			continue
 		}
-		handlers[tool.Name] = tool.Handler
+		s.toolHandlers[tool.Name] = tool.Handler
 	}
-	return handlers
-}
-
-func (s *Session) replaceToolHandlers(handlers map[string]ToolHandler) {
-	s.toolHandlersM.Lock()
-	defer s.toolHandlersM.Unlock()
-	s.toolHandlers = handlers
 }
 
 // getToolHandler retrieves a registered tool handler by name.
@@ -895,26 +885,6 @@ func (s *Session) handleHooksInvoke(hookType string, rawInput json.RawMessage) (
 			return nil, fmt.Errorf("invalid hook input: %w", err)
 		}
 		return hooks.OnAgentStop(input, invocation)
-
-	case "subagentStart":
-		if hooks.OnSubagentStart == nil {
-			return nil, nil
-		}
-		var input SubagentStartHookInput
-		if err := json.Unmarshal(rawInput, &input); err != nil {
-			return nil, fmt.Errorf("invalid hook input: %w", err)
-		}
-		return hooks.OnSubagentStart(input, invocation)
-
-	case "subagentStop":
-		if hooks.OnSubagentStop == nil {
-			return nil, nil
-		}
-		var input SubagentStopHookInput
-		if err := json.Unmarshal(rawInput, &input); err != nil {
-			return nil, fmt.Errorf("invalid hook input: %w", err)
-		}
-		return hooks.OnSubagentStop(input, invocation)
 
 	default:
 		return nil, nil
@@ -2069,108 +2039,6 @@ func (s *Session) SetModel(ctx context.Context, model string, opts *SetModelOpti
 	}
 
 	return nil
-}
-
-func (s *Session) setToolsSemaphore() chan struct{} {
-	s.setToolsOnce.Do(func() {
-		s.setToolsGate = make(chan struct{}, 1)
-		s.setToolsGate <- struct{}{}
-	})
-	return s.setToolsGate
-}
-
-func toolDefinitionsForSetTools(tools []Tool) []rpc.ProtocolExternalToolDefinition {
-	definitions := make([]rpc.ProtocolExternalToolDefinition, 0, len(tools))
-	for _, tool := range tools {
-		definition := rpc.ProtocolExternalToolDefinition{
-			Name:        tool.Name,
-			Description: tool.Description,
-			Parameters:  tool.Parameters,
-			Metadata:    tool.Metadata,
-		}
-		if tool.OverridesBuiltInTool {
-			definition.OverridesBuiltInTool = &tool.OverridesBuiltInTool
-		}
-		if tool.SkipPermission {
-			definition.SkipPermission = &tool.SkipPermission
-		}
-		if tool.IsTerminal {
-			definition.IsTerminal = &tool.IsTerminal
-		}
-		if tool.Defer != "" {
-			deferPolicy := rpc.ProtocolExternalToolDefer(tool.Defer)
-			definition.Defer = &deferPolicy
-		}
-		definitions = append(definitions, definition)
-	}
-	return definitions
-}
-
-// SetTools atomically replaces the externally implemented tools supplied by
-// this client connection for the live session. Built-in tools, MCP/plugin tools,
-// extension-discovered tools, subagent tools, and tools supplied by other
-// connections are unchanged.
-//
-// The tools use the same [Tool] definitions and handlers as
-// [Client.CreateSession] and [Client.ResumeSession]. The slice is a complete
-// replacement for this connection: pass an empty slice to remove every tool this
-// connection previously supplied. Tools with nil handlers are declaration-only.
-//
-// Handlers switch after the runtime accepts the replacement. Calls already
-// running finish on the handlers that started them. If the runtime rejects the
-// replacement, the previous handlers remain installed. Concurrent SetTools calls
-// on the same session are sent and applied in call order; an earlier failure does
-// not block later calls. If ctx is done before the request is sent, for example
-// while an earlier SetTools call is still in flight, nothing is sent. Once the
-// request is sent, ctx only bounds the wait: an accepted replacement still
-// installs its handlers.
-//
-// The agent sees the new tools from its next model request, which can fall
-// within a turn in progress. A model request already in flight was made with the
-// previous tools, so the agent can still call a tool you removed. This session
-// doesn't answer that call, and it can stay pending until the turn is aborted. If
-// a running turn might still call a tool you remove, replace tools while the
-// session is idle.
-//
-// Experimental: SetTools wraps the experimental session.tools.set RPC and may
-// change or be removed.
-func (s *Session) SetTools(ctx context.Context, tools []Tool) error {
-	definitions := toolDefinitionsForSetTools(tools)
-	handlers := buildToolHandlerMap(tools)
-
-	gate := s.setToolsSemaphore()
-	select {
-	case <-gate:
-	case <-ctx.Done():
-		return ctx.Err()
-	}
-
-	if err := ctx.Err(); err != nil {
-		gate <- struct{}{}
-		return err
-	}
-
-	done := make(chan error, 1)
-	go func() {
-		defer func() { gate <- struct{}{} }()
-
-		_, err := s.RPC.Tools.Set(context.WithoutCancel(ctx), &rpc.ToolsSetRequest{
-			Tools: definitions,
-		})
-		if err != nil {
-			done <- fmt.Errorf("failed to set tools: %w", err)
-			return
-		}
-		s.replaceToolHandlers(handlers)
-		done <- nil
-	}()
-
-	select {
-	case err := <-done:
-		return err
-	case <-ctx.Done():
-		return ctx.Err()
-	}
 }
 
 // SetAutoTier changes the Auto routing preference without changing the selected model.

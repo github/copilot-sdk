@@ -8,6 +8,7 @@
 
 import { execFile } from "child_process";
 import fs from "fs/promises";
+import { realpathSync } from "node:fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { promisify } from "util";
@@ -18,7 +19,6 @@ import {
     getApiSchemaPath,
     getRpcSchemaTypeName,
     getSessionEventsSchemaPath,
-    isCodegenEntrypoint,
     writeGeneratedFile,
     collectExternalSchemaRefNames,
     collectDefinitionCollections,
@@ -587,8 +587,6 @@ const EXPERIMENTAL_ATTRIBUTE = "[Experimental(global::GitHub.Copilot.Diagnostics
 const EDITOR_BROWSABLE_NEVER_ATTRIBUTE = "[EditorBrowsable(EditorBrowsableState.Never)]";
 const OBSOLETE_ATTRIBUTE = `#if NET5_0_OR_GREATER
 [Obsolete("This member is deprecated and will be removed in a future version.", DiagnosticId = "GHCP001")]
-#else
-[Obsolete("This member is deprecated and will be removed in a future version.")]
 #endif`;
 const STRING_ENUM_RESERVED_MEMBER_NAMES = new Set(["Value", "Equals", "GetHashCode", "ToString", "Converter"]);
 
@@ -639,7 +637,6 @@ interface EventVariant {
     dataClassName: string;
     dataSchema: JSONSchema7;
     dataDescription?: string;
-    eventDeprecated: boolean;
     eventExperimental: boolean;
     dataExperimental: boolean;
 }
@@ -741,7 +738,6 @@ function extractEventVariants(schema: JSONSchema7): EventVariant[] {
                 dataClassName: `${baseName}Data`,
                 dataSchema,
                 dataDescription: dataSchema?.description,
-                eventDeprecated: isSchemaDeprecated(variant),
                 eventExperimental: isSchemaExperimental(variant),
                 dataExperimental: isSchemaExperimental(dataSchema),
             };
@@ -1511,7 +1507,6 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Text.Json.Serialization.Metadata;
 
 namespace GitHub.Copilot;
 `);
@@ -1532,95 +1527,11 @@ namespace GitHub.Copilot;
     lines.push(`    /// <summary>`, `    /// The event type discriminator.`, `    /// </summary>`);
     lines.push(`    [JsonIgnore]`, `    public virtual string Type => "unknown";`, "");
     lines.push(`    /// <summary>Deserializes a JSON string into a <see cref="SessionEvent"/>.</summary>`);
-    lines.push(`    public static SessionEvent FromJson(string json) =>`, `        SessionEventJsonConverter.Deserialize(json);`, "");
+    lines.push(`    public static SessionEvent FromJson(string json) =>`, `        JsonSerializer.Deserialize(json, SessionEventsJsonContext.Default.SessionEvent)!;`, "");
     lines.push(`    /// <summary>Serializes this event to a JSON string.</summary>`);
     lines.push(`    public string ToJson() =>`, `        JsonSerializer.Serialize(this, SessionEventsJsonContext.Default.SessionEvent);`, "");
     lines.push(`    [DebuggerBrowsable(DebuggerBrowsableState.Never)]`, `    private string DebuggerDisplay => ToJson();`);
     lines.push(`}`, "");
-
-    lines.push(`internal sealed partial class SessionEventJsonConverter : JsonConverter<SessionEvent>`, `{`);
-    lines.push(`    internal static SessionEventJsonConverter Default { get; } = new();`, "");
-    lines.push(`    public override SessionEvent? Read(`, `        ref Utf8JsonReader reader,`, `        Type typeToConvert,`, `        JsonSerializerOptions options)`, `    {`);
-    lines.push(`        // Preserve the reader's position for deserialization.`);
-    lines.push(`        var probe = reader;`);
-    lines.push(`        JsonTypeInfo typeInfo = ReadEventTypeInfo(ref probe);`);
-    lines.push(`        return ToSessionEvent(JsonSerializer.Deserialize(ref reader, typeInfo));`, `    }`, "");
-    lines.push(`    private static JsonTypeInfo? GetEventTypeInfo(ReadOnlySpan<byte> type)`, `    {`);
-    lines.push(`        switch (type.Length)`, `        {`);
-    const variantsByByteLength = new Map<number, typeof variants>();
-    for (const variant of [...variants].sort((a, b) => a.typeName.localeCompare(b.typeName))) {
-        const byteLength = Buffer.byteLength(variant.typeName, "utf8");
-        const group = variantsByByteLength.get(byteLength) ?? [];
-        group.push(variant);
-        variantsByByteLength.set(byteLength, group);
-    }
-    for (const [byteLength, group] of [...variantsByByteLength].sort(([a], [b]) => a - b)) {
-        lines.push(`            case ${byteLength}:`);
-        for (const variant of group) {
-            lines.push(`                if (type.SequenceEqual("${escapeCSharpStringLiteral(variant.typeName)}"u8))`);
-            lines.push(`                    return SessionEventsJsonContext.Default.${variant.className};`);
-        }
-        lines.push(`                break;`);
-    }
-    lines.push(`        }`, `        return null;`, `    }`, "");
-    lines.push(`    public override void Write(`, `        Utf8JsonWriter writer,`, `        SessionEvent value,`, `        JsonSerializerOptions options) =>`, `        JsonSerializer.Serialize(writer, value, SessionEventsJsonContext.Default.SessionEvent);`, "");
-    lines.push(`    private static SessionEvent ToSessionEvent(object? value) =>`);
-    lines.push(`        value as SessionEvent ?? ((SessionEventEnvelope?)value)?.ToSessionEvent()!;`, "");
-    lines.push(`    private static JsonTypeInfo ReadEventTypeInfo(ref Utf8JsonReader reader)`, `    {`);
-    lines.push(`        if (reader.TokenType == JsonTokenType.Null)`, `        {`, `            return SessionEventsJsonContext.Default.SessionEventEnvelope;`, `        }`, "");
-    lines.push(`        if (reader.TokenType != JsonTokenType.StartObject)`, `        {`);
-    lines.push(`            throw new JsonException("Expected a session event object.");`, `        }`, "");
-    lines.push(`        JsonTypeInfo? typeInfo = null;`);
-    lines.push(`        bool foundDiscriminator = false;`);
-    lines.push(`        while (reader.Read() && reader.TokenType == JsonTokenType.PropertyName)`, `        {`);
-    lines.push(`            bool isDiscriminator = reader.ValueIsEscaped`);
-    lines.push(`                ? ReadString(ref reader) == "type"`);
-    lines.push(`                : reader.ValueTextEquals("type"u8);`);
-    lines.push(`            if (isDiscriminator)`, `            {`);
-    lines.push(`                if (foundDiscriminator)`, `                {`);
-    lines.push(`                    throw new JsonException("Duplicate session event type discriminator.");`, `                }`);
-    lines.push(`                foundDiscriminator = true;`);
-    lines.push(`                reader.Read();`);
-    lines.push(`                if (reader.TokenType == JsonTokenType.String)`, `                {`);
-    lines.push(`                    if (reader.HasValueSequence || reader.ValueIsEscaped)`, `                    {`);
-    lines.push(`                        typeInfo = GetEventTypeInfo(StrictUtf8.GetBytes(ReadString(ref reader)));`, `                    }`);
-    lines.push(`                    else`, `                    {`);
-    lines.push(`                        typeInfo = GetEventTypeInfo(reader.ValueSpan);`);
-    lines.push(`                        if (typeInfo is null)`, `                        {`);
-    lines.push(`                            // Validate unknown discriminator text too, including invalid UTF-8.`);
-    lines.push(`                            _ = ReadString(ref reader);`, `                        }`, `                    }`, `                }`);
-    lines.push(`                else if (reader.TokenType != JsonTokenType.Number || !reader.TryGetInt32(out _))`, `                {`);
-    lines.push(`                    throw new JsonException("Expected a string or integer session event type discriminator.");`, `                }`, `            }`);
-    lines.push(`            else`, `            {`);
-    lines.push(`                bool isMetadata = reader.HasValueSequence || reader.ValueIsEscaped`);
-    lines.push(`                    ? ReadString(ref reader) is { Length: > 0 } propertyName && propertyName[0] == '$'`);
-    lines.push(`                    : !reader.ValueSpan.IsEmpty && reader.ValueSpan[0] == (byte)'$';`);
-    lines.push(`                if (isMetadata)`, `                {`);
-    lines.push(`                    throw new JsonException("Unexpected session event metadata property.");`, `                }`);
-    lines.push(`                reader.Read();`);
-    lines.push(`                reader.Skip();`, `            }`, `        }`, "");
-    lines.push(`        return typeInfo ?? SessionEventsJsonContext.Default.SessionEventEnvelope;`, `    }`);
-    lines.push(`}`, "");
-
-    lines.push(`internal sealed class SessionEventJsonTypeInfoResolver : IJsonTypeInfoResolver`, `{`);
-    lines.push(`    internal static SessionEventJsonTypeInfoResolver Default { get; } = new();`, "");
-    lines.push(`    public JsonTypeInfo? GetTypeInfo(Type type, JsonSerializerOptions options)`, `    {`);
-    lines.push(`        if (type != typeof(SessionEvent))`, `        {`, `            return null;`, `        }`, "");
-    lines.push(`        JsonTypeInfo typeInfo = JsonMetadataServices.CreateValueInfo<SessionEvent>(`, `            options,`, `            SessionEventJsonConverter.Default);`);
-    lines.push(`        typeInfo.PolymorphismOptions = null;`);
-    lines.push(`        return typeInfo;`, `    }`);
-    lines.push(`}`, "");
-
-    lines.push(`internal sealed class SessionEventEnvelope`, `{`);
-    for (const property of envelopeProperties) {
-        lines.push(...emitSessionEventEnvelopeProperty(property, knownTypes, nestedClasses, enumOutput));
-    }
-    lines.push(`    internal SessionEvent ToSessionEvent() => new()`, `    {`);
-    for (const property of envelopeProperties) {
-        const csharpName = toCSharpPropertyName(property.name, property.schema);
-        lines.push(`        ${csharpName} = ${csharpName},`);
-    }
-    lines.push(`    };`, `}`, "");
 
     // Event classes with XML docs
     for (const variant of variants) {
@@ -1633,9 +1544,6 @@ namespace GitHub.Copilot;
         }
         if (variant.eventExperimental) {
             pushExperimentalAttribute(lines);
-        }
-        if (variant.eventDeprecated) {
-            pushObsoleteAttributes(lines);
         }
         lines.push(`public sealed partial class ${variant.className} : SessionEvent`, `{`);
         lines.push(`    /// <inheritdoc />`);
@@ -1666,7 +1574,7 @@ namespace GitHub.Copilot;
     for (const code of enumOutput) lines.push(code);
 
     // JsonSerializerContext
-    const types = ["SessionEvent", "SessionEventEnvelope", ...variants.flatMap((v) => [v.className, v.dataClassName]), ...nestedClasses.keys()].sort();
+    const types = ["SessionEvent", ...variants.flatMap((v) => [v.className, v.dataClassName]), ...nestedClasses.keys()].sort();
     lines.push(`[JsonSourceGenerationOptions(`, `    JsonSerializerDefaults.Web,`, `    AllowOutOfOrderMetadataProperties = true,`, `    NumberHandling = JsonNumberHandling.AllowReadingFromString,`, `    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]`);
     for (const t of types) lines.push(`[JsonSerializable(typeof(${t}))]`);
     lines.push(`[JsonSerializable(typeof(JsonElement))]`);
@@ -3108,7 +3016,7 @@ async function generate(sessionSchemaPath?: string, apiSchemaPath?: string): Pro
 
 const __filename = fileURLToPath(import.meta.url);
 
-if (isCodegenEntrypoint(process.argv[1], __filename)) {
+if (process.argv[1] && realpathSync(process.argv[1]) === realpathSync(__filename)) {
     const sessionArg = process.argv[2] || undefined;
     const apiArg = process.argv[3] || undefined;
     generate(sessionArg, apiArg).catch((err) => {

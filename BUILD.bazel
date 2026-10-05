@@ -1,7 +1,6 @@
 SHARED_CODEGEN_INPUTS = [
     "nodejs/scripts/releaseArtifacts.ts",
     "nodejs/src/cliVersion.ts",
-    "scripts/codegen/legacy-parameters.ts",
     "scripts/codegen/package-lock.json",
     "scripts/codegen/package.json",
     "scripts/codegen/utils.ts",
@@ -223,7 +222,6 @@ genrule(
         "java/scripts/codegen/package-lock.json",
         "java/scripts/codegen/package.json",
         "nodejs/package.json",
-        "scripts/codegen/legacy-parameters.ts",
         "scripts/runtime-layout.mjs",
         "scripts/runtime-release.mjs",
     ],

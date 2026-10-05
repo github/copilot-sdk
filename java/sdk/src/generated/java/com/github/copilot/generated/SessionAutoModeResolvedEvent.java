@@ -56,8 +56,6 @@ public final class SessionAutoModeResolvedEvent extends SessionEvent {
         @JsonProperty("fallback") Boolean fallback,
         /** Server-provided reason for falling back, when available */
         @JsonProperty("fallbackReason") String fallbackReason,
-        /** Short human-readable sentence from the routing service explaining why this model was chosen, for display alongside the model. Present only when the service supplied one: it is omitted for on-device selections, when the service did not provide an explanation, and when a replayed decision made no routing call. The text is display-only and drawn from a fixed catalogue; several distinct routing categories share identical wording, so it cannot be used to recover the category or keyed on programmatically. */
-        @JsonProperty("selectionReason") String selectionReason,
         /** Whether a sticky model choice overrode the router result */
         @JsonProperty("stickyOverride") Boolean stickyOverride,
         /** Server-reported router processing time in milliseconds */

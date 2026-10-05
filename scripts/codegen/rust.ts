@@ -11,13 +11,13 @@
  */
 
 import { execFile } from "child_process";
+import { realpathSync } from "fs";
 import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
 import { promisify } from "util";
 import type { JSONSchema7, JSONSchema7Definition } from "json-schema";
 import {
-	isCodegenEntrypoint,
 	addManagedApprovalRequiredToPermissionRequests,
 	type ApiSchema,
 	type DefinitionCollections,
@@ -1226,10 +1226,6 @@ function emitRustStruct(
 
 // ── Enum emission ───────────────────────────────────────────────────────────
 
-function preservesUnknownStringValue(enumName: string): boolean {
-	return enumName === "CustomizationReloadStatus" || enumName === "CustomizationReloadSubsystem";
-}
-
 /**
  * Claims a string enum name. Two const literals resolving to one name with different values
  * fail generation, so distinct discriminators can never collapse into one enum. A const whose
@@ -1265,9 +1261,7 @@ function emitRustStringEnum(
 ): void {
 	if (!claimRustStringEnum(enumName, values, false, ctx)) return;
 
-	const preserveUnknownValue = enumName === "ToolExecutionCompleteFileEditKind";
 	const lines: string[] = [];
-	const preserveUnknown = preserveUnknownValue || preservesUnknownStringValue(enumName);
 	if (description) {
 		for (const line of description.split(/\r?\n/)) {
 			lines.push(`/// ${line}`);
@@ -1275,18 +1269,12 @@ function emitRustStringEnum(
 	}
 	pushRustExperimentalDocs(lines, experimental || ctx.experimentalTypeNames.has(enumName));
 	lines.push(
-		preserveUnknown
-			? "#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]"
-			: "#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]",
+		"#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]",
 	);
-	if (preserveUnknown) {
-		lines.push('#[serde(from = "String", into = "String")]');
-	}
 	lines.push(`pub enum ${enumName} {`);
 
 	const usedVariantNames = new Set<string>();
 	const reservedVariantNames = new Set(["Unknown"]);
-	const variants: { value: string; name: string }[] = [];
 	for (const value of values) {
 		// Keep the protocol's explicit "unknown" distinct from the serde fallback,
 		// including anonymous enums whose names depend on their containing type.
@@ -1297,57 +1285,22 @@ function emitRustStringEnum(
 			reservedVariantNames,
 			value === "unknown" ? "UnknownValue" : undefined,
 		);
-		variants.push({ value, name: variantName });
 		pushRustDoc(lines, enumValueDescriptions?.[value], "    ");
-		if (!preserveUnknown && variantName !== value) {
+		if (variantName !== value) {
 			lines.push(`    #[serde(rename = "${value}")]`);
 		}
 		lines.push(`    ${variantName},`);
 	}
 
-	lines.push(
-		preserveUnknownValue
-			? "    /// An unrecognized operation kind, retaining its wire value."
-			: "    /// Unknown variant for forward compatibility.",
-	);
-	if (preserveUnknown) {
-		lines.push("    Unknown(String),");
-	} else {
-		// For wire-protocol enums an unknown/sentinel value is the only safe default.
-		lines.push("    #[default]");
-		lines.push("    #[serde(other)]");
-		lines.push("    Unknown,");
-	}
+	// Add a catch-all for forward compatibility. This is also the `Default`
+	// variant — for wire-protocol enums an unknown/sentinel value is the only
+	// safe default.
+	lines.push("    /// Unknown variant for forward compatibility.");
+	lines.push("    #[default]");
+	lines.push("    #[serde(other)]");
+	lines.push("    Unknown,");
 
 	lines.push("}");
-	if (preserveUnknown) {
-		if (!preserveUnknownValue) lines.push("");
-		lines.push(`impl Default for ${enumName} {`);
-		lines.push('    fn default() -> Self { Self::Unknown("unknown".to_owned()) }');
-		lines.push("}");
-		if (!preserveUnknownValue) lines.push("");
-		lines.push(`impl From<String> for ${enumName} {`);
-		lines.push("    fn from(value: String) -> Self {");
-		lines.push("        match value.as_str() {");
-		for (const variant of variants) {
-			lines.push(`            ${JSON.stringify(variant.value)} => Self::${variant.name},`);
-		}
-		lines.push("            _ => Self::Unknown(value),");
-		lines.push("        }");
-		lines.push("    }");
-		lines.push("}");
-		if (!preserveUnknownValue) lines.push("");
-		lines.push(`impl From<${enumName}> for String {`);
-		lines.push(`    fn from(value: ${enumName}) -> Self {`);
-		lines.push("        match value {");
-		for (const variant of variants) {
-			lines.push(`            ${enumName}::${variant.name} => ${JSON.stringify(variant.value)}.to_owned(),`);
-		}
-		lines.push(`            ${enumName}::Unknown(value) => value,`);
-		lines.push("        }");
-		lines.push("    }");
-		lines.push("}");
-	}
 	ctx.enums.push(lines.join("\n"));
 }
 
@@ -1392,7 +1345,6 @@ interface EventVariant {
 	dataSchema: JSONSchema7;
 	/** Description of the event */
 	description?: string;
-	eventDeprecated: boolean;
 	/** Whether the event definition is experimental. */
 	eventExperimental: boolean;
 	/** Whether the event data definition is experimental. */
@@ -1441,7 +1393,6 @@ function extractEventVariants(schema: JSONSchema7): EventVariant[] {
 				dataClassName: `${toPascalCase(typeName)}Data`,
 				dataSchema,
 				description: resolvedVariant.description || dataSchema.description,
-				eventDeprecated: isSchemaDeprecated(resolvedVariant),
 				eventExperimental: isSchemaExperimental(resolvedVariant),
 				dataExperimental: isSchemaExperimental(dataSchema),
 			};
@@ -1460,7 +1411,6 @@ export function generateSessionEventsCode(schema: JSONSchema7): string {
 		{
 			allowUntaggedUnions: true,
 			allowedUnionTypeNames: [
-				"HumanResponseRecordedResponse",
 				"ToolExecutionCompleteContent",
 				"ToolExecutionCompleteContentResourceDetails",
 			],
@@ -1507,9 +1457,6 @@ export function generateSessionEventsCode(schema: JSONSchema7): string {
 	);
 	typeEnumLines.push("pub enum SessionEventType {");
 	for (const variant of variants) {
-		if (variant.eventDeprecated) {
-			typeEnumLines.push(...rustDeprecatedAttributes("    "));
-		}
 		pushRustExperimentalDocs(
 			typeEnumLines,
 			variant.eventExperimental,
@@ -1537,9 +1484,6 @@ export function generateSessionEventsCode(schema: JSONSchema7): string {
 	dataEnumLines.push(`#[serde(tag = "type", content = "data")]`);
 	dataEnumLines.push("pub enum SessionEventData {");
 	for (const variant of variants) {
-		if (variant.eventDeprecated) {
-			dataEnumLines.push(...rustDeprecatedAttributes("    "));
-		}
 		pushRustExperimentalDocs(
 			dataEnumLines,
 			variant.dataExperimental,
@@ -1717,14 +1661,6 @@ function rustResultTypeName(method: RpcMethod, ctx: RustCodegenCtx): string {
 	if (method.result?.$ref && parseExternalSchemaRef(method.result.$ref)) {
 		recordExternalRustTypeRef(method.result.$ref, ctx);
 		return rustRefTypeName(method.result.$ref);
-	}
-	if (
-		(method.rpcMethod === "session.instructions.reload" &&
-			method.result?.$ref === "#/definitions/InstructionsGetSourcesResult") ||
-		(method.rpcMethod === "session.customizations.reload" &&
-			method.result?.$ref === "#/definitions/CustomizationsReloadResult")
-	) {
-		return rustRefTypeName(method.result.$ref, ctx.definitions);
 	}
 	return getRpcSchemaTypeName(
 		method.result,
@@ -1946,6 +1882,7 @@ export function generateApiTypesCode(
 		allowedUnionTypeNames: [
 			"AuthInfo",
 			"EnqueueCommandResult",
+			"EntraTokenAcquireResult",
 			"McpOauthProbeResult",
 			"SettableAuthInfo",
 			"ToolResult",
@@ -2889,7 +2826,31 @@ async function generate(): Promise<void> {
 	console.log(`Done! Generated files in ${GENERATED_DIR}`);
 }
 
-if (isCodegenEntrypoint(process.argv[1], fileURLToPath(import.meta.url))) {
+const __filename = fileURLToPath(import.meta.url);
+
+export function isRustCodegenEntrypoint(
+	entryPath: string | undefined,
+	modulePath = __filename,
+	platform = process.platform,
+): boolean {
+	if (!entryPath) {
+		return false;
+	}
+	const canonicalize = (filePath: string) => {
+		try {
+			return realpathSync.native(filePath);
+		} catch {
+			return path.resolve(filePath);
+		}
+	};
+	const canonicalEntryPath = canonicalize(entryPath);
+	const canonicalModulePath = canonicalize(modulePath);
+	return platform === "win32"
+		? canonicalEntryPath.toLowerCase() === canonicalModulePath.toLowerCase()
+		: canonicalEntryPath === canonicalModulePath;
+}
+
+if (isRustCodegenEntrypoint(process.argv[1])) {
 	generate().catch((err) => {
 		console.error("Code generation failed:", err);
 		process.exit(1);

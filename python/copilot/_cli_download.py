@@ -252,7 +252,6 @@ _HOSTLESS_EXCLUDED_TOP_LEVEL = {
     "app.js",
     "assets",
     "changelog.json",
-    "cli-main.js",
     "copilot",
     "copilot.exe",
     "copilot-sdk",

@@ -1,15 +1,15 @@
 import type { JSONSchema7 } from "json-schema";
 import { compile } from "json-schema-to-typescript";
-import { describe, expect, expectTypeOf, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import {
     assertNoPublicInternalReferences,
     filterPublicSessionEventVariants,
+    isTypeScriptCodegenEntrypoint,
     normalizeSchemaForTypeScript,
     tsNullableResultTypeName,
 } from "../../scripts/codegen/typescript.ts";
-import type { AssistantMessageReasoningBlocks } from "../src/generated/session-events.ts";
-import { isCodegenEntrypoint, type DefinitionCollections } from "../../scripts/codegen/utils.ts";
+import type { DefinitionCollections } from "../../scripts/codegen/utils.ts";
 
 describe("typescript schema codegen", () => {
     it("preserves an explicit nullable reference result's named union", () => {
@@ -40,17 +40,9 @@ describe("typescript schema codegen", () => {
         ).toBe("SessionAccount | undefined");
     });
 
-    it("keeps reasoning-block SDK types permissive like the other language projections", () => {
-        expectTypeOf<{
-            provider: string;
-            blocks: [];
-            orderedBlocks: [];
-        }>().toExtend<AssistantMessageReasoningBlocks>();
-    });
-
     it("recognizes Windows entrypoint paths case-insensitively", () => {
         expect(
-            isCodegenEntrypoint(
+            isTypeScriptCodegenEntrypoint(
                 "C:\\b\\execroot\\src\\sdk\\scripts\\codegen\\typescript.ts",
                 "c:\\B\\execroot\\src\\sdk\\scripts\\codegen\\typescript.ts",
                 "win32"
@@ -95,40 +87,6 @@ describe("typescript schema codegen", () => {
             'export type SyntheticMode = /** Use alpha mode. */ "alpha" | "beta";'
         );
         expect(code).toContain('inlineMode: /** Use a direct value. */ "direct" | "indirect";');
-    });
-
-    it("accepts future reload values without widening other enum definitions", async () => {
-        const enumDefinition = (value: string): JSONSchema7 => ({
-            type: "string",
-            enum: [value],
-            "x-enumDescriptions": { [value]: `Known ${value} value.` },
-        });
-        const code = await compile(
-            normalizeSchemaForTypeScript({
-                title: "ReloadOptions",
-                type: "object",
-                properties: {
-                    status: { $ref: "#/definitions/CustomizationReloadStatus" },
-                    subsystem: { $ref: "#/definitions/CustomizationReloadSubsystem" },
-                    other: { $ref: "#/definitions/OtherStatus" },
-                },
-                definitions: {
-                    CustomizationReloadStatus: enumDefinition("reloaded"),
-                    CustomizationReloadSubsystem: enumDefinition("skills"),
-                    OtherStatus: enumDefinition("known"),
-                },
-            }),
-            "ReloadOptions",
-            { bannerComment: "", style: { semi: true, singleQuote: false } }
-        );
-
-        expect(code).toMatch(
-            /export type CustomizationReloadStatus\s*=\s*\/\*\* Known reloaded value\. \*\/ "reloaded" \| \(string & \{\}\);/
-        );
-        expect(code).toMatch(
-            /export type CustomizationReloadSubsystem\s*=\s*\/\*\* Known skills value\. \*\/ "skills" \| \(string & \{\}\);/
-        );
-        expect(code).toContain('export type OtherStatus = /** Known known value. */ "known";');
     });
 
     it("maps bare opaque properties to their marker aliases", async () => {

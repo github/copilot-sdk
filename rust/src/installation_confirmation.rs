@@ -140,7 +140,6 @@ impl InstallationConfirmationDispatcher {
         let _ = self.client.set(client);
     }
 
-    #[cfg(any(feature = "runtime", test, feature = "test-support"))]
     pub(crate) fn set_handler(&self, handler: Option<Arc<dyn InstallationConfirmationHandler>>) {
         *self.handler.write() = handler;
     }

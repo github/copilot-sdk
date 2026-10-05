@@ -10,7 +10,6 @@ package com.github.copilot.generated;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.github.copilot.CopilotExperimental;
 import java.util.Map;
 import javax.annotation.processing.Generated;
 
@@ -66,10 +65,6 @@ public final class ModelCallFailureEvent extends SessionEvent {
         @JsonProperty("maxOutputTokens") Long maxOutputTokens,
         /** Whether the failed call used a bring-your-own-key provider */
         @JsonProperty("isByok") Boolean isByok,
-        /** Where the bring-your-own-key model for the failed call runs and who manages it: "local_managed" (on the device, managed by Copilot), "local_user" (on the device, managed by the user), or "remote_user" (off the device, managed by the user). Absent for Copilot-served models. */
-        @JsonProperty("byokKind") String byokKind,
-        /** Fixed-set provider family serving the bring-your-own-key model for the failed call (for example "openai", "anthropic", "azure_openai", "ollama", "llama_cpp", or "other"). Never the caller-supplied provider name. Absent for Copilot-served models. */
-        @JsonProperty("modelProvider") String modelProvider,
         /** Whether the session selected Auto mode for the failed call */
         @JsonProperty("isAuto") Boolean isAuto,
         /** Reasoning effort level used for the failed model call, if applicable */
@@ -91,7 +86,6 @@ public final class ModelCallFailureEvent extends SessionEvent {
         /** Content-free structural summary of the failing request. Contains only counts and shape flags (no prompt content), so it is safe for unrestricted telemetry. Populated only for client-error (4xx) failures. */
         @JsonProperty("requestFingerprint") ModelCallFailureRequestFingerprint requestFingerprint,
         /** Experimental HydraFusion attribution for this failed concrete model call. */
-        @CopilotExperimental
         @JsonProperty("fusion") FusionAttribution fusion
     ) {
     }

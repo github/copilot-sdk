@@ -10,8 +10,6 @@ package com.github.copilot.generated;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.github.copilot.CopilotExperimental;
-import java.util.List;
 import java.util.Map;
 import javax.annotation.processing.Generated;
 
@@ -44,7 +42,6 @@ public final class ToolExecutionCompleteEvent extends SessionEvent {
         /** Model identifier that generated this tool call */
         @JsonProperty("model") String model,
         /** FIDES IFC label projected from tool ingress metadata (MCP `CallToolResult._meta` or synthesized built-in ingress labels). Persisted as `{ ifc: ... }` so the label survives session resume, including model-visible failure results. Experimental. */
-        @CopilotExperimental
         @JsonProperty("mcpMeta") Object mcpMeta,
         /** CAPI interaction ID for correlating this tool execution with upstream telemetry */
         @JsonProperty("interactionId") String interactionId,
@@ -65,15 +62,10 @@ public final class ToolExecutionCompleteEvent extends SessionEvent {
         /** Whether this tool execution ran inside a sandbox container */
         @JsonProperty("sandboxed") Boolean sandboxed,
         /** Experimental shell completion facts captured before the persisted result contents are stripped. */
-        @CopilotExperimental
         @JsonProperty("shellExecution") ToolExecutionCompleteShellExecution shellExecution,
-        /** Experimental. File mutations actually committed by a built-in file editing tool, in execution order. Present on successful edits and on partial failures when earlier mutations were committed. Paths are absolute in the session filesystem namespace. */
-        @CopilotExperimental
-        @JsonProperty("fileEdits") List<ToolExecutionCompleteFileEdit> fileEdits,
         /** Tool call ID of the parent tool invocation when this event originates from a sub-agent */
         @JsonProperty("parentToolCallId") String parentToolCallId,
         /** Experimental HydraFusion attribution for this tool completion. */
-        @CopilotExperimental
         @JsonProperty("fusion") FusionAttribution fusion
     ) {
     }

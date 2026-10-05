@@ -373,14 +373,12 @@ const (
 	SectionToolInstructions = "tool_instructions"
 	// SectionCustomInstructions covers repository and organization custom instructions.
 	SectionCustomInstructions = "custom_instructions"
-	// SectionRuntimeInstructions targets runtime-provided system-prompt context and
-	// instructions, such as system notifications, memories, workspace context, and
-	// content-exclusion policy. Mode-specific instructions can travel in transition
-	// messages instead.
+	// SectionRuntimeInstructions targets runtime-provided context and instructions
+	// (e.g. system notifications, memories, workspace context, mode-specific instructions,
+	// content-exclusion policy).
 	SectionRuntimeInstructions = "runtime_instructions"
 	// SectionLastInstructions covers end-of-prompt instructions: parallel tool calling,
-	// persistence, task completion, and configured subagent-model guidance when the
-	// task tool is available.
+	// persistence, and task completion.
 	SectionLastInstructions = "last_instructions"
 )
 
@@ -1029,98 +1027,6 @@ type AgentStopHookOutput struct {
 // AgentStopHandler handles agent-stop hook invocations.
 type AgentStopHandler func(input AgentStopHookInput, invocation HookInvocation) (*AgentStopHookOutput, error)
 
-// SubagentStartHookInput is the input before a subagent's first turn.
-type SubagentStartHookInput struct {
-	SessionID        string    `json:"sessionId"`
-	Timestamp        time.Time `json:"-"`
-	WorkingDirectory string    `json:"cwd"`
-	TranscriptPath   string    `json:"transcriptPath"`
-	AgentName        string    `json:"agentName"`
-	AgentDisplayName string    `json:"agentDisplayName,omitempty"`
-	AgentDescription string    `json:"agentDescription,omitempty"`
-}
-
-// MarshalJSON implements json.Marshaler, emitting Timestamp as Unix milliseconds.
-func (h SubagentStartHookInput) MarshalJSON() ([]byte, error) {
-	type alias SubagentStartHookInput
-	return json.Marshal(&struct {
-		Timestamp int64 `json:"timestamp"`
-		alias
-	}{Timestamp: h.Timestamp.UnixMilli(), alias: alias(h)})
-}
-
-// UnmarshalJSON implements json.Unmarshaler, parsing Timestamp from Unix milliseconds.
-func (h *SubagentStartHookInput) UnmarshalJSON(data []byte) error {
-	type alias SubagentStartHookInput
-	aux := &struct {
-		Timestamp int64 `json:"timestamp"`
-		*alias
-	}{alias: (*alias)(h)}
-	if err := json.Unmarshal(data, aux); err != nil {
-		return err
-	}
-	h.Timestamp = time.UnixMilli(aux.Timestamp)
-	return nil
-}
-
-// SubagentStartHookOutput provides context prepended to the subagent's initial prompt.
-type SubagentStartHookOutput struct {
-	AdditionalContext string `json:"additionalContext,omitempty"`
-}
-
-// SubagentStartHandler handles subagent-start hook invocations.
-type SubagentStartHandler func(input SubagentStartHookInput, invocation HookInvocation) (*SubagentStartHookOutput, error)
-
-// SubagentStopHookInput is the input after a subagent completes a turn.
-type SubagentStopHookInput struct {
-	SessionID        string    `json:"sessionId"`
-	Timestamp        time.Time `json:"-"`
-	WorkingDirectory string    `json:"cwd"`
-	TranscriptPath   string    `json:"transcriptPath"`
-	AgentID          string    `json:"agentId,omitempty"`
-	AgentType        string    `json:"agentType"`
-	AgentName        string    `json:"agentName"`
-	AgentDisplayName string    `json:"agentDisplayName,omitempty"`
-	AgentDescription string    `json:"agentDescription,omitempty"`
-	StopReason       string    `json:"stopReason"`
-	Response         string    `json:"response"`
-}
-
-// MarshalJSON implements json.Marshaler, emitting Timestamp as Unix milliseconds.
-func (h SubagentStopHookInput) MarshalJSON() ([]byte, error) {
-	type alias SubagentStopHookInput
-	return json.Marshal(&struct {
-		Timestamp int64 `json:"timestamp"`
-		alias
-	}{Timestamp: h.Timestamp.UnixMilli(), alias: alias(h)})
-}
-
-// UnmarshalJSON implements json.Unmarshaler, parsing Timestamp from Unix milliseconds.
-func (h *SubagentStopHookInput) UnmarshalJSON(data []byte) error {
-	type alias SubagentStopHookInput
-	aux := &struct {
-		Timestamp int64 `json:"timestamp"`
-		*alias
-	}{alias: (*alias)(h)}
-	if err := json.Unmarshal(data, aux); err != nil {
-		return err
-	}
-	h.Timestamp = time.UnixMilli(aux.Timestamp)
-	return nil
-}
-
-// SubagentStopHookOutput can block a subagent's completion or replace its response.
-// Decision must be "block" with a nonempty Reason, "allow", or empty to allow.
-// Reason without a block decision and unsupported decisions fail the subagent.
-type SubagentStopHookOutput struct {
-	Decision         string  `json:"decision,omitempty"`
-	Reason           string  `json:"reason,omitempty"`
-	ModifiedResponse *string `json:"modifiedResponse,omitempty"`
-}
-
-// SubagentStopHandler handles subagent-stop hook invocations.
-type SubagentStopHandler func(input SubagentStopHookInput, invocation HookInvocation) (*SubagentStopHookOutput, error)
-
 // PreMCPToolCallHookInput is the input for a pre-mcp-tool-call hook
 type PreMCPToolCallHookInput struct {
 	SessionID        string    `json:"sessionId"`
@@ -1180,8 +1086,6 @@ type SessionHooks struct {
 	OnSessionEnd            SessionEndHandler
 	OnErrorOccurred         ErrorOccurredHandler
 	OnAgentStop             AgentStopHandler
-	OnSubagentStart         SubagentStartHandler
-	OnSubagentStop          SubagentStopHandler
 	OnPreMCPToolCall        PreMCPToolCallHandler
 }
 
@@ -1338,8 +1242,6 @@ type ToolSearchConfig struct {
 type SessionFSCapabilities struct {
 	// Sqlite indicates whether the provider supports SQLite query/exists operations.
 	Sqlite bool
-	// Binary indicates whether the provider supports exact binary file reads and writes.
-	Binary bool
 }
 
 // SessionFSConfig configures a custom session filesystem provider.
@@ -2375,10 +2277,6 @@ type ProviderConfig struct {
 	// Set "websockets" to deliver Responses API requests over a persistent WebSocket
 	// connection instead of HTTP. Applies to OpenAI-compatible providers using WireAPI "responses".
 	Transport string `json:"transport,omitempty"`
-	// ModelProvider is the product serving the model, reported in telemetry as
-	// model_provider. Allowed values are "openai", "anthropic", "azure_openai",
-	// "ollama", "lm_studio", "foundry_local", and "llama_cpp"; only affects telemetry.
-	ModelProvider string `json:"modelProvider,omitempty"`
 	// BaseURL is the API endpoint URL
 	BaseURL string `json:"baseUrl"`
 	// APIKey is the API key. Optional for local providers like Ollama.
@@ -2507,11 +2405,6 @@ type NamedProviderConfig struct {
 	Type string `json:"type,omitempty"`
 	// WireAPI is the API format (openai/azure only): "completions" or "responses". Defaults to "completions".
 	WireAPI string `json:"wireApi,omitempty"`
-	// ModelProvider is the product serving this provider's models, reported in
-	// telemetry as model_provider. Allowed values are "openai", "anthropic",
-	// "azure_openai", "ollama", "lm_studio", "foundry_local", and "llama_cpp";
-	// only affects telemetry.
-	ModelProvider string `json:"modelProvider,omitempty"`
 	// BaseURL is the API endpoint URL.
 	BaseURL string `json:"baseUrl"`
 	// APIKey is the API key. Optional for local providers like Ollama.

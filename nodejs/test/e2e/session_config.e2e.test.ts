@@ -1,6 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { execFileSync } from "node:child_process";
-import { realpathSync } from "node:fs";
 import { writeFile, mkdir } from "fs/promises";
 import { join } from "path";
 import {
@@ -12,9 +10,6 @@ import {
 } from "../../src/index.js";
 import { createSdkTestContext, DEFAULT_GITHUB_TOKEN } from "./harness/sdkTestContext.js";
 import { retry } from "./harness/sdkTestHelper.js";
-import { isByokBackend } from "./harness/testBackend";
-
-const capiIt = it.skipIf(isByokBackend);
 
 describe("Session Configuration", async () => {
     const { copilotClient: client, workDir, openAiEndpoint, env } = await createSdkTestContext();
@@ -49,7 +44,7 @@ describe("Session Configuration", async () => {
         await session.disconnect();
     });
 
-    capiIt("should create session with custom provider config", async () => {
+    it("should create session with custom provider config", async () => {
         const session = await client.createSession({
             onPermissionRequest: approveAll,
             provider: {
@@ -67,8 +62,7 @@ describe("Session Configuration", async () => {
         }
     });
 
-    // Preserve the existing .NET BYOK exclusions: image replay diverges for provider-backed sessions.
-    capiIt("should accept blob attachments", async () => {
+    it("should accept blob attachments", async () => {
         // Write the image to disk so the model can view it if it tries
         const pngBase64 =
             "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
@@ -120,7 +114,7 @@ describe("Session Configuration", async () => {
         );
     }
 
-    capiIt("vision disabled then enabled via setModel", async () => {
+    it("vision disabled then enabled via setModel", async () => {
         await writeFile(join(workDir, "test.png"), PNG_1X1);
 
         const session = await client.createSession({
@@ -151,7 +145,7 @@ describe("Session Configuration", async () => {
         await session.disconnect();
     });
 
-    capiIt("vision enabled then disabled via setModel", async () => {
+    it("vision enabled then disabled via setModel", async () => {
         await writeFile(join(workDir, "test.png"), PNG_1X1);
 
         const session = await client.createSession({
@@ -297,26 +291,8 @@ describe("Session Configuration", async () => {
         body: string;
     }
 
-    /** Visible Anthropic thinking, with the provider-reported count if any. */
-    interface AnthropicReasoningFixture {
-        tokens?: number;
-    }
-
-    const thinkingBlock = {
-        type: "thinking",
-        thinking: "Visible thinking is not measured usage.",
-        signature: "test-signature",
-    };
-
-    function reportedThinkingTokens(reasoning?: AnthropicReasoningFixture) {
-        return reasoning?.tokens === undefined
-            ? {}
-            : { output_tokens_details: { thinking_tokens: reasoning.tokens } };
-    }
-
     class RecordingRequestHandler extends CopilotRequestHandler {
         readonly records: InterceptedRequest[] = [];
-        reasoning?: AnthropicReasoningFixture;
 
         protected override async sendRequest(
             request: Request,
@@ -325,7 +301,7 @@ describe("Session Configuration", async () => {
             const body = request.body ? await request.text() : "";
             this.records.push({ url: request.url, body });
             return isInferenceUrl(request.url)
-                ? buildInferenceResponse(request.url, body, this.reasoning)
+                ? buildInferenceResponse(request.url, body)
                 : buildNonInferenceResponse(request.url);
         }
 
@@ -358,10 +334,7 @@ describe("Session Configuration", async () => {
         });
     }
 
-    function anthropicMessageStreamBody(
-        text: string,
-        reasoning?: AnthropicReasoningFixture
-    ): string {
+    function anthropicMessageStreamBody(text: string): string {
         const events: Array<[string, unknown]> = [
             [
                 "message_start",
@@ -383,40 +356,25 @@ describe("Session Configuration", async () => {
                 "content_block_start",
                 {
                     type: "content_block_start",
-                    index: reasoning ? 1 : 0,
+                    index: 0,
                     content_block: { type: "text", text: "" },
                 },
             ],
             [
                 "content_block_delta",
-                {
-                    type: "content_block_delta",
-                    index: reasoning ? 1 : 0,
-                    delta: { type: "text_delta", text },
-                },
+                { type: "content_block_delta", index: 0, delta: { type: "text_delta", text } },
             ],
-            ["content_block_stop", { type: "content_block_stop", index: reasoning ? 1 : 0 }],
+            ["content_block_stop", { type: "content_block_stop", index: 0 }],
             [
                 "message_delta",
                 {
                     type: "message_delta",
                     delta: { stop_reason: "end_turn", stop_sequence: null },
-                    usage: { output_tokens: 7, ...reportedThinkingTokens(reasoning) },
+                    usage: { output_tokens: 7 },
                 },
             ],
             ["message_stop", { type: "message_stop" }],
         ];
-        if (reasoning) {
-            events.splice(
-                1,
-                0,
-                [
-                    "content_block_start",
-                    { type: "content_block_start", index: 0, content_block: thinkingBlock },
-                ],
-                ["content_block_stop", { type: "content_block_stop", index: 0 }]
-            );
-        }
         return events
             .map(([event, data]) => `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
             .join("");
@@ -456,29 +414,22 @@ describe("Session Configuration", async () => {
         return json({});
     }
 
-    function buildInferenceResponse(
-        url: string,
-        body: string,
-        reasoning?: AnthropicReasoningFixture
-    ): Response {
+    function buildInferenceResponse(url: string, body: string): Response {
         const u = url.toLowerCase();
         const wantsStream = /"stream"\s*:\s*true/.test(body);
         if (u.endsWith("/messages")) {
             if (wantsStream) {
-                return sse(anthropicMessageStreamBody("OK from the synthetic stream.", reasoning));
+                return sse(anthropicMessageStreamBody("OK from the synthetic stream."));
             }
             return json({
                 id: "msg_stub_1",
                 type: "message",
                 role: "assistant",
                 model: "claude-sonnet-5",
-                content: [
-                    ...(reasoning ? [thinkingBlock] : []),
-                    { type: "text", text: "OK from the synthetic stream." },
-                ],
+                content: [{ type: "text", text: "OK from the synthetic stream." }],
                 stop_reason: "end_turn",
                 stop_sequence: null,
-                usage: { input_tokens: 5, output_tokens: 7, ...reportedThinkingTokens(reasoning) },
+                usage: { input_tokens: 5, output_tokens: 7 },
             });
         }
         return json({
@@ -600,7 +551,7 @@ describe("Session Configuration", async () => {
         await session1.disconnect();
     });
 
-    capiIt("should enable citations for Anthropic file attachments on create", async () => {
+    it("should enable citations for Anthropic file attachments on create", async () => {
         const handler = new RecordingRequestHandler();
         const citationClient = new CopilotClient({
             connection: RuntimeConnection.forStdio({ path: process.env.COPILOT_CLI_PATH }),
@@ -633,52 +584,7 @@ describe("Session Configuration", async () => {
         }
     });
 
-    it.each(
-        [false, true].flatMap((streaming) =>
-            [undefined, 0, 7].map((tokens) => ({ streaming, tokens }))
-        )
-    )(
-        "reports Anthropic reasoning tokens only when the provider does (streaming: $streaming, tokens: $tokens)",
-        async ({ streaming, tokens }) => {
-            const handler = new RecordingRequestHandler();
-            handler.reasoning = { tokens };
-            const usageClient = new CopilotClient({
-                connection: RuntimeConnection.forStdio({ path: process.env.COPILOT_CLI_PATH }),
-                workingDirectory: workDir,
-                env,
-                gitHubToken: DEFAULT_GITHUB_TOKEN,
-                requestHandler: handler,
-            });
-            await usageClient.start();
-            try {
-                const session = await usageClient.createSession({
-                    onPermissionRequest: approveAll,
-                    model: "claude-sonnet-5",
-                    provider: createAnthropicProvider(),
-                    streaming,
-                });
-                try {
-                    const usages: Array<Record<string, unknown>> = [];
-                    session.on("assistant.usage", (event) => usages.push(event.data));
-                    const response = await session.sendAndWait({ prompt: "Reply briefly." });
-                    expect(response?.data.content).toBe("OK from the synthetic stream.");
-                    expect(usages).toHaveLength(1);
-                    expect(usages[0]).toMatchObject({ inputTokens: 5, outputTokens: 7 });
-                    if (tokens === undefined) {
-                        expect(usages[0]).not.toHaveProperty("reasoningTokens");
-                    } else {
-                        expect(usages[0].reasoningTokens).toBe(tokens);
-                    }
-                } finally {
-                    await session.disconnect();
-                }
-            } finally {
-                await usageClient.stop();
-            }
-        }
-    );
-
-    capiIt("should enable citations for Anthropic file attachments on resume", async () => {
+    it("should enable citations for Anthropic file attachments on resume", async () => {
         const handler = new RecordingRequestHandler();
         const connectionToken = "ts-citation-resume-token";
         const serverClient = new CopilotClient({
@@ -694,9 +600,7 @@ describe("Session Configuration", async () => {
 
         await serverClient.start();
         try {
-            const session1 = await serverClient.createSession({
-                onPermissionRequest: approveAll,
-            });
+            const session1 = await serverClient.createSession({ onPermissionRequest: approveAll });
             const port = (serverClient as unknown as { runtimePort: number | null }).runtimePort;
             expect(port).not.toBeNull();
             const resumeClient = new CopilotClient({
@@ -789,7 +693,7 @@ describe("Session Configuration", async () => {
         await session1.disconnect();
     });
 
-    capiIt("should refresh cached custom instructions only when creating with opt-in", async () => {
+    it("should refresh cached custom instructions only when creating with opt-in", async () => {
         const projectDir = join(workDir, "instruction-refresh-project");
         const instructionDir = join(workDir, "refresh-instructions");
         const instructionFilesDir = join(instructionDir, ".github", "instructions");
@@ -851,100 +755,7 @@ describe("Session Configuration", async () => {
         }
     });
 
-    it("should include instructions discovered after repository creation in the next turn", async () => {
-        const projectDir = join(workDir, "deferred-repository-instructions");
-        const marker = "SDK_RELOAD_DEFERRED_REPOSITORY_INSTRUCTIONS";
-        await mkdir(projectDir);
-
-        const handler = new RecordingRequestHandler();
-        const refreshClient = new CopilotClient({
-            connection: RuntimeConnection.forStdio({ path: process.env.COPILOT_CLI_PATH }),
-            workingDirectory: projectDir,
-            env,
-            gitHubToken: DEFAULT_GITHUB_TOKEN,
-            requestHandler: handler,
-        });
-        const session = await refreshClient.createSession({
-            onPermissionRequest: approveAll,
-            workingDirectory: projectDir,
-            model: "claude-sonnet-5",
-            provider: createAnthropicProvider(),
-        });
-
-        try {
-            const before = await session.rpc.metadata.snapshot();
-            expect((await session.sendAndWait({ prompt: "Say OK." }))?.data.content).toBe(
-                "OK from the synthetic stream."
-            );
-            await retry("observe the initial session context", async () => {
-                const metadata = await refreshClient.getSessionMetadata(session.sessionId);
-                expect(metadata?.context?.workingDirectory).toBe(projectDir);
-            });
-            const initialContext = (await refreshClient.getSessionMetadata(session.sessionId))
-                ?.context;
-            expect(initialContext?.gitRoot).toBeUndefined();
-            expect(handler.inferenceRequests()).toHaveLength(1);
-            const firstRequest = JSON.parse(handler.inferenceRequests()[0].body) as {
-                system: unknown;
-            };
-            expect(firstRequest.system).toBeDefined();
-            expect(JSON.stringify(firstRequest.system)).not.toContain(marker);
-
-            execFileSync("git", ["init", "--quiet"], { cwd: projectDir });
-            const instructionsDir = join(projectDir, ".github");
-            await mkdir(instructionsDir);
-            await writeFile(
-                join(instructionsDir, "copilot-instructions.md"),
-                `Repository instructions: ${marker}\n`
-            );
-
-            const reload = await session.rpc.customizations.reload();
-            expect(reload.errors).toEqual([]);
-            expect(reload.outcomes).toEqual(
-                expect.arrayContaining([
-                    expect.objectContaining({ subsystem: "repositoryContext", status: "reloaded" }),
-                    expect.objectContaining({ subsystem: "instructions", status: "reloaded" }),
-                ])
-            );
-            await retry("observe the refreshed repository context", async () => {
-                const gitRoot = (await refreshClient.getSessionMetadata(session.sessionId))?.context
-                    ?.gitRoot;
-                expect(gitRoot && realpathSync.native(gitRoot)).toBe(
-                    realpathSync.native(projectDir)
-                );
-            });
-            expect((await session.rpc.metadata.snapshot()).workingDirectory).toBe(
-                before.workingDirectory
-            );
-            expect(
-                (await session.rpc.instructions.getSources()).sources.some(
-                    (source) =>
-                        source.type === "repo" &&
-                        source.location === "repository" &&
-                        source.content.includes(marker)
-                )
-            ).toBe(true);
-
-            expect((await session.sendAndWait({ prompt: "Say OK again." }))?.data.content).toBe(
-                "OK from the synthetic stream."
-            );
-            expect(handler.inferenceRequests()).toHaveLength(2);
-            const nextRequest = JSON.parse(handler.inferenceRequests()[1].body) as {
-                system: unknown;
-            };
-            expect(nextRequest.system).toBeDefined();
-            expect(JSON.stringify(nextRequest.system)).toContain(marker);
-        } finally {
-            try {
-                await session.disconnect();
-            } finally {
-                expect(await refreshClient.stop()).toEqual([]);
-            }
-        }
-    });
-
-    // This asserts CAPI's user-agent; BYOK providers supply their own.
-    capiIt("should forward clientName in user-agent", async () => {
+    it("should forward clientName in user-agent", async () => {
         const session = await client.createSession({
             onPermissionRequest: approveAll,
             clientName: CLIENT_NAME,
@@ -961,7 +772,7 @@ describe("Session Configuration", async () => {
         await session.disconnect();
     });
 
-    capiIt("should forward custom provider headers on create", async () => {
+    it("should forward custom provider headers on create", async () => {
         const session = await client.createSession({
             onPermissionRequest: approveAll,
             model: "claude-sonnet-5",
@@ -981,7 +792,7 @@ describe("Session Configuration", async () => {
         await session.disconnect();
     });
 
-    capiIt("should forward custom provider headers on resume", async () => {
+    it("should forward custom provider headers on resume", async () => {
         const session1 = await client.createSession({ onPermissionRequest: approveAll });
         const sessionId = session1.sessionId;
 
@@ -1005,7 +816,7 @@ describe("Session Configuration", async () => {
         await session2.disconnect();
     });
 
-    capiIt("should forward provider wire model", async () => {
+    it("should forward provider wire model", async () => {
         // Verifies that ProviderConfig.wireModel overrides the model name sent to
         // the provider API, while SessionConfig.model still drives runtime
         // configuration lookup (capabilities, prompts, reasoning behavior).
@@ -1034,7 +845,7 @@ describe("Session Configuration", async () => {
         await session.disconnect();
     });
 
-    capiIt("should use provider model id as wire model", async () => {
+    it("should use provider model id as wire model", async () => {
         // ProviderConfig.modelId drives both the runtime resolved model AND the wire
         // model when wireModel is not specified. SessionConfig.model is intentionally
         // omitted so that modelId is the only model source.
@@ -1119,13 +930,10 @@ describe("Session Configuration", async () => {
         }
     });
 
-    // Built-in GitHub MCP requires Copilot authentication, not BYOK API-key authentication.
-    capiIt("should apply GitHub MCP tool config on create", async () => {
+    it("should apply GitHub MCP tool config on create", async () => {
         const session = await client.createSession({
             onPermissionRequest: approveAll,
             enableConfigDiscovery: true,
-            // Discover MCP configuration without starting unrelated standalone extensions.
-            requestExtensions: false,
             enableMcpApps: true,
             githubMcpToolConfig: {
                 enableAllTools: true,

@@ -20,7 +20,7 @@ import javax.annotation.processing.Generated;
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-record HostSessionReleasedNotification(
+public record HostSessionReleasedNotification(
     /** Listener UUID whose application session participation ended. */
     @JsonProperty("hostId") String hostId,
     /** Identity of the handoff retaining the original application session object. */

@@ -23,7 +23,7 @@ import javax.annotation.processing.Generated;
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-record SessionSendSystemNotificationParams(
+public record SessionSendSystemNotificationParams(
     /** Target session identifier */
     @JsonProperty("sessionId") String sessionId,
     /** Notification text to deliver to the model. */

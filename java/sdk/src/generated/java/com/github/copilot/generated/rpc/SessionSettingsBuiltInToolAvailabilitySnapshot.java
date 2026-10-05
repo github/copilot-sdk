@@ -20,7 +20,7 @@ import javax.annotation.processing.Generated;
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-record SessionSettingsBuiltInToolAvailabilitySnapshot(
+public record SessionSettingsBuiltInToolAvailabilitySnapshot(
     /** Whether the report-progress tool is available. */
     @JsonProperty("reportProgress") Boolean reportProgress,
     /** Whether the create-pull-request tool is available. */

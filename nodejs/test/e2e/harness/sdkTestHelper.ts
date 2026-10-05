@@ -23,11 +23,11 @@ export async function stopChildProcess(child: ChildProcess): Promise<void> {
     }
 }
 
-export function hasChildExited(child: ChildProcess): boolean {
+function hasChildExited(child: ChildProcess): boolean {
     return child.exitCode !== null || child.signalCode !== null;
 }
 
-export function waitForChildExit(child: ChildProcess, timeoutMs?: number): Promise<boolean> {
+function waitForChildExit(child: ChildProcess, timeoutMs: number): Promise<boolean> {
     if (hasChildExited(child)) {
         return Promise.resolve(true);
     }
@@ -44,8 +44,7 @@ export function waitForChildExit(child: ChildProcess, timeoutMs?: number): Promi
             resolvePromise(exited);
         };
         const onExit = () => finish(true);
-        const timeout =
-            timeoutMs === undefined ? undefined : setTimeout(() => finish(false), timeoutMs);
+        const timeout = setTimeout(() => finish(false), timeoutMs);
 
         child.once("exit", onExit);
         if (hasChildExited(child)) {

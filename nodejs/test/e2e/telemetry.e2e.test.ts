@@ -78,8 +78,6 @@ describe("Telemetry export", async () => {
     });
 
     it("should export file telemetry for sdk interactions", { timeout: 90_000 }, async () => {
-        await client.start();
-        expect((await client.getAuthStatus()).isAuthenticated).toBe(true);
         const session = await client.createSession({
             onPermissionRequest: approveAll,
             tools: [
@@ -205,12 +203,9 @@ describe("Telemetry export", async () => {
         });
         let sessionId: string;
         try {
-            await subagentClient.start();
-            expect((await subagentClient.getAuthStatus()).isAuthenticated).toBe(true);
             const session = await subagentClient.createSession({ onPermissionRequest: approveAll });
             sessionId = session.sessionId;
             try {
-                expect((await session.rpc.gitHubAuth.getStatus()).isAuthenticated).toBe(true);
                 const response = await session.sendAndWait({ prompt }, 90_000);
                 expect(response?.data.content ?? "").toContain("SUBAGENT_OTEL_DONE");
             } finally {

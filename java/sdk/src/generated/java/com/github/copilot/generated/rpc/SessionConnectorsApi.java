@@ -205,10 +205,10 @@ public final class SessionConnectorsApi {
      * @since 1.0.0
      */
     @CopilotExperimental
-    CompletableFuture<ConnectorStatus> reconcileForStartup(SessionConnectorsReconcileForStartupParams params) {
+    public CompletableFuture<SessionConnectorsReconcileForStartupResult> reconcileForStartup(SessionConnectorsReconcileForStartupParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
-        return caller.invoke("session.connectors.reconcileForStartup", _p, ConnectorStatus.class);
+        return caller.invoke("session.connectors.reconcileForStartup", _p, SessionConnectorsReconcileForStartupResult.class);
     }
 
     /**
@@ -218,8 +218,8 @@ public final class SessionConnectorsApi {
      * @since 1.0.0
      */
     @CopilotExperimental
-    CompletableFuture<ConnectorStatus> withdrawProjection() {
-        return caller.invoke("session.connectors.withdrawProjection", java.util.Map.of("sessionId", this.sessionId), ConnectorStatus.class);
+    public CompletableFuture<SessionConnectorsWithdrawProjectionResult> withdrawProjection() {
+        return caller.invoke("session.connectors.withdrawProjection", java.util.Map.of("sessionId", this.sessionId), SessionConnectorsWithdrawProjectionResult.class);
     }
 
 }

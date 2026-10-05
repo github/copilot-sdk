@@ -8,7 +8,6 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -48,7 +47,6 @@ import com.github.copilot.generated.rpc.SessionModelSwitchToParams;
 import com.github.copilot.generated.rpc.SessionPermissionsHandlePendingPermissionRequestParams;
 import com.github.copilot.generated.rpc.SessionRpc;
 import com.github.copilot.generated.rpc.SessionToolsHandlePendingToolCallParams;
-import com.github.copilot.generated.rpc.SessionToolsSetParams;
 import com.github.copilot.generated.rpc.SessionUiElicitationParams;
 import com.github.copilot.generated.rpc.SessionUiHandlePendingElicitationParams;
 import com.github.copilot.generated.rpc.UIElicitationResponse;
@@ -112,8 +110,6 @@ import com.github.copilot.rpc.SessionHooks;
 import com.github.copilot.rpc.SessionStartHookInput;
 import com.github.copilot.rpc.SessionUiApi;
 import com.github.copilot.rpc.SessionUiCapabilities;
-import com.github.copilot.rpc.SubagentStartHookInput;
-import com.github.copilot.rpc.SubagentStopHookInput;
 import com.github.copilot.rpc.ToolDefinition;
 import com.github.copilot.rpc.ToolResultObject;
 import com.github.copilot.rpc.TranscriptRecoveryReport;
@@ -196,9 +192,7 @@ public final class CopilotSession implements AutoCloseable {
     private final JsonRpcClient rpc;
     private volatile SessionRpc sessionRpc;
     private final Set<Consumer<SessionEvent>> eventHandlers = new CopyOnWriteArraySet<>();
-    private final AtomicReference<Map<String, ToolDefinition>> toolHandlers = new AtomicReference<>(Map.of());
-    private final Object setToolsLock = new Object();
-    private CompletableFuture<Void> setToolsTail = CompletableFuture.completedFuture(null);
+    private final Map<String, ToolDefinition> toolHandlers = new ConcurrentHashMap<>();
     private final Map<String, PendingExternalTool> pendingExternalTools = new ConcurrentHashMap<>();
     private boolean externalToolsClosed;
     private final Map<String, CommandHandler> commandHandlers = new ConcurrentHashMap<>();
@@ -757,65 +751,6 @@ public final class CopilotSession implements AutoCloseable {
     public CompletableFuture<AssistantMessageEvent> sendAndWait(MessageOptions options) {
         ensureNotTerminated();
         return sendAndWait(options, 60000);
-    }
-
-    /**
-     * Replaces this client's externally implemented tools on the live session.
-     * <p>
-     * This is a complete replacement for the tools supplied by this client only:
-     * built-in tools, MCP/plugin tools, and tools supplied by other connections are
-     * not changed. Pass the same {@link ToolDefinition} values accepted by
-     * {@link com.github.copilot.rpc.SessionConfig#setTools(List)} and
-     * {@link com.github.copilot.rpc.ResumeSessionConfig#setTools(List)}. Passing an
-     * empty list removes all tools supplied by this client.
-     * <p>
-     * The local handlers switch once the runtime accepts the replacement. Tool
-     * calls already running finish on the handlers that started them. If the
-     * runtime rejects the replacement, the previous handlers remain unchanged and
-     * the returned future completes exceptionally. Concurrent replacements on the
-     * same session are applied in call order. Cancelling the returned future while
-     * an earlier replacement is still in flight sends nothing; once the request is
-     * sent, an accepted replacement still installs its handlers.
-     * <p>
-     * The agent sees the new tools from its next model request, which can fall
-     * within a turn in progress. A model request already in flight was made with
-     * the previous tools, so the agent can still call a tool you removed. This
-     * session doesn't answer that call, and it can stay pending until the turn is
-     * aborted. If a running turn might still call a tool you remove, replace tools
-     * while the session is idle.
-     *
-     * @param tools
-     *            the complete replacement tool list for this client
-     * @return a future that completes when the runtime accepts the replacement and
-     *         the local handler registry has been updated
-     */
-    @CopilotExperimental
-    public CompletableFuture<Void> setTools(List<ToolDefinition> tools) {
-        ensureNotTerminated();
-        List<ToolDefinition> toolList = tools != null ? List.copyOf(tools) : List.of();
-        Map<String, ToolDefinition> replacementHandlers = buildToolHandlerMap(toolList);
-        var params = new SessionToolsSetParams(sessionId, SessionRequestBuilder.toProtocolExternalTools(toolList));
-
-        var result = new CompletableFuture<Void>();
-        CompletableFuture<Void> operation;
-        synchronized (setToolsLock) {
-            operation = setToolsTail.handle((ignored, error) -> null).thenCompose(ignored -> {
-                if (result.isCancelled()) {
-                    return CompletableFuture.<Void>completedFuture(null);
-                }
-                return getRpc().tools.set(params).thenRun(() -> toolHandlers.set(replacementHandlers));
-            });
-            setToolsTail = operation.handle((ignored, error) -> null);
-        }
-
-        operation.whenComplete((value, error) -> {
-            if (error != null) {
-                result.completeExceptionally(error);
-            } else {
-                result.complete(null);
-            }
-        });
-        return result;
     }
 
     /**
@@ -1505,18 +1440,12 @@ public final class CopilotSession implements AutoCloseable {
      *            the list of tool definitions with handlers
      */
     void registerTools(List<ToolDefinition> tools) {
-        toolHandlers.set(buildToolHandlerMap(tools));
-    }
-
-    private static Map<String, ToolDefinition> buildToolHandlerMap(List<ToolDefinition> tools) {
-        if (tools == null || tools.isEmpty()) {
-            return Map.of();
+        toolHandlers.clear();
+        if (tools != null) {
+            for (ToolDefinition tool : tools) {
+                toolHandlers.put(tool.name(), tool);
+            }
         }
-        Map<String, ToolDefinition> handlers = new LinkedHashMap<>();
-        for (ToolDefinition tool : tools) {
-            handlers.put(tool.name(), tool);
-        }
-        return Collections.unmodifiableMap(handlers);
     }
 
     /**
@@ -1750,7 +1679,7 @@ public final class CopilotSession implements AutoCloseable {
      * @return the tool definition, or {@code null} if not found
      */
     ToolDefinition getTool(String name) {
-        return toolHandlers.get().get(name);
+        return toolHandlers.get(name);
     }
 
     /**
@@ -2295,26 +2224,6 @@ public final class CopilotSession implements AutoCloseable {
                         return stopResult.thenApply(output -> (Object) output);
                     }
                     break;
-                case "subagentStart" :
-                    if (hooks.getOnSubagentStart() != null) {
-                        SubagentStartHookInput startInput = MAPPER.treeToValue(input, SubagentStartHookInput.class);
-                        var startResult = hooks.getOnSubagentStart().handle(startInput, invocation);
-                        if (startResult == null) {
-                            return CompletableFuture.completedFuture(null);
-                        }
-                        return startResult.thenApply(output -> (Object) output);
-                    }
-                    break;
-                case "subagentStop" :
-                    if (hooks.getOnSubagentStop() != null) {
-                        SubagentStopHookInput stopInput = MAPPER.treeToValue(input, SubagentStopHookInput.class);
-                        var stopResult = hooks.getOnSubagentStop().handle(stopInput, invocation);
-                        if (stopResult == null) {
-                            return CompletableFuture.completedFuture(null);
-                        }
-                        return stopResult.thenApply(output -> (Object) output);
-                    }
-                    break;
                 default :
                     LOG.fine("Unhandled hook type: " + hookType);
             }
@@ -2836,7 +2745,7 @@ public final class CopilotSession implements AutoCloseable {
         }
 
         eventHandlers.clear();
-        toolHandlers.set(Map.of());
+        toolHandlers.clear();
         commandHandlers.clear();
         permissionHandler.set(null);
         userInputHandler.set(null);

@@ -8,6 +8,7 @@
 
 import { execFile } from "child_process";
 import fs from "fs/promises";
+import { realpathSync } from "node:fs";
 import type { JSONSchema7 } from "json-schema";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -29,7 +30,6 @@ import {
     getNullableInner,
     getRpcSchemaTypeName,
     getSessionEventsSchemaPath,
-    isCodegenEntrypoint,
     getSessionEventVariantSchemas,
     getSharedSessionEventEnvelopeProperties,
     hasSchemaPayload,
@@ -505,7 +505,6 @@ interface GoEventVariant {
     dataClassName: string;
     dataSchema: JSONSchema7;
     dataDescription?: string;
-    eventDeprecated: boolean;
     eventExperimental: boolean;
     dataExperimental: boolean;
 }
@@ -599,7 +598,6 @@ function extractGoEventVariants(schema: JSONSchema7): GoEventVariant[] {
                 dataClassName: `${toPascalCase(typeName)}Data`,
                 dataSchema,
                 dataDescription: dataSchema.description,
-                eventDeprecated: isSchemaDeprecated(variant),
                 eventExperimental: isSchemaExperimental(variant),
                 dataExperimental: isSchemaExperimental(dataSchema),
             };
@@ -3265,10 +3263,6 @@ export function generateGoSessionEventsCode(
         if (variant.dataExperimental || isSchemaExperimental(variant.dataSchema)) {
             pushGoExperimentalTypeComment(lines, variant.dataClassName, ctx);
         }
-        if (variant.eventDeprecated || isSchemaDeprecated(variant.dataSchema)) {
-            lines.push("//");
-            pushGoCommentForContext(lines, `Deprecated: ${variant.dataClassName} is deprecated.`, ctx);
-        }
         lines.push(`type ${variant.dataClassName} struct {`);
 
         const fields: GoStructField[] = [];
@@ -3342,9 +3336,6 @@ export function generateGoSessionEventsCode(
         const variant = variants.find((candidate) => candidate.typeName === typeName);
         if (variant?.eventExperimental) {
             pushGoExperimentalEventComment(eventTypeEnum, constName, "\t");
-        }
-        if (variant?.eventDeprecated) {
-            pushGoComment(eventTypeEnum, `Deprecated: ${constName} identifies a deprecated event.`, "\t");
         }
         eventTypeEnum.push(`\t${constName} SessionEventType = "${typeName}"`);
     }
@@ -3589,30 +3580,11 @@ function collectGoTopLevelNames(code: string, keyword: "type" | "const"): string
     return [...names].sort(compareGoTypeNames);
 }
 
-export function collectGoDeprecatedEventNames(sessionSchema: JSONSchema7): ReadonlySet<string> {
-    const deprecatedNames = new Set<string>();
-    for (const variant of extractGoEventVariants(sessionSchema)) {
-        if (variant.eventDeprecated || isSchemaDeprecated(variant.dataSchema)) {
-            deprecatedNames.add(variant.dataClassName);
-        }
-        if (variant.eventDeprecated) {
-            deprecatedNames.add(
-                "SessionEventType" + variant.typeName
-                    .split(/[._]/)
-                    .map((word) => goIdentifierWord(word))
-                    .join("")
-            );
-        }
-    }
-    return deprecatedNames;
-}
-
-export function generateGoSessionEventAliasFile(
+function generateGoSessionEventAliasFile(
     generatedSessionTypeCode: string,
     additionalTypeNames: Iterable<string> = [],
     additionalConstNames: Iterable<string> = [],
-    excludeTypeNames: Iterable<string> = [],
-    deprecatedNames: ReadonlySet<string> = new Set()
+    excludeTypeNames: Iterable<string> = []
 ): string {
     const excluded = new Set(excludeTypeNames);
     const typeNames = [...new Set([...collectGoTopLevelNames(generatedSessionTypeCode, "type"), ...additionalTypeNames])]
@@ -3634,9 +3606,6 @@ export function generateGoSessionEventAliasFile(
         lines.push(`// Session-event types are generated in the rpc package and aliased here for source compatibility.`);
         lines.push(`type (`);
         for (const typeName of typeNames) {
-            if (deprecatedNames.has(typeName)) {
-                pushGoComment(lines, `Deprecated: ${typeName} is deprecated.`, "\t");
-            }
             lines.push(`\t${typeName} = rpc.${typeName}`);
         }
         lines.push(`)`);
@@ -3647,9 +3616,6 @@ export function generateGoSessionEventAliasFile(
         lines.push(`// Session-event constants are generated in the rpc package and re-exported here for source compatibility.`);
         lines.push(`const (`);
         for (const constName of constNames) {
-            if (deprecatedNames.has(constName)) {
-                pushGoComment(lines, `Deprecated: ${constName} identifies a deprecated event.`, "\t");
-            }
             lines.push(`\t${constName} = rpc.${constName}`);
         }
         lines.push(`)`);
@@ -3907,10 +3873,9 @@ async function generateSessionEvents(schemaPath?: string, apiSchema?: ApiSchema)
     // aliases that clash with the existing hand-written `copilot.ContextTier`.
     const handWrittenPublicNames = await collectHandWrittenGoPublicNames();
     const aliasExcludes = new Set<string>([...internalTypesInSession, ...handWrittenPublicNames]);
-    const deprecatedNames = collectGoDeprecatedEventNames(sessionSchema);
     const aliasOutPath = await writeGeneratedFile(
         "go/zsession_events.go",
-        generateGoSessionEventAliasFile(generatedTypeCode, sharedAliasNames.typeNames, sharedAliasNames.constNames, aliasExcludes, deprecatedNames)
+        generateGoSessionEventAliasFile(generatedTypeCode, sharedAliasNames.typeNames, sharedAliasNames.constNames, aliasExcludes)
     );
     console.log(`  ✓ ${aliasOutPath}`);
 
@@ -4670,7 +4635,7 @@ async function generate(sessionSchemaPath?: string, apiSchemaPath?: string): Pro
 
 const __filename = fileURLToPath(import.meta.url);
 
-if (isCodegenEntrypoint(process.argv[1], __filename)) {
+if (process.argv[1] && realpathSync(process.argv[1]) === realpathSync(__filename)) {
     const sessionArg = process.argv[2] || undefined;
     const apiArg = process.argv[3] || undefined;
     generate(sessionArg, apiArg).catch((err) => {

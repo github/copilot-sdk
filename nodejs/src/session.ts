@@ -16,7 +16,6 @@ import type {
     CanvasActionInvokeResult,
     CurrentToolMetadata,
     McpOauthPendingRequestResponse,
-    ProtocolExternalToolDefinition,
     WorkflowLogLine,
     WorkflowRunResult as WireWorkflowRunResult,
     ModelSwitchAutoTierResult,
@@ -111,23 +110,6 @@ function copyDefinedWorkflowAgentOption<TKey extends keyof WorkflowAgentOptions>
     if (value !== undefined) {
         target[key] = value;
     }
-}
-
-/**
- * The wire definition `session.tools.set` takes for a tool, matching what
- * session creation and resumption send for the same tool.
- */
-function toToolDefinition(tool: Tool): ProtocolExternalToolDefinition {
-    return {
-        name: tool.name,
-        description: tool.description ?? "",
-        parameters: toJsonSchema(tool.parameters) as ProtocolExternalToolDefinition["parameters"],
-        overridesBuiltInTool: tool.overridesBuiltInTool,
-        skipPermission: tool.skipPermission,
-        defer: tool.defer,
-        metadata: tool.metadata as ProtocolExternalToolDefinition["metadata"],
-        isTerminal: tool.isTerminal,
-    };
 }
 
 type WorkflowExecutionContext = {
@@ -449,8 +431,6 @@ export class CopilotSession {
     private typedEventHandlers: Map<SessionEventType, Set<(event: SessionEvent) => void>> =
         new Map();
     private toolHandlers: Map<string, ToolHandler> = new Map();
-    /** Settles once every earlier `setTools` call has finished. */
-    private setToolsQueue: Promise<void> = Promise.resolve();
     private pendingExternalTools: Map<string, AbortController> = new Map();
     private canvases: Map<string, Canvas> = new Map();
     private bearerTokenProviders: Map<string, BearerTokenProvider> = new Map();
@@ -1554,29 +1534,7 @@ export class CopilotSession {
 
         for (const tool of tools) {
             if (tool.handler) {
-                const handler = tool.handler;
-                if (
-                    tool.name === "apply_patch" &&
-                    tool.overridesBuiltInTool &&
-                    toJsonSchema(tool.parameters)?.type === "string"
-                ) {
-                    this.toolHandlers.set(tool.name, (args, invocation) => {
-                        if (typeof args === "string") {
-                            return handler(args, invocation);
-                        }
-                        if (
-                            typeof args === "object" &&
-                            args !== null &&
-                            "input" in args &&
-                            typeof args.input === "string"
-                        ) {
-                            return handler(args.input, invocation);
-                        }
-                        throw new TypeError("apply_patch string override requires a string input");
-                    });
-                } else {
-                    this.toolHandlers.set(tool.name, handler);
-                }
+                this.toolHandlers.set(tool.name, tool.handler);
             }
         }
     }
@@ -2250,8 +2208,6 @@ export class CopilotSession {
             sessionEnd: this.hooks.onSessionEnd as GenericHandler | undefined,
             errorOccurred: this.hooks.onErrorOccurred as GenericHandler | undefined,
             agentStop: this.hooks.onAgentStop as GenericHandler | undefined,
-            subagentStart: this.hooks.onSubagentStart as GenericHandler | undefined,
-            subagentStop: this.hooks.onSubagentStop as GenericHandler | undefined,
         };
 
         const handler = handlerMap[hookType];
@@ -2444,60 +2400,6 @@ export class CopilotSession {
      */
     async setAutoTier(autoTier: AutoTier | null): Promise<ModelSwitchAutoTierResult> {
         return await this.rpc.model.switchAutoTier({ autoTier });
-    }
-
-    /**
-     * Replace the tools this client supplies to the session.
-     *
-     * `tools` becomes the complete set of tools this client implements,
-     * replacing the ones it supplied when the session was created or resumed,
-     * or in an earlier call. Built-in, MCP, and plugin tools, and tools other
-     * connected clients supply, are unaffected. Pass an empty array to remove
-     * all of this client's tools.
-     *
-     * Tools are defined the same way as for `createSession`: calls to tools
-     * with a `handler` are dispatched to it, and tools without one are
-     * declaration-only. Once the runtime accepts the replacement, every tool
-     * call this session dispatches uses the new handlers; calls already
-     * running finish on their original handlers. If the runtime rejects the
-     * replacement, this rejects and the previous tools and handlers stay in
-     * place. Concurrent calls on the same session are applied one at a time,
-     * in the order they are made.
-     *
-     * The agent sees the new tools from its next model request, which can fall
-     * within a turn in progress. A model request already in flight was made
-     * with the previous tools, so the agent can still call a tool you removed.
-     * This session doesn't answer that call, and it can stay pending until the
-     * turn is aborted. If a running turn might still call a tool you remove,
-     * replace tools while the session is idle.
-     *
-     * @param tools - The complete set of tools this client supplies
-     *
-     * @experimental Wraps the experimental `session.tools.set` RPC and may change
-     * or be removed in a future release.
-     *
-     * @example
-     * ```typescript
-     * await session.setTools([
-     *     defineTool("search_issues", {
-     *         description: "Search the issues shown on the current page",
-     *         parameters: z.object({ query: z.string() }),
-     *         handler: async ({ query }) => searchIssues(query),
-     *     }),
-     * ]);
-     * ```
-     */
-    async setTools(tools: Tool[]): Promise<void> {
-        const definitions = tools.map(toToolDefinition);
-        const replacement = this.setToolsQueue.then(async () => {
-            await this.rpc.tools.set({ tools: definitions });
-            this.registerTools(tools);
-        });
-        this.setToolsQueue = replacement.then(
-            () => undefined,
-            () => undefined
-        );
-        await replacement;
     }
 
     /**

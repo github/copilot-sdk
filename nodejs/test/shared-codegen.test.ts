@@ -1,9 +1,7 @@
 import type { JSONSchema7 } from "json-schema";
-import { spawnSync } from "node:child_process";
-import { mkdtemp, mkdir, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { describe, expect, it, onTestFinished } from "vitest";
 
 import {
@@ -13,76 +11,12 @@ import {
     findSharedSchemaDefinitions,
     getEnumValueDescriptions,
     inlineExternalSchemaDefinitions,
-    isCodegenEntrypoint,
     isIntegerSchemaBoundedToInt32,
     rewriteSharedDefinitionReferences,
     resolveCopilotSchemaPaths,
 } from "../../scripts/codegen/utils.ts";
 
-describe("codegen entrypoints", () => {
-    it("recognizes Windows entrypoint paths case-insensitively", () => {
-        expect(
-            isCodegenEntrypoint("C:\\b\\execroot\\python.ts", "c:\\B\\execroot\\python.ts", "win32")
-        ).toBe(true);
-    });
-
-    it("rejects other modules and missing entrypoints", () => {
-        expect(isCodegenEntrypoint(undefined, "python.ts")).toBe(false);
-        expect(isCodegenEntrypoint("go.ts", "python.ts")).toBe(false);
-        expect(isCodegenEntrypoint("PYTHON.ts", "python.ts", "linux")).toBe(false);
-    });
-
-    it("recognizes a Bazel-style directory symlink to the generator", async () => {
-        const root = await mkdtemp(join(tmpdir(), "copilot-codegen-entrypoint-"));
-        onTestFinished(() => rm(root, { recursive: true, force: true }));
-        const source = join(root, "source");
-        const execroot = join(root, "execroot");
-        await mkdir(source);
-        await writeFile(join(source, "python.ts"), "");
-        await writeFile(join(source, "other.ts"), "");
-        await symlink(source, execroot, process.platform === "win32" ? "junction" : "dir");
-        expect(isCodegenEntrypoint(join(execroot, "python.ts"), join(source, "python.ts"))).toBe(
-            true
-        );
-        expect(isCodegenEntrypoint(join(execroot, "other.ts"), join(source, "python.ts"))).toBe(
-            false
-        );
-        expect(isCodegenEntrypoint("", join(source, "python.ts"))).toBe(false);
-    });
-});
-
 describe("shared schema definition codegen utilities", () => {
-    it.each(["typescript", "python", "go", "csharp"])(
-        "runs the %s generator through a linked entrypoint",
-        async (language) => {
-            const root = await mkdtemp(join(tmpdir(), "copilot-codegen-entrypoint-"));
-            onTestFinished(() => rm(root, { recursive: true, force: true }));
-            const codegenRoot = fileURLToPath(new URL("../../scripts/codegen", import.meta.url));
-            const linkedRoot = join(root, "codegen");
-            await symlink(
-                codegenRoot,
-                linkedRoot,
-                process.platform === "win32" ? "junction" : "dir"
-            );
-            const missingSchema = join(root, "missing-schema.json");
-            const result = spawnSync(
-                process.execPath,
-                [
-                    join(codegenRoot, "node_modules", "tsx", "dist", "cli.mjs"),
-                    join(linkedRoot, `${language}.ts`),
-                    missingSchema,
-                    missingSchema,
-                ],
-                { cwd: codegenRoot, encoding: "utf8", timeout: 30_000 }
-            );
-
-            expect(result.error).toBeUndefined();
-            expect(result.status, result.stderr).toBe(1);
-            expect(result.stderr).toContain("generation failed:");
-            expect(result.stderr).toContain("missing-schema.json");
-        }
-    );
-
     it("selects checked-out schemas for normal nested generation with a clean environment", async () => {
         const root = await mkdtemp(join(tmpdir(), "copilot-nested-codegen-"));
         onTestFinished(() => rm(root, { recursive: true, force: true }));

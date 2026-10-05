@@ -183,57 +183,6 @@ On session creation and a **cold** resume, disabled servers are not started and
 the runtime does not initiate their authentication. A resident resume cannot
 undo a server that the runtime has already spawned. Names are matched exactly.
 
-## Listing and retrieving prompts
-
-The experimental generated MCP namespace exposes the wire JSON-RPC methods
-`session.mcp.prompts.list` and `session.mcp.prompts.get`. Use the language-specific
-SDK accessors below to call them. These methods target one connected server in the
-current session; they do not combine results from multiple servers.
-
-| SDK | List prompts | Get a prompt |
-| --- | --- | --- |
-| Node.js | `session.rpc.mcp.prompts.list(...)` | `session.rpc.mcp.prompts.get(...)` |
-| Python | `session.rpc.mcp.prompts.list(...)` | `session.rpc.mcp.prompts.get(...)` |
-| Go | `session.RPC.MCP.Prompts().List(...)` | `session.RPC.MCP.Prompts().Get(...)` |
-| .NET | `session.Rpc.Mcp.Prompts.ListAsync(...)` | `session.Rpc.Mcp.Prompts.GetAsync(...)` |
-| Java | `session.getRpc().mcp.prompts.list(...)` | `session.getRpc().mcp.prompts.get(...)` |
-| Rust | `session.rpc().mcp().prompts().list(...)` | `session.rpc().mcp().prompts().get(...)` |
-
-Listing requires `serverName` and accepts an optional opaque `cursor`. Each
-call returns one page of typed prompt definitions and an optional `nextCursor`.
-Pass that cursor in another list call to request the next page. Definitions
-include names, optional titles and descriptions, and argument definitions.
-An omitted argument `required` flag remains distinct from `false`.
-
-Getting a prompt requires `serverName` and `promptName`, with an optional
-`arguments` dictionary whose values are strings. Omitting `arguments` leaves the
-MCP request's arguments absent; passing `{}` sends an explicitly empty dictionary.
-The runtime preserves this distinction for the server. The result contains an optional
-description and ordered messages with typed roles and opaque JSON `content`.
-Inspect each content block's `type` before interpreting it; content is not
-flattened into text. Nested resources, annotations, metadata, unfamiliar content
-types, and additional content fields retain their JSON structure. Server
-extensions on typed descriptors, messages, and result envelopes are available under
-`additionalProperties`. A server extension itself named `additionalProperties`
-is preserved as an entry inside that map, not merged into it.
-The protocol's top-level `resultType: "complete"` discriminator is consumed by
-the runtime; it is not returned as an SDK field or a server extension.
-Requests fail explicitly if the runtime cannot preserve the raw response,
-including stdio response frames exceeding the 1 MiB capture limit.
-
-The returned prompt messages are not automatically sent to the model or used to
-execute tools or fetch referenced resources. Your application decides how to
-use the result.
-While generating that result, an MCP server can request sampling or elicitation
-through multi round-trip continuations. These requests use the same configured
-host responders as other MCP operations; prompt retrieval does not grant
-additional permission or bypass the host's decision. A missing responder or
-responder error fails the request, and an elicitation decline is returned to the
-server unchanged. State-only continuations do not invoke either responder.
-
-After an existing `mcp.prompts.list_changed` session event, list the named
-server's prompts again to refresh your application's view.
-
 ## Tool configuration
 
 You can control which tools are available to an MCP server using the `tools` field.
@@ -345,53 +294,6 @@ directories for different applications.
 | `oauthGrantType` | `string` | No | OAuth grant type for the configured client, such as `client_credentials` |
 | `tools` | `string[]` | No | Tools to enable |
 | `timeout` | `number` | No | Timeout in milliseconds |
-
-## OAuth ownership for remote servers
-
-Choose one OAuth ownership model for each authentication attempt:
-
-1. **Runtime-managed loopback**: Call `session.mcp.oauth.login` without a
-   redirect URI. The runtime opens a local callback listener and owns discovery,
-   PKCE, state validation, token exchange, persistence, refresh, and reconnect.
-1. **Runtime-managed hosted callback**: Call `session.mcp.oauth.login` with a
-   trusted public HTTPS redirect URI. Your host receives the callback, but the
-   runtime continues to own the OAuth protocol and credentials.
-1. **Host-managed OAuth**: Use the SDK's MCP authentication request handler and
-   return a host-acquired access token. Your host owns authorization and refresh.
-
-Do not register a host-managed OAuth handler for an authentication attempt that
-uses a runtime-managed hosted callback. Wait until the remote server enters the
-`needs-auth` state, then call the generated `session.rpc.mcp.oauth.login` method
-directly with the server name and callback URI:
-
-```jsonc
-{
-    "serverName": "remote-mcp",
-    "redirectUri": "https://agent.example.com/oauth/callback"
-}
-```
-
-The selected static, CIMD, or dynamically registered OAuth client must advertise
-that exact URI. The URI must use HTTPS and must not contain a query or fragment.
-When browser interaction is required, the result contains `authorizationUrl`
-and `authorizationId`. Open `authorizationUrl` in the user's browser and retain
-`authorizationId` with the target session.
-
-After the authorization server redirects to your endpoint, call the generated
-`session.rpc.mcp.oauth.complete` method:
-
-```jsonc
-{
-    "authorizationId": "<opaque-state>",
-    "callbackUrl": "https://agent.example.com/oauth/callback?code=...&state=..."
-}
-```
-
-Construct `callbackUrl` from the configured public redirect origin and path plus
-the callback's original query. Do not pass an internal service URL or trust
-client-supplied `Forwarded` or `X-Forwarded-*` headers. The runtime validates the
-origin, port, path, state, and OAuth response before accepting delivery. Token
-exchange, persistence, and MCP reconnect then continue asynchronously.
 
 ## Session-scoped MCP diagnostics
 

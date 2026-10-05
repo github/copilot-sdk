@@ -253,4 +253,4 @@ fn assert_command(
     assert!(!command.description.trim().is_empty());
 }
 static E2E: super::support::SharedE2eGroup =
-    super::support::SharedE2eGroup::standard("commands", 3);
+    super::support::SharedE2eGroup::standard("commands", 4);

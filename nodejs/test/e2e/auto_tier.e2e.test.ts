@@ -6,7 +6,6 @@ import { describe, expect, it } from "vitest";
 import { approveAll } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
 import { getNextEventOfType } from "./harness/sdkTestHelper.js";
-import { isByokBackend } from "./harness/testBackend";
 
 /**
  * The runtime stages an Auto routing preference instead of applying it immediately: a
@@ -130,9 +129,7 @@ describe("Auto tier switching", async () => {
         await overrideClient.stop();
     }, 120_000);
 
-    // Activating Auto tiers requires CAPI routing, not a fixed BYOK provider.
-    it("should commit fast auto tier after successful turn", async ({ skip }) => {
-        skip(isByokBackend);
+    it("should commit fast auto tier after successful turn", async () => {
         const session = await client.createSession({
             onPermissionRequest: approveAll,
             model: "auto",
@@ -167,8 +164,7 @@ describe("Auto tier switching", async () => {
         await session.disconnect();
     }, 120_000);
 
-    it("should preserve effective tier when fast activation fails", async ({ skip }) => {
-        skip(isByokBackend);
+    it("should preserve effective tier when fast activation fails", async () => {
         const session = await client.createSession({
             onPermissionRequest: approveAll,
             model: "auto",

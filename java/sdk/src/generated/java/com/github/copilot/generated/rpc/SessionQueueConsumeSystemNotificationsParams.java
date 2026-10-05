@@ -23,7 +23,7 @@ import javax.annotation.processing.Generated;
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-record SessionQueueConsumeSystemNotificationsParams(
+public record SessionQueueConsumeSystemNotificationsParams(
     /** Target session identifier */
     @JsonProperty("sessionId") String sessionId,
     /** Opaque runtime-owned filter object. */

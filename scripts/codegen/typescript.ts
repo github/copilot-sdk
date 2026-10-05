@@ -7,8 +7,10 @@
  */
 
 import fs from "fs/promises";
+import { realpathSync } from "fs";
 import type { JSONSchema7 } from "json-schema";
 import { compile } from "json-schema-to-typescript";
+import path from "path";
 import { fileURLToPath } from "url";
 import {
     getApiSchemaPath,
@@ -16,7 +18,6 @@ import {
     getNullableInner,
     getRpcSchemaTypeName,
     getSessionEventsSchemaPath,
-    isCodegenEntrypoint,
     postProcessSchema,
     propagateInternalVisibility,
     writeGeneratedFile,
@@ -385,9 +386,6 @@ export function normalizeSchemaForTypeScript(
     root.definitions = definitions;
     delete root.$defs;
 
-    const openReloadEnums = new Set(
-        ["CustomizationReloadStatus", "CustomizationReloadSubsystem"].map((name) => definitions[name])
-    );
     const internalDefinitionNames = new Set(
         Object.entries(definitions)
             .filter(([, definition]) => typeof definition === "object" && definition !== null && isSchemaInternal(definition as JSONSchema7))
@@ -442,19 +440,14 @@ export function normalizeSchemaForTypeScript(
         }
 
         const enumValueDescriptions = getEnumValueDescriptions(rewritten as JSONSchema7);
-        if ((enumValueDescriptions || openReloadEnums.has(source)) && Array.isArray(rewritten.enum) && rewritten.enum.every((entry) => typeof entry === "string")) {
-            const documentedValues = (rewritten.enum as string[])
+        if (enumValueDescriptions && Array.isArray(rewritten.enum) && rewritten.enum.every((entry) => typeof entry === "string")) {
+            rewritten.tsType = (rewritten.enum as string[])
                 .map((entry) => {
-                    const comment = enumValueDescriptions?.[entry];
+                    const comment = enumValueDescriptions[entry];
                     const literal = JSON.stringify(entry);
                     return comment ? `${tsDocCommentText(comment)}\n| ${literal}` : `| ${literal}`;
                 })
                 .join("\n");
-            // Preserve future wire values without losing completion for the known edit kinds.
-            rewritten.tsType =
-                rewritten.title === "ToolExecutionCompleteFileEditKind" || openReloadEnums.has(source)
-                    ? `${documentedValues}\n| (string & {})`
-                    : documentedValues;
             delete rewritten.type;
             delete rewritten.enum;
             delete rewritten["x-enumDescriptions"];
@@ -1028,7 +1021,7 @@ function emitGroup(
                     // sessionId is already stripped from the generated type definition,
                     // so no need for Omit<..., "sessionId">
                     sigParams.push(`params${optMark}: ${paramsType}`);
-                    bodyArg = "{ ...params, sessionId }";
+                    bodyArg = "{ sessionId, ...params }";
                 } else {
                     bodyArg = "{ sessionId }";
                 }
@@ -1343,7 +1336,29 @@ async function generate(sessionSchemaPath?: string, apiSchemaPath?: string): Pro
 
 const __filename = fileURLToPath(import.meta.url);
 
-if (isCodegenEntrypoint(process.argv[1], __filename)) {
+export function isTypeScriptCodegenEntrypoint(
+    entryPath: string | undefined,
+    modulePath = __filename,
+    platform = process.platform,
+): boolean {
+    if (!entryPath) {
+        return false;
+    }
+    const canonicalize = (filePath: string) => {
+        try {
+            return realpathSync.native(filePath);
+        } catch {
+            return path.resolve(filePath);
+        }
+    };
+    const canonicalEntryPath = canonicalize(entryPath);
+    const canonicalModulePath = canonicalize(modulePath);
+    return platform === "win32"
+        ? canonicalEntryPath.toLowerCase() === canonicalModulePath.toLowerCase()
+        : canonicalEntryPath === canonicalModulePath;
+}
+
+if (isTypeScriptCodegenEntrypoint(process.argv[1])) {
     const sessionArg = process.argv[2] || undefined;
     const apiArg = process.argv[3] || undefined;
     generate(sessionArg, apiArg).catch((err) => {

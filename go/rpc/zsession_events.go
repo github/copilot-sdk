@@ -97,7 +97,6 @@ const (
 	SessionEventTypeHookEnd                     SessionEventType = "hook.end"
 	SessionEventTypeHookProgress                SessionEventType = "hook.progress"
 	SessionEventTypeHookStart                   SessionEventType = "hook.start"
-	SessionEventTypeHumanResponseRecorded       SessionEventType = "human_response.recorded"
 	SessionEventTypeMCPAppToolCallComplete      SessionEventType = "mcp_app.tool_call_complete"
 	SessionEventTypeMCPHeadersRefreshCompleted  SessionEventType = "mcp.headers_refresh_completed"
 	SessionEventTypeMCPHeadersRefreshRequired   SessionEventType = "mcp.headers_refresh_required"
@@ -242,22 +241,20 @@ const (
 	SessionEventTypeSkillInvoked             SessionEventType = "skill.invoked"
 	// Experimental: SessionEventTypeSkillInvokedRef identifies an experimental event that may
 	// change or be removed.
-	SessionEventTypeSkillInvokedRef       SessionEventType = "skill.invoked_ref"
-	SessionEventTypeSubagentCompleted     SessionEventType = "subagent.completed"
-	SessionEventTypeSubagentConfigured    SessionEventType = "subagent.configured"
-	SessionEventTypeSubagentDeselected    SessionEventType = "subagent.deselected"
-	SessionEventTypeSubagentFailed        SessionEventType = "subagent.failed"
-	SessionEventTypeSubagentSelected      SessionEventType = "subagent.selected"
-	SessionEventTypeSubagentStarted       SessionEventType = "subagent.started"
-	SessionEventTypeSystemMessage         SessionEventType = "system.message"
-	SessionEventTypeSystemNotification    SessionEventType = "system.notification"
-	SessionEventTypeToolExecutionComplete SessionEventType = "tool.execution_complete"
-	// Deprecated: SessionEventTypeToolExecutionPartialResult identifies a deprecated event.
+	SessionEventTypeSkillInvokedRef            SessionEventType = "skill.invoked_ref"
+	SessionEventTypeSubagentCompleted          SessionEventType = "subagent.completed"
+	SessionEventTypeSubagentConfigured         SessionEventType = "subagent.configured"
+	SessionEventTypeSubagentDeselected         SessionEventType = "subagent.deselected"
+	SessionEventTypeSubagentFailed             SessionEventType = "subagent.failed"
+	SessionEventTypeSubagentSelected           SessionEventType = "subagent.selected"
+	SessionEventTypeSubagentStarted            SessionEventType = "subagent.started"
+	SessionEventTypeSystemMessage              SessionEventType = "system.message"
+	SessionEventTypeSystemNotification         SessionEventType = "system.notification"
+	SessionEventTypeToolExecutionComplete      SessionEventType = "tool.execution_complete"
 	SessionEventTypeToolExecutionPartialResult SessionEventType = "tool.execution_partial_result"
 	SessionEventTypeToolExecutionProgress      SessionEventType = "tool.execution_progress"
 	SessionEventTypeToolExecutionStart         SessionEventType = "tool.execution_start"
 	SessionEventTypeToolSearchActivated        SessionEventType = "tool_search.activated"
-	SessionEventTypeToolShellOutput            SessionEventType = "tool.shell_output"
 	SessionEventTypeToolUserRequested          SessionEventType = "tool.user_requested"
 	// Experimental: SessionEventTypeUIEphemeralQuery identifies an experimental event that may
 	// change or be removed.
@@ -329,9 +326,6 @@ type PromptCacheBreakData struct {
 	// Telemetry-safe names of tools whose definition changed since the prior call
 	// Internal: ToolsRedefined is part of the SDK's internal API surface and is not intended for external use.
 	ToolsRedefined []string `json:"toolsRedefined,omitzero"`
-	// Changed definition parts of redefined tools, as `tool:part` entries; property-level parts only for telemetry-safe tools, whose other names are hashed
-	// Internal: ToolsRedefinedParts is part of the SDK's internal API surface and is not intended for external use.
-	ToolsRedefinedParts []string `json:"toolsRedefinedParts,omitzero"`
 	// Raw names of tools redefined since the prior call, restricted because a tool name can be user-authored
 	// Internal: ToolsRedefinedRaw is part of the SDK's internal API surface and is not intended for external use.
 	ToolsRedefinedRaw []string `json:"toolsRedefinedRaw,omitzero"`
@@ -509,8 +503,6 @@ type SessionAutoModeResolvedData struct {
 	RouterLatencyMs *float64 `json:"routerLatencyMs,omitempty"`
 	// The routing method the server applied, when Auto Intent ran
 	RoutingMethod *string `json:"routingMethod,omitempty"`
-	// Short human-readable sentence from the routing service explaining why this model was chosen, for display alongside the model. Present only when the service supplied one: it is omitted for on-device selections, when the service did not provide an explanation, and when a replayed decision made no routing call. The text is display-only and drawn from a fixed catalogue; several distinct routing categories share identical wording, so it cannot be used to recover the category or keyed on programmatically.
-	SelectionReason *string `json:"selectionReason,omitempty"`
 	// Whether a sticky model choice overrode the router result
 	StickyOverride *bool `json:"stickyOverride,omitempty"`
 }
@@ -762,21 +754,6 @@ type SubagentSelectedData struct {
 func (*SubagentSelectedData) sessionEventData()      {}
 func (*SubagentSelectedData) Type() SessionEventType { return SessionEventTypeSubagentSelected }
 
-// Deprecated merged replacement snapshot of shell output. Use tool.shell_output for append-only, stream-tagged output instead.
-//
-// Deprecated: ToolExecutionPartialResultData is deprecated.
-type ToolExecutionPartialResultData struct {
-	// Merged replacement snapshot from the running shell, not an append-only chunk
-	PartialOutput string `json:"partialOutput"`
-	// Tool call ID this partial result belongs to
-	ToolCallID string `json:"toolCallId"`
-}
-
-func (*ToolExecutionPartialResultData) sessionEventData() {}
-func (*ToolExecutionPartialResultData) Type() SessionEventType {
-	return SessionEventTypeToolExecutionPartialResult
-}
-
 // Durable record that a canvas instance is open, used to restore open canvases on cold session resume. Intentionally omits the transient url and availability.
 // Experimental: SessionCanvasRecordedData is part of an experimental API and may change or be removed.
 type SessionCanvasRecordedData struct {
@@ -810,23 +787,6 @@ type SessionCanvasRemovedData struct {
 
 func (*SessionCanvasRemovedData) sessionEventData()      {}
 func (*SessionCanvasRemovedData) Type() SessionEventType { return SessionEventTypeSessionCanvasRemoved }
-
-// Durable request-correlated evidence for a typed response to a runtime-owned question or plan review.
-type HumanResponseRecordedData struct {
-	// Controlled actor provenance established at response ingress.
-	Actor HumanResponseActor `json:"actor"`
-	// Request ID of the runtime-owned question or plan review.
-	RequestID string `json:"requestId"`
-	// Typed request and response payload.
-	Response HumanResponseRecordedResponse `json:"response"`
-	// Tool call ID that opened the request, when present.
-	ToolCallID *string `json:"toolCallId,omitempty"`
-}
-
-func (*HumanResponseRecordedData) sessionEventData() {}
-func (*HumanResponseRecordedData) Type() SessionEventType {
-	return SessionEventTypeHumanResponseRecorded
-}
 
 // Durable session usage checkpoint for reconstructing aggregate accounting on resume
 type SessionUsageCheckpointData struct {
@@ -1390,8 +1350,6 @@ type ModelCallFailureData struct {
 	APIEndpoint *AssistantUsageAPIEndpoint `json:"apiEndpoint,omitempty"`
 	// For HTTP 400 failures only: whether the response carried a structured CAPI error envelope (structured_error, a deterministic validation failure) or no error body (bodyless, the transient gateway/proxy signature). Absent for non-400 failures.
 	BadRequestKind *ModelCallFailureBadRequestKind `json:"badRequestKind,omitempty"`
-	// Where the bring-your-own-key model for the failed call runs and who manages it: "local_managed" (on the device, managed by Copilot), "local_user" (on the device, managed by the user), or "remote_user" (off the device, managed by the user). Absent for Copilot-served models.
-	ByokKind *string `json:"byokKind,omitempty"`
 	// Duration of the failed API call in milliseconds
 	DurationMs *int64 `json:"durationMs,omitempty"`
 	// For HTTP 400 failures only: the `code` from the CAPI error envelope (e.g. 'model_max_prompt_tokens_exceeded') identifying which deterministic validation failure occurred. Raw server-controlled string, emitted only through restricted telemetry. Absent for bodyless or non-400 failures.
@@ -1419,8 +1377,6 @@ type ModelCallFailureData struct {
 	MaxPromptTokens *int64 `json:"maxPromptTokens,omitempty"`
 	// Model identifier used for the failed API call
 	Model *string `json:"model,omitempty"`
-	// Fixed-set provider family serving the bring-your-own-key model for the failed call (for example "openai", "anthropic", "azure_openai", "ollama", "llama_cpp", or "other"). Never the caller-supplied provider name. Absent for Copilot-served models.
-	ModelProvider *string `json:"modelProvider,omitempty"`
 	// Parent task tool call ID when this failed model call belongs to a sub-agent
 	ParentToolCallID *string `json:"parentToolCallId,omitempty"`
 	// GitHub request tracing ID (x-github-request-id header) for server-side log correlation
@@ -1723,8 +1679,6 @@ type AssistantUsageData struct {
 	// Number of tools available to the model for this call
 	// Internal: AvailableToolCount is part of the SDK's internal API surface and is not intended for external use.
 	AvailableToolCount *int64 `json:"availableToolCount,omitempty"`
-	// Where the bring-your-own-key model runs and who manages it: "local_managed" (on the device, managed by Copilot), "local_user" (on the device, managed by the user), or "remote_user" (off the device, managed by the user). Absent for Copilot-served models.
-	ByokKind *string `json:"byokKind,omitempty"`
 	// Whether the provider reported prompt-cache usage details for this call
 	// Internal: CacheDetailsReported is part of the SDK's internal API surface and is not intended for external use.
 	CacheDetailsReported *bool `json:"cacheDetailsReported,omitempty"`
@@ -1772,8 +1726,6 @@ type AssistantUsageData struct {
 	MaxPromptTokens *int64 `json:"maxPromptTokens,omitempty"`
 	// Model identifier used for this API call
 	Model string `json:"model"`
-	// Fixed-set provider family serving the bring-your-own-key model (for example "openai", "anthropic", "azure_openai", "ollama", "llama_cpp", or "other"). Never the caller-supplied provider name. Absent for Copilot-served models.
-	ModelProvider *string `json:"modelProvider,omitempty"`
 	// Number of tool calls returned by the model
 	// Internal: NumToolCalls is part of the SDK's internal API surface and is not intended for external use.
 	NumToolCalls *int64 `json:"numToolCalls,omitempty"`
@@ -1836,21 +1788,6 @@ func (*AssistantServerToolProgressData) sessionEventData() {}
 func (*AssistantServerToolProgressData) Type() SessionEventType {
 	return SessionEventTypeAssistantServerToolProgress
 }
-
-// Live, append-only shell output. Not persisted or replayed to late subscribers. Text is decoded and redacted per chunk; chunks need not contain complete lines.
-type ToolShellOutputData struct {
-	// Zero-based publication sequence across all output streams for this tool call. Not a byte offset or an OS write-order guarantee.
-	Sequence int64 `json:"sequence"`
-	// Output source. Omission means stdout. Terminal output has no separate stdout/stderr attribution.
-	Stream *ToolShellOutputStream `json:"stream,omitempty"`
-	// New output to append, without synthetic shell-result markers or stream-switch separators
-	Text string `json:"text"`
-	// Tool call ID that owns this shell output
-	ToolCallID string `json:"toolCallId"`
-}
-
-func (*ToolShellOutputData) sessionEventData()      {}
-func (*ToolShellOutputData) Type() SessionEventType { return SessionEventTypeToolShellOutput }
 
 // Live-only Auto preference recommendation from Copilot API after a successful Auto model call.
 // Experimental: SessionAutoTierRecommendationData is part of an experimental API and may change or be removed.
@@ -2000,8 +1937,6 @@ type SessionModelChangeData struct {
 	PreviousVerbosity *Verbosity `json:"previousVerbosity,omitempty"`
 	// Reasoning effort level after the model change, if applicable
 	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
-	// Model that owns effort embedded in an authored model selection. Omitted for independent reasoning-effort overrides and legacy events.
-	ReasoningEffortModel *string `json:"reasoningEffortModel,omitempty"`
 	// Reasoning summary mode after the model change, if applicable
 	ReasoningSummary *ReasoningSummary `json:"reasoningSummary,omitempty"`
 	// Origin of the effective model change, when known.
@@ -2677,8 +2612,6 @@ type SessionStartData struct {
 	Producer string `json:"producer"`
 	// Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh", "max")
 	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
-	// Model that owns effort embedded in an authored model selection. Omitted for independent reasoning-effort overrides and legacy events.
-	ReasoningEffortModel *string `json:"reasoningEffortModel,omitempty"`
 	// Reasoning summary mode used for model calls, if applicable (e.g. "none", "concise", "detailed")
 	ReasoningSummary *ReasoningSummary `json:"reasoningSummary,omitempty"`
 	// Whether this session supports remote steering via GitHub
@@ -2757,8 +2690,6 @@ type SessionResumeData struct {
 	EventsFileSizeBytes *int64 `json:"eventsFileSizeBytes,omitempty"`
 	// Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh", "max")
 	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
-	// Model that owns effort embedded in an authored model selection. Omitted for independent reasoning-effort overrides and legacy events.
-	ReasoningEffortModel *string `json:"reasoningEffortModel,omitempty"`
 	// Reasoning summary mode used for model calls, if applicable (e.g. "none", "concise", "detailed")
 	ReasoningSummary *ReasoningSummary `json:"reasoningSummary,omitempty"`
 	// Whether this session supports remote steering via GitHub
@@ -2932,6 +2863,19 @@ type AssistantStreamingDeltaData struct {
 func (*AssistantStreamingDeltaData) sessionEventData() {}
 func (*AssistantStreamingDeltaData) Type() SessionEventType {
 	return SessionEventTypeAssistantStreamingDelta
+}
+
+// Streaming tool execution output for incremental result display
+type ToolExecutionPartialResultData struct {
+	// Incremental output chunk from the running tool
+	PartialOutput string `json:"partialOutput"`
+	// Tool call ID this partial result belongs to
+	ToolCallID string `json:"toolCallId"`
+}
+
+func (*ToolExecutionPartialResultData) sessionEventData() {}
+func (*ToolExecutionPartialResultData) Type() SessionEventType {
+	return SessionEventTypeToolExecutionPartialResult
 }
 
 // Streaming tool-call input delta for incremental tool-call updates
@@ -3126,9 +3070,6 @@ func (*SessionModelDeselectedData) Type() SessionEventType {
 type ToolExecutionCompleteData struct {
 	// Error details when the tool execution failed
 	Error *ToolExecutionCompleteError `json:"error,omitempty"`
-	// Experimental. File mutations actually committed by a built-in file editing tool, in execution order. Present on successful edits and on partial failures when earlier mutations were committed. Paths are absolute in the session filesystem namespace.
-	// Experimental: FileEdits is part of an experimental API and may change or be removed.
-	FileEdits []ToolExecutionCompleteFileEdit `json:"fileEdits,omitzero"`
 	// Experimental HydraFusion attribution for this tool completion.
 	// Experimental: Fusion is part of an experimental API and may change or be removed.
 	Fusion *FusionAttribution `json:"fusion,omitempty"`
@@ -3174,9 +3115,6 @@ func (*ToolExecutionCompleteData) Type() SessionEventType {
 type ToolExecutionProgressData struct {
 	// Human-readable progress status message (e.g., from an MCP server)
 	ProgressMessage string `json:"progressMessage"`
-	// Client-only structured progress metadata. Not model-facing tool output.
-	// Experimental: StructuredContent is part of an experimental API and may change or be removed.
-	StructuredContent any `json:"structuredContent,omitempty"`
 	// Tool call ID this progress notification belongs to
 	ToolCallID string `json:"toolCallId"`
 }
@@ -3394,8 +3332,6 @@ func (*SessionWorkspaceFileChangedData) Type() SessionEventType {
 type AssistantMessageReasoningBlocks struct {
 	// Provider-native reasoning items or content blocks preserved verbatim, in order. A single response can carry several, and provider signatures or identifiers may depend on their exact content and ordering.
 	Blocks []any `json:"blocks,omitzero"`
-	// Anthropic Messages assistant block ordering preserved when the legacy reasoning-only representation cannot reproduce it exactly. Thinking and text blocks remain verbatim; tool-use entries retain identity and a payload fingerprint when later signed reasoning depends on them, and are hydrated from the message's tool requests during replay.
-	OrderedBlocks []any `json:"orderedBlocks,omitzero"`
 	// Model provider that produced these reasoning blocks.
 	Provider string `json:"provider"`
 }
@@ -3934,78 +3870,6 @@ type HookEndError struct {
 	Source *string `json:"source,omitempty"`
 	// Error stack trace, when available
 	Stack *string `json:"stack,omitempty"`
-}
-
-// Exact runtime-owned question or reviewed plan paired with the typed response that settled it.
-type HumanResponseRecordedResponse interface {
-	humanResponseRecordedResponse()
-	ResponseKind() HumanResponseRecordedResponseResponseKind
-}
-
-type RawHumanResponseRecordedResponse struct {
-	Discriminator HumanResponseRecordedResponseResponseKind
-	Raw           json.RawMessage
-}
-
-func (RawHumanResponseRecordedResponse) humanResponseRecordedResponse() {}
-func (r RawHumanResponseRecordedResponse) ResponseKind() HumanResponseRecordedResponseResponseKind {
-	return r.Discriminator
-}
-
-type HumanResponseRecordedResponseAskUser struct {
-	// Exact answer content accepted from the user.
-	Content map[string]any `json:"content"`
-	// Exact question displayed to the user.
-	Message string `json:"message"`
-	// Exact response schema displayed to the user.
-	RequestedSchema ElicitationRequestedSchema `json:"requestedSchema"`
-}
-
-func (HumanResponseRecordedResponseAskUser) humanResponseRecordedResponse() {}
-func (HumanResponseRecordedResponseAskUser) ResponseKind() HumanResponseRecordedResponseResponseKind {
-	return HumanResponseRecordedResponseResponseKindAskUser
-}
-
-type HumanResponseRecordedResponseExitPlanMode struct {
-	// Actions offered by the plan review UI.
-	Actions []ExitPlanModeAction `json:"actions"`
-	// Whether the user approved the reviewed plan.
-	Approved bool `json:"approved"`
-	// Whether the selected response requested edit auto-approval.
-	AutoApproveEdits *bool `json:"autoApproveEdits,omitempty"`
-	// Exact feedback submitted with the plan decision, when present.
-	Feedback *string `json:"feedback,omitempty"`
-	// Exact full plan content available from the review UI.
-	PlanContent string `json:"planContent"`
-	// Action the plan review UI recommended.
-	RecommendedAction ExitPlanModeAction `json:"recommendedAction"`
-	// Action selected by the user, when applicable.
-	SelectedAction *ExitPlanModeAction `json:"selectedAction,omitempty"`
-	// Exact plan summary displayed to the user.
-	Summary string `json:"summary"`
-}
-
-func (HumanResponseRecordedResponseExitPlanMode) humanResponseRecordedResponse() {}
-func (HumanResponseRecordedResponseExitPlanMode) ResponseKind() HumanResponseRecordedResponseResponseKind {
-	return HumanResponseRecordedResponseResponseKindExitPlanMode
-}
-
-type HumanResponseRecordedResponseUserInput struct {
-	// Whether the displayed request allowed a free-form answer.
-	AllowFreeform *bool `json:"allowFreeform,omitempty"`
-	// Exact selected or free-form answer submitted by the user.
-	Answer string `json:"answer"`
-	// Exact choices displayed to the user, when the request offered choices.
-	Choices []string `json:"choices,omitzero"`
-	// Exact question displayed to the user.
-	Question string `json:"question"`
-	// Whether the answer was typed as free-form text rather than selected from the displayed choices.
-	WasFreeform bool `json:"wasFreeform"`
-}
-
-func (HumanResponseRecordedResponseUserInput) humanResponseRecordedResponse() {}
-func (HumanResponseRecordedResponseUserInput) ResponseKind() HumanResponseRecordedResponseResponseKind {
-	return HumanResponseRecordedResponseResponseKindUserInput
 }
 
 // Set when the underlying tools/call threw an error before returning a CallToolResult
@@ -5535,15 +5399,6 @@ type ToolExecutionCompleteError struct {
 	Remediation *RemediationAction `json:"remediation,omitempty"`
 }
 
-// A file mutation that was actually committed by a built-in file editing tool.
-// Experimental: ToolExecutionCompleteFileEdit is part of an experimental API and may change or be removed.
-type ToolExecutionCompleteFileEdit struct {
-	// Kind of mutation committed at this path.
-	Kind ToolExecutionCompleteFileEditKind `json:"kind"`
-	// Absolute path in the session filesystem namespace.
-	Path string `json:"path"`
-}
-
 // Tool execution result on success
 type ToolExecutionCompleteResult struct {
 	// Model-facing binary results (base64 inline or size-omitted markers) sent to the LLM for this tool call
@@ -6182,27 +6037,6 @@ const (
 	HandoffSourceTypeRemote HandoffSourceType = "remote"
 )
 
-// Controlled provenance for a typed runtime response. Only `human_response`, minted by a trusted direct-interaction ingress, is human authorization evidence.
-type HumanResponseActor string
-
-const (
-	// A host or SDK automation submitted the response without direct human interaction.
-	HumanResponseActorHostAutomation HumanResponseActor = "host_automation"
-	// A built-in trusted client submitted the response after direct human interaction.
-	HumanResponseActorHumanResponse HumanResponseActor = "human_response"
-	// The response came through a legacy or otherwise unattributed ingress.
-	HumanResponseActorUnknown HumanResponseActor = "unknown"
-)
-
-// ResponseKind discriminator for HumanResponseRecordedResponse.
-type HumanResponseRecordedResponseResponseKind string
-
-const (
-	HumanResponseRecordedResponseResponseKindAskUser      HumanResponseRecordedResponseResponseKind = "ask_user"
-	HumanResponseRecordedResponseResponseKindExitPlanMode HumanResponseRecordedResponseResponseKind = "exit_plan_mode"
-	HumanResponseRecordedResponseResponseKindUserInput    HumanResponseRecordedResponseResponseKind = "user_input"
-)
-
 // The category of runtime action that enterprise managed settings governed (blocked or capped)
 type ManagedSettingsEnforcedAction string
 
@@ -6807,19 +6641,6 @@ const (
 	ToolExecutionCompleteContentTypeText         ToolExecutionCompleteContentType = "text"
 )
 
-// Kind of file mutation committed by a built-in editing tool.
-// Experimental: ToolExecutionCompleteFileEditKind is part of an experimental API and may change or be removed.
-type ToolExecutionCompleteFileEditKind string
-
-const (
-	// A file was created.
-	ToolExecutionCompleteFileEditKindCreate ToolExecutionCompleteFileEditKind = "create"
-	// A file was deleted.
-	ToolExecutionCompleteFileEditKindDelete ToolExecutionCompleteFileEditKind = "delete"
-	// A file was written by an edit operation.
-	ToolExecutionCompleteFileEditKindEdit ToolExecutionCompleteFileEditKind = "edit"
-)
-
 // Allowed values for the `ToolExecutionCompleteToolDescriptionMetaUIVisibility` enumeration.
 type ToolExecutionCompleteToolDescriptionMetaUIVisibility string
 
@@ -6838,18 +6659,6 @@ const (
 	ToolExecutionStartToolDescriptionMetaUIVisibilityApp ToolExecutionStartToolDescriptionMetaUIVisibility = "app"
 	// Tool is callable by the model (LLM tool surface)
 	ToolExecutionStartToolDescriptionMetaUIVisibilityModel ToolExecutionStartToolDescriptionMetaUIVisibility = "model"
-)
-
-// Shell output source. Terminal output has no separate stdout/stderr attribution.
-type ToolShellOutputStream string
-
-const (
-	// Output from the shell command's standard error stream.
-	ToolShellOutputStreamStderr ToolShellOutputStream = "stderr"
-	// Output from the shell command's standard output stream. This is the default when stream is omitted.
-	ToolShellOutputStreamStdout ToolShellOutputStream = "stdout"
-	// Inherently merged output that cannot be attributed separately to stdout or stderr.
-	ToolShellOutputStreamTerminal ToolShellOutputStream = "terminal"
 )
 
 // Lifecycle phase for a Rust-owned ephemeral query stream.

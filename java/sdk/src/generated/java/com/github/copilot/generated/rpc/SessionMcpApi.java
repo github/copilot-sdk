@@ -33,8 +33,6 @@ public final class SessionMcpApi {
     public final SessionMcpAppsApi apps;
     /** API methods for the {@code mcp.resources} sub-namespace. */
     public final SessionMcpResourcesApi resources;
-    /** API methods for the {@code mcp.prompts} sub-namespace. */
-    public final SessionMcpPromptsApi prompts;
 
     /** @param caller the RPC transport function */
     SessionMcpApi(RpcCaller caller, String sessionId) {
@@ -44,7 +42,6 @@ public final class SessionMcpApi {
         this.headers = new SessionMcpHeadersApi(caller, sessionId);
         this.apps = new SessionMcpAppsApi(caller, sessionId);
         this.resources = new SessionMcpResourcesApi(caller, sessionId);
-        this.prompts = new SessionMcpPromptsApi(caller, sessionId);
     }
 
     /**
@@ -168,10 +165,10 @@ public final class SessionMcpApi {
      * @since 1.0.0
      */
     @CopilotExperimental
-    CompletableFuture<McpStartServersResult> reloadWithConfig(SessionMcpReloadWithConfigParams params) {
+    public CompletableFuture<SessionMcpReloadWithConfigResult> reloadWithConfig(SessionMcpReloadWithConfigParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
-        return caller.invoke("session.mcp.reloadWithConfig", _p, McpStartServersResult.class);
+        return caller.invoke("session.mcp.reloadWithConfig", _p, SessionMcpReloadWithConfigResult.class);
     }
 
     /**
@@ -243,10 +240,10 @@ public final class SessionMcpApi {
      * @since 1.0.0
      */
     @CopilotExperimental
-    CompletableFuture<McpConfigureGitHubResult> configureGitHub(SessionMcpConfigureGitHubParams params) {
+    public CompletableFuture<SessionMcpConfigureGitHubResult> configureGitHub(SessionMcpConfigureGitHubParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
-        return caller.invoke("session.mcp.configureGitHub", _p, McpConfigureGitHubResult.class);
+        return caller.invoke("session.mcp.configureGitHub", _p, SessionMcpConfigureGitHubResult.class);
     }
 
     /**
@@ -352,7 +349,7 @@ public final class SessionMcpApi {
      * @since 1.0.0
      */
     @CopilotExperimental
-    CompletableFuture<Void> registerExternalClient(SessionMcpRegisterExternalClientParams params) {
+    public CompletableFuture<Void> registerExternalClient(SessionMcpRegisterExternalClientParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
         return caller.invoke("session.mcp.registerExternalClient", _p, Void.class);
@@ -368,7 +365,7 @@ public final class SessionMcpApi {
      * @since 1.0.0
      */
     @CopilotExperimental
-    CompletableFuture<Void> unregisterExternalClient(SessionMcpUnregisterExternalClientParams params) {
+    public CompletableFuture<Void> unregisterExternalClient(SessionMcpUnregisterExternalClientParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
         return caller.invoke("session.mcp.unregisterExternalClient", _p, Void.class);

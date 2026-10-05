@@ -23,7 +23,7 @@ import javax.annotation.processing.Generated;
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-record HostReleaseSessionParams(
+public record HostReleaseSessionParams(
     /** Identity of the participation to release without destroying the session. */
     @JsonProperty("handoffId") String handoffId
 ) {

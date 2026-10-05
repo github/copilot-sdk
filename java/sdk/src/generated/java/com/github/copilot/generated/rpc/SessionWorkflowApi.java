@@ -76,10 +76,10 @@ public final class SessionWorkflowApi {
      * @since 1.0.0
      */
     @CopilotExperimental
-    CompletableFuture<WorkflowRunResult> runFromTool(SessionWorkflowRunFromToolParams params) {
+    public CompletableFuture<SessionWorkflowRunFromToolResult> runFromTool(SessionWorkflowRunFromToolParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
-        return caller.invoke("session.workflow.runFromTool", _p, WorkflowRunResult.class);
+        return caller.invoke("session.workflow.runFromTool", _p, SessionWorkflowRunFromToolResult.class);
     }
 
     /**
@@ -92,10 +92,10 @@ public final class SessionWorkflowApi {
      * @since 1.0.0
      */
     @CopilotExperimental
-    CompletableFuture<WorkflowResumeResult> resumeFromTool(SessionWorkflowResumeFromToolParams params) {
+    public CompletableFuture<SessionWorkflowResumeFromToolResult> resumeFromTool(SessionWorkflowResumeFromToolParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
-        return caller.invoke("session.workflow.resumeFromTool", _p, WorkflowResumeResult.class);
+        return caller.invoke("session.workflow.resumeFromTool", _p, SessionWorkflowResumeFromToolResult.class);
     }
 
     /**
@@ -204,10 +204,10 @@ public final class SessionWorkflowApi {
      * @since 1.0.0
      */
     @CopilotExperimental
-    CompletableFuture<WorkflowPauseCheckpointResult> pauseAtCheckpoint(SessionWorkflowPauseAtCheckpointParams params) {
+    public CompletableFuture<SessionWorkflowPauseAtCheckpointResult> pauseAtCheckpoint(SessionWorkflowPauseAtCheckpointParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
-        return caller.invoke("session.workflow.pauseAtCheckpoint", _p, WorkflowPauseCheckpointResult.class);
+        return caller.invoke("session.workflow.pauseAtCheckpoint", _p, SessionWorkflowPauseAtCheckpointResult.class);
     }
 
     /**

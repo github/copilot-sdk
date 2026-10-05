@@ -14,7 +14,6 @@ import {
 } from "../../src/index.js";
 import { createSdkTestContext, DEFAULT_GITHUB_TOKEN, isCI } from "./harness/sdkTestContext";
 import { waitForCondition } from "./harness/sdkTestHelper";
-import { isByokBackend } from "./harness/testBackend";
 
 describe("Structured output", async () => {
     const { copilotClient: client, openAiEndpoint } = await createSdkTestContext({
@@ -22,30 +21,25 @@ describe("Structured output", async () => {
             env: { COPILOT_CLI_ENABLED_FEATURE_FLAGS: "HYDRAFUSION,HYDRAFUSION_ROLLOUT" },
         },
     });
-    const model = isByokBackend ? undefined : "gpt-4.1";
-    const provider: ProviderConfig | undefined = isByokBackend
-        ? undefined
-        : {
-              type: "openai",
-              wireApi: "completions",
-              baseUrl: openAiEndpoint.url,
-              modelId: "gpt-4.1",
-              wireModel: "gpt-4.1",
-              apiKey: isCI
-                  ? DEFAULT_GITHUB_TOKEN
-                  : (process.env.GITHUB_TOKEN ?? DEFAULT_GITHUB_TOKEN),
-              headers: {
-                  "Copilot-Integration-Id": "copilot-developer-cli",
-                  "Copilot-Harness-Id": "copilot-sdk",
-                  "X-GitHub-Api-Version": "2026-08-01",
-              },
-          };
+    const provider: ProviderConfig = {
+        type: "openai",
+        wireApi: "completions",
+        baseUrl: openAiEndpoint.url,
+        modelId: "gpt-4.1",
+        wireModel: "gpt-4.1",
+        apiKey: isCI ? DEFAULT_GITHUB_TOKEN : (process.env.GITHUB_TOKEN ?? DEFAULT_GITHUB_TOKEN),
+        headers: {
+            "Copilot-Integration-Id": "copilot-developer-cli",
+            "Copilot-Harness-Id": "copilot-sdk",
+            "X-GitHub-Api-Version": "2026-08-01",
+        },
+    };
 
     it("infers_typed_result_after_custom_tool", async () => {
         let calls = 0;
         const schema = z.object({ count: z.number().int(), color: z.string() });
         const session = await client.createSession({
-            model,
+            model: "gpt-4.1",
             provider,
             onPermissionRequest: approveAll,
             availableTools: [],
@@ -77,7 +71,7 @@ describe("Structured output", async () => {
         expect(ordinary?.data.content.trim()).toBe("HELLO");
         const exchanges = await openAiEndpoint.getExchanges();
         expect(exchanges.length).toBeGreaterThanOrEqual(3);
-        for (const exchange of isByokBackend ? [] : exchanges.slice(0, -1)) {
+        for (const exchange of exchanges.slice(0, -1)) {
             expect(exchange.request).toHaveProperty(
                 "response_format.json_schema.schema",
                 schema.toJSONSchema()
@@ -91,7 +85,7 @@ describe("Structured output", async () => {
         let calls = 0;
         let session: CopilotSession;
         session = await client.createSession({
-            model,
+            model: "gpt-4.1",
             provider,
             onPermissionRequest: approveAll,
             availableTools: [],
@@ -134,7 +128,7 @@ describe("Structured output", async () => {
         for (const exchange of exchanges.slice(1)) {
             expect(exchange.request).toHaveProperty("tool_choice", "none");
         }
-        for (const exchange of isByokBackend ? [] : exchanges) {
+        for (const exchange of exchanges) {
             expect(exchange.request).toHaveProperty(
                 "response_format.json_schema.schema",
                 schema.toJSONSchema()
@@ -147,7 +141,7 @@ describe("Structured output", async () => {
         let stops = 0;
         const replies: AssistantMessageEvent[] = [];
         const session = await client.createSession({
-            model,
+            model: "gpt-4.1",
             provider,
             onPermissionRequest: approveAll,
             availableTools: [],
@@ -194,7 +188,7 @@ describe("Structured output", async () => {
         const exchanges = await openAiEndpoint.getExchanges();
         expect(exchanges).toHaveLength(3);
         expect(exchanges[1].request).toHaveProperty("tool_choice", "none");
-        for (const exchange of isByokBackend ? [] : exchanges) {
+        for (const exchange of exchanges) {
             expect(exchange.request).toHaveProperty(
                 "response_format.json_schema.schema",
                 schema.toJSONSchema()
@@ -253,7 +247,7 @@ describe("Structured output", async () => {
             releaseHook = resolve;
         });
         const session = await client.createSession({
-            model,
+            model: "gpt-4.1",
             provider,
             onPermissionRequest: approveAll,
             availableTools: [],
@@ -325,7 +319,7 @@ describe("Structured output", async () => {
         const replies: AssistantMessageEvent[] = [];
         const schema = z.object({ answer: z.number().int() });
         const session = await client.createSession({
-            model,
+            model: "gpt-4.1",
             provider,
             onPermissionRequest: approveAll,
             availableTools: [],
@@ -353,7 +347,7 @@ describe("Structured output", async () => {
         expect(replies[1].data.originatingMessageId).toBe(replies[0].data.originatingMessageId);
         const exchanges = await openAiEndpoint.getExchanges();
         expect(exchanges).toHaveLength(2);
-        for (const exchange of isByokBackend ? [] : exchanges) {
+        for (const exchange of exchanges) {
             expect(exchange.request).toHaveProperty(
                 "response_format.json_schema.schema",
                 schema.toJSONSchema()
@@ -368,7 +362,7 @@ describe("Structured output", async () => {
         const replies: AssistantMessageEvent[] = [];
         const schema = z.object({ answer: z.number().int() });
         session = await client.createSession({
-            model,
+            model: "gpt-4.1",
             provider,
             onPermissionRequest: approveAll,
             availableTools: [],
@@ -400,7 +394,7 @@ describe("Structured output", async () => {
         expect(replies[1].data.originatingMessageId).toBe(replies[0].data.originatingMessageId);
         const exchanges = await openAiEndpoint.getExchanges();
         expect(exchanges).toHaveLength(2);
-        for (const exchange of isByokBackend ? [] : exchanges) {
+        for (const exchange of exchanges) {
             expect(exchange.request).toHaveProperty(
                 "response_format.json_schema.schema",
                 schema.toJSONSchema()
@@ -418,7 +412,7 @@ describe("Structured output", async () => {
             releaseTool = resolve;
         });
         const session = await client.createSession({
-            model,
+            model: "gpt-4.1",
             provider,
             onPermissionRequest: approveAll,
             availableTools: [],
@@ -475,7 +469,7 @@ describe("Structured output", async () => {
 
     it("sends_explicit_schema_for_message_and_batch", async () => {
         const session = await client.createSession({
-            model,
+            model: "gpt-4.1",
             provider,
             onPermissionRequest: approveAll,
             availableTools: [],

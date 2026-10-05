@@ -22,19 +22,6 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionFsSetProviderCapabilities(
     /** Whether the provider supports SQLite query/exists operations */
-    @JsonProperty("sqlite") Boolean sqlite,
-    /** Whether the provider supports binary reads and writes through sessionFs.readFileBytes and sessionFs.writeFileBytes */
-    @JsonProperty("binary") Boolean binary
+    @JsonProperty("sqlite") Boolean sqlite
 ) {
-
-    /**
-     * Creates provider capabilities without binary reads.
-     *
-     * @param sqlite Whether the provider supports SQLite query/exists operations
-     */
-    public SessionFsSetProviderCapabilities(
-        Boolean sqlite
-    ) {
-        this(sqlite, null);
-    }
 }

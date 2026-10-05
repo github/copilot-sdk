@@ -10,7 +10,6 @@ package com.github.copilot.generated;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.github.copilot.CopilotExperimental;
 import java.util.List;
 import javax.annotation.processing.Generated;
 
@@ -37,31 +36,22 @@ public final class PermissionMessageAuthorizationEvent extends SessionEvent {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record PermissionMessageAuthorizationEventData(
         /** Deterministic identity of the record, derived from the turn and span offsets so re-extracting the same span mints nothing new. */
-        @CopilotExperimental
         @JsonProperty("recordId") String recordId,
         /** The human turn the quoted span was read from. */
-        @CopilotExperimental
         @JsonProperty("turnIndex") Long turnIndex,
         /** Whether the claim granted or denied authority. */
-        @CopilotExperimental
         @JsonProperty("polarity") PermissionMessageAuthorizationPolarity polarity,
         /** The kind of effect authorized, as an action-class identifier. */
-        @CopilotExperimental
         @JsonProperty("actionClass") String actionClass,
         /** Start byte offset of the authorizing span within the turn. */
-        @CopilotExperimental
         @JsonProperty("spanStart") Long spanStart,
         /** End byte offset of the authorizing span within the turn. */
-        @CopilotExperimental
         @JsonProperty("spanEnd") Long spanEnd,
         /** Concrete named targets that appear verbatim inside the span. */
-        @CopilotExperimental
         @JsonProperty("targetMembers") List<String> targetMembers,
         /** The task the permission is scoped to, when the human named one. */
-        @CopilotExperimental
         @JsonProperty("task") String task,
         /** The trusted version discriminator, when one exists. Exact shell-command grants carry the byte-identical commands grounded in the human span; world-derived classes carry a file object, remote tip, or runner only when that state was captured safely. An opaque object mirroring the runtime's adjacently-tagged resolution. */
-        @CopilotExperimental
         @JsonProperty("world") Object world
     ) {
     }

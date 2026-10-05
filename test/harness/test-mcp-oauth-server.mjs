@@ -127,30 +127,6 @@ export async function startOAuthMcpServer({
       return;
     }
 
-    if (req.method === "POST" && url.pathname === "/token") {
-      requests.push({
-        method: req.method,
-        path: url.pathname,
-        authorization: req.headers.authorization ?? null,
-        body,
-      });
-      const form = new URLSearchParams(body);
-      if (
-        form.get("grant_type") !== "authorization_code" ||
-        form.get("code") !== "accepted-code" ||
-        !form.get("code_verifier")
-      ) {
-        respondJson(res, 400, { error: "invalid_grant" });
-        return;
-      }
-      respondJson(res, 200, {
-        access_token: expectedToken,
-        token_type: "Bearer",
-        expires_in: 3600,
-      });
-      return;
-    }
-
     if (url.pathname !== "/mcp") {
       respondJson(res, 404, { error: "not_found" });
       return;

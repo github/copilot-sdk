@@ -1,5 +1,3 @@
-# Copyright (c) Microsoft Corporation. All rights reserved.
-
 """
 Tool definition utilities for the Copilot SDK.
 
@@ -255,7 +253,7 @@ def define_tool(
                 # Build args based on detected signature
                 call_args = []
                 if takes_params:
-                    args = invocation.arguments if invocation.arguments is not None else {}
+                    args = invocation.arguments or {}
                     if ptype is not None and _is_pydantic_model(ptype):
                         try:
                             call_args.append(ptype.model_validate(args))

@@ -10,7 +10,6 @@ package com.github.copilot.generated;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
@@ -36,22 +35,16 @@ public final class PermissionContextualAuthorizationEvent extends SessionEvent {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record PermissionContextualAuthorizationEventData(
         /** Deterministic identity of the contextual message grant. */
-        @CopilotExperimental
         @JsonProperty("recordId") String recordId,
         /** Original blocked permission request selected by deterministic event ordering, never by the extraction model. */
-        @CopilotExperimental
         @JsonProperty("requestId") String requestId,
         /** Human turn containing the contextual decision. */
-        @CopilotExperimental
         @JsonProperty("turnIndex") Long turnIndex,
         /** Whether the contextual human span granted or denied authority. */
-        @CopilotExperimental
         @JsonProperty("polarity") PermissionMessageAuthorizationPolarity polarity,
         /** Start byte offset of the contextual decision span within the turn. */
-        @CopilotExperimental
         @JsonProperty("spanStart") Long spanStart,
         /** End byte offset of the contextual decision span within the turn. */
-        @CopilotExperimental
         @JsonProperty("spanEnd") Long spanEnd
     ) {
     }

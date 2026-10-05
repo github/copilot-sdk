@@ -44,8 +44,6 @@ import type {
     ResumeData,
     StartData,
     ToolExecutionCompleteData,
-    ToolExecutionCompleteFileEdit,
-    ToolExecutionCompleteFileEditKind,
     ToolExecutionPartialData,
     ToolExecutionProgressData,
     ToolExecutionStartData,
@@ -221,21 +219,6 @@ describe("Session event type exports (#1156)", () => {
         expect(data.mcpToolName).toBe("list_dir");
         expect(data.turnId).toBe("turn-1");
     });
-
-    it.each([
-        "create",
-        "edit",
-        "delete",
-        "future_kind",
-    ] satisfies ToolExecutionCompleteFileEditKind[])(
-        "preserves file edit kind %s in completion data",
-        (kind) => {
-            const edit: ToolExecutionCompleteFileEdit = { path: "/session/file.txt", kind };
-            const data: Pick<ToolExecutionCompleteData, "fileEdits"> = { fileEdits: [edit] };
-
-            expect(JSON.parse(JSON.stringify(data))).toEqual({ fileEdits: [edit] });
-        }
-    );
 
     it("exposes explicit user approval metadata for managed Domain requests", () => {
         const request: PermissionRequest = {

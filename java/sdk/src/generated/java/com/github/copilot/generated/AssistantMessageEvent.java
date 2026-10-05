@@ -10,7 +10,6 @@ package com.github.copilot.generated;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.github.copilot.CopilotExperimental;
 import java.util.List;
 import javax.annotation.processing.Generated;
 
@@ -83,10 +82,8 @@ public final class AssistantMessageEvent extends SessionEvent {
         /** Tool call ID of the parent tool invocation when this event originates from a sub-agent */
         @JsonProperty("parentToolCallId") String parentToolCallId,
         /** Provider-agnostic citations linking spans of this message's content to the sources that support them. Experimental; only populated when citation emission is enabled. */
-        @CopilotExperimental
         @JsonProperty("citations") Citations citations,
         /** Experimental HydraFusion source attribution for this ordinary authoritative assistant message. */
-        @CopilotExperimental
         @JsonProperty("fusion") FusionAttribution fusion
     ) {
     }

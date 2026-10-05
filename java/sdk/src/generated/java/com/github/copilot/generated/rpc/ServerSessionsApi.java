@@ -91,7 +91,7 @@ public final class ServerSessionsApi {
      * @since 1.0.0
      */
     @CopilotExperimental
-    CompletableFuture<SessionsGetMetadataResult> getMetadata(SessionsGetMetadataParams params) {
+    public CompletableFuture<SessionsGetMetadataResult> getMetadata(SessionsGetMetadataParams params) {
         return caller.invoke("sessions.getMetadata", params, SessionsGetMetadataResult.class);
     }
 
@@ -124,7 +124,7 @@ public final class ServerSessionsApi {
      * @since 1.0.0
      */
     @CopilotExperimental
-    CompletableFuture<SessionsListNonEmptySessionIdsResult> listNonEmptySessionIds(SessionsListNonEmptySessionIdsParams params) {
+    public CompletableFuture<SessionsListNonEmptySessionIdsResult> listNonEmptySessionIds(SessionsListNonEmptySessionIdsParams params) {
         return caller.invoke("sessions.listNonEmptySessionIds", params, SessionsListNonEmptySessionIdsResult.class);
     }
 
@@ -168,7 +168,7 @@ public final class ServerSessionsApi {
      * @since 1.0.0
      */
     @CopilotExperimental
-    CompletableFuture<SessionsGetEventFilePathResult> getEventFilePath(SessionsGetEventFilePathParams params) {
+    public CompletableFuture<SessionsGetEventFilePathResult> getEventFilePath(SessionsGetEventFilePathParams params) {
         return caller.invoke("sessions.getEventFilePath", params, SessionsGetEventFilePathResult.class);
     }
 
@@ -201,7 +201,7 @@ public final class ServerSessionsApi {
      * @since 1.0.0
      */
     @CopilotExperimental
-    CompletableFuture<SessionsGetPersistedRemoteSteerableResult> getPersistedRemoteSteerable(SessionsGetPersistedRemoteSteerableParams params) {
+    public CompletableFuture<SessionsGetPersistedRemoteSteerableResult> getPersistedRemoteSteerable(SessionsGetPersistedRemoteSteerableParams params) {
         return caller.invoke("sessions.getPersistedRemoteSteerable", params, SessionsGetPersistedRemoteSteerableResult.class);
     }
 
@@ -234,7 +234,7 @@ public final class ServerSessionsApi {
      * @since 1.0.0
      */
     @CopilotExperimental
-    CompletableFuture<Void> delete(SessionsDeleteParams params) {
+    public CompletableFuture<Void> delete(SessionsDeleteParams params) {
         return caller.invoke("sessions.delete", params, Void.class);
     }
 
@@ -322,7 +322,7 @@ public final class ServerSessionsApi {
      * @since 1.0.0
      */
     @CopilotExperimental
-    CompletableFuture<SessionsGetBoardEntryCountResult> getBoardEntryCount(SessionsGetBoardEntryCountParams params) {
+    public CompletableFuture<SessionsGetBoardEntryCountResult> getBoardEntryCount(SessionsGetBoardEntryCountParams params) {
         return caller.invoke("sessions.getBoardEntryCount", params, SessionsGetBoardEntryCountResult.class);
     }
 
@@ -401,7 +401,7 @@ public final class ServerSessionsApi {
      * @since 1.0.0
      */
     @CopilotExperimental
-    CompletableFuture<Void> configureSessionExtensions(SessionsConfigureSessionExtensionsParams params) {
+    public CompletableFuture<Void> configureSessionExtensions(SessionsConfigureSessionExtensionsParams params) {
         return caller.invoke("sessions.configureSessionExtensions", params, Void.class);
     }
 

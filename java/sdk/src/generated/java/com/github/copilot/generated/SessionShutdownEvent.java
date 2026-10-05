@@ -10,7 +10,6 @@ package com.github.copilot.generated;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.github.copilot.CopilotExperimental;
 import java.util.Map;
 import javax.annotation.processing.Generated;
 
@@ -43,7 +42,6 @@ public final class SessionShutdownEvent extends SessionEvent {
         /** Total number of premium API requests used during the session */
         @JsonProperty("totalPremiumRequests") Double totalPremiumRequests,
         /** Session-wide accumulated nano-AI units cost */
-        @CopilotExperimental
         @JsonProperty("totalNanoAiu") Double totalNanoAiu,
         /** Session-wide per-token-type accumulated token counts */
         @JsonProperty("tokenDetails") Map<String, ShutdownTokenDetail> tokenDetails,

@@ -61,9 +61,9 @@ public abstract sealed class SystemMessageSections permits SystemPromptSections 
     public static final String CUSTOM_INSTRUCTIONS = "custom_instructions";
 
     /**
-     * Runtime-provided system-prompt context and instructions, such as system
-     * notifications, memories, workspace context, and content-exclusion policy.
-     * Mode-specific instructions can travel in transition messages instead.
+     * Runtime-provided context and instructions (e.g. system notifications,
+     * memories, workspace context, mode-specific instructions, content-exclusion
+     * policy).
      *
      * @since 1.3.0
      */
@@ -71,8 +71,7 @@ public abstract sealed class SystemMessageSections permits SystemPromptSections 
 
     /**
      * End-of-prompt instructions: parallel tool calling, persistence, task
-     * completion, and configured subagent-model guidance when the task tool is
-     * available.
+     * completion.
      */
     public static final String LAST_INSTRUCTIONS = "last_instructions";
 

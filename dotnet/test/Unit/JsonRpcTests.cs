@@ -102,15 +102,12 @@ public class JsonRpcTests
         using var pair = JsonRpcReflectionPair.Create();
         var handlerStarted = new TaskCompletionSource<CancellationToken>(
             TaskCreationOptions.RunContinuationsAsynchronously);
-        var handlerDispatched = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         pair.Server.SetLocalRpcMethod("waitForShutdown", (Func<CancellationToken, Task>)(async cancellationToken =>
         {
-            await handlerDispatched.Task;
             handlerStarted.SetResult(cancellationToken);
             await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
         }));
-        pair.Server.SetLocalRpcMethod("handlerDispatched", (Action)(() => handlerDispatched.SetResult()));
 
         if (requestHasId)
         {
@@ -120,8 +117,6 @@ public class JsonRpcTests
         {
             await pair.SendClientFrameAsync(CreateNotificationFrame("waitForShutdown", "{}"));
         }
-        // Keep the handler suspended until dispatch returns, before testing shutdown cancellation.
-        await pair.SendClientFrameAsync(CreateNotificationFrame("handlerDispatched", "{}"));
 
         var handlerToken = await WaitForCancellationAsync(handlerStarted.Task);
         Assert.False(handlerToken.IsCancellationRequested);
@@ -129,24 +124,6 @@ public class JsonRpcTests
         pair.Server.Dispose();
 
         await WaitForCancellationAsync(handlerToken);
-    }
-
-    [Fact]
-    public async Task JsonRpc_Invokes_Task_Returning_Handler_To_Completion()
-    {
-        using var pair = JsonRpcReflectionPair.Create();
-        pair.StartListening();
-
-        var observed = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
-        pair.Server.SetLocalRpcMethod("voidAsync", (Func<string, int, CancellationToken, Task>)(async (name, count, cancellationToken) =>
-        {
-            await Task.Yield();
-            observed.SetResult($"{name}:{count}");
-        }));
-
-        await pair.Client.InvokeAsync<object?>("voidAsync", ["Mona", 2]).WaitAsync(TimeSpan.FromSeconds(5));
-
-        Assert.Equal("Mona:2", await observed.Task.WaitAsync(TimeSpan.FromSeconds(5)));
     }
 
     [Fact]
@@ -281,15 +258,6 @@ public class JsonRpcTests
         var malformed = CreateNotificationFrame(
             "session.event",
             """{"sessionId":"session-1","event":42}""");
-        var malformedDiscriminator = CreateNotificationFrame(
-            "session.event",
-            """{"sessionId":"session-1","event":{"type":false}}""");
-        var duplicateDiscriminator = CreateNotificationFrame(
-            "session.event",
-            """{"sessionId":"session-1","event":{"type":"session.idle","data":{},"type":"session.idle"}}""");
-        var unexpectedMetadata = CreateNotificationFrame(
-            "session.event",
-            """{"sessionId":"session-1","event":{"type":"future.event","$id":"1"}}""");
         var unknown = CreateNotificationFrame(
             "session.event",
             """
@@ -323,8 +291,7 @@ public class JsonRpcTests
             }
             """);
 
-        using var receiveStream = new MemoryStream(CombineFrames(
-            [malformed, malformedDiscriminator, duplicateDiscriminator, unexpectedMetadata, unknown, known]));
+        using var receiveStream = new MemoryStream(CombineFrames([malformed, unknown, known]));
         using var rpc = new JsonRpcReflection(Stream.Null, receiveStream);
         var collector = new SessionEventCollector(expectedCount: 2);
         rpc.SetLocalRpcMethod("session.event", (Action<string, SessionEvent?>)collector.Handle);
@@ -488,17 +455,11 @@ public class JsonRpcTests
         private static readonly Type JsonRpcType =
             typeof(CopilotClient).Assembly.GetType("GitHub.Copilot.JsonRpc", throwOnError: true)!;
 
-        private static readonly JsonSerializerOptions SerializerOptions = CreateSerializerOptions();
-
-        private static JsonSerializerOptions CreateSerializerOptions()
+        private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web)
         {
-            var property = typeof(CopilotClient).GetProperty(
-                "SerializerOptionsForMessageFormatter",
-                BindingFlags.Static | BindingFlags.NonPublic)!;
-            var options = new JsonSerializerOptions((JsonSerializerOptions)property.GetValue(null)!);
-            options.TypeInfoResolverChain.Add(new DefaultJsonTypeInfoResolver());
-            return options;
-        }
+            AllowOutOfOrderMetadataProperties = true,
+            TypeInfoResolver = new DefaultJsonTypeInfoResolver(),
+        };
 
         private readonly object _instance;
 

@@ -34,4 +34,4 @@ import { writeFileSync } from "fs";
 writeFileSync("dist/cjs/package.json", JSON.stringify({ type: "commonjs" }) + "\n");
 
 // Generate .d.ts files
-execSync("tsc --incremental --tsBuildInfoFile dist/tsconfig.tsbuildinfo", { stdio: "inherit" });
+execSync("tsc", { stdio: "inherit" });

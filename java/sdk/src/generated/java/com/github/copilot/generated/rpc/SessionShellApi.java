@@ -31,7 +31,7 @@ public final class SessionShellApi {
     }
 
     /**
-     * Shell command to run, with optional working directory and timeout in milliseconds. Spawn failures return an RPC error.
+     * Shell command to run, with optional working directory and timeout in milliseconds.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.

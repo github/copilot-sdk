@@ -1208,9 +1208,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             config.Hooks.OnSessionStart != null ||
             config.Hooks.OnSessionEnd != null ||
             config.Hooks.OnErrorOccurred != null ||
-            config.Hooks.OnAgentStop != null ||
-            config.Hooks.OnSubagentStart != null ||
-            config.Hooks.OnSubagentStop != null);
+            config.Hooks.OnAgentStop != null);
 
         var (wireSystemMessage, transformCallbacks) = ExtractTransformCallbacks(config.SystemMessage);
 
@@ -1229,7 +1227,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         var registrationId = RegisterGitHubTokenProvider(config.GitHubTokenProvider);
         var registrationTransferred = false;
         CopilotSession? session = null;
-        string? serverAssignedSessionId = null;
         try
         {
             if (localSessionId != null)
@@ -1346,7 +1343,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                     && sessionIdProp.GetString() is string sessionId
                     && !string.IsNullOrEmpty(sessionId))
                 {
-                    serverAssignedSessionId = sessionId;
                     session = InitializeSession(
                         sessionId,
                         connection.Rpc,
@@ -1354,7 +1350,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                         transformCallbacks,
                         hasHooks,
                         "CopilotClient.CreateSessionAsync");
-                    serverAssignedSessionId = null;
                 }
             };
 
@@ -1396,22 +1391,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         catch (Exception ex)
         {
             session?.Unregister();
-            if (localSessionId is null && serverAssignedSessionId is not null)
-            {
-                try
-                {
-                    using var cleanupTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-                    await DeleteSessionAsync(serverAssignedSessionId, cleanupTimeout.Token).ConfigureAwait(false);
-                }
-                catch (Exception cleanupError) when (cleanupError is OperationCanceledException
-                    or IOException
-                    or SocketException
-                    or InvalidOperationException
-                    or ObjectDisposedException)
-                {
-                    _logger.LogWarning(cleanupError, "Failed to delete cloud session {SessionId} after creation failed", serverAssignedSessionId);
-                }
-            }
 
             if (ex is not OperationCanceledException)
             {
@@ -1486,9 +1465,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             config.Hooks.OnSessionStart != null ||
             config.Hooks.OnSessionEnd != null ||
             config.Hooks.OnErrorOccurred != null ||
-            config.Hooks.OnAgentStop != null ||
-            config.Hooks.OnSubagentStart != null ||
-            config.Hooks.OnSubagentStop != null);
+            config.Hooks.OnAgentStop != null);
 
         var (wireSystemMessage, transformCallbacks) = ExtractTransformCallbacks(config.SystemMessage);
 
@@ -2219,11 +2196,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             throw new InvalidOperationException(
                 "SessionFsConfig declares capabilities.sqlite but the provider does not implement ISessionFsSqliteProvider.");
         }
-        if (_options.SessionFs.Capabilities?.Binary == true && provider is not ISessionFsBinaryProvider)
-        {
-            throw new InvalidOperationException(
-                "SessionFsConfig declares capabilities.binary but the provider does not implement ISessionFsBinaryProvider.");
-        }
 
         session.ClientSessionApis.SessionFs = provider;
     }
@@ -2892,8 +2864,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
         };
 
-        options.Converters.Add(SessionEventJsonConverter.Default);
-        options.TypeInfoResolverChain.Add(SessionEventJsonTypeInfoResolver.Default);
         options.TypeInfoResolverChain.Add(ClientJsonContext.Default);
         options.TypeInfoResolverChain.Add(TypesJsonContext.Default);
         options.TypeInfoResolverChain.Add(CopilotSession.SessionJsonContext.Default);

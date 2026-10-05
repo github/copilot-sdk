@@ -65,8 +65,6 @@ use crate::{Custom, Repr};
 pub struct SessionFsCapabilities {
     /// Whether the provider supports SQLite query/exists operations.
     pub sqlite: bool,
-    /// Whether the provider supports exact binary reads and writes.
-    pub binary: bool,
 }
 
 impl SessionFsCapabilities {
@@ -78,12 +76,6 @@ impl SessionFsCapabilities {
     /// Enable SQLite support.
     pub fn with_sqlite(mut self, sqlite: bool) -> Self {
         self.sqlite = sqlite;
-        self
-    }
-
-    /// Enable binary file reads and writes.
-    pub fn with_binary(mut self, binary: bool) -> Self {
-        self.binary = binary;
         self
     }
 }
@@ -183,7 +175,6 @@ impl fmt::Display for FsErrorKind {
 #[derive(Debug)]
 pub struct FsError {
     repr: Repr<FsErrorKind>,
-    write_changed: bool,
 }
 
 impl FsError {
@@ -197,7 +188,6 @@ impl FsError {
                 kind,
                 error: error.into(),
             }),
-            write_changed: false,
         }
     }
 
@@ -226,24 +216,7 @@ impl FsError {
     {
         Self {
             repr: Repr::SimpleMessage(kind, message.into()),
-            write_changed: false,
         }
-    }
-
-    /// Mark a failed `write_file` as having changed its target before failing.
-    #[must_use]
-    pub fn with_write_changed(mut self) -> Self {
-        self.write_changed = true;
-        self
-    }
-
-    pub(crate) fn into_write_wire(self) -> SessionFsError {
-        let changed = self.write_changed;
-        let mut wire = self.into_wire();
-        if changed {
-            wire.write_changed = Some(true);
-        }
-        wire
     }
 
     pub(crate) fn into_wire(self) -> SessionFsError {
@@ -251,12 +224,10 @@ impl FsError {
             FsErrorKind::NotFound(message) => SessionFsError {
                 code: SessionFsErrorCode::ENOENT,
                 message: Some(message.clone()),
-                write_changed: None,
             },
             FsErrorKind::Other => SessionFsError {
                 code: SessionFsErrorCode::UNKNOWN,
                 message: Some(self.to_string()),
-                write_changed: None,
             },
         }
     }
@@ -285,7 +256,6 @@ impl From<FsErrorKind> for FsError {
     fn from(kind: FsErrorKind) -> Self {
         Self {
             repr: Repr::Simple(kind),
-            write_changed: false,
         }
     }
 }
@@ -432,13 +402,7 @@ pub trait SessionFsProvider: Send + Sync + 'static {
         ))
     }
 
-    /// Return an optional binary implementation when this provider supports it.
-    fn binary(&self) -> Option<&dyn SessionFsBinaryProvider> {
-        None
-    }
-
-    /// Write content to a file, creating parent directories if needed. Mark a failed
-    /// write with [`FsError::with_write_changed`] only if it changed the target.
+    /// Write content to a file, creating parent directories if needed.
     async fn write_file(
         &self,
         path: &str,
@@ -539,21 +503,6 @@ pub trait SessionFsProvider: Send + Sync + 'static {
     fn sqlite(&self) -> Option<&dyn SessionFsSqliteProvider> {
         None
     }
-}
-
-/// Optional exact-byte reads and writes for providers declaring `binary`.
-#[async_trait]
-pub trait SessionFsBinaryProvider: Send + Sync {
-    /// Read exact bytes of the file at `path`.
-    async fn read_file_bytes(&self, path: &str) -> Result<Vec<u8>, FsError>;
-
-    /// Write exact bytes to the file at `path`, using `mode` when supplied.
-    async fn write_file_bytes(
-        &self,
-        path: &str,
-        content: &[u8],
-        mode: Option<i64>,
-    ) -> Result<(), FsError>;
 }
 
 /// Optional trait for providers that support SQLite operations.
@@ -672,7 +621,52 @@ pub struct SessionFsSqliteQueryResult {
 }
 
 #[cfg(test)]
-mod tests;
+mod tests {
+    use super::*;
 
-#[cfg(test)]
-mod write_failure_tests;
+    #[test]
+    fn fs_error_maps_io_not_found_to_enoent() {
+        let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "missing.txt");
+        let fs_err: FsError = io_err.into();
+        assert!(
+            matches!(fs_err.kind(), FsErrorKind::NotFound(message) if message == "missing.txt")
+        );
+        let wire = fs_err.into_wire();
+        assert_eq!(wire.code, SessionFsErrorCode::ENOENT);
+    }
+
+    #[test]
+    fn fs_error_maps_other_io_to_unknown() {
+        let io_err = std::io::Error::other("disk full");
+        let fs_err: FsError = io_err.into();
+        assert!(matches!(fs_err.kind(), FsErrorKind::Other));
+        let wire = fs_err.into_wire();
+        assert_eq!(wire.code, SessionFsErrorCode::UNKNOWN);
+        assert!(wire.message.unwrap().contains("disk full"));
+    }
+
+    #[test]
+    fn conventions_maps_to_wire() {
+        assert_eq!(
+            SessionFsConventions::Posix.into_wire(),
+            SessionFsSetProviderConventions::Posix
+        );
+        assert_eq!(
+            SessionFsConventions::Windows.into_wire(),
+            SessionFsSetProviderConventions::Windows
+        );
+    }
+
+    struct DefaultProvider;
+    #[async_trait]
+    impl SessionFsProvider for DefaultProvider {}
+
+    #[tokio::test]
+    async fn default_impls_return_unsupported() {
+        let p = DefaultProvider;
+        let err = p.read_file("/x").await.unwrap_err();
+        assert!(
+            matches!(err.kind(), FsErrorKind::Other) && err.to_string().contains("not supported")
+        );
+    }
+}

@@ -4,9 +4,6 @@ name: "SDK build and test"
 
 env:
   COPILOT_BAZEL_ANG_ENABLED: ${{ vars.COPILOT_BAZEL_ANG_ENABLED }}
-  COPILOT_BAZEL_ANG_SCOPE: ${{ vars.COPILOT_BAZEL_ANG_SCOPE }}
-  COPILOT_BAZEL_ANG_PR_SAMPLE_PERCENTAGE: ${{ vars.COPILOT_BAZEL_ANG_PR_SAMPLE_PERCENTAGE }}
-  COPILOT_BAZEL_ANG_PR_SAMPLED_MODE: ${{ vars.COPILOT_BAZEL_ANG_PR_SAMPLED_MODE }}
   HUSKY: 0
   POWERSHELL_UPDATECHECK: Off
   SETUP_NODE_TIMEOUT_MINUTES: 10
@@ -52,9 +49,8 @@ jobs:
           fi
 
   # TEMPORARY MERGE QUEUE REDUCTION: pull requests and main pushes retain the
-  # full SDK matrix. Merge groups rerun only Linux x64 Node.js out-of-process
-  # CAPI coverage. Remove the merge_group gates here and in sdk-platform.yml
-  # and sdk-nodejs.yml to restore the full matrix.
+  # full platform matrix. Merge groups rerun Linux x64 as the representative
+  # compatibility lane. Remove the merge_group gates below to restore it.
   build-runtime-windows-x64-addons:
     name: "Build runtime addons (win32-x64)"
     needs: detect-layout
@@ -131,9 +127,6 @@ jobs:
       - name: Cross-build Windows x64 addons
         if: steps.cache.outputs.cache-hit != 'true'
         env:
-          # The CI-owned Bazel override is intentionally trusted; without this
-          # identity the producer stamps an empty source while consumers verify the SHA.
-          COPILOT_NAPI_ADDONS_BUILD_IDENTITY: ${{ github.sha }}
           CLI_GIT_COMMIT: ${{ github.sha }}
           CLI_PACKAGE_NAME: "@github/copilot"
           CLI_TARGET: win32-x64
@@ -327,31 +320,6 @@ jobs:
       sdk-home: ${{ needs.detect-layout.outputs.sdk-home }}
     secrets: inherit
 
-  sdk-typescript:
-    name: sdk-typescript
-    if: always()
-    needs: [sdk-linux-x64, sdk-linuxmusl-x64, sdk-darwin-arm64, sdk-win32-x64]
-    runs-on: ubuntu-slim
-    steps:
-      - name: Check Node.js SDK results
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          RESULTS: ${{ toJSON(needs) }}
-        run: |
-          for job in sdk-linux-x64 sdk-linuxmusl-x64 sdk-darwin-arm64 sdk-win32-x64; do
-            expected=success
-            result=$(jq -r --arg job "$job" '.[$job].outputs["nodejs-result"]' <<< "$RESULTS")
-            # TEMPORARY MERGE QUEUE REDUCTION: only Linux x64 runs in merge groups.
-            if [[ "$EVENT_NAME" == "merge_group" && "$job" != "sdk-linux-x64" ]]; then
-              expected=skipped
-              result=$(jq -r --arg job "$job" '.[$job].result' <<< "$RESULTS")
-            fi
-            if [[ "$result" != "$expected" ]]; then
-              echo "::error::Node.js SDK job $job: expected $expected, got $result"
-              exit 1
-            fi
-          done
-
   check-freshness:
     name: "Check schema and SDK freshness"
     needs: detect-layout
@@ -486,7 +454,7 @@ jobs:
                 exit 1
               fi
             done
-            echo "Linux x64 Node.js SDK compatibility and generated clients passed"
+            echo "Linux x64 SDK compatibility and generated clients passed"
             exit 0
           fi
 

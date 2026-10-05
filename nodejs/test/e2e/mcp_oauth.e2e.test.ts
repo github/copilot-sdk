@@ -63,66 +63,6 @@ describe("MCP OAuth host auth", async () => {
         }
     );
 
-    it(
-        "should complete runtime-managed OAuth through a hosted callback",
-        { timeout: 120_000 },
-        async () => {
-            const oauthServer = await startOAuthMcpServer();
-            const serverName = "oauth-hosted-callback-mcp";
-            const redirectUri = "https://agent.example.test/oauth/callback";
-            const session = await client.createSession({
-                onPermissionRequest: approveAll,
-                mcpServers: {
-                    [serverName]: {
-                        type: "http",
-                        url: `${oauthServer.url}/mcp`,
-                        tools: ["*"],
-                        oauthClientId: "sdk-e2e-client",
-                        oauthPublicClient: true,
-                    } as unknown as MCPServerConfig,
-                },
-            });
-            onTestFinished(() => disconnectSession(session));
-
-            await waitForMcpServerStatus(session, serverName, "needs-auth");
-            const login = await session.rpc.mcp.oauth.login({
-                serverName,
-                redirectUri,
-            });
-
-            expect(login.authorizationUrl).toBeDefined();
-            expect(login.authorizationId).toBeDefined();
-            const authorizationUrl = new URL(login.authorizationUrl!);
-            expect(authorizationUrl.searchParams.get("redirect_uri")).toBe(redirectUri);
-            expect(authorizationUrl.searchParams.get("state")).toBe(login.authorizationId);
-
-            const callbackUrl = new URL(redirectUri);
-            callbackUrl.searchParams.set("code", "accepted-code");
-            callbackUrl.searchParams.set("state", login.authorizationId!);
-            await session.rpc.mcp.oauth.complete({
-                authorizationId: login.authorizationId!,
-                callbackUrl: callbackUrl.toString(),
-            });
-
-            await waitForMcpServerStatus(session, serverName);
-            const tools = await session.rpc.mcp.listTools({ serverName });
-            expect(tools.tools.map((tool) => tool.name)).toContain("whoami");
-
-            const requests = await oauthServer.requests();
-            const tokenRequest = requests.find((request) => request.path === "/token");
-            expect(tokenRequest).toBeDefined();
-            const tokenForm = new URLSearchParams(tokenRequest!.body ?? "");
-            expect(tokenForm.get("grant_type")).toBe("authorization_code");
-            expect(tokenForm.get("code")).toBe("accepted-code");
-            expect(tokenForm.get("redirect_uri")).toBe(redirectUri);
-            expect(tokenForm.get("client_id")).toBe("sdk-e2e-client");
-            expect(tokenForm.get("code_verifier")).toEqual(expect.any(String));
-            expect(
-                requests.some((request) => request.authorization === `Bearer ${EXPECTED_TOKEN}`)
-            ).toBe(true);
-        }
-    );
-
     it("should satisfy MCP OAuth using host-provided token", { timeout: 120_000 }, async () => {
         const oauthServer = await startOAuthMcpServer();
         const serverName = "oauth-protected-mcp";
@@ -409,9 +349,7 @@ async function callWhoami(
 
 async function startOAuthMcpServer(options: { cimdSupported?: boolean } = {}): Promise<{
     url: string;
-    requests: () => Promise<
-        Array<{ authorization: string | null; body: string | null; path: string }>
-    >;
+    requests: () => Promise<Array<{ authorization: string | null; path: string }>>;
 }> {
     const child = spawn(process.execPath, [TEST_MCP_OAUTH_SERVER], {
         env: {

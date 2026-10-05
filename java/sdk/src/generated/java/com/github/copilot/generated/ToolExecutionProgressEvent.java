@@ -10,7 +10,6 @@ package com.github.copilot.generated;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
@@ -38,10 +37,7 @@ public final class ToolExecutionProgressEvent extends SessionEvent {
         /** Tool call ID this progress notification belongs to */
         @JsonProperty("toolCallId") String toolCallId,
         /** Human-readable progress status message (e.g., from an MCP server) */
-        @JsonProperty("progressMessage") String progressMessage,
-        /** Client-only structured progress metadata. Not model-facing tool output. */
-        @CopilotExperimental
-        @JsonProperty("structuredContent") Object structuredContent
+        @JsonProperty("progressMessage") String progressMessage
     ) {
     }
 }

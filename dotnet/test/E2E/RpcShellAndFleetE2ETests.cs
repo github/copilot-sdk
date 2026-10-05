@@ -70,7 +70,7 @@ public class RpcShellAndFleetE2ETests(E2ETestFixture fixture, ITestOutputHelper 
     {
         if (OperatingSystem.IsWindows())
         {
-            return $"echo {marker}>\"{Path.GetFileName(markerPath)}\"";
+            return $"powershell -NoLogo -NoProfile -Command \"Set-Content -LiteralPath '{markerPath}' -Value '{marker}'\"";
         }
 
         return $"sh -c \"printf '%s' '{marker}' > '{markerPath}'\"";

@@ -43,7 +43,6 @@ export {
     CopilotWebSocketCloseStatus,
     CopilotWebSocketForwarder,
     SessionFsSqliteTransactionFailure,
-    SessionFsWriteFailure,
     SYSTEM_MESSAGE_SECTIONS,
 } from "./types.js";
 // Re-export the generated session-event types (every *Event interface and
@@ -93,12 +92,6 @@ export type {
     AgentStopHandler,
     AgentStopHookInput,
     AgentStopHookOutput,
-    SubagentStartHandler,
-    SubagentStartHookInput,
-    SubagentStartHookOutput,
-    SubagentStopHandler,
-    SubagentStopHookInput,
-    SubagentStopHookOutput,
     UserPromptTransformedHandler,
     UserPromptTransformedHookInput,
     UserPromptTransformedHookOutput,
@@ -187,7 +180,6 @@ export type {
     PermissionDecisionSurface,
     PermissionResponseCapability,
     ProviderConfig,
-    ProviderConfigModelProvider,
     ProviderModelConfig,
     ProviderTokenArgs,
     RemoteSessionMode,

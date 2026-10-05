@@ -44,8 +44,8 @@ public final class ServerHostApi {
      * @since 1.0.0
      */
     @CopilotExperimental
-    CompletableFuture<HostSessionCreateResult> createSession(HostCreateSessionParams params) {
-        return caller.invoke("host.createSession", params, HostSessionCreateResult.class);
+    CompletableFuture<HostCreateSessionResult> createSession(HostCreateSessionParams params) {
+        return caller.invoke("host.createSession", params, HostCreateSessionResult.class);
     }
 
     /**
@@ -88,8 +88,8 @@ public final class ServerHostApi {
      * @since 1.0.0
      */
     @CopilotExperimental
-    CompletableFuture<HostEnvironmentCredentials> getEnvironmentCredentials() {
-        return caller.invoke("host.getEnvironmentCredentials", java.util.Map.of(), HostEnvironmentCredentials.class);
+    CompletableFuture<HostGetEnvironmentCredentialsResult> getEnvironmentCredentials() {
+        return caller.invoke("host.getEnvironmentCredentials", java.util.Map.of(), HostGetEnvironmentCredentialsResult.class);
     }
 
     /**
@@ -99,8 +99,8 @@ public final class ServerHostApi {
      * @since 1.0.0
      */
     @CopilotExperimental
-    CompletableFuture<HostConfiguration> getConfiguration() {
-        return caller.invoke("host.getConfiguration", java.util.Map.of(), HostConfiguration.class);
+    CompletableFuture<HostGetConfigurationResult> getConfiguration() {
+        return caller.invoke("host.getConfiguration", java.util.Map.of(), HostGetConfigurationResult.class);
     }
 
     /**

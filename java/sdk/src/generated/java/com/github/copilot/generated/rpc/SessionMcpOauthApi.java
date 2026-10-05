@@ -80,7 +80,7 @@ public final class SessionMcpOauthApi {
     }
 
     /**
-     * Remote MCP server name and optional overrides controlling reauthentication, OAuth client display name, callback handling, and static OAuth client selection.
+     * Remote MCP server name and optional overrides controlling reauthentication, OAuth client display name, callback success-page copy, and static OAuth client selection.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -96,7 +96,7 @@ public final class SessionMcpOauthApi {
     }
 
     /**
-     * Remote MCP server name and optional overrides controlling reauthentication, OAuth client display name, callback handling, and static OAuth client selection.
+     * Remote MCP server name and optional overrides controlling reauthentication, OAuth client display name, callback success-page copy, and static OAuth client selection.
      * <p>
      * Accepts the extensible request, including inputs added after the params record.
      *
@@ -108,22 +108,6 @@ public final class SessionMcpOauthApi {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(Objects.requireNonNull(request, "request"));
         _p.put("sessionId", this.sessionId);
         return caller.invoke("session.mcp.oauth.login", _p, SessionMcpOauthLoginResult.class);
-    }
-
-    /**
-     * Host-delivered callback for a runtime-managed MCP OAuth login.
-     * <p>
-     * Note: the {@code sessionId} field in the params record is overridden
-     * by the session-scoped wrapper; any value provided is ignored.
-     *
-     * @apiNote This method is experimental and may change in a future version.
-     * @since 1.0.0
-     */
-    @CopilotExperimental
-    public CompletableFuture<Void> complete(SessionMcpOauthCompleteParams params) {
-        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
-        _p.put("sessionId", this.sessionId);
-        return caller.invoke("session.mcp.oauth.complete", _p, Void.class);
     }
 
     /**

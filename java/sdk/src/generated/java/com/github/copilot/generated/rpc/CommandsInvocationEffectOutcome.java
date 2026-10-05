@@ -19,7 +19,7 @@ import javax.annotation.processing.Generated;
  */
 @CopilotExperimental
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
-enum CommandsInvocationEffectOutcome {
+public enum CommandsInvocationEffectOutcome {
     /** The {@code applied} variant. */
     APPLIED("applied"),
     /** The {@code cancelled} variant. */

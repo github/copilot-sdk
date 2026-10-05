@@ -6,7 +6,6 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { installNpmDependencies } from "./install-dependencies.mjs";
 
 export const SCHEMA_FILES = ["api.schema.json", "session-events.schema.json"];
 export const GENERATED_ROOTS = {
@@ -105,10 +104,10 @@ export function bazelActionEnvironmentArgument() {
     return "--action_env=PATH";
 }
 
-export function installCodegenDependencies(languages, sdkRoot) {
-    installNpmDependencies(path.join(sdkRoot, "scripts/codegen"), runNpm);
+function installCodegenDependencies(languages, sdkRoot) {
+    runNpm(["ci", "--ignore-scripts"], path.join(sdkRoot, "scripts/codegen"));
     if (languages.includes("java")) {
-        installNpmDependencies(path.join(sdkRoot, "java/scripts/codegen"), runNpm);
+        runNpm(["ci", "--ignore-scripts"], path.join(sdkRoot, "java/scripts/codegen"));
     }
 }
 
@@ -156,11 +155,7 @@ export function syncGeneratedArchive({
     try {
         const extraction = archiveExtractionInvocation(archivePath, stagingDirectory);
         run(tarCommand(), extraction.args, extraction.cwd);
-        const files = listFiles(stagingDirectory);
-        if (files.length === 0) {
-            throw new Error(`No ${language} generated outputs in ${archivePath}`);
-        }
-        for (const file of files) {
+        for (const file of listFiles(stagingDirectory)) {
             if (!matchesGeneratedPath(file, generatedRoots)) {
                 throw new Error(`Undeclared ${language} generated output: ${file}`);
             }

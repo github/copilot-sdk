@@ -74,10 +74,10 @@ class GeneratedRpcApiCoverageTest {
                 dispatch("session.managedSettings.get", SessionManagedSettingsGetResult.class, """
                         {"sessionId":"bound-session"}
                         """, (server, session) -> session.managedSettings.get()),
-                dispatch("session.instructions.reload", SessionInstructionsGetSourcesResult.class, """
+                dispatch("session.instructions.reload", Void.class, """
                         {"sessionId":"bound-session"}
                         """, (server, session) -> session.instructions.reload()),
-                dispatch("session.customizations.reload", CustomizationsReloadResult.class, """
+                dispatch("session.customizations.reload", SessionCustomizationsReloadResult.class, """
                         {"sessionId":"bound-session"}
                         """, (server, session) -> session.customizations.reload()),
                 dispatch("session.plugins.install", SessionPluginsInstallResult.class, """
@@ -152,12 +152,12 @@ class GeneratedRpcApiCoverageTest {
                         """,
                         (server, session) -> session.workflow.resume(
                                 new SessionWorkflowResumeParams("foreign-session", "run-1", null, true, false))),
-                dispatch("session.workflow.runFromTool", WorkflowRunResult.class, """
+                dispatch("session.workflow.runFromTool", SessionWorkflowRunFromToolResult.class, """
                         {"sessionId":"bound-session","name":"workflow-1","args":{"topic":"input"},"toolCallId":"tool-1"}
                         """,
                         (server, session) -> session.workflow.runFromTool(new SessionWorkflowRunFromToolParams(
                                 "foreign-session", "workflow-1", Map.of("topic", "input"), null, "tool-1"))),
-                dispatch("session.workflow.resumeFromTool", WorkflowResumeResult.class, """
+                dispatch("session.workflow.resumeFromTool", SessionWorkflowResumeFromToolResult.class, """
                         {"sessionId":"bound-session","runId":"run-1","toolCallId":"tool-1"}
                         """,
                         (server, session) -> session.workflow.resumeFromTool(
@@ -192,7 +192,7 @@ class GeneratedRpcApiCoverageTest {
                         """,
                         (server, session) -> session.workflow
                                 .pause(new SessionWorkflowPauseParams("foreign-session", "run-1"))),
-                dispatch("session.workflow.pauseAtCheckpoint", WorkflowPauseCheckpointResult.class,
+                dispatch("session.workflow.pauseAtCheckpoint", SessionWorkflowPauseAtCheckpointResult.class,
                         """
                                 {"sessionId":"bound-session","runId":"run-1","executionToken":"execution-1","key":"checkpoint-1"}
                                 """,

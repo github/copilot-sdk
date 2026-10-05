@@ -309,7 +309,6 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
 - `UseLoggedInUser` (\*bool): Whether to use logged-in user for authentication (default: true, but false when `GitHubToken` is provided). Cannot be used with `URIConnection`.
 - `EnableRemoteSessions` (bool): Enable remote session support (Mission Control integration). Ignored with `URIConnection`.
 - `Telemetry` (\*TelemetryConfig): OpenTelemetry configuration for the runtime. Providing this enables telemetry — no separate flag needed. See [Telemetry](#telemetry) below.
-- `SessionFS` (\*SessionFSConfig): Custom session filesystem provider configuration. For the `view` tool to read provider-only images, set `Capabilities.Binary` and return a provider implementing `SessionFSBinaryProvider` (`ReadFileBytes` and `WriteFileBytes`) from `CreateSessionFSProvider`. Image reads do not fall back to local files. Binary reads and writes are limited to 50,330,880 bytes before encoding or decoding.
 
 **SessionConfig:**
 
@@ -368,7 +367,6 @@ Initial acquisition runs during session creation or resume. Cancellation, provid
 - `Send(ctx context.Context, options MessageOptions) (string, error)` - Send a message
 - `On(handler SessionEventHandler) func()` - Subscribe to events (returns unsubscribe function)
 - `Abort(ctx context.Context) error` - Abort the currently processing message
-- `SetTools(ctx context.Context, tools []Tool) error` - Replace this client's live custom tools and handlers for the session. See [changing tools](../docs/features/changing-tools.md) for shared behavior and active-turn limitations.
 - `GetEvents(ctx context.Context) ([]SessionEvent, error)` - Get event history
 - `Disconnect() error` - Disconnect the session (releases in-memory resources, preserves disk state)
 - `UI() *SessionUI` - Interactive UI API for elicitation dialogs
@@ -446,8 +444,6 @@ session, err := client.CreateSession(ctx, &copilot.SessionConfig{
 Available section constants: `SectionPreamble`, `SectionIdentity`, `SectionTone`, `SectionToolEfficiency`, `SectionEnvironmentContext`, `SectionCodeChangeRules`, `SectionGuidelines`, `SectionSafety`, `SectionToolInstructions`, `SectionCustomInstructions`, `SectionRuntimeInstructions`, `SectionLastInstructions`.
 
 `SectionIdentity` and `SectionToolInstructions` are section _groups_ that target a collection of related sub-sections as a unit. Use `SectionPreamble` to target just the identity preamble without affecting its sibling sub-sections.
-
-`SectionLastInstructions` (`last_instructions`) includes configured subagent-model guidance when the `task` tool is available. Removing or replacing this section also removes that guidance; a `SectionOverride.Transform` callback receives the complete section, including the guidance, and its returned content is authoritative. Append, prepend, and preserve retain their usual section semantics. These overrides change prompt prose only, not configured subagent models, tool availability, or runtime dispatch policy. `SectionRuntimeInstructions` is a separate section: removing it does not remove `SectionLastInstructions`.
 
 Each section override supports five actions:
 
@@ -604,26 +600,6 @@ editFile := copilot.DefineTool("edit_file", "Custom file editor with project-spe
     })
 editFile.OverridesBuiltInTool = true
 ```
-
-An explicit `apply_patch` override can declare a root string schema by using a
-`string` parameter with `DefineTool`. The model sees a required `input` property,
-but the runtime restores the scalar patch text before dispatch. Both the typed
-parameter and `ToolInvocation.Arguments` receive a string, not an
-`{"input": ...}` object. This example returns trimmed patch text; replace the
-handler body with your own patch implementation:
-
-```go
-import "strings"
-
-applyPatch := copilot.DefineTool("apply_patch", "Apply a patch",
-    func(patch string, inv copilot.ToolInvocation) (string, error) {
-        return strings.TrimSpace(patch), nil
-    })
-applyPatch.OverridesBuiltInTool = true
-```
-
-String-schema `apply_patch` overrides cannot contain JSON Schema references;
-use an object schema if references are needed.
 
 #### Skipping Permission Prompts
 
@@ -1080,22 +1056,6 @@ session, err := client.CreateSession(context.Background(), &copilot.SessionConfi
             return nil, nil
         },
 
-        // Called before a subagent's first turn; context is prepended to its prompt
-        OnSubagentStart: func(input copilot.SubagentStartHookInput, invocation copilot.HookInvocation) (*copilot.SubagentStartHookOutput, error) {
-            fmt.Printf("Starting subagent %s\n", input.AgentName)
-            return &copilot.SubagentStartHookOutput{
-                AdditionalContext: "Focus on the requested file.",
-            }, nil
-        },
-
-        // Called after a subagent finishes a turn
-        OnSubagentStop: func(input copilot.SubagentStopHookInput, invocation copilot.HookInvocation) (*copilot.SubagentStopHookOutput, error) {
-            fmt.Printf("Subagent %s finished: %s\n", input.AgentType, input.StopReason)
-            return &copilot.SubagentStopHookOutput{
-                ModifiedResponse: copilot.String("Verified: " + input.Response),
-            }, nil
-        },
-
         // Called when an error occurs
         OnErrorOccurred: func(input copilot.ErrorOccurredHookInput, invocation copilot.HookInvocation) (*copilot.ErrorOccurredHookOutput, error) {
             fmt.Printf("Error in %s: %s\n", input.ErrorContext, input.Error)
@@ -1115,12 +1075,7 @@ session, err := client.CreateSession(context.Background(), &copilot.SessionConfi
 - `OnUserPromptSubmitted` - Intercept user prompts. Can modify the prompt before processing.
 - `OnSessionStart` - Run logic when a session starts or resumes.
 - `OnSessionEnd` - Cleanup or logging when session ends.
-- `OnSubagentStart` - Observe a subagent before its first turn and optionally prepend `AdditionalContext` to its prompt.
-- `OnSubagentStop` - Observe a completed subagent turn. Return `Decision: "block"` with a non-empty `Reason` to request another turn, **or** `ModifiedResponse: copilot.String("replacement")` to replace its response (including an intentional empty string).
-- `OnAgentStop` - Intercept the parent agent's stop; distinct from `OnSubagentStop`.
 - `OnErrorOccurred` - Handle errors with retry/skip/abort strategies.
-
-Subagent hook inputs identify the **parent** session in `SessionID` and `HookInvocation.SessionID`. Both include a `time.Time` timestamp, `WorkingDirectory` (`cwd`), `TranscriptPath`, and `AgentName`. `AgentDisplayName` and `AgentDescription` may be empty. Stop inputs additionally include an optional `AgentID`, `AgentType`, `StopReason` (`"end_turn"`), and the subagent's `Response`. Registering either hook alone enables hook callbacks for both new and resumed sessions.
 
 ## Commands
 

@@ -110,7 +110,6 @@ new CopilotClient(CopilotClientOptions? options = null)
 - `GitHubToken` - GitHub token for authentication. When provided, takes priority over other auth methods.
 - `UseLoggedInUser` - Whether to use logged-in user for authentication (default: true, but false when `GitHubToken` is provided). Cannot be used with `RuntimeConnection.ForUri(...)`.
 - `Telemetry` - OpenTelemetry configuration for the runtime process. Providing this enables telemetry — no separate flag needed. See [Telemetry](#telemetry) below.
-- `SessionFs` - Custom session filesystem provider configuration. To serve provider-only images to the `view` tool, set `Capabilities.Binary` to `true` and return a provider implementing `ISessionFsBinaryProvider` (`ReadFileBytesAsync` and `WriteFileBytesAsync`) from `SessionConfig.CreateSessionFsProvider`. Image reads do not fall back to local files. Binary reads and writes are limited to 50,330,880 raw bytes (approximately 48 MiB); larger results return a filesystem error before encoding or decoding.
 - `InstallationConfirmationHandler` - Experimental connection-global human review for `installations.confirm`. Receives the typed request and one cancellation token that is cancelled when the request is retired or the connection closes, and returns an explicit decision. Does not enable installation capabilities.
 
 #### RuntimeConnection
@@ -358,19 +357,6 @@ await session.SendAndWaitAsync(new MessageOptions
 Agent sources serialize as `agent-<id>`. Pass the agent ID without adding a
 prefix. The SDK preserves its case and whitespace and rejects null IDs.
 
-##### `SetToolsAsync(ICollection<AIFunctionDeclaration> tools, CancellationToken cancellationToken = default): Task` (experimental)
-
-Replace the complete set of externally implemented tools supplied by this client
-on a live session. Pass the same tool declarations used in `SessionConfig.Tools`
-or `ResumeSessionConfig.Tools`; an empty collection removes this client's tools.
-Built-in, MCP/plugin, extension, subagent, and other clients' tools are unchanged.
-
-Handlers switch after the runtime accepts the replacement. Running tool calls
-finish on the handlers that started them, rejected replacements leave the
-previous handlers installed, and concurrent replacements are applied in order.
-See [Changing tools](../docs/features/changing-tools.md) for shared behavior and
-active-turn limitations.
-
 ##### Structured outputs (experimental)
 
 Use `SendAndWaitAsync<TResult>` to infer a JSON Schema from a .NET type and
@@ -518,13 +504,6 @@ Abort the currently processing message in this session.
 ##### `GetEventsAsync(): Task<IReadOnlyList<SessionEvent>>`
 
 Get all events/messages from this session.
-
-Live notifications and history deserialization select source-generated metadata for the
-received event type rather than initializing every event type on the first event.
-History parsing uses a bounded stack or pooled UTF-8 buffer to avoid an extra
-reader-scoping pass; common event-type selection does not allocate a discriminator string.
-Unknown or missing event types retain the base `SessionEvent` fallback; serialization
-and malformed-event validation are unchanged.
 
 ##### `DisposeAsync(): ValueTask`
 
@@ -818,16 +797,6 @@ var session = await client.CreateSessionAsync(new SessionConfig
 });
 ```
 
-An explicit `apply_patch` override may advertise a root string schema instead of
-an object schema. The runtime delivers the patch as a string in
-`ToolInvocation.Arguments`; the SDK binds that scalar to the named `input`
-argument required by `AIFunction`. A schema wrapper around a typed handler should
-therefore use a parameter named `input`. Object-schema tools retain their
-declared parameter names.
-
-String-schema `apply_patch` overrides cannot contain JSON Schema references;
-use an object schema if references are needed.
-
 #### Skipping Permission Prompts
 
 Set `CopilotToolOptions.SkipPermission` to allow a tool to execute without triggering a permission prompt:
@@ -1005,8 +974,6 @@ var session = await client.CreateSessionAsync(new SessionConfig
 ```
 
 Available section IDs are defined as static properties on the `SystemMessageSection` struct: `Preamble`, `Identity`, `Tone`, `ToolEfficiency`, `EnvironmentContext`, `CodeChangeRules`, `Guidelines`, `Safety`, `ToolInstructions`, `CustomInstructions`, `RuntimeInstructions`, `LastInstructions`. `Identity` and `ToolInstructions` are section groups that target a collection of related sub-sections as a unit; use `Preamble` to target just the identity preamble.
-
-`SystemMessageSection.LastInstructions` (`last_instructions`) includes configured subagent-model guidance when the `task` tool is available. Removing or replacing this section also removes that guidance; a `SectionOverride.Transform` callback receives the complete section, including the guidance, and its returned content is authoritative. Append, prepend, and preserve retain their usual section semantics. These overrides change prompt prose only, not configured subagent models, tool availability, or runtime dispatch policy. `SystemMessageSection.RuntimeInstructions` is a separate section: removing it does not remove `SystemMessageSection.LastInstructions`.
 
 Each section override supports five actions: `Replace`, `Remove`, `Append`, `Prepend`, and `Preserve` (a no-op that opts an individually-addressable section out of a group-level `Remove`). Unknown section IDs are handled gracefully: content is appended to additional instructions, and `Remove` overrides are silently ignored.
 
@@ -1296,32 +1263,6 @@ var session = await client.CreateSessionAsync(new SessionConfig
 - `OnSessionStart` - Run logic when a session starts or resumes.
 - `OnSessionEnd` - Cleanup or logging when session ends.
 - `OnErrorOccurred` - Handle errors with retry/skip/abort strategies.
-- `OnAgentStop` - Intercept a natural stop of the top-level agent.
-- `OnSubagentStart` - Add context to a sub-agent before its first turn.
-- `OnSubagentStop` - Inspect a sub-agent's last response, block the stop with a follow-up instruction, or replace its response.
-
-Sub-agent lifecycle hooks are registered on the parent session. Their input includes the parent `SessionId`, a `DateTimeOffset` timestamp, `WorkingDirectory`, `TranscriptPath` (empty if unavailable), and `AgentName`; `AgentDisplayName` and `AgentDescription` are optional. `OnSubagentStop` also receives an optional `AgentId`, `AgentType`, `StopReason` (currently `"end_turn"`), and the sub-agent's `Response`. `HookInvocation.SessionId` is the parent session ID.
-
-```csharp
-var session = await client.CreateSessionAsync(new SessionConfig
-{
-    Hooks = new SessionHooks
-    {
-        OnSubagentStart = (input, invocation) =>
-            Task.FromResult<SubagentStartHookOutput?>(new SubagentStartHookOutput
-            {
-                AdditionalContext = "Read the requested file before answering."
-            }),
-        OnSubagentStop = (input, invocation) =>
-            Task.FromResult<SubagentStopHookOutput?>(new SubagentStopHookOutput
-            {
-                ModifiedResponse = input.Response.Trim()
-            })
-    }
-});
-```
-
-`OnSubagentStart`'s `AdditionalContext` is prepended to the child's initial prompt. To request another child turn instead of accepting its response, return `new SubagentStopHookOutput { Decision = "block", Reason = "Explain your findings." }` from `OnSubagentStop`; a non-empty `Reason` is required. Otherwise, `ModifiedResponse` replaces the response reported to the parent. These hooks are distinct from `OnAgentStop`, which applies to the top-level agent.
 
 ## Elicitation Requests
 

@@ -13,13 +13,13 @@ import (
 
 // Mirrors dotnet/test/HookLifecycleAndOutputTests.cs (snapshot category "hooks_extended").
 //
-// Covers the general-purpose handlers on copilot.SessionHooks: OnPreToolUse,
+// Covers each handler exposed on copilot.SessionHooks: OnPreToolUse,
 // OnPostToolUse, OnPostToolUseFailure, OnUserPromptSubmitted,
 // OnUserPromptTransformed, OnSessionStart, OnSessionEnd, OnErrorOccurred,
-// OnAgentStop. Subagent hooks are exercised in subagent_hooks_e2e_test.go.
-// Output-shape behavior (modifiedPrompt / modifiedTransformedPrompt /
+// OnAgentStop. Output-shape behavior (modifiedPrompt / modifiedTransformedPrompt /
 // additionalContext / errorHandling / modifiedArgs / modifiedResult /
-// sessionSummary) is asserted alongside hook invocation.
+// sessionSummary) is asserted alongside hook invocation. If a new handler is
+// added to SessionHooks, add a corresponding test here.
 func TestHooksExtendedE2E(t *testing.T) {
 	ctx := testharness.NewTestContext(t)
 	client := ctx.NewClient()

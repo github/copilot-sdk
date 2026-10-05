@@ -10,7 +10,6 @@ package com.github.copilot.generated;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
@@ -36,10 +35,8 @@ public final class PermissionAssentDetectedEvent extends SessionEvent {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record PermissionAssentDetectedEventData(
         /** Permission request the likely assent may refer to. The runtime derives this from the preceding durable blocker; the human message and extraction model do not choose it. */
-        @CopilotExperimental
         @JsonProperty("requestId") String requestId,
         /** Human turn whose text triggered the deterministic assent recognizer. */
-        @CopilotExperimental
         @JsonProperty("turnIndex") Long turnIndex
     ) {
     }

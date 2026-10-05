@@ -14,7 +14,6 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Text.Json.Serialization.Metadata;
 
 namespace GitHub.Copilot;
 
@@ -61,7 +60,6 @@ namespace GitHub.Copilot;
 [JsonDerivedType(typeof(HookEndEvent), "hook.end")]
 [JsonDerivedType(typeof(HookProgressEvent), "hook.progress")]
 [JsonDerivedType(typeof(HookStartEvent), "hook.start")]
-[JsonDerivedType(typeof(HumanResponseRecordedEvent), "human_response.recorded")]
 [JsonDerivedType(typeof(McpAppToolCallCompleteEvent), "mcp_app.tool_call_complete")]
 [JsonDerivedType(typeof(McpHeadersRefreshCompletedEvent), "mcp.headers_refresh_completed")]
 [JsonDerivedType(typeof(McpHeadersRefreshRequiredEvent), "mcp.headers_refresh_required")]
@@ -168,7 +166,6 @@ namespace GitHub.Copilot;
 [JsonDerivedType(typeof(ToolExecutionPartialResultEvent), "tool.execution_partial_result")]
 [JsonDerivedType(typeof(ToolExecutionProgressEvent), "tool.execution_progress")]
 [JsonDerivedType(typeof(ToolExecutionStartEvent), "tool.execution_start")]
-[JsonDerivedType(typeof(ToolShellOutputEvent), "tool.shell_output")]
 [JsonDerivedType(typeof(ToolUserRequestedEvent), "tool.user_requested")]
 [JsonDerivedType(typeof(UiEphemeralQueryEvent), "ui.ephemeral_query")]
 [JsonDerivedType(typeof(UserInputCompletedEvent), "user_input.completed")]
@@ -209,7 +206,7 @@ public partial class SessionEvent
 
     /// <summary>Deserializes a JSON string into a <see cref="SessionEvent"/>.</summary>
     public static SessionEvent FromJson(string json) =>
-        SessionEventJsonConverter.Deserialize(json);
+        JsonSerializer.Deserialize(json, SessionEventsJsonContext.Default.SessionEvent)!;
 
     /// <summary>Serializes this event to a JSON string.</summary>
     public string ToJson() =>
@@ -217,519 +214,6 @@ public partial class SessionEvent
 
     [DebuggerBrowsable(DebuggerBrowsableState.Never)]
     private string DebuggerDisplay => ToJson();
-}
-
-internal sealed partial class SessionEventJsonConverter : JsonConverter<SessionEvent>
-{
-    internal static SessionEventJsonConverter Default { get; } = new();
-
-    public override SessionEvent? Read(
-        ref Utf8JsonReader reader,
-        Type typeToConvert,
-        JsonSerializerOptions options)
-    {
-        // Preserve the reader's position for deserialization.
-        var probe = reader;
-        JsonTypeInfo typeInfo = ReadEventTypeInfo(ref probe);
-        return ToSessionEvent(JsonSerializer.Deserialize(ref reader, typeInfo));
-    }
-
-    private static JsonTypeInfo? GetEventTypeInfo(ReadOnlySpan<byte> type)
-    {
-        switch (type.Length)
-        {
-            case 5:
-                if (type.SequenceEqual("abort"u8))
-                    return SessionEventsJsonContext.Default.AbortEvent;
-                break;
-            case 8:
-                if (type.SequenceEqual("hook.end"u8))
-                    return SessionEventsJsonContext.Default.HookEndEvent;
-                break;
-            case 10:
-                if (type.SequenceEqual("hook.start"u8))
-                    return SessionEventsJsonContext.Default.HookStartEvent;
-                break;
-            case 12:
-                if (type.SequenceEqual("session.idle"u8))
-                    return SessionEventsJsonContext.Default.SessionIdleEvent;
-                if (type.SequenceEqual("session.info"u8))
-                    return SessionEventsJsonContext.Default.SessionInfoEvent;
-                if (type.SequenceEqual("user.message"u8))
-                    return SessionEventsJsonContext.Default.UserMessageEvent;
-                break;
-            case 13:
-                if (type.SequenceEqual("hook.progress"u8))
-                    return SessionEventsJsonContext.Default.HookProgressEvent;
-                if (type.SequenceEqual("session.error"u8))
-                    return SessionEventsJsonContext.Default.SessionErrorEvent;
-                if (type.SequenceEqual("session.start"u8))
-                    return SessionEventsJsonContext.Default.SessionStartEvent;
-                if (type.SequenceEqual("skill.invoked"u8))
-                    return SessionEventsJsonContext.Default.SkillInvokedEvent;
-                break;
-            case 14:
-                if (type.SequenceEqual("assistant.idle"u8))
-                    return SessionEventsJsonContext.Default.AssistantIdleEvent;
-                if (type.SequenceEqual("command.queued"u8))
-                    return SessionEventsJsonContext.Default.CommandQueuedEvent;
-                if (type.SequenceEqual("session.resume"u8))
-                    return SessionEventsJsonContext.Default.SessionResumeEvent;
-                if (type.SequenceEqual("system.message"u8))
-                    return SessionEventsJsonContext.Default.SystemMessageEvent;
-                break;
-            case 15:
-                if (type.SequenceEqual("assistant.usage"u8))
-                    return SessionEventsJsonContext.Default.AssistantUsageEvent;
-                if (type.SequenceEqual("command.execute"u8))
-                    return SessionEventsJsonContext.Default.CommandExecuteEvent;
-                if (type.SequenceEqual("session.handoff"u8))
-                    return SessionEventsJsonContext.Default.SessionHandoffEvent;
-                if (type.SequenceEqual("session.warning"u8))
-                    return SessionEventsJsonContext.Default.SessionWarningEvent;
-                if (type.SequenceEqual("subagent.failed"u8))
-                    return SessionEventsJsonContext.Default.SubagentFailedEvent;
-                break;
-            case 16:
-                if (type.SequenceEqual("assistant.intent"u8))
-                    return SessionEventsJsonContext.Default.AssistantIntentEvent;
-                if (type.SequenceEqual("commands.changed"u8))
-                    return SessionEventsJsonContext.Default.CommandsChangedEvent;
-                if (type.SequenceEqual("model.call_start"u8))
-                    return SessionEventsJsonContext.Default.ModelCallStartEvent;
-                if (type.SequenceEqual("sandbox.decision"u8))
-                    return SessionEventsJsonContext.Default.SandboxDecisionEvent;
-                if (type.SequenceEqual("session.shutdown"u8))
-                    return SessionEventsJsonContext.Default.SessionShutdownEvent;
-                if (type.SequenceEqual("subagent.started"u8))
-                    return SessionEventsJsonContext.Default.SubagentStartedEvent;
-                break;
-            case 17:
-                if (type.SequenceEqual("agent.interrupted"u8))
-                    return SessionEventsJsonContext.Default.AgentInterruptedEvent;
-                if (type.SequenceEqual("assistant.message"u8))
-                    return SessionEventsJsonContext.Default.AssistantMessageEvent;
-                if (type.SequenceEqual("command.completed"u8))
-                    return SessionEventsJsonContext.Default.CommandCompletedEvent;
-                if (type.SequenceEqual("skill.invoked_ref"u8))
-                    return SessionEventsJsonContext.Default.SkillInvokedRefEvent;
-                if (type.SequenceEqual("subagent.selected"u8))
-                    return SessionEventsJsonContext.Default.SubagentSelectedEvent;
-                if (type.SequenceEqual("tool.shell_output"u8))
-                    return SessionEventsJsonContext.Default.ToolShellOutputEvent;
-                break;
-            case 18:
-                if (type.SequenceEqual("assistant.turn_end"u8))
-                    return SessionEventsJsonContext.Default.AssistantTurnEndEvent;
-                if (type.SequenceEqual("mcp.oauth_required"u8))
-                    return SessionEventsJsonContext.Default.McpOauthRequiredEvent;
-                if (type.SequenceEqual("model.call_failure"u8))
-                    return SessionEventsJsonContext.Default.ModelCallFailureEvent;
-                if (type.SequenceEqual("prompt_cache_break"u8))
-                    return SessionEventsJsonContext.Default.PromptCacheBreakEvent;
-                if (type.SequenceEqual("sampling.completed"u8))
-                    return SessionEventsJsonContext.Default.SamplingCompletedEvent;
-                if (type.SequenceEqual("sampling.requested"u8))
-                    return SessionEventsJsonContext.Default.SamplingRequestedEvent;
-                if (type.SequenceEqual("session.truncation"u8))
-                    return SessionEventsJsonContext.Default.SessionTruncationEvent;
-                if (type.SequenceEqual("session.usage_info"u8))
-                    return SessionEventsJsonContext.Default.SessionUsageInfoEvent;
-                if (type.SequenceEqual("subagent.completed"u8))
-                    return SessionEventsJsonContext.Default.SubagentCompletedEvent;
-                if (type.SequenceEqual("ui.ephemeral_query"u8))
-                    return SessionEventsJsonContext.Default.UiEphemeralQueryEvent;
-                break;
-            case 19:
-                if (type.SequenceEqual("assistant.reasoning"u8))
-                    return SessionEventsJsonContext.Default.AssistantReasoningEvent;
-                if (type.SequenceEqual("mcp.oauth_completed"u8))
-                    return SessionEventsJsonContext.Default.McpOauthCompletedEvent;
-                if (type.SequenceEqual("model.call_finished"u8))
-                    return SessionEventsJsonContext.Default.ModelCallFinishedEvent;
-                if (type.SequenceEqual("subagent.configured"u8))
-                    return SessionEventsJsonContext.Default.SubagentConfiguredEvent;
-                if (type.SequenceEqual("subagent.deselected"u8))
-                    return SessionEventsJsonContext.Default.SubagentDeselectedEvent;
-                if (type.SequenceEqual("system.notification"u8))
-                    return SessionEventsJsonContext.Default.SystemNotificationEvent;
-                if (type.SequenceEqual("tool.user_requested"u8))
-                    return SessionEventsJsonContext.Default.ToolUserRequestedEvent;
-                break;
-            case 20:
-                if (type.SequenceEqual("assistant.turn_retry"u8))
-                    return SessionEventsJsonContext.Default.AssistantTurnRetryEvent;
-                if (type.SequenceEqual("assistant.turn_start"u8))
-                    return SessionEventsJsonContext.Default.AssistantTurnStartEvent;
-                if (type.SequenceEqual("capabilities.changed"u8))
-                    return SessionEventsJsonContext.Default.CapabilitiesChangedEvent;
-                if (type.SequenceEqual("permission.completed"u8))
-                    return SessionEventsJsonContext.Default.PermissionCompletedEvent;
-                if (type.SequenceEqual("permission.requested"u8))
-                    return SessionEventsJsonContext.Default.PermissionRequestedEvent;
-                if (type.SequenceEqual("session.binary_asset"u8))
-                    return SessionEventsJsonContext.Default.SessionBinaryAssetEvent;
-                if (type.SequenceEqual("session.mode_changed"u8))
-                    return SessionEventsJsonContext.Default.SessionModeChangedEvent;
-                if (type.SequenceEqual("session.model_change"u8))
-                    return SessionEventsJsonContext.Default.SessionModelChangeEvent;
-                if (type.SequenceEqual("session.plan_changed"u8))
-                    return SessionEventsJsonContext.Default.SessionPlanChangedEvent;
-                if (type.SequenceEqual("tool.execution_start"u8))
-                    return SessionEventsJsonContext.Default.ToolExecutionStartEvent;
-                if (type.SequenceEqual("user_input.completed"u8))
-                    return SessionEventsJsonContext.Default.UserInputCompletedEvent;
-                if (type.SequenceEqual("user_input.requested"u8))
-                    return SessionEventsJsonContext.Default.UserInputRequestedEvent;
-                if (type.SequenceEqual("workflow.run_settled"u8))
-                    return SessionEventsJsonContext.Default.WorkflowRunSettledEvent;
-                if (type.SequenceEqual("workflow.run_started"u8))
-                    return SessionEventsJsonContext.Default.WorkflowRunStartedEvent;
-                if (type.SequenceEqual("workflow.run_updated"u8))
-                    return SessionEventsJsonContext.Default.WorkflowRunUpdatedEvent;
-                break;
-            case 21:
-                if (type.SequenceEqual("elicitation.completed"u8))
-                    return SessionEventsJsonContext.Default.ElicitationCompletedEvent;
-                if (type.SequenceEqual("elicitation.requested"u8))
-                    return SessionEventsJsonContext.Default.ElicitationRequestedEvent;
-                if (type.SequenceEqual("session.canvas.closed"u8))
-                    return SessionEventsJsonContext.Default.SessionCanvasClosedEvent;
-                if (type.SequenceEqual("session.canvas.opened"u8))
-                    return SessionEventsJsonContext.Default.SessionCanvasOpenedEvent;
-                if (type.SequenceEqual("session.skills_loaded"u8))
-                    return SessionEventsJsonContext.Default.SessionSkillsLoadedEvent;
-                if (type.SequenceEqual("session.task_complete"u8))
-                    return SessionEventsJsonContext.Default.SessionTaskCompleteEvent;
-                if (type.SequenceEqual("session.title_changed"u8))
-                    return SessionEventsJsonContext.Default.SessionTitleChangedEvent;
-                if (type.SequenceEqual("session.todos_changed"u8))
-                    return SessionEventsJsonContext.Default.SessionTodosChangedEvent;
-                if (type.SequenceEqual("session.tools_updated"u8))
-                    return SessionEventsJsonContext.Default.SessionToolsUpdatedEvent;
-                if (type.SequenceEqual("tool_search.activated"u8))
-                    return SessionEventsJsonContext.Default.ToolSearchActivatedEvent;
-                break;
-            case 22:
-                if (type.SequenceEqual("mcp.tools.list_changed"u8))
-                    return SessionEventsJsonContext.Default.McpToolsListChangedEvent;
-                if (type.SequenceEqual("session.canvas.removed"u8))
-                    return SessionEventsJsonContext.Default.SessionCanvasRemovedEvent;
-                if (type.SequenceEqual("session.indexed_search"u8))
-                    return SessionEventsJsonContext.Default.SessionIndexedSearchEvent;
-                break;
-            case 23:
-                if (type.SequenceEqual("assistant.message_delta"u8))
-                    return SessionEventsJsonContext.Default.AssistantMessageDeltaEvent;
-                if (type.SequenceEqual("assistant.message_start"u8))
-                    return SessionEventsJsonContext.Default.AssistantMessageStartEvent;
-                if (type.SequenceEqual("external_tool.completed"u8))
-                    return SessionEventsJsonContext.Default.ExternalToolCompletedEvent;
-                if (type.SequenceEqual("external_tool.requested"u8))
-                    return SessionEventsJsonContext.Default.ExternalToolRequestedEvent;
-                if (type.SequenceEqual("human_response.recorded"u8))
-                    return SessionEventsJsonContext.Default.HumanResponseRecordedEvent;
-                if (type.SequenceEqual("model.call_final_result"u8))
-                    return SessionEventsJsonContext.Default.ModelCallFinalResultEvent;
-                if (type.SequenceEqual("session.canvas.recorded"u8))
-                    return SessionEventsJsonContext.Default.SessionCanvasRecordedEvent;
-                if (type.SequenceEqual("session.context_changed"u8))
-                    return SessionEventsJsonContext.Default.SessionContextChangedEvent;
-                if (type.SequenceEqual("session.context_cleared"u8))
-                    return SessionEventsJsonContext.Default.SessionContextClearedEvent;
-                if (type.SequenceEqual("session.fusion_resolved"u8))
-                    return SessionEventsJsonContext.Default.SessionFusionResolvedEvent;
-                if (type.SequenceEqual("session.snapshot_rewind"u8))
-                    return SessionEventsJsonContext.Default.SessionSnapshotRewindEvent;
-                if (type.SequenceEqual("skill.context_delivered"u8))
-                    return SessionEventsJsonContext.Default.SkillContextDeliveredEvent;
-                if (type.SequenceEqual("tool.execution_complete"u8))
-                    return SessionEventsJsonContext.Default.ToolExecutionCompleteEvent;
-                if (type.SequenceEqual("tool.execution_progress"u8))
-                    return SessionEventsJsonContext.Default.ToolExecutionProgressEvent;
-                break;
-            case 24:
-                if (type.SequenceEqual("exit_plan_mode.completed"u8))
-                    return SessionEventsJsonContext.Default.ExitPlanModeCompletedEvent;
-                if (type.SequenceEqual("exit_plan_mode.requested"u8))
-                    return SessionEventsJsonContext.Default.ExitPlanModeRequestedEvent;
-                if (type.SequenceEqual("mcp.prompts.list_changed"u8))
-                    return SessionEventsJsonContext.Default.McpPromptsListChangedEvent;
-                if (type.SequenceEqual("session.compaction_start"u8))
-                    return SessionEventsJsonContext.Default.SessionCompactionStartEvent;
-                if (type.SequenceEqual("session.fusion_completed"u8))
-                    return SessionEventsJsonContext.Default.SessionFusionCompletedEvent;
-                if (type.SequenceEqual("session.model_deselected"u8))
-                    return SessionEventsJsonContext.Default.SessionModelDeselectedEvent;
-                if (type.SequenceEqual("session.schedule_created"u8))
-                    return SessionEventsJsonContext.Default.SessionScheduleCreatedEvent;
-                if (type.SequenceEqual("session.schedule_rearmed"u8))
-                    return SessionEventsJsonContext.Default.SessionScheduleRearmedEvent;
-                if (type.SequenceEqual("session.usage_checkpoint"u8))
-                    return SessionEventsJsonContext.Default.SessionUsageCheckpointEvent;
-                break;
-            case 25:
-                if (type.SequenceEqual("assistant.reasoning_delta"u8))
-                    return SessionEventsJsonContext.Default.AssistantReasoningDeltaEvent;
-                if (type.SequenceEqual("assistant.streaming_delta"u8))
-                    return SessionEventsJsonContext.Default.AssistantStreamingDeltaEvent;
-                if (type.SequenceEqual("assistant.tool_call_delta"u8))
-                    return SessionEventsJsonContext.Default.AssistantToolCallDeltaEvent;
-                if (type.SequenceEqual("pending_messages.modified"u8))
-                    return SessionEventsJsonContext.Default.PendingMessagesModifiedEvent;
-                if (type.SequenceEqual("permission.assentDetected"u8))
-                    return SessionEventsJsonContext.Default.PermissionAssentDetectedEvent;
-                if (type.SequenceEqual("permission.carriedForward"u8))
-                    return SessionEventsJsonContext.Default.PermissionCarriedForwardEvent;
-                if (type.SequenceEqual("session.extensions_loaded"u8))
-                    return SessionEventsJsonContext.Default.SessionExtensionsLoadedEvent;
-                break;
-            case 26:
-                if (type.SequenceEqual("auto_mode_switch.completed"u8))
-                    return SessionEventsJsonContext.Default.AutoModeSwitchCompletedEvent;
-                if (type.SequenceEqual("auto_mode_switch.requested"u8))
-                    return SessionEventsJsonContext.Default.AutoModeSwitchRequestedEvent;
-                if (type.SequenceEqual("mcp_app.tool_call_complete"u8))
-                    return SessionEventsJsonContext.Default.McpAppToolCallCompleteEvent;
-                if (type.SequenceEqual("mcp.resources.list_changed"u8))
-                    return SessionEventsJsonContext.Default.McpResourcesListChangedEvent;
-                if (type.SequenceEqual("session.auto_mode_resolved"u8))
-                    return SessionEventsJsonContext.Default.SessionAutoModeResolvedEvent;
-                if (type.SequenceEqual("session.canvas.unavailable"u8))
-                    return SessionEventsJsonContext.Default.SessionCanvasUnavailableEvent;
-                if (type.SequenceEqual("session.completion_receipt"u8))
-                    return SessionEventsJsonContext.Default.SessionCompletionReceiptEvent;
-                if (type.SequenceEqual("session.mcp_server_removed"u8))
-                    return SessionEventsJsonContext.Default.SessionMcpServerRemovedEvent;
-                if (type.SequenceEqual("session.mcp_servers_loaded"u8))
-                    return SessionEventsJsonContext.Default.SessionMcpServersLoadedEvent;
-                if (type.SequenceEqual("session.schedule_cancelled"u8))
-                    return SessionEventsJsonContext.Default.SessionScheduleCancelledEvent;
-                break;
-            case 27:
-                if (type.SequenceEqual("session.compaction_complete"u8))
-                    return SessionEventsJsonContext.Default.SessionCompactionCompleteEvent;
-                if (type.SequenceEqual("session.custom_notification"u8))
-                    return SessionEventsJsonContext.Default.SessionCustomNotificationEvent;
-                if (type.SequenceEqual("session.fusion_route_failed"u8))
-                    return SessionEventsJsonContext.Default.SessionFusionRouteFailedEvent;
-                if (type.SequenceEqual("session.permission_recovery"u8))
-                    return SessionEventsJsonContext.Default.SessionPermissionRecoveryEvent;
-                if (type.SequenceEqual("session.permissions_changed"u8))
-                    return SessionEventsJsonContext.Default.SessionPermissionsChangedEvent;
-                if (type.SequenceEqual("skill.context_delivered_ref"u8))
-                    return SessionEventsJsonContext.Default.SkillContextDeliveredRefEvent;
-                break;
-            case 28:
-                if (type.SequenceEqual("mcp.headers_refresh_required"u8))
-                    return SessionEventsJsonContext.Default.McpHeadersRefreshRequiredEvent;
-                if (type.SequenceEqual("session.fusion_route_started"u8))
-                    return SessionEventsJsonContext.Default.SessionFusionRouteStartedEvent;
-                break;
-            case 29:
-                if (type.SequenceEqual("assistant.fusion_phase_failed"u8))
-                    return SessionEventsJsonContext.Default.AssistantFusionPhaseFailedEvent;
-                if (type.SequenceEqual("mcp.headers_refresh_completed"u8))
-                    return SessionEventsJsonContext.Default.McpHeadersRefreshCompletedEvent;
-                if (type.SequenceEqual("session.custom_agents_updated"u8))
-                    return SessionEventsJsonContext.Default.SessionCustomAgentsUpdatedEvent;
-                if (type.SequenceEqual("session.mode_notice_delivered"u8))
-                    return SessionEventsJsonContext.Default.SessionModeNoticeDeliveredEvent;
-                if (type.SequenceEqual("tool.execution_partial_result"u8))
-                    return SessionEventsJsonContext.Default.ToolExecutionPartialResultEvent;
-                break;
-            case 30:
-                if (type.SequenceEqual("assistant.fusion_phase_started"u8))
-                    return SessionEventsJsonContext.Default.AssistantFusionPhaseStartedEvent;
-                if (type.SequenceEqual("assistant.server_tool_progress"u8))
-                    return SessionEventsJsonContext.Default.AssistantServerToolProgressEvent;
-                if (type.SequenceEqual("session.session_limits_changed"u8))
-                    return SessionEventsJsonContext.Default.SessionSessionLimitsChangedEvent;
-                if (type.SequenceEqual("session.workspace_file_changed"u8))
-                    return SessionEventsJsonContext.Default.SessionWorkspaceFileChangedEvent;
-                break;
-            case 31:
-                if (type.SequenceEqual("assistant.fusion_phase_activity"u8))
-                    return SessionEventsJsonContext.Default.AssistantFusionPhaseActivityEvent;
-                if (type.SequenceEqual("permission.messageAuthorization"u8))
-                    return SessionEventsJsonContext.Default.PermissionMessageAuthorizationEvent;
-                if (type.SequenceEqual("session.auto_tier_switch_failed"u8))
-                    return SessionEventsJsonContext.Default.SessionAutoTierSwitchFailedEvent;
-                if (type.SequenceEqual("session.canvas.registry_changed"u8))
-                    return SessionEventsJsonContext.Default.SessionCanvasRegistryChangedEvent;
-                break;
-            case 32:
-                if (type.SequenceEqual("assistant.fusion_phase_completed"u8))
-                    return SessionEventsJsonContext.Default.AssistantFusionPhaseCompletedEvent;
-                if (type.SequenceEqual("session.auto_tier_recommendation"u8))
-                    return SessionEventsJsonContext.Default.SessionAutoTierRecommendationEvent;
-                if (type.SequenceEqual("session.background_tasks_changed"u8))
-                    return SessionEventsJsonContext.Default.SessionBackgroundTasksChangedEvent;
-                if (type.SequenceEqual("session.remote_steerable_changed"u8))
-                    return SessionEventsJsonContext.Default.SessionRemoteSteerableChangedEvent;
-                break;
-            case 33:
-                if (type.SequenceEqual("session.managed_settings_enforced"u8))
-                    return SessionEventsJsonContext.Default.SessionManagedSettingsEnforcedEvent;
-                if (type.SequenceEqual("session.managed_settings_resolved"u8))
-                    return SessionEventsJsonContext.Default.SessionManagedSettingsResolvedEvent;
-                if (type.SequenceEqual("session.mcp_server_status_changed"u8))
-                    return SessionEventsJsonContext.Default.SessionMcpServerStatusChangedEvent;
-                break;
-            case 34:
-                if (type.SequenceEqual("permission.contextualAuthorization"u8))
-                    return SessionEventsJsonContext.Default.PermissionContextualAuthorizationEvent;
-                if (type.SequenceEqual("session_limits_exhausted.completed"u8))
-                    return SessionEventsJsonContext.Default.SessionLimitsExhaustedCompletedEvent;
-                if (type.SequenceEqual("session_limits_exhausted.requested"u8))
-                    return SessionEventsJsonContext.Default.SessionLimitsExhaustedRequestedEvent;
-                if (type.SequenceEqual("session.mcp_server_needs_reconnect"u8))
-                    return SessionEventsJsonContext.Default.SessionMcpServerNeedsReconnectEvent;
-                break;
-            case 35:
-                if (type.SequenceEqual("permission.messageAuthorizationRead"u8))
-                    return SessionEventsJsonContext.Default.PermissionMessageAuthorizationReadEvent;
-                if (type.SequenceEqual("session.autopilot_objective_changed"u8))
-                    return SessionEventsJsonContext.Default.SessionAutopilotObjectiveChangedEvent;
-                break;
-            case 37:
-                if (type.SequenceEqual("session.extensions.attachments_pushed"u8))
-                    return SessionEventsJsonContext.Default.SessionExtensionsAttachmentsPushedEvent;
-                break;
-            case 39:
-                if (type.SequenceEqual("permission.messageAuthorizationDegraded"u8))
-                    return SessionEventsJsonContext.Default.PermissionMessageAuthorizationDegradedEvent;
-                break;
-        }
-        return null;
-    }
-
-    public override void Write(
-        Utf8JsonWriter writer,
-        SessionEvent value,
-        JsonSerializerOptions options) =>
-        JsonSerializer.Serialize(writer, value, SessionEventsJsonContext.Default.SessionEvent);
-
-    private static SessionEvent ToSessionEvent(object? value) =>
-        value as SessionEvent ?? ((SessionEventEnvelope?)value)?.ToSessionEvent()!;
-
-    private static JsonTypeInfo ReadEventTypeInfo(ref Utf8JsonReader reader)
-    {
-        if (reader.TokenType == JsonTokenType.Null)
-        {
-            return SessionEventsJsonContext.Default.SessionEventEnvelope;
-        }
-
-        if (reader.TokenType != JsonTokenType.StartObject)
-        {
-            throw new JsonException("Expected a session event object.");
-        }
-
-        JsonTypeInfo? typeInfo = null;
-        bool foundDiscriminator = false;
-        while (reader.Read() && reader.TokenType == JsonTokenType.PropertyName)
-        {
-            bool isDiscriminator = reader.ValueIsEscaped
-                ? ReadString(ref reader) == "type"
-                : reader.ValueTextEquals("type"u8);
-            if (isDiscriminator)
-            {
-                if (foundDiscriminator)
-                {
-                    throw new JsonException("Duplicate session event type discriminator.");
-                }
-                foundDiscriminator = true;
-                reader.Read();
-                if (reader.TokenType == JsonTokenType.String)
-                {
-                    if (reader.HasValueSequence || reader.ValueIsEscaped)
-                    {
-                        typeInfo = GetEventTypeInfo(StrictUtf8.GetBytes(ReadString(ref reader)));
-                    }
-                    else
-                    {
-                        typeInfo = GetEventTypeInfo(reader.ValueSpan);
-                        if (typeInfo is null)
-                        {
-                            // Validate unknown discriminator text too, including invalid UTF-8.
-                            _ = ReadString(ref reader);
-                        }
-                    }
-                }
-                else if (reader.TokenType != JsonTokenType.Number || !reader.TryGetInt32(out _))
-                {
-                    throw new JsonException("Expected a string or integer session event type discriminator.");
-                }
-            }
-            else
-            {
-                bool isMetadata = reader.HasValueSequence || reader.ValueIsEscaped
-                    ? ReadString(ref reader) is { Length: > 0 } propertyName && propertyName[0] == '$'
-                    : !reader.ValueSpan.IsEmpty && reader.ValueSpan[0] == (byte)'$';
-                if (isMetadata)
-                {
-                    throw new JsonException("Unexpected session event metadata property.");
-                }
-                reader.Read();
-                reader.Skip();
-            }
-        }
-
-        return typeInfo ?? SessionEventsJsonContext.Default.SessionEventEnvelope;
-    }
-}
-
-internal sealed class SessionEventJsonTypeInfoResolver : IJsonTypeInfoResolver
-{
-    internal static SessionEventJsonTypeInfoResolver Default { get; } = new();
-
-    public JsonTypeInfo? GetTypeInfo(Type type, JsonSerializerOptions options)
-    {
-        if (type != typeof(SessionEvent))
-        {
-            return null;
-        }
-
-        JsonTypeInfo typeInfo = JsonMetadataServices.CreateValueInfo<SessionEvent>(
-            options,
-            SessionEventJsonConverter.Default);
-        typeInfo.PolymorphismOptions = null;
-        return typeInfo;
-    }
-}
-
-internal sealed class SessionEventEnvelope
-{
-    /// <summary>Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("agentId")]
-    public string? AgentId { get; set; }
-
-    /// <summary>When true, the event is transient and not persisted to the session event log on disk.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("ephemeral")]
-    public bool? Ephemeral { get; set; }
-
-    /// <summary>Unique event identifier (UUID v4), generated when the event is emitted.</summary>
-    [JsonPropertyName("id")]
-    public Guid Id { get; set; }
-
-    /// <summary>ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.</summary>
-    [JsonPropertyName("parentId")]
-    public Guid? ParentId { get; set; }
-
-    /// <summary>ISO 8601 timestamp when the event was created.</summary>
-    [JsonPropertyName("timestamp")]
-    public DateTimeOffset Timestamp { get; set; }
-
-    internal SessionEvent ToSessionEvent() => new()
-    {
-        AgentId = AgentId,
-        Ephemeral = Ephemeral,
-        Id = Id,
-        ParentId = ParentId,
-        Timestamp = Timestamp,
-    };
 }
 
 /// <summary>Session initialization metadata including context and configuration.</summary>
@@ -1653,14 +1137,8 @@ public sealed partial class ToolExecutionStartEvent : SessionEvent
     public required ToolExecutionStartData Data { get; set; }
 }
 
-/// <summary>Deprecated merged replacement snapshot of shell output. Use tool.shell_output for append-only, stream-tagged output instead.</summary>
+/// <summary>Streaming tool execution output for incremental result display.</summary>
 /// <remarks>Represents the <c>tool.execution_partial_result</c> event.</remarks>
-[EditorBrowsable(EditorBrowsableState.Never)]
-#if NET5_0_OR_GREATER
-[Obsolete("This member is deprecated and will be removed in a future version.", DiagnosticId = "GHCP001")]
-#else
-[Obsolete("This member is deprecated and will be removed in a future version.")]
-#endif
 public sealed partial class ToolExecutionPartialResultEvent : SessionEvent
 {
     /// <inheritdoc />
@@ -1670,19 +1148,6 @@ public sealed partial class ToolExecutionPartialResultEvent : SessionEvent
     /// <summary>The <c>tool.execution_partial_result</c> event payload.</summary>
     [JsonPropertyName("data")]
     public required ToolExecutionPartialResultData Data { get; set; }
-}
-
-/// <summary>Live, append-only shell output. Not persisted or replayed to late subscribers. Text is decoded and redacted per chunk; chunks need not contain complete lines.</summary>
-/// <remarks>Represents the <c>tool.shell_output</c> event.</remarks>
-public sealed partial class ToolShellOutputEvent : SessionEvent
-{
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override string Type => "tool.shell_output";
-
-    /// <summary>The <c>tool.shell_output</c> event payload.</summary>
-    [JsonPropertyName("data")]
-    public required ToolShellOutputData Data { get; set; }
 }
 
 /// <summary>Tool execution progress notification with status message.</summary>
@@ -2427,19 +1892,6 @@ public sealed partial class ExitPlanModeCompletedEvent : SessionEvent
     public required ExitPlanModeCompletedData Data { get; set; }
 }
 
-/// <summary>Durable request-correlated evidence for a typed response to a runtime-owned question or plan review.</summary>
-/// <remarks>Represents the <c>human_response.recorded</c> event.</remarks>
-public sealed partial class HumanResponseRecordedEvent : SessionEvent
-{
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override string Type => "human_response.recorded";
-
-    /// <summary>The <c>human_response.recorded</c> event payload.</summary>
-    [JsonPropertyName("data")]
-    public required HumanResponseRecordedData Data { get; set; }
-}
-
 /// <summary>Payload of `session.tools_updated` identifying the model whose resolved tools were updated.</summary>
 /// <remarks>Represents the <c>session.tools_updated</c> event.</remarks>
 public sealed partial class SessionToolsUpdatedEvent : SessionEvent
@@ -2794,11 +2246,6 @@ public sealed partial class SessionStartData
     [JsonPropertyName("reasoningEffort")]
     public string? ReasoningEffort { get; set; }
 
-    /// <summary>Model that owns effort embedded in an authored model selection. Omitted for independent reasoning-effort overrides and legacy events.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("reasoningEffortModel")]
-    public string? ReasoningEffortModel { get; set; }
-
     /// <summary>Reasoning summary mode used for model calls, if applicable (e.g. "none", "concise", "detailed").</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("reasoningSummary")]
@@ -2878,11 +2325,6 @@ public sealed partial class SessionResumeData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("reasoningEffort")]
     public string? ReasoningEffort { get; set; }
-
-    /// <summary>Model that owns effort embedded in an authored model selection. Omitted for independent reasoning-effort overrides and legacy events.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("reasoningEffortModel")]
-    public string? ReasoningEffortModel { get; set; }
 
     /// <summary>Reasoning summary mode used for model calls, if applicable (e.g. "none", "concise", "detailed").</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -3204,11 +2646,6 @@ public sealed partial class SessionModelChangeData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("reasoningEffort")]
     public string? ReasoningEffort { get; set; }
-
-    /// <summary>Model that owns effort embedded in an authored model selection. Omitted for independent reasoning-effort overrides and legacy events.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("reasoningEffortModel")]
-    public string? ReasoningEffortModel { get; set; }
 
     /// <summary>Reasoning summary mode after the model change, if applicable.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -4723,8 +4160,6 @@ public sealed partial class AssistantMessageData
     [EditorBrowsable(EditorBrowsableState.Never)]
 #if NET5_0_OR_GREATER
     [Obsolete("This member is deprecated and will be removed in a future version.", DiagnosticId = "GHCP001")]
-#else
-    [Obsolete("This member is deprecated and will be removed in a future version.")]
 #endif
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("parentToolCallId")]
@@ -4814,8 +4249,6 @@ public sealed partial class AssistantMessageDeltaData
     [EditorBrowsable(EditorBrowsableState.Never)]
 #if NET5_0_OR_GREATER
     [Obsolete("This member is deprecated and will be removed in a future version.", DiagnosticId = "GHCP001")]
-#else
-    [Obsolete("This member is deprecated and will be removed in a future version.")]
 #endif
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("parentToolCallId")]
@@ -4872,11 +4305,6 @@ public sealed partial class AssistantUsageData
     [JsonInclude]
     [JsonPropertyName("availableToolCount")]
     internal long? AvailableToolCount { get; set; }
-
-    /// <summary>Where the bring-your-own-key model runs and who manages it: "local_managed" (on the device, managed by Copilot), "local_user" (on the device, managed by the user), or "remote_user" (off the device, managed by the user). Absent for Copilot-served models.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("byokKind")]
-    public string? ByokKind { get; set; }
 
     /// <summary>Whether the provider reported prompt-cache usage details for this call.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -4989,11 +4417,6 @@ public sealed partial class AssistantUsageData
     [JsonPropertyName("model")]
     public required string Model { get; set; }
 
-    /// <summary>Fixed-set provider family serving the bring-your-own-key model (for example "openai", "anthropic", "azure_openai", "ollama", "llama_cpp", or "other"). Never the caller-supplied provider name. Absent for Copilot-served models.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("modelProvider")]
-    public string? ModelProvider { get; set; }
-
     /// <summary>Number of tool calls returned by the model.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonInclude]
@@ -5015,8 +4438,6 @@ public sealed partial class AssistantUsageData
     [EditorBrowsable(EditorBrowsableState.Never)]
 #if NET5_0_OR_GREATER
     [Obsolete("This member is deprecated and will be removed in a future version.", DiagnosticId = "GHCP001")]
-#else
-    [Obsolete("This member is deprecated and will be removed in a future version.")]
 #endif
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("parentToolCallId")]
@@ -5204,12 +4625,6 @@ public sealed partial class PromptCacheBreakData
     [JsonPropertyName("toolsRedefined")]
     internal string[]? ToolsRedefined { get; set; }
 
-    /// <summary>Changed definition parts of redefined tools, as `tool:part` entries; property-level parts only for telemetry-safe tools, whose other names are hashed.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonInclude]
-    [JsonPropertyName("toolsRedefinedParts")]
-    internal string[]? ToolsRedefinedParts { get; set; }
-
     /// <summary>Raw names of tools redefined since the prior call, restricted because a tool name can be user-authored.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonInclude]
@@ -5252,11 +4667,6 @@ public sealed partial class ModelCallFailureData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("badRequestKind")]
     public ModelCallFailureBadRequestKind? BadRequestKind { get; set; }
-
-    /// <summary>Where the bring-your-own-key model for the failed call runs and who manages it: "local_managed" (on the device, managed by Copilot), "local_user" (on the device, managed by the user), or "remote_user" (off the device, managed by the user). Absent for Copilot-served models.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("byokKind")]
-    public string? ByokKind { get; set; }
 
     /// <summary>Duration of the failed API call in milliseconds.</summary>
     [JsonConverter(typeof(MillisecondsTimeSpanConverter))]
@@ -5324,11 +4734,6 @@ public sealed partial class ModelCallFailureData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("model")]
     public string? Model { get; set; }
-
-    /// <summary>Fixed-set provider family serving the bring-your-own-key model for the failed call (for example "openai", "anthropic", "azure_openai", "ollama", "llama_cpp", or "other"). Never the caller-supplied provider name. Absent for Copilot-served models.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("modelProvider")]
-    public string? ModelProvider { get; set; }
 
     /// <summary>Parent task tool call ID when this failed model call belongs to a sub-agent.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -5537,8 +4942,6 @@ public sealed partial class ToolExecutionStartData
     [EditorBrowsable(EditorBrowsableState.Never)]
 #if NET5_0_OR_GREATER
     [Obsolete("This member is deprecated and will be removed in a future version.", DiagnosticId = "GHCP001")]
-#else
-    [Obsolete("This member is deprecated and will be removed in a future version.")]
 #endif
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("parentToolCallId")]
@@ -5578,41 +4981,14 @@ public sealed partial class ToolExecutionStartData
     public string? TurnId { get; set; }
 }
 
-/// <summary>Deprecated merged replacement snapshot of shell output. Use tool.shell_output for append-only, stream-tagged output instead.</summary>
-[EditorBrowsable(EditorBrowsableState.Never)]
-#if NET5_0_OR_GREATER
-[Obsolete("This member is deprecated and will be removed in a future version.", DiagnosticId = "GHCP001")]
-#else
-[Obsolete("This member is deprecated and will be removed in a future version.")]
-#endif
+/// <summary>Streaming tool execution output for incremental result display.</summary>
 public sealed partial class ToolExecutionPartialResultData
 {
-    /// <summary>Merged replacement snapshot from the running shell, not an append-only chunk.</summary>
+    /// <summary>Incremental output chunk from the running tool.</summary>
     [JsonPropertyName("partialOutput")]
     public required string PartialOutput { get; set; }
 
     /// <summary>Tool call ID this partial result belongs to.</summary>
-    [JsonPropertyName("toolCallId")]
-    public required string ToolCallId { get; set; }
-}
-
-/// <summary>Live, append-only shell output. Not persisted or replayed to late subscribers. Text is decoded and redacted per chunk; chunks need not contain complete lines.</summary>
-public sealed partial class ToolShellOutputData
-{
-    /// <summary>Zero-based publication sequence across all output streams for this tool call. Not a byte offset or an OS write-order guarantee.</summary>
-    [JsonPropertyName("sequence")]
-    public required long Sequence { get; set; }
-
-    /// <summary>Output source. Omission means stdout. Terminal output has no separate stdout/stderr attribution.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("stream")]
-    public ToolShellOutputStream? Stream { get; set; }
-
-    /// <summary>New output to append, without synthetic shell-result markers or stream-switch separators.</summary>
-    [JsonPropertyName("text")]
-    public required string Text { get; set; }
-
-    /// <summary>Tool call ID that owns this shell output.</summary>
     [JsonPropertyName("toolCallId")]
     public required string ToolCallId { get; set; }
 }
@@ -5623,12 +4999,6 @@ public sealed partial class ToolExecutionProgressData
     /// <summary>Human-readable progress status message (e.g., from an MCP server).</summary>
     [JsonPropertyName("progressMessage")]
     public required string ProgressMessage { get; set; }
-
-    /// <summary>Client-only structured progress metadata. Not model-facing tool output.</summary>
-    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("structuredContent")]
-    public JsonElement? StructuredContent { get; set; }
 
     /// <summary>Tool call ID this progress notification belongs to.</summary>
     [JsonPropertyName("toolCallId")]
@@ -5642,12 +5012,6 @@ public sealed partial class ToolExecutionCompleteData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("error")]
     public ToolExecutionCompleteError? Error { get; set; }
-
-    /// <summary>Experimental. File mutations actually committed by a built-in file editing tool, in execution order. Present on successful edits and on partial failures when earlier mutations were committed. Paths are absolute in the session filesystem namespace.</summary>
-    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("fileEdits")]
-    public ToolExecutionCompleteFileEdit[]? FileEdits { get; set; }
 
     /// <summary>Experimental HydraFusion attribution for this tool completion.</summary>
     [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
@@ -5680,8 +5044,6 @@ public sealed partial class ToolExecutionCompleteData
     [EditorBrowsable(EditorBrowsableState.Never)]
 #if NET5_0_OR_GREATER
     [Obsolete("This member is deprecated and will be removed in a future version.", DiagnosticId = "GHCP001")]
-#else
-    [Obsolete("This member is deprecated and will be removed in a future version.")]
 #endif
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("parentToolCallId")]
@@ -7065,11 +6427,6 @@ public sealed partial class SessionAutoModeResolvedData
     [JsonPropertyName("routingMethod")]
     public string? RoutingMethod { get; set; }
 
-    /// <summary>Short human-readable sentence from the routing service explaining why this model was chosen, for display alongside the model. Present only when the service supplied one: it is omitted for on-device selections, when the service did not provide an explanation, and when a replayed decision made no routing call. The text is display-only and drawn from a fixed catalogue; several distinct routing categories share identical wording, so it cannot be used to recover the category or keyed on programmatically.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("selectionReason")]
-    public string? SelectionReason { get; set; }
-
     /// <summary>Whether a sticky model choice overrode the router result.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("stickyOverride")]
@@ -7228,27 +6585,6 @@ public sealed partial class ExitPlanModeCompletedData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("selectedAction")]
     public ExitPlanModeAction? SelectedAction { get; set; }
-}
-
-/// <summary>Durable request-correlated evidence for a typed response to a runtime-owned question or plan review.</summary>
-public sealed partial class HumanResponseRecordedData
-{
-    /// <summary>Controlled actor provenance established at response ingress.</summary>
-    [JsonPropertyName("actor")]
-    public required HumanResponseActor Actor { get; set; }
-
-    /// <summary>Request ID of the runtime-owned question or plan review.</summary>
-    [JsonPropertyName("requestId")]
-    public required string RequestId { get; set; }
-
-    /// <summary>Typed request and response payload.</summary>
-    [JsonPropertyName("response")]
-    public required HumanResponseRecordedResponse Response { get; set; }
-
-    /// <summary>Tool call ID that opened the request, when present.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("toolCallId")]
-    public string? ToolCallId { get; set; }
 }
 
 /// <summary>Payload of `session.tools_updated` identifying the model whose resolved tools were updated.</summary>
@@ -9116,11 +8452,6 @@ public sealed partial class AssistantMessageReasoningBlocks
     [JsonPropertyName("blocks")]
     public JsonElement[]? Blocks { get; set; }
 
-    /// <summary>Anthropic Messages assistant block ordering preserved when the legacy reasoning-only representation cannot reproduce it exactly. Thinking and text blocks remain verbatim; tool-use entries retain identity and a payload fingerprint when later signed reasoning depends on them, and are hydrated from the message's tool requests during replay.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("orderedBlocks")]
-    public JsonElement[]? OrderedBlocks { get; set; }
-
     /// <summary>Model provider that produced these reasoning blocks.</summary>
     [JsonPropertyName("provider")]
     public required string Provider { get; set; }
@@ -9443,20 +8774,6 @@ public sealed partial class ToolExecutionCompleteError
     public RemediationAction? Remediation { get; set; }
 }
 
-/// <summary>A file mutation that was actually committed by a built-in file editing tool.</summary>
-/// <remarks>Nested data type for <c>ToolExecutionCompleteFileEdit</c>.</remarks>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed partial class ToolExecutionCompleteFileEdit
-{
-    /// <summary>Kind of mutation committed at this path.</summary>
-    [JsonPropertyName("kind")]
-    public required ToolExecutionCompleteFileEditKind Kind { get; set; }
-
-    /// <summary>Absolute path in the session filesystem namespace.</summary>
-    [JsonPropertyName("path")]
-    public required string Path { get; set; }
-}
-
 /// <summary>Binary result returned by a tool for the model.</summary>
 /// <remarks>Nested data type for <c>PersistedBinaryImage</c>.</remarks>
 public sealed partial class PersistedBinaryImage
@@ -9697,8 +9014,6 @@ public sealed partial class ToolExecutionCompleteContentText : ToolExecutionComp
 [EditorBrowsable(EditorBrowsableState.Never)]
 #if NET5_0_OR_GREATER
 [Obsolete("This member is deprecated and will be removed in a future version.", DiagnosticId = "GHCP001")]
-#else
-[Obsolete("This member is deprecated and will be removed in a future version.")]
 #endif
 public sealed partial class ToolExecutionCompleteContentTerminal : ToolExecutionCompleteContent
 {
@@ -12882,115 +12197,6 @@ public sealed partial class CapabilitiesChangedUI
     [JsonPropertyName("mcpApps")]
     public bool? McpApps { get; set; }
 }
-
-/// <summary>The <c>ask_user</c> variant of <see cref="HumanResponseRecordedResponse"/>.</summary>
-public sealed partial class HumanResponseRecordedResponseAskUser : HumanResponseRecordedResponse
-{
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override string ResponseKind => "ask_user";
-
-    /// <summary>Exact answer content accepted from the user.</summary>
-    [JsonPropertyName("content")]
-    public required IDictionary<string, JsonElement> Content { get; set; }
-
-    /// <summary>Exact question displayed to the user.</summary>
-    [JsonPropertyName("message")]
-    public required string Message { get; set; }
-
-    /// <summary>Exact response schema displayed to the user.</summary>
-    [JsonPropertyName("requestedSchema")]
-    public required ElicitationRequestedSchema RequestedSchema { get; set; }
-}
-
-/// <summary>The <c>user_input</c> variant of <see cref="HumanResponseRecordedResponse"/>.</summary>
-public sealed partial class HumanResponseRecordedResponseUserInput : HumanResponseRecordedResponse
-{
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override string ResponseKind => "user_input";
-
-    /// <summary>Whether the displayed request allowed a free-form answer.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("allowFreeform")]
-    public bool? AllowFreeform { get; set; }
-
-    /// <summary>Exact selected or free-form answer submitted by the user.</summary>
-    [JsonPropertyName("answer")]
-    public required string Answer { get; set; }
-
-    /// <summary>Exact choices displayed to the user, when the request offered choices.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("choices")]
-    public string[]? Choices { get; set; }
-
-    /// <summary>Exact question displayed to the user.</summary>
-    [JsonPropertyName("question")]
-    public required string Question { get; set; }
-
-    /// <summary>Whether the answer was typed as free-form text rather than selected from the displayed choices.</summary>
-    [JsonPropertyName("wasFreeform")]
-    public required bool WasFreeform { get; set; }
-}
-
-/// <summary>The <c>exit_plan_mode</c> variant of <see cref="HumanResponseRecordedResponse"/>.</summary>
-public sealed partial class HumanResponseRecordedResponseExitPlanMode : HumanResponseRecordedResponse
-{
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override string ResponseKind => "exit_plan_mode";
-
-    /// <summary>Actions offered by the plan review UI.</summary>
-    [JsonPropertyName("actions")]
-    public required ExitPlanModeAction[] Actions { get; set; }
-
-    /// <summary>Whether the user approved the reviewed plan.</summary>
-    [JsonPropertyName("approved")]
-    public required bool Approved { get; set; }
-
-    /// <summary>Whether the selected response requested edit auto-approval.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("autoApproveEdits")]
-    public bool? AutoApproveEdits { get; set; }
-
-    /// <summary>Exact feedback submitted with the plan decision, when present.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("feedback")]
-    public string? Feedback { get; set; }
-
-    /// <summary>Exact full plan content available from the review UI.</summary>
-    [JsonPropertyName("planContent")]
-    public required string PlanContent { get; set; }
-
-    /// <summary>Action the plan review UI recommended.</summary>
-    [JsonPropertyName("recommendedAction")]
-    public required ExitPlanModeAction RecommendedAction { get; set; }
-
-    /// <summary>Action selected by the user, when applicable.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("selectedAction")]
-    public ExitPlanModeAction? SelectedAction { get; set; }
-
-    /// <summary>Exact plan summary displayed to the user.</summary>
-    [JsonPropertyName("summary")]
-    public required string Summary { get; set; }
-}
-
-/// <summary>Exact runtime-owned question or reviewed plan paired with the typed response that settled it.</summary>
-/// <remarks>Polymorphic base type discriminated by <c>responseKind</c>.</remarks>
-[JsonPolymorphic(
-    TypeDiscriminatorPropertyName = "responseKind",
-    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
-[JsonDerivedType(typeof(HumanResponseRecordedResponseAskUser), "ask_user")]
-[JsonDerivedType(typeof(HumanResponseRecordedResponseUserInput), "user_input")]
-[JsonDerivedType(typeof(HumanResponseRecordedResponseExitPlanMode), "exit_plan_mode")]
-public partial class HumanResponseRecordedResponse
-{
-    /// <summary>The type discriminator.</summary>
-    [JsonPropertyName("responseKind")]
-    public virtual string ResponseKind { get; set; } = string.Empty;
-}
-
 
 /// <summary>A single resolved skill in `session.skills_loaded`, including source, invocability, enabled state, path, and argument hint.</summary>
 /// <remarks>Nested data type for <c>SkillsLoadedSkill</c>.</remarks>
@@ -17469,135 +16675,6 @@ public readonly struct ToolExecutionStartToolDescriptionMetaUIVisibility : IEqua
     }
 }
 
-/// <summary>Shell output source. Terminal output has no separate stdout/stderr attribution.</summary>
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct ToolShellOutputStream : IEquatable<ToolShellOutputStream>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="ToolShellOutputStream"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="ToolShellOutputStream"/>.</param>
-    [JsonConstructor]
-    public ToolShellOutputStream(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="ToolShellOutputStream"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>Output from the shell command's standard output stream. This is the default when stream is omitted.</summary>
-    public static ToolShellOutputStream Stdout { get; } = new("stdout");
-
-    /// <summary>Output from the shell command's standard error stream.</summary>
-    public static ToolShellOutputStream Stderr { get; } = new("stderr");
-
-    /// <summary>Inherently merged output that cannot be attributed separately to stdout or stderr.</summary>
-    public static ToolShellOutputStream Terminal { get; } = new("terminal");
-
-    /// <summary>Returns a value indicating whether two <see cref="ToolShellOutputStream"/> instances are equivalent.</summary>
-    public static bool operator ==(ToolShellOutputStream left, ToolShellOutputStream right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="ToolShellOutputStream"/> instances are not equivalent.</summary>
-    public static bool operator !=(ToolShellOutputStream left, ToolShellOutputStream right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is ToolShellOutputStream other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(ToolShellOutputStream other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{ToolShellOutputStream}"/> for serializing <see cref="ToolShellOutputStream"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<ToolShellOutputStream>
-    {
-        /// <inheritdoc />
-        public override ToolShellOutputStream Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, ToolShellOutputStream value, JsonSerializerOptions options)
-        {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ToolShellOutputStream));
-        }
-    }
-}
-
-/// <summary>Kind of file mutation committed by a built-in editing tool.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct ToolExecutionCompleteFileEditKind : IEquatable<ToolExecutionCompleteFileEditKind>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="ToolExecutionCompleteFileEditKind"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="ToolExecutionCompleteFileEditKind"/>.</param>
-    [JsonConstructor]
-    public ToolExecutionCompleteFileEditKind(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="ToolExecutionCompleteFileEditKind"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>A file was created.</summary>
-    public static ToolExecutionCompleteFileEditKind Create { get; } = new("create");
-
-    /// <summary>A file was written by an edit operation.</summary>
-    public static ToolExecutionCompleteFileEditKind Edit { get; } = new("edit");
-
-    /// <summary>A file was deleted.</summary>
-    public static ToolExecutionCompleteFileEditKind Delete { get; } = new("delete");
-
-    /// <summary>Returns a value indicating whether two <see cref="ToolExecutionCompleteFileEditKind"/> instances are equivalent.</summary>
-    public static bool operator ==(ToolExecutionCompleteFileEditKind left, ToolExecutionCompleteFileEditKind right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="ToolExecutionCompleteFileEditKind"/> instances are not equivalent.</summary>
-    public static bool operator !=(ToolExecutionCompleteFileEditKind left, ToolExecutionCompleteFileEditKind right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is ToolExecutionCompleteFileEditKind other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(ToolExecutionCompleteFileEditKind other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{ToolExecutionCompleteFileEditKind}"/> for serializing <see cref="ToolExecutionCompleteFileEditKind"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<ToolExecutionCompleteFileEditKind>
-    {
-        /// <inheritdoc />
-        public override ToolExecutionCompleteFileEditKind Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, ToolExecutionCompleteFileEditKind value, JsonSerializerOptions options)
-        {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ToolExecutionCompleteFileEditKind));
-        }
-    }
-}
-
 /// <summary>Binary result type discriminator. Use "image" for images and "resource" for other binary data.</summary>
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
@@ -21163,70 +20240,6 @@ public readonly struct ExitPlanModeAction : IEquatable<ExitPlanModeAction>
     }
 }
 
-/// <summary>Controlled provenance for a typed runtime response. Only `human_response`, minted by a trusted direct-interaction ingress, is human authorization evidence.</summary>
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct HumanResponseActor : IEquatable<HumanResponseActor>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="HumanResponseActor"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="HumanResponseActor"/>.</param>
-    [JsonConstructor]
-    public HumanResponseActor(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="HumanResponseActor"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>A built-in trusted client submitted the response after direct human interaction.</summary>
-    public static HumanResponseActor HumanResponse { get; } = new("human_response");
-
-    /// <summary>A host or SDK automation submitted the response without direct human interaction.</summary>
-    public static HumanResponseActor HostAutomation { get; } = new("host_automation");
-
-    /// <summary>The response came through a legacy or otherwise unattributed ingress.</summary>
-    public static HumanResponseActor Unknown { get; } = new("unknown");
-
-    /// <summary>Returns a value indicating whether two <see cref="HumanResponseActor"/> instances are equivalent.</summary>
-    public static bool operator ==(HumanResponseActor left, HumanResponseActor right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="HumanResponseActor"/> instances are not equivalent.</summary>
-    public static bool operator !=(HumanResponseActor left, HumanResponseActor right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is HumanResponseActor other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(HumanResponseActor other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{HumanResponseActor}"/> for serializing <see cref="HumanResponseActor"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<HumanResponseActor>
-    {
-        /// <inheritdoc />
-        public override HumanResponseActor Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, HumanResponseActor value, JsonSerializerOptions options)
-        {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(HumanResponseActor));
-        }
-    }
-}
-
 /// <summary>Terminal status a workflow run committed. A settled run is never `pending` or `running`, so those two members of the run-status domain are deliberately absent.</summary>
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
@@ -21789,12 +20802,6 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(HookProgressEvent))]
 [JsonSerializable(typeof(HookStartData))]
 [JsonSerializable(typeof(HookStartEvent))]
-[JsonSerializable(typeof(HumanResponseRecordedData))]
-[JsonSerializable(typeof(HumanResponseRecordedEvent))]
-[JsonSerializable(typeof(HumanResponseRecordedResponse))]
-[JsonSerializable(typeof(HumanResponseRecordedResponseAskUser))]
-[JsonSerializable(typeof(HumanResponseRecordedResponseExitPlanMode))]
-[JsonSerializable(typeof(HumanResponseRecordedResponseUserInput))]
 [JsonSerializable(typeof(McpAppToolCallCompleteData))]
 [JsonSerializable(typeof(McpAppToolCallCompleteError))]
 [JsonSerializable(typeof(McpAppToolCallCompleteEvent))]
@@ -21955,7 +20962,6 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(SessionErrorData))]
 [JsonSerializable(typeof(SessionErrorEvent))]
 [JsonSerializable(typeof(SessionEvent))]
-[JsonSerializable(typeof(SessionEventEnvelope))]
 [JsonSerializable(typeof(SessionExtensionsAttachmentsPushedData))]
 [JsonSerializable(typeof(SessionExtensionsAttachmentsPushedEvent))]
 [JsonSerializable(typeof(SessionExtensionsLoadedData))]
@@ -22110,7 +21116,6 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(ToolExecutionCompleteData))]
 [JsonSerializable(typeof(ToolExecutionCompleteError))]
 [JsonSerializable(typeof(ToolExecutionCompleteEvent))]
-[JsonSerializable(typeof(ToolExecutionCompleteFileEdit))]
 [JsonSerializable(typeof(ToolExecutionCompleteResult))]
 [JsonSerializable(typeof(ToolExecutionCompleteShellExecution))]
 [JsonSerializable(typeof(ToolExecutionCompleteToolDescription))]
@@ -22137,8 +21142,6 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(ToolExecutionStartToolDescriptionMetaUI))]
 [JsonSerializable(typeof(ToolSearchActivatedData))]
 [JsonSerializable(typeof(ToolSearchActivatedEvent))]
-[JsonSerializable(typeof(ToolShellOutputData))]
-[JsonSerializable(typeof(ToolShellOutputEvent))]
 [JsonSerializable(typeof(ToolUserRequestedData))]
 [JsonSerializable(typeof(ToolUserRequestedEvent))]
 [JsonSerializable(typeof(UiEphemeralQueryData))]

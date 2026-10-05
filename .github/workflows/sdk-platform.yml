@@ -1,5 +1,5 @@
-# Runs SDK language checks for one runtime platform as soon as its artifact is
-# available. Merge groups retain only the Node.js compatibility lane.
+# Runs all SDK language checks for one runtime platform, allowing each platform
+# to start as soon as its runtime artifact is available.
 name: "SDK platform"
 
 on:
@@ -11,11 +11,6 @@ on:
       sdk-home:
         required: true
         type: string
-    outputs:
-      nodejs-result:
-        description: "Node.js SDK result, independent of other languages"
-        # Direct result outputs can be empty: https://github.com/actions/runner/issues/2495
-        value: ${{ fromJSON(toJSON(jobs.nodejs)).result }}
 
 permissions:
   contents: read
@@ -29,7 +24,6 @@ jobs:
     secrets: inherit
 
   python:
-    if: github.event_name != 'merge_group'
     uses: ./.github/workflows/sdk-python.yml
     with:
       platform: ${{ inputs.platform }}
@@ -37,7 +31,6 @@ jobs:
     secrets: inherit
 
   go:
-    if: github.event_name != 'merge_group'
     uses: ./.github/workflows/sdk-go.yml
     with:
       platform: ${{ inputs.platform }}
@@ -45,7 +38,6 @@ jobs:
     secrets: inherit
 
   dotnet:
-    if: github.event_name != 'merge_group'
     uses: ./.github/workflows/sdk-dotnet.yml
     with:
       platform: ${{ inputs.platform }}
@@ -53,7 +45,6 @@ jobs:
     secrets: inherit
 
   rust:
-    if: github.event_name != 'merge_group'
     uses: ./.github/workflows/sdk-rust.yml
     with:
       platform: ${{ inputs.platform }}
@@ -61,7 +52,6 @@ jobs:
     secrets: inherit
 
   java:
-    if: github.event_name != 'merge_group'
     uses: ./.github/workflows/sdk-java.yml
     with:
       platform: ${{ inputs.platform }}

@@ -10,7 +10,6 @@ package com.github.copilot.generated;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
@@ -36,7 +35,6 @@ public final class PermissionMessageAuthorizationDegradedEvent extends SessionEv
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record PermissionMessageAuthorizationDegradedEventData(
         /** The human turn that could not be represented safely. */
-        @CopilotExperimental
         @JsonProperty("turnIndex") Long turnIndex
     ) {
     }

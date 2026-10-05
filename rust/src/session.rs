@@ -37,13 +37,13 @@ use crate::types::{
     CreateSessionResult, ElicitationRequest, ElicitationResult, ExitPlanModeData,
     GetMessagesResponse, MessageOptions, PermissionRequestData, RequestId, ResumeSessionConfig,
     ResumeSessionResult, SectionOverride, SessionCapabilities, SessionConfig, SessionEvent,
-    SessionId, SetModelOptions, SystemMessageConfig, Tool, ToolHandlerMap, ToolInvocation,
-    ToolResult, ToolResultExpanded, TraceContext, TranscriptRecovery, UiInputOptions,
-    ensure_attachment_display_names, take_tool_handlers,
+    SessionId, SetModelOptions, SystemMessageConfig, ToolInvocation, ToolResult,
+    ToolResultExpanded, TraceContext, TranscriptRecovery, UiInputOptions,
+    ensure_attachment_display_names,
 };
 use crate::{
-    Client, Error, ErrorKind, JsonRpcResponse, ProtocolErrorKind, SessionErrorKind,
-    SessionEventNotification, error_codes,
+    Client, Error, ErrorKind, JsonRpcResponse, SessionErrorKind, SessionEventNotification,
+    error_codes,
 };
 
 /// Fixed name of the runtime's built-in tool-search tool. A client can replace
@@ -92,9 +92,7 @@ pub(crate) struct SessionHandlers {
     pub user_input: Option<Arc<dyn UserInputHandler>>,
     pub exit_plan_mode: Option<Arc<dyn ExitPlanModeHandler>>,
     pub auto_mode_switch: Option<Arc<dyn AutoModeSwitchHandler>>,
-    /// Shared with the owning [`Session`], which replaces the map when the
-    /// runtime accepts a [`Session::set_tools`] call.
-    pub tools: Arc<parking_lot::RwLock<ToolHandlerMap>>,
+    pub tools: Arc<HashMap<String, Arc<dyn crate::tool::ToolHandler>>>,
 }
 
 type PendingExternalTools = Arc<ParkingLotMutex<HashMap<RequestId, Arc<CancellationToken>>>>;
@@ -521,13 +519,6 @@ pub struct Session {
     /// Cancels only host-owned external tool callbacks. Disconnect signals this
     /// before the destroy RPC without stopping unrelated event delivery.
     external_tools_shutdown: CancellationToken,
-    /// This client's tool handlers, shared with the event loop's
-    /// `external_tool.requested` dispatch.
-    tool_handlers: Arc<parking_lot::RwLock<ToolHandlerMap>>,
-    /// Held for each [`Session::set_tools`] request until the runtime answers,
-    /// so replacements reach the runtime, and replace the handlers, one at a
-    /// time.
-    set_tools_lock: Arc<tokio::sync::Mutex<()>>,
     /// Only populated while a `send_and_wait` call is in flight.
     ///
     /// Sync `parking_lot::Mutex` because the lock is never held across an
@@ -1142,115 +1133,6 @@ impl Session {
             .await
     }
 
-    /// Replace the tools this client supplies to the session.
-    ///
-    /// `tools` becomes the complete set of externally implemented tools this
-    /// client supplies, replacing the set from [`SessionConfig::with_tools`],
-    /// [`ResumeSessionConfig::with_tools`], or a previous call. Built-in, MCP,
-    /// plugin, and extension tools, and tools that other clients connected to
-    /// the session supply, are unaffected. Pass an empty collection to remove
-    /// all of this client's tools.
-    ///
-    /// As at startup, this session dispatches calls to tools that carry a
-    /// [handler](Tool::with_handler), and advertises declaration-only tools for
-    /// another client to service.
-    ///
-    /// The new handlers take effect as soon as the runtime accepts the
-    /// replacement: from then on, every tool request this session dispatches
-    /// uses them, including requests the runtime sent before it accepted.
-    /// Calls already running finish on the handlers that started them. If the
-    /// runtime rejects the replacement, nothing changes. Concurrent calls on
-    /// the same session are applied one at a time, in the order they start.
-    ///
-    /// The runtime offers the new tools from the agent's next model request,
-    /// which can fall within a turn in progress. A model request already in
-    /// flight was made with the previous tools, so the agent can still call a
-    /// tool you removed. This session doesn't answer that call, and it can stay
-    /// pending until the turn is aborted. If a running turn might still call a
-    /// tool you remove, replace tools while the session is idle.
-    ///
-    /// **Experimental.** Wraps the experimental `session.tools.set` RPC, which
-    /// requires a runtime that supports it.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`ErrorKind::InvalidConfig`], without contacting the runtime, if
-    /// two tools carry handlers under the same name. The runtime rejects invalid
-    /// tool names and names that another connected client already supplies.
-    ///
-    /// # Cancel safety
-    ///
-    /// **Cancel-safe.** Dropping this future while an earlier replacement is
-    /// still in flight sends nothing. Once the request starts, it runs to
-    /// completion in its own task. Dropping this future then doesn't abandon
-    /// the replacement: an accepted replacement still takes effect, and later
-    /// calls still wait for the runtime's answer. Only the result is lost.
-    ///
-    /// # Example
-    ///
-    /// ```no_run
-    /// # use std::sync::Arc;
-    /// # use github_copilot_sdk::Tool;
-    /// # use github_copilot_sdk::tool::ToolHandler;
-    /// # async fn example(
-    /// #     session: github_copilot_sdk::session::Session,
-    /// #     search_issues: Arc<dyn ToolHandler>,
-    /// # ) -> Result<(), github_copilot_sdk::Error> {
-    /// session
-    ///     .set_tools([Tool::new("search_issues")
-    ///         .with_description("Search the issues shown on the current page")
-    ///         .with_handler(search_issues)])
-    ///     .await?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub async fn set_tools<I: IntoIterator<Item = Tool>>(&self, tools: I) -> Result<(), Error> {
-        let mut tools: Vec<Tool> = tools.into_iter().collect();
-        let handlers = take_tool_handlers(&mut tools)?;
-        let mut params = serde_json::json!({ "sessionId": self.id });
-        params["tools"] = serde_json::to_value(&tools)?;
-
-        let set_tools_lock = self.set_tools_lock.clone().lock_owned().await;
-        let installed = self.tool_handlers.clone();
-        let replaced = Arc::new(ParkingLotMutex::new(None));
-        // Swapping on the read task means no tool request read after the
-        // runtime accepted is dispatched to the previous handlers.
-        let accepted: crate::jsonrpc::InlineResponseCallback = Box::new({
-            let replaced = replaced.clone();
-            move |_| {
-                let previous = std::mem::replace(&mut *installed.write(), handlers);
-                *replaced.lock() = Some(previous);
-                Ok(())
-            }
-        });
-        let request = self.client.call_with_inline_callback(
-            rpc_methods::SESSION_TOOLS_SET,
-            Some(params),
-            Some(accepted),
-        );
-        let span = tracing::error_span!("set_tools", session_id = %self.id);
-        // The task owns the request and the lock, so even if this future is
-        // dropped, an accepted replacement still takes effect and the next
-        // call waits for the runtime's answer.
-        let replacement = tokio::spawn(
-            async move {
-                let _set_tools_lock = set_tools_lock;
-                let result = request.await;
-                // Run the replaced handlers' destructors here rather than on
-                // the read task, which every session on this client shares.
-                let previous = replaced.lock().take();
-                drop(previous);
-                result
-            }
-            .instrument(span),
-        );
-        match replacement.await {
-            Ok(result) => result.map(|_| ()),
-            Err(error) if error.is_panic() => std::panic::resume_unwind(error.into_panic()),
-            Err(_) => Err(ErrorKind::Protocol(ProtocolErrorKind::RequestCancelled).into()),
-        }
-    }
-
     /// Disconnect this session from the CLI.
     ///
     /// Sends the `session.detach` RPC, stops the event loop, and unregisters
@@ -1752,9 +1634,6 @@ impl Client {
             runtime.permission_handler.take(),
             runtime.permission_policy.take(),
         );
-        let tool_handlers = Arc::new(parking_lot::RwLock::new(std::mem::take(
-            &mut runtime.tool_handlers,
-        )));
         let handlers = SessionHandlers {
             permission: permission_handler,
             managed_settings_enabled: has_managed_settings(
@@ -1766,7 +1645,7 @@ impl Client {
             user_input: runtime.user_input_handler.take(),
             exit_plan_mode: runtime.exit_plan_mode_handler.take(),
             auto_mode_switch: runtime.auto_mode_switch_handler.take(),
-            tools: tool_handlers.clone(),
+            tools: Arc::new(std::mem::take(&mut runtime.tool_handlers)),
         };
         let hooks = runtime.hooks_handler.take();
         let transforms = runtime.system_message_transform.take();
@@ -1796,15 +1675,6 @@ impl Client {
                 ErrorKind::InvalidConfig,
                 "SessionFs capabilities declare SQLite support but the provider \
                  does not implement SessionFsSqliteProvider",
-            ));
-        }
-        if self.inner.session_fs_binary_declared
-            && let Some(ref provider) = session_fs_provider
-            && provider.binary().is_none()
-        {
-            return Err(Error::with_message(
-                ErrorKind::InvalidConfig,
-                "SessionFs capabilities declare binary support but the provider does not implement SessionFsBinaryProvider",
             ));
         }
 
@@ -1979,8 +1849,6 @@ impl Client {
             event_loop: ParkingLotMutex::new(Some(event_loop)),
             shutdown,
             external_tools_shutdown,
-            tool_handlers,
-            set_tools_lock: Arc::default(),
             idle_waiter,
             capabilities,
             open_canvases,
@@ -2097,9 +1965,6 @@ impl Client {
             runtime.permission_handler.take(),
             runtime.permission_policy.take(),
         );
-        let tool_handlers = Arc::new(parking_lot::RwLock::new(std::mem::take(
-            &mut runtime.tool_handlers,
-        )));
         let handlers = SessionHandlers {
             permission: permission_handler,
             managed_settings_enabled: has_managed_settings(
@@ -2111,7 +1976,7 @@ impl Client {
             user_input: runtime.user_input_handler.take(),
             exit_plan_mode: runtime.exit_plan_mode_handler.take(),
             auto_mode_switch: runtime.auto_mode_switch_handler.take(),
-            tools: tool_handlers.clone(),
+            tools: Arc::new(std::mem::take(&mut runtime.tool_handlers)),
         };
         let hooks = runtime.hooks_handler.take();
         let transforms = runtime.system_message_transform.take();
@@ -2141,15 +2006,6 @@ impl Client {
                 ErrorKind::InvalidConfig,
                 "SessionFs capabilities declare SQLite support but the provider \
                  does not implement SessionFsSqliteProvider",
-            ));
-        }
-        if self.inner.session_fs_binary_declared
-            && let Some(ref provider) = session_fs_provider
-            && provider.binary().is_none()
-        {
-            return Err(Error::with_message(
-                ErrorKind::InvalidConfig,
-                "SessionFs capabilities declare binary support but the provider does not implement SessionFsBinaryProvider",
             ));
         }
 
@@ -2294,8 +2150,6 @@ impl Client {
             event_loop: ParkingLotMutex::new(Some(event_loop)),
             shutdown,
             external_tools_shutdown,
-            tool_handlers,
-            set_tools_lock: Arc::default(),
             idle_waiter,
             capabilities,
             open_canvases,
@@ -3082,7 +2936,7 @@ async fn handle_notification(
             let tool_handler = if data.tool_name.is_empty() {
                 None
             } else {
-                handlers.tools.read().get(&data.tool_name).cloned()
+                handlers.tools.get(&data.tool_name).cloned()
             };
             let Some(tool_handler) = tool_handler else {
                 return;
@@ -3844,7 +3698,311 @@ fn inject_transform_sections_resume(
 }
 
 #[cfg(test)]
-mod tests;
+mod tests {
+    use serde_json::json;
+
+    use super::{
+        build_mode_post_create_patch, has_managed_settings, is_autopilot_continuation_idle,
+        permission_request_data, permission_response_params,
+    };
+    use crate::handler::PermissionResult;
+    use crate::types::{
+        PermissionDecisionContext, PermissionDecisionOutcome, PermissionDecisionSource,
+        PermissionDecisionSurface, RequestId, SessionEvent, SessionId,
+    };
+
+    #[test]
+    fn identifies_only_autopilot_continuation_idles() {
+        let mut event = SessionEvent {
+            id: "event-1".to_string(),
+            timestamp: "2026-01-01T00:00:00Z".to_string(),
+            parent_id: None,
+            ephemeral: None,
+            agent_id: None,
+            debug_cli_received_at_ms: None,
+            debug_ws_forwarded_at_ms: None,
+            event_type: "session.idle".to_string(),
+            data: json!({ "mode": "autopilot" }),
+        };
+
+        assert!(is_autopilot_continuation_idle(&event));
+
+        event.data = json!({ "mode": "interactive" });
+        assert!(!is_autopilot_continuation_idle(&event));
+
+        event.data = json!({});
+        assert!(!is_autopilot_continuation_idle(&event));
+    }
+
+    #[test]
+    fn empty_mode_post_patch_sets_empty_included_builtin_skills() {
+        let patch =
+            build_mode_post_create_patch(crate::ClientMode::Empty, None, None, None, None, None)
+                .expect("empty mode always sends a patch");
+        assert_eq!(
+            patch.included_builtin_skills,
+            Some(Vec::new()),
+            "empty mode must fail closed with an empty includedBuiltinSkills list"
+        );
+        assert_eq!(patch.installed_plugins.as_ref().map(|p| p.len()), Some(0));
+        // Serializes as an explicit empty array (not omitted).
+        let value = serde_json::to_value(&patch).expect("serialize patch");
+        assert_eq!(value["includedBuiltinSkills"], serde_json::json!([]));
+    }
+
+    #[test]
+    fn empty_mode_post_patch_preserves_explicit_builtin_skill_allowlist() {
+        let patch = build_mode_post_create_patch(
+            crate::ClientMode::Empty,
+            Some(false),
+            Some(false),
+            Some(true),
+            Some(true),
+            Some(vec!["code-review".to_string()]),
+        )
+        .expect("empty mode always sends a patch");
+        assert_eq!(
+            patch.included_builtin_skills,
+            Some(vec!["code-review".to_string()])
+        );
+    }
+
+    #[test]
+    fn copilot_cli_mode_does_not_inject_included_builtin_skills() {
+        // No fields set -> no patch at all.
+        assert!(
+            build_mode_post_create_patch(
+                crate::ClientMode::CopilotCli,
+                None,
+                None,
+                None,
+                None,
+                None
+            )
+            .is_none()
+        );
+        // A field set -> patch sent, but skills field stays absent.
+        let patch = build_mode_post_create_patch(
+            crate::ClientMode::CopilotCli,
+            Some(true),
+            None,
+            None,
+            None,
+            None,
+        )
+        .expect("a set field triggers a patch");
+        assert_eq!(patch.included_builtin_skills, None);
+        assert!(patch.installed_plugins.is_none());
+        let value = serde_json::to_value(&patch).expect("serialize patch");
+        assert!(value.get("includedBuiltinSkills").is_none());
+
+        let patch = build_mode_post_create_patch(
+            crate::ClientMode::CopilotCli,
+            None,
+            None,
+            None,
+            None,
+            Some(vec!["code-review".to_string()]),
+        )
+        .expect("an explicit allowlist triggers a patch");
+        assert_eq!(
+            patch.included_builtin_skills,
+            Some(vec!["code-review".to_string()])
+        );
+    }
+
+    #[test]
+    fn direct_injection_enables_managed_safeguards() {
+        let settings = crate::types::ManagedSettings::default();
+        assert!(has_managed_settings(None, Some(&settings)));
+        assert!(!has_managed_settings(None, None));
+    }
+
+    fn attribution_context() -> PermissionDecisionContext {
+        PermissionDecisionContext {
+            outcome: PermissionDecisionOutcome::AutoApproved,
+            response_capability: None,
+            source: PermissionDecisionSource::AssistedApproval,
+            surface: PermissionDecisionSurface::CopilotApp,
+        }
+    }
+
+    #[test]
+    fn response_params_omit_decision_context_without_attribution() {
+        for (result, expected) in [
+            (
+                PermissionResult::approve_once(),
+                json!({ "kind": "approve-once" }),
+            ),
+            (PermissionResult::reject(None), json!({ "kind": "reject" })),
+            (
+                PermissionResult::reject(Some("bad".to_string())),
+                json!({ "kind": "reject", "feedback": "bad" }),
+            ),
+            (
+                PermissionResult::user_not_available(),
+                json!({ "kind": "user-not-available" }),
+            ),
+        ] {
+            let params = permission_response_params(
+                &SessionId::from("session-1"),
+                &RequestId::from("permission-1"),
+                &result,
+            )
+            .unwrap();
+            assert_eq!(
+                params,
+                json!({
+                    "sessionId": "session-1",
+                    "requestId": "permission-1",
+                    "result": expected,
+                })
+            );
+        }
+    }
+
+    #[test]
+    fn response_params_forward_decision_context_alongside_result() {
+        let params = permission_response_params(
+            &SessionId::from("session-1"),
+            &RequestId::from("permission-1"),
+            &PermissionResult::approve_once().with_context(attribution_context()),
+        )
+        .unwrap();
+        assert_eq!(
+            params,
+            json!({
+                "sessionId": "session-1",
+                "requestId": "permission-1",
+                "result": { "kind": "approve-once" },
+                "decisionContext": {
+                    "outcome": "auto_approved",
+                    "source": "assisted_approval",
+                    "surface": "copilot_app",
+                },
+            })
+        );
+        // The context is a sibling of `result`, never nested inside it.
+        assert!(params["result"].get("decisionContext").is_none());
+    }
+
+    #[test]
+    fn response_params_suppressed_for_no_result() {
+        assert!(
+            permission_response_params(
+                &SessionId::from("session-1"),
+                &RequestId::from("permission-1"),
+                &PermissionResult::NoResult,
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn with_context_is_a_no_op_on_no_result() {
+        let result = PermissionResult::no_result().with_context(attribution_context());
+        assert!(matches!(result, PermissionResult::NoResult));
+    }
+
+    #[test]
+    fn with_context_replaces_rather_than_nests() {
+        let result = PermissionResult::approve_once()
+            .with_context(attribution_context())
+            .with_context(PermissionDecisionContext {
+                outcome: PermissionDecisionOutcome::PromptedUser,
+                response_capability: None,
+                source: PermissionDecisionSource::HumanResponse,
+                surface: PermissionDecisionSurface::Sdk,
+            });
+        let params = permission_response_params(
+            &SessionId::from("session-1"),
+            &RequestId::from("permission-1"),
+            &result,
+        )
+        .unwrap();
+        assert_eq!(
+            params["decisionContext"],
+            json!({
+                "outcome": "prompted_user",
+                "source": "human_response",
+                "surface": "sdk",
+            })
+        );
+    }
+
+    #[test]
+    fn permission_request_data_reads_nested_managed_approval_metadata() {
+        let data = permission_request_data(
+            &json!({
+                "requestId": "permission-1",
+                "permissionRequest": {
+                    "kind": "read",
+                    "managedApprovalRequired": true,
+                    "path": "/workspace/file.txt"
+                }
+            }),
+            false,
+        );
+
+        assert_eq!(data.managed_approval_required, Some(true));
+        assert_eq!(
+            data.extra["permissionRequest"]["path"],
+            "/workspace/file.txt"
+        );
+    }
+
+    #[test]
+    fn permission_request_data_preserves_managed_flag_when_other_fields_are_malformed() {
+        let data = permission_request_data(
+            &json!({
+                "requestId": "permission-1",
+                "permissionRequest": {
+                    "kind": "read",
+                    "managedApprovalRequired": true,
+                    "toolCallId": 42
+                }
+            }),
+            false,
+        );
+
+        assert_eq!(data.managed_approval_required, Some(true));
+        assert_eq!(data.extra["requestId"], "permission-1");
+    }
+
+    #[test]
+    fn permission_request_data_fails_closed_for_malformed_managed_flag() {
+        let data = permission_request_data(
+            &json!({
+                "requestId": "permission-1",
+                "permissionRequest": {
+                    "kind": "read",
+                    "managedApprovalRequired": "yes",
+                    "path": "/workspace/file.txt"
+                }
+            }),
+            false,
+        );
+
+        assert_eq!(data.managed_approval_required, Some(true));
+    }
+
+    #[test]
+    fn permission_request_data_preserves_valid_false_managed_flag() {
+        let data = permission_request_data(
+            &json!({
+                "requestId": "permission-1",
+                "permissionRequest": {
+                    "kind": "read",
+                    "managedApprovalRequired": false,
+                    "path": "/workspace/file.txt"
+                }
+            }),
+            false,
+        );
+
+        assert_eq!(data.managed_approval_required, Some(false));
+    }
+}
 
 #[cfg(test)]
 mod startup_tasks_tests;
