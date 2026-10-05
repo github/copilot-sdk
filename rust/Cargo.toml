@@ -28,8 +28,18 @@ include = [
 name = "github_copilot_sdk"
 
 [features]
-default = ["bundled-cli"]
+default = ["bundled-cli", "rustls"]
 runtime = []
+# TLS backend for the `CopilotRequestHandler` HTTP/WebSocket forwarding
+# transport. Exactly one is normally enabled. `rustls` (default) uses
+# reqwest's rustls stack (aws-lc-rs provider, matching the Copilot runtime)
+# with no system OpenSSL; `native-tls` opts into the platform-native stack
+# (OpenSSL on Linux). These are deliberately opt-in features rather than
+# hard-coded dependency features: Cargo unifies features, so a hard-coded
+# `reqwest/native-tls` flips `reqwest`'s default TLS backend to native-tls for
+# every reqwest client in the consumer's whole dependency graph.
+rustls = ["reqwest/rustls", "tokio-tungstenite/rustls-tls-native-roots"]
+native-tls = ["reqwest/native-tls", "tokio-tungstenite/native-tls"]
 bundled-cli = ["runtime", "dep:tar", "dep:flate2", "dep:zip"]
 in-process = ["runtime", "dep:libloading"]
 local-runtime = ["in-process"]
@@ -68,8 +78,8 @@ base64 = "0.23"
 bytes = "1"
 http = "1"
 futures-util = "0.3"
-reqwest = { version = "0.13", default-features = false, features = ["stream", "http2", "native-tls"] }
-tokio-tungstenite = { version = "0.28.0", default-features = false, features = ["connect", "native-tls"] }
+reqwest = { version = "0.13", default-features = false, features = ["stream", "http2"] }
+tokio-tungstenite = { version = "0.28.0", default-features = false, features = ["connect"] }
 
 [target.'cfg(windows)'.dependencies]
 zip = { version = "7.2.0", default-features = false, features = ["deflate"], optional = true }
