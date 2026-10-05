@@ -5,8 +5,11 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"log/slog"
+	"os"
 	"reflect"
 	"sync"
 	"sync/atomic"
@@ -83,6 +86,7 @@ type Client struct {
 	processErrorPtr        *error        // points to the process error
 	processErrorMu         sync.RWMutex  // protects processErrorPtr
 	onClose                func()        // called when the read loop exits unexpectedly
+	logger                 *slog.Logger
 }
 
 // NewClient creates a new JSON-RPC client.
@@ -382,6 +386,17 @@ func (c *Client) SetOnClose(fn func()) {
 	c.onClose = fn
 }
 
+// SetLogger configures opt-in diagnostics and must be called before Start.
+func (c *Client) SetLogger(logger *slog.Logger) {
+	c.logger = logger
+}
+
+func (c *Client) logError(message string, err error) {
+	if c.logger != nil {
+		c.logger.Error(message, "error", err)
+	}
+}
+
 // readLoop reads messages from the stream in a background goroutine.
 func (c *Client) readLoop() {
 	defer c.wg.Done()
@@ -398,12 +413,18 @@ func (c *Client) readLoop() {
 		// Read the next frame.
 		data, err := c.reader.Read()
 		if err != nil {
+			if !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrClosedPipe) && !errors.Is(err, os.ErrClosed) && c.running.Load() {
+				c.logError("Error reading message", err)
+			}
 			return
 		}
 
 		// Decode using a single unmarshal into the combined wire format.
 		msg, err := decodeMessage(data)
 		if err != nil {
+			if c.running.Load() {
+				c.logError("Error decoding message", err)
+			}
 			continue
 		}
 
@@ -575,7 +596,9 @@ func (c *Client) sendResponse(ctx context.Context, id json.RawMessage, result js
 		ID:      id,
 		Result:  result,
 	}
-	_ = c.sendMessage(ctx, response)
+	if err := c.sendMessage(ctx, response); err != nil {
+		c.logError("Failed to send JSON-RPC response", err)
+	}
 }
 
 func (c *Client) sendErrorResponse(ctx context.Context, id json.RawMessage, rpcErr *Error) {
@@ -584,7 +607,9 @@ func (c *Client) sendErrorResponse(ctx context.Context, id json.RawMessage, rpcE
 		ID:      id,
 		Error:   rpcErr,
 	}
-	_ = c.sendMessage(ctx, response)
+	if err := c.sendMessage(ctx, response); err != nil {
+		c.logError("Failed to send JSON-RPC error response", err)
+	}
 }
 
 // generateUUID generates a simple UUID v4 without external dependencies

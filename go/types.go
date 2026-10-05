@@ -3,6 +3,7 @@ package copilot
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"time"
 
 	"github.com/github/copilot-sdk/go/rpc"
@@ -146,6 +147,9 @@ type ClientOptions struct {
 	// uses its own default level; the SDK does not pass --log-level.
 	// Recognized values: "none", "error", "warning", "info", "debug", "all".
 	LogLevel string
+	// ProtocolLogger receives JSON-RPC diagnostics, which may contain sensitive peer data.
+	// When nil, protocol diagnostics are disabled. It is independent of LogLevel.
+	ProtocolLogger *slog.Logger
 	// Env are the environment variables for the runtime process (default:
 	// inherits from current process). Each entry is of the form "KEY=VALUE".
 	// If Env contains duplicate keys, only the last value for each key is used.

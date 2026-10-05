@@ -145,11 +145,40 @@ Avoid logging it indiscriminately: server-provided data may contain sensitive
 information. Its fields and data bytes are shared with the wrapped error; copy
 them before mutation.
 
-The JSON-RPC transport does not print read, decode, or response-send diagnostics
-to the hosting process's stdout or stderr. Errors returned by SDK calls remain
-available to the caller and can contain peer-provided text. `ClientOptions.LogLevel`
-configures runtime logging; apply your application's redaction policy before
-logging returned errors.
+JSON-RPC read, decode, and response-send diagnostics are disabled by default.
+Set `ClientOptions.ProtocolLogger` to a `*slog.Logger` to opt in for that client.
+The transport emits error-level records with a static message and an `error`
+attribute; the logger's handler controls the destination, filtering, and
+redaction. There is no fallback to the global logger or process stdout/stderr.
+`ClientOptions.LogLevel` configures runtime logging independently.
+
+For example, explicitly capture diagnostics in memory:
+
+```go
+package main
+
+import (
+    "bytes"
+    "log/slog"
+
+    copilot "github.com/github/copilot-sdk/go"
+)
+
+func main() {
+    var diagnostics bytes.Buffer
+    client := copilot.NewClient(&copilot.ClientOptions{
+        ProtocolLogger: slog.New(slog.NewJSONHandler(&diagnostics, nil)),
+    })
+    _ = client
+}
+```
+
+Opted-in diagnostics can contain sensitive peer-provided text; the SDK does not
+redact arbitrary secrets. Apply your application's redaction and retention
+policy, for example with `slog.HandlerOptions.ReplaceAttr` for the `error`
+attribute. Custom handlers must support concurrent calls, as required by `slog`.
+Errors returned by SDK calls remain unchanged and also require deliberate
+handling before logging.
 
 ## Installation confirmation (experimental)
 
@@ -310,6 +339,7 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
 - `ExtensionLaunchProvider` (ExtensionLaunchProvider): Experimental connection-level resolver for extension launch profiles. `Start` installs the reverse-RPC handler and registers the provider before sessions can be created.
 - `InstallationConfirmationHandler` (InstallationConfirmationHandler): Experimental connection-global human review for `installations.confirm`. Receives the typed request, a per-request cancellation context and a separate connection-closed signal, then returns an explicit decision. Does not enable installation capabilities.
 - `LogLevel` (string): Log level. When empty (default), the runtime uses its own default level (the SDK does not pass `--log-level`).
+- `ProtocolLogger` (\*slog.Logger): Optional per-client JSON-RPC diagnostics logger (default: nil, disabled). Independent of `LogLevel`; error details can contain sensitive peer-provided text. See [JSON-RPC errors](#json-rpc-errors).
 - `Env` ([]string): Environment variables for the runtime process (default: inherits from current process)
 - `GitHubToken` (string): GitHub token for authentication. When provided, takes priority over other auth methods.
 - `UseLoggedInUser` (\*bool): Whether to use logged-in user for authentication (default: true, but false when `GitHubToken` is provided). Cannot be used with `URIConnection`.
