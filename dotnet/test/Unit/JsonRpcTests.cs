@@ -102,12 +102,15 @@ public class JsonRpcTests
         using var pair = JsonRpcReflectionPair.Create();
         var handlerStarted = new TaskCompletionSource<CancellationToken>(
             TaskCreationOptions.RunContinuationsAsynchronously);
+        var handlerDispatched = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         pair.Server.SetLocalRpcMethod("waitForShutdown", (Func<CancellationToken, Task>)(async cancellationToken =>
         {
+            await handlerDispatched.Task;
             handlerStarted.SetResult(cancellationToken);
             await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
         }));
+        pair.Server.SetLocalRpcMethod("handlerDispatched", (Action)(() => handlerDispatched.SetResult()));
 
         if (requestHasId)
         {
@@ -117,6 +120,8 @@ public class JsonRpcTests
         {
             await pair.SendClientFrameAsync(CreateNotificationFrame("waitForShutdown", "{}"));
         }
+        // Keep the handler suspended until dispatch returns, before testing shutdown cancellation.
+        await pair.SendClientFrameAsync(CreateNotificationFrame("handlerDispatched", "{}"));
 
         var handlerToken = await WaitForCancellationAsync(handlerStarted.Task);
         Assert.False(handlerToken.IsCancellationRequested);
@@ -124,6 +129,24 @@ public class JsonRpcTests
         pair.Server.Dispose();
 
         await WaitForCancellationAsync(handlerToken);
+    }
+
+    [Fact]
+    public async Task JsonRpc_Invokes_Task_Returning_Handler_To_Completion()
+    {
+        using var pair = JsonRpcReflectionPair.Create();
+        pair.StartListening();
+
+        var observed = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+        pair.Server.SetLocalRpcMethod("voidAsync", (Func<string, int, CancellationToken, Task>)(async (name, count, cancellationToken) =>
+        {
+            await Task.Yield();
+            observed.SetResult($"{name}:{count}");
+        }));
+
+        await pair.Client.InvokeAsync<object?>("voidAsync", ["Mona", 2]).WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal("Mona:2", await observed.Task.WaitAsync(TimeSpan.FromSeconds(5)));
     }
 
     [Fact]

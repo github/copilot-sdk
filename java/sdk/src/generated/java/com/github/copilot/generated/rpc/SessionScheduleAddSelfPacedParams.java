@@ -23,7 +23,7 @@ import javax.annotation.processing.Generated;
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record SessionScheduleAddSelfPacedParams(
+record SessionScheduleAddSelfPacedParams(
     /** Target session identifier */
     @JsonProperty("sessionId") String sessionId,
     /** Prompt text to enqueue when the schedule fires. */

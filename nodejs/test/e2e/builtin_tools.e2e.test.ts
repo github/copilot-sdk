@@ -3,9 +3,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { writeFile, mkdir } from "fs/promises";
-import { join } from "path";
+import { join, normalize } from "path";
 import { describe, expect, it } from "vitest";
 import { approveAll } from "../../src/index.js";
+import type { ToolExecutionCompleteEvent } from "../../src/generated/session-events.js";
 import { createSdkTestContext } from "./harness/sdkTestContext";
 
 // Built-in tool tests spawn a real CLI subprocess and execute actual shell /
@@ -93,8 +94,18 @@ describe("Built-in Tools", async () => {
         it(
             "should edit a file successfully",
             async () => {
-                await writeFile(join(workDir, "edit_me.txt"), "Hello World\nGoodbye World\n");
+                const path = join(workDir, "edit_me.txt");
+                await writeFile(path, "Hello World\nGoodbye World\n");
                 const session = await client.createSession({ onPermissionRequest: approveAll });
+                const completions: ToolExecutionCompleteEvent["data"][] = [];
+                let editToolCallId: string | undefined;
+                session.on((event) => {
+                    if (event.type === "tool.execution_start" && event.data.toolName === "edit") {
+                        editToolCallId = event.data.toolCallId;
+                    } else if (event.type === "tool.execution_complete") {
+                        completions.push(event.data);
+                    }
+                });
                 const msg = await session.sendAndWait(
                     {
                         prompt: "Edit the file 'edit_me.txt': replace 'Hello World' with 'Hi Universe'. Then read it back and tell me its contents.",
@@ -102,6 +113,16 @@ describe("Built-in Tools", async () => {
                     SEND_TIMEOUT_MS
                 );
                 expect(msg?.data.content).toContain("Hi Universe");
+                expect(editToolCallId).toBeDefined();
+                const editEvent = completions.find((event) => event.toolCallId === editToolCallId);
+                expect(editEvent?.success).toBe(true);
+                // Local Windows paths may contain both separator spellings.
+                expect(
+                    editEvent?.fileEdits?.map((effect) => ({
+                        ...effect,
+                        path: normalize(effect.path),
+                    }))
+                ).toEqual([{ path, kind: "edit" }]);
             },
             TEST_TIMEOUT_MS
         );
@@ -111,7 +132,17 @@ describe("Built-in Tools", async () => {
         it(
             "should create a new file",
             async () => {
+                const path = join(workDir, "new_file.txt");
                 const session = await client.createSession({ onPermissionRequest: approveAll });
+                const completions: ToolExecutionCompleteEvent["data"][] = [];
+                let createToolCallId: string | undefined;
+                session.on((event) => {
+                    if (event.type === "tool.execution_start" && event.data.toolName === "create") {
+                        createToolCallId = event.data.toolCallId;
+                    } else if (event.type === "tool.execution_complete") {
+                        completions.push(event.data);
+                    }
+                });
                 const msg = await session.sendAndWait(
                     {
                         prompt: "Create a file called 'new_file.txt' with the content 'Created by test'. Then read it back to confirm.",
@@ -119,6 +150,50 @@ describe("Built-in Tools", async () => {
                     SEND_TIMEOUT_MS
                 );
                 expect(msg?.data.content).toContain("Created by test");
+                expect(createToolCallId).toBeDefined();
+                const createEvent = completions.find(
+                    (event) => event.toolCallId === createToolCallId
+                );
+                expect(createEvent?.success).toBe(true);
+                const createFileEdits = createEvent?.fileEdits;
+                expect(
+                    createFileEdits?.map((effect) => ({ ...effect, path: normalize(effect.path) }))
+                ).toEqual([{ path, kind: "create" }]);
+
+                const sessionId = session.sessionId;
+                await client.rpc.sessions.save({ sessionId });
+                const eventLog = await session.rpc.eventLog.read({
+                    max: 100,
+                    waitMs: 0,
+                    types: ["tool.execution_complete"],
+                });
+                const persisted = eventLog.events.find(
+                    (event) =>
+                        event.type === "tool.execution_complete" &&
+                        event.data.toolCallId === createEvent?.toolCallId
+                );
+                expect(persisted).toMatchObject({
+                    type: "tool.execution_complete",
+                    data: {
+                        toolCallId: createEvent?.toolCallId,
+                        fileEdits: createFileEdits,
+                    },
+                });
+                await session.disconnect();
+                const resumed = await client.resumeSession(sessionId, {
+                    onPermissionRequest: approveAll,
+                });
+                const replayed = (await resumed.getEvents()).find(
+                    (event) => event.id === persisted?.id
+                );
+                expect(replayed).toMatchObject({
+                    type: "tool.execution_complete",
+                    data: {
+                        toolCallId: createEvent?.toolCallId,
+                        fileEdits: createFileEdits,
+                    },
+                });
+                await resumed.disconnect();
             },
             TEST_TIMEOUT_MS
         );

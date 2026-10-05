@@ -1,0 +1,22 @@
+# Copyright (c) Microsoft Corporation. All rights reserved.
+
+models:
+  - claude-sonnet-5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Use apply_patch to apply the supplied patch.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: apply_patch
+              arguments: '{"input":"*** Begin Patch\n*** Add File: override-marker.txt\n+from-native\n*** End Patch"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: HOST_PATCH_HANDLED
+      - role: assistant
+        content: Host override completed.

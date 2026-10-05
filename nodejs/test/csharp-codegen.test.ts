@@ -130,6 +130,61 @@ describe("C# additive request entry compatibility", () => {
     });
 });
 
+describe("C# session event deprecation", () => {
+    it.each([
+        { eventDeprecated: true, dataDeprecated: false },
+        { eventDeprecated: false, dataDeprecated: true },
+        { eventDeprecated: true, dataDeprecated: true },
+        { eventDeprecated: false, dataDeprecated: false },
+    ])(
+        "preserves target-compatible event=$eventDeprecated and payload=$dataDeprecated annotations",
+        ({ eventDeprecated, dataDeprecated }) => {
+            const code = generateSessionEventsCode({
+                definitions: {
+                    Payload: {
+                        type: "object",
+                        properties: { toolCallId: { type: "string" } },
+                        ...(dataDeprecated ? { deprecated: true } : {}),
+                    },
+                    SessionEvent: {
+                        anyOf: [
+                            {
+                                type: "object",
+                                ...(eventDeprecated ? { deprecated: true } : {}),
+                                properties: {
+                                    type: { const: "tool.execution_partial_result" },
+                                    data: { $ref: "#/definitions/Payload" },
+                                },
+                                required: ["type", "data"],
+                            },
+                        ],
+                    },
+                },
+            });
+            const attributes = [
+                "[EditorBrowsable(EditorBrowsableState.Never)]",
+                "#if NET5_0_OR_GREATER",
+                '[Obsolete("This member is deprecated and will be removed in a future version.", DiagnosticId = "GHCP001")]',
+                "#else",
+                '[Obsolete("This member is deprecated and will be removed in a future version.")]',
+                "#endif",
+            ].join("\n");
+
+            for (const [name, deprecated] of [
+                ["ToolExecutionPartialResultEvent", eventDeprecated],
+                ["ToolExecutionPartialResultData", dataDeprecated],
+            ] as const) {
+                const declaration = `${attributes}\npublic sealed partial class ${name}`;
+                if (deprecated) expect(code).toContain(declaration);
+                else expect(code).not.toContain(declaration);
+            }
+            expect(code.match(/\[Obsolete\(/g) ?? []).toHaveLength(
+                2 * (Number(eventDeprecated) + Number(dataDeprecated))
+            );
+        }
+    );
+});
+
 describe("C# root event payload unions", () => {
     it.each(["anyOf", "oneOf"] as const)("preserves referenced %s payload variants", (keyword) => {
         const code = generateSessionEventsCode({

@@ -83,10 +83,10 @@ public final class SessionModelApi {
      * @since 1.0.0
      */
     @CopilotExperimental
-    public CompletableFuture<SessionModelApplyStartupOverlayResult> applyStartupOverlay(SessionModelApplyStartupOverlayParams params) {
+    CompletableFuture<ModelSwitchToResult> applyStartupOverlay(SessionModelApplyStartupOverlayParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
-        return caller.invoke("session.model.applyStartupOverlay", _p, SessionModelApplyStartupOverlayResult.class);
+        return caller.invoke("session.model.applyStartupOverlay", _p, ModelSwitchToResult.class);
     }
 
     /**

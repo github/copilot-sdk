@@ -17,7 +17,7 @@ import javax.annotation.processing.Generated;
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
-public final class SessionSettingsApi {
+final class SessionSettingsApi {
 
     private static final com.fasterxml.jackson.databind.ObjectMapper MAPPER = RpcMapper.INSTANCE;
 
@@ -37,8 +37,8 @@ public final class SessionSettingsApi {
      * @since 1.0.0
      */
     @CopilotExperimental
-    public CompletableFuture<SessionSettingsSnapshotResult> snapshot() {
-        return caller.invoke("session.settings.snapshot", java.util.Map.of("sessionId", this.sessionId), SessionSettingsSnapshotResult.class);
+    CompletableFuture<SessionSettingsSnapshot> snapshot() {
+        return caller.invoke("session.settings.snapshot", java.util.Map.of("sessionId", this.sessionId), SessionSettingsSnapshot.class);
     }
 
     /**
@@ -51,7 +51,7 @@ public final class SessionSettingsApi {
      * @since 1.0.0
      */
     @CopilotExperimental
-    public CompletableFuture<SessionSettingsEvaluatePredicateResult> evaluatePredicate(SessionSettingsEvaluatePredicateParams params) {
+    CompletableFuture<SessionSettingsEvaluatePredicateResult> evaluatePredicate(SessionSettingsEvaluatePredicateParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
         return caller.invoke("session.settings.evaluatePredicate", _p, SessionSettingsEvaluatePredicateResult.class);

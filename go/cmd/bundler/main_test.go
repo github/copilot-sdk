@@ -30,6 +30,7 @@ func TestCreateRuntimeAssetsArchiveRetainsUnknownAssetsAndFiltersCLIContent(t *t
 		"package/preloads/extension_bootstrap.mjs":    "preload",
 		"package/sdk/factory.js":                      "factory",
 		"package/app.js":                              "excluded",
+		"package/cli-main.js":                         "excluded",
 		"package/LICENSE.md":                          "excluded",
 		"package/README.md":                           "excluded",
 	})
@@ -50,7 +51,7 @@ func TestCreateRuntimeAssetsArchiveRetainsUnknownAssetsAndFiltersCLIContent(t *t
 		t.Fatalf("retained assets = %#v", files)
 	}
 	for _, excluded := range []string{
-		"runtime.node", "copilot-runtime", "app.js", "LICENSE.md", "README.md",
+		"runtime.node", "copilot-runtime", "app.js", "cli-main.js", "LICENSE.md", "README.md",
 	} {
 		if _, ok := files[excluded]; ok {
 			t.Fatalf("excluded asset %q was retained", excluded)

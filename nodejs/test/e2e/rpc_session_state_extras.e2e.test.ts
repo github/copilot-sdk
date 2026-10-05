@@ -6,6 +6,9 @@ import { describe, expect, it } from "vitest";
 import type { CopilotSession } from "../../src/index.js";
 import { approveAll, CopilotClient, RuntimeConnection } from "../../src/index.js";
 import { createSdkTestContext, DEFAULT_GITHUB_TOKEN } from "./harness/sdkTestContext.js";
+import { isByokBackend } from "./harness/testBackend";
+
+const capiIt = it.skipIf(isByokBackend);
 
 describe("Session-scoped state extras RPC", async () => {
     const { copilotClient: client, env, openAiEndpoint, workDir } = await createSdkTestContext();
@@ -103,7 +106,8 @@ describe("Session-scoped state extras RPC", async () => {
         }
     });
 
-    it("should add byok provider and model at runtime", { timeout: 120_000 }, async () => {
+    // Owns a multi-provider registry rather than the matrix's single provider.
+    capiIt("should add byok provider and model at runtime", { timeout: 120_000 }, async () => {
         const session = await createSession();
         try {
             const providerName = `sdk-runtime-provider-${Date.now()}-${Math.random().toString(36).slice(2)}`;

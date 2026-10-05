@@ -2,16 +2,21 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import { describe, expect, it } from "vitest";
+import { createServer } from "node:http";
+import { text } from "node:stream/consumers";
+import { describe, expect, it, onTestFinished } from "vitest";
 import type {
     AutoModeSwitchRequest,
     CopilotSession,
     ExitPlanModeRequest,
     ExitPlanModeResult,
+    NamedProviderConfig,
+    ProviderModelConfig,
     SessionEvent,
 } from "../../src/index.js";
 import { approveAll } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
+import { waitForCondition } from "./harness/sdkTestHelper.js";
 
 const EVENT_TIMEOUT_MS = 30_000;
 const MODE_HANDLER_TOKEN = "mode-handler-token";
@@ -20,6 +25,14 @@ const PLAN_PROMPT =
     "Create a brief implementation plan for adding a greeting.txt file, then request approval with exit_plan_mode.";
 const AUTO_MODE_PROMPT =
     "Explain that auto mode recovered from a rate limit in one short sentence.";
+const PLAN_OVERRIDE_PROMPT =
+    "Write a plan, then call task_complete with summary PLAN_OVERRIDE_TOOL_CALLED.";
+const INTERACTIVE_AFTER_PLAN_PROMPT = "Reply with exactly INTERACTIVE_AFTER_PLAN_OVERRIDE.";
+const AUTOPILOT_READY_PROMPT = "Reply with exactly AUTOPILOT_MODE_READY.";
+const AUTOPILOT_TO_INTERACTIVE_PROMPT =
+    "Call task_complete after the test switches this in-flight turn from Autopilot to Interactive.";
+const INTERACTIVE_TO_AUTOPILOT_PROMPT =
+    "Call task_complete after the test switches this in-flight turn from Interactive to Autopilot.";
 
 function waitForEvent<T extends SessionEvent>(
     session: CopilotSession,
@@ -53,7 +66,7 @@ function waitForEvent<T extends SessionEvent>(
 }
 
 describe("Mode handlers", async () => {
-    const { copilotClient: client, openAiEndpoint, env } = await createSdkTestContext();
+    const { copilotClient: client, openAiEndpoint, env, workDir } = await createSdkTestContext();
 
     env.COPILOT_DEBUG_GITHUB_API_URL = env.COPILOT_API_URL;
     await openAiEndpoint.setCopilotUserByToken(MODE_HANDLER_TOKEN, {
@@ -124,6 +137,404 @@ describe("Mode handlers", async () => {
         } finally {
             await session.disconnect();
         }
+    });
+
+    it("handles Plan overrides and in-flight mode changes", { timeout: 180_000 }, async () => {
+        const modelRequests: Array<{
+            messages?: Array<{
+                role?: string;
+                content?: unknown;
+                tool_calls?: Array<{ function?: { name?: string } }>;
+            }>;
+            tools?: Array<{ function?: { name?: string } }>;
+        }> = [];
+        const autopilotToInteractiveGate = Promise.withResolvers<void>();
+        const interactiveToAutopilotGate = Promise.withResolvers<void>();
+        let modelFailure: Error | undefined;
+        const modelServer = createServer((request, response) => {
+            void (async () => {
+                const modelRequest = JSON.parse(await text(request)) as {
+                    messages?: Array<{
+                        role?: string;
+                        content?: unknown;
+                        tool_calls?: Array<{ function?: { name?: string } }>;
+                    }>;
+                    tools?: Array<{ function?: { name?: string } }>;
+                };
+                modelRequests.push(modelRequest);
+                const messages = modelRequest.messages ?? [];
+                const latestUserIndex = messages.findLastIndex(
+                    (message) => message.role === "user"
+                );
+                const activeMessages = messages.slice(Math.max(0, latestUserIndex));
+                const latestUserContent = JSON.stringify(messages[latestUserIndex]?.content ?? "");
+                const calledTools =
+                    activeMessages.flatMap(
+                        (message) =>
+                            message.tool_calls
+                                ?.map((toolCall) => toolCall.function?.name)
+                                .filter((name): name is string => name !== undefined) ?? []
+                    ) ?? [];
+                let message;
+                if (latestUserContent.includes(INTERACTIVE_AFTER_PLAN_PROMPT)) {
+                    message = { role: "assistant", content: "INTERACTIVE_AFTER_PLAN_OVERRIDE" };
+                } else if (latestUserContent.includes(AUTOPILOT_READY_PROMPT)) {
+                    if (calledTools.includes("task_complete")) {
+                        message = {
+                            role: "assistant",
+                            content: "UNEXPECTED_AUTOPILOT_READY_CONTINUATION",
+                        };
+                    } else {
+                        message = {
+                            role: "assistant",
+                            content: null,
+                            tool_calls: [
+                                {
+                                    id: "autopilot-ready-task-complete",
+                                    type: "function",
+                                    function: {
+                                        name: "task_complete",
+                                        arguments: '{"summary":"AUTOPILOT_MODE_READY"}',
+                                    },
+                                },
+                            ],
+                        };
+                    }
+                } else if (latestUserContent.includes(AUTOPILOT_TO_INTERACTIVE_PROMPT)) {
+                    if (calledTools.includes("task_complete")) {
+                        message = {
+                            role: "assistant",
+                            content: "AUTOPILOT_TO_INTERACTIVE_CONTINUED",
+                        };
+                    } else {
+                        await autopilotToInteractiveGate.promise;
+                        message = {
+                            role: "assistant",
+                            content: null,
+                            tool_calls: [
+                                {
+                                    id: "autopilot-to-interactive-task-complete",
+                                    type: "function",
+                                    function: {
+                                        name: "task_complete",
+                                        arguments: '{"summary":"MODE_SWITCHED_TO_INTERACTIVE"}',
+                                    },
+                                },
+                            ],
+                        };
+                    }
+                } else if (latestUserContent.includes(INTERACTIVE_TO_AUTOPILOT_PROMPT)) {
+                    if (calledTools.includes("task_complete")) {
+                        message = {
+                            role: "assistant",
+                            content: "UNEXPECTED_INTERACTIVE_TO_AUTOPILOT_CONTINUATION",
+                        };
+                    } else {
+                        await interactiveToAutopilotGate.promise;
+                        message = {
+                            role: "assistant",
+                            content: null,
+                            tool_calls: [
+                                {
+                                    id: "interactive-to-autopilot-task-complete",
+                                    type: "function",
+                                    function: {
+                                        name: "task_complete",
+                                        arguments: '{"summary":"MODE_SWITCHED_TO_AUTOPILOT"}',
+                                    },
+                                },
+                            ],
+                        };
+                    }
+                } else if (calledTools.includes("task_complete")) {
+                    message = { role: "assistant", content: "PLAN_OVERRIDE_CONTINUED" };
+                } else {
+                    message = {
+                        role: "assistant",
+                        content: null,
+                        tool_calls: [
+                            {
+                                id: "plan-override-task-complete",
+                                type: "function",
+                                function: {
+                                    name: "task_complete",
+                                    arguments: '{"summary":"PLAN_OVERRIDE_TOOL_CALLED"}',
+                                },
+                            },
+                        ],
+                    };
+                }
+                response.writeHead(200, { "content-type": "application/json" });
+                response.end(
+                    JSON.stringify({
+                        id: `plan-override-${modelRequests.length}`,
+                        object: "chat.completion",
+                        created: 0,
+                        model: "test-model",
+                        choices: [
+                            {
+                                index: 0,
+                                message,
+                                finish_reason: "tool_calls" in message ? "tool_calls" : "stop",
+                            },
+                        ],
+                        usage: { prompt_tokens: 10, completion_tokens: 10, total_tokens: 20 },
+                    })
+                );
+            })().catch((error: unknown) => {
+                modelFailure = error instanceof Error ? error : new Error(String(error));
+                response.writeHead(500).end();
+            });
+        });
+        let session: CopilotSession | undefined;
+        const sessions: CopilotSession[] = [];
+        let serverStart: Promise<void> | undefined;
+        onTestFinished(async () => {
+            const errors: unknown[] = [];
+            for (const activeSession of sessions.toReversed()) {
+                try {
+                    await activeSession.disconnect();
+                } catch (error) {
+                    errors.push(error);
+                }
+            }
+            if (serverStart) {
+                const [startup] = await Promise.allSettled([serverStart]);
+                if (startup.status === "rejected") {
+                    errors.push(startup.reason);
+                }
+            }
+            modelServer.closeAllConnections();
+            if (modelServer.listening) {
+                try {
+                    await new Promise<void>((resolve, reject) => {
+                        modelServer.close((error) => (error ? reject(error) : resolve()));
+                    });
+                } catch (error) {
+                    errors.push(error);
+                }
+            }
+            if (errors.length) {
+                throw new AggregateError(
+                    errors,
+                    "Per-message Plan override fixture cleanup failed"
+                );
+            }
+        });
+        serverStart = new Promise<void>((resolve, reject) => {
+            modelServer.once("error", reject);
+            modelServer.listen(0, "127.0.0.1", resolve);
+        });
+        await serverStart;
+        const address = modelServer.address();
+        if (!address || typeof address === "string") {
+            throw new Error("Missing local model server address");
+        }
+
+        const providers: NamedProviderConfig[] = [
+            {
+                name: "local",
+                type: "openai",
+                baseUrl: `http://127.0.0.1:${address.port}`,
+                apiKey: "test",
+                wireApi: "completions",
+            },
+        ];
+        const models: ProviderModelConfig[] = [
+            { id: "model", provider: "local", modelId: "test-model", wireModel: "test-model" },
+        ];
+        session = await client.createSession({
+            onPermissionRequest: approveAll,
+            workingDirectory: workDir,
+            providers,
+            models,
+            model: "local/model",
+        });
+        sessions.push(session);
+
+        const planResponse = await session.sendAndWait({
+            prompt: PLAN_OVERRIDE_PROMPT,
+            agentMode: "plan",
+        });
+        const interactiveResponse = await session.sendAndWait({
+            prompt: INTERACTIVE_AFTER_PLAN_PROMPT,
+        });
+        await waitForCondition(() => modelRequests.length >= 3, {
+            timeoutMs: EVENT_TIMEOUT_MS,
+            timeoutMessage:
+                "The local model did not receive the Plan, continuation, and Interactive requests",
+        });
+
+        if (modelFailure) {
+            throw modelFailure;
+        }
+        expect(modelRequests).toHaveLength(3);
+        const firstSystemMessages = modelRequests[0].messages?.filter(
+            (message) => message.role === "system"
+        );
+        const firstUserMessages = modelRequests[0].messages?.filter(
+            (message) => message.role === "user"
+        );
+        expect(JSON.stringify(firstSystemMessages)).not.toContain("<plan_mode>");
+        expect(JSON.stringify(firstUserMessages)).toContain("<mode_changed_notice>");
+        expect(JSON.stringify(firstUserMessages)).toContain("<plan_mode>");
+        expect(
+            modelRequests[0].tools?.some((tool) => tool.function?.name === "task_complete")
+        ).toBe(true);
+        expect(JSON.stringify(modelRequests[1].messages)).toContain("Continue working");
+        expect(JSON.stringify(modelRequests[2].messages)).toContain(
+            "Plan mode is no longer active."
+        );
+        expect(planResponse?.data.content).toBe("PLAN_OVERRIDE_CONTINUED");
+        expect(interactiveResponse?.data.content).toBe("INTERACTIVE_AFTER_PLAN_OVERRIDE");
+        await session.disconnect();
+        sessions.splice(sessions.indexOf(session), 1);
+
+        const approvalSession = await client.createSession({
+            onPermissionRequest: approveAll,
+            workingDirectory: workDir,
+            providers,
+            models,
+            model: "local/model",
+        });
+        sessions.push(approvalSession);
+        const enteredAutopilot = waitForEvent(
+            approvalSession,
+            (event): event is Extract<SessionEvent, { type: "session.mode_changed" }> =>
+                event.type === "session.mode_changed" && event.data.newMode === "autopilot",
+            "session.mode_changed event for Autopilot warm-up"
+        );
+        await approvalSession.rpc.mode.set({ mode: "autopilot" });
+        await enteredAutopilot;
+        let autopilotReadyState: "pending" | "idle" | "error" = "pending";
+        let autopilotReadyError: Error | undefined;
+        const unsubscribeAutopilotReady = approvalSession.on((event) => {
+            if (event.type === "session.idle") {
+                autopilotReadyState = "idle";
+            } else if (event.type === "session.error") {
+                autopilotReadyState = "error";
+                autopilotReadyError = new Error(`${event.data.message}\n${event.data.stack ?? ""}`);
+            }
+        });
+        try {
+            await approvalSession.send({ prompt: AUTOPILOT_READY_PROMPT });
+            await waitForCondition(
+                () => autopilotReadyState !== "pending" || modelRequests.length >= 5,
+                {
+                    timeoutMs: EVENT_TIMEOUT_MS,
+                    timeoutMessage: "The Autopilot warm-up turn did not finish or continue",
+                }
+            );
+        } finally {
+            unsubscribeAutopilotReady();
+        }
+        if (autopilotReadyError) {
+            throw autopilotReadyError;
+        }
+        expect(autopilotReadyState).toBe("idle");
+        expect(modelRequests).toHaveLength(4);
+        expect(JSON.stringify(modelRequests)).not.toContain(
+            "UNEXPECTED_AUTOPILOT_READY_CONTINUATION"
+        );
+
+        let exitAutopilotState: "pending" | "idle" | "error" = "pending";
+        let exitAutopilotError: Error | undefined;
+        const unsubscribeExitAutopilot = approvalSession.on((event) => {
+            if (event.type === "session.idle") {
+                exitAutopilotState = "idle";
+            } else if (event.type === "session.error") {
+                exitAutopilotState = "error";
+                exitAutopilotError = new Error(`${event.data.message}\n${event.data.stack ?? ""}`);
+            }
+        });
+        try {
+            await approvalSession.send({ prompt: AUTOPILOT_TO_INTERACTIVE_PROMPT });
+            await waitForCondition(() => modelRequests.length >= 5, {
+                timeoutMs: EVENT_TIMEOUT_MS,
+                timeoutMessage: "The Autopilot request did not reach the local model",
+            });
+            const enteredInteractive = waitForEvent(
+                approvalSession,
+                (event): event is Extract<SessionEvent, { type: "session.mode_changed" }> =>
+                    event.type === "session.mode_changed" && event.data.newMode === "interactive",
+                "session.mode_changed event for Autopilot to Interactive"
+            );
+            await approvalSession.rpc.mode.set({ mode: "interactive" });
+            await enteredInteractive;
+            autopilotToInteractiveGate.resolve();
+            await waitForCondition(
+                () => exitAutopilotState !== "pending" || modelRequests.length >= 6,
+                {
+                    timeoutMs: EVENT_TIMEOUT_MS,
+                    timeoutMessage: "The Autopilot-to-Interactive turn did not finish or continue",
+                }
+            );
+            if (exitAutopilotState === "pending") {
+                await waitForCondition(() => exitAutopilotState !== "pending", {
+                    timeoutMs: EVENT_TIMEOUT_MS,
+                    timeoutMessage: "The Autopilot-to-Interactive continuation did not reach idle",
+                });
+            }
+        } finally {
+            unsubscribeExitAutopilot();
+        }
+        if (exitAutopilotError) {
+            throw exitAutopilotError;
+        }
+        expect(exitAutopilotState).toBe("idle");
+        expect(modelRequests.length).toBeGreaterThanOrEqual(6);
+        expect(
+            modelRequests
+                .slice(5)
+                .some((request) => JSON.stringify(request.messages).includes("Continue working"))
+        ).toBe(true);
+
+        const beforeEnterAutopilot = modelRequests.length;
+        let enterAutopilotState: "pending" | "idle" | "error" = "pending";
+        let enterAutopilotError: Error | undefined;
+        const unsubscribeEnterAutopilot = approvalSession.on((event) => {
+            if (event.type === "session.idle") {
+                enterAutopilotState = "idle";
+            } else if (event.type === "session.error") {
+                enterAutopilotState = "error";
+                enterAutopilotError = new Error(`${event.data.message}\n${event.data.stack ?? ""}`);
+            }
+        });
+        try {
+            await approvalSession.send({ prompt: INTERACTIVE_TO_AUTOPILOT_PROMPT });
+            await waitForCondition(() => modelRequests.length >= beforeEnterAutopilot + 1, {
+                timeoutMs: EVENT_TIMEOUT_MS,
+                timeoutMessage: "The Interactive request did not reach the local model",
+            });
+            const reenteredAutopilot = waitForEvent(
+                approvalSession,
+                (event): event is Extract<SessionEvent, { type: "session.mode_changed" }> =>
+                    event.type === "session.mode_changed" && event.data.newMode === "autopilot",
+                "session.mode_changed event for Interactive to Autopilot"
+            );
+            await approvalSession.rpc.mode.set({ mode: "autopilot" });
+            await reenteredAutopilot;
+            interactiveToAutopilotGate.resolve();
+            await waitForCondition(
+                () =>
+                    enterAutopilotState !== "pending" ||
+                    modelRequests.length >= beforeEnterAutopilot + 2,
+                {
+                    timeoutMs: EVENT_TIMEOUT_MS,
+                    timeoutMessage: "The Interactive-to-Autopilot turn did not finish or continue",
+                }
+            );
+        } finally {
+            unsubscribeEnterAutopilot();
+        }
+        if (enterAutopilotError) {
+            throw enterAutopilotError;
+        }
+        expect(enterAutopilotState).toBe("idle");
+        expect(modelRequests).toHaveLength(beforeEnterAutopilot + 1);
+        expect(JSON.stringify(modelRequests)).not.toContain(
+            "UNEXPECTED_INTERACTIVE_TO_AUTOPILOT_CONTINUATION"
+        );
     });
 
     it("should invoke auto mode switch handler when rate limited", async () => {

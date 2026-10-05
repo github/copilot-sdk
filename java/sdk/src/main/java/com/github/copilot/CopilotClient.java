@@ -25,6 +25,7 @@ import java.util.function.Function;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.github.copilot.ffi.FfiRuntimeHost;
 import com.github.copilot.ffi.NativeRuntimeLoader;
 import com.github.copilot.rpc.CopilotClientMode;
@@ -39,7 +40,6 @@ import com.github.copilot.rpc.UriRuntimeConnection;
 import com.github.copilot.rpc.CreateSessionResponse;
 import com.github.copilot.generated.rpc.SessionOptionsUpdateParams;
 import com.github.copilot.generated.rpc.SessionInstalledPlugin;
-import com.github.copilot.generated.rpc.ConnectResult;
 import com.github.copilot.generated.rpc.GitHubTelemetryNotification;
 import com.github.copilot.generated.rpc.ServerRpc;
 import com.github.copilot.generated.rpc.SessionEventLogRegisterInterestParams;
@@ -704,11 +704,10 @@ public final class CopilotClient implements AutoCloseable {
             if (clientInfo != null && !clientInfo.isEmpty()) {
                 connectParams.put("clientInfo", clientInfo);
             }
-            var connectResponse = connection.rpc.invoke("connect", connectParams, ConnectResult.class).get(30,
+            var connectResponse = connection.rpc.invoke("connect", connectParams, JsonNode.class).get(30,
                     TimeUnit.SECONDS);
-            serverVersion = connectResponse.protocolVersion() != null
-                    ? connectResponse.protocolVersion().intValue()
-                    : null;
+            var protocolVersion = connectResponse.get("protocolVersion");
+            serverVersion = protocolVersion != null && !protocolVersion.isNull() ? protocolVersion.intValue() : null;
         } catch (Exception e) {
             // Unwrap CompletionException/ExecutionException to check inner cause
             Throwable cause = e;

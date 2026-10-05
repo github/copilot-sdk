@@ -20,7 +20,7 @@ import javax.annotation.processing.Generated;
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record HostLocalServerConfiguration(
+record HostLocalServerConfiguration(
     /** Hostname or IP address to bind. */
     @JsonProperty("hostname") String hostname,
     /** Port to bind, with zero requesting OS allocation. */

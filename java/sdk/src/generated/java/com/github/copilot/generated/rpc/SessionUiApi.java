@@ -79,6 +79,22 @@ public final class SessionUiApi {
     }
 
     /**
+     * Pending elicitation request ID and the user's response (accept/decline/cancel + form values).
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    CompletableFuture<UIElicitationResult> handleHumanAskUser(SessionUiHandleHumanAskUserParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.ui.handleHumanAskUser", _p, UIElicitationResult.class);
+    }
+
+    /**
      * Request ID of a pending `user_input.requested` event and the user's response.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
@@ -92,6 +108,22 @@ public final class SessionUiApi {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
         return caller.invoke("session.ui.handlePendingUserInput", _p, SessionUiHandlePendingUserInputResult.class);
+    }
+
+    /**
+     * Request ID of a pending `user_input.requested` event and the user's response.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    CompletableFuture<UIHandlePendingResult> handleHumanUserInput(SessionUiHandleHumanUserInputParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.ui.handleHumanUserInput", _p, UIHandlePendingResult.class);
     }
 
     /**
@@ -156,6 +188,22 @@ public final class SessionUiApi {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
         return caller.invoke("session.ui.handlePendingExitPlanMode", _p, SessionUiHandlePendingExitPlanModeResult.class);
+    }
+
+    /**
+     * Request ID of a pending `exit_plan_mode.requested` event and the user's response.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    CompletableFuture<UIHandlePendingResult> handleHumanExitPlanMode(SessionUiHandleHumanExitPlanModeParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.ui.handleHumanExitPlanMode", _p, UIHandlePendingResult.class);
     }
 
     /**

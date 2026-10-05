@@ -23,7 +23,7 @@ export const PROTOCOL_FILES = [
 const SDK_INPUTS = [
     /^scripts\/codegen\//,
     /^java\/scripts\/codegen\//,
-    /^scripts\/(?:build-prerequisites|run-tasks|runtime-layout)\.mjs$/,
+    /^scripts\/(?:build-prerequisites|install-dependencies|run-tasks|runtime-layout)\.mjs$/,
     /^scripts\/ci\/check-generated\.mjs$/,
     /^(?:BUILD\.bazel|package\.json|\.editorconfig)$/,
     /^nodejs\/(?:scripts\/releaseArtifacts\.ts|src\/cliVersion\.ts|package(?:-lock)?\.json)$/,

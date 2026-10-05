@@ -1,0 +1,47 @@
+models:
+  - claude-sonnet-5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Call reconnect_catalog exactly once. After it returns, call read_record on bluebird. then call read_record on
+          healthy. Do not use other tools or invent their outputs. Finish by reporting both record values and
+          CATALOG_RECOVERY_COMPLETE.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: reconnect_catalog
+              arguments: "{}"
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Catalog reconnected. Read both server records now.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_1
+            type: function
+            function:
+              name: bluebird-read_record
+              arguments: "{}"
+      - role: tool
+        tool_call_id: toolcall_1
+        content: CATALOG_RECORD
+      - role: assistant
+        tool_calls:
+          - id: toolcall_2
+            type: function
+            function:
+              name: healthy-read_record
+              arguments: "{}"
+      - role: tool
+        tool_call_id: toolcall_2
+        content: PEER_RECORD
+      - role: assistant
+        content: |-
+          Results:
+          - bluebird record: CATALOG_RECORD
+          - healthy record: PEER_RECORD
+
+          CATALOG_RECOVERY_COMPLETE

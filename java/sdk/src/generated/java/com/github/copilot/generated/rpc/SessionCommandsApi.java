@@ -85,10 +85,10 @@ public final class SessionCommandsApi {
      * @since 1.0.0
      */
     @CopilotExperimental
-    public CompletableFuture<SessionCommandsFinalizeInvocationEffectResult> finalizeInvocationEffect(SessionCommandsFinalizeInvocationEffectParams params) {
+    CompletableFuture<CommandsFinalizeInvocationEffectResult> finalizeInvocationEffect(SessionCommandsFinalizeInvocationEffectParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
-        return caller.invoke("session.commands.finalizeInvocationEffect", _p, SessionCommandsFinalizeInvocationEffectResult.class);
+        return caller.invoke("session.commands.finalizeInvocationEffect", _p, CommandsFinalizeInvocationEffectResult.class);
     }
 
     /**

@@ -26,6 +26,8 @@ import javax.annotation.processing.Generated;
 public record SessionModelGetCurrentResult(
     /** Currently active model identifier */
     @JsonProperty("modelId") String modelId,
+    /** Captured base model to restore when leaving plan mode. Omitted outside plan mode or when no plan override has captured a base model. Persistent agent model requirements apply to this model rather than the temporary plan model. */
+    @JsonProperty("planBaseModelId") String planBaseModelId,
     /** Reasoning effort level currently applied to the active model, when one is set. Reads `Session.getReasoningEffort()` synchronously after `getSelectedModel()` resolves so the two values are reported as a snapshot. */
     @JsonProperty("reasoningEffort") String reasoningEffort,
     /** Context tier for models that support multiple context-window sizes. */

@@ -3,13 +3,53 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 import { approveAll } from "../../src/index.js";
-import type { SessionEvent } from "../../src/index.js";
+import type { SessionEvent, CopilotSession } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
 import { waitForCondition } from "./harness/sdkTestHelper.js";
+import { isByokBackend } from "./harness/testBackend";
+
+const capiIt = it.skipIf(isByokBackend);
 
 describe("Session tasks RPC and pending handlers", async () => {
-    const { copilotClient: client, openAiEndpoint } = await createSdkTestContext();
+    const {
+        copilotClient: client,
+        openAiEndpoint,
+        createClient,
+    } = await createSdkTestContext({
+        modelNames: { "claude-sonnet-5": "Claude Sonnet 5" },
+    });
+
+    async function modelRequestsForPrompt(promptEnding: string) {
+        return (await openAiEndpoint.getRequests())
+            .filter(({ method, url }) => method === "POST" && url.includes("/chat/completions"))
+            .map(({ body }) =>
+                z
+                    .object({
+                        messages: z.array(z.object({ role: z.string(), content: z.unknown() })),
+                        model: z.string(),
+                        reasoning_effort: z.string().optional(),
+                    })
+                    .parse(JSON.parse(body))
+            )
+            .filter((request) =>
+                request.messages.some(
+                    (message) =>
+                        message.role === "user" &&
+                        typeof message.content === "string" &&
+                        message.content.trim().endsWith(promptEnding)
+                )
+            );
+    }
+
+    async function getAgentTask(session: CopilotSession, agentId: string) {
+        const task = (await session.rpc.tasks.list()).tasks.find((entry) => entry.id === agentId);
+        if (task && task.type !== "agent") {
+            throw new Error(`Expected agent task ${agentId}, received ${JSON.stringify(task)}`);
+        }
+        return task;
+    }
 
     async function assertImplementedFailure(
         action: () => Promise<unknown>,
@@ -76,7 +116,8 @@ describe("Session tasks RPC and pending handlers", async () => {
         await session.disconnect();
     });
 
-    it("should report implemented error for invalid task agent model", async () => {
+    // BYOK model IDs are user-defined; only CAPI validates them against its catalog.
+    capiIt("should report implemented error for invalid task agent model", async () => {
         const session = await client.createSession({ onPermissionRequest: approveAll });
 
         await assertImplementedFailure(
@@ -132,8 +173,7 @@ describe("Session tasks RPC and pending handlers", async () => {
                     name: "sdk-inherited-model-agent",
                     description: "SDK inherited model coverage",
                 });
-                const findTask = async () =>
-                    (await session.rpc.tasks.list()).tasks.find((entry) => entry.id === agentId);
+                const findTask = () => getAgentTask(session, agentId);
                 let lastTask: Awaited<ReturnType<typeof findTask>>;
                 await waitForCondition(
                     async () => {
@@ -164,8 +204,8 @@ describe("Session tasks RPC and pending handlers", async () => {
                 });
 
                 const task = await findTask();
-                // No model was requested; the wire reports that as `null`.
-                expect(task?.model ?? null).toBeNull();
+                // Provider-backed subagents carry an explicit model override; CAPI leaves it unset.
+                expect(task?.model ?? null).toBe(isByokBackend ? parentModel : null);
                 expect(task?.resolvedModel).toBe(parentModel);
                 expect(started.map((event) => event.data.model)).toEqual([parentModel]);
                 // Raw requests, scoped by this test's prompts: an earlier test's late
@@ -215,9 +255,7 @@ describe("Session tasks RPC and pending handlers", async () => {
                     ),
                 { timeoutMessage: `Background agent ${started.agentId} never appeared` }
             );
-            const task = (await session.rpc.tasks.list()).tasks.find(
-                (entry) => entry.id === started.agentId
-            );
+            const task = await getAgentTask(session, started.agentId);
             expect(task).toMatchObject({
                 id: started.agentId,
                 agentType: "general-purpose",
@@ -240,9 +278,7 @@ describe("Session tasks RPC and pending handlers", async () => {
             );
             await waitForCondition(
                 async () => {
-                    const task = (await session.rpc.tasks.list()).tasks.find(
-                        (entry) => entry.id === started.agentId
-                    );
+                    const task = await getAgentTask(session, started.agentId);
                     return (
                         !!task &&
                         ["completed", "idle"].includes(task.status) &&
@@ -251,9 +287,7 @@ describe("Session tasks RPC and pending handlers", async () => {
                 },
                 { timeoutMs: 60_000, timeoutMessage: `Agent ${started.agentId} never settled` }
             );
-            const current = (await session.rpc.tasks.list()).tasks.find(
-                (entry) => entry.id === started.agentId
-            );
+            const current = await getAgentTask(session, started.agentId);
             expect(current?.latestResponse ?? current?.result).toContain("TASK_AGENT_DONE");
             if (current?.status === "idle") {
                 expect((await session.rpc.tasks.cancel({ id: started.agentId })).cancelled).toBe(
@@ -274,6 +308,183 @@ describe("Session tasks RPC and pending handlers", async () => {
             await session.disconnect();
         }
     });
+
+    capiIt(
+        "should apply a custom agent's composed model and effort when started over RPC",
+        { timeout: 240_000 },
+        async () => {
+            const recordingClient = createClient();
+            try {
+                const session = await recordingClient.createSession({
+                    onPermissionRequest: approveAll,
+                    customAgents: [
+                        {
+                            name: "sdk-composed-model-agent",
+                            description: "SDK composed model coverage",
+                            prompt: "Reply with SDK_COMPOSED_AGENT_DONE exactly.",
+                            model: "claude-sonnet-5:defaultReasoningEffort=high",
+                        },
+                    ],
+                });
+                const configurations: Array<{
+                    agentId?: string;
+                    model: string;
+                    reasoningEffort?: string;
+                }> = [];
+                const unsubscribe = session.on((event) => {
+                    if (event.type === "subagent.configured") {
+                        configurations.push({ agentId: event.agentId, ...event.data });
+                    }
+                });
+                try {
+                    const started = await session.rpc.tasks.startAgent({
+                        agentType: "sdk-composed-model-agent",
+                        prompt: "Reply with SDK_COMPOSED_AGENT_DONE exactly.",
+                        name: "sdk-composed-model-task",
+                    });
+                    await waitForCondition(
+                        () => configurations.some((event) => event.agentId === started.agentId),
+                        {
+                            timeoutMs: 60_000,
+                            timeoutMessage: `Agent ${started.agentId} was never configured: ${JSON.stringify(configurations)}`,
+                        }
+                    );
+                    expect(
+                        configurations.find((event) => event.agentId === started.agentId)
+                    ).toMatchObject({
+                        model: "claude-sonnet-5",
+                        reasoningEffort: "high",
+                    });
+
+                    await waitForCondition(
+                        async () => {
+                            const task = await getAgentTask(session, started.agentId);
+                            return (
+                                !!task &&
+                                ["completed", "idle"].includes(task.status) &&
+                                (task.latestResponse ?? task.result ?? "").includes(
+                                    "SDK_COMPOSED_AGENT_DONE"
+                                )
+                            );
+                        },
+                        {
+                            timeoutMs: 60_000,
+                            timeoutMessage: `Agent ${started.agentId} never completed`,
+                        }
+                    );
+                    const requests = await modelRequestsForPrompt(
+                        "Reply with SDK_COMPOSED_AGENT_DONE exactly."
+                    );
+                    expect(requests.length).toBeGreaterThan(0);
+                    for (const request of requests) {
+                        expect(request).toMatchObject({
+                            model: "claude-sonnet-5",
+                            reasoning_effort: "high",
+                        });
+                    }
+                } finally {
+                    unsubscribe();
+                }
+            } finally {
+                await recordingClient.stop();
+            }
+        }
+    );
+
+    capiIt(
+        "should preserve a composed display-name effort in a model-issued task",
+        async () => {
+            const taskArguments: unknown[] = [];
+            const recordingClient = createClient();
+            try {
+                const session = await recordingClient.createSession({
+                    model: "claude-sonnet-5",
+                    reasoningEffort: "medium",
+                    onPermissionRequest: approveAll,
+                    hooks: {
+                        onPreToolUse: async (input) => {
+                            if (input.toolName === "task") {
+                                taskArguments.push(input.toolArgs);
+                            }
+                            return { permissionDecision: "allow" };
+                        },
+                    },
+                    customAgents: [
+                        {
+                            name: "sdk-display-model-agent",
+                            description: "SDK display-name model coverage",
+                            prompt: "Reply with SDK_DISPLAY_AGENT_DONE exactly.",
+                            model: "Claude Sonnet 5:defaultReasoningEffort=high",
+                        },
+                    ],
+                });
+                const modelList = await session.rpc.model.list();
+                expect(modelList.list).toEqual(
+                    expect.arrayContaining([
+                        expect.objectContaining({ id: "claude-sonnet-5", name: "Claude Sonnet 5" }),
+                    ])
+                );
+                const configurations: Array<{
+                    agentId?: string;
+                    model: string;
+                    reasoningEffort?: string;
+                }> = [];
+                const unsubscribe = session.on((event) => {
+                    if (event.type === "subagent.configured") {
+                        configurations.push({ agentId: event.agentId, ...event.data });
+                    }
+                });
+                try {
+                    const reply = await session.sendAndWait(
+                        {
+                            prompt:
+                                'Use the task tool with agent_type "sdk-display-model-agent", mode "sync", and prompt "Reply with SDK_DISPLAY_AGENT_DONE exactly.". ' +
+                                "Do not specify model or reasoning_effort in the task arguments. " +
+                                "After it completes, reply with SDK_DISPLAY_PARENT_DONE exactly.",
+                        },
+                        120_000
+                    );
+                    expect(reply?.data.content).toContain("SDK_DISPLAY_PARENT_DONE");
+                    expect(taskArguments).toHaveLength(1);
+                    expect(taskArguments[0]).toMatchObject({
+                        agent_type: "sdk-display-model-agent",
+                        mode: "sync",
+                    });
+                    expect(taskArguments[0]).not.toHaveProperty("model");
+                    expect(taskArguments[0]).not.toHaveProperty("reasoning_effort");
+                    expect(configurations).toHaveLength(1);
+                    const configuration = configurations[0];
+                    expect(configuration).toMatchObject({
+                        model: "claude-sonnet-5",
+                        reasoningEffort: "high",
+                    });
+                    expect(configuration.agentId).toBeTruthy();
+                    const requests = await modelRequestsForPrompt(
+                        "Reply with SDK_DISPLAY_AGENT_DONE exactly."
+                    );
+                    expect(requests.length).toBeGreaterThan(0);
+                    for (const request of requests) {
+                        expect(request).toMatchObject({
+                            model: "claude-sonnet-5",
+                            reasoning_effort: "high",
+                        });
+                    }
+                    const parentRequests = await modelRequestsForPrompt(
+                        "After it completes, reply with SDK_DISPLAY_PARENT_DONE exactly."
+                    );
+                    expect(parentRequests.length).toBeGreaterThan(0);
+                    for (const request of parentRequests) {
+                        expect(request.reasoning_effort).toBe("medium");
+                    }
+                } finally {
+                    unsubscribe();
+                }
+            } finally {
+                await recordingClient.stop();
+            }
+        },
+        240_000
+    );
 
     it("should return expected results for missing pending handler requestIds", async () => {
         const session = await client.createSession({ onPermissionRequest: approveAll });

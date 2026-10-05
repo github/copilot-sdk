@@ -25,13 +25,12 @@ permissions:
 
 jobs:
   nodejs:
-    name: "Node.js (${{ matrix.os }}, ${{ matrix.transport }})"
+    name: "Node.js (${{ matrix.os }}, CAPI)"
     if: contains(fromJSON('["all","linux-x64","darwin-arm64","win32-x64"]'), inputs.platform)
     strategy:
       fail-fast: false
       matrix:
         os: ${{ fromJSON(inputs.platform == 'linux-x64' && '["ubuntu-latest"]' || inputs.platform == 'darwin-arm64' && '["macos-latest"]' || inputs.platform == 'win32-x64' && '["windows-latest"]' || '["ubuntu-latest","macos-latest","windows-latest"]') }}
-        transport: ${{ fromJSON(github.event_name == 'merge_group' && '["default"]' || '["default","inprocess"]') }}
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -42,9 +41,9 @@ jobs:
         timeout-minutes: 4
         with:
           persist-credentials: false
-      - uses: actions/download-artifact@v8
+      - uses: ./.github/actions/download-sdk-runtime
         with:
-          name: ${{ runner.os == 'Linux' && format('executable-sdk-{0}-{1}-gnu', runner.os, runner.arch) || format('executable-sdk-{0}-{1}', runner.os, runner.arch) }}
+          artifact-name: ${{ runner.os == 'Linux' && format('executable-sdk-{0}-{1}-gnu', runner.os, runner.arch) || format('executable-sdk-{0}-{1}', runner.os, runner.arch) }}
           path: ${{ github.workspace }}
       - run: node "$SDK_HOME/scripts/ci/runtime-artifact.mjs" restore && node "$SDK_HOME/scripts/ci/runtime-artifact.mjs" prepare
         working-directory: .
@@ -59,14 +58,14 @@ jobs:
         working-directory: ${{ inputs.sdk-home }}/scripts/codegen
       # TEMPORARY MERGE QUEUE REDUCTION: pull requests and main pushes retain
       # static checks; merge groups rerun only SDK compatibility coverage.
-      - if: github.event_name != 'merge_group' && runner.os == 'Linux' && matrix.transport == 'default'
+      - if: github.event_name != 'merge_group' && runner.os == 'Linux'
         run: npm run format:check
-      - if: github.event_name != 'merge_group' && runner.os == 'Linux' && matrix.transport == 'default'
+      - if: github.event_name != 'merge_group' && runner.os == 'Linux'
         run: npm run lint
-      - if: github.event_name != 'merge_group' && runner.os == 'Linux' && matrix.transport == 'default'
+      - if: github.event_name != 'merge_group' && runner.os == 'Linux'
         run: npm run typecheck
       - run: npm run build
-      - if: runner.os == 'Linux' && matrix.transport == 'default'
+      - if: runner.os == 'Linux'
         env:
           COPILOT_SDK_RUNTIME_PLATFORMS: linux-x64
         run: |
@@ -74,43 +73,97 @@ jobs:
           npm run verify:release-packages
       - run: npm ci --ignore-scripts
         working-directory: ${{ inputs.sdk-home }}/test/harness
-      - if: runner.os == 'Linux' && matrix.transport == 'default'
+      - if: runner.os == 'Linux'
         run: npm test
         working-directory: ${{ inputs.sdk-home }}/test/harness
-      - if: runner.os == 'Linux' && matrix.transport == 'default'
+      - if: runner.os == 'Linux'
         run: npm ci
         working-directory: ${{ inputs.sdk-home }}/scripts/corrections
-      - if: runner.os == 'Linux' && matrix.transport == 'default'
+      - if: runner.os == 'Linux'
         run: npm test
         working-directory: ${{ inputs.sdk-home }}/scripts/corrections
       - if: runner.os == 'Windows'
         run: pwsh.exe -Command "Write-Host 'PowerShell ready'"
-      - env:
+      - name: Test out-of-process
+        id: subprocess
+        env:
           COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
-          COPILOT_SDK_DEFAULT_CONNECTION: ${{ matrix.transport == 'inprocess' && 'inprocess' || '' }}
         run: |
-          if [ "$COPILOT_SDK_DEFAULT_CONNECTION" = "inprocess" ]; then
-            npm test -- test/e2e/inprocess_ffi.e2e.test.ts test/e2e/auth_host.e2e.test.ts
+          if [ "$GITHUB_EVENT_NAME" = "merge_group" ]; then
+            npm test -- --reporter=default --reporter=json --outputFile="$RUNNER_TEMP/sdk-nodejs-results.json"
           else
             npm test
           fi
+      - name: Upload merge-queue Node.js test results
+        if: always() && github.event_name == 'merge_group' && runner.os == 'Linux'
+        continue-on-error: true
+        uses: actions/upload-artifact@v7
+        with:
+          name: suspected-flakes-sdk-nodejs-${{ github.run_attempt }}-linux
+          path: ${{ runner.temp }}/sdk-nodejs-results.json
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Test in-process smoke
+        if: ${{ !cancelled() && github.event_name != 'merge_group' && (steps.subprocess.outcome == 'success' || steps.subprocess.outcome == 'failure') }}
+        env:
+          COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
+          COPILOT_SDK_DEFAULT_CONNECTION: inprocess
+        run: npm test -- test/e2e/inprocess_ffi.e2e.test.ts test/e2e/auth_host.e2e.test.ts
 
-  nodejs-musl-x64:
-    name: "Node.js (Alpine x64, ${{ matrix.transport }})"
-    if: inputs.platform == 'all' || inputs.platform == 'linuxmusl-x64'
+  # Keep each BYOK backend on its own runner; shared runtime E2E coverage belongs
+  # in TypeScript rather than repeating these sweeps across SDK languages.
+  nodejs-backends:
+    name: "Node.js (ubuntu-latest, ${{ matrix.backend }})"
+    if: github.event_name != 'merge_group' && (inputs.platform == 'all' || inputs.platform == 'linux-x64')
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
-        transport: [default, inprocess]
+        backend: [anthropic-messages, openai-responses, openai-completions]
+    defaults:
+      run:
+        shell: bash
+        working-directory: ${{ inputs.sdk-home }}/nodejs
+    env:
+      COPILOT_SDK_E2E_BACKEND: ${{ matrix.backend }}
     steps:
       - uses: actions/checkout@v7
         timeout-minutes: 4
         with:
           persist-credentials: false
-      - uses: actions/download-artifact@v8
+      - uses: ./.github/actions/download-sdk-runtime
         with:
-          name: executable-sdk-Linux-X64-musl
+          artifact-name: executable-sdk-Linux-X64-gnu
+          path: ${{ github.workspace }}
+      - run: node "$SDK_HOME/scripts/ci/runtime-artifact.mjs" restore && node "$SDK_HOME/scripts/ci/runtime-artifact.mjs" prepare
+        working-directory: .
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ${{ inputs.sdk-home }}/nodejs/package-lock.json
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+      - run: npm ci --ignore-scripts
+        working-directory: ${{ inputs.sdk-home }}/test/harness
+      - name: Test out-of-process E2Es
+        env:
+          COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
+        run: npm test -- test/e2e
+
+  nodejs-musl-x64:
+    name: "Node.js (Alpine x64, CAPI)"
+    if: inputs.platform == 'all' || inputs.platform == 'linuxmusl-x64'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        timeout-minutes: 4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/download-sdk-runtime
+        with:
+          artifact-name: executable-sdk-Linux-X64-musl
           path: ${{ github.workspace }}
       - run: node "$SDK_HOME/scripts/ci/runtime-artifact.mjs" restore
         working-directory: .
@@ -121,7 +174,6 @@ jobs:
           image: node:22-alpine
           sdk-root: /workspace/${{ inputs.sdk-home }}
           workdir: /workspace/${{ inputs.sdk-home }}/nodejs
-          transport: ${{ matrix.transport }}
           command: |
             npm ci --ignore-scripts
             (cd "$COPILOT_SDK_ROOT/scripts/codegen" && npm ci --ignore-scripts)
@@ -141,11 +193,10 @@ jobs:
             esac
             test -x "$COPILOT_CLI_PATH"
             test -f "$(dirname "$COPILOT_CLI_PATH")/runtime.node"
-            if [ "$COPILOT_SDK_TEST_TRANSPORT" = "inprocess" ]; then
-              npm test -- test/e2e/inprocess_ffi.e2e.test.ts test/e2e/auth_host.e2e.test.ts
-            else
-              npm test
-            fi
+            status=0
+            npm test || status=$?
+            COPILOT_SDK_DEFAULT_CONNECTION=inprocess npm test -- test/e2e/inprocess_ffi.e2e.test.ts test/e2e/auth_host.e2e.test.ts || status=$?
+            exit "$status"
 
   docs-typescript:
     name: "Docs (TypeScript)"

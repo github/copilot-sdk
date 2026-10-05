@@ -99,6 +99,8 @@ export function prepareRuntimeArtifact(options = {}) {
             `package/${executableName}`,
             "--exclude",
             "package/app.js",
+            "--exclude",
+            "package/cli-main.js",
             "-czf",
             path.basename(inProcessArchive),
             "package",

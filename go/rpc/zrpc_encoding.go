@@ -2573,69 +2573,6 @@ func (r UnsupportedEnqueueCommandResult) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func unmarshalEntraTokenAcquireResult(data []byte) (EntraTokenAcquireResult, error) {
-	if string(data) == "null" {
-		return nil, nil
-	}
-	type rawUnion struct {
-		Status EntraTokenAcquireResultStatus `json:"status"`
-	}
-	var raw rawUnion
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return nil, err
-	}
-
-	switch raw.Status {
-	case EntraTokenAcquireResultStatusInteractionRequired:
-		var d EntraTokenAcquireResultInteractionRequired
-		if err := json.Unmarshal(data, &d); err != nil {
-			return nil, err
-		}
-		return &d, nil
-	case EntraTokenAcquireResultStatusOk:
-		var d EntraTokenAcquireResultOk
-		if err := json.Unmarshal(data, &d); err != nil {
-			return nil, err
-		}
-		return &d, nil
-	default:
-		return &RawEntraTokenAcquireResultData{Discriminator: raw.Status, Raw: data}, nil
-	}
-}
-
-func (r RawEntraTokenAcquireResultData) MarshalJSON() ([]byte, error) {
-	if r.Raw != nil {
-		return r.Raw, nil
-	}
-	return json.Marshal(struct {
-		Status EntraTokenAcquireResultStatus `json:"status"`
-	}{
-		Status: r.Discriminator,
-	})
-}
-
-func (r EntraTokenAcquireResultInteractionRequired) MarshalJSON() ([]byte, error) {
-	type alias EntraTokenAcquireResultInteractionRequired
-	return json.Marshal(struct {
-		Status EntraTokenAcquireResultStatus `json:"status"`
-		alias
-	}{
-		Status: r.Status(),
-		alias:  alias(r),
-	})
-}
-
-func (r EntraTokenAcquireResultOk) MarshalJSON() ([]byte, error) {
-	type alias EntraTokenAcquireResultOk
-	return json.Marshal(struct {
-		Status EntraTokenAcquireResultStatus `json:"status"`
-		alias
-	}{
-		Status: r.Status(),
-		alias:  alias(r),
-	})
-}
-
 func (r EventLogTypes) MarshalJSON() ([]byte, error) {
 	if r.String != nil {
 		return json.Marshal(r.String)
@@ -5557,6 +5494,101 @@ func (r *MCPStartServerRequest) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+func unmarshalProtocolMarkerSectionOverride(data []byte) (ProtocolMarkerSectionOverride, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	type rawUnion struct {
+		Action ProtocolMarkerSectionOverrideAction `json:"action"`
+	}
+	var raw rawUnion
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+
+	switch raw.Action {
+	case ProtocolMarkerSectionOverrideActionPreserve:
+		var d ProtocolMarkerSectionOverridePreserve
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case ProtocolMarkerSectionOverrideActionTransform:
+		var d ProtocolMarkerSectionOverrideTransform
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	default:
+		return &RawProtocolMarkerSectionOverrideData{Discriminator: raw.Action, Raw: data}, nil
+	}
+}
+
+func (r RawProtocolMarkerSectionOverrideData) MarshalJSON() ([]byte, error) {
+	if r.Raw != nil {
+		return r.Raw, nil
+	}
+	return json.Marshal(struct {
+		Action ProtocolMarkerSectionOverrideAction `json:"action"`
+	}{
+		Action: r.Discriminator,
+	})
+}
+
+func (r ProtocolMarkerSectionOverridePreserve) MarshalJSON() ([]byte, error) {
+	type alias ProtocolMarkerSectionOverridePreserve
+	return json.Marshal(struct {
+		Action ProtocolMarkerSectionOverrideAction `json:"action"`
+		alias
+	}{
+		Action: r.Action(),
+		alias:  alias(r),
+	})
+}
+
+func (r ProtocolMarkerSectionOverrideTransform) MarshalJSON() ([]byte, error) {
+	type alias ProtocolMarkerSectionOverrideTransform
+	return json.Marshal(struct {
+		Action ProtocolMarkerSectionOverrideAction `json:"action"`
+		alias
+	}{
+		Action: r.Action(),
+		alias:  alias(r),
+	})
+}
+
+func (r ProtocolSectionOverride) MarshalJSON() ([]byte, error) {
+	if r.ProtocolMarkerSectionOverride != nil {
+		return json.Marshal(r.ProtocolMarkerSectionOverride)
+	}
+	if r.ProtocolStaticSectionOverride != nil {
+		return json.Marshal(r.ProtocolStaticSectionOverride)
+	}
+	return []byte("null"), nil
+}
+
+func (r *ProtocolSectionOverride) UnmarshalJSON(data []byte) error {
+	if string(data) == "null" {
+		*r = ProtocolSectionOverride{}
+		return nil
+	}
+	{
+		value, err := unmarshalProtocolMarkerSectionOverride(data)
+		if err == nil {
+			*r = ProtocolSectionOverride{ProtocolMarkerSectionOverride: value}
+			return nil
+		}
+	}
+	{
+		var value ProtocolStaticSectionOverride
+		if err := json.Unmarshal(data, &value); err == nil {
+			*r = ProtocolSectionOverride{ProtocolStaticSectionOverride: &value}
+			return nil
+		}
+	}
+	return errors.New("data did not match any union variant for ProtocolSectionOverride")
+}
+
 func unmarshalPermissionDecision(data []byte) (PermissionDecision, error) {
 	if string(data) == "null" {
 		return nil, nil
@@ -6823,101 +6855,6 @@ func (r *PermissionLocationAddToolApprovalParams) UnmarshalJSON(data []byte) err
 	}
 	r.LocationKey = raw.LocationKey
 	return nil
-}
-
-func unmarshalProtocolMarkerSectionOverride(data []byte) (ProtocolMarkerSectionOverride, error) {
-	if string(data) == "null" {
-		return nil, nil
-	}
-	type rawUnion struct {
-		Action ProtocolMarkerSectionOverrideAction `json:"action"`
-	}
-	var raw rawUnion
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return nil, err
-	}
-
-	switch raw.Action {
-	case ProtocolMarkerSectionOverrideActionPreserve:
-		var d ProtocolMarkerSectionOverridePreserve
-		if err := json.Unmarshal(data, &d); err != nil {
-			return nil, err
-		}
-		return &d, nil
-	case ProtocolMarkerSectionOverrideActionTransform:
-		var d ProtocolMarkerSectionOverrideTransform
-		if err := json.Unmarshal(data, &d); err != nil {
-			return nil, err
-		}
-		return &d, nil
-	default:
-		return &RawProtocolMarkerSectionOverrideData{Discriminator: raw.Action, Raw: data}, nil
-	}
-}
-
-func (r RawProtocolMarkerSectionOverrideData) MarshalJSON() ([]byte, error) {
-	if r.Raw != nil {
-		return r.Raw, nil
-	}
-	return json.Marshal(struct {
-		Action ProtocolMarkerSectionOverrideAction `json:"action"`
-	}{
-		Action: r.Discriminator,
-	})
-}
-
-func (r ProtocolMarkerSectionOverridePreserve) MarshalJSON() ([]byte, error) {
-	type alias ProtocolMarkerSectionOverridePreserve
-	return json.Marshal(struct {
-		Action ProtocolMarkerSectionOverrideAction `json:"action"`
-		alias
-	}{
-		Action: r.Action(),
-		alias:  alias(r),
-	})
-}
-
-func (r ProtocolMarkerSectionOverrideTransform) MarshalJSON() ([]byte, error) {
-	type alias ProtocolMarkerSectionOverrideTransform
-	return json.Marshal(struct {
-		Action ProtocolMarkerSectionOverrideAction `json:"action"`
-		alias
-	}{
-		Action: r.Action(),
-		alias:  alias(r),
-	})
-}
-
-func (r ProtocolSectionOverride) MarshalJSON() ([]byte, error) {
-	if r.ProtocolMarkerSectionOverride != nil {
-		return json.Marshal(r.ProtocolMarkerSectionOverride)
-	}
-	if r.ProtocolStaticSectionOverride != nil {
-		return json.Marshal(r.ProtocolStaticSectionOverride)
-	}
-	return []byte("null"), nil
-}
-
-func (r *ProtocolSectionOverride) UnmarshalJSON(data []byte) error {
-	if string(data) == "null" {
-		*r = ProtocolSectionOverride{}
-		return nil
-	}
-	{
-		value, err := unmarshalProtocolMarkerSectionOverride(data)
-		if err == nil {
-			*r = ProtocolSectionOverride{ProtocolMarkerSectionOverride: value}
-			return nil
-		}
-	}
-	{
-		var value ProtocolStaticSectionOverride
-		if err := json.Unmarshal(data, &value); err == nil {
-			*r = ProtocolSectionOverride{ProtocolStaticSectionOverride: &value}
-			return nil
-		}
-	}
-	return errors.New("data did not match any union variant for ProtocolSectionOverride")
 }
 
 func unmarshalPushAttachment(data []byte) (PushAttachment, error) {

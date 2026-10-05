@@ -124,6 +124,7 @@ func TestProviderConfig_JSONIncludesAllFields(t *testing.T) {
 		Headers:         map[string]string{"Authorization": "Bearer provider-token"},
 		ModelID:         "gpt-4o",
 		WireModel:       "my-finetune-v3",
+		ModelProvider:   "lm_studio",
 		MaxPromptTokens: 100000,
 		MaxOutputTokens: 4096,
 	}
@@ -146,6 +147,9 @@ func TestProviderConfig_JSONIncludesAllFields(t *testing.T) {
 	}
 	if decoded["wireModel"] != "my-finetune-v3" {
 		t.Errorf("expected wireModel 'my-finetune-v3', got %v", decoded["wireModel"])
+	}
+	if decoded["modelProvider"] != "lm_studio" {
+		t.Errorf("expected modelProvider 'lm_studio', got %v", decoded["modelProvider"])
 	}
 	if decoded["maxPromptTokens"] != float64(100000) {
 		t.Errorf("expected maxPromptTokens 100000, got %v", decoded["maxPromptTokens"])
@@ -175,10 +179,33 @@ func TestProviderConfig_JSONOmitsUnsetTokenFields(t *testing.T) {
 		t.Fatalf("failed to unmarshal ProviderConfig: %v", err)
 	}
 
-	for _, field := range []string{"modelId", "wireModel", "maxPromptTokens", "maxOutputTokens", "headers"} {
+	for _, field := range []string{"modelId", "wireModel", "modelProvider", "maxPromptTokens", "maxOutputTokens", "headers"} {
 		if _, present := decoded[field]; present {
 			t.Errorf("expected %q to be omitted when unset, got %v", field, decoded[field])
 		}
+	}
+}
+
+func TestNamedProviderConfig_JSONIncludesModelProvider(t *testing.T) {
+	cfg := NamedProviderConfig{
+		Name:          "local",
+		Type:          "openai",
+		BaseURL:       "http://localhost:11434/v1",
+		ModelProvider: "ollama",
+	}
+
+	data, err := json.Marshal(cfg)
+	if err != nil {
+		t.Fatalf("failed to marshal NamedProviderConfig: %v", err)
+	}
+
+	var decoded map[string]any
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("failed to unmarshal NamedProviderConfig: %v", err)
+	}
+
+	if decoded["modelProvider"] != "ollama" {
+		t.Errorf("expected modelProvider 'ollama', got %v", decoded["modelProvider"])
 	}
 }
 

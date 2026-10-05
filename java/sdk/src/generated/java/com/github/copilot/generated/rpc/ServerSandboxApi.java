@@ -21,9 +21,13 @@ public final class ServerSandboxApi {
 
     private final RpcCaller caller;
 
+    /** API methods for the {@code sandbox.proxyCa} sub-namespace. */
+    public final ServerSandboxProxyCaApi proxyCa;
+
     /** @param caller the RPC transport function */
     ServerSandboxApi(RpcCaller caller) {
         this.caller = caller;
+        this.proxyCa = new ServerSandboxProxyCaApi(caller);
     }
 
     /**

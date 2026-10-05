@@ -21,7 +21,7 @@ import javax.annotation.processing.Generated;
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record HostRegisterSessionRequest(
+record HostRegisterSessionRequest(
     /** Canonical ID of the existing resident runtime session. */
     @JsonProperty("sessionId") String sessionId,
     /** Absolute working directory of the resident session. */

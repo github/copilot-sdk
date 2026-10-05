@@ -621,7 +621,8 @@ async fn disconnect_notifies_all_callbacks_even_when_they_panic() {
             &client,
             local_options().with_on_exit(move |exit| {
                 tx.send(exit).unwrap();
-                panic!("test disconnect callback panic");
+                // Exercise unwinding without blocking channel closure on panic-hook output.
+                std::panic::resume_unwind(Box::new("test disconnect callback panic"));
             }),
         );
         let request = peer.request().await;
@@ -655,7 +656,8 @@ async fn callback_panic_does_not_break_other_callbacks_or_rpc() {
                 gate.lock().unwrap().recv().unwrap();
                 calls.fetch_add(1, Ordering::SeqCst);
                 first_tx.send(exit).unwrap();
-                panic!("test callback panic");
+                // Exercise unwinding without blocking channel closure on panic-hook output.
+                std::panic::resume_unwind(Box::new("test callback panic"));
             }
         }),
     );

@@ -114,6 +114,7 @@ interface ExtensionOrchestrationContributions {
  */
 const MIN_PROTOCOL_VERSION = 3;
 const RUNTIME_SHUTDOWN_TIMEOUT_MS = 10_000;
+const CLOUD_SESSION_CLEANUP_TIMEOUT_MS = 10_000;
 
 type DrainingMessageConnection = MessageConnection & { drain: () => Promise<void> };
 
@@ -897,6 +898,14 @@ export class CopilotClient {
         if (this.sessionFsConfig.capabilities?.sqlite && !provider.sqlite) {
             throw new Error(
                 "SessionFsConfig declares capabilities.sqlite but the provider does not implement sqlite."
+            );
+        }
+        if (
+            this.sessionFsConfig.capabilities?.binary &&
+            (!provider.readFileBytes || !provider.writeFileBytes)
+        ) {
+            throw new Error(
+                "SessionFsConfig declares capabilities.binary but the provider does not implement readFileBytes and writeFileBytes."
             );
         }
         session.clientSessionApis.sessionFs = createSessionFsAdapter(provider);
@@ -1742,13 +1751,14 @@ export class CopilotClient {
             if (config.onEvent) {
                 s.on(config.onEvent);
             }
-            this.sessions.set(sessionId, s);
             this.setupSessionFs(s, config);
+            this.sessions.set(sessionId, s);
             return s;
         };
 
         let session: CopilotSession | undefined;
         let registeredId: string | undefined;
+        let uninitializedCloudSessionId: string | undefined;
 
         // Pre-register non-cloud sessions BEFORE issuing the RPC so any
         // session-scoped requests the CLI emits during `session.create`
@@ -1888,7 +1898,9 @@ export class CopilotClient {
             if (session === undefined) {
                 // Cloud / server-assigned path: register the session now that
                 // the CLI has told us which id it chose.
+                uninitializedCloudSessionId = returnedSessionId;
                 session = initializeSession(returnedSessionId);
+                uninitializedCloudSessionId = undefined;
                 registeredId = returnedSessionId;
             }
             this.assignGitHubTokenProvider(gitHubTokenProviderRegistrationId, returnedSessionId);
@@ -1910,6 +1922,20 @@ export class CopilotClient {
             }
             if (gitHubTokenProviderRegistrationId !== undefined) {
                 this.githubTokenProviders.delete(gitHubTokenProviderRegistrationId);
+            }
+            if (uninitializedCloudSessionId !== undefined) {
+                try {
+                    await withTimeout(
+                        this.deleteSession(uninitializedCloudSessionId),
+                        CLOUD_SESSION_CLEANUP_TIMEOUT_MS,
+                        `session.delete timed out after ${CLOUD_SESSION_CLEANUP_TIMEOUT_MS}ms`
+                    );
+                } catch (cleanupError) {
+                    throw new AggregateError(
+                        [e, cleanupError],
+                        "Failed to initialize and delete cloud session"
+                    );
+                }
             }
             throw e;
         }
@@ -2031,8 +2057,8 @@ export class CopilotClient {
         if (config.onEvent) {
             session.on(config.onEvent);
         }
-        this.sessions.set(sessionId, session);
         this.setupSessionFs(session, config);
+        this.sessions.set(sessionId, session);
 
         const toolFilterOptions = this.resolveToolFilterOptions(config);
         const gitHubTokenProviderRegistrationId = this.registerGitHubTokenProvider(

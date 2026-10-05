@@ -72,6 +72,7 @@ await test("stages all same-checkout runtime inputs", (t) => {
     const wrapperName = process.platform === "win32" ? "copilot-runtime.exe" : "copilot-runtime";
     writeFixture(path.join(runtimeRoot, "dist-cli", "index.js"), "entry point");
     writeFixture(path.join(runtimeRoot, "dist-cli", "app.js"), "legacy entry point");
+    writeFixture(path.join(runtimeRoot, "dist-cli", "cli-main.js"), "CLI UI");
     writeFixture(path.join(runtimeRoot, "dist-cli", "runtime-asset"), "asset");
     writeFixture(path.join(runtimeRoot, "dist-cli", "copilot-sdk", "index.js"), "sdk entry point");
     writeFixture(path.join(runtimeRoot, "dist-cli", "copilot-sdk", "extension.js"), "sdk extension entry point");
@@ -86,6 +87,7 @@ await test("stages all same-checkout runtime inputs", (t) => {
     assert.equal(fs.readFileSync(values.COPILOT_RUNTIME_LIBRARY_PATH, "utf8"), "runtime");
     assert.equal(fs.readFileSync(values.COPILOT_CLI_PATH, "utf8"), "wrapper");
     assert.equal(fs.readFileSync(values.COPILOT_LEGACY_CLI_PATH, "utf8"), "legacy entry point");
+    assert.equal(fs.readFileSync(path.join(outputDirectory, "package", "cli-main.js"), "utf8"), "CLI UI");
     assert.equal(
         fs.readFileSync(path.join(values.COPILOT_EXTENSION_SDK_PATH, "extension.js"), "utf8"),
         "sdk extension entry point",
@@ -111,6 +113,7 @@ await test("stages all same-checkout runtime inputs", (t) => {
     assert.match(inProcessContents.stdout, new RegExp(`package/prebuilds/${target}/runtime\\.node`));
     assert.doesNotMatch(inProcessContents.stdout, new RegExp(`^package/${executableName}$`, "m"));
     assert.doesNotMatch(inProcessContents.stdout, /^package\/app\.js$/m);
+    assert.doesNotMatch(inProcessContents.stdout, /^package\/cli-main\.js$/m);
 });
 
 await test("preserves complete checked-in Rust release pins", (t) => {

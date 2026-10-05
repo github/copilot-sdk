@@ -120,6 +120,7 @@ export type { SessionFsSqliteProvider } from "./sessionFsProvider.js";
 export type { SessionFsSqliteStatement } from "./sessionFsProvider.js";
 export type { SessionFsSqliteTransactionErrorClass } from "./sessionFsProvider.js";
 export { SessionFsSqliteTransactionFailure } from "./sessionFsProvider.js";
+export { SessionFsWriteFailure } from "./sessionFsProvider.js";
 export type { LlmInferenceHeaders } from "./generated/rpc.js";
 export type {
     PermissionDecisionContext,
@@ -1156,11 +1157,11 @@ export const SYSTEM_MESSAGE_SECTIONS: Record<SystemMessageSection, { description
     custom_instructions: { description: "Repository and organization custom instructions" },
     runtime_instructions: {
         description:
-            "Runtime-provided context and instructions (e.g. system notifications, memories, workspace context, mode-specific instructions, content-exclusion policy)",
+            "Runtime-provided system-prompt context and instructions, such as system notifications, memories, workspace context, and content-exclusion policy. Mode-specific instructions can travel in transition messages instead.",
     },
     last_instructions: {
         description:
-            "End-of-prompt instructions: parallel tool calling, persistence, task completion",
+            "End-of-prompt instructions: parallel tool calling, persistence, task completion, and configured subagent-model guidance when the task tool is available",
     },
 };
 
@@ -1236,6 +1237,8 @@ export interface SystemMessageReplaceConfig {
 /**
  * Customize mode: Override individual sections of the system prompt.
  * Keeps the SDK-managed prompt structure while allowing targeted modifications.
+ * The `last_instructions` section includes configured subagent-model guidance.
+ * Its overrides and transforms control that prose, not runtime model selection or tool availability.
  */
 export interface SystemMessageCustomizeConfig {
     mode: "customize";
@@ -1481,8 +1484,9 @@ export type AutoModeSwitchHandler = (
  * Base interface for all hook inputs
  */
 export interface BaseHookInput {
-    /** The runtime session ID of the session that triggered the hook.
-     * For sub-agent hooks this differs from `invocation.sessionId`. */
+    /** The runtime session ID associated with the hook. Child tool hooks use
+     * the child session ID; sub-agent lifecycle hooks use the parent session ID,
+     * matching `invocation.sessionId`. */
     sessionId: string;
     /** Time at which the hook event was emitted by the runtime. */
     timestamp: Date;
@@ -1791,6 +1795,56 @@ export type AgentStopHandler = (
 ) => Promise<AgentStopHookOutput | void> | AgentStopHookOutput | void;
 
 /**
+ * Input for the hook fired before a sub-agent's first turn.
+ *
+ * The session metadata belongs to the parent session, not the child.
+ */
+export interface SubagentStartHookInput extends BaseHookInput {
+    transcriptPath: string;
+    agentName: string;
+    agentDisplayName?: string;
+    agentDescription?: string;
+}
+
+/** Output for the sub-agent start hook. Context is prepended to the child's initial prompt. */
+export interface SubagentStartHookOutput {
+    additionalContext?: string;
+}
+
+/** Handler for the sub-agent start hook. */
+export type SubagentStartHandler = (
+    input: SubagentStartHookInput,
+    invocation: { sessionId: string }
+) => Promise<SubagentStartHookOutput | void> | SubagentStartHookOutput | void;
+
+/**
+ * Input for the hook fired after a sub-agent completes a turn.
+ *
+ * The response is the child's last assistant message before any hook rewrite.
+ */
+export interface SubagentStopHookInput extends SubagentStartHookInput {
+    agentId?: string;
+    agentType: string;
+    stopReason: "end_turn";
+    response: string;
+}
+
+/**
+ * Output for the sub-agent stop hook. `"block"` with a nonempty `reason` continues
+ * the child; otherwise `modifiedResponse` replaces the response reported to the parent.
+ * When both are supplied, a valid block takes precedence over the rewrite.
+ */
+export type SubagentStopHookOutput =
+    | { decision: "block"; reason: string; modifiedResponse?: string }
+    | { decision?: "allow"; reason?: never; modifiedResponse?: string };
+
+/** Handler for the sub-agent stop hook. */
+export type SubagentStopHandler = (
+    input: SubagentStopHookInput,
+    invocation: { sessionId: string }
+) => Promise<SubagentStopHookOutput | void> | SubagentStopHookOutput | void;
+
+/**
  * Configuration for session hooks
  */
 export interface SessionHooks {
@@ -1855,6 +1909,15 @@ export interface SessionHooks {
      * agent stop.
      */
     onAgentStop?: AgentStopHandler;
+
+    /** Called before a sub-agent's first turn. Return context to prepend to its prompt. */
+    onSubagentStart?: SubagentStartHandler;
+
+    /**
+     * Called after a sub-agent completes a turn. Return a block reason to
+     * continue the child, or a replacement response to report to the parent.
+     */
+    onSubagentStop?: SubagentStopHandler;
 }
 
 // ============================================================================
@@ -3117,6 +3180,20 @@ export interface ProviderTokenArgs {
 export type BearerTokenProvider = (args: ProviderTokenArgs) => Promise<string>;
 
 /**
+ * Product serving a configured provider's model. Allowed values are
+ * "openai", "anthropic", "azure_openai", "ollama", "lm_studio",
+ * "foundry_local", and "llama_cpp".
+ */
+export type ProviderConfigModelProvider =
+    | "openai"
+    | "anthropic"
+    | "azure_openai"
+    | "ollama"
+    | "lm_studio"
+    | "foundry_local"
+    | "llama_cpp";
+
+/**
  * Configuration for a custom API provider.
  */
 export interface ProviderConfig {
@@ -3140,6 +3217,12 @@ export interface ProviderConfig {
      * providers using `wireApi: "responses"`.
      */
     transport?: "http" | "websockets";
+
+    /**
+     * Product serving the model, such as "ollama" or "lm_studio", reported in
+     * telemetry as `model_provider`. Only affects telemetry.
+     */
+    modelProvider?: ProviderConfigModelProvider;
 
     /**
      * API endpoint URL
@@ -3246,6 +3329,12 @@ export interface NamedProviderConfig {
      * Wire API format (openai/azure only). Defaults to "completions".
      */
     wireApi?: "completions" | "responses";
+
+    /**
+     * Product serving this provider's models, such as "ollama" or "lm_studio",
+     * reported in telemetry as `model_provider`. Only affects telemetry.
+     */
+    modelProvider?: ProviderConfigModelProvider;
 
     /**
      * API endpoint URL.
@@ -3520,6 +3609,12 @@ export interface SessionFsConfig {
          * @default false
          */
         sqlite?: boolean;
+        /**
+         * Whether this provider supports exact binary reads and writes through readFileBytes and writeFileBytes.
+         * Required to view images stored only in the provider.
+         * @default false
+         */
+        binary?: boolean;
     };
 }
 

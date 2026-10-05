@@ -320,6 +320,7 @@ fn hostless_runtime_path(source: &str, platform: Platform) -> Option<PathBuf> {
         "app.js",
         "assets",
         "changelog.json",
+        "cli-main.js",
         "foundry-local-sdk",
         "index.js",
         "LICENSE.md",

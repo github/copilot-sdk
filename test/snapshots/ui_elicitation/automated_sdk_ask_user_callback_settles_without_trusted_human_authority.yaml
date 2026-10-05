@@ -1,0 +1,23 @@
+models:
+  - claude-sonnet-5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Invoke the ask_user tool now. Set message to exactly 'Which repository should I inspect?' and request an object
+          with one required string field named answer. Do not describe the tool call. After the tool returns, reply with
+          exactly SDK_AUTOMATED_ASK_USER_DONE.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: ask_user
+              arguments: '{"message":"Which repository should I
+                inspect?","requestedSchema":{"properties":{"answer":{"type":"string","title":"Answer"}},"required":["answer"]}}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: "User responded: github/st-mcp-poc"
+      - role: assistant
+        content: SDK_AUTOMATED_ASK_USER_DONE

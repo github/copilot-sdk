@@ -15,6 +15,8 @@
 
 Java SDK for programmatic control of GitHub Copilot CLI, enabling you to build AI-powered applications and agentic workflows. The Java SDK tracks the official GitHub Copilot SDK family (TypeScript, Python, Go, .NET, and Rust).
 
+The generated `SessionFsSetProviderCapabilities.binary` field describes the runtime protocol, not a Java provider API. The Java SDK cannot currently register a session filesystem provider or handle `sessionFs.readFileBytes` or `sessionFs.writeFileBytes`; do not advertise binary operations from Java. Java provider and binary support is deferred until the SDK exposes provider registration and reverse-RPC dispatch. Provider-only images currently require a provider-capable SDK.
+
 ## Prerequisites
 
 To use the SDK, you'll need:
@@ -190,6 +192,37 @@ directly.
 
 `CopilotClientOptions.setCwd(...)` sets the runtime process working directory, which otherwise inherits the current process working directory. `SessionConfig.setWorkingDirectory(...)` sets the session working directory, which otherwise defaults to the runtime process working directory.
 
+### Subagent lifecycle hooks
+
+Register `setOnSubagentStart` and `setOnSubagentStop` on `SessionHooks` to inspect
+the parent session and subagent metadata around each child run:
+
+```java
+import com.github.copilot.rpc.SessionConfig;
+import com.github.copilot.rpc.SessionHooks;
+import com.github.copilot.rpc.SubagentStartHookOutput;
+import com.github.copilot.rpc.SubagentStopHookOutput;
+import java.util.concurrent.CompletableFuture;
+
+var hooks = new SessionHooks()
+    .setOnSubagentStart((input, invocation) ->
+        CompletableFuture.completedFuture(
+            new SubagentStartHookOutput("Check the relevant tests first.")))
+    .setOnSubagentStop((input, invocation) ->
+        CompletableFuture.completedFuture(
+            new SubagentStopHookOutput(null, null, input.response())));
+var config = new SessionConfig().setHooks(hooks);
+```
+
+`SubagentStartHookInput` includes the parent `sessionId`, `timestamp`, `cwd`,
+`transcriptPath`, `agentName`, and optional display name and description. Its
+`additionalContext` output is prepended to the child's first prompt.
+`SubagentStopHookInput` also includes `agentType`, optional `agentId`,
+`stopReason`, and the last assistant `response`. Return a stop output with
+`decision` set to `"block"` and a nonempty `reason` to request another child
+turn, or set `modifiedResponse` to replace the final response. A block takes
+precedence over a rewrite.
+
 `CopilotClientOptions.setExtensionLaunchProvider(...)` configures an experimental
 connection-level resolver for extension launch profiles. The client installs the
 reverse-RPC handler and registers the provider during startup before sessions can
@@ -264,6 +297,12 @@ with the other SDKs. No other generated type changes.
 | `InstallationConfirmationRequest.review()` | `Object` | `InstallationReview` sealed interface (`InstallationReviewMcp` / `InstallationReviewSkill`, by `resource`); the MCP variant carries `McpInstallationReview` (`McpInstallationReviewInstall` / `McpInstallationReviewUninstall`, by `action`) and the Skill variant carries `SkillInstallationReview` |
 | `McpInstallPlan.transportChoices()` | `List<Object>` | `List<McpPlanTransportChoice>` (`McpPlanTransportChoicePackage` / `McpPlanTransportChoiceRemote`, by `installMethod`) |
 | `McpInstallationManagementResultOutcome.getOutcome()` / `setOutcome(...)` | `Object` | `McpInstallationManagementOutcome`, whose operation variant carries `McpInstallationOperationStatus` (by `phase`) |
+
+## System Message Customization
+
+Use `SessionConfig.setSystemMessage(...)` with a `SystemMessageConfig` in `SystemMessageMode.CUSTOMIZE` to override individual prompt sections. Section keys are defined by `SystemMessageSections`; use `SectionOverride.setAction(...)` for static overrides or `SectionOverride.setTransform(...)` for a transform callback.
+
+`SystemMessageSections.LAST_INSTRUCTIONS` (`last_instructions`) includes configured subagent-model guidance when the `task` tool is available. Removing or replacing this section also removes that guidance; a transform callback receives the complete section, including the guidance, and its returned content is authoritative. Append, prepend, and preserve retain their usual section semantics. These overrides change prompt prose only, not configured subagent models, tool availability, or runtime dispatch policy. `SystemMessageSections.RUNTIME_INSTRUCTIONS` is a separate section: removing it does not remove `SystemMessageSections.LAST_INSTRUCTIONS`.
 
 ## Message source
 
@@ -476,6 +515,54 @@ Chain fluent modifiers to set tool options:
 - `.overridesBuiltInTool(boolean)` — shadow built-in tools
 
 For design context and decision rationale, see [ADR-006](docs/adr/adr-006-tool-definition-inline.md).
+
+### String-schema `apply_patch` overrides
+
+An explicit `apply_patch` override can declare `Map.of("type", "string")`.
+The model sees a required `input` property, but the runtime restores the scalar
+patch text before dispatch. Use `ToolInvocation.getArgumentsAs(String.class)`
+to read it; `getArguments()` is for object-shaped arguments. This example
+returns trimmed patch text; replace the handler body with your own patch
+implementation:
+
+```java
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import com.github.copilot.rpc.ToolDefinition;
+
+ToolDefinition applyPatch = ToolDefinition.create("apply_patch", "Apply a patch", Map.of("type", "string"),
+        invocation -> {
+            String patch = invocation.getArgumentsAs(String.class);
+            return CompletableFuture.completedFuture(patch.trim());
+        }).overridesBuiltInTool(true);
+```
+
+Register this definition with `SessionConfig.setTools(...)`. String-schema
+`apply_patch` overrides cannot contain JSON Schema references; use an object
+schema if references are needed.
+
+## Changing tools on a live session (experimental)
+
+`CopilotSession.setTools(List<ToolDefinition>)` replaces the external tools
+registered by this Java client without recreating the session:
+
+```java
+session.setTools(List.of(
+    ToolDefinition.from("lookup_fruit", "Looks up fruit by code",
+        Param.of(Integer.class, "code", "Fruit code"),
+        code -> "dragonfruit")
+)).get();
+```
+
+The list is a complete replacement for this client only. Built-in tools, MCP
+tools, plugin tools, and tools registered by other connections are unchanged.
+Pass an empty list to remove this client's tools. Handlers switch after the
+runtime accepts the replacement; rejected replacements leave the previous
+handlers in place. Tool calls already running finish on the handler that started
+them.
+
+For cross-SDK behavior and active-turn caveats, see
+[changing tools](../docs/features/changing-tools.md).
 
 ## Auto routing tiers
 

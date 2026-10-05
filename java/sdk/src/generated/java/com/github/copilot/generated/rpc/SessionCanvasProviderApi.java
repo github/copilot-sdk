@@ -17,7 +17,7 @@ import javax.annotation.processing.Generated;
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
-public final class SessionCanvasProviderApi {
+final class SessionCanvasProviderApi {
 
     private static final com.fasterxml.jackson.databind.ObjectMapper MAPPER = RpcMapper.INSTANCE;
 
@@ -40,7 +40,7 @@ public final class SessionCanvasProviderApi {
      * @since 1.0.0
      */
     @CopilotExperimental
-    public CompletableFuture<Void> register(SessionCanvasProviderRegisterParams params) {
+    CompletableFuture<Void> register(SessionCanvasProviderRegisterParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
         return caller.invoke("session.canvas.provider.register", _p, Void.class);
@@ -56,7 +56,7 @@ public final class SessionCanvasProviderApi {
      * @since 1.0.0
      */
     @CopilotExperimental
-    public CompletableFuture<Void> unregister(SessionCanvasProviderUnregisterParams params) {
+    CompletableFuture<Void> unregister(SessionCanvasProviderUnregisterParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
         return caller.invoke("session.canvas.provider.unregister", _p, Void.class);

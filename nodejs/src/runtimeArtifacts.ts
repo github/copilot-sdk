@@ -43,6 +43,7 @@ const EXCLUDED_TOP_LEVEL = new Set([
     "app.js",
     "assets",
     "changelog.json",
+    "cli-main.js",
     "copilot",
     "copilot.exe",
     "foundry-local-sdk",

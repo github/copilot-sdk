@@ -7,7 +7,7 @@ import { join } from "path";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { approveAll, defineTool, RuntimeConnection } from "../../src/index.js";
-import { createSdkTestContext } from "./harness/sdkTestContext.js";
+import { createSdkTestContext, DEFAULT_GITHUB_TOKEN } from "./harness/sdkTestContext.js";
 
 interface TelemetryEntry {
     type?: string;
@@ -61,6 +61,7 @@ describe("Telemetry export", async () => {
         workDir,
     } = await createSdkTestContext({
         copilotClientOptions: {
+            gitHubToken: DEFAULT_GITHUB_TOKEN,
             // Telemetry is lowered to environment variables the native runtime reads, which
             // the in-process transport cannot carry per-client (the runtime runs in the shared
             // host process); see https://github.com/github/copilot-sdk/issues/1934. Pin the
@@ -77,6 +78,8 @@ describe("Telemetry export", async () => {
     });
 
     it("should export file telemetry for sdk interactions", { timeout: 90_000 }, async () => {
+        await client.start();
+        expect((await client.getAuthStatus()).isAuthenticated).toBe(true);
         const session = await client.createSession({
             onPermissionRequest: approveAll,
             tools: [
@@ -88,6 +91,11 @@ describe("Telemetry export", async () => {
             ],
         });
 
+        // Resolve account metadata before the first invocation snapshots its identity.
+        expect(await session.rpc.gitHubAuth.getStatus()).toMatchObject({
+            isAuthenticated: true,
+            login: "e2e-test-user",
+        });
         const assistantMessage = await session.sendAndWait({ prompt }, 90_000);
         expect(assistantMessage).toBeDefined();
         expect(assistantMessage?.data.content ?? "").toContain("TELEMETRY_E2E_DONE");
@@ -117,6 +125,10 @@ describe("Telemetry export", async () => {
             session.sessionId
         );
         expect(isRootSpan(invokeAgentSpan!)).toBe(true);
+        expect(getStringAttribute(invokeAgentSpan!, "enduser.pseudo.id")).toBe(
+            "e2e-test-tracking-id"
+        );
+        expect(invokeAgentSpan!.attributes).not.toHaveProperty("user.name");
         const invokeAgentSpanId = invokeAgentSpan!.spanId;
         expect(invokeAgentSpanId).toBeTruthy();
         const invokeAgentTraceId = invokeAgentSpan!.traceId;
@@ -135,6 +147,23 @@ describe("Telemetry export", async () => {
                 (getStringAttribute(span, "gen_ai.input.messages") ?? "").includes(prompt)
             )
         ).toBe(true);
+
+        const toolDefinitions = chatSpans.flatMap((span) => {
+            const definitions = getStringAttribute(span, "gen_ai.tool.definitions");
+            return definitions ? (JSON.parse(definitions) as unknown[]) : [];
+        });
+        expect(toolDefinitions).toContainEqual(
+            expect.objectContaining({
+                name: toolName,
+                description: "Echoes a marker string for telemetry validation.",
+                parameters: expect.objectContaining({
+                    type: "object",
+                    properties: expect.objectContaining({
+                        value: expect.objectContaining({ type: "string" }),
+                    }),
+                }),
+            })
+        );
         expect(
             chatSpans.some((span) =>
                 (getStringAttribute(span, "gen_ai.output.messages") ?? "").includes(
@@ -166,6 +195,7 @@ describe("Telemetry export", async () => {
 
         const subagentClient = createClient({
             connection: RuntimeConnection.forStdio(),
+            gitHubToken: DEFAULT_GITHUB_TOKEN,
             telemetry: {
                 filePath: telemetryFileName,
                 exporterType: "file",
@@ -175,9 +205,12 @@ describe("Telemetry export", async () => {
         });
         let sessionId: string;
         try {
+            await subagentClient.start();
+            expect((await subagentClient.getAuthStatus()).isAuthenticated).toBe(true);
             const session = await subagentClient.createSession({ onPermissionRequest: approveAll });
             sessionId = session.sessionId;
             try {
+                expect((await session.rpc.gitHubAuth.getStatus()).isAuthenticated).toBe(true);
                 const response = await session.sendAndWait({ prompt }, 90_000);
                 expect(response?.data.content ?? "").toContain("SUBAGENT_OTEL_DONE");
             } finally {
@@ -196,6 +229,10 @@ describe("Telemetry export", async () => {
             (span) => getStringAttribute(span, "gen_ai.operation.name") === "invoke_agent"
         );
         expect(invocationSpans).toHaveLength(2);
+        for (const span of invocationSpans) {
+            expect(getStringAttribute(span, "enduser.pseudo.id")).toBe("e2e-test-tracking-id");
+            expect(span.attributes).not.toHaveProperty("user.name");
+        }
         const roots = invocationSpans.filter(isRootSpan);
         expect(roots).toHaveLength(1);
         const root = roots[0]!;

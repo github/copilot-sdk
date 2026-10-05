@@ -130,6 +130,7 @@ test('stages retained package assets with a bounded number of archive passes', (
     fs.writeFileSync(path.join(packageRoot, 'definitions', `${i}.json`), `${i}`);
   }
   fs.writeFileSync(path.join(packageRoot, 'app.js'), 'excluded');
+  fs.writeFileSync(path.join(packageRoot, 'cli-main.js'), 'excluded');
   fs.writeFileSync(path.join(packageRoot, 'LICENSE.md'), 'excluded');
   fs.writeFileSync(path.join(packageRoot, 'README.md'), 'excluded');
   const tarball = path.join(fixture.repoRoot, 'fixture.tgz');
@@ -178,6 +179,7 @@ test('stages retained package assets with a bounded number of archive passes', (
   assert.equal(fs.readFileSync(fixture.runtimePath, 'utf8'), runtimeContent);
   assert.equal(fs.readFileSync(fixture.wrapperPath, 'utf8'), wrapperContent);
   assert.equal(fs.existsSync(path.join(resourceDir, 'app.js')), false);
+  assert.equal(fs.existsSync(path.join(resourceDir, 'cli-main.js')), false);
   assert.equal(fs.existsSync(path.join(resourceDir, 'copilot')), false);
   assert.equal(fs.existsSync(path.join(resourceDir, 'LICENSE.md')), false);
   assert.equal(fs.existsSync(path.join(resourceDir, 'README.md')), false);

@@ -10,13 +10,14 @@ using Xunit.Abstractions;
 namespace GitHub.Copilot.Test.E2E;
 
 /// <summary>
-/// E2E coverage for every handler exposed on <see cref="SessionHooks"/>:
+/// E2E coverage for session and tool handlers exposed on <see cref="SessionHooks"/>:
 /// OnPreToolUse, OnPostToolUse, OnPostToolUseFailure, OnUserPromptSubmitted,
 /// OnUserPromptTransformed, OnSessionStart, OnSessionEnd, OnErrorOccurred,
 /// OnAgentStop. Output-shape behavior (modifiedPrompt / modifiedTransformedPrompt /
 /// additionalContext / errorHandling / modifiedArgs /
 /// modifiedResult / sessionSummary) is asserted alongside hook invocation. If a
-/// new handler is added to <c>SessionHooks</c>, add a corresponding test here.
+/// new session or tool handler is added to <c>SessionHooks</c>, add a corresponding
+/// test here. Sub-agent lifecycle hooks are covered by <see cref="SubagentHooksE2ETests"/>.
 /// </summary>
 public class HookLifecycleAndOutputE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
     : E2ETestBase(fixture, "hooks_extended", output)

@@ -78,6 +78,8 @@ mod session_fs_sqlite;
 mod session_lifecycle;
 #[path = "e2e/session_todos_changed.rs"]
 mod session_todos_changed;
+#[path = "e2e/set_tools.rs"]
+mod set_tools;
 #[path = "e2e/skills.rs"]
 mod skills;
 #[path = "e2e/streaming_fidelity.rs"]

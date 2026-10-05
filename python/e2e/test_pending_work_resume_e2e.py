@@ -18,10 +18,9 @@ from copilot import CopilotClient, RuntimeConnection
 from copilot.rpc import (
     HandlePendingToolCallRequest,
     PermissionDecisionRequest,
-    PermissionDecisionUserNotAvailable,
     SessionsCheckInUseRequest,
 )
-from copilot.session import PermissionHandler
+from copilot.session import CopilotSession, PermissionHandler, PermissionNoResult
 from copilot.session_events import ExternalToolRequestedData, PermissionRequestedData
 from copilot.tools import Tool, ToolInvocation, ToolResult
 
@@ -87,6 +86,26 @@ async def _safe_force_stop(client: CopilotClient) -> None:
         await client.force_stop()
 
 
+async def _pending_tool_diagnostics(session: CopilotSession, request_id: str) -> str:
+    try:
+        events = await asyncio.wait_for(session.get_events(), PENDING_WORK_TIMEOUT)
+    except Exception as error:
+        return f"Rejected request {request_id}; history unavailable: {type(error).__name__}"
+    # Keep payloads out of failure reports while preserving request/turn ordering.
+    recent = [
+        {
+            "type": event.type.value,
+            "id": event.id,
+            "ephemeral": event.ephemeral,
+            "request_id": getattr(event.data, "request_id", None),
+            "tool_call_id": getattr(event.data, "tool_call_id", None),
+            "success": getattr(event.data, "success", None),
+        }
+        for event in events[-32:]
+    ]
+    return f"Rejected request {request_id}; session {session.session_id}; recent events: {recent}"
+
+
 class TestPendingWorkResume:
     async def test_should_continue_pending_permission_request_after_resume(
         self, ctx: E2ETestContext
@@ -145,7 +164,8 @@ class TestPendingWorkResume:
                 try:
                     session2 = await resumed_client.resume_session(
                         session_id,
-                        on_permission_request=lambda req, inv: PermissionDecisionUserNotAvailable(),
+                        # The manual approval below owns this response.
+                        on_permission_request=lambda req, inv: PermissionNoResult(),
                         continue_pending_work=True,
                         tools=[_make_pending_tool("resume_permission_tool", resumed_tool_handler)],
                     )
@@ -169,7 +189,7 @@ class TestPendingWorkResume:
                 permission_event_task.cancel()
                 await asyncio.gather(permission_event_task, return_exceptions=True)
                 if not release_original.done():
-                    release_original.set_result(PermissionDecisionUserNotAvailable())
+                    release_original.set_result(PermissionNoResult())
         finally:
             await _safe_force_stop(server)
 
@@ -340,14 +360,18 @@ class TestPendingWorkResume:
                             result="PARALLEL_B_BETA",
                         )
                     )
-                    assert result_b.success
+                    assert result_b.success, await _pending_tool_diagnostics(
+                        session2, tool_b_event.data.request_id
+                    )
                     result_a = await session2.rpc.tools.handle_pending_tool_call(
                         HandlePendingToolCallRequest(
                             request_id=tool_a_event.data.request_id,
                             result="PARALLEL_A_ALPHA",
                         )
                     )
-                    assert result_a.success
+                    assert result_a.success, await _pending_tool_diagnostics(
+                        session2, tool_a_event.data.request_id
+                    )
 
                     await session2.disconnect()
                 finally:

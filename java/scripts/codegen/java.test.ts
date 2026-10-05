@@ -10,8 +10,10 @@ import test from "node:test";
 import type { JSONSchema7 } from "json-schema";
 
 import {
+    collectDirectDiscriminatedUnionTypeNames,
     collectNestedDiscriminatedUnionTypeNames,
     generateApiMethod,
+    extractEventVariants,
     generateRpcClass,
     isMainModule,
     renderEventVariantClass,
@@ -29,6 +31,65 @@ test("arbitrary handoff maps accept scalar and structured JSON values", () => {
     assert.equal(result.javaType, "Map<String, Object>");
     assert.ok(result.imports.has("java.util.Map"));
 });
+
+test("preserves whole-event deprecation through a referenced event envelope", () => {
+    const schema: JSONSchema7 = {
+        definitions: {
+            SessionEvent: { anyOf: [{ $ref: "#/definitions/LegacyEvent" }] },
+            LegacyEvent: {
+                type: "object",
+                deprecated: true,
+                properties: {
+                    type: { const: "tool.execution_partial_result" },
+                    data: { $ref: "#/definitions/LegacyData" },
+                },
+            } as JSONSchema7,
+            LegacyData: { type: "object", properties: { partialOutput: { type: "string" } } },
+        },
+    };
+    const variants = extractEventVariants(schema);
+    assert.equal(variants.length, 1);
+    assert.equal(variants[0].deprecated, true);
+    assert.match(renderEventVariantClass(variants[0], "com.github.copilot.generated"), /@Deprecated/);
+});
+
+for (const referencedData of [false, true]) {
+    for (const eventDeprecated of [false, true]) {
+        for (const dataDeprecated of [false, true]) {
+            test(`preserves independent payload deprecation (referenced=${referencedData}, event=${eventDeprecated}, data=${dataDeprecated})`, () => {
+                const dataSchema: JSONSchema7 & { deprecated: boolean } = {
+                    type: "object",
+                    deprecated: dataDeprecated,
+                    properties: { partialOutput: { type: "string" } },
+                };
+                const eventSchema: JSONSchema7 & { deprecated: boolean } = {
+                    type: "object",
+                    deprecated: eventDeprecated,
+                    properties: {
+                        type: { const: "tool.execution_partial_result" },
+                        data: referencedData ? { $ref: "#/definitions/LegacyData" } : dataSchema,
+                    },
+                };
+                const schema: JSONSchema7 = {
+                    definitions: {
+                        SessionEvent: { anyOf: [{ $ref: "#/definitions/LegacyEvent" }] },
+                        LegacyEvent: eventSchema,
+                        LegacyData: dataSchema,
+                    },
+                };
+                const variants = extractEventVariants(schema);
+                assert.equal(variants.length, 1);
+                const source = renderEventVariantClass(variants[0], "com.github.copilot.generated");
+                const eventAnnotation = /@Deprecated\n(?:@[^\n]*\n)*public final class ToolExecutionPartialResultEvent\b/;
+                const dataAnnotation = /    @Deprecated\n(?:    @[^\n]*\n)*    public record ToolExecutionPartialResultEventData\b/;
+                if (eventDeprecated) assert.match(source, eventAnnotation);
+                else assert.doesNotMatch(source, eventAnnotation);
+                if (dataDeprecated) assert.match(source, dataAnnotation);
+                else assert.doesNotMatch(source, dataAnnotation);
+            });
+        }
+    }
+}
 
 test("preserves diagnostics configuration for session create and resume", async () => {
     const files = await renderRpcTypes({
@@ -48,6 +109,56 @@ test("preserves diagnostics configuration for session create and resume", async 
     assert.ok(configuration, "startup diagnostics must have a named generated configuration");
     assert.match(configuration[1], /DiagnosticSourcesConfiguration sources/);
     assert.ok([...files.keys()].some((file) => file.endsWith("/DiagnosticSourcesConfiguration.java")));
+});
+
+test("customization reload types are experimental without opening unrelated types", async () => {
+    const files = await renderRpcTypes({
+        definitions: {
+            CustomizationReloadStatus: { type: "string", enum: ["reloaded", "failed"] },
+            CustomizationReloadSubsystem: { type: "string", enum: ["skills", "hooks"] },
+            CustomizationReloadOutcome: {
+                type: "object",
+                description: "Result of one customization reload component.",
+                properties: { status: { $ref: "#/definitions/CustomizationReloadStatus" } },
+            },
+            ClosedStatus: { type: "string", enum: ["ready"] },
+            ExampleResult: {
+                type: "object",
+                properties: {
+                    status: { $ref: "#/definitions/CustomizationReloadStatus" },
+                    subsystem: { $ref: "#/definitions/CustomizationReloadSubsystem" },
+                    outcome: { $ref: "#/definitions/CustomizationReloadOutcome" },
+                    closed: { $ref: "#/definitions/ClosedStatus" },
+                },
+            },
+        },
+        server: {
+            example: {
+                rpcMethod: "example",
+                params: null,
+                result: { $ref: "#/definitions/ExampleResult" },
+            },
+        },
+    }, {});
+    for (const name of ["CustomizationReloadStatus", "CustomizationReloadSubsystem"]) {
+        const source = [...files].find(([file]) => file.endsWith(`/${name}.java`))?.[1];
+        assert.ok(source, `missing ${name}.java`);
+        assert.match(source, /public static final \w+ UNKNOWN = new \w+\("unknown"\);/);
+        assert.match(source, /if \(value != null\) return new \w+\(value\);/);
+        assert.match(source, /@com\.fasterxml\.jackson\.annotation\.JsonValue/);
+        assert.match(source, /import com\.github\.copilot\.CopilotExperimental;/);
+        assert.match(source, /@apiNote This type is experimental and may change in a future version\./);
+        assert.match(source, /@CopilotExperimental/);
+    }
+    const outcome = [...files].find(([file]) => file.endsWith("/CustomizationReloadOutcome.java"))?.[1];
+    assert.ok(outcome, "missing CustomizationReloadOutcome.java");
+    assert.match(outcome, /import com\.github\.copilot\.CopilotExperimental;/);
+    assert.match(outcome, /@apiNote This type is experimental and may change in a future version\./);
+    assert.match(outcome, /@CopilotExperimental/);
+    const closed = [...files].find(([file]) => file.endsWith("/ClosedStatus.java"))?.[1];
+    assert.ok(closed);
+    assert.doesNotMatch(closed, /return UNKNOWN/);
+    assert.doesNotMatch(closed, /@CopilotExperimental/);
 });
 
 test("recognizes an entrypoint reached through a linked directory", (t) => {
@@ -153,6 +264,59 @@ test("ordinary and empty root objects retain their existing records", () => {
     const empty = renderPayload({ type: "object", properties: {} });
     assert.match(empty, /public record ExampleNotificationEventData\(\)/);
     assert.doesNotMatch(empty, /JsonNode|DELEGATING|JsonValue/);
+});
+
+test("session event fields promote directly referenced discriminated response unions", () => {
+    const definitions: Record<string, JSONSchema7> = {
+        TypedResponse: {
+            anyOf: [
+                {
+                    type: "object",
+                    properties: {
+                        responseKind: { const: "answer" },
+                        answer: { type: "string" },
+                    },
+                    required: ["responseKind", "answer"],
+                },
+                {
+                    type: "object",
+                    properties: {
+                        responseKind: { const: "decision" },
+                        approved: { type: "boolean" },
+                    },
+                    required: ["responseKind", "approved"],
+                },
+            ],
+        },
+    };
+    const dataSchema: JSONSchema7 = {
+        type: "object",
+        properties: {
+            response: { $ref: "#/definitions/TypedResponse" },
+        },
+    };
+    const promoted = collectDirectDiscriminatedUnionTypeNames(
+        dataSchema,
+        definitions,
+        new Set(["TypedResponse"]),
+    );
+    const standaloneTypes = new Map<string, JSONSchema7>();
+
+    const result = schemaTypeToJava(
+        dataSchema.properties!.response as JSONSchema7,
+        false,
+        "ExampleEventData",
+        "response",
+        new Map(),
+        {
+            definitions,
+            standaloneTypes,
+            promotedUnionTypes: promoted,
+        },
+    );
+
+    assert.equal(result.javaType, "TypedResponse");
+    assert.equal(standaloneTypes.get("TypedResponse"), definitions.TypedResponse);
 });
 
 test("nested discriminated array items use their named Java type", () => {
@@ -478,6 +642,76 @@ function rpcSource(files: Map<string, string>, name: string): string {
     return source;
 }
 
+test("instructions reload reuses getSources result without generating a duplicate Java type", async () => {
+    const fixture = {
+        definitions: {
+            InstructionsGetSourcesResult: {
+                type: "object",
+                properties: { sources: { type: "array", items: { type: "string" } } },
+            },
+            OtherResult: {
+                type: "object",
+                properties: { sources: { type: "array", items: { type: "string" } } },
+            },
+        },
+        session: {
+            instructions: {
+                getSources: {
+                    rpcMethod: "session.instructions.getSources",
+                    params: null,
+                    result: { $ref: "#/definitions/InstructionsGetSourcesResult" },
+                },
+                reload: {
+                    rpcMethod: "session.instructions.reload",
+                    params: null,
+                    result: { $ref: "#/definitions/InstructionsGetSourcesResult" },
+                },
+            },
+        },
+    };
+
+    const files = await renderRpcTypes(fixture, {});
+    assert.match(rpcSource(files, "SessionInstructionsGetSourcesResult"), /List<String> sources/);
+    assert.equal([...files.keys()].some((file) => file.endsWith("/SessionInstructionsReloadResult.java")), false);
+
+    fixture.session.instructions.reload.result.$ref = "#/definitions/OtherResult";
+    await assert.rejects(renderRpcTypes(fixture, {}), /Incompatible Java RPC result alias/);
+});
+
+test("customizations reload uses its shared schema result name in types and wrapper", async () => {
+    const fixture = {
+        definitions: {
+            CustomizationsReloadResult: {
+                type: "object",
+                properties: { warnings: { type: "array", items: { type: "string" } } },
+            },
+            OtherResult: {
+                type: "object",
+                properties: { warnings: { type: "array", items: { type: "string" } } },
+            },
+        },
+        session: {
+            customizations: {
+                reload: {
+                    rpcMethod: "session.customizations.reload",
+                    params: null,
+                    result: { $ref: "#/definitions/CustomizationsReloadResult" },
+                },
+            },
+        },
+    };
+
+    const types = await renderRpcTypes(fixture, {});
+    assert.match(rpcSource(types, "CustomizationsReloadResult"), /List<String> warnings/);
+    assert.equal([...types.keys()].some((file) => file.endsWith("/SessionCustomizationsReloadResult.java")), false);
+    const wrappers = await renderRpcWrappers(fixture);
+    assert.match(rpcSource(wrappers, "SessionCustomizationsApi"), /CompletableFuture<CustomizationsReloadResult> reload\(/);
+
+    fixture.session.customizations.reload.result.$ref = "#/definitions/OtherResult";
+    await assert.rejects(renderRpcTypes(fixture, {}), /Incompatible Java RPC result name/);
+    await assert.rejects(renderRpcWrappers(fixture), /Incompatible Java RPC result name/);
+});
+
 test("static OAuth config preserves the legacy four-argument constructor", () => {
     const typeName = "McpOauthRequiredStaticClientConfig";
     const source = generateRpcClass(typeName, {
@@ -543,6 +777,20 @@ test("nullable referenced RPC results retain their object DTO and typed wrapper"
     assert.match(wrapper, /caller\.invoke\("session\.accounts\.getCurrent", .*SessionAccount\.class\)/);
     assert.doesNotMatch(wrapper, /Void/);
 });
+test("session filesystem capabilities preserve the legacy one-argument constructor", () => {
+    const source = generateRpcClass("SessionFsSetProviderCapabilities", {
+        type: "object",
+        properties: {
+            sqlite: { type: "boolean" },
+            binary: { type: "boolean" },
+        },
+    }, new Map(), "com.github.copilot.generated").code;
+    assert.match(
+        source,
+        /public SessionFsSetProviderCapabilities\(\s*Boolean sqlite\s*\) \{\s*this\(sqlite, null\);/s
+    );
+});
+
 for (const roots of [
     ["FirstResult", "HistoricalResult"],
     ["FirstResult", "HistoricalResult", "LastResult"],
@@ -726,6 +974,41 @@ test("x-legacy-parameters session requests keep sessionId injected by the wrappe
         once.api,
         /plan\(SamplePlanRequest request\) \{\s+com\.fasterxml\.jackson\.databind\.node\.ObjectNode _p = MAPPER\.valueToTree\(Objects\.requireNonNull\(request, "request"\)\);\s+_p\.put\("sessionId", this\.sessionId\);\s+return caller\.invoke\("session\.sample\.plan", _p,/
     );
+});
+
+test("trusted human response ingress stays package-private", async () => {
+    const fixture = {
+        session: {
+            ui: {
+                handlePendingUserInput: {
+                    rpcMethod: "session.ui.handlePendingUserInput",
+                    visibility: "public",
+                    params: { type: "object", properties: { sessionId: { type: "string" } } },
+                    result: { type: "object", properties: { success: { type: "boolean" } } },
+                },
+                handleHumanUserInput: {
+                    rpcMethod: "session.ui.handleHumanUserInput",
+                    visibility: "internal",
+                    params: { type: "object", properties: { sessionId: { type: "string" } } },
+                    result: { type: "object", properties: { success: { type: "boolean" } } },
+                },
+                handleHumanExitPlanMode: {
+                    rpcMethod: "session.ui.handleHumanExitPlanMode",
+                    visibility: "internal",
+                    params: { type: "object", properties: { sessionId: { type: "string" } } },
+                    result: { type: "object", properties: { success: { type: "boolean" } } },
+                },
+            },
+        },
+        definitions: {},
+    } as Parameters<typeof renderRpcWrappers>[0];
+
+    const wrappers = await renderRpcWrappers(fixture);
+    const api = generatedFile(wrappers, "SessionUiApi")!;
+    assert.match(api, /public CompletableFuture<SessionUiHandlePendingUserInputResult> handlePendingUserInput\(/);
+    assert.match(api, /\n    CompletableFuture<SessionUiHandleHumanUserInputResult> handleHumanUserInput\(/);
+    assert.match(api, /\n    CompletableFuture<SessionUiHandleHumanExitPlanModeResult> handleHumanExitPlanMode\(/);
+    assert.doesNotMatch(api, /public CompletableFuture<SessionUiHandleHuman(?:UserInput|ExitPlanMode)Result>/);
 });
 
 test("x-legacy-parameters rejects metadata that would not preserve the original API", async () => {

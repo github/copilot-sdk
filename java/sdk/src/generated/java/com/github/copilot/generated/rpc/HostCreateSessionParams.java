@@ -24,7 +24,7 @@ import javax.annotation.processing.Generated;
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record HostCreateSessionParams(
+record HostCreateSessionParams(
     /** Unique identity for this participation, independent of the session lifetime. */
     @JsonProperty("handoffId") String handoffId,
     /** Resume an app-owned durable session instead of creating a new session. */

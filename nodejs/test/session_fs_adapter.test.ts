@@ -4,7 +4,11 @@
 
 import { MemoryProvider } from "@platformatic/vfs";
 import { describe, expect, it } from "vitest";
-import { createSessionFsAdapter, type SessionFsProvider } from "../src/index.js";
+import {
+    createSessionFsAdapter,
+    SessionFsWriteFailure,
+    type SessionFsProvider,
+} from "../src/index.js";
 
 describe("SessionFsAdapter", () => {
     it("should map all sessionFs handler operations", async () => {
@@ -15,6 +19,12 @@ describe("SessionFsAdapter", () => {
         const provider: SessionFsProvider = {
             async readFile(path) {
                 return (await memoryProvider.readFile(sp(path), "utf8")) as string;
+            },
+            async readFileBytes(path) {
+                return memoryProvider.readFile(sp(path));
+            },
+            async writeFileBytes(path, content) {
+                await memoryProvider.writeFile(sp(path), content);
             },
             async writeFile(path, content) {
                 await memoryProvider.writeFile(sp(path), content);
@@ -125,6 +135,76 @@ describe("SessionFsAdapter", () => {
         });
         expect(content.content).toBe("hello world");
         expect(content.error).toBeUndefined();
+
+        await memoryProvider.writeFile(
+            sp("/workspace/nested/photo.png"),
+            Buffer.from([0, 255, 254, 1])
+        );
+        const binary = await handler.readFileBytes({
+            sessionId,
+            path: "/workspace/nested/photo.png",
+        });
+        expect(binary.content).toBe("AP/+AQ==");
+        expect(binary.error).toBeUndefined();
+        const written = await handler.writeFileBytes({
+            sessionId,
+            path: "/workspace/nested/written.bin",
+            content: "AP/+AQ==",
+            mode: 0o600,
+        });
+        expect(written).toBeUndefined();
+        expect(await memoryProvider.readFile(sp("/workspace/nested/written.bin"))).toEqual(
+            Buffer.from([0, 255, 254, 1])
+        );
+        expect(
+            await handler.writeFileBytes({
+                sessionId,
+                path: "/workspace/nested/invalid.bin",
+                content: "AA==AAAA",
+            })
+        ).toMatchObject({
+            code: "UNKNOWN",
+            message: "invalid sessionFs.writeFileBytes base64 content",
+        });
+        expect(await memoryProvider.exists(sp("/workspace/nested/invalid.bin"))).toBe(false);
+        expect(
+            await handler.writeFileBytes({
+                sessionId,
+                path: "/workspace/nested/large.bin",
+                content: "A".repeat(64 * 1024 * 1024),
+            })
+        ).toMatchObject({
+            code: "UNKNOWN",
+            message: "sessionFs.writeFileBytes content exceeds the binary write limit",
+        });
+        expect(await memoryProvider.exists(sp("/workspace/nested/large.bin"))).toBe(false);
+        const missingBinary = await createSessionFsAdapter({
+            ...provider,
+            readFileBytes: undefined,
+        }).readFileBytes({
+            sessionId,
+            path: "/workspace/nested/photo.png",
+        });
+        expect(missingBinary.error?.code).toBe("UNKNOWN");
+        expect(
+            await createSessionFsAdapter({ ...provider, writeFileBytes: undefined }).writeFileBytes(
+                {
+                    sessionId,
+                    path: "/workspace/nested/missing.bin",
+                    content: "AP/+AQ==",
+                }
+            )
+        ).toMatchObject({ code: "UNKNOWN" });
+
+        const oversized = await createSessionFsAdapter({
+            ...provider,
+            readFileBytes: async () => new Uint8Array(((64 * 1024 * 1024 - 1024) / 4) * 3 + 1),
+        }).readFileBytes({ sessionId, path: "/workspace/nested/photo.png" });
+        expect(oversized.content).toBe("");
+        expect(oversized.error).toEqual({
+            code: "UNKNOWN",
+            message: "sessionFs.readFileBytes content exceeds the binary read limit",
+        });
 
         const entries = await handler.readdir({ sessionId, path: "/workspace/nested" });
         expect(entries.entries).toContain("file.txt");
@@ -275,5 +355,22 @@ describe("SessionFsAdapter", () => {
         });
         expect(unknownError).toBeDefined();
         expect(unknownError!.code).toBe("UNKNOWN");
+
+        const changedProvider = createSessionFsAdapter(
+            makeThrowingProvider(new SessionFsWriteFailure("write truncated the target"))
+        );
+        expect(
+            await changedProvider.writeFile({ sessionId, path: "changed.txt", content: "content" })
+        ).toEqual({
+            code: "UNKNOWN",
+            message: "write truncated the target",
+            writeChanged: true,
+        });
+        expect(
+            await changedProvider.appendFile({ sessionId, path: "changed.txt", content: "content" })
+        ).not.toHaveProperty("writeChanged");
+        expect(
+            await handler.writeFile({ sessionId, path: "missing.txt", content: "content" })
+        ).not.toHaveProperty("writeChanged");
     });
 });

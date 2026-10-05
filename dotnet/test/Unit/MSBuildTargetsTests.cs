@@ -245,6 +245,7 @@ public class MSBuildTargetsTests
         sandbox.WriteRuntimeCacheAsset("preloads", "extension_bootstrap.mjs", "preload");
         sandbox.WriteRuntimeCacheAsset("sdk", "factory.js", "factory");
         sandbox.WriteRuntimeCacheAsset("app.js", "excluded");
+        sandbox.WriteRuntimeCacheAsset("cli-main.js", "excluded");
         sandbox.WriteRuntimeCacheAsset("LICENSE.md", "excluded");
         sandbox.WriteRuntimeCacheAsset("README.md", "excluded");
         sandbox.WriteStaleOutputRuntimeAsset("obsolete", "tool", "stale");
@@ -261,6 +262,7 @@ public class MSBuildTargetsTests
         Assert.Equal("preload", File.ReadAllText(sandbox.ExpectedRuntimeAsset("preloads", "extension_bootstrap.mjs")));
         Assert.Equal("factory", File.ReadAllText(sandbox.ExpectedRuntimeAsset("sdk", "factory.js")));
         Assert.False(File.Exists(sandbox.ExpectedRuntimeAsset("app.js")));
+        Assert.False(File.Exists(sandbox.ExpectedRuntimeAsset("cli-main.js")));
         Assert.False(File.Exists(sandbox.ExpectedRuntimeAsset("LICENSE.md")));
         Assert.False(File.Exists(sandbox.ExpectedRuntimeAsset("README.md")));
         Assert.False(File.Exists(sandbox.ExpectedRuntimeAsset("obsolete", "tool")));
@@ -274,6 +276,8 @@ public class MSBuildTargetsTests
         sandbox.WriteRuntimeCacheAsset("prebuilds", GetReleasePlatform(), "runtime.node", "runtime");
         sandbox.WriteRuntimeCacheAsset("prebuilds", GetReleasePlatform(), RuntimeWrapperName, "wrapper");
         sandbox.WriteRuntimeCacheAsset("ripgrep", "bin", GetReleasePlatform(), "rg", "ripgrep");
+        sandbox.WriteRuntimeCacheAsset("app.js", "excluded");
+        sandbox.WriteRuntimeCacheAsset("cli-main.js", "excluded");
 
         var result = await sandbox.PackNoBuildAsync(new Dictionary<string, string>
         {
@@ -290,6 +294,8 @@ public class MSBuildTargetsTests
         Assert.Contains($"{nativePath}/runtime.node", entries);
         Assert.Contains($"{nativePath}/{RuntimeLibraryName}", entries);
         Assert.Contains($"{nativePath}/ripgrep/bin/{GetReleasePlatform()}/rg", entries);
+        Assert.DoesNotContain($"{nativePath}/app.js", entries);
+        Assert.DoesNotContain($"{nativePath}/cli-main.js", entries);
     }
 
     [Fact]

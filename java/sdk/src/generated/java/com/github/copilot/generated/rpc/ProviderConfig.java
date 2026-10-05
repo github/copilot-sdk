@@ -46,6 +46,8 @@ public record ProviderConfig(
     @JsonProperty("modelCapabilities") ModelCapabilitiesOverride modelCapabilities,
     /** Provider name used for model and telemetry attribution. */
     @JsonProperty("providerName") String providerName,
+    /** The product serving the model, reported in telemetry as `model_provider`. Set it when `type` alone cannot identify the product, such as Ollama or LM Studio behind an OpenAI-compatible endpoint. Only affects telemetry. */
+    @JsonProperty("modelProvider") ProviderConfigModelProvider modelProvider,
     /** The model identifier sent to the provider API for inference (the "wire" model), as opposed to modelId which is the well-known base. */
     @JsonProperty("wireModel") String wireModel,
     /** Maximum prompt/input tokens for the model. */

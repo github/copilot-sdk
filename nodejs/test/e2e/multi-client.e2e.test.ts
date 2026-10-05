@@ -4,7 +4,7 @@
 
 import { describe, expect, it, afterAll } from "vitest";
 import { z } from "zod";
-import { CopilotClient, defineTool, approveAll, RuntimeConnection } from "../../src/index.js";
+import { defineTool, approveAll, RuntimeConnection } from "../../src/index.js";
 import type { SessionEvent } from "../../src/index.js";
 import { createSdkTestContext, isInProcessTransport } from "./harness/sdkTestContext";
 
@@ -24,7 +24,7 @@ describe("Multi-client broadcast", async () => {
     await initSession.disconnect();
 
     const runtimePort = (client1 as unknown as { runtimePort: number }).runtimePort;
-    let client2 = new CopilotClient({
+    let client2 = ctx.createClient({
         connection: RuntimeConnection.forUri(`localhost:${runtimePort}`, {
             connectionToken: tcpConnectionToken,
         }),
@@ -360,7 +360,7 @@ describe("Multi-client broadcast", async () => {
             process.removeListener("unhandledRejection", suppressDisposed);
 
             // Recreate client2 for cleanup in afterAll (but don't rejoin the session)
-            client2 = new CopilotClient({
+            client2 = ctx.createClient({
                 connection: RuntimeConnection.forUri(`localhost:${runtimePort}`, {
                     connectionToken: tcpConnectionToken,
                 }),
@@ -373,6 +373,54 @@ describe("Multi-client broadcast", async () => {
             expect(afterResponse?.data.content).toContain("STABLE_still_here");
             // ephemeral_tool should NOT have produced a result
             expect(afterResponse?.data.content).not.toContain("EPHEMERAL_");
+        }
+    );
+
+    it(
+        "clearing one client's tools keeps the other client's tools",
+        { timeout: 90_000 },
+        async () => {
+            const keptTool = defineTool("kept_tool", {
+                description: "A tool whose client keeps supplying it",
+                parameters: z.object({ input: z.string() }),
+                handler: ({ input }) => `KEPT_${input}`,
+            });
+            const clearedTool = defineTool("cleared_tool", {
+                description: "A tool whose client stops supplying it",
+                parameters: z.object({ input: z.string() }),
+                handler: ({ input }) => `CLEARED_${input}`,
+            });
+
+            // Client 1 creates a session with kept_tool, and client 2 joins it with cleared_tool.
+            const session1 = await client1.createSession({
+                onPermissionRequest: approveAll,
+                tools: [keptTool],
+            });
+            const session2 = await client2.resumeSession(session1.sessionId, {
+                onPermissionRequest: approveAll,
+                tools: [clearedTool],
+            });
+
+            // Client 2 removes all of its tools.
+            await session2.setTools([]);
+
+            const response = await session1.sendAndWait({
+                prompt: "Use the kept_tool with input 'test' and tell me the result.",
+            });
+            expect(response?.data.content).toContain("KEPT_test");
+
+            // Every model request still offers client 1's tool, and none offers client 2's.
+            const exchanges = await ctx.openAiEndpoint.getExchanges();
+            expect(exchanges.length).toBeGreaterThan(0);
+            for (const exchange of exchanges) {
+                const tools = (exchange.request.tools ?? []).map((tool) =>
+                    "function" in tool ? tool.function.name : ""
+                );
+                expect(tools).toContain("kept_tool");
+                expect(tools).not.toContain("cleared_tool");
+            }
+
+            await session2.disconnect();
         }
     );
 });

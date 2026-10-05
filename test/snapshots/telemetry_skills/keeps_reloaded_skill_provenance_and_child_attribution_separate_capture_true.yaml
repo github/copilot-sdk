@@ -1,0 +1,217 @@
+models:
+  - claude-sonnet-5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Use the skill tool to load review, then reply with exactly OTEL_BEFORE_RELOAD_DONE.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: skill
+              arguments: '{"skill":"review"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Skill "review" loaded successfully. Follow the instructions in the skill context.
+      - role: user
+        content: |-
+          <skill-context name="review">
+          Base directory for this skill: ${workdir}/skills/review
+
+          Related files (use view tool to read):
+            - ${workdir}/skills/review/references/policy.txt
+            - ${workdir}/skills/review/scripts/check.cjs
+
+          Follow the user's explicit instructions. The verification word is OTEL_SKILL_ORCHID.
+
+          </skill-context>
+      - role: assistant
+        content: OTEL_BEFORE_RELOAD_DONE
+      - role: user
+        content: "Use the skill tool to load review again. Then use the task tool with agent_type exactly 'task' and mode 'sync'
+          to load child-review with the skill tool, use view to read skills/child-review/references/policy.txt, then use
+          the shell tool in sync mode to run exactly: node './skills/child-review/scripts/check.cjs'. The task agent
+          should report the resource and script words. After the agent finishes, reply with exactly
+          OTEL_AFTER_RELOAD_DONE."
+      - role: assistant
+        tool_calls:
+          - id: toolcall_1
+            type: function
+            function:
+              name: skill
+              arguments: '{"skill":"review"}'
+      - role: assistant
+        tool_calls:
+          - id: toolcall_2
+            type: function
+            function:
+              name: task
+              arguments: "{\"name\":\"child-review-check\",\"agent_type\":\"task\",\"mode\":\"sync\",\"description\":\"Load
+                child-review skill and run check script\",\"prompt\":\"Use the skill tool to load the skill named
+                'child-review'. Then use the view tool to read the file skills/child-review/references/policy.txt
+                (resolve relative to the current working directory). Then use the shell tool in sync mode to run
+                exactly: node './skills/child-review/scripts/check.cjs'. Report back: (1) the \\\"resource word\\\"
+                found in the policy.txt file content, and (2) the word/output produced by running the check.cjs script
+                (the \\\"script word\\\"). Report both words clearly labeled.\"}"
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: "Use the skill tool to load the skill named 'child-review'. Then use the view tool to read the file
+          skills/child-review/references/policy.txt (resolve relative to the current working directory). Then use the
+          shell tool in sync mode to run exactly: node './skills/child-review/scripts/check.cjs'. Report back: (1) the
+          \"resource word\" found in the policy.txt file content, and (2) the word/output produced by running the
+          check.cjs script (the \"script word\"). Report both words clearly labeled."
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: skill
+              arguments: '{"skill":"child-review"}'
+      - role: assistant
+        tool_calls:
+          - id: toolcall_1
+            type: function
+            function:
+              name: view
+              arguments: '{"path":"${workdir}/skills/child-review/references/policy.txt"}'
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: "Use the skill tool to load the skill named 'child-review'. Then use the view tool to read the file
+          skills/child-review/references/policy.txt (resolve relative to the current working directory). Then use the
+          shell tool in sync mode to run exactly: node './skills/child-review/scripts/check.cjs'. Report back: (1) the
+          \"resource word\" found in the policy.txt file content, and (2) the word/output produced by running the
+          check.cjs script (the \"script word\"). Report both words clearly labeled."
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: skill
+              arguments: '{"skill":"child-review"}'
+          - id: toolcall_1
+            type: function
+            function:
+              name: view
+              arguments: '{"path":"${workdir}/skills/child-review/references/policy.txt"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Skill "child-review" loaded successfully. Follow the instructions in the skill context.
+      - role: tool
+        tool_call_id: toolcall_1
+        content: OTEL_RESOURCE_SAPPHIRE
+      - role: user
+        content: |-
+          <skill-context name="child-review">
+          Base directory for this skill: ${workdir}/skills/child-review
+
+          Related files (use view tool to read):
+            - ${workdir}/skills/child-review/references/policy.txt
+            - ${workdir}/skills/child-review/scripts/check.cjs
+
+          Follow the user's explicit instructions. The verification word is OTEL_SKILL_ORCHID.
+
+          </skill-context>
+      - role: assistant
+        tool_calls:
+          - id: toolcall_2
+            type: function
+            function:
+              name: ${shell}
+              arguments: "{\"command\":\"node './skills/child-review/scripts/check.cjs'\",\"description\":\"Run check.cjs script\"}"
+      - role: tool
+        tool_call_id: toolcall_2
+        content: |-
+          OTEL_SCRIPT_AMBER
+          <exited with exit code 0>
+      - role: assistant
+        content: |-
+          **Resource word** (from policy.txt): OTEL_RESOURCE_SAPPHIRE
+
+          **Script word** (output of `node './skills/child-review/scripts/check.cjs'`): OTEL_SCRIPT_AMBER
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Use the skill tool to load review, then reply with exactly OTEL_BEFORE_RELOAD_DONE.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: skill
+              arguments: '{"skill":"review"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Skill "review" loaded successfully. Follow the instructions in the skill context.
+      - role: user
+        content: |-
+          <skill-context name="review">
+          Base directory for this skill: ${workdir}/skills/review
+
+          Related files (use view tool to read):
+            - ${workdir}/skills/review/references/policy.txt
+            - ${workdir}/skills/review/scripts/check.cjs
+
+          Follow the user's explicit instructions. The verification word is OTEL_SKILL_ORCHID.
+
+          </skill-context>
+      - role: assistant
+        content: OTEL_BEFORE_RELOAD_DONE
+      - role: user
+        content: "Use the skill tool to load review again. Then use the task tool with agent_type exactly 'task' and mode 'sync'
+          to load child-review with the skill tool, use view to read skills/child-review/references/policy.txt, then use
+          the shell tool in sync mode to run exactly: node './skills/child-review/scripts/check.cjs'. The task agent
+          should report the resource and script words. After the agent finishes, reply with exactly
+          OTEL_AFTER_RELOAD_DONE."
+      - role: assistant
+        tool_calls:
+          - id: toolcall_1
+            type: function
+            function:
+              name: skill
+              arguments: '{"skill":"review"}'
+          - id: toolcall_2
+            type: function
+            function:
+              name: task
+              arguments: "{\"name\":\"child-review-check\",\"agent_type\":\"task\",\"mode\":\"sync\",\"description\":\"Load
+                child-review skill and run check script\",\"prompt\":\"Use the skill tool to load the skill named
+                'child-review'. Then use the view tool to read the file skills/child-review/references/policy.txt
+                (resolve relative to the current working directory). Then use the shell tool in sync mode to run
+                exactly: node './skills/child-review/scripts/check.cjs'. Report back: (1) the \\\"resource word\\\"
+                found in the policy.txt file content, and (2) the word/output produced by running the check.cjs script
+                (the \\\"script word\\\"). Report both words clearly labeled.\"}"
+      - role: tool
+        tool_call_id: toolcall_1
+        content: Skill "review" loaded successfully. Follow the instructions in the skill context.
+      - role: tool
+        tool_call_id: toolcall_2
+        content: |-
+          **Resource word** (from policy.txt): OTEL_RESOURCE_SAPPHIRE
+
+          **Script word** (output of `node './skills/child-review/scripts/check.cjs'`): OTEL_SCRIPT_AMBER
+      - role: user
+        content: |-
+          <skill-context name="review">
+          Base directory for this skill: ${workdir}/skills/moved-review
+
+          Related files (use view tool to read):
+            - ${workdir}/skills/moved-review/references/policy.txt
+            - ${workdir}/skills/moved-review/scripts/check.cjs
+
+          Follow the user's explicit instructions.
+
+          </skill-context>
+      - role: assistant
+        content: |-
+          Resource word: OTEL_RESOURCE_SAPPHIRE
+          Script word: OTEL_SCRIPT_AMBER
+
+          OTEL_AFTER_RELOAD_DONE

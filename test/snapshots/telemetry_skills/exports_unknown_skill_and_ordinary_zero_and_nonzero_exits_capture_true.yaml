@@ -1,0 +1,43 @@
+models:
+  - claude-sonnet-5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: "Use the skill tool to attempt to load otel-nonexistent. Do not search for or install it. Then use the shell
+          tool in sync mode to run exactly: node './exit.cjs' 0; exit 0. Then use the shell tool in sync mode to run
+          exactly: node './exit.cjs' 7; exit 7. A nonzero exit is intentional. Do not retry it. Reply with exactly
+          OTEL_EXIT_FLOW_DONE."
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: skill
+              arguments: '{"skill":"otel-nonexistent"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: 'Skill "otel-nonexistent" not found. Available skills: review'
+      - role: assistant
+        tool_calls:
+          - id: toolcall_1
+            type: function
+            function:
+              name: ${shell}
+              arguments: "{\"command\":\"node './exit.cjs' 0; exit 0\",\"description\":\"Run exit.cjs with code 0\"}"
+      - role: tool
+        tool_call_id: toolcall_1
+        content: <exited with exit code 0>
+      - role: assistant
+        tool_calls:
+          - id: toolcall_2
+            type: function
+            function:
+              name: ${shell}
+              arguments: "{\"command\":\"node './exit.cjs' 7; exit 7\",\"description\":\"Run exit.cjs with code 7\"}"
+      - role: tool
+        tool_call_id: toolcall_2
+        content: <exited with exit code 7>
+      - role: assistant
+        content: OTEL_EXIT_FLOW_DONE

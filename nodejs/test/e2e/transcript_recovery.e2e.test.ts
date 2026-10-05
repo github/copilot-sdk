@@ -5,7 +5,7 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { describe, expect, it, onTestFinished } from "vitest";
+import { describe, expect, it } from "vitest";
 import { approveAll, type TranscriptRecovery } from "../../src/index.js";
 import { createSdkTestContext, isInProcessTransport } from "./harness/sdkTestContext.js";
 
@@ -21,8 +21,8 @@ describe.skipIf(isInProcessTransport)("Transcript recovery through the public SD
         "uses permissive defaults in %s mode for a %s and supports explicit rejection",
         { timeout: 90_000 },
         async (mode, damage) => {
-            const client = createClient({ mode, baseDirectory: workDir });
-            onTestFinished(() => client.stop());
+            // Stop the log-writing client before fixture afterEach removes workDir.
+            await using client = createClient({ mode, baseDirectory: workDir });
 
             const sessionId = randomUUID();
             const sessionDir = join(workDir, "session-state", sessionId);

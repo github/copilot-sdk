@@ -543,8 +543,10 @@ func (c *Client) Start(ctx context.Context) error {
 		}
 		if c.options.SessionFS.Capabilities != nil {
 			sqlite := c.options.SessionFS.Capabilities.Sqlite
+			binary := c.options.SessionFS.Capabilities.Binary
 			req.Capabilities = &rpc.SessionFSSetProviderCapabilities{
 				Sqlite: &sqlite,
+				Binary: &binary,
 			}
 		}
 		_, err := c.RPC.SessionFS.SetProvider(ctx, req)
@@ -1022,7 +1024,9 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 		config.Hooks.OnSessionStart != nil ||
 		config.Hooks.OnSessionEnd != nil ||
 		config.Hooks.OnErrorOccurred != nil ||
-		config.Hooks.OnAgentStop != nil) {
+		config.Hooks.OnAgentStop != nil ||
+		config.Hooks.OnSubagentStart != nil ||
+		config.Hooks.OnSubagentStop != nil) {
 		req.Hooks = Bool(true)
 	}
 	if config.OnPermissionRequest != nil {
@@ -1124,6 +1128,12 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 					return nil, fmt.Errorf("SessionFS capabilities declare SQLite support but the provider does not implement SessionFSSqliteProvider")
 				}
 			}
+			if c.options.SessionFS.Capabilities != nil && c.options.SessionFS.Capabilities.Binary {
+				if _, ok := provider.(SessionFSBinaryProvider); !ok {
+					unregisterSession(sessionID, s)
+					return nil, fmt.Errorf("SessionFS capabilities declare binary support but the provider does not implement SessionFSBinaryProvider")
+				}
+			}
 			s.clientSessionAPIs.SessionFS = newSessionFSAdapter(provider)
 		}
 
@@ -1135,6 +1145,14 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 
 	var session *Session
 	var registeredSessionID string
+	var orphanedSessionID string
+	var inlineMu sync.Mutex
+	var requestFinished bool
+	deleteOrphan := func(sessionID string) error {
+		cleanupCtx, cancelCleanup := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+		defer cancelCleanup()
+		return c.DeleteSession(cleanupCtx, sessionID)
+	}
 
 	// Pre-register non-cloud sessions BEFORE issuing the RPC so any
 	// session-scoped requests the CLI emits during session.create processing
@@ -1169,19 +1187,48 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 				return fmt.Errorf("session.create response did not include a sessionId")
 			}
 			s, err := initializeSession(early.SessionID)
+			inlineMu.Lock()
 			if err != nil {
+				if requestFinished {
+					// Cleanup must not wait for an RPC response on the read loop.
+					go func() {
+						if cleanupErr := deleteOrphan(early.SessionID); cleanupErr != nil {
+							log.Printf("failed to delete uninitialized cloud session %s: %v", early.SessionID, cleanupErr)
+						}
+					}()
+				} else {
+					orphanedSessionID = early.SessionID
+				}
+				inlineMu.Unlock()
 				return err
+			}
+			if requestFinished {
+				inlineMu.Unlock()
+				unregisterSession(early.SessionID, s)
+				return nil
 			}
 			session = s
 			registeredSessionID = early.SessionID
+			inlineMu.Unlock()
 			return nil
 		}
 	}
 
 	result, err := c.client.RequestWithInlineResponse(ctx, "session.create", req, inlineCb)
+	inlineMu.Lock()
+	requestFinished = true
+	cleanupSessionID := orphanedSessionID
+	sessionToUnregister := session
+	registeredID := registeredSessionID
+	inlineMu.Unlock()
 	if err != nil {
-		if registeredSessionID != "" {
-			unregisterSession(registeredSessionID, session)
+		if registeredID != "" {
+			unregisterSession(registeredID, sessionToUnregister)
+		}
+		if cleanupSessionID != "" {
+			if cleanupErr := deleteOrphan(cleanupSessionID); cleanupErr != nil {
+				err = errors.Join(err, fmt.Errorf("failed to delete uninitialized cloud session: %w", cleanupErr))
+			}
 		}
 		return nil, fmt.Errorf("failed to create session: %w", err)
 	}
@@ -1347,7 +1394,9 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 		config.Hooks.OnSessionStart != nil ||
 		config.Hooks.OnSessionEnd != nil ||
 		config.Hooks.OnErrorOccurred != nil ||
-		config.Hooks.OnAgentStop != nil) {
+		config.Hooks.OnAgentStop != nil ||
+		config.Hooks.OnSubagentStart != nil ||
+		config.Hooks.OnSubagentStop != nil) {
 		req.Hooks = Bool(true)
 	}
 	req.WorkingDirectory = config.WorkingDirectory
@@ -1485,6 +1534,12 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 			if _, ok := provider.(SessionFSSqliteProvider); !ok {
 				session.stopEventProcessing()
 				return nil, fmt.Errorf("SessionFS capabilities declare SQLite support but the provider does not implement SessionFSSqliteProvider")
+			}
+		}
+		if c.options.SessionFS.Capabilities != nil && c.options.SessionFS.Capabilities.Binary {
+			if _, ok := provider.(SessionFSBinaryProvider); !ok {
+				session.stopEventProcessing()
+				return nil, fmt.Errorf("SessionFS capabilities declare binary support but the provider does not implement SessionFSBinaryProvider")
 			}
 		}
 		session.clientSessionAPIs.SessionFS = newSessionFSAdapter(provider)

@@ -9,17 +9,12 @@ description: "Use this skill when creating a Java SDK surface-area E2E integrati
 
 These instructions work in both the runtime monorepo and the standalone public
 SDK repository. From the repository root, use `src/sdk` as the SDK root when
-that directory exists; otherwise use the repository root itself. All paths and
-commands below are relative to that SDK root, and command examples should be
-run from it. See the companion `examples.md` for complete snapshot and test
-examples.
+that directory exists; otherwise use the repository root itself. All paths below
+are relative to that SDK root.
 
-This skill covers the complete workflow for adding a new Java failsafe
-integration test backed by a handcrafted YAML snapshot for the replay proxy.
-Use it only when the new E2E tests Java SDK surface area; shared runtime
-functionality available entirely through the SDK should instead be covered
-in the TypeScript SDK suite (`nodejs/test/e2e/` under the SDK root, or
-`src/sdk/nodejs/test/e2e/` from the runtime repository root).
+Use this skill only when the new E2E tests Java SDK surface area; shared
+runtime functionality available entirely through the SDK belongs in the
+TypeScript SDK suite (`nodejs/test/e2e/`).
 
 ## Overview
 
@@ -27,43 +22,43 @@ The Java E2E tests use a **replay proxy** (`test/harness/replayingCapiProxy.ts`)
 that intercepts HTTP calls to the Copilot API and returns pre-recorded responses
 from YAML snapshot files. This avoids needing real authentication in CI.
 
-**Key constraint:** Java's `CapiProxy.java` always sets `GITHUB_ACTIONS=true`
-(line 104), which forces the replay proxy into read-only mode. You **cannot**
-record snapshots by running Java tests — you must handcraft the YAML.
+**Key constraint:** Java's `CapiProxy.start()` always sets `GITHUB_ACTIONS=true`,
+which forces the replay proxy into read-only mode: a Java test cannot record a
+snapshot, and every request must match an existing one.
 
 ## Step-by-Step Workflow
 
 ### Step 1: Choose a snapshot category and snapshot base name
 
 - Category = a directory under `test/snapshots/` (e.g., `system_message_sections`)
-- Snapshot base name = the exact filename stem to use (already lowercase/underscore-separated),
-  e.g., `should_use_replaced_identity_section_in_response`
+- Snapshot base name = the exact filename stem, already lowercase snake_case,
+  e.g., `should_use_replaced_identity_section_in_response`. Pass it verbatim to
+  `configureForTest`: it lowercases and replaces non-alphanumerics with `_` but
+  does not split camelCase, so `myTestMethod` would look for `mytestmethod.yaml`.
 - Resulting file: `test/snapshots/<category>/<snapshot_base_name>.yaml`
 
-### Step 2: Create the YAML snapshot file
+### Step 2: Use a recorded snapshot
 
-The format is:
+The SDK guide forbids hand-authored model responses (`CONTRIBUTING.md`,
+"Recording and replaying SDK tests"). Reuse a capture that another SDK suite
+recorded for the same conversation, as most Java ITs do; if none exists, record
+one through the TypeScript SDK suite with the same snapshot name and prompt,
+following that guide.
 
-```yaml
-models:
-  - claude-sonnet-5
-conversations:
-  - messages:
-      - role: system
-        content: ${system}
-      - role: user
-        content: <the exact prompt your test will send>
-      - role: assistant
-        content: <the response the proxy will return>
-```
-
-**Rules:**
-- `${system}` is a placeholder that matches ANY system message content
-- `${workdir}` in tool arguments is substituted with the actual temp workDir
-- Each conversation entry represents one request-response exchange
-- For multi-turn, add multiple conversation entries
-- For tool calls, include `tool_calls` on assistant messages and `role: tool` for results
-- The user content must **exactly match** what your test sends (after normalization)
+**Replay rules:**
+- Every request's system message is replaced with `${system}` before matching,
+  so system content is never compared, and an assertion on the reply cannot
+  prove that a system-message setting reached the model.
+- User content must **exactly match** the snapshot's (after normalization), so
+  copy the prompt from the YAML.
+- `${workdir}` stands for the test's temp workDir in tool arguments and results.
+- A request matches when its messages equal a conversation up to an assistant
+  message; the proxy replies with that assistant message and any assistant
+  messages directly after it.
+- A request that matches nothing fails. The proxy's stderr, echoed as
+  `[CapiProxy stderr]`, reports "No cached response found" with the first
+  mismatching message per conversation, and `configureForTest` logs the prompts
+  the snapshot expects.
 
 ### Step 3: Create the Java IT test class
 
@@ -146,9 +141,11 @@ pnpm run generate:sdk:java
 pnpm run build:cli
 ```
 
-The facade's runtime paths apply only to its child process. For a focused Maven
-run, set the same-checkout wrapper path explicitly, then use the `verify`
-lifecycle so test-resource setup and `failsafe:verify` both run:
+`pnpm run test:sdk:java` runs the whole suite and takes no test filter. For a
+focused Maven run, pass the same-checkout wrapper explicitly (without
+`copilot.cli.path` the tests use the release pinned by `nodejs/package.json`),
+then use the `verify` lifecycle so test-resource setup and `failsafe:verify`
+both run:
 
 ```sh
 cd src/sdk/java
@@ -157,7 +154,9 @@ COPILOT_CLI_PATH=<runtime-root>/dist-cli/prebuilds/<target>/copilot-runtime
 ./mvnw -pl sdk verify -Dit.test="MyFeatureIT#myTestMethod" -Dcopilot.cli.path="$COPILOT_CLI_PATH"
 ```
 
-Use `copilot-runtime.exe` for the wrapper name on Windows.
+`<target>` is Node's `<process.platform>-<process.arch>` (for example
+`linux-x64`, `darwin-arm64`, `win32-x64`); use `copilot-runtime.exe` for the
+wrapper name on Windows.
 
 In the standalone SDK repository, start at `java/` and use the pinned runtime:
 
@@ -175,77 +174,15 @@ In the standalone SDK repository, start at `java/` and use the pinned runtime:
 | Replay proxy (TypeScript) | `test/harness/replayingCapiProxy.ts` |
 | Proxy server entry point | `test/harness/server.ts` |
 | Snapshot files | `test/snapshots/<category>/<name>.yaml` |
-| Existing IT tests for reference | `java/sdk/src/test/java/com/github/copilot/*IT.java` |
+| Existing IT tests for reference | `java/sdk/src/test/java/com/github/copilot/**/*IT.java`; `SystemMessageSectionsIT` reuses Node.js suite captures, including a `view` tool call |
 
-## How the Proxy Matches Requests
+## Tests that call built-in tools
 
-1. The proxy normalizes the incoming request's messages
-2. It compares against each conversation in the YAML:
-   - System message matches if YAML has `${system}` (wildcard)
-   - User messages are compared by content (exact text match)
-   - Tool results are compared after normalizing `${workdir}` paths
-3. If a match is found, the proxy returns the **next assistant message after the matched request prefix**
-4. If no match, in CI mode (`GITHUB_ACTIONS=true`) it errors with "No cached response found"
-
-## YAML Format for Tool Calls
-
-If your test involves tool use:
-
-```yaml
-conversations:
-  # First exchange: model wants to call a tool
-  - messages:
-      - role: system
-        content: ${system}
-      - role: user
-        content: Read the file test.txt
-      - role: assistant
-        content: I'll read that file.
-        tool_calls:
-          - id: toolcall_0
-            type: function
-            function:
-              name: view
-              arguments: '{"path":"${workdir}/test.txt"}'
-  # Second exchange: after tool result is provided, model gives final answer
-  - messages:
-      - role: system
-        content: ${system}
-      - role: user
-        content: Read the file test.txt
-      - role: assistant
-        content: I'll read that file.
-        tool_calls:
-          - id: toolcall_0
-            type: function
-            function:
-              name: view
-              arguments: '{"path":"${workdir}/test.txt"}'
-      - role: tool
-        tool_call_id: toolcall_0
-        content: "1. Hello world!"
-      - role: assistant
-        content: The file test.txt contains "Hello world!"
-```
-
-**Important:** When the model calls tools like `view`, the CLI actually executes
-them locally. The file must exist in the test's workDir. Create it in your test
-before sending the prompt:
+When the snapshot has the model call a built-in tool such as `view`, the CLI
+really executes it in the test's workDir, and the next request carries its
+result, which must match the snapshot's. Create any file the tool reads before
+sending the prompt, with exactly the content the snapshot's tool result shows:
 
 ```java
-Files.writeString(ctx.getWorkDir().resolve("test.txt"), "Hello world!\n");
+Files.writeString(ctx.getWorkDir().resolve("test.txt"), "Hello transform!");
 ```
-
-## Common Pitfalls
-
-1. **Prompt mismatch** — The user content in YAML must exactly match what
-   `session.sendAndWait(new MessageOptions().setPrompt("..."))` sends.
-2. **Forgetting `${system}`** — Always use `${system}` for the system role content
-   unless testing a specific system message matching scenario.
-3. **Tool execution** — If the snapshot has the model calling `view` or other
-   built-in tools, the CLI will actually execute those tools. Files must exist.
-4. **Snapshot name parameter** — pass the explicit snapshot base name to
-   `configureForTest`, e.g., `configureForTest("category", "my_method_name")`.
-   Do not rely on camelCase-to-snake_case conversion.
-5. **Cannot record via Java** — `CapiProxy.java` forces `GITHUB_ACTIONS=true`.
-   Always handcraft snapshots or use the Node.js proxy directly for recording.

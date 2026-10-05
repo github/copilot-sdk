@@ -3,8 +3,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from "node:assert/strict";
+import childProcess from "node:child_process";
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
+import { syncBuiltinESMExports } from "node:module";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -13,6 +15,7 @@ import {
     archiveExtractionInvocation,
     bazelActionEnvironmentArgument,
     bazelInvocationEnvironment,
+    installCodegenDependencies,
     npmInvocation,
     parseBazelInfoPath,
     syncGeneratedArchive,
@@ -69,6 +72,48 @@ test("runs npm through the Windows command interpreter", () => {
     assert.deepEqual(npmInvocation("win32", { ComSpec: "C:\\Windows\\System32\\cmd.exe" }), {
         command: "C:\\Windows\\System32\\cmd.exe",
         args: ["/d", "/s", "/c", "npm.cmd"],
+    });
+});
+
+test("installs shared codegen dependencies once and Java dependencies only when selected", (t) => {
+    const sdkRoot = fs.mkdtempSync(path.join(import.meta.dirname, ".codegen-dependencies-"));
+    t.after(() => fs.rmSync(sdkRoot, { recursive: true, force: true }));
+    for (const directory of ["scripts/codegen", "java/scripts/codegen"]) {
+        writeFile(path.join(sdkRoot, directory, "package.json"), "{}");
+        writeFile(path.join(sdkRoot, directory, "package-lock.json"), "{}");
+    }
+    const calls = [];
+    const spawn = t.mock.method(childProcess, "spawnSync", (command, args, { cwd }) => {
+        calls.push({ command, args, cwd });
+        return { status: 0 };
+    });
+    syncBuiltinESMExports();
+    t.after(() => {
+        spawn.mock.restore();
+        syncBuiltinESMExports();
+    });
+    const invocation = npmInvocation();
+    const shared = path.join(sdkRoot, "scripts/codegen");
+    const java = path.join(sdkRoot, "java/scripts/codegen");
+
+    installCodegenDependencies(["nodejs", "rust"], sdkRoot);
+    installCodegenDependencies(["nodejs"], sdkRoot);
+    assert.deepEqual(calls, [
+        {
+            command: invocation.command,
+            args: [...invocation.args, "ci", "--ignore-scripts", "--include=dev"],
+            cwd: shared,
+        },
+    ]);
+    assert.equal(fs.existsSync(path.join(java, "node_modules")), false);
+
+    installCodegenDependencies(["java"], sdkRoot);
+    installCodegenDependencies(["java"], sdkRoot);
+    assert.equal(calls.length, 2);
+    assert.deepEqual(calls[1], {
+        command: invocation.command,
+        args: [...invocation.args, "ci", "--ignore-scripts", "--include=dev"],
+        cwd: java,
     });
 });
 
@@ -132,6 +177,32 @@ test("refuses to overwrite modified generated projections", (t) => {
         /Refusing to overwrite modified generated SDK outputs/,
     );
     assert.equal(fs.readFileSync(path.join(sdkRoot, generatedPath), "utf8"), "local edit\n");
+});
+
+test("rejects empty generator archives without deleting existing projections", (t) => {
+    const root = createGitFixture(t);
+    const sdkRoot = path.join(root, "src/sdk");
+    const generatedPath = "nodejs/src/generated/rpc.ts";
+    writeFile(path.join(sdkRoot, generatedPath), "tracked\n");
+    run("git", ["add", "."], root);
+    run("git", ["commit", "-m", "fixture"], root);
+    const stagedRoot = path.join(root, "staged");
+    fs.mkdirSync(stagedRoot);
+    const archivePath = path.join(root, "projection.tar");
+    run(tarCommand(), ["-cf", archivePath, "-C", stagedRoot, "."], root);
+
+    assert.throws(
+        () =>
+            syncGeneratedArchive({
+                archivePath,
+                generatedRoots: ["nodejs/src/generated"],
+                language: "nodejs",
+                runtimeRoot: root,
+                sdkRoot,
+            }),
+        /No nodejs generated outputs/,
+    );
+    assert.equal(fs.readFileSync(path.join(sdkRoot, generatedPath), "utf8"), "tracked\n");
 });
 
 test("replaces prior generated projections while preserving manual edits", (t) => {

@@ -228,8 +228,12 @@ pub enum SessionEventType {
     ToolUserRequested,
     #[serde(rename = "tool.execution_start")]
     ToolExecutionStart,
+    #[doc(hidden)]
+    #[deprecated]
     #[serde(rename = "tool.execution_partial_result")]
     ToolExecutionPartialResult,
+    #[serde(rename = "tool.shell_output")]
+    ToolShellOutput,
     #[serde(rename = "tool.execution_progress")]
     ToolExecutionProgress,
     #[serde(rename = "tool.execution_complete")]
@@ -440,6 +444,8 @@ pub enum SessionEventType {
     ExitPlanModeRequested,
     #[serde(rename = "exit_plan_mode.completed")]
     ExitPlanModeCompleted,
+    #[serde(rename = "human_response.recorded")]
+    HumanResponseRecorded,
     #[serde(rename = "session.tools_updated")]
     SessionToolsUpdated,
     #[serde(rename = "session.background_tasks_changed")]
@@ -778,8 +784,12 @@ pub enum SessionEventData {
     ToolUserRequested(ToolUserRequestedData),
     #[serde(rename = "tool.execution_start")]
     ToolExecutionStart(ToolExecutionStartData),
+    #[doc(hidden)]
+    #[deprecated]
     #[serde(rename = "tool.execution_partial_result")]
     ToolExecutionPartialResult(ToolExecutionPartialResultData),
+    #[serde(rename = "tool.shell_output")]
+    ToolShellOutput(ToolShellOutputData),
     #[serde(rename = "tool.execution_progress")]
     ToolExecutionProgress(ToolExecutionProgressData),
     #[serde(rename = "tool.execution_complete")]
@@ -962,6 +972,8 @@ pub enum SessionEventData {
     ExitPlanModeRequested(ExitPlanModeRequestedData),
     #[serde(rename = "exit_plan_mode.completed")]
     ExitPlanModeCompleted(ExitPlanModeCompletedData),
+    #[serde(rename = "human_response.recorded")]
+    HumanResponseRecorded(HumanResponseRecordedData),
     #[serde(rename = "session.tools_updated")]
     SessionToolsUpdated(SessionToolsUpdatedData),
     #[serde(rename = "session.background_tasks_changed")]
@@ -1188,6 +1200,9 @@ pub struct SessionStartData {
     /// Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh", "max")
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_effort: Option<String>,
+    /// Model that owns effort embedded in an authored model selection. Omitted for independent reasoning-effort overrides and legacy events.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning_effort_model: Option<String>,
     /// Reasoning summary mode used for model calls, if applicable (e.g. "none", "concise", "detailed")
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_summary: Option<ReasoningSummary>,
@@ -1238,6 +1253,9 @@ pub struct SessionResumeData {
     /// Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh", "max")
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_effort: Option<String>,
+    /// Model that owns effort embedded in an authored model selection. Omitted for independent reasoning-effort overrides and legacy events.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning_effort_model: Option<String>,
     /// Reasoning summary mode used for model calls, if applicable (e.g. "none", "concise", "detailed")
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_summary: Option<ReasoningSummary>,
@@ -1534,6 +1552,9 @@ pub struct SessionModelChangeData {
     /// Reasoning effort level after the model change, if applicable
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_effort: Option<String>,
+    /// Model that owns effort embedded in an authored model selection. Omitted for independent reasoning-effort overrides and legacy events.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning_effort_model: Option<String>,
     /// Reasoning summary mode after the model change, if applicable
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_summary: Option<ReasoningSummary>,
@@ -3230,6 +3251,9 @@ pub struct AssistantMessageReasoningBlocks {
     /// Provider-native reasoning items or content blocks preserved verbatim, in order. A single response can carry several, and provider signatures or identifiers may depend on their exact content and ordering.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub blocks: Option<Vec<serde_json::Value>>,
+    /// Anthropic Messages assistant block ordering preserved when the legacy reasoning-only representation cannot reproduce it exactly. Thinking and text blocks remain verbatim; tool-use entries retain identity and a payload fingerprint when later signed reasoning depends on them, and are hydrated from the message's tool requests during replay.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ordered_blocks: Option<Vec<serde_json::Value>>,
     /// Model provider that produced these reasoning blocks.
     pub provider: String,
 }
@@ -3538,6 +3562,9 @@ pub struct AssistantUsageData {
     #[doc(hidden)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) available_tool_count: Option<i64>,
+    /// Where the bring-your-own-key model runs and who manages it: "local_managed" (on the device, managed by Copilot), "local_user" (on the device, managed by the user), or "remote_user" (off the device, managed by the user). Absent for Copilot-served models.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub byok_kind: Option<String>,
     /// Whether the provider reported prompt-cache usage details for this call
     #[doc(hidden)]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -3617,6 +3644,9 @@ pub struct AssistantUsageData {
     pub max_prompt_tokens: Option<i64>,
     /// Model identifier used for this API call
     pub model: String,
+    /// Fixed-set provider family serving the bring-your-own-key model (for example "openai", "anthropic", "azure_openai", "ollama", "llama_cpp", or "other"). Never the caller-supplied provider name. Absent for Copilot-served models.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model_provider: Option<String>,
     /// Number of tool calls returned by the model
     #[doc(hidden)]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -3805,6 +3835,9 @@ pub struct ModelCallFailureData {
     /// For HTTP 400 failures only: whether the response carried a structured CAPI error envelope (structured_error, a deterministic validation failure) or no error body (bodyless, the transient gateway/proxy signature). Absent for non-400 failures.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bad_request_kind: Option<ModelCallFailureBadRequestKind>,
+    /// Where the bring-your-own-key model for the failed call runs and who manages it: "local_managed" (on the device, managed by Copilot), "local_user" (on the device, managed by the user), or "remote_user" (off the device, managed by the user). Absent for Copilot-served models.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub byok_kind: Option<String>,
     /// Duration of the failed API call in milliseconds
     #[serde(skip_serializing_if = "Option::is_none")]
     pub duration_ms: Option<i64>,
@@ -3851,6 +3884,9 @@ pub struct ModelCallFailureData {
     /// Model identifier used for the failed API call
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
+    /// Fixed-set provider family serving the bring-your-own-key model for the failed call (for example "openai", "anthropic", "azure_openai", "ollama", "llama_cpp", or "other"). Never the caller-supplied provider name. Absent for Copilot-served models.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model_provider: Option<String>,
     /// Parent task tool call ID when this failed model call belongs to a sub-agent
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parent_tool_call_id: Option<String>,
@@ -4084,13 +4120,30 @@ pub struct ToolExecutionStartData {
     pub turn_id: Option<String>,
 }
 
-/// Session event "tool.execution_partial_result". Streaming tool execution output for incremental result display
+/// Session event "tool.execution_partial_result". Deprecated merged replacement snapshot of shell output. Use tool.shell_output for append-only, stream-tagged output instead.
+#[doc(hidden)]
+#[deprecated]
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ToolExecutionPartialResultData {
-    /// Incremental output chunk from the running tool
+    /// Merged replacement snapshot from the running shell, not an append-only chunk
     pub partial_output: String,
     /// Tool call ID this partial result belongs to
+    pub tool_call_id: String,
+}
+
+/// Session event "tool.shell_output". Live, append-only shell output. Not persisted or replayed to late subscribers. Text is decoded and redacted per chunk; chunks need not contain complete lines.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolShellOutputData {
+    /// Zero-based publication sequence across all output streams for this tool call. Not a byte offset or an OS write-order guarantee.
+    pub sequence: i64,
+    /// Output source. Omission means stdout. Terminal output has no separate stdout/stderr attribution.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stream: Option<ToolShellOutputStream>,
+    /// New output to append, without synthetic shell-result markers or stream-switch separators
+    pub text: String,
+    /// Tool call ID that owns this shell output
     pub tool_call_id: String,
 }
 
@@ -4126,6 +4179,23 @@ pub struct ToolExecutionCompleteError {
     /// What the user must do to recover, when the runtime knows of an action. Set on sandbox policy denials, where `message` names the rule that blocked the call but never the client affordance that relaxes it.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub remediation: Option<RemediationAction>,
+}
+
+/// A file mutation that was actually committed by a built-in file editing tool.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolExecutionCompleteFileEdit {
+    /// Kind of mutation committed at this path.
+    pub kind: ToolExecutionCompleteFileEditKind,
+    /// Absolute path in the session filesystem namespace.
+    pub path: String,
 }
 
 /// Binary result returned by a tool for the model
@@ -4591,6 +4661,16 @@ pub struct ToolExecutionCompleteData {
     /// Error details when the tool execution failed
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<ToolExecutionCompleteError>,
+    /// Experimental. File mutations actually committed by a built-in file editing tool, in execution order. Present on successful edits and on partial failures when earlier mutations were committed. Paths are absolute in the session filesystem namespace.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub file_edits: Option<Vec<ToolExecutionCompleteFileEdit>>,
     /// Experimental HydraFusion attribution for this tool completion.
     ///
     /// <div class="warning">
@@ -7578,6 +7658,79 @@ pub struct ExitPlanModeCompletedData {
     pub selected_action: Option<ExitPlanModeAction>,
 }
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HumanResponseRecordedResponseAskUser {
+    /// Exact answer content accepted from the user.
+    pub content: HashMap<String, serde_json::Value>,
+    /// Exact question displayed to the user.
+    pub message: String,
+    /// Exact response schema displayed to the user.
+    pub requested_schema: ElicitationRequestedSchema,
+    /// Runtime-owned response kind discriminator.
+    pub response_kind: HumanResponseRecordedResponseAskUserResponseKind,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HumanResponseRecordedResponseUserInput {
+    /// Whether the displayed request allowed a free-form answer.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub allow_freeform: Option<bool>,
+    /// Exact selected or free-form answer submitted by the user.
+    pub answer: String,
+    /// Exact choices displayed to the user, when the request offered choices.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub choices: Option<Vec<String>>,
+    /// Exact question displayed to the user.
+    pub question: String,
+    /// Runtime-owned response kind discriminator.
+    pub response_kind: HumanResponseRecordedResponseUserInputResponseKind,
+    /// Whether the answer was typed as free-form text rather than selected from the displayed choices.
+    pub was_freeform: bool,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HumanResponseRecordedResponseExitPlanMode {
+    /// Actions offered by the plan review UI.
+    pub actions: Vec<ExitPlanModeAction>,
+    /// Whether the user approved the reviewed plan.
+    pub approved: bool,
+    /// Whether the selected response requested edit auto-approval.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auto_approve_edits: Option<bool>,
+    /// Exact feedback submitted with the plan decision, when present.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub feedback: Option<String>,
+    /// Exact full plan content available from the review UI.
+    pub plan_content: String,
+    /// Action the plan review UI recommended.
+    pub recommended_action: ExitPlanModeAction,
+    /// Runtime-owned response kind discriminator.
+    pub response_kind: HumanResponseRecordedResponseExitPlanModeResponseKind,
+    /// Action selected by the user, when applicable.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub selected_action: Option<ExitPlanModeAction>,
+    /// Exact plan summary displayed to the user.
+    pub summary: String,
+}
+
+/// Session event "human_response.recorded". Durable request-correlated evidence for a typed response to a runtime-owned question or plan review.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HumanResponseRecordedData {
+    /// Controlled actor provenance established at response ingress.
+    pub actor: HumanResponseActor,
+    /// Request ID of the runtime-owned question or plan review.
+    pub request_id: RequestId,
+    /// Typed request and response payload.
+    pub response: HumanResponseRecordedResponse,
+    /// Tool call ID that opened the request, when present.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_call_id: Option<String>,
+}
+
 /// Session event "session.tools_updated". Payload of `session.tools_updated` identifying the model whose resolved tools were updated.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -9444,6 +9597,70 @@ pub enum ToolExecutionStartToolDescriptionMetaUIVisibility {
     Unknown,
 }
 
+/// Shell output source. Terminal output has no separate stdout/stderr attribution.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ToolShellOutputStream {
+    /// Output from the shell command's standard output stream. This is the default when stream is omitted.
+    #[serde(rename = "stdout")]
+    Stdout,
+    /// Output from the shell command's standard error stream.
+    #[serde(rename = "stderr")]
+    Stderr,
+    /// Inherently merged output that cannot be attributed separately to stdout or stderr.
+    #[serde(rename = "terminal")]
+    Terminal,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Kind of file mutation committed by a built-in editing tool.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(from = "String", into = "String")]
+pub enum ToolExecutionCompleteFileEditKind {
+    /// A file was created.
+    Create,
+    /// A file was written by an edit operation.
+    Edit,
+    /// A file was deleted.
+    Delete,
+    /// An unrecognized operation kind, retaining its wire value.
+    Unknown(String),
+}
+impl Default for ToolExecutionCompleteFileEditKind {
+    fn default() -> Self {
+        Self::Unknown("unknown".to_owned())
+    }
+}
+impl From<String> for ToolExecutionCompleteFileEditKind {
+    fn from(value: String) -> Self {
+        match value.as_str() {
+            "create" => Self::Create,
+            "edit" => Self::Edit,
+            "delete" => Self::Delete,
+            _ => Self::Unknown(value),
+        }
+    }
+}
+impl From<ToolExecutionCompleteFileEditKind> for String {
+    fn from(value: ToolExecutionCompleteFileEditKind) -> Self {
+        match value {
+            ToolExecutionCompleteFileEditKind::Create => "create".to_owned(),
+            ToolExecutionCompleteFileEditKind::Edit => "edit".to_owned(),
+            ToolExecutionCompleteFileEditKind::Delete => "delete".to_owned(),
+            ToolExecutionCompleteFileEditKind::Unknown(value) => value,
+        }
+    }
+}
+
 /// Binary result type discriminator. Use "image" for images and "resource" for other binary data.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PersistedBinaryImageType {
@@ -11193,6 +11410,57 @@ pub enum ExitPlanModeAction {
     #[default]
     #[serde(other)]
     Unknown,
+}
+
+/// Controlled provenance for a typed runtime response. Only `human_response`, minted by a trusted direct-interaction ingress, is human authorization evidence.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum HumanResponseActor {
+    /// A built-in trusted client submitted the response after direct human interaction.
+    #[serde(rename = "human_response")]
+    HumanResponse,
+    /// A host or SDK automation submitted the response without direct human interaction.
+    #[serde(rename = "host_automation")]
+    HostAutomation,
+    /// The response came through a legacy or otherwise unattributed ingress.
+    #[serde(rename = "unknown")]
+    UnknownValue,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Runtime-owned response kind discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum HumanResponseRecordedResponseAskUserResponseKind {
+    #[serde(rename = "ask_user")]
+    #[default]
+    AskUser,
+}
+
+/// Runtime-owned response kind discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum HumanResponseRecordedResponseUserInputResponseKind {
+    #[serde(rename = "user_input")]
+    #[default]
+    UserInput,
+}
+
+/// Runtime-owned response kind discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum HumanResponseRecordedResponseExitPlanModeResponseKind {
+    #[serde(rename = "exit_plan_mode")]
+    #[default]
+    ExitPlanMode,
+}
+
+/// Exact runtime-owned question or reviewed plan paired with the typed response that settled it.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum HumanResponseRecordedResponse {
+    AskUser(HumanResponseRecordedResponseAskUser),
+    UserInput(HumanResponseRecordedResponseUserInput),
+    ExitPlanMode(HumanResponseRecordedResponseExitPlanMode),
 }
 
 /// Terminal status a workflow run committed. A settled run is never `pending` or `running`, so those two members of the run-status domain are deliberately absent.

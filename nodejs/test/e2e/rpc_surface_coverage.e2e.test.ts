@@ -102,6 +102,20 @@ function handle(message) {
     return;
   }
 
+  if (message.method === "session.instructions.reload") {
+    writeResponse(message.id, { sources: [] });
+    return;
+  }
+
+  if (message.method === "session.customizations.reload") {
+    writeResponse(message.id, {
+      warnings: [],
+      errors: [],
+      outcomes: [{ subsystem: "instructions", status: "reloaded" }]
+    });
+    return;
+  }
+
   writeResponse(message.id, {
     method: message.method,
     params: message.params ?? null,
@@ -313,7 +327,21 @@ describe("Generated RPC surface coverage", () => {
             ...collectRuntimeFunctions(session.rpc, "session"),
         ]);
 
-        expect(inventory).toHaveLength(384);
+        expect(inventory).toHaveLength(394);
+        const sessionProviderMethods = [
+            "providers.getCatalog",
+            "providers.discover",
+            "providers.getStatus",
+            "providers.models.list",
+            "providers.models.prepareConfiguration",
+        ];
+        for (const path of sessionProviderMethods) {
+            const wireMethod = `session.${path}`;
+            expect(
+                inventory.filter((method) => method.wireMethod === wireMethod),
+                `Missing generated session RPC ${wireMethod}`
+            ).toEqual([expect.objectContaining({ scope: "session", path })]);
+        }
         const boundInstallationMethods = [
             "mcp.prepareInstall",
             "mcp.applyInstall",
@@ -356,6 +384,19 @@ describe("Generated RPC surface coverage", () => {
                 method.wireMethod === "session.mode.get" ||
                 method.wireMethod === "session.mode.set"
             ) {
+                continue;
+            }
+
+            if (method.wireMethod === "session.instructions.reload") {
+                expect(result).toEqual({ sources: [] });
+                continue;
+            }
+            if (method.wireMethod === "session.customizations.reload") {
+                expect(result).toEqual({
+                    warnings: [],
+                    errors: [],
+                    outcomes: [{ subsystem: "instructions", status: "reloaded" }],
+                });
                 continue;
             }
 
@@ -402,6 +443,11 @@ describe("Generated RPC surface coverage", () => {
         await session.rpc.mode.set({ mode: "interactive" });
         expect(await session.rpc.mode.get()).toBe("interactive");
 
+        expect((await session.rpc.instructions.reload()).sources).toEqual([]);
+        expect((await session.rpc.customizations.reload()).outcomes).toEqual([
+            { subsystem: "instructions", status: "reloaded" },
+        ]);
+
         await expect(
             client.rpc.ping({ message: "error", __forceError: true } as never)
         ).rejects.toMatchObject({
@@ -423,6 +469,12 @@ describe("Generated RPC surface coverage", () => {
             expect(capturedWireMethods.has(wireMethod), `Missing captured ${wireMethod}`).toBe(
                 true
             );
+        }
+        for (const wireMethod of ["session.instructions.reload", "session.customizations.reload"]) {
+            expect(captured.filter((request) => request.method === wireMethod)).toEqual([
+                { method: wireMethod, params: { sessionId: "rpc-surface-session" } },
+                { method: wireMethod, params: { sessionId: "rpc-surface-session" } },
+            ]);
         }
     });
 });

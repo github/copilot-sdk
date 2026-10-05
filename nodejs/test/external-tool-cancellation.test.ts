@@ -1,7 +1,88 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { expect, it, vi } from "vitest";
+import { z } from "zod";
 import { CopilotSession } from "../src/session.js";
+import { defineTool } from "../src/types.js";
 import type { ToolInvocation } from "../src/types.js";
+
+it.each([
+    ["custom", "*** Begin Patch\n*** End Patch"],
+    ["function", { input: "*** Begin Patch\n*** End Patch" }],
+])(
+    "passes the patch string to a typed apply_patch override from a %s call",
+    async (_kind, args) => {
+        const sendRequest = vi.fn().mockResolvedValue(undefined);
+        const session = new CopilotSession("session-1", { sendRequest } as never);
+        const patchHandler = vi.fn((patch: string) => patch.trim());
+        session.registerTools([
+            defineTool("apply_patch", {
+                parameters: z.string(),
+                overridesBuiltInTool: true,
+                handler: patchHandler,
+            }),
+        ]);
+
+        (session as any)._handleBroadcastEvent({
+            type: "external_tool.requested",
+            data: {
+                requestId: "request-patch",
+                sessionId: "session-1",
+                toolCallId: "tool-call-patch",
+                toolName: "apply_patch",
+                arguments: args,
+            },
+        });
+
+        await vi.waitFor(() => expect(sendRequest).toHaveBeenCalledTimes(1));
+        expect(patchHandler).toHaveBeenCalledWith(
+            "*** Begin Patch\n*** End Patch",
+            expect.objectContaining({ arguments: args })
+        );
+        expect(sendRequest).toHaveBeenCalledWith(
+            "session.tools.handlePendingToolCall",
+            expect.objectContaining({ result: "*** Begin Patch\n*** End Patch" })
+        );
+    }
+);
+
+it.each([null, 42, {}, { input: 42 }])(
+    "reports invalid arguments for a string-schema apply_patch override: %j",
+    async (args) => {
+        const sendRequest = vi.fn().mockResolvedValue(undefined);
+        const session = new CopilotSession("session-1", { sendRequest } as never);
+        const handler = vi.fn((patch: string) => patch.trim());
+        session.registerTools([
+            defineTool("apply_patch", {
+                parameters: z.string(),
+                overridesBuiltInTool: true,
+                handler,
+            }),
+        ]);
+
+        (session as any)._handleBroadcastEvent({
+            type: "external_tool.requested",
+            data: {
+                requestId: "request-invalid-patch",
+                sessionId: "session-1",
+                toolCallId: "tool-call-invalid-patch",
+                toolName: "apply_patch",
+                arguments: args,
+            },
+        });
+
+        await vi.waitFor(() => expect(sendRequest).toHaveBeenCalledTimes(1));
+        expect(handler).not.toHaveBeenCalled();
+        expect(sendRequest).toHaveBeenCalledWith("session.tools.handlePendingToolCall", {
+            sessionId: "session-1",
+            requestId: "request-invalid-patch",
+            error: "apply_patch string override requires a string input",
+        });
+    }
+);
 
 it("cancels a blocked external tool when completion arrives", async () => {
     const session = new CopilotSession("session-1", {} as never);
@@ -42,6 +123,34 @@ it("cancels a blocked external tool when completion arrives", async () => {
     });
 
     expect(invocation?.signal?.aborted).toBe(true);
+});
+
+it("preserves object arguments for an object-schema apply_patch override", async () => {
+    const sendRequest = vi.fn().mockResolvedValue(undefined);
+    const session = new CopilotSession("session-1", { sendRequest } as never);
+    const handler = vi.fn(({ input }: { input: string }) => input);
+    session.registerTools([
+        defineTool("apply_patch", {
+            parameters: z.object({ input: z.string() }),
+            overridesBuiltInTool: true,
+            handler,
+        }),
+    ]);
+    const argumentsObject = { input: "*** Begin Patch\n*** End Patch" };
+
+    (session as any)._handleBroadcastEvent({
+        type: "external_tool.requested",
+        data: {
+            requestId: "request-object",
+            sessionId: "session-1",
+            toolCallId: "tool-call-object",
+            toolName: "apply_patch",
+            arguments: argumentsObject,
+        },
+    });
+
+    await vi.waitFor(() => expect(sendRequest).toHaveBeenCalledTimes(1));
+    expect(handler).toHaveBeenCalledWith(argumentsObject, expect.anything());
 });
 
 it("does not respond when a cancelled handler returns a late result", async () => {

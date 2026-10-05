@@ -532,12 +532,31 @@ Emitted when a tool begins executing.
 
 ### `tool.execution_partial_result`
 
-Ephemeral. Incremental output from a running tool (e.g., streaming bash output).
+Deprecated. Use `tool.shell_output` for live terminal output. This ephemeral event remains emitted alongside the replacement during migration; subscribe to only one representation to avoid displaying the same output twice.
 
 | Data Field | Type | Required | Description |
 |------------|------|----------|-------------|
 | `toolCallId` | `string` | ✅ | Matches the corresponding `tool.execution_start` |
-| `partialOutput` | `string` | ✅ | Incremental output chunk |
+| `partialOutput` | `string` | ✅ | Bounded, cumulative replacement snapshot with stdout and stderr merged; not an append-only chunk |
+
+### `tool.shell_output`
+
+Ephemeral. Append-only output from an attached terminal command or a user-requested terminal command. Each event contains newly observed, secret-filtered text, without the separators or markers used to format final tool results for the model.
+
+| Data Field | Type | Required | Description |
+|------------|------|----------|-------------|
+| `toolCallId` | `string` | ✅ | Identifies the originating tool call |
+| `text` | `string` | ✅ | New text to append, not a replacement snapshot |
+| `stream` | `"stdout" \| "stderr" \| "terminal"` | | Output source; omitted means `"stdout"`. `"terminal"` identifies inherently merged PTY output, whose stdout/stderr origin cannot be recovered |
+| `sequence` | `number` | ✅ | Starts at zero and increases across all streams for this tool call, in observed publication order |
+
+Accumulate `text` separately by `toolCallId` and `stream`, or join the chunks in sequence order for a combined display. A sequence number identifies duplicates and missing chunks; it does not establish exact ordering between independent operating-system writes. A late subscriber can receive a first sequence greater than zero.
+
+These events are live-only: they are not persisted or replayed after resume. Final `tool.execution_complete` results, model-facing formatting, and detached command capture are unchanged. Text can contain terminal control sequences; renderers must apply their normal terminal-text handling.
+
+An attached terminal command can keep running after `tool.execution_complete` when it runs asynchronously or continues beyond `initial_wait`. Output received while it continues uses the original `toolCallId` and continues the same `sequence`, rather than restarting at zero. Consumers that display only active calls must ignore chunks received after completion instead of recreating completed-call state.
+
+Secret filtering operates on each decoded chunk. The runtime does not artificially split lines, but operating-system reads can divide a line or secret across chunks; cross-chunk secret reconstruction is not provided.
 
 ### `tool.execution_progress`
 
@@ -970,7 +989,7 @@ assistant.turn_start          → Turn begins
 │   ├── permission.requested  → Needs user approval
 │   ├── permission.completed  → Approval result
 │   ├── tool.execution_start  → Tool begins
-│   ├── tool.execution_partial_result  → Streaming tool output (ephemeral, repeated)
+│   ├── tool.shell_output              → Stream-tagged terminal output (ephemeral, repeated)
 │   ├── tool.execution_progress        → Progress updates (ephemeral, repeated)
 │   ├── tool.execution_complete        → Tool finished
 │   │
@@ -998,6 +1017,7 @@ This table lists key `data` payload fields. Common envelope fields are documente
 | `tool.user_requested` | | Tool | `toolCallId`, `toolName`, `arguments?` |
 | `tool.execution_start` | | Tool | `toolCallId`, `toolName`, `arguments?`, `mcpServerName?` |
 | `tool.execution_partial_result` | ✅ | Tool | `toolCallId`, `partialOutput` |
+| `tool.shell_output` | ✅ | Tool | `toolCallId`, `text`, `stream?`, `sequence` |
 | `tool.execution_progress` | ✅ | Tool | `toolCallId`, `progressMessage` |
 | `tool.execution_complete` | | Tool | `toolCallId`, `success`, `result?`, `error?` |
 | `session.idle` | ✅ | Session | `aborted?` |

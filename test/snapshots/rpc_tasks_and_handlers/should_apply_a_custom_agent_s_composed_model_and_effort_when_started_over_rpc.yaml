@@ -1,0 +1,10 @@
+models:
+  - claude-sonnet-5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Reply with SDK_COMPOSED_AGENT_DONE exactly.
+      - role: assistant
+        content: SDK_COMPOSED_AGENT_DONE

@@ -150,6 +150,7 @@ test("skips projections for internal-only and SDK documentation changes", (t) =>
 for (const file of [
     "src/sdk/scripts/codegen/go.ts",
     "src/sdk/scripts/codegen/package-lock.json",
+    "src/sdk/scripts/install-dependencies.mjs",
     "src/sdk/java/scripts/codegen/java.ts",
     "src/sdk/rust/.rustfmt.nightly.toml",
     "src/sdk/go/types.go",

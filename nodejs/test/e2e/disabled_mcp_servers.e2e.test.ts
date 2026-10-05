@@ -395,6 +395,8 @@ describe("disabled MCP servers", async () => {
             const disabledSession = await client.createSession({
                 onPermissionRequest: approveAll,
                 enableConfigDiscovery: true,
+                // This exercises MCP discovery, not standalone extension hosting.
+                requestExtensions: false,
                 enableMcpApps: true,
                 githubMcpToolConfig: { enableAllTools: true },
                 disabledMcpServers: ["github-mcp-server"],
@@ -420,6 +422,7 @@ describe("disabled MCP servers", async () => {
             await using enabledSession = await client.createSession({
                 onPermissionRequest: approveAll,
                 enableConfigDiscovery: true,
+                requestExtensions: false,
                 enableMcpApps: true,
                 githubMcpToolConfig: { enableAllTools: true },
             });

@@ -7,11 +7,8 @@ package com.github.copilot;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.github.copilot.generated.rpc.HostCreateSessionParams;
 import com.github.copilot.generated.rpc.HostGitHubEnvironmentOptions;
 import com.github.copilot.generated.rpc.HostLocalServerOptions;
-import com.github.copilot.generated.rpc.HostSessionCreateCallback;
 import com.github.copilot.generated.rpc.ServerHostApi;
 import com.github.copilot.generated.rpc.SessionLimitsConfig;
 import com.github.copilot.rpc.CopilotClientOptions;
@@ -132,27 +129,6 @@ class AhpHostTest {
                 .filter(method -> method.getDeclaringClass() == ServerHostApi.class).map(method -> method.getName())
                 .collect(Collectors.toSet());
         assertEquals(Set.of("start", "dispose", "publishSession"), methods);
-    }
-
-    @Test
-    void generatedHandoffMapsRoundTripScalarAndStructuredSettings() throws Exception {
-        var mapper = new ObjectMapper();
-        Map<String, Object> config = new HashMap<>();
-        config.put("sessionId", "requested");
-        config.put("workingDirectory", "/workspace");
-        config.put("streaming", true);
-        config.put("threshold", 42);
-        config.put("additionalDirectories", List.of("/other"));
-        config.put("featureFlags", Map.of("flag", true));
-        config.put("optional", null);
-        var request = new HostCreateSessionParams("handoff", false, config);
-        assertEquals(config,
-                mapper.readValue(mapper.writeValueAsBytes(request), HostCreateSessionParams.class).config());
-        var callback = mapper.readValue(
-                mapper.writeValueAsBytes(
-                        Map.of("hostId", "host", "handoffId", "handoff", "resume", false, "config", config)),
-                HostSessionCreateCallback.class);
-        assertEquals(config, callback.config());
     }
 
     @Test

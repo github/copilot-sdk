@@ -259,7 +259,7 @@ All options are kw-only parameters:
 - `installation_confirmation_handler` (InstallationConfirmationHandler | None): Experimental connection-global human review for `installations.confirm`. Receives the typed request and one cancellation signal, and returns an explicit decision. Does not enable installation capabilities.
 - `use_logged_in_user` (bool | None): Whether to use logged-in user for authentication (default: True, but False when `github_token` is provided).
 - `telemetry` (dict | None): OpenTelemetry configuration for the CLI process. Providing this enables telemetry — no separate flag needed. See [Telemetry](#telemetry) below.
-- `session_fs` (dict | None): Connection-level session filesystem provider configuration.
+- `session_fs` (dict | None): Connection-level session filesystem provider configuration. To let `view` read provider-only images, set `capabilities.binary` to `True` and return a provider implementing `SessionFsBinaryProvider` (`read_file_bytes(path)` and `write_file_bytes(path, content, mode=None)`) from `create_session_fs_handler`; image reads do not fall back to local files. Binary reads and writes are limited to 50,330,880 raw bytes (approximately 48 MiB); larger results return a filesystem error before encoding or decoding.
 - `session_idle_timeout_seconds` (int | None): Server-wide session idle timeout in seconds. Set to `None` or `0` to disable.
 - `enable_remote_sessions` (bool): Enable remote/cloud session support (default: False).
 - `on_list_models` (callable | None): Custom handler for `list_models()`. When provided, the handler is called instead of querying the runtime.
@@ -518,6 +518,27 @@ tool = define_tool(
 )
 ```
 
+#### Changing Tools on a Live Session (experimental)
+
+Use `await session.set_tools(tools)` to replace the complete set of custom tools
+supplied by this SDK client connection. The method accepts the same `Tool`
+definitions used with `create_session()` and `resume_session()`; built-in tools,
+MCP/plugin tools, and tools supplied by other client connections are unaffected.
+Passing an empty list removes this client's custom tools.
+
+Handlers switch after the runtime accepts the replacement. Running tool calls
+finish on the handler they already captured, a rejected replacement leaves the
+previous handlers in place, and concurrent `set_tools()` calls on the same
+session are applied in order.
+
+```python
+await session.set_tools([lookup_issue, lookup_customer])
+await session.set_tools([])  # remove this client's custom tools
+```
+
+See [Changing tools on a live session](../docs/features/changing-tools.md) for
+the shared behavior and active-turn limitations.
+
 #### Overriding Built-in Tools
 
 If you register a tool with the same name as a built-in CLI tool (e.g. `edit_file`, `read_file`), the SDK will throw an error unless you explicitly opt in by setting `overrides_built_in_tool=True`. This flag signals that you intend to replace the built-in tool with your custom implementation.
@@ -531,6 +552,30 @@ class EditFileParams(BaseModel):
 async def edit_file(params: EditFileParams) -> str:
     # your logic
 ```
+
+An explicit `apply_patch` override can declare a root string schema with
+`RootModel[str]`. The model sees a required `input` property, but the runtime
+restores the scalar patch text before dispatch. Access it through `params.root`;
+`ToolInvocation.arguments` also contains the string, not an `{"input": ...}`
+object. This example returns trimmed patch text; replace the handler body with
+your own patch implementation:
+
+```python
+from pydantic import RootModel
+from copilot import define_tool
+
+
+@define_tool(
+    "apply_patch",
+    description="Apply a patch",
+    overrides_built_in_tool=True,
+)
+def apply_patch(params: RootModel[str]) -> str:
+    return params.root.strip()
+```
+
+String-schema `apply_patch` overrides cannot contain JSON Schema references;
+use an object schema if references are needed.
 
 #### Skipping Permission Prompts
 
@@ -891,6 +936,8 @@ async with await client.create_session(
 
 Available section IDs: `"preamble"`, `"identity"`, `"tone"`, `"tool_efficiency"`, `"environment_context"`, `"code_change_rules"`, `"guidelines"`, `"safety"`, `"tool_instructions"`, `"custom_instructions"`, `"runtime_instructions"`, `"last_instructions"`. `"identity"` and `"tool_instructions"` are section groups that target a collection of related sub-sections as a unit; use `"preamble"` to target just the identity preamble.
 
+`last_instructions` includes configured subagent-model guidance when the `task` tool is available. Removing or replacing this section also removes that guidance; a transform callback receives the complete section, including the guidance, and its returned content is authoritative. Append, prepend, and preserve retain their usual section semantics. These overrides change prompt prose only, not configured subagent models, tool availability, or runtime dispatch policy. `runtime_instructions` is a separate section: removing it does not remove `last_instructions`.
+
 Each section override supports five string actions: `"replace"`, `"remove"`, `"append"`, `"prepend"`, and `"preserve"` (a no-op that opts an individually-addressable section out of a group-level `"remove"`). Unknown section IDs are handled gracefully: content from `"replace"`/`"append"`/`"prepend"` overrides is appended to additional instructions, and `"remove"` overrides are silently ignored.
 
 You can also pass a transform callback as the `action` instead of a string. The callback receives the current section content and returns the new content (sync or async):
@@ -1104,6 +1151,14 @@ async with await client.create_session(
 Hook into session lifecycle events by providing handlers in the `hooks` configuration:
 
 ```python
+from copilot import (
+    SubagentStartHookInput,
+    SubagentStartHookOutput,
+    SubagentStopHookInput,
+    SubagentStopHookOutput,
+)
+
+
 async def on_pre_tool_use(input, invocation):
     print(f"About to run tool: {input['toolName']}")
     # Return permission decision and optionally modify args
@@ -1149,6 +1204,22 @@ async def on_session_end(input, invocation):
     print(f"Session ended: {input['reason']}")
 
 
+async def on_subagent_start(
+    input: SubagentStartHookInput, invocation: dict[str, str]
+) -> SubagentStartHookOutput:
+    print(f"Starting {input['agentName']}")
+    return {"additionalContext": "Report the complete result of your work."}
+
+
+async def on_subagent_stop(
+    input: SubagentStopHookInput, invocation: dict[str, str]
+) -> SubagentStopHookOutput:
+    print(f"{input['agentName']} finished: {input['stopReason']}")
+    # To ask for another subagent turn instead, return
+    # {"decision": "block", "reason": "Finish the remaining work"}.
+    return {"modifiedResponse": f"Verified result: {input['response']}"}
+
+
 async def on_error_occurred(input, invocation):
     print(f"Error in {input['errorContext']}: {input['error']}")
     return {
@@ -1166,6 +1237,8 @@ async with await client.create_session(
         "on_user_prompt_submitted": on_user_prompt_submitted,
         "on_session_start": on_session_start,
         "on_session_end": on_session_end,
+        "on_subagent_start": on_subagent_start,
+        "on_subagent_stop": on_subagent_stop,
         "on_error_occurred": on_error_occurred,
     },
 ) as session:
@@ -1180,7 +1253,20 @@ async with await client.create_session(
 - `on_user_prompt_submitted` - Intercept user prompts. Can modify the prompt before processing.
 - `on_session_start` - Run logic when a session starts or resumes.
 - `on_session_end` - Cleanup or logging when session ends.
+- `on_subagent_start` - Inspect a subagent launch and optionally prepend `additionalContext` to its prompt.
+- `on_subagent_stop` - Inspect a completed subagent turn and optionally replace its `response` with `modifiedResponse` (with or without `"decision": "allow"`), or return `{"decision": "block", "reason": "..."}` to ask it to continue.
 - `on_error_occurred` - Handle errors with retry/skip/abort strategies.
+
+Subagent hook inputs carry the **parent** `sessionId`, a timezone-aware `datetime`
+`timestamp`, `workingDirectory` (normalized from the runtime's `cwd`),
+`transcriptPath`, and `agentName`. The start hook may include
+`agentDisplayName` and `agentDescription`. The stop hook also carries
+`agentType`, `stopReason` (`"end_turn"`), the subagent's final `response`, and
+optional `agentId`, `agentDisplayName`, and `agentDescription`. Handlers may
+be synchronous or asynchronous and may return `None`. For typed handlers,
+import `SubagentStartHookInput`, `SubagentStartHookOutput`,
+`SubagentStartHandler`, `SubagentStopHookInput`, `SubagentStopHookOutput`,
+and `SubagentStopHandler` from `copilot`.
 
 ## Commands
 

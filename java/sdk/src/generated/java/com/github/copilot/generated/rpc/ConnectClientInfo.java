@@ -20,7 +20,7 @@ import javax.annotation.processing.Generated;
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record ConnectClientInfo(
+record ConnectClientInfo(
     /** Name of the host editor, e.g. `"vscode"`. */
     @JsonProperty("editorName") String editorName,
     /** Version of the host editor, e.g. `"1.124.2"`. Ignored unless it looks like a version string. */

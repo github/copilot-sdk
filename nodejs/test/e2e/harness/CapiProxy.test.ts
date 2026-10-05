@@ -285,11 +285,11 @@ server.listen(0, "127.0.0.1", () => {
         const proxy = new CapiProxy();
         const starting = proxy.start();
         const child = vi.mocked(spawn).mock.results[0].value;
-        const outputLines = createInterface({ input: child.stdout! });
+        let outputLines: ReturnType<typeof createInterface> | undefined;
         let stopping: Promise<unknown> | undefined;
         onTestFinished(async () => {
             vi.useRealTimers();
-            outputLines.close();
+            outputLines?.close();
             try {
                 await stopChildProcess(child);
                 await Promise.allSettled([starting, ...(stopping ? [stopping] : [])]);
@@ -298,8 +298,8 @@ server.listen(0, "127.0.0.1", () => {
             }
         });
         const proxyUrl = await starting;
-        // The proxy's startup reader closes and pauses the shared stdout stream.
-        child.stdout!.resume();
+        // Startup closes its reader and pauses stdout; attach the flush reader afterward.
+        outputLines = createInterface({ input: child.stdout! });
         const flushBlocked = once(outputLines, "line");
         let resolveExitWait!: () => void;
         const exitWaitStarted = new Promise<void>((resolve) => {

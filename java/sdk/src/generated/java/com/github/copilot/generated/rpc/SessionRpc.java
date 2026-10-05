@@ -29,6 +29,8 @@ public final class SessionRpc {
     private final RpcCaller caller;
     private final String sessionId;
 
+    /** API methods for the {@code providers} namespace. */
+    public final SessionProvidersApi providers;
     /** API methods for the {@code sandbox} namespace. */
     public final SessionSandboxApi sandbox;
     /** API methods for the {@code gitHubAuth} namespace. */
@@ -98,7 +100,7 @@ public final class SessionRpc {
     /** API methods for the {@code metadata} namespace. */
     public final SessionMetadataApi metadata;
     /** API methods for the {@code settings} namespace. */
-    public final SessionSettingsApi settings;
+    final SessionSettingsApi settings;
     /** API methods for the {@code contentExclusion} namespace. */
     public final SessionContentExclusionApi contentExclusion;
     /** API methods for the {@code shell} namespace. */
@@ -129,6 +131,7 @@ public final class SessionRpc {
     public SessionRpc(RpcCaller caller, String sessionId) {
         this.caller = caller;
         this.sessionId = sessionId;
+        this.providers = new SessionProvidersApi(caller, sessionId);
         this.sandbox = new SessionSandboxApi(caller, sessionId);
         this.gitHubAuth = new SessionGitHubAuthApi(caller, sessionId);
         this.accounts = new SessionAccountsApi(caller, sessionId);
@@ -229,7 +232,7 @@ public final class SessionRpc {
      * @since 1.0.0
      */
     @CopilotExperimental
-    public CompletableFuture<Void> sendSystemNotification(SessionSendSystemNotificationParams params) {
+    CompletableFuture<Void> sendSystemNotification(SessionSendSystemNotificationParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
         return caller.invoke("session.sendSystemNotification", _p, Void.class);

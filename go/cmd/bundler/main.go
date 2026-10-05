@@ -541,7 +541,7 @@ func runtimeWrapperName(binaryName string) string {
 }
 
 var hostlessExcludedTopLevel = map[string]bool{
-	"app.js": true, "assets": true, "changelog.json": true, "copilot": true, "copilot.exe": true,
+	"app.js": true, "assets": true, "changelog.json": true, "cli-main.js": true, "copilot": true, "copilot.exe": true,
 	"foundry-local-sdk": true, "index.js": true, "napi-oop-runtime": true, "LICENSE.md": true,
 	"npm-loader.js": true, "package.json": true, "pvrecorder": true, "queries": true, "README.md": true,
 	"sea-loader.js": true, "webview": true,

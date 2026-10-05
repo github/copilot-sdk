@@ -102,10 +102,7 @@ function responseInputItemToCanonicalMessages(
       {
         role: "tool",
         tool_call_id: typeof item.call_id === "string" ? item.call_id : "",
-        content:
-          typeof item.output === "string"
-            ? item.output
-            : JSON.stringify(item.output ?? ""),
+        content: normalizeFunctionCallOutput(item.output),
       },
     ];
   }
@@ -178,6 +175,35 @@ function responseInputItemToCanonicalMessages(
         : parts,
     },
   ];
+}
+
+function normalizeFunctionCallOutput(output: unknown): string {
+  const text =
+    typeof output === "string" ? output : JSON.stringify(output ?? "");
+  if (!text.startsWith("[{") || !text.includes('"input_image"')) return text;
+
+  let parts: unknown;
+  try {
+    parts = JSON.parse(text);
+  } catch {
+    return text;
+  }
+  if (
+    !Array.isArray(parts) ||
+    !parts.some((part) => isObject(part) && part.type === "input_image") ||
+    !parts.every(
+      (part) =>
+        isObject(part) &&
+        ((part.type === "input_text" && typeof part.text === "string") ||
+          (part.type === "input_image" && typeof part.image_url === "string")),
+    )
+  ) {
+    return text;
+  }
+  return parts
+    .filter((part) => part.type === "input_text")
+    .map((part) => part.text)
+    .join("\n");
 }
 
 function coalesceAssistantMessages(

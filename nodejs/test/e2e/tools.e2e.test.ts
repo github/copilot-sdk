@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import { writeFile } from "fs/promises";
+import { access, writeFile } from "fs/promises";
 import { join } from "path";
 import { assert, describe, expect, it } from "vitest";
 import { z } from "zod";
@@ -43,6 +43,51 @@ describe("Custom tools", async () => {
             prompt: "Use encrypt_string to encrypt this string: Hello",
         });
         expect(assistantMessage?.data.content).toContain("HELLO");
+    });
+
+    it("updates the calling connection's tool definitions through the public session RPC", async () => {
+        const original = {
+            name: "sdk_epoch_original",
+            description: "The original SDK-owned tool",
+            parameters: { type: "object", properties: {} },
+            defer: "never",
+        } as const;
+        const replacement = {
+            name: "sdk_epoch_replacement",
+            description: "A replacement SDK-owned tool",
+            parameters: { type: "object", properties: {} },
+            defer: "never",
+        } as const;
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            tools: [
+                defineTool(original.name, {
+                    description: original.description,
+                    handler: () => "ORIGINAL_TOOL_RESULT",
+                }),
+            ],
+        });
+        try {
+            const currentToolNames = async () => {
+                await session.rpc.tools.initializeAndValidate();
+                return (await session.rpc.tools.getCurrentMetadata()).tools.map(
+                    (tool) => tool.name
+                );
+            };
+            expect(await currentToolNames()).toContain(original.name);
+
+            await session.rpc.tools.set({ tools: [original, replacement] });
+            expect(await currentToolNames()).toEqual(
+                expect.arrayContaining([original.name, replacement.name])
+            );
+
+            await session.rpc.tools.set({ tools: [replacement] });
+            const afterRemoval = await currentToolNames();
+            expect(afterRemoval).toContain(replacement.name);
+            expect(afterRemoval).not.toContain(original.name);
+        } finally {
+            await session.disconnect();
+        }
     });
 
     // TODO(cli-1.0.81-2): CLI 1.0.81-2 stops servicing nested requests on the same stdio
@@ -297,6 +342,104 @@ describe("Custom tools", async () => {
         });
         // Verify custom tool was called by checking for expected result pattern
         expect(assistantMessage?.data.content?.toLowerCase()).toMatch(/hello|search|found/);
+    });
+
+    it("string schema apply_patch override binds patch input", async () => {
+        const patch =
+            "*** Begin Patch\n*** Add File: override-marker.txt\n+from-native\n*** End Patch";
+        let receivedPatch: string | undefined;
+        let receivedArguments: unknown;
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            tools: [
+                defineTool("apply_patch", {
+                    parameters: z.string(),
+                    overridesBuiltInTool: true,
+                    handler: (input, invocation) => {
+                        receivedPatch = input;
+                        receivedArguments = invocation.arguments;
+                        return "HOST_PATCH_HANDLED";
+                    },
+                }),
+            ],
+        });
+
+        const response = await session.sendAndWait({
+            prompt: "Use apply_patch to apply the supplied patch.",
+        });
+
+        expect(receivedPatch).toBe(patch);
+        expect(receivedArguments).toBe(patch);
+        expect(response?.data.content).toContain("Host override completed.");
+        await expect(access(join(workDir, "override-marker.txt"))).rejects.toMatchObject({
+            code: "ENOENT",
+        });
+        const traffic = await openAiEndpoint.getExchanges();
+        const tool = traffic[0]?.request.tools?.find(
+            (entry) => entry.type === "function" && entry.function.name === "apply_patch"
+        );
+        expect(tool?.function.parameters).toMatchObject({
+            type: "object",
+            properties: { input: { type: "string" } },
+            required: ["input"],
+        });
+        expect(
+            traffic[1]?.request.messages.some(
+                (message) => message.role === "tool" && message.content === "HOST_PATCH_HANDLED"
+            )
+        ).toBe(true);
+    });
+
+    it("reports rejected apply_patch string schema to the SDK", async () => {
+        const warnings: string[] = [];
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            onEvent: (event) => {
+                if (event.type === "session.warning") {
+                    warnings.push(event.data.message);
+                }
+            },
+            tools: [
+                defineTool("apply_patch", {
+                    parameters: {
+                        type: "string",
+                        $defs: { patch: { type: "string" } },
+                        $ref: "#/$defs/patch",
+                    },
+                    overridesBuiltInTool: true,
+                    handler: () => "unexpected override call",
+                }),
+                defineTool("valid_sibling", {
+                    parameters: z.object({}),
+                    handler: () => "valid",
+                }),
+                defineTool("invalid_sibling", {
+                    parameters: { type: "number" },
+                    handler: () => "unexpected invalid tool call",
+                }),
+            ],
+        });
+
+        await session.rpc.mode.set({ mode: "plan" });
+        await session.rpc.mode.set({ mode: "interactive" });
+        const response = await session.sendAndWait({
+            prompt: "Reply with exactly Session ready.",
+        });
+        expect(response?.data.content).toContain("Session ready.");
+        expect(warnings).toEqual([
+            'External tool "apply_patch" has invalid parameters schema (apply_patch string overrides cannot contain JSON Schema references), ignoring tool',
+        ]);
+        const traffic = await openAiEndpoint.getExchanges();
+        expect(
+            traffic[0]?.request.tools?.some(
+                (tool) => tool.type === "function" && tool.function.name === "valid_sibling"
+            )
+        ).toBe(true);
+        expect(
+            traffic[0]?.request.tools?.some(
+                (tool) => tool.type === "function" && tool.function.name === "invalid_sibling"
+            )
+        ).toBe(false);
     });
 
     it("denies custom tool when permission denied", async () => {

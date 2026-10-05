@@ -13,10 +13,43 @@ import {
     findSharedSchemaDefinitions,
     getEnumValueDescriptions,
     inlineExternalSchemaDefinitions,
+    isCodegenEntrypoint,
     isIntegerSchemaBoundedToInt32,
     rewriteSharedDefinitionReferences,
     resolveCopilotSchemaPaths,
 } from "../../scripts/codegen/utils.ts";
+
+describe("codegen entrypoints", () => {
+    it("recognizes Windows entrypoint paths case-insensitively", () => {
+        expect(
+            isCodegenEntrypoint("C:\\b\\execroot\\python.ts", "c:\\B\\execroot\\python.ts", "win32")
+        ).toBe(true);
+    });
+
+    it("rejects other modules and missing entrypoints", () => {
+        expect(isCodegenEntrypoint(undefined, "python.ts")).toBe(false);
+        expect(isCodegenEntrypoint("go.ts", "python.ts")).toBe(false);
+        expect(isCodegenEntrypoint("PYTHON.ts", "python.ts", "linux")).toBe(false);
+    });
+
+    it("recognizes a Bazel-style directory symlink to the generator", async () => {
+        const root = await mkdtemp(join(tmpdir(), "copilot-codegen-entrypoint-"));
+        onTestFinished(() => rm(root, { recursive: true, force: true }));
+        const source = join(root, "source");
+        const execroot = join(root, "execroot");
+        await mkdir(source);
+        await writeFile(join(source, "python.ts"), "");
+        await writeFile(join(source, "other.ts"), "");
+        await symlink(source, execroot, process.platform === "win32" ? "junction" : "dir");
+        expect(isCodegenEntrypoint(join(execroot, "python.ts"), join(source, "python.ts"))).toBe(
+            true
+        );
+        expect(isCodegenEntrypoint(join(execroot, "other.ts"), join(source, "python.ts"))).toBe(
+            false
+        );
+        expect(isCodegenEntrypoint("", join(source, "python.ts"))).toBe(false);
+    });
+});
 
 describe("shared schema definition codegen utilities", () => {
     it.each(["typescript", "python", "go", "csharp"])(

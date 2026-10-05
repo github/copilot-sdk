@@ -66,6 +66,10 @@ public final class ModelCallFailureEvent extends SessionEvent {
         @JsonProperty("maxOutputTokens") Long maxOutputTokens,
         /** Whether the failed call used a bring-your-own-key provider */
         @JsonProperty("isByok") Boolean isByok,
+        /** Where the bring-your-own-key model for the failed call runs and who manages it: "local_managed" (on the device, managed by Copilot), "local_user" (on the device, managed by the user), or "remote_user" (off the device, managed by the user). Absent for Copilot-served models. */
+        @JsonProperty("byokKind") String byokKind,
+        /** Fixed-set provider family serving the bring-your-own-key model for the failed call (for example "openai", "anthropic", "azure_openai", "ollama", "llama_cpp", or "other"). Never the caller-supplied provider name. Absent for Copilot-served models. */
+        @JsonProperty("modelProvider") String modelProvider,
         /** Whether the session selected Auto mode for the failed call */
         @JsonProperty("isAuto") Boolean isAuto,
         /** Reasoning effort level used for the failed model call, if applicable */

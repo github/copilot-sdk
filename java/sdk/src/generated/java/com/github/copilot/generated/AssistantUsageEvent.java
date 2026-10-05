@@ -73,6 +73,10 @@ public final class AssistantUsageEvent extends SessionEvent {
         @JsonProperty("interactionType") String interactionType,
         /** Whether this model call used a bring-your-own-key provider */
         @JsonProperty("isByok") Boolean isByok,
+        /** Where the bring-your-own-key model runs and who manages it: "local_managed" (on the device, managed by Copilot), "local_user" (on the device, managed by the user), or "remote_user" (off the device, managed by the user). Absent for Copilot-served models. */
+        @JsonProperty("byokKind") String byokKind,
+        /** Fixed-set provider family serving the bring-your-own-key model (for example "openai", "anthropic", "azure_openai", "ollama", "llama_cpp", or "other"). Never the caller-supplied provider name. Absent for Copilot-served models. */
+        @JsonProperty("modelProvider") String modelProvider,
         /** Whether Auto mode was selected for this model call */
         @JsonProperty("isAuto") Boolean isAuto,
         /** Effective maximum prompt-token limit used for this model call */

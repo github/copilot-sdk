@@ -5,9 +5,10 @@
 import { describe, expect, it, onTestFinished } from "vitest";
 import { SessionEvent, approveAll } from "../../src/index.js";
 import { createSdkTestContext, isCI } from "./harness/sdkTestContext";
+import { isByokBackend, testBackend } from "./harness/testBackend";
 
 describe("Streaming Fidelity", async () => {
-    const { copilotClient: client, createClient } = await createSdkTestContext();
+    const { copilotClient: client, createClient, openAiEndpoint } = await createSdkTestContext();
 
     it("should produce delta events when streaming is enabled", async () => {
         const session = await client.createSession({
@@ -77,7 +78,8 @@ describe("Streaming Fidelity", async () => {
             onPermissionRequest: approveAll,
             streaming: false,
         });
-        await session.sendAndWait({ prompt: "What is 3 + 6?" });
+        const firstAssistantMessage = await session.sendAndWait({ prompt: "What is 3 + 6?" });
+        expect(firstAssistantMessage?.data.content).toContain("9");
         await session.disconnect();
 
         // Resume using a new client
@@ -96,6 +98,26 @@ describe("Streaming Fidelity", async () => {
             prompt: "Now if you double that, what do you get?",
         });
         expect(secondAssistantMessage?.data.content).toContain("18");
+
+        const modelRequests = (await openAiEndpoint.getRequests()).filter((request) =>
+            ["/chat/completions", "/v1/messages", "/responses"].includes(request.url)
+        );
+        const endpoint = {
+            capi: "/chat/completions",
+            "anthropic-messages": "/v1/messages",
+            "openai-responses": "/responses",
+            "openai-completions": "/chat/completions",
+        }[testBackend];
+        expect(modelRequests.length).toBeGreaterThanOrEqual(2);
+        for (const request of modelRequests) {
+            expect(request.url).toBe(endpoint);
+            if (isByokBackend) {
+                // Completions and CAPI share a URL; the BYOK credential distinguishes them.
+                expect(request.headers.authorization).toBe(
+                    "Bearer fake-byok-credential-for-e2e-tests"
+                );
+            }
+        }
 
         // Should have streaming deltas before the final message
         const deltaEvents = events.filter((e) => e.type === "assistant.message_delta");

@@ -5,7 +5,7 @@
 import { realpathSync } from "fs";
 import { mkdir, readFile, writeFile } from "fs/promises";
 import { join } from "path";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, onTestFailed, vi } from "vitest";
 import { z } from "zod";
 import type {
     PermissionDecisionContext,
@@ -237,13 +237,19 @@ describe("Permission callbacks", async () => {
 
     it("should resume session with permission handler", async () => {
         const permissionRequests: PermissionRequest[] = [];
+        let phase = "creating the initial session";
+        onTestFailed(() => {
+            console.error(`Permission resume test failed while ${phase}`);
+        });
 
         // Create initial session
         const session1 = await client.createSession({ onPermissionRequest: approveAll });
         const sessionId = session1.sessionId;
+        phase = "sending the initial prompt";
         await session1.sendAndWait({ prompt: "What is 1+1?" });
 
         // Resume with permission handler
+        phase = "resuming the session";
         const session2 = await client.resumeSession(sessionId, {
             onPermissionRequest: (request) => {
                 permissionRequests.push(request);
@@ -251,13 +257,16 @@ describe("Permission callbacks", async () => {
             },
         });
 
+        phase = "sending the resumed prompt";
         await session2.sendAndWait({
             prompt: "Run 'echo resumed' for me",
         });
 
         // Should have permission requests from resumed session
+        phase = "verifying permission requests";
         expect(permissionRequests.length).toBeGreaterThan(0);
 
+        phase = "disconnecting the resumed session";
         await session2.disconnect();
     });
 

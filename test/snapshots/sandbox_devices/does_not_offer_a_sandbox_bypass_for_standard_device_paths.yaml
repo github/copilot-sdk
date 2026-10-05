@@ -1,0 +1,25 @@
+models:
+  - claude-sonnet-5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: "Use the bash tool exactly once to run this exact command: `head -c 16 /dev/urandom > entropy.bin && cat
+          /dev/stdin < denial.txt > copy.txt && cat copy.txt`. Do not request a sandbox bypass. After the tool returns,
+          reply with exactly DEVICE_COMMAND_COMPLETE."
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: ${shell}
+              arguments: '{"command":"head -c 16 /dev/urandom > entropy.bin && cat /dev/stdin < denial.txt > copy.txt && cat
+                copy.txt","description":"Run specified exact command"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: |-
+          cat: /dev/stdin: Operation not permitted
+          <exited with exit code 0>
+      - role: assistant
+        content: DEVICE_COMMAND_COMPLETE

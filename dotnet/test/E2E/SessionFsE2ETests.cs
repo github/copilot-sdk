@@ -50,6 +50,48 @@ public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
     }
 
     [Fact]
+    // BYOK test models do not advertise vision; only the CAPI test model forwards
+    // the provider image to the model, which this replay capture verifies.
+    [Trait(E2ETestTraits.Backend, E2ETestTraits.CapiOnly)]
+    public async Task Should_View_An_Image_That_Exists_Only_In_The_Binary_Session_Fs_Provider()
+    {
+        const string imagePath = "/sdk-provider-image.png";
+        var imageBytes = Convert.FromBase64String(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==");
+        var providerRoot = CreateProviderRoot();
+        try
+        {
+            await using var client = CreateSessionFsClient(providerRoot, binary: true);
+            TestSessionFsHandler? provider = null;
+            var session = await Ctx.CreateSessionAsync(client, new SessionConfig
+            {
+                OnPermissionRequest = PermissionHandler.ApproveAll,
+                CreateSessionFsProvider = s => provider = new TestSessionFsHandler(s.SessionId, providerRoot),
+            });
+            var storedPath = GetStoredPath(providerRoot, session.SessionId, imagePath);
+            Directory.CreateDirectory(Path.GetDirectoryName(storedPath)!);
+            await File.WriteAllBytesAsync(storedPath, imageBytes);
+            Assert.False(File.Exists(imagePath));
+
+            var msg = await session.SendAndWaitAsync(new MessageOptions
+            {
+                Prompt = "Use the view tool to view /sdk-provider-image.png, then reply with exactly SDK_PROVIDER_IMAGE_DONE.",
+            });
+            Assert.Contains("SDK_PROVIDER_IMAGE_DONE", msg?.Data.Content ?? string.Empty);
+            Assert.Equal(imagePath, provider?.LastBinaryReadPath);
+            var events = await session.GetEventsAsync();
+            Assert.Contains(events.OfType<SessionBinaryAssetEvent>(), asset =>
+                asset.Data.MimeType == "image/png" &&
+                asset.Data.Data == Convert.ToBase64String(imageBytes));
+            await session.DisposeAsync();
+        }
+        finally
+        {
+            await TryDeleteDirectoryAsync(providerRoot);
+        }
+    }
+
+    [Fact]
     public async Task Should_Load_Session_Data_From_Fs_Provider_On_Resume()
     {
         var providerRoot = CreateProviderRoot();
@@ -280,7 +322,9 @@ public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
         var handler = (ISessionFsHandler)new ThrowingSessionFsProvider(new FileNotFoundException("missing"));
 
         AssertFsError((await handler.ReadFileAsync(new SessionFsReadFileRequest { Path = "missing.txt" })).Error);
-        AssertFsError(await handler.WriteFileAsync(new SessionFsWriteFileRequest { Path = "missing.txt", Content = "content" }));
+        var rejectedWrite = await handler.WriteFileAsync(new SessionFsWriteFileRequest { Path = "missing.txt", Content = "content" });
+        AssertFsError(rejectedWrite);
+        Assert.Null(rejectedWrite?.WriteChanged);
         AssertFsError(await handler.AppendFileAsync(new SessionFsAppendFileRequest { Path = "missing.txt", Content = "content" }));
 
         var exists = await handler.ExistsAsync(new SessionFsExistsRequest { Path = "missing.txt" });
@@ -300,6 +344,12 @@ public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
         var unknown = (ISessionFsHandler)new ThrowingSessionFsProvider(new InvalidOperationException("bad path"));
         var unknownError = await unknown.WriteFileAsync(new SessionFsWriteFileRequest { Path = "bad.txt", Content = "content" });
         Assert.Equal(SessionFsErrorCode.UNKNOWN, unknownError!.Code);
+
+        var partial = (ISessionFsHandler)new ThrowingSessionFsProvider(new SessionFsWriteException("disk full"));
+        var partialError = await partial.WriteFileAsync(new SessionFsWriteFileRequest { Path = "partial.txt", Content = "content" });
+        Assert.Equal(SessionFsErrorCode.UNKNOWN, partialError?.Code);
+        Assert.True(partialError?.WriteChanged == true);
+        Assert.Null((await partial.ReadFileAsync(new SessionFsReadFileRequest { Path = "partial.txt" })).Error?.WriteChanged);
 
         static void AssertFsError(SessionFsError? error)
         {
@@ -459,7 +509,7 @@ public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
         }
     }
 
-    private CopilotClient CreateSessionFsClient(string providerRoot, bool useStdio = true, string? tcpConnectionToken = null)
+    private CopilotClient CreateSessionFsClient(string providerRoot, bool useStdio = true, string? tcpConnectionToken = null, bool binary = false)
     {
         RuntimeConnection connection = useStdio
             ? RuntimeConnection.ForStdio()
@@ -469,7 +519,15 @@ public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
         return Ctx.CreateClient(
             options: new CopilotClientOptions
             {
-                SessionFs = SessionFsConfig,
+                SessionFs = binary
+                    ? new SessionFsConfig
+                    {
+                        InitialWorkingDirectory = SessionFsConfig.InitialWorkingDirectory,
+                        SessionStatePath = SessionFsConfig.SessionStatePath,
+                        Conventions = SessionFsConfig.Conventions,
+                        Capabilities = new SessionFsSetProviderCapabilities { Binary = true },
+                    }
+                    : SessionFsConfig,
                 Connection = connection,
             });
     }
@@ -626,8 +684,24 @@ public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
             Task.FromException<bool>(exception);
     }
 
-    private sealed class TestSessionFsHandler(string sessionId, string rootDir) : SessionFsProvider
+    private sealed class TestSessionFsHandler(string sessionId, string rootDir)
+        : SessionFsProvider, ISessionFsBinaryProvider
     {
+        public string? LastBinaryReadPath { get; private set; }
+
+        public Task<byte[]> ReadFileBytesAsync(string path, CancellationToken cancellationToken)
+        {
+            LastBinaryReadPath = path;
+            return File.ReadAllBytesAsync(ResolvePath(path), cancellationToken);
+        }
+
+        public async Task WriteFileBytesAsync(string path, ReadOnlyMemory<byte> content, int? mode, CancellationToken cancellationToken)
+        {
+            var fullPath = ResolvePath(path);
+            Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
+            await File.WriteAllBytesAsync(fullPath, content.ToArray(), cancellationToken);
+        }
+
         protected override async Task<string> ReadFileAsync(string path, CancellationToken cancellationToken)
         {
             return await File.ReadAllTextAsync(ResolvePath(path), cancellationToken);

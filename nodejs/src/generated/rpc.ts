@@ -1473,6 +1473,46 @@ export type ContentFilterMode =
   /** Remove characters that can hide directives. */
   | "hidden_characters";
 /**
+ * Component of session customization discovery.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CustomizationReloadSubsystem".
+ */
+/** @experimental */
+export type CustomizationReloadSubsystem =
+  /** Repository metadata and working-directory context. */
+  | "repositoryContext"
+  /** Session instructions and their cached dynamic context. */
+  | "instructions"
+  /** Discovered plugin configuration. */
+  | "plugins"
+  /** Configured session and plugin hooks. */
+  | "hooks"
+  /** Discovered skills. */
+  | "skills"
+  /** Discovered custom agents. */
+  | "agents"
+  /** Loaded MCP server configuration. */
+  | "mcp"
+  /** Configured session extensions. */
+  | "extensions"
+  | (string & {});
+/**
+ * Result of reloading a customization component.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CustomizationReloadStatus".
+ */
+/** @experimental */
+export type CustomizationReloadStatus =
+  /** The component was refreshed successfully. */
+  | "reloaded"
+  /** The component was not configured, loaded, or eligible for refresh. */
+  | "skipped"
+  /** The component could not be refreshed; other components may still reload. */
+  | "failed"
+  | (string & {});
+/**
  * Source category for a collected debug bundle entry.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -1780,6 +1820,38 @@ export type DiscoveredMcpServerType =
   /** Server is backed by an in-memory runtime implementation. */
   | "memory";
 /**
+ * Kind of component that supplied a provider adapter or row. Attribution does not confer authority.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ModelProviderProvenanceSource".
+ */
+/** @experimental */
+export type ModelProviderProvenanceSource =
+  /** Built into the runtime. */
+  | "builtIn"
+  /** Derived from existing user configuration. */
+  | "configured"
+  /** Supplied by an extension. */
+  | "extension"
+  /** Supplied by another trusted contributor. */
+  | "custom";
+/**
+ * Typed outcome for a provider operation.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ModelProviderOperationOutcomeCode".
+ */
+/** @experimental */
+export type ModelProviderOperationOutcomeCode =
+  /** The operation completed successfully; an empty inventory is valid. */
+  | "success"
+  /** The provider or instance is absent during discovery, status, or model listing. Distinct from a successful empty inventory. */
+  | "absent"
+  /** The provider is configured or expected but could not be reached. */
+  | "unreachable"
+  /** The operation failed for a reason other than absence or reachability. */
+  | "failed";
+/**
  * Indicates whether the command was accepted into the local execution queue.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -1787,52 +1859,6 @@ export type DiscoveredMcpServerType =
  */
 /** @experimental */
 export type EnqueueCommandResult = AcceptedEnqueueCommandResult | UnsupportedEnqueueCommandResult;
-/**
- * How far OneAuth may go to acquire the requested token.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "EntraTokenInteraction".
- */
-/** @experimental */
-export type EntraTokenInteraction =
-  /** Acquire the token without any user interaction, failing if interaction would be required. */
-  | "silent"
-  /** Allow interactive acquisition, prompting the user only when a cached or silent token is unavailable. */
-  | "interactive"
-  /** Always prompt interactively, bypassing any cached or silently-refreshable token. */
-  | "force-interactive";
-/**
- * Result of a OneAuth token acquisition.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "EntraTokenAcquireResult".
- */
-/** @experimental */
-export type EntraTokenAcquireResult =
-  | {
-      /**
-       * Opaque access token.
-       */
-      accessToken: string;
-      /**
-       * Expiry as milliseconds since Unix epoch, when supplied by OneAuth.
-       */
-      expiresOnTimestamp?: number;
-      /**
-       * Opaque OneAuth account id, when supplied by the broker.
-       */
-      accountId?: string;
-      /**
-       * OneAuth token acquisition outcome discriminator.
-       */
-      status: "ok";
-    }
-  | {
-      /**
-       * OneAuth token acquisition outcome discriminator.
-       */
-      status: "interaction-required";
-    };
 /**
  * GitHub Mission Control compute kind.
  *
@@ -3773,17 +3799,49 @@ export type ModelListRequest =
       skipCache?: boolean;
     };
 /**
- * Whether the requested preference was already effective or was accepted for later transactional activation.
+ * When the runtime may run an adapter without an explicit user action.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "ModelSwitchAutoTierStatus".
+ * via the `definition` "ModelProviderAutomaticDiscoveryMode".
  */
 /** @experimental */
-export type ModelSwitchAutoTierStatus =
-  /** The requested preference is already effective. No activation is pending for it, although this request may have cancelled an earlier unclaimed preference reported in `supersededAutoTier`. */
-  | "unchanged"
-  /** The request was accepted but has not committed. A later user turn using the `auto` model must mint and validate the replacement before it becomes effective. */
-  | "pending";
+export type ModelProviderAutomaticDiscoveryMode =
+  /** The adapter declares that automatic discovery is safe when the other policy fields are satisfied. */
+  | "automatic"
+  /** The adapter may refresh instances the user already configured, but must not scan for new instances automatically. */
+  | "configuredOnly"
+  /** The adapter must run only after an explicit user action. */
+  | "explicit";
+/**
+ * Network reach an adapter may use during discovery.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ModelProviderDiscoveryNetworkScope".
+ */
+/** @experimental */
+export type ModelProviderDiscoveryNetworkScope =
+  /** Discovery does not contact a network service. */
+  | "none"
+  /** Discovery is limited to loopback addresses on the local machine. */
+  | "loopbackOnly"
+  /** Discovery contacts only endpoints the user already configured. */
+  | "configuredEndpointOnly"
+  /** Discovery may scan or contact the local network. */
+  | "localNetwork"
+  /** Discovery may contact remote internet services. */
+  | "internet";
+/**
+ * Whether a planned configuration entry is new or already present in the session registry.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ModelProviderConfigurationDisposition".
+ */
+/** @experimental */
+export type ModelProviderConfigurationDisposition =
+  /** No matching entry is registered; the caller should add the entry. */
+  | "create"
+  /** An equivalent entry is already registered; the caller should reuse it rather than adding a duplicate. */
+  | "alreadyConfigured";
 /**
  * Provider type. Defaults to "openai" for generic OpenAI-compatible APIs.
  *
@@ -3822,6 +3880,122 @@ export type ProviderConfigTransport =
   | "http"
   /** WebSocket transport. */
   | "websockets";
+/**
+ * The product serving the model, reported in telemetry as `model_provider`.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ProviderConfigModelProvider".
+ */
+/** @experimental */
+export type ProviderConfigModelProvider =
+  /** OpenAI API. */
+  | "openai"
+  /** Anthropic API. */
+  | "anthropic"
+  /** Azure OpenAI Service. */
+  | "azure_openai"
+  /** Ollama. */
+  | "ollama"
+  /** LM Studio. */
+  | "lm_studio"
+  /** Foundry Local. */
+  | "foundry_local"
+  /** llama.cpp server. */
+  | "llama_cpp";
+
+/** @experimental */
+export type ProtocolSystemMessageConfig =
+  | ProtocolSystemMessageAppendConfig
+  | ProtocolSystemMessageReplaceConfig
+  | ProtocolSystemMessageCustomizeConfig;
+
+/** @experimental */
+export type ProtocolAppendMode = "append";
+
+/** @experimental */
+export type ProtocolReplaceMode = "replace";
+
+/** @experimental */
+export type ProtocolCustomizeMode = "customize";
+
+/** @experimental */
+export type ProtocolSectionOverride = (ProtocolStaticSectionOverride | ProtocolMarkerSectionOverride) | undefined;
+
+/** @experimental */
+export type ProtocolStaticSectionAction =
+  /** Replace the section content. */
+  | "replace"
+  /** Remove the section content. */
+  | "remove"
+  /** Append content to the section. */
+  | "append"
+  /** Prepend content to the section. */
+  | "prepend";
+
+/** @experimental */
+export type ProtocolMarkerSectionOverride =
+  | {
+      /**
+       * Section override action discriminator.
+       */
+      action: "transform";
+    }
+  | {
+      /**
+       * Section override action discriminator.
+       */
+      action: "preserve";
+    };
+/**
+ * Provider family. Matches the `type` field of a BYOK provider config.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ProviderEndpointType".
+ */
+/** @experimental */
+export type ProviderEndpointType =
+  /** OpenAI-compatible endpoint (use the OpenAI client library). */
+  | "openai"
+  /** Azure OpenAI endpoint (use the OpenAI client library with the Azure base URL). */
+  | "azure"
+  /** Anthropic endpoint (use the Anthropic client library). */
+  | "anthropic";
+/**
+ * Wire API to be used, when required for the provider type.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ProviderEndpointWireApi".
+ */
+/** @experimental */
+export type ProviderEndpointWireApi =
+  /** Classic chat-completions request shape. */
+  | "completions"
+  /** Newer responses request shape. */
+  | "responses";
+/**
+ * Transport to be used for provider requests.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ProviderEndpointTransport".
+ */
+/** @experimental */
+export type ProviderEndpointTransport =
+  /** HTTP request/streaming transport. */
+  | "http"
+  /** WebSocket transport. */
+  | "websockets";
+/**
+ * Whether the requested preference was already effective or was accepted for later transactional activation.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ModelSwitchAutoTierStatus".
+ */
+/** @experimental */
+export type ModelSwitchAutoTierStatus =
+  /** The requested preference is already effective. No activation is pending for it, although this request may have cancelled an earlier unclaimed preference reported in `supersededAutoTier`. */
+  | "unchanged"
+  /** The request was accepted but has not committed. A later user turn using the `auto` model must mint and validate the replacement before it becomes effective. */
+  | "pending";
 /**
  * Allowed values for the `OptionsUpdateAdditionalContentExclusionPolicyScope` enumeration.
  *
@@ -4130,12 +4304,6 @@ export type PluginsReloadRequest =
        */
       deferRepoHooks?: boolean;
     };
-
-/** @experimental */
-export type ProtocolAppendMode = "append";
-
-/** @experimental */
-export type ProtocolCustomizeMode = "customize";
 /**
  * Controls whether the runtime may defer loading an external tool definition.
  *
@@ -4148,82 +4316,6 @@ export type ProtocolExternalToolDefer =
   | "auto"
   /** The runtime must include the tool without deferring it. */
   | "never";
-
-/** @experimental */
-export type ProtocolMarkerSectionOverride =
-  | {
-      /**
-       * Section override action discriminator.
-       */
-      action: "transform";
-    }
-  | {
-      /**
-       * Section override action discriminator.
-       */
-      action: "preserve";
-    };
-
-/** @experimental */
-export type ProtocolReplaceMode = "replace";
-
-/** @experimental */
-export type ProtocolSectionOverride = ProtocolStaticSectionOverride | ProtocolMarkerSectionOverride;
-
-/** @experimental */
-export type ProtocolStaticSectionAction =
-  /** Replace the section content. */
-  | "replace"
-  /** Remove the section content. */
-  | "remove"
-  /** Append content to the section. */
-  | "append"
-  /** Prepend content to the section. */
-  | "prepend";
-
-/** @experimental */
-export type ProtocolSystemMessageConfig =
-  | ProtocolSystemMessageAppendConfig
-  | ProtocolSystemMessageReplaceConfig
-  | ProtocolSystemMessageCustomizeConfig;
-/**
- * Provider family. Matches the `type` field of a BYOK provider config.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "ProviderEndpointType".
- */
-/** @experimental */
-export type ProviderEndpointType =
-  /** OpenAI-compatible endpoint (use the OpenAI client library). */
-  | "openai"
-  /** Azure OpenAI endpoint (use the OpenAI client library with the Azure base URL). */
-  | "azure"
-  /** Anthropic endpoint (use the Anthropic client library). */
-  | "anthropic";
-/**
- * Wire API to be used, when required for the provider type.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "ProviderEndpointWireApi".
- */
-/** @experimental */
-export type ProviderEndpointWireApi =
-  /** Classic chat-completions request shape. */
-  | "completions"
-  /** Newer responses request shape. */
-  | "responses";
-/**
- * Transport to be used for provider requests.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "ProviderEndpointTransport".
- */
-/** @experimental */
-export type ProviderEndpointTransport =
-  /** HTTP request/streaming transport. */
-  | "http"
-  /** WebSocket transport. */
-  | "websockets";
 /**
  * Optional model identifier to scope the endpoint snapshot to.
  *
@@ -4416,6 +4508,22 @@ export type SandboxConfigSource =
  */
 /** @experimental */
 export type SandboxHostCapabilityName = string;
+/**
+ * State of the persistent certificate authority of the sandbox credential proxy.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SandboxProxyCaState".
+ */
+/** @experimental */
+export type SandboxProxyCaState =
+  /** This platform has no supported OS trust store. The proxy uses a per-process certificate bundle. */
+  | "unsupported"
+  /** OS trust does not include the certificate authority, or none is stored. */
+  | "notInstalled"
+  /** OS trust includes the stored certificate authority. */
+  | "installed"
+  /** The runtime could not read the certificate authority or the OS trust store. */
+  | "error";
 /**
  * A session-scoped sandbox transition applied while handling a slash command
  *
@@ -9912,6 +10020,10 @@ export interface CurrentModel {
    */
   modelId?: string;
   /**
+   * Captured base model to restore when leaving plan mode. Omitted outside plan mode or when no plan override has captured a base model. Persistent agent model requirements apply to this model rather than the temporary plan model.
+   */
+  planBaseModelId?: string;
+  /**
    * Reasoning effort level currently applied to the active model, when one is set. Reads `Session.getReasoningEffort()` synchronously after `getSelectedModel()` resolves so the two values are reported as a snapshot.
    */
   reasoningEffort?: string;
@@ -9964,6 +10076,42 @@ export interface CurrentToolMetadata {
    * Whether the tool is loaded on demand via tool search
    */
   deferLoading?: boolean;
+}
+/**
+ * Result of one customization reload component.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CustomizationReloadOutcome".
+ */
+/** @experimental */
+export interface CustomizationReloadOutcome {
+  subsystem: CustomizationReloadSubsystem;
+  status: CustomizationReloadStatus;
+  /**
+   * Reason for a skipped component or description of a failure, when available
+   */
+  detail?: string | null;
+}
+/**
+ * Results of reloading discovered session customizations. Inspect outcomes for reloaded, skipped, or failed subsystems; a rejection may follow partial mutation. Changes to the model-facing prompt and tools apply on the next turn.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CustomizationsReloadResult".
+ */
+/** @experimental */
+export interface CustomizationsReloadResult {
+  /**
+   * Warnings from skill discovery
+   */
+  warnings: string[];
+  /**
+   * Errors from any component that could not be refreshed
+   */
+  errors: string[];
+  /**
+   * Outcome of each component in reload order; a skipped component was not configured or loaded
+   */
+  outcomes: CustomizationReloadOutcome[];
 }
 /**
  * A file included in the session debug bundle.
@@ -10416,6 +10564,230 @@ export interface McpSourcePlugin {
   version?: string;
 }
 /**
+ * A model offered for agent conversations. Missing capability metadata does not disqualify a candidate. Models known to be incompatible, such as embedding-only models, are excluded by the adapter.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "DiscoveredModel".
+ */
+/** @experimental */
+export interface DiscoveredModel {
+  /**
+   * Provider-native model identifier.
+   */
+  id: string;
+  /**
+   * Provider-reported display name.
+   */
+  name?: string;
+  provenance: ModelProviderProvenance;
+  /**
+   * Provider-reported artifact digest.
+   */
+  digest?: string;
+  /**
+   * Provider-reported last-modified timestamp.
+   */
+  modifiedAt?: string;
+  /**
+   * Provider-reported artifact size in bytes.
+   */
+  sizeBytes?: number;
+  details: ModelArtifactDetails;
+  capabilities: ModelCapabilities;
+  /**
+   * Non-fatal warnings encountered while enriching this model.
+   */
+  warnings: ModelProviderWarning[];
+}
+/**
+ * Attribution for the adapter that produced a provider row.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ModelProviderProvenance".
+ */
+/** @experimental */
+export interface ModelProviderProvenance {
+  /**
+   * Stable opaque adapter identity from the effective catalog. Treat this as a whole identifier, not a parseable owner or kind.
+   */
+  adapterId: string;
+  /**
+   * Descriptive provider family that produced this row; not a routing key.
+   */
+  providerKind: string;
+  source: ModelProviderProvenanceSource;
+  /**
+   * Stable contributor identifier when the adapter has an owner outside the runtime. Independent of the contribution mechanism and not a routing key.
+   */
+  ownerId?: string;
+  /**
+   * Human-readable contributor name, not the adapter display name.
+   */
+  ownerDisplayName?: string;
+}
+/**
+ * Provider-reported model artifact metadata.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ModelArtifactDetails".
+ */
+/** @experimental */
+export interface ModelArtifactDetails {
+  /**
+   * Artifact format, such as `gguf`.
+   */
+  format?: string;
+  /**
+   * Primary model family.
+   */
+  family?: string;
+  /**
+   * Provider-reported model families.
+   */
+  families?: string[];
+  /**
+   * Provider-reported parameter count label.
+   */
+  parameterSize?: string;
+  /**
+   * Provider-reported quantization label.
+   */
+  quantization?: string;
+  /**
+   * Provider-reported model architecture.
+   */
+  architecture?: string;
+  /**
+   * Provider-reported tokenizer.
+   */
+  tokenizer?: string;
+}
+/**
+ * Model capabilities and limits
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ModelCapabilities".
+ */
+/** @experimental */
+export interface ModelCapabilities {
+  supports?: ModelCapabilitiesSupports;
+  limits?: ModelCapabilitiesLimits;
+}
+/**
+ * Feature flags indicating what the model supports
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ModelCapabilitiesSupports".
+ */
+/** @experimental */
+export interface ModelCapabilitiesSupports {
+  /**
+   * Whether the model supports provider-native thinking. Independent of configurable reasoning effort; omission means unknown.
+   */
+  thinking?: boolean;
+  /**
+   * Whether this model supports vision/image input
+   */
+  vision?: boolean;
+  /**
+   * Whether this model supports canonical tool calling
+   */
+  toolCalls?: boolean;
+  /**
+   * Whether this model supports reasoning effort configuration
+   */
+  reasoningEffort?: boolean;
+  adaptive_thinking?: AdaptiveThinkingSupport;
+}
+/**
+ * Token limits for prompts, outputs, and context window
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ModelCapabilitiesLimits".
+ */
+/** @experimental */
+export interface ModelCapabilitiesLimits {
+  /**
+   * Maximum number of prompt/input tokens
+   */
+  max_prompt_tokens?: number;
+  /**
+   * Maximum number of output/completion tokens
+   */
+  max_output_tokens?: number;
+  /**
+   * Maximum total context window size in tokens
+   */
+  max_context_window_tokens?: number;
+  vision?: ModelCapabilitiesLimitsVision;
+}
+/**
+ * Vision-specific limits
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ModelCapabilitiesLimitsVision".
+ */
+/** @experimental */
+export interface ModelCapabilitiesLimitsVision {
+  /**
+   * MIME types the model accepts
+   */
+  supported_media_types: string[];
+  /**
+   * Maximum number of images per prompt
+   */
+  max_prompt_images: number;
+  /**
+   * Maximum image size in bytes
+   */
+  max_prompt_image_size: number;
+}
+/**
+ * A non-fatal provider observation warning.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ModelProviderWarning".
+ */
+/** @experimental */
+export interface ModelProviderWarning {
+  /**
+   * Machine-readable warning code.
+   */
+  code: string;
+  /**
+   * Human-readable warning message.
+   */
+  message: string;
+}
+/**
+ * Models offered for agent conversations by one provider instance. Adapters exclude known-incompatible models, but retain candidates with unknown capabilities. Listing does not guarantee compatibility.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "DiscoveredModelList".
+ */
+/** @experimental */
+export interface DiscoveredModelList {
+  outcome: ModelProviderOperationOutcome;
+  /**
+   * Provider-native models in provider order.
+   */
+  models: DiscoveredModel[];
+}
+/**
+ * Typed provider-operation outcome. Use the code for control flow and the optional message for display.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ModelProviderOperationOutcome".
+ */
+/** @experimental */
+export interface ModelProviderOperationOutcome {
+  code: ModelProviderOperationOutcomeCode;
+  /**
+   * Human-readable detail for non-success outcomes.
+   */
+  message?: string;
+}
+/**
  * Slash-prefixed command string to enqueue for FIFO processing.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -10443,38 +10815,6 @@ export interface UnsupportedEnqueueCommandResult {
    * Legacy null queue ID accepted for compatibility with older runtimes.
    */
   queueId?: null;
-}
-/**
- * OneAuth token request supplied by a trusted host application.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "EntraTokenAcquireRequest".
- */
-/** @experimental */
-export interface EntraTokenAcquireRequest {
-  /**
-   * Public client application id.
-   */
-  clientId: string;
-  /**
-   * Tenant id or tenant selector, such as common or organizations.
-   */
-  tenantId: string;
-  /**
-   * Broker redirect URI registered for the client. Required: the OneAuth broker validates a non-empty, registered redirect URI for the public client (MSAL broker registration), so this is not a browser-flow vestige and cannot be omitted.
-   */
-  redirectUri: string;
-  /**
-   * Exact delegated scopes to request.
-   *
-   * @minItems 1
-   */
-  scopes: [string, ...string[]];
-  interaction: EntraTokenInteraction;
-  /**
-   * Previously rejected token that OneAuth must bypass during renewal.
-   */
-  accessTokenToRenew?: string;
 }
 /**
  * Hosting capabilities and session capacity advertised by an environment.
@@ -16567,82 +16907,6 @@ export interface Model {
   provider?: ModelProviderRef;
 }
 /**
- * Model capabilities and limits
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "ModelCapabilities".
- */
-/** @experimental */
-export interface ModelCapabilities {
-  supports?: ModelCapabilitiesSupports;
-  limits?: ModelCapabilitiesLimits;
-}
-/**
- * Feature flags indicating what the model supports
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "ModelCapabilitiesSupports".
- */
-/** @experimental */
-export interface ModelCapabilitiesSupports {
-  /**
-   * Whether this model supports vision/image input
-   */
-  vision?: boolean;
-  /**
-   * Whether this model supports canonical tool calling
-   */
-  toolCalls?: boolean;
-  /**
-   * Whether this model supports reasoning effort configuration
-   */
-  reasoningEffort?: boolean;
-  adaptive_thinking?: AdaptiveThinkingSupport;
-}
-/**
- * Token limits for prompts, outputs, and context window
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "ModelCapabilitiesLimits".
- */
-/** @experimental */
-export interface ModelCapabilitiesLimits {
-  /**
-   * Maximum number of prompt/input tokens
-   */
-  max_prompt_tokens?: number;
-  /**
-   * Maximum number of output/completion tokens
-   */
-  max_output_tokens?: number;
-  /**
-   * Maximum total context window size in tokens
-   */
-  max_context_window_tokens?: number;
-  vision?: ModelCapabilitiesLimitsVision;
-}
-/**
- * Vision-specific limits
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "ModelCapabilitiesLimitsVision".
- */
-/** @experimental */
-export interface ModelCapabilitiesLimitsVision {
-  /**
-   * MIME types the model accepts
-   */
-  supported_media_types: string[];
-  /**
-   * Maximum number of images per prompt
-   */
-  max_prompt_images: number;
-  /**
-   * Maximum image size in bytes
-   */
-  max_prompt_image_size: number;
-}
-/**
  * Policy state (if applicable)
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -17021,6 +17285,285 @@ export interface ModelPickerSettingsContext {
   environment: {};
 }
 /**
+ * Normalized model-provider adapter definitions available to the session, not discovered instances.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ModelProviderAdapterCatalog".
+ */
+/** @experimental */
+export interface ModelProviderAdapterCatalog {
+  /**
+   * Available provider adapters ordered by adapterId.
+   */
+  providers: ModelProviderAdapterDescriptor[];
+}
+/**
+ * A normalized model-provider adapter in the session's effective catalog.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ModelProviderAdapterDescriptor".
+ */
+/** @experimental */
+export interface ModelProviderAdapterDescriptor {
+  /**
+   * Stable opaque identity for routing to this adapter. Unique in the effective catalog, independent of live registration generations.
+   */
+  adapterId: string;
+  /**
+   * Descriptive provider family, such as `ollama`. Different adapters may have the same family; use adapterId for routing.
+   */
+  providerKind: string;
+  /**
+   * Human-readable provider name.
+   */
+  displayName: string;
+  provenance: ModelProviderAttribution;
+  automaticDiscovery: ModelProviderAutomaticDiscoveryPolicy;
+  /**
+   * Operations supported by this provider adapter.
+   */
+  operations: ModelProviderAdapterOperationDescriptor[];
+}
+/**
+ * Contributor attribution, independent of routing identity and authorization.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ModelProviderAttribution".
+ */
+/** @experimental */
+export interface ModelProviderAttribution {
+  source: ModelProviderProvenanceSource;
+  /**
+   * Stable contributor identifier. Required and nonblank for extension and custom sources; optional for built-in and configured sources. Does not grant authority.
+   */
+  ownerId?: string;
+  /**
+   * Human-readable contributor name, not the adapter display name.
+   */
+  ownerDisplayName?: string;
+}
+/**
+ * Adapter-declared policy that tells clients whether discovery may run automatically.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ModelProviderAutomaticDiscoveryPolicy".
+ */
+/** @experimental */
+export interface ModelProviderAutomaticDiscoveryPolicy {
+  mode: ModelProviderAutomaticDiscoveryMode;
+  networkScope: ModelProviderDiscoveryNetworkScope;
+  /**
+   * True when discovery requires non-null caller input. Omission or null is rejected before adapter execution. When false, omitted or null input selects adapter defaults without schema validation.
+   */
+  requiresInput: boolean;
+  /**
+   * True when the adapter must be enabled by a trusted owner, such as a trusted extension, before automatic discovery may run.
+   */
+  requiresTrust: boolean;
+}
+/**
+ * An operation supported by a model-provider adapter.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ModelProviderAdapterOperationDescriptor".
+ */
+/** @experimental */
+export interface ModelProviderAdapterOperationDescriptor {
+  /**
+   * Supported operation name: `discover`, `getStatus`, or `models.list`. Unknown names and duplicate declarations are rejected.
+   */
+  name: string;
+  /**
+   * Optional self-contained JSON Schema Draft 7 for non-null discovery input. Only supported on discover. No external references are resolved. Omitted or null input selects defaults when requiresInput is false. Without a schema, the adapter validates supplied input.
+   */
+  inputSchema?: JsonValue;
+}
+/**
+ * Provider configuration prepared from a discovered model. Preparing a plan changes nothing: it neither registers the model with the session nor writes durable configuration. To apply it, pass `provider` and `model` to `session.provider.add`, omitting whichever the dispositions report as already configured.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ModelProviderConfigurationPlan".
+ */
+/** @experimental */
+export interface ModelProviderConfigurationPlan {
+  provider: NamedProviderConfig;
+  model: ProviderModelConfig;
+  /**
+   * Provider-qualified selection id (`provider/id`) to pass to `switchTo` once the plan is applied.
+   */
+  selectionId: string;
+  providerDisposition: ModelProviderConfigurationDisposition;
+  modelDisposition: ModelProviderConfigurationDisposition;
+  /**
+   * Non-fatal warnings carried over from the discovered model, such as capabilities the provider did not report.
+   */
+  warnings: ModelProviderWarning[];
+}
+/**
+ * External SDK input for a named custom model provider. Ingested by the native protocol boundary before host dispatch.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "NamedProviderConfig".
+ */
+/** @experimental */
+export interface NamedProviderConfig {
+  /**
+   * Unique provider name used to qualify model selection IDs.
+   */
+  name: string;
+  type?: ProviderConfigType;
+  wireApi?: ProviderConfigWireApi;
+  transport?: ProviderConfigTransport;
+  /**
+   * Base URL for provider API requests.
+   */
+  baseUrl: string;
+  /**
+   * Static API key used to authenticate provider requests.
+   */
+  apiKey?: string;
+  /**
+   * Static bearer token used to authenticate provider requests.
+   */
+  bearerToken?: string;
+  azure?: ProviderConfigAzure;
+  /**
+   * Additional HTTP headers included with provider requests.
+   */
+  headers?: {
+    [k: string]: string | undefined;
+  };
+  modelProvider?: ProviderConfigModelProvider;
+  /**
+   * Whether the host supplies bearer tokens dynamically.
+   */
+  hasBearerTokenProvider?: boolean;
+}
+/**
+ * Azure-specific provider options.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ProviderConfigAzure".
+ */
+/** @experimental */
+export interface ProviderConfigAzure {
+  /**
+   * API version. When set, uses the versioned deployment route. When omitted, uses the GA versionless v1 route.
+   */
+  apiVersion?: string;
+}
+/**
+ * A BYOK model definition referencing a named provider.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ProviderModelConfig".
+ */
+/** @experimental */
+export interface ProviderModelConfig {
+  /**
+   * Provider-local model id, unique within its provider. The session-wide selection id (shown in the model list and passed to switchTo) is the provider-qualified `provider/id`.
+   */
+  id: string;
+  /**
+   * Name of the configured provider that serves this model.
+   */
+  provider: string;
+  /**
+   * The model name sent to the provider API for inference. Defaults to `id`.
+   */
+  wireModel?: string;
+  /**
+   * Well-known base model id used for behavior/capability/config lookup. Defaults to `id`.
+   */
+  modelId?: string;
+  /**
+   * Display name for model pickers. Defaults to the provider-qualified selection id (`provider/id`).
+   */
+  name?: string;
+  /**
+   * Maximum prompt/input tokens for the model.
+   */
+  maxPromptTokens?: number;
+  /**
+   * Maximum context window tokens for the model.
+   */
+  maxContextWindowTokens?: number;
+  /**
+   * Maximum output tokens for the model.
+   */
+  maxOutputTokens?: number;
+  capabilities?: ModelCapabilitiesOverride;
+  systemMessage?: ProtocolSystemMessageConfig;
+  /**
+   * Provider-published model metadata, preserved verbatim as the public Model.metadata object.
+   */
+  metadata?: {
+    [k: string]: JsonValue | undefined;
+  };
+}
+
+/** @experimental */
+export interface ProtocolSystemMessageAppendConfig {
+  mode?: ProtocolAppendMode;
+  /**
+   * Text appended to the standard system prompt.
+   */
+  content?: string;
+}
+
+/** @experimental */
+export interface ProtocolSystemMessageReplaceConfig {
+  mode: ProtocolReplaceMode;
+  /**
+   * Complete replacement system-message text.
+   */
+  content: string;
+  /**
+   * Optional structured blocks corresponding to the replacement content.
+   */
+  contentBlocks?: SystemMessageBlock[];
+}
+
+/** @experimental */
+export interface SystemMessageBlock {
+  /**
+   * Text content for this system-message block.
+   */
+  content: string;
+  /**
+   * Whether the block is static and may be cached independently of dynamic prompt content.
+   */
+  isStatic?: boolean;
+  /**
+   * Whether providers with explicit prompt caching should place a cache breakpoint after this block.
+   */
+  cacheBreakpoint?: boolean;
+}
+
+/** @experimental */
+export interface ProtocolSystemMessageCustomizeConfig {
+  mode: ProtocolCustomizeMode;
+  /**
+   * Named standard-prompt section overrides.
+   */
+  sections?: {
+    [k: string]: ProtocolSectionOverride | undefined;
+  };
+  /**
+   * Text appended after the customized sections.
+   */
+  content?: string;
+}
+
+/** @experimental */
+export interface ProtocolStaticSectionOverride {
+  action: ProtocolStaticSectionAction;
+  /**
+   * Optional content used by replace, append, and prepend operations.
+   */
+  content?: string;
+}
+/**
  * One model provider available to the session — the model analog of the account `ProviderDescriptor`. Opaque id/label/kind plus a stable ordering; central code never branches on kind.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -17041,6 +17584,134 @@ export interface ModelProviderDescriptor {
    * Stable ordering key for presenting providers in a deterministic sequence.
    */
   ordering: number;
+}
+/**
+ * Provider discovery parameters.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ModelProviderDiscoverRequest".
+ */
+/** @experimental */
+export interface ModelProviderDiscoverRequest {
+  /**
+   * Opaque adapter identity returned by `session.providers.getCatalog`.
+   */
+  adapterId: string;
+  /**
+   * Provider-specific JSON input. Omission or null selects adapter defaults unless requiresInput is true. Non-null input is validated against the advertised Draft 7 schema when present; otherwise validation belongs to the adapter.
+   */
+  input?: JsonValue;
+}
+/**
+ * Provider instances found by a discovery operation.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ModelProviderDiscoverResult".
+ */
+/** @experimental */
+export interface ModelProviderDiscoverResult {
+  outcome: ModelProviderOperationOutcome;
+  /**
+   * Discovered provider instances. Empty when passive default discovery finds no reachable provider.
+   */
+  instances: ModelProviderInstance[];
+}
+/**
+ * A normalized model-provider instance discovered by the runtime.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ModelProviderInstance".
+ */
+/** @experimental */
+export interface ModelProviderInstance {
+  reference: ModelProviderInstanceReference;
+  /**
+   * Human-readable instance name.
+   */
+  displayName: string;
+  provenance: ModelProviderProvenance;
+  /**
+   * Inference API endpoint when the provider exposes one separately from its management endpoint.
+   */
+  inferenceEndpoint?: string;
+  inferenceType?: ProviderEndpointType;
+  inferenceWireApi?: ProviderEndpointWireApi;
+  inferenceTransport?: ProviderEndpointTransport;
+}
+/**
+ * Serializable reference to a discovered provider instance.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ModelProviderInstanceReference".
+ */
+/** @experimental */
+export interface ModelProviderInstanceReference {
+  /**
+   * Stable opaque identity of the adapter that owns this reference. Must be present in the target session's effective catalog.
+   */
+  adapterId: string;
+  /**
+   * Descriptive provider family. Must match the selected adapter; not a routing key.
+   */
+  providerKind: string;
+  /**
+   * Stable instance identifier derived by the provider adapter, such as `ollama:{normalizedEndpoint}`.
+   */
+  id: string;
+  /**
+   * Absolute provider management URI. The adapter validates normalization, supported schemes, and permission to access it against its bound configuration; a reference does not grant authority.
+   */
+  managementEndpoint: string;
+}
+/**
+ * Provider status request parameters.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ModelProviderGetStatusRequest".
+ */
+/** @experimental */
+export interface ModelProviderGetStatusRequest {
+  instance: ModelProviderInstanceReference;
+}
+/**
+ * Provider model inventory request parameters.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ModelProviderModelsListRequest".
+ */
+/** @experimental */
+export interface ModelProviderModelsListRequest {
+  instance: ModelProviderInstanceReference;
+}
+/**
+ * A discovered instance and one of its models to translate into provider configuration. Pass back the instance and model as returned by `session.providers.discover` and `session.providers.models.list`.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ModelProviderPrepareConfigurationRequest".
+ */
+/** @experimental */
+export interface ModelProviderPrepareConfigurationRequest {
+  instance: ModelProviderInstance;
+  model: DiscoveredModel;
+}
+/**
+ * Current health information for a provider instance.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ModelProviderStatus".
+ */
+/** @experimental */
+export interface ModelProviderStatus {
+  outcome: ModelProviderOperationOutcome;
+  instance: ModelProviderInstance;
+  /**
+   * Open provider status value, such as `healthy`, `unreachable`, or `notInstalled`.
+   */
+  status: string;
+  /**
+   * Provider-reported version.
+   */
+  version?: string;
 }
 /**
  * Host-supplied exact model selection IDs to allow for this running session. CAPI IDs are intersected with repository `.github/allowed_models.txt` policy; provider-qualified IDs remain exempt from repository-only policy but are restricted by this host list. Omit or pass null to clear the host restriction; an explicit empty or disjoint list is rejected. Validation and pre-selection fallback failures preserve the previous restriction. Failures after a fallback selection commits retain the new restriction and selected model; callers should inspect current session state after such an error.
@@ -17367,58 +18038,6 @@ export interface MoveMcpLoadingToBackgroundResult {
    * Whether an in-flight MCP load was moved to the background, releasing turns that were waiting on it. False when no MCP load was in flight or the waiting turns had already been released.
    */
   movedToBackground: boolean;
-}
-/**
- * External SDK input for a named custom model provider. Ingested by the native protocol boundary before host dispatch.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "NamedProviderConfig".
- */
-/** @experimental */
-export interface NamedProviderConfig {
-  /**
-   * Unique provider name used to qualify model selection IDs.
-   */
-  name: string;
-  type?: ProviderConfigType;
-  wireApi?: ProviderConfigWireApi;
-  transport?: ProviderConfigTransport;
-  /**
-   * Base URL for provider API requests.
-   */
-  baseUrl: string;
-  /**
-   * Static API key used to authenticate provider requests.
-   */
-  apiKey?: string;
-  /**
-   * Static bearer token used to authenticate provider requests.
-   */
-  bearerToken?: string;
-  azure?: ProviderConfigAzure;
-  /**
-   * Additional HTTP headers included with provider requests.
-   */
-  headers?: {
-    [k: string]: string | undefined;
-  };
-  /**
-   * Whether the host supplies bearer tokens dynamically.
-   */
-  hasBearerTokenProvider?: boolean;
-}
-/**
- * Azure-specific provider options.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "ProviderConfigAzure".
- */
-/** @experimental */
-export interface ProviderConfigAzure {
-  /**
-   * API version. When set, uses the versioned deployment route. When omitted, uses the GA versionless v1 route.
-   */
-  apiVersion?: string;
 }
 /**
  * The session's friendly name, or null when not yet set.
@@ -19557,68 +20176,6 @@ export interface ProtocolExternalToolDefinition {
     [k: string]: JsonValue | undefined;
   };
 }
-
-/** @experimental */
-export interface ProtocolStaticSectionOverride {
-  action: ProtocolStaticSectionAction;
-  /**
-   * Optional content used by replace, append, and prepend operations.
-   */
-  content?: string;
-}
-
-/** @experimental */
-export interface ProtocolSystemMessageAppendConfig {
-  mode?: ProtocolAppendMode;
-  /**
-   * Text appended to the standard system prompt.
-   */
-  content?: string;
-}
-
-/** @experimental */
-export interface ProtocolSystemMessageReplaceConfig {
-  mode: ProtocolReplaceMode;
-  /**
-   * Complete replacement system-message text.
-   */
-  content: string;
-  /**
-   * Optional structured blocks corresponding to the replacement content.
-   */
-  contentBlocks?: SystemMessageBlock[];
-}
-
-/** @experimental */
-export interface SystemMessageBlock {
-  /**
-   * Text content for this system-message block.
-   */
-  content: string;
-  /**
-   * Whether the block is static and may be cached independently of dynamic prompt content.
-   */
-  isStatic?: boolean;
-  /**
-   * Whether providers with explicit prompt caching should place a cache breakpoint after this block.
-   */
-  cacheBreakpoint?: boolean;
-}
-
-/** @experimental */
-export interface ProtocolSystemMessageCustomizeConfig {
-  mode: ProtocolCustomizeMode;
-  /**
-   * Named standard-prompt section overrides.
-   */
-  sections?: {
-    [k: string]: ProtocolSectionOverride;
-  };
-  /**
-   * Text appended after the customized sections.
-   */
-  content?: string;
-}
 /**
  * BYOK providers and/or models to add to the session's registry at runtime. Both fields are optional; provide providers, models, or both.
  *
@@ -19635,55 +20192,6 @@ export interface ProviderAddRequest {
    * BYOK model definitions to register. Each must reference a provider that is already registered or included in this same call. Selection ids (`provider/id`) must be unique across the registry.
    */
   models?: ProviderModelConfig[];
-}
-/**
- * A BYOK model definition referencing a named provider.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "ProviderModelConfig".
- */
-/** @experimental */
-export interface ProviderModelConfig {
-  /**
-   * Provider-local model id, unique within its provider. The session-wide selection id (shown in the model list and passed to switchTo) is the provider-qualified `provider/id`.
-   */
-  id: string;
-  /**
-   * Name of the configured provider that serves this model.
-   */
-  provider: string;
-  /**
-   * The model name sent to the provider API for inference. Defaults to `id`.
-   */
-  wireModel?: string;
-  /**
-   * Well-known base model id used for behavior/capability/config lookup. Defaults to `id`.
-   */
-  modelId?: string;
-  /**
-   * Display name for model pickers. Defaults to the provider-qualified selection id (`provider/id`).
-   */
-  name?: string;
-  /**
-   * Maximum prompt/input tokens for the model.
-   */
-  maxPromptTokens?: number;
-  /**
-   * Maximum context window tokens for the model.
-   */
-  maxContextWindowTokens?: number;
-  /**
-   * Maximum output tokens for the model.
-   */
-  maxOutputTokens?: number;
-  capabilities?: ModelCapabilitiesOverride;
-  systemMessage?: ProtocolSystemMessageConfig;
-  /**
-   * Provider-published model metadata, preserved verbatim as the public Model.metadata object.
-   */
-  metadata?: {
-    [k: string]: JsonValue | undefined;
-  };
 }
 /**
  * The selectable model entries synthesized for the models added by this call.
@@ -19731,6 +20239,7 @@ export interface ProviderConfig {
    * Provider name used for model and telemetry attribution.
    */
   providerName?: string;
+  modelProvider?: ProviderConfigModelProvider;
   /**
    * The model identifier sent to the provider API for inference (the "wire" model), as opposed to modelId which is the well-known base.
    */
@@ -21586,6 +22095,47 @@ export interface SandboxHostSupport {
   capabilities: SandboxHostCapability[];
 }
 /**
+ * Result of creating the persistent certificate authority of the sandbox credential proxy.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SandboxProxyCaCreateResult".
+ */
+/** @experimental */
+export interface SandboxProxyCaCreateResult {
+  /**
+   * Absolute path of the public certificate of the certificate authority, in PEM format.
+   */
+  certificatePath: string;
+}
+/**
+ * Identifies the credential hosts that the persistent certificate authority of the sandbox credential proxy must cover. The runtime always adds the hosts from the saved user settings.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SandboxProxyCaRequest".
+ */
+/** @experimental */
+export interface SandboxProxyCaRequest {
+  sandboxConfig?: SandboxConfig;
+}
+/**
+ * Status of the persistent certificate authority of the sandbox credential proxy.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SandboxProxyCaStatus".
+ */
+/** @experimental */
+export interface SandboxProxyCaStatus {
+  state: SandboxProxyCaState;
+  /**
+   * Human-readable reason for the state. On `installed` or `notInstalled`, present only when the certificate authority must be rotated, and then says why.
+   */
+  detail?: string;
+  /**
+   * Whether this process can add the certificate authority to OS trust without credentials from a different user. False where OS trust is unsupported, and on Windows when the process cannot elevate itself to write the machine trust store. When false, do not offer to set up the certificate authority.
+   */
+  canInstall: boolean;
+}
+/**
  * Register an absolute-time scheduled prompt.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -22282,6 +22832,10 @@ export interface SessionFsError {
    * Free-form detail about the error, for logging/diagnostics
    */
   message?: string;
+  /**
+   * For failed writeFile requests only: true if the provider changed the target before failing. Omit when unknown or unchanged.
+   */
+  writeChanged?: boolean;
 }
 /**
  * Path to test for existence in the client-provided session filesystem.
@@ -22415,6 +22969,37 @@ export interface SessionFsReaddirWithTypesResult {
   error?: SessionFsError;
 }
 /**
+ * Path of the binary file to read from the client-provided session filesystem.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionFsReadFileBytesRequest".
+ */
+/** @experimental */
+export interface SessionFsReadFileBytesRequest {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  /**
+   * Path using SessionFs conventions
+   */
+  path: string;
+}
+/**
+ * File bytes as standard base64, or a filesystem error if the read failed.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionFsReadFileBytesResult".
+ */
+/** @experimental */
+export interface SessionFsReadFileBytesResult {
+  /**
+   * Exact file bytes encoded as standard base64
+   */
+  content: string;
+  error?: SessionFsError;
+}
+/**
  * Path of the file to read from the client-provided session filesystem.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -22503,6 +23088,10 @@ export interface SessionFsSetProviderCapabilities {
    * Whether the provider supports SQLite query/exists operations
    */
   sqlite?: boolean;
+  /**
+   * Whether the provider supports binary reads and writes through sessionFs.readFileBytes and sessionFs.writeFileBytes
+   */
+  binary?: boolean;
 }
 /**
  * Initial working directory, session-state path layout, and path conventions used to register the calling SDK client as the session filesystem provider. A registered provider is authoritative for path interpretation and filesystem facts used by workspace permission validation. Paths are interpreted lexically; home-relative paths (`~` and `~/...`) and Windows drive-relative paths such as `C:foo` are unsupported. Until provider-side canonicalization is supported, providers must not expose symlinks inside allowed roots that escape those roots.
@@ -22712,6 +23301,31 @@ export interface SessionFsStatResult {
    */
   birthtime: string;
   error?: SessionFsError;
+}
+/**
+ * File path, standard-base64-encoded bytes to write, and optional mode for the client-provided session filesystem.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionFsWriteFileBytesRequest".
+ */
+/** @experimental */
+export interface SessionFsWriteFileBytesRequest {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  /**
+   * Path using SessionFs conventions
+   */
+  path: string;
+  /**
+   * Exact file bytes encoded as standard base64
+   */
+  content: string;
+  /**
+   * Optional POSIX-style mode for newly created files
+   */
+  mode?: number;
 }
 /**
  * File path, content to write, and optional mode for the client-provided session filesystem.
@@ -30012,6 +30626,52 @@ export function createServerRpc(connection: MessageConnection) {
              */
             getHostSupport: async (): Promise<SandboxHostSupport> =>
                 connection.sendRequest("sandbox.getHostSupport", {}),
+            /** @experimental */
+            proxyCa: {
+                /**
+                 * Reports whether the persistent certificate authority of the sandbox credential proxy exists, whether OS trust includes it, and whether it must be rotated. Changes nothing.
+                 *
+                 * @param params Identifies the credential hosts that the persistent certificate authority of the sandbox credential proxy must cover. The runtime always adds the hosts from the saved user settings.
+                 *
+                 * @returns Status of the persistent certificate authority of the sandbox credential proxy.
+                 */
+                getStatus: async (params: SandboxProxyCaRequest): Promise<SandboxProxyCaStatus> =>
+                    connection.sendRequest("sandbox.proxyCa.getStatus", params),
+                /**
+                 * Creates the persistent certificate authority of the sandbox credential proxy if none is stored, without changing OS trust, and returns the path of its public certificate. Keeps an existing certificate authority, even one that must be rotated. Fails where OS trust is unsupported. Trust it with sandbox.proxyCa.trust: the CLI trusts only the hosts in the saved user settings, so it refuses a certificate authority that also covers hosts from sandboxConfig.
+                 *
+                 * @param params Identifies the credential hosts that the persistent certificate authority of the sandbox credential proxy must cover. The runtime always adds the hosts from the saved user settings.
+                 *
+                 * @returns Result of creating the persistent certificate authority of the sandbox credential proxy.
+                 */
+                create: async (params: SandboxProxyCaRequest): Promise<SandboxProxyCaCreateResult> =>
+                    connection.sendRequest("sandbox.proxyCa.create", params),
+                /**
+                 * Replaces the persistent certificate authority of the sandbox credential proxy with a new one for the current credential hosts. If OS trust included the old one, removes it and trusts the new one, which can show an OS authentication prompt. Running sandboxed tools keep the old certificate authority until they restart.
+                 *
+                 * @param params Identifies the credential hosts that the persistent certificate authority of the sandbox credential proxy must cover. The runtime always adds the hosts from the saved user settings.
+                 *
+                 * @returns Status of the persistent certificate authority of the sandbox credential proxy.
+                 */
+                rotate: async (params: SandboxProxyCaRequest): Promise<SandboxProxyCaStatus> =>
+                    connection.sendRequest("sandbox.proxyCa.rotate", params),
+                /**
+                 * Adds the persistent certificate authority of the sandbox credential proxy to OS trust, so sandboxed clients that read only OS trust accept the proxy. Call create first. Refuses a certificate authority that is not constrained to the current credential hosts. Can show an OS authentication prompt.
+                 *
+                 * @param params Identifies the credential hosts that the persistent certificate authority of the sandbox credential proxy must cover. The runtime always adds the hosts from the saved user settings.
+                 *
+                 * @returns Status of the persistent certificate authority of the sandbox credential proxy.
+                 */
+                trust: async (params: SandboxProxyCaRequest): Promise<SandboxProxyCaStatus> =>
+                    connection.sendRequest("sandbox.proxyCa.trust", params),
+                /**
+                 * Removes the persistent certificate authority of the sandbox credential proxy from OS trust. Keeps the stored certificate authority. Can show an OS authentication prompt. Sandboxed clients that read only OS trust then reject the proxy; clients that read the per-process certificate bundle continue to work.
+                 *
+                 * @returns Status of the persistent certificate authority of the sandbox credential proxy.
+                 */
+                remove: async (): Promise<SandboxProxyCaStatus> =>
+                    connection.sendRequest("sandbox.proxyCa.remove", {}),
+            },
         },
         /** @experimental */
         tools: {
@@ -31052,24 +31712,61 @@ export function createInternalServerRpc(connection: MessageConnection) {
             configureSessionExtensions: async (params: ConfigureSessionExtensionsParams): Promise<void> =>
                 connection.sendRequest("sessions.configureSessionExtensions", params),
         },
-        /** @experimental */
-        accounts: {
-            /**
-             * Acquire a Microsoft Entra access token through the runtime's OneAuth broker. Account-scoped because it uses the same native broker as the account stack: a trusted host application mints a scoped Entra token for its own use, most notably to authenticate to a remote MCP server whose authorization server is Entra ID (in place of the generic browser-OAuth flow).
-             *
-             * @param params OneAuth token request supplied by a trusted host application.
-             *
-             * @returns Result of a OneAuth token acquisition.
-             */
-            acquireEntraToken: async (params: EntraTokenAcquireRequest): Promise<EntraTokenAcquireResult> =>
-                connection.sendRequest("accounts.acquireEntraToken", params),
-        },
     };
 }
 
 /** Create typed session-scoped RPC methods. */
 export function createSessionRpc(connection: MessageConnection, sessionId: string) {
     return {
+        /** @experimental */
+        providers: {
+            /**
+             * Returns adapter definitions and supported operations in this session's effective provider catalog, without running discovery. Does not list provider instances or select inference models.
+             *
+             * @returns Normalized model-provider adapter definitions available to the session, not discovered instances.
+             */
+            getCatalog: async (): Promise<ModelProviderAdapterCatalog> =>
+                connection.sendRequest("session.providers.getCatalog", { sessionId }),
+            /**
+             * Discovers reachable instances using an adapter from this session's effective provider catalog and provider-specific discovery input.
+             *
+             * @param params Provider discovery parameters.
+             *
+             * @returns Provider instances found by a discovery operation.
+             */
+            discover: async (params: ModelProviderDiscoverRequest): Promise<ModelProviderDiscoverResult> =>
+                connection.sendRequest("session.providers.discover", { ...params, sessionId }),
+            /**
+             * Gets current health and version information for a discovered model-provider instance.
+             *
+             * @param params Provider status request parameters.
+             *
+             * @returns Current health information for a provider instance.
+             */
+            getStatus: async (params: ModelProviderGetStatusRequest): Promise<ModelProviderStatus> =>
+                connection.sendRequest("session.providers.getStatus", { ...params, sessionId }),
+            /** @experimental */
+            models: {
+                /**
+                 * Lists models installed or otherwise available from a discovered model-provider instance.
+                 *
+                 * @param params Provider model inventory request parameters.
+                 *
+                 * @returns Models offered for agent conversations by one provider instance. Adapters exclude known-incompatible models, but retain candidates with unknown capabilities. Listing does not guarantee compatibility.
+                 */
+                list: async (params: ModelProviderModelsListRequest): Promise<DiscoveredModelList> =>
+                    connection.sendRequest("session.providers.models.list", { ...params, sessionId }),
+                /**
+                 * Translates a discovered model into the provider and model configuration needed to use it, and reports whether each is already registered in this session. Prepares only: it registers nothing, writes nothing, and performs no provider requests.
+                 *
+                 * @param params A discovered instance and one of its models to translate into provider configuration. Pass back the instance and model as returned by `session.providers.discover` and `session.providers.models.list`.
+                 *
+                 * @returns Provider configuration prepared from a discovered model. Preparing a plan changes nothing: it neither registers the model with the session nor writes durable configuration. To apply it, pass `provider` and `model` to `session.provider.add`, omitting whichever the dispositions report as already configured.
+                 */
+                prepareConfiguration: async (params: ModelProviderPrepareConfigurationRequest): Promise<ModelProviderConfigurationPlan> =>
+                    connection.sendRequest("session.providers.models.prepareConfiguration", { ...params, sessionId }),
+            },
+        },
         /**
          * Suspends the session while preserving persisted state for later resume.
          *
@@ -31753,19 +32450,21 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
             getSources: async (): Promise<InstructionsGetSourcesResult> =>
                 connection.sendRequest("session.instructions.getSources", { sessionId }),
             /**
-             * Invalidates cached custom-instruction discovery so subsequent turns and source reads observe instruction files currently on disk.
+             * For local sessions, invalidates instruction discovery and the model-facing prompt, then returns freshly discovered sources. The updated prompt takes effect on the next turn. Remote sessions must reload on their agent host instead.
+             *
+             * @returns Instruction sources loaded for the session, in merge order.
              */
-            reload: async (): Promise<void> =>
+            reload: async (): Promise<InstructionsGetSourcesResult> =>
                 connection.sendRequest("session.instructions.reload", { sessionId }),
         },
         /** @experimental */
         customizations: {
             /**
-             * Reloads all repository and user customizations for the active session: instructions, plugins and their MCP servers and hooks, custom agents, extensions, and skills. Returns diagnostics from the final skill reload.
+             * For local sessions, reconciles repository context and discovered instructions, plugins, skills, agents, hooks, MCP servers, and extensions after files appear or change under the working directory. Independent component failures are returned in outcomes and errors; a rejected call can have partially applied earlier steps. Remote sessions must reload on their agent host instead. The model-facing context is rebuilt on the next turn.
              *
-             * @returns Diagnostics from reloading skill definitions, with warnings and errors as separate lists.
+             * @returns Results of reloading discovered session customizations. Inspect outcomes for reloaded, skipped, or failed subsystems; a rejection may follow partial mutation. Changes to the model-facing prompt and tools apply on the next turn.
              */
-            reload: async (): Promise<SkillsLoadDiagnostics> =>
+            reload: async (): Promise<CustomizationsReloadResult> =>
                 connection.sendRequest("session.customizations.reload", { sessionId }),
         },
         /** @experimental */
@@ -33690,6 +34389,36 @@ export function createInternalSessionRpc(connection: MessageConnection, sessionI
                 connection.sendRequest("session.commands.finalizeInvocationEffect", { ...params, sessionId }),
         },
         /** @experimental */
+        ui: {
+            /**
+             * Resolves a pending elicitation request after direct interaction in the trusted in-process client. Only an accepted response to the built-in ask_user tool can become trusted human evidence.
+             *
+             * @param params Pending elicitation request ID and the user's response (accept/decline/cancel + form values).
+             *
+             * @returns Indicates whether the elicitation response was accepted; false if it was already resolved by another client.
+             */
+            handleHumanAskUser: async (params: UIHandlePendingElicitationRequest): Promise<UIElicitationResult> =>
+                connection.sendRequest("session.ui.handleHumanAskUser", { ...params, sessionId }),
+            /**
+             * Resolves a pending `user_input.requested` event after direct interaction in the trusted in-process client.
+             *
+             * @param params Request ID of a pending `user_input.requested` event and the user's response.
+             *
+             * @returns Indicates whether the pending UI request was resolved by this call.
+             */
+            handleHumanUserInput: async (params: UIHandlePendingUserInputRequest): Promise<UIHandlePendingResult> =>
+                connection.sendRequest("session.ui.handleHumanUserInput", { ...params, sessionId }),
+            /**
+             * Resolves a pending `exit_plan_mode.requested` event after direct interaction in the trusted in-process client.
+             *
+             * @param params Request ID of a pending `exit_plan_mode.requested` event and the user's response.
+             *
+             * @returns Indicates whether the pending UI request was resolved by this call.
+             */
+            handleHumanExitPlanMode: async (params: UIHandlePendingExitPlanModeRequest): Promise<UIHandlePendingResult> =>
+                connection.sendRequest("session.ui.handleHumanExitPlanMode", { ...params, sessionId }),
+        },
+        /** @experimental */
         settings: {
             /**
              * Returns a redacted snapshot of session runtime settings, with secrets and raw feature flags excluded. Internal: the runtime settings shape is a runtime-internal surface and is deliberately kept out of the public SDK, because consumers should not depend on the runtime's internal settings layout. It remains callable in-process and is expected to be reworked as the runtime internals are consolidated.
@@ -33893,6 +34622,14 @@ export interface SessionFsHandler {
      */
     readFile(params: SessionFsReadFileRequest): Promise<SessionFsReadFileResult>;
     /**
+     * Reads binary file content from the client-provided session filesystem.
+     *
+     * @param params Path of the binary file to read from the client-provided session filesystem.
+     *
+     * @returns File bytes as standard base64, or a filesystem error if the read failed.
+     */
+    readFileBytes(params: SessionFsReadFileBytesRequest): Promise<SessionFsReadFileBytesResult>;
+    /**
      * Writes a file in the client-provided session filesystem.
      *
      * @param params File path, content to write, and optional mode for the client-provided session filesystem.
@@ -33900,6 +34637,14 @@ export interface SessionFsHandler {
      * @returns Describes a filesystem error.
      */
     writeFile(params: SessionFsWriteFileRequest): Promise<SessionFsError | undefined>;
+    /**
+     * Writes binary file content to the client-provided session filesystem.
+     *
+     * @param params File path, standard-base64-encoded bytes to write, and optional mode for the client-provided session filesystem.
+     *
+     * @returns Describes a filesystem error.
+     */
+    writeFileBytes(params: SessionFsWriteFileBytesRequest): Promise<SessionFsError | undefined>;
     /**
      * Appends content to a file in the client-provided session filesystem, creating parent directories as needed.
      *
@@ -34061,10 +34806,20 @@ export function registerClientSessionApiHandlers(
         if (!handler) throw new Error(`No sessionFs handler registered for session: ${params.sessionId}`);
         return handler.readFile(params);
     });
+    connection.onRequest("sessionFs.readFileBytes", async (params: SessionFsReadFileBytesRequest) => {
+        const handler = getHandlers(params.sessionId).sessionFs;
+        if (!handler) throw new Error(`No sessionFs handler registered for session: ${params.sessionId}`);
+        return handler.readFileBytes(params);
+    });
     connection.onRequest("sessionFs.writeFile", async (params: SessionFsWriteFileRequest) => {
         const handler = getHandlers(params.sessionId).sessionFs;
         if (!handler) throw new Error(`No sessionFs handler registered for session: ${params.sessionId}`);
         return handler.writeFile(params);
+    });
+    connection.onRequest("sessionFs.writeFileBytes", async (params: SessionFsWriteFileBytesRequest) => {
+        const handler = getHandlers(params.sessionId).sessionFs;
+        if (!handler) throw new Error(`No sessionFs handler registered for session: ${params.sessionId}`);
+        return handler.writeFileBytes(params);
     });
     connection.onRequest("sessionFs.appendFile", async (params: SessionFsAppendFileRequest) => {
         const handler = getHandlers(params.sessionId).sessionFs;

@@ -4,6 +4,8 @@ env:
   COPILOT_AUTO_UPDATE: "false"
   COPILOT_BAZEL_ANG_ENABLED: ${{ vars.COPILOT_BAZEL_ANG_ENABLED }}
   COPILOT_BAZEL_ANG_SCOPE: ${{ vars.COPILOT_BAZEL_ANG_SCOPE }}
+  COPILOT_BAZEL_ANG_PR_SAMPLE_PERCENTAGE: ${{ vars.COPILOT_BAZEL_ANG_PR_SAMPLE_PERCENTAGE }}
+  COPILOT_BAZEL_ANG_PR_SAMPLED_MODE: ${{ vars.COPILOT_BAZEL_ANG_PR_SAMPLED_MODE }}
   COPILOT_RUNTIME_E2E_TEST_HOOKS: "1"
   CARGO_PROFILE_DEV_DEBUG: line-tables-only
   GIT_HTTP_LOW_SPEED_LIMIT: 1000
@@ -53,13 +55,96 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ inputs.shared-cli-build-compatible && format('project-build-sea-{0}-release-{1}-{2}', inputs.os, inputs.bazel-config, github.sha) || format('sdk-runtime-artifact-{0}-{1}', inputs.target, github.sha) }}
+  queue: max
+
 jobs:
+  cache-relay:
+    if: inputs.runtime-source == 'checkout'
+    runs-on: ubuntu-slim
+    timeout-minutes: 15
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      cache-hit: ${{ steps.cache.outputs.cache-hit }}
+    steps:
+      - uses: actions/checkout@v7
+        timeout-minutes: 4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+
+      - name: Capture verified addon source identity
+        run: node --experimental-strip-types script/resolve-cli-build-identity.ts --github-env
+
+      - name: Restore completed runtime build
+        id: cache
+        uses: actions/cache/restore@v6
+        with:
+          path: |
+            project-build-receipt.txt
+            dist-cli/
+            dist-tmp/release-downloads/ripgrep/
+            dist-tmp/release-downloads/tgrep/
+            dist-bin/
+            dist-pkg-tarballs/
+            src/core/sharedApi/runtime-generated/index.d.ts
+            src/native/runtime/runtime.*.node.metadata
+            src/native/runtime/copilot-runtime.*.profile
+            src/native/runtime/index.d.ts
+            src/native/cli/index.d.ts
+            !dist-cli/sea.blob
+            !dist-cli/github-copilot-*.tgz
+          key: ${{ inputs.shared-cli-build-compatible && format('project-build-v4-sea-{0}-{1}-release-{2}-{3}-{4}', inputs.os, inputs.target, inputs.bazel-config, inputs.use-bazel-addons-on-darwin, github.sha) || format('sdk-project-build-v4-{0}-{1}-{2}-release-{3}-{4}-{5}', inputs.target, inputs.os, inputs.target, inputs.bazel-config, inputs.use-bazel-addons-on-darwin, github.sha) }}
+          enableCrossOsArchive: "true"
+
+      - name: Restore cached source-layout addons and executable bits
+        if: steps.cache.outputs.cache-hit == 'true'
+        run: node script/restore-cli-build.mjs
+
+      - name: Verify completed runtime build
+        if: steps.cache.outputs.cache-hit == 'true'
+        shell: bash
+        env:
+          TARGET: ${{ inputs.target }}
+        run: |
+          extension=
+          if [[ "$TARGET" == win32-* ]]; then
+            extension=.exe
+          fi
+          test -s project-build-receipt.txt
+          test -s "dist-cli/prebuilds/$TARGET/runtime.node"
+          test -s "dist-cli/prebuilds/$TARGET/cli-native.node"
+          test -s "dist-cli/prebuilds/$TARGET/copilot-runtime$extension"
+          test -s "dist-bin/$TARGET/copilot$extension"
+
+      - name: Upload SDK runtime artifact
+        if: steps.cache.outputs.cache-hit == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: executable-sdk-${{ inputs.artifact }}
+          path: |
+            dist-cli/
+            dist-bin/${{ inputs.target }}/
+            !dist-cli/sea.blob
+            !dist-cli/github-copilot-*.tgz
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 1
+
   build:
+    needs: cache-relay
+    if: >-
+      !cancelled() &&
+      (inputs.runtime-source == 'published' ||
+       (needs.cache-relay.result == 'success' && needs.cache-relay.outputs.cache-hit != 'true'))
     runs-on: ${{ inputs.runtime-source == 'checkout' && inputs.os || 'ubuntu-latest' }}
     timeout-minutes: ${{ inputs.timeout-minutes }}
-    concurrency:
-      group: ${{ inputs.shared-cli-build-compatible && format('project-build-sea-{0}-release-{1}-{2}', inputs.os, inputs.bazel-config, github.sha) || format('sdk-runtime-artifact-{0}-{1}', inputs.target, github.sha) }}
-      queue: max
     permissions:
       actions: read
       contents: read
@@ -103,7 +188,8 @@ jobs:
             src/native/cli/index.d.ts
             !dist-cli/sea.blob
             !dist-cli/github-copilot-*.tgz
-          key: ${{ inputs.shared-cli-build-compatible && format('project-build-v3-sea-{0}-{1}-{2}-release-{3}-{4}-{5}', inputs.os, runner.os, runner.arch, inputs.bazel-config, inputs.use-bazel-addons-on-darwin, github.sha) || format('sdk-project-build-v3-{0}-{1}-{2}-{3}-release-{4}-{5}-{6}', inputs.target, inputs.os, runner.os, runner.arch, inputs.bazel-config, inputs.use-bazel-addons-on-darwin, github.sha) }}
+          key: ${{ inputs.shared-cli-build-compatible && format('project-build-v4-sea-{0}-{1}-release-{2}-{3}-{4}', inputs.os, inputs.target, inputs.bazel-config, inputs.use-bazel-addons-on-darwin, github.sha) || format('sdk-project-build-v4-{0}-{1}-{2}-release-{3}-{4}-{5}', inputs.target, inputs.os, inputs.target, inputs.bazel-config, inputs.use-bazel-addons-on-darwin, github.sha) }}
+          enableCrossOsArchive: "true"
 
       - name: Restore cached source-layout addons and executable bits
         if: inputs.runtime-source == 'checkout' && steps.cache.outputs.cache-hit == 'true'
@@ -112,6 +198,10 @@ jobs:
       - if: inputs.runtime-source == 'checkout' && steps.cache.outputs.cache-hit != 'true'
         uses: ./.github/actions/setup-node
         timeout-minutes: ${{ fromJSON(env.SETUP_NODE_TIMEOUT_MINUTES) }}
+
+      - name: Capture verified addon source identity
+        if: inputs.runtime-source == 'checkout' && steps.cache.outputs.cache-hit != 'true'
+        run: node --experimental-strip-types script/resolve-cli-build-identity.ts --github-env
 
       - if: inputs.runtime-source == 'checkout' && steps.cache.outputs.cache-hit != 'true' && inputs.prebuilt-addons-artifact == '' && !(runner.os == 'Windows' && inputs.target == 'win32-arm64')
         uses: ./.github/actions/setup-bazel
@@ -191,6 +281,7 @@ jobs:
             !dist-cli/sea.blob
             !dist-cli/github-copilot-*.tgz
           key: ${{ steps.cache.outputs.cache-primary-key }}
+          enableCrossOsArchive: "true"
 
       - name: Upload SDK runtime artifact
         uses: actions/upload-artifact@v7

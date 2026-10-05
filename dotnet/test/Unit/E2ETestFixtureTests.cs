@@ -142,4 +142,38 @@ public class E2ETestFixtureTests
             await proxy.StopAsync(skipWritingCache: true);
         }
     }
+
+    [Theory]
+    [InlineData(false, null)]
+    [InlineData(true, 0)]
+    [InlineData(true, 1)]
+    public void Proxy_Startup_Diagnostics_Preserve_Process_State_And_Bounded_Output(bool largeOutput, int? exitCode)
+    {
+        var output = new ReplayProxy.StartupDiagnostics();
+        output.AppendOutput("old stdout");
+        output.AppendError("old stderr");
+        if (largeOutput)
+        {
+            output.AppendOutput(new string('x', 12_000));
+            output.AppendError(new string('y', 12_000));
+        }
+        output.AppendOutput("tsx server.ts");
+        output.AppendError("proxy startup error");
+
+        var diagnostics = output.Describe(1234, TimeSpan.FromSeconds(30), exitCode);
+
+        Assert.Contains("PID 1234", diagnostics);
+        Assert.Contains(exitCode is int code ? $"exited with code {code}" : "running", diagnostics);
+        Assert.Contains("--- stdout tail ---", diagnostics);
+        Assert.Contains("tsx server.ts", diagnostics);
+        Assert.Contains("--- stderr tail ---", diagnostics);
+        Assert.Contains("proxy startup error", diagnostics);
+        if (largeOutput)
+        {
+            Assert.DoesNotContain("old stdout", diagnostics);
+            Assert.DoesNotContain("old stderr", diagnostics);
+        }
+        Assert.True(diagnostics.Length < 8500, $"Diagnostic length: {diagnostics.Length}");
+    }
+
 }

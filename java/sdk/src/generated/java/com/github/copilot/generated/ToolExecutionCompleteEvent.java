@@ -11,6 +11,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.github.copilot.CopilotExperimental;
+import java.util.List;
 import java.util.Map;
 import javax.annotation.processing.Generated;
 
@@ -66,6 +67,9 @@ public final class ToolExecutionCompleteEvent extends SessionEvent {
         /** Experimental shell completion facts captured before the persisted result contents are stripped. */
         @CopilotExperimental
         @JsonProperty("shellExecution") ToolExecutionCompleteShellExecution shellExecution,
+        /** Experimental. File mutations actually committed by a built-in file editing tool, in execution order. Present on successful edits and on partial failures when earlier mutations were committed. Paths are absolute in the session filesystem namespace. */
+        @CopilotExperimental
+        @JsonProperty("fileEdits") List<ToolExecutionCompleteFileEdit> fileEdits,
         /** Tool call ID of the parent tool invocation when this event originates from a sub-agent */
         @JsonProperty("parentToolCallId") String parentToolCallId,
         /** Experimental HydraFusion attribution for this tool completion. */

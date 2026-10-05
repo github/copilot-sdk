@@ -1,0 +1,107 @@
+models:
+  - claude-sonnet-5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Use lookup_fruit to find the fruit for code 42.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: lookup_fruit
+              arguments: '{"code":42}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: apple
+      - role: assistant
+        content: Code 42 corresponds to **apple**.
+      - role: user
+        content: >-
+          <tools_changed_notice>
+
+          New tools available: lookup_vegetable
+
+
+          Tools no longer available: retired_lookup
+
+
+          Important: Do not attempt to call tools that are no longer available unless you've been notified that they're
+          available again.
+
+          </tools_changed_notice>
+
+
+          Use lookup_fruit to find the fruit for code 42 again, and use lookup_vegetable to find the vegetable for code
+          7.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_1
+            type: function
+            function:
+              name: lookup_fruit
+              arguments: '{"code":42}'
+      - role: assistant
+        tool_calls:
+          - id: toolcall_2
+            type: function
+            function:
+              name: lookup_vegetable
+              arguments: '{"code":7}'
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Use lookup_fruit to find the fruit for code 42.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: lookup_fruit
+              arguments: '{"code":42}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: apple
+      - role: assistant
+        content: Code 42 corresponds to **apple**.
+      - role: user
+        content: >-
+          <tools_changed_notice>
+
+          New tools available: lookup_vegetable
+
+
+          Tools no longer available: retired_lookup
+
+
+          Important: Do not attempt to call tools that are no longer available unless you've been notified that they're
+          available again.
+
+          </tools_changed_notice>
+
+
+          Use lookup_fruit to find the fruit for code 42 again, and use lookup_vegetable to find the vegetable for code
+          7.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_1
+            type: function
+            function:
+              name: lookup_fruit
+              arguments: '{"code":42}'
+          - id: toolcall_2
+            type: function
+            function:
+              name: lookup_vegetable
+              arguments: '{"code":7}'
+      - role: tool
+        tool_call_id: toolcall_1
+        content: dragonfruit
+      - role: tool
+        tool_call_id: toolcall_2
+        content: carrot
+      - role: assistant
+        content: Code 42 is now **dragonfruit** (changed from apple). Code 7 corresponds to **carrot**.

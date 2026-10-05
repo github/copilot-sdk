@@ -76,10 +76,10 @@ public final class SessionWorkflowApi {
      * @since 1.0.0
      */
     @CopilotExperimental
-    public CompletableFuture<SessionWorkflowRunFromToolResult> runFromTool(SessionWorkflowRunFromToolParams params) {
+    CompletableFuture<WorkflowRunResult> runFromTool(SessionWorkflowRunFromToolParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
-        return caller.invoke("session.workflow.runFromTool", _p, SessionWorkflowRunFromToolResult.class);
+        return caller.invoke("session.workflow.runFromTool", _p, WorkflowRunResult.class);
     }
 
     /**
@@ -92,10 +92,10 @@ public final class SessionWorkflowApi {
      * @since 1.0.0
      */
     @CopilotExperimental
-    public CompletableFuture<SessionWorkflowResumeFromToolResult> resumeFromTool(SessionWorkflowResumeFromToolParams params) {
+    CompletableFuture<WorkflowResumeResult> resumeFromTool(SessionWorkflowResumeFromToolParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
-        return caller.invoke("session.workflow.resumeFromTool", _p, SessionWorkflowResumeFromToolResult.class);
+        return caller.invoke("session.workflow.resumeFromTool", _p, WorkflowResumeResult.class);
     }
 
     /**
@@ -204,10 +204,10 @@ public final class SessionWorkflowApi {
      * @since 1.0.0
      */
     @CopilotExperimental
-    public CompletableFuture<SessionWorkflowPauseAtCheckpointResult> pauseAtCheckpoint(SessionWorkflowPauseAtCheckpointParams params) {
+    CompletableFuture<WorkflowPauseCheckpointResult> pauseAtCheckpoint(SessionWorkflowPauseAtCheckpointParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
-        return caller.invoke("session.workflow.pauseAtCheckpoint", _p, SessionWorkflowPauseAtCheckpointResult.class);
+        return caller.invoke("session.workflow.pauseAtCheckpoint", _p, WorkflowPauseCheckpointResult.class);
     }
 
     /**

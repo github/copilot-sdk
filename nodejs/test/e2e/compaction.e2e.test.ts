@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { approveAll, type CopilotSession, type SessionEvent } from "../../src/index.js";
-import { createSdkTestContext } from "./harness/sdkTestContext.js";
+import { createSdkTestContext, isCI } from "./harness/sdkTestContext.js";
 
 const compactionTimeoutMs = 60_000;
 
@@ -35,7 +35,7 @@ function getNextSessionEvent<TEventType extends SessionEvent["type"]>(
 }
 
 describe("Compaction", async () => {
-    const { copilotClient: client } = await createSdkTestContext();
+    const { copilotClient: client, openAiEndpoint } = await createSdkTestContext();
 
     it("should trigger compaction with low threshold and emit events", async () => {
         // Create session with very low compaction thresholds to trigger compaction quickly
@@ -84,7 +84,23 @@ describe("Compaction", async () => {
         expect(startEvent.data.conversationTokens ?? 0).toBeGreaterThan(0);
         expect(completeEvent.data.success).toBe(true);
         expect(completeEvent.data.compactionTokensUsed).toBeDefined();
-        expect(completeEvent.data.compactionTokensUsed?.inputTokens ?? 0).toBeGreaterThan(0);
+        // Replay has no prompt usage; recording must preserve the provider's value or absence.
+        if (isCI) {
+            expect(completeEvent.data.compactionTokensUsed?.inputTokens ?? 0).toBe(0);
+        } else {
+            const exchanges = await openAiEndpoint.getExchanges();
+            const compactions = exchanges.filter(
+                ({ compactionUsage }) =>
+                    compactionUsage && compactionUsage.summary === completeEvent.data.summaryContent
+            );
+            expect(
+                compactions,
+                "Expected one provider compaction chain for the completed summary"
+            ).toHaveLength(1);
+            expect(completeEvent.data.compactionTokensUsed?.inputTokens).toBe(
+                compactions[0].compactionUsage?.inputTokens
+            );
+        }
         const summary = (completeEvent.data.summaryContent ?? "").toLowerCase();
         expect(summary).toContain("<overview>");
         expect(summary).toContain("<history>");

@@ -46,8 +46,8 @@ public final class SessionInstructionsApi {
      * @since 1.0.0
      */
     @CopilotExperimental
-    public CompletableFuture<Void> reload() {
-        return caller.invoke("session.instructions.reload", java.util.Map.of("sessionId", this.sessionId), Void.class);
+    public CompletableFuture<SessionInstructionsGetSourcesResult> reload() {
+        return caller.invoke("session.instructions.reload", java.util.Map.of("sessionId", this.sessionId), SessionInstructionsGetSourcesResult.class);
     }
 
 }

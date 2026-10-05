@@ -20,7 +20,7 @@ import javax.annotation.processing.Generated;
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record McpFailedServer(
+record McpFailedServer(
     /** The config key of the server that failed to connect. */
     @JsonProperty("name") String name,
     /** The captured connection failure detail. */

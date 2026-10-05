@@ -141,7 +141,8 @@ public static class TestHelper
             var launches = new List<string>();
             foreach (var path in Directory.EnumerateFiles(logsDir, "process-*.log"))
             {
-                using var reader = new StreamReader(path);
+                using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+                using var reader = new StreamReader(stream);
                 if (reader.ReadLine()?.Contains(extensionName, StringComparison.Ordinal) != true)
                 {
                     continue;
@@ -149,13 +150,28 @@ public static class TestHelper
 
                 var markers = new List<string>();
                 var errors = new HashSet<string>(StringComparer.Ordinal);
+                var recentLines = new Queue<string>();
                 while (reader.ReadLine() is { } line)
                 {
+                    if (recentLines.Count == 20)
+                    {
+                        recentLines.Dequeue();
+                    }
+                    recentLines.Enqueue(line);
+
                     if (line.StartsWith("=== ", StringComparison.Ordinal))
                     {
-                        if (!line.Contains("module=", StringComparison.Ordinal))
+                        if (line is "=== initializing ===" or "=== ready ===" or "=== peer-registration-failed ==="
+                            or "=== exited-before-ready ===" or "=== startup-timeout ==="
+                            or "=== peer-closed-before-ready ===")
                         {
                             markers.Add(line);
+                        }
+                        var exit = Regex.Match(line, @"^=== exit code=(-?\d+|signal) disposition=(startup-failure|crash|stopped-normally|termination-failure) ===$");
+                        if (exit.Success)
+                        {
+                            var code = exit.Groups[1].Value;
+                            markers.Add($"=== exit code={(code is "0" or "1" or "signal" ? code : "other")} disposition={exit.Groups[2].Value} ===");
                         }
                         continue;
                     }
@@ -181,27 +197,30 @@ public static class TestHelper
                     }
 
                     if (line is "[sdk-extension-test] imported" or "[sdk-extension-test] joining"
-                        or "[sdk-extension-test] joined" or "[sdk-extension-test] logged"
-                        || Regex.IsMatch(line, @"^\[sdk-extension-test\] join failed code=(?:-?\d+|none)$"))
+                        or "[sdk-extension-test] joined" or "[sdk-extension-test] logged")
                     {
                         markers.Add(line);
                     }
+                    else if (Regex.IsMatch(line, @"^\[sdk-extension-test\] join failed code=(?:-?\d+|none)$"))
+                    {
+                        markers.Add("[sdk-extension-test] join failed");
+                    }
 
-                    var code = Regex.Match(line, @"\b(?:ERR_[A-Z0-9_]+|ECONNRESET|ECONNREFUSED|EPIPE|ENOENT|ETIMEDOUT)\b");
-                    if (code.Success)
-                    {
-                        errors.Add(code.Value);
-                    }
-                    var type = Regex.Match(line, @"(?<![\w.])(?:TypeError|ReferenceError|SyntaxError|RangeError|AggregateError|AssertionError|Error)(?=:| \[)");
-                    if (type.Success)
-                    {
-                        errors.Add(type.Value);
-                    }
+                    AddErrorCategories(line, errors);
                 }
                 var summary = string.Join("; ", markers);
                 if (errors.Count > 0)
                 {
                     summary += $"; error categories: {string.Join(", ", errors.OrderBy(error => error, StringComparer.Ordinal))}";
+                }
+                var recentErrors = new HashSet<string>(StringComparer.Ordinal);
+                foreach (var line in recentLines)
+                {
+                    AddErrorCategories(line, recentErrors);
+                }
+                if (recentErrors.Count > 0)
+                {
+                    summary += $"; recent error categories: {string.Join(", ", recentErrors.OrderBy(error => error, StringComparer.Ordinal))}";
                 }
                 launches.Add(summary.Length == 0 ? "<no lifecycle markers>" : summary);
             }
@@ -211,6 +230,22 @@ public static class TestHelper
         catch (Exception error) when (error is IOException or UnauthorizedAccessException)
         {
             return $"<launch logs unavailable: {error.GetType().Name}>";
+        }
+    }
+
+    private static void AddErrorCategories(string line, HashSet<string> errors)
+    {
+        var code = Regex.Match(line, @"\b(?:ERR_[A-Z0-9_]+|ECONNRESET|ECONNREFUSED|EPIPE|ENOENT|ETIMEDOUT)\b");
+        if (code.Success)
+        {
+            errors.Add(code.Value.StartsWith("ERR_", StringComparison.Ordinal) && code.Value != "ERR_INVALID_ARG_TYPE"
+                ? "Node.js error"
+                : code.Value);
+        }
+        var type = Regex.Match(line, @"(?<![\w.])(?:TypeError|ReferenceError|SyntaxError|RangeError|AggregateError|AssertionError|Error)(?=:| \[)");
+        if (type.Success)
+        {
+            errors.Add(type.Value);
         }
     }
 }

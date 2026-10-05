@@ -195,7 +195,7 @@ for (const timing of ["before", "after"] as const) {
           notification,
         ],
         continuation,
-        ...(timing === "before"
+        ...(timing === "before" && notification === rawNotification
           ? [[...prefix, notification, readAgent, toolResult]]
           : []),
         [
@@ -267,8 +267,39 @@ for (const timing of ["before", "after"] as const) {
   );
 }
 
+for (const streaming of [false, true]) {
+  test(`replays an idle-first read_agent call without an interim reply, streaming=${streaming}`, async () => {
+    const proxy = new ReplayingCapiProxy(
+      "http://127.0.0.1:1",
+      snapshotPath,
+      import.meta.dirname,
+    );
+    const url = await proxy.start();
+    try {
+      const response = await fetch(`${url}/chat/completions`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          model: stored.models[0],
+          messages: [
+            ...original.slice(0, 5),
+            shortIdleNotification,
+            shortReadAgent,
+            toolResult,
+          ],
+          stream: streaming,
+        }),
+      });
+      expect(response.status, await response.clone().text()).toBe(200);
+      expectReply(await readReply(response, streaming), finalAnswer);
+    } finally {
+      await proxy.stop(true);
+    }
+  });
+}
+
 test("timing and wording alternatives retain the full result and final continuation", () => {
-  expect(stored.conversations).toHaveLength(7);
+  expect(stored.conversations).toHaveLength(8);
   expect(stored.conversations[4].messages).toEqual([
     ...original.slice(0, 5),
     notification,
@@ -298,5 +329,76 @@ test("timing and wording alternatives retain the full result and final continuat
         return message;
       }),
     );
+  }
+  expect(stored.conversations[7].messages).toEqual([
+    ...original.slice(0, 5),
+    shortIdleNotification,
+    shortReadAgent,
+    toolResult,
+    finalAnswer,
+  ]);
+});
+
+test("lifecycle output capture replays the changed child prompt and parent result", async () => {
+  const variantPath = path.join(
+    import.meta.dirname,
+    "..",
+    "snapshots",
+    "subagent_hooks",
+    "should_apply_subagent_lifecycle_hook_outputs.yaml",
+  );
+  const variant = yaml.parse(
+    await readFile(variantPath, "utf8"),
+  ) as NormalizedData;
+  expect(variant.conversations).toHaveLength(stored.conversations.length);
+  for (let i = 0; i < stored.conversations.length; i++) {
+    expect(
+      variant.conversations[i].messages.filter(
+        (message) => message.role === "assistant",
+      ),
+    ).toEqual(
+      stored.conversations[i].messages.filter(
+        (message) => message.role === "assistant",
+      ),
+    );
+  }
+  const child = variant.conversations[1].messages;
+  expect(child[1].content).toBe(
+    `Subagent start hook verified: read the requested file.\n\n${stored.conversations[1].messages[1].content}`,
+  );
+  const parent = variant.conversations[3].messages;
+  expect(parent.at(-2)?.content).toContain(
+    "\n\nSubagent stop hook verified: The complete contents",
+  );
+  const idleFirstParent = variant.conversations[7].messages;
+  expect(idleFirstParent).toEqual([
+    ...parent.slice(0, 5),
+    shortIdleNotification,
+    shortReadAgent,
+    parent.at(-2),
+    parent.at(-1),
+  ]);
+
+  const proxy = new ReplayingCapiProxy(
+    "http://127.0.0.1:1",
+    variantPath,
+    import.meta.dirname,
+  );
+  const url = await proxy.start();
+  try {
+    for (const messages of [
+      child.slice(0, 2),
+      parent.slice(0, -1),
+      idleFirstParent.slice(0, -1),
+    ]) {
+      const response = await fetch(`${url}/chat/completions`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ model: variant.models[0], messages }),
+      });
+      expect(response.status, await response.clone().text()).toBe(200);
+    }
+  } finally {
+    await proxy.stop(true);
   }
 });

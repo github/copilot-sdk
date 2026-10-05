@@ -52,7 +52,20 @@ public class CompactionE2ETests(E2ETestFixture fixture, ITestOutputHelper output
         Assert.True(startEvent.Data.ConversationTokens.GetValueOrDefault() > 0, "Expected compaction to report conversation tokens at start");
         Assert.True(completeEvent.Data.Success, "Expected compaction to succeed");
         Assert.NotNull(completeEvent.Data.CompactionTokensUsed);
-        Assert.True(completeEvent.Data.CompactionTokensUsed!.InputTokens.GetValueOrDefault() > 0, "Expected compaction call to consume input tokens");
+        // Replay has no prompt usage; recording must preserve the provider's value or absence.
+        if (Environment.GetEnvironmentVariable("GITHUB_ACTIONS") == "true"
+            || E2ETestBackendConfiguration.Current != E2ETestBackend.Capi)
+        {
+            Assert.Equal(0, completeEvent.Data.CompactionTokensUsed!.InputTokens.GetValueOrDefault());
+        }
+        else
+        {
+            var exchanges = await Ctx.GetExchangesAsync();
+            var compaction = Assert.Single(exchanges, exchange =>
+                exchange.CompactionUsage is not null
+                && exchange.CompactionUsage.Summary == completeEvent.Data.SummaryContent);
+            Assert.Equal(compaction.CompactionUsage!.InputTokens, completeEvent.Data.CompactionTokensUsed!.InputTokens);
+        }
         Assert.Contains("<overview>", completeEvent.Data.SummaryContent ?? string.Empty, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("<history>", completeEvent.Data.SummaryContent ?? string.Empty, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("<checkpoint_title>", completeEvent.Data.SummaryContent ?? string.Empty, StringComparison.OrdinalIgnoreCase);

@@ -4,7 +4,8 @@
 
 import { SessionCompactionCompleteEvent } from "@github/copilot/sdk";
 import { MemoryProvider, VirtualProvider } from "@platformatic/vfs";
-import { mkdtempSync, realpathSync } from "fs";
+import { createHash } from "crypto";
+import { existsSync, mkdtempSync, realpathSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import { describe, expect, it, onTestFinished } from "vitest";
@@ -41,7 +42,12 @@ describe("Session Fs", async () => {
     const p = (sessionId: string, path: string) =>
         `/${sessionId}${path.startsWith("/") ? path : "/" + path}`;
 
-    const { copilotClient: client, env } = await createSdkTestContext({
+    const {
+        copilotClient: client,
+        createClient,
+        env,
+        openAiEndpoint,
+    } = await createSdkTestContext({
         copilotClientOptions: { sessionFs: sessionFsConfig },
     });
 
@@ -75,6 +81,74 @@ describe("Session Fs", async () => {
             expect(errors).toHaveLength(0);
         }
     );
+
+    it("should view an image that exists only in the binary session fs provider", async () => {
+        const imagePath = "/sdk-provider-image.png";
+        const imageBytes = Buffer.from(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==",
+            "base64"
+        );
+        const binaryClient = createClient({
+            sessionFs: { ...sessionFsConfig, capabilities: { binary: true } },
+        });
+        try {
+            let requestedPath: string | undefined;
+            const session = await binaryClient.createSession({
+                onPermissionRequest: approveAll,
+                modelCapabilities: { supports: { vision: true } },
+                createSessionFsProvider: (session) => ({
+                    ...createSessionFsProvider(session),
+                    async readFileBytes(path) {
+                        requestedPath = path;
+                        return provider.readFile(p(session.sessionId, path));
+                    },
+                    async writeFileBytes(path, content) {
+                        await provider.writeFile(p(session.sessionId, path), content);
+                    },
+                }),
+            });
+            await provider.mkdir(`/${session.sessionId}`, { recursive: true });
+            await provider.writeFile(p(session.sessionId, imagePath), imageBytes);
+            expect(existsSync(imagePath)).toBe(false);
+
+            const msg = await session.sendAndWait({
+                prompt: "Use the view tool to view /sdk-provider-image.png, then reply with exactly SDK_PROVIDER_IMAGE_DONE.",
+            });
+            expect(msg?.data.content).toContain("SDK_PROVIDER_IMAGE_DONE");
+            expect(requestedPath).toBe(imagePath);
+            const events = await session.getEvents();
+            const assetId = `sha256:${createHash("sha256").update(imageBytes).digest("hex")}`;
+            expect(
+                events.some(
+                    (event) =>
+                        event.type === "session.binary_asset" &&
+                        event.data.assetId === assetId &&
+                        event.data.mimeType === "image/png" &&
+                        event.data.data === imageBytes.toString("base64")
+                )
+            ).toBe(true);
+            expect(
+                events.some(
+                    (event) =>
+                        event.type === "tool.execution_complete" &&
+                        event.data.success &&
+                        event.data.result?.binaryResultsForLlm?.some(
+                            (result) => "assetId" in result && result.assetId === assetId
+                        )
+                )
+            ).toBe(true);
+            expect(
+                (await openAiEndpoint.getRequests())
+                    .filter((request) =>
+                        ["/chat/completions", "/responses", "/v1/messages"].includes(request.url)
+                    )
+                    .some((request) => request.body.includes(imageBytes.toString("base64")))
+            ).toBe(true);
+            await session.disconnect();
+        } finally {
+            await binaryClient.stop();
+        }
+    });
 
     it("should load session data from fs provider on resume", async () => {
         const session1 = await client.createSession({

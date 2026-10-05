@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"encoding/base64"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -73,6 +74,84 @@ func TestSessionFSE2E(t *testing.T) {
 		}
 		if !strings.Contains(string(events), "300") {
 			t.Fatalf("Expected events file to contain 300")
+		}
+	})
+
+	t.Run("should view an image that exists only in the binary session fs provider", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+
+		imagePath := "/sdk-provider-image.png"
+		imageBytes, err := base64.StdEncoding.DecodeString("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==")
+		if err != nil {
+			t.Fatal(err)
+		}
+		binaryConfig := *sessionFSConfig
+		binaryConfig.Capabilities = &copilot.SessionFSCapabilities{Binary: true}
+		binaryClient := ctx.NewClient(func(opts *copilot.ClientOptions) {
+			opts.SessionFS = &binaryConfig
+		})
+		t.Cleanup(func() { binaryClient.ForceStop() })
+		readPaths := make(chan string, 1)
+		session, err := binaryClient.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			CreateSessionFSProvider: func(session *copilot.Session) copilot.SessionFSProvider {
+				return &testBinarySessionFSHandler{
+					testSessionFSHandler: &testSessionFSHandler{root: providerRoot, sessionID: session.SessionID},
+					readPaths:            readPaths,
+				}
+			},
+		})
+		if err != nil {
+			t.Fatalf("Failed to create binary session: %v", err)
+		}
+		storedPath := p(session.SessionID, imagePath)
+		if err := os.MkdirAll(filepath.Dir(storedPath), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(storedPath, imageBytes, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := os.Stat(imagePath); !os.IsNotExist(err) {
+			t.Fatalf("Image unexpectedly exists on the runtime filesystem: %v", err)
+		}
+
+		msg, err := session.SendAndWait(t.Context(), copilot.MessageOptions{
+			Prompt: "Use the view tool to view /sdk-provider-image.png, then reply with exactly SDK_PROVIDER_IMAGE_DONE.",
+		})
+		if err != nil {
+			t.Fatalf("Failed to view provider image: %v", err)
+		}
+		if msg == nil {
+			t.Fatal("Expected a final assistant response")
+		}
+		response, ok := msg.Data.(*copilot.AssistantMessageData)
+		if !ok || !strings.Contains(response.Content, "SDK_PROVIDER_IMAGE_DONE") {
+			t.Fatalf("Expected final image response, got %#v", msg)
+		}
+		select {
+		case path := <-readPaths:
+			if path != imagePath {
+				t.Fatalf("Expected binary read of %q, got %q", imagePath, path)
+			}
+		default:
+			t.Fatal("Expected a binary read from the provider")
+		}
+		events, err := session.GetEvents(t.Context())
+		if err != nil {
+			t.Fatalf("Failed to read session events: %v", err)
+		}
+		foundAsset := false
+		for _, event := range events {
+			if asset, ok := event.Data.(*copilot.SessionBinaryAssetData); ok &&
+				asset.MIMEType == "image/png" && asset.Data == base64.StdEncoding.EncodeToString(imageBytes) {
+				foundAsset = true
+			}
+		}
+		if !foundAsset {
+			t.Fatal("Expected a binary asset with the exact provider image bytes")
+		}
+		if err := session.Disconnect(); err != nil {
+			t.Fatalf("Failed to disconnect session: %v", err)
 		}
 	})
 
@@ -344,6 +423,31 @@ func createSessionStatePath(t *testing.T) string {
 type testSessionFSHandler struct {
 	root      string
 	sessionID string
+}
+
+type testBinarySessionFSHandler struct {
+	*testSessionFSHandler
+	readPaths chan<- string
+}
+
+func (h *testBinarySessionFSHandler) ReadFileBytes(path string) ([]byte, error) {
+	select {
+	case h.readPaths <- path:
+	default:
+	}
+	return os.ReadFile(providerPath(h.root, h.sessionID, path))
+}
+
+func (h *testBinarySessionFSHandler) WriteFileBytes(path string, content []byte, mode *int) error {
+	fullPath := providerPath(h.root, h.sessionID, path)
+	if err := os.MkdirAll(filepath.Dir(fullPath), 0o755); err != nil {
+		return err
+	}
+	perm := os.FileMode(0o666)
+	if mode != nil {
+		perm = os.FileMode(*mode)
+	}
+	return os.WriteFile(fullPath, content, perm)
 }
 
 func (h *testSessionFSHandler) ReadFile(path string) (string, error) {

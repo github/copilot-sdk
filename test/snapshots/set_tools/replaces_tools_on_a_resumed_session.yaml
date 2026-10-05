@@ -1,0 +1,34 @@
+models:
+  - claude-sonnet-5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Use lookup_fruit to find the fruit for code 42.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: lookup_fruit
+              arguments: '{"code":42}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: apple
+      - role: assistant
+        content: Code 42 → **apple**.
+      - role: user
+        content: Use lookup_vegetable to find the vegetable for code 7.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_1
+            type: function
+            function:
+              name: lookup_vegetable
+              arguments: '{"code":7}'
+      - role: tool
+        tool_call_id: toolcall_1
+        content: carrot
+      - role: assistant
+        content: Code 7 → **carrot**.

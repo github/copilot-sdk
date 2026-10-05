@@ -48,7 +48,7 @@ public final class SessionScheduleApi {
      * @since 1.0.0
      */
     @CopilotExperimental
-    public CompletableFuture<Void> hydrate() {
+    CompletableFuture<Void> hydrate() {
         return caller.invoke("session.schedule.hydrate", java.util.Map.of("sessionId", this.sessionId), Void.class);
     }
 
@@ -59,8 +59,8 @@ public final class SessionScheduleApi {
      * @since 1.0.0
      */
     @CopilotExperimental
-    public CompletableFuture<SessionScheduleHasSelfPacedResult> hasSelfPaced() {
-        return caller.invoke("session.schedule.hasSelfPaced", java.util.Map.of("sessionId", this.sessionId), SessionScheduleHasSelfPacedResult.class);
+    CompletableFuture<ScheduleHasSelfPacedResult> hasSelfPaced() {
+        return caller.invoke("session.schedule.hasSelfPaced", java.util.Map.of("sessionId", this.sessionId), ScheduleHasSelfPacedResult.class);
     }
 
     /**
@@ -73,10 +73,10 @@ public final class SessionScheduleApi {
      * @since 1.0.0
      */
     @CopilotExperimental
-    public CompletableFuture<SessionScheduleAddResult> add(SessionScheduleAddParams params) {
+    CompletableFuture<ScheduleAddResult> add(SessionScheduleAddParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
-        return caller.invoke("session.schedule.add", _p, SessionScheduleAddResult.class);
+        return caller.invoke("session.schedule.add", _p, ScheduleAddResult.class);
     }
 
     /**
@@ -89,10 +89,10 @@ public final class SessionScheduleApi {
      * @since 1.0.0
      */
     @CopilotExperimental
-    public CompletableFuture<SessionScheduleAddCronResult> addCron(SessionScheduleAddCronParams params) {
+    CompletableFuture<ScheduleAddResult> addCron(SessionScheduleAddCronParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
-        return caller.invoke("session.schedule.addCron", _p, SessionScheduleAddCronResult.class);
+        return caller.invoke("session.schedule.addCron", _p, ScheduleAddResult.class);
     }
 
     /**
@@ -105,10 +105,10 @@ public final class SessionScheduleApi {
      * @since 1.0.0
      */
     @CopilotExperimental
-    public CompletableFuture<SessionScheduleAddAtResult> addAt(SessionScheduleAddAtParams params) {
+    CompletableFuture<ScheduleAddResult> addAt(SessionScheduleAddAtParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
-        return caller.invoke("session.schedule.addAt", _p, SessionScheduleAddAtResult.class);
+        return caller.invoke("session.schedule.addAt", _p, ScheduleAddResult.class);
     }
 
     /**
@@ -121,10 +121,10 @@ public final class SessionScheduleApi {
      * @since 1.0.0
      */
     @CopilotExperimental
-    public CompletableFuture<SessionScheduleAddSelfPacedResult> addSelfPaced(SessionScheduleAddSelfPacedParams params) {
+    CompletableFuture<ScheduleAddResult> addSelfPaced(SessionScheduleAddSelfPacedParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
-        return caller.invoke("session.schedule.addSelfPaced", _p, SessionScheduleAddSelfPacedResult.class);
+        return caller.invoke("session.schedule.addSelfPaced", _p, ScheduleAddResult.class);
     }
 
     /**
@@ -137,10 +137,10 @@ public final class SessionScheduleApi {
      * @since 1.0.0
      */
     @CopilotExperimental
-    public CompletableFuture<SessionScheduleRearmSelfPacedResult> rearmSelfPaced(SessionScheduleRearmSelfPacedParams params) {
+    CompletableFuture<ScheduleAddResult> rearmSelfPaced(SessionScheduleRearmSelfPacedParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
-        return caller.invoke("session.schedule.rearmSelfPaced", _p, SessionScheduleRearmSelfPacedResult.class);
+        return caller.invoke("session.schedule.rearmSelfPaced", _p, ScheduleAddResult.class);
     }
 
     /**

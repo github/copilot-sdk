@@ -25,7 +25,7 @@ permissions:
 
 jobs:
   rust:
-    name: "Rust (${{ matrix.os }}, default)"
+    name: "Rust (${{ matrix.os }})"
     if: contains(fromJSON('["all","linux-x64","darwin-arm64","win32-x64"]'), inputs.platform)
     timeout-minutes: 60
     strategy:
@@ -45,9 +45,9 @@ jobs:
         timeout-minutes: 4
         with:
           persist-credentials: false
-      - uses: actions/download-artifact@v8
+      - uses: ./.github/actions/download-sdk-runtime
         with:
-          name: ${{ runner.os == 'Linux' && format('executable-sdk-{0}-{1}-gnu', runner.os, runner.arch) || format('executable-sdk-{0}-{1}', runner.os, runner.arch) }}
+          artifact-name: ${{ runner.os == 'Linux' && format('executable-sdk-{0}-{1}-gnu', runner.os, runner.arch) || format('executable-sdk-{0}-{1}', runner.os, runner.arch) }}
           path: ${{ github.workspace }}
       - run: node "$SDK_HOME/scripts/ci/runtime-artifact.mjs" restore && node "$SDK_HOME/scripts/ci/runtime-artifact.mjs" prepare
         working-directory: .
@@ -86,78 +86,57 @@ jobs:
         working-directory: ${{ inputs.sdk-home }}/test/harness
       - if: runner.os == 'Windows'
         run: pwsh.exe -Command "Write-Host 'PowerShell ready'"
-      - env:
+      - name: Test out-of-process
+        id: subprocess
+        env:
           COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
           RUST_E2E_CONCURRENCY: 4
         run: cargo test --no-default-features --features runtime,test-support,derive -- --test-threads=4 --nocapture
+      - name: Report Linux Rust build resources
+        if: failure() && runner.os == 'Linux'
+        run: |
+          echo "::group::Rust SDK build resources"
+          df -h . "$RUNNER_TEMP"
+          df -i . "$RUNNER_TEMP"
+          free -h
+          if [ -d target ]; then
+            du -sh target
+          fi
+          echo "::endgroup::"
 
-  rust-inprocess:
-    name: "Rust (${{ matrix.os }}, inprocess)"
-    if: contains(fromJSON('["all","linux-x64","darwin-arm64"]'), inputs.platform)
-    strategy:
-      fail-fast: false
-      matrix:
-        os: ${{ fromJSON(inputs.platform == 'linux-x64' && '["ubuntu-latest"]' || inputs.platform == 'darwin-arm64' && '["macos-latest"]' || '["ubuntu-latest","macos-latest"]') }}
-    runs-on: ${{ matrix.os }}
-    defaults:
-      run:
-        shell: bash
-        working-directory: ${{ inputs.sdk-home }}/rust
-    env:
-      CARGO_TERM_COLOR: always
-      RUST_BACKTRACE: 1
-      COPILOT_SDK_DEFAULT_CONNECTION: inprocess
-    steps:
-      - uses: actions/checkout@v7
-        timeout-minutes: 4
-        with:
-          persist-credentials: false
-      - uses: actions/download-artifact@v8
-        with:
-          name: ${{ runner.os == 'Linux' && format('executable-sdk-{0}-{1}-gnu', runner.os, runner.arch) || format('executable-sdk-{0}-{1}', runner.os, runner.arch) }}
-          path: ${{ github.workspace }}
-      - run: node "$SDK_HOME/scripts/ci/runtime-artifact.mjs" restore && node "$SDK_HOME/scripts/ci/runtime-artifact.mjs" prepare
-        working-directory: .
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: "1.94.0"
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: ${{ inputs.sdk-home }}/rust
-          prefix-key: v2-sdk-rust-no-bin
-          cache-bin: false
-      - run: npm ci --ignore-scripts
-        working-directory: ${{ inputs.sdk-home }}/test/harness
-      - env:
+      - name: Test in-process smoke
+        id: inprocess
+        if: ${{ !cancelled() && runner.os != 'Windows' && (steps.subprocess.outcome == 'success' || steps.subprocess.outcome == 'failure') }}
+        env:
           COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
+          COPILOT_SDK_DEFAULT_CONNECTION: inprocess
         run: >-
           cargo test --no-default-features --features test-support,local-runtime,derive
           --test e2e inprocess::should_start_ping_and_stop_inprocess_client
           -- --exact --test-threads=1 --nocapture
-      - env:
+      - name: Test in-process authentication host
+        if: ${{ !cancelled() && (steps.inprocess.outcome == 'success' || steps.inprocess.outcome == 'failure') }}
+        env:
           COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
+          COPILOT_SDK_DEFAULT_CONNECTION: inprocess
         run: >-
           cargo test --no-default-features --features test-support,local-runtime,derive
           --test e2e client::should_use_configured_github_host_for_authentication
           -- --exact --test-threads=1 --nocapture
 
   rust-musl-x64:
-    name: "Rust (Alpine x64, ${{ matrix.transport }})"
+    name: "Rust (Alpine x64)"
     if: inputs.platform == 'all' || inputs.platform == 'linuxmusl-x64'
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    strategy:
-      fail-fast: false
-      matrix:
-        transport: [default, inprocess]
     steps:
       - uses: actions/checkout@v7
         timeout-minutes: 4
         with:
           persist-credentials: false
-      - uses: actions/download-artifact@v8
+      - uses: ./.github/actions/download-sdk-runtime
         with:
-          name: executable-sdk-Linux-X64-musl
+          artifact-name: executable-sdk-Linux-X64-musl
           path: ${{ github.workspace }}
       - run: node "$SDK_HOME/scripts/ci/runtime-artifact.mjs" restore
         working-directory: .
@@ -172,7 +151,6 @@ jobs:
           image: rust:1.94.0-alpine
           sdk-root: /workspace/${{ inputs.sdk-home }}
           workdir: /workspace/${{ inputs.sdk-home }}/rust
-          transport: ${{ matrix.transport }}
           command: |
             rustc --print cfg | grep -Fqx "target_arch=\"x86_64\""
             rustc --print cfg | grep -Fqx "target_env=\"musl\""
@@ -197,15 +175,13 @@ jobs:
             export CARGO_INCREMENTAL=0
             export CARGO_PROFILE_TEST_DEBUG=0
             cd "$COPILOT_SDK_ROOT/rust"
-            if [ "$COPILOT_SDK_TEST_TRANSPORT" = "inprocess" ]; then
-              unset RUST_E2E_CONCURRENCY
-              cargo test --no-default-features --features test-support,local-runtime,derive \
-                --test e2e inprocess::should_start_ping_and_stop_inprocess_client \
-                -- --exact --test-threads=1 --nocapture
-              cargo test --no-default-features --features test-support,local-runtime,derive \
-                --test e2e client::should_use_configured_github_host_for_authentication \
-                -- --exact --test-threads=1 --nocapture
-            else
-              export RUST_E2E_CONCURRENCY=4
-              cargo test --no-default-features --features runtime,test-support,derive -- --test-threads=4 --nocapture
-            fi
+            status=0
+            RUST_E2E_CONCURRENCY=4 cargo test --no-default-features --features runtime,test-support,derive -- --test-threads=4 --nocapture || status=$?
+            export COPILOT_SDK_DEFAULT_CONNECTION=inprocess
+            cargo test --no-default-features --features test-support,local-runtime,derive \
+              --test e2e inprocess::should_start_ping_and_stop_inprocess_client \
+              -- --exact --test-threads=1 --nocapture || status=$?
+            cargo test --no-default-features --features test-support,local-runtime,derive \
+              --test e2e client::should_use_configured_github_host_for_authentication \
+              -- --exact --test-threads=1 --nocapture || status=$?
+            exit "$status"

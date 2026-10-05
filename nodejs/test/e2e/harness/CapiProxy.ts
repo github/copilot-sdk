@@ -5,14 +5,16 @@
 import { spawn, type ChildProcess } from "child_process";
 import { createInterface } from "readline";
 import { expect, inject } from "vitest";
-import type { CapturedRequest } from "../../../../test/harness/replayingCapiProxy";
-import {
+import type { CapturedRequest, ReplayBackend } from "../../../../test/harness/replayingCapiProxy";
+import type {
     CopilotUserResponse,
+    MemoryApiStub,
     ParsedHttpExchange,
 } from "../../../../test/harness/replayingCapiProxy";
 import { isCI } from "./sdkTestContext";
 import { CAPI_PROXY_BUNDLE } from "./proxyBundleContext";
 import { hasChildExited, stopChildProcess, waitForChildExit } from "./sdkTestHelper";
+import { testBackend } from "./testBackend";
 
 const NO_PROXY = "127.0.0.1,localhost,::1";
 
@@ -62,6 +64,8 @@ export class CapiProxy {
                     serverProcess.off("exit", onExit);
                     serverProcess.off("error", onError);
                     lineReader.close();
+                    // Closing readline pauses stdout even when another reader still owns it.
+                    stdout.resume();
                 };
                 const onLine = (line: string) => {
                     lines.push(line);
@@ -144,12 +148,14 @@ export class CapiProxy {
     async updateConfig(config: {
         filePath: string;
         workDir: string;
+        backend?: ReplayBackend;
         testInfo?: { file: string; line?: number };
+        modelNames?: Record<string, string>;
     }): Promise<void> {
         const response = await fetch(`${this.proxyUrl}/config`, {
             method: "POST",
             headers: { "content-type": "application/json" },
-            body: JSON.stringify(config),
+            body: JSON.stringify({ backend: testBackend, ...config }),
         });
         expect(response.ok).toBe(true);
     }
@@ -217,6 +223,15 @@ export class CapiProxy {
             body: JSON.stringify({ token, response }),
         });
         expect(res.ok).toBe(true);
+    }
+
+    async setMemoryApiStub(stub: MemoryApiStub): Promise<void> {
+        const response = await fetch(`${this.proxyUrl}/memory-api-config`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify(stub),
+        });
+        expect(response.ok).toBe(true);
     }
 }
 

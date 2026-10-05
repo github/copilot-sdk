@@ -45,6 +45,7 @@ from .generated.rpc import (
     LogRequest,
     MCPOauthHandlePendingRequest,
     MCPOauthPendingRequestResponse,
+    MCPServerConfigDeferTools,
     ModelSwitchAutoTierResult,
     ModelSwitchToRequest,
     PermissionDecision,
@@ -52,10 +53,12 @@ from .generated.rpc import (
     PermissionDecisionContext,
     PermissionDecisionRequest,
     PermissionDecisionUserNotAvailable,
+    ProtocolExternalToolDefinition,
     ProviderTokenAcquireRequest,
     ProviderTokenAcquireResult,
     SessionLogLevel,
     SessionRpc,
+    ToolsSetRequest,
     UIElicitationRequest,
     UIElicitationResponse,
     UIElicitationResponseAction,
@@ -215,8 +218,38 @@ def _auto_tier_to_wire(auto_tier: AutoTier | _RpcAutoTier | None) -> str | None:
     return auto_tier
 
 
+def _tool_to_wire_definition(tool: Tool) -> ProtocolExternalToolDefinition:
+    defer = MCPServerConfigDeferTools(tool.defer) if tool.defer is not None else None
+    return ProtocolExternalToolDefinition(
+        name=tool.name,
+        description=tool.description or "",
+        parameters=tool.parameters or None,
+        overrides_built_in_tool=True if tool.overrides_built_in_tool else None,
+        skip_permission=True if tool.skip_permission else None,
+        defer=defer,
+        metadata=tool.metadata,
+        is_terminal=True if tool.is_terminal else None,
+    )
+
+
+def _tools_to_wire_definitions(tools: list[Tool] | None) -> list[ProtocolExternalToolDefinition]:
+    return [_tool_to_wire_definition(tool) for tool in tools or []]
+
+
+def _tool_handlers_for(tools: list[Tool] | None) -> dict[str, ToolHandler]:
+    return {
+        tool.name: tool.handler for tool in tools or [] if tool.name and tool.handler is not None
+    }
+
+
+def _consume_task_exception(task: asyncio.Task[Any]) -> None:
+    if not task.cancelled():
+        task.exception()
+
+
 class SessionFsCapabilities(TypedDict, total=False):
     sqlite: bool
+    binary: bool
 
 
 class SessionFsConfig(TypedDict):
@@ -384,12 +417,13 @@ SYSTEM_MESSAGE_SECTIONS: dict[SystemMessageSection, str] = {
     "tool_instructions": "Per-tool usage instructions",
     "custom_instructions": "Repository and organization custom instructions",
     "runtime_instructions": (
-        "Runtime-provided context and instructions"
-        " (e.g. system notifications, memories, workspace context,"
-        " mode-specific instructions, content-exclusion policy)"
+        "Runtime-provided system-prompt context and instructions, such as system"
+        " notifications, memories, workspace context, and content-exclusion policy."
+        " Mode-specific instructions can travel in transition messages instead."
     ),
     "last_instructions": (
-        "End-of-prompt instructions: parallel tool calling, persistence, task completion"
+        "End-of-prompt instructions: parallel tool calling, persistence, task completion,"
+        " and configured subagent-model guidance when the task tool is available"
     ),
 }
 
@@ -1194,6 +1228,67 @@ AgentStopHandler = Callable[
 ]
 
 
+class SubagentStartHookInput(TypedDict):
+    """Input when a subagent starts; session metadata belongs to its parent."""
+
+    sessionId: str
+    timestamp: datetime
+    workingDirectory: str
+    transcriptPath: str
+    agentName: str
+    agentDisplayName: NotRequired[str]
+    agentDescription: NotRequired[str]
+
+
+class SubagentStartHookOutput(TypedDict, total=False):
+    """Context prepended to the subagent's initial prompt."""
+
+    additionalContext: str
+
+
+SubagentStartHandler = Callable[
+    [SubagentStartHookInput, dict[str, str]],
+    SubagentStartHookOutput | None | Awaitable[SubagentStartHookOutput | None],
+]
+
+
+class SubagentStopHookInput(TypedDict):
+    """Input after a subagent turn completes; session metadata belongs to its parent."""
+
+    sessionId: str
+    timestamp: datetime
+    workingDirectory: str
+    transcriptPath: str
+    agentName: str
+    agentType: str
+    stopReason: Literal["end_turn"]
+    response: str
+    agentId: NotRequired[str]
+    agentDisplayName: NotRequired[str]
+    agentDescription: NotRequired[str]
+
+
+class _SubagentStopBlockHookOutput(TypedDict):
+    decision: Literal["block"]
+    reason: str
+    modifiedResponse: NotRequired[str]
+
+
+class _SubagentStopAllowHookOutput(TypedDict, total=False):
+    decision: Literal["allow"]
+    modifiedResponse: str
+
+
+SubagentStopHookOutput = _SubagentStopBlockHookOutput | _SubagentStopAllowHookOutput
+"""Block with a nonempty reason, or allow with an optional response rewrite."""
+
+
+SubagentStopHandler = Callable[
+    [SubagentStopHookInput, dict[str, str]],
+    SubagentStopHookOutput | None | Awaitable[SubagentStopHookOutput | None],
+]
+
+
 class SessionHooks(TypedDict, total=False):
     """Configuration for session hooks"""
 
@@ -1207,6 +1302,8 @@ class SessionHooks(TypedDict, total=False):
     on_session_end: SessionEndHandler
     on_error_occurred: ErrorOccurredHandler
     on_agent_stop: AgentStopHandler
+    on_subagent_start: SubagentStartHandler
+    on_subagent_stop: SubagentStopHandler
 
 
 # ============================================================================
@@ -1410,6 +1507,18 @@ class ProviderTokenArgs(TypedDict):
 BearerTokenProvider = Callable[[ProviderTokenArgs], str | Awaitable[str]]
 
 
+ProviderConfigModelProvider = Literal[
+    "openai",
+    "anthropic",
+    "azure_openai",
+    "ollama",
+    "lm_studio",
+    "foundry_local",
+    "llama_cpp",
+]
+"""Product serving a configured provider's model."""
+
+
 class ProviderConfig(TypedDict, total=False):
     """Configuration for a custom API provider"""
 
@@ -1420,6 +1529,9 @@ class ProviderConfig(TypedDict, total=False):
     # connection instead of HTTP. Applies to OpenAI-compatible providers using
     # wire_api "responses".
     transport: Literal["http", "websockets"]
+    # Product serving the model, such as "ollama" or "lm_studio", reported in
+    # telemetry as model_provider. Only affects telemetry.
+    model_provider: ProviderConfigModelProvider
     base_url: str
     api_key: str
     # Bearer token for authentication. Sets the Authorization header directly.
@@ -1473,6 +1585,9 @@ class NamedProviderConfig(TypedDict, total=False):
     name: str
     type: Literal["openai", "azure", "anthropic"]
     wire_api: Literal["completions", "responses"]
+    # Product serving this provider's models, such as "ollama" or "lm_studio",
+    # reported in telemetry as model_provider. Only affects telemetry.
+    model_provider: ProviderConfigModelProvider
     base_url: str
     api_key: str
     # Bearer token for authentication. Sets the Authorization header directly.
@@ -1659,6 +1774,7 @@ class CopilotSession:
         self._event_handlers_lock = threading.Lock()
         self._tool_handlers: dict[str, ToolHandler] = {}
         self._tool_handlers_lock = threading.Lock()
+        self._set_tools_lock = asyncio.Lock()
         self._pending_external_tools: dict[str, asyncio.Task[None]] = {}
         self._permission_handler: _PermissionHandlerFn | None = None
         self._permission_handler_lock = threading.Lock()
@@ -1856,6 +1972,54 @@ class CopilotSession:
             message_id=message_id,
         )
         return message_id
+
+    async def set_tools(self, tools: list[Tool]) -> None:
+        """
+        **Experimental.** Replace this client's live external tools for the session.
+
+        This is a complete replacement of the tools supplied by this client
+        connection only; built-in tools, MCP/plugin tools, and tools supplied by
+        other connections are unaffected. Pass the same tool definitions accepted
+        by ``CopilotClient.create_session`` and ``CopilotClient.resume_session``.
+        An empty list removes all tools supplied by this client.
+
+        The local handlers switch only after the runtime accepts the replacement.
+        Running tool calls finish on the handlers they already captured. If the
+        runtime rejects the replacement, the existing handlers are left unchanged
+        and the error is raised. Concurrent ``set_tools`` calls on the same
+        session are applied in order. Cancelling the call while an earlier
+        replacement is still in flight sends nothing. Once the request is sent,
+        cancelling only stops the wait: an accepted replacement still installs
+        its handlers.
+
+        The agent sees the new tools from its next model request, which can fall
+        within a turn in progress. A model request already in flight was made
+        with the previous tools, so the agent can still call a tool you removed.
+        This session doesn't answer that call, and it can stay pending until the
+        turn is aborted. If a running turn might still call a tool you remove,
+        replace tools while the session is idle.
+        """
+        definitions = _tools_to_wire_definitions(tools)
+        handlers = _tool_handlers_for(tools)
+        # Cancelling while an earlier call holds the lock sends nothing. Once
+        # this call holds it, the request runs to completion in its own task,
+        # so an accepted replacement still installs its handlers.
+        await self._set_tools_lock.acquire()
+        task = asyncio.create_task(self._replace_tools(definitions, handlers))
+        task.add_done_callback(_consume_task_exception)
+        await asyncio.shield(task)
+
+    async def _replace_tools(
+        self,
+        definitions: list[ProtocolExternalToolDefinition],
+        handlers: dict[str, ToolHandler],
+    ) -> None:
+        try:
+            await self.rpc.tools.set(ToolsSetRequest(tools=definitions))
+            with self._tool_handlers_lock:
+                self._tool_handlers = handlers
+        finally:
+            self._set_tools_lock.release()
 
     async def send_and_wait(
         self,
@@ -2898,13 +3062,7 @@ class CopilotSession:
                 all registered tools.
         """
         with self._tool_handlers_lock:
-            self._tool_handlers.clear()
-            if not tools:
-                return
-            for tool in tools:
-                if not tool.name or not tool.handler:
-                    continue
-                self._tool_handlers[tool.name] = tool.handler
+            self._tool_handlers = _tool_handlers_for(tools)
 
     def _get_tool_handler(self, name: str) -> ToolHandler | None:
         """
@@ -3194,6 +3352,8 @@ class CopilotSession:
             "sessionEnd": hooks.get("on_session_end"),
             "errorOccurred": hooks.get("on_error_occurred"),
             "agentStop": hooks.get("on_agent_stop"),
+            "subagentStart": hooks.get("on_subagent_start"),
+            "subagentStop": hooks.get("on_subagent_stop"),
         }
 
         handler = handler_map.get(hook_type)

@@ -2053,6 +2053,165 @@ public sealed class AgentStopHookOutput
 }
 
 /// <summary>
+/// Input for a subagent-start hook, before the sub-agent's first turn.
+/// </summary>
+public sealed class SubagentStartHookInput
+{
+    /// <summary>
+    /// The runtime session ID of the parent session.
+    /// </summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Unix timestamp in milliseconds when the hook was triggered.
+    /// </summary>
+    [JsonPropertyName("timestamp")]
+    [JsonConverter(typeof(UnixMillisecondsDateTimeOffsetConverter))]
+    public DateTimeOffset Timestamp { get; set; }
+
+    /// <summary>
+    /// Current working directory of the parent session.
+    /// </summary>
+    [JsonPropertyName("cwd")]
+    public string WorkingDirectory { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Path to the parent session's on-disk transcript, or empty if unavailable.
+    /// </summary>
+    [JsonPropertyName("transcriptPath")]
+    public string TranscriptPath { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Name of the sub-agent being started.
+    /// </summary>
+    [JsonPropertyName("agentName")]
+    public string AgentName { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Display name of the sub-agent, when available.
+    /// </summary>
+    [JsonPropertyName("agentDisplayName")]
+    public string? AgentDisplayName { get; set; }
+
+    /// <summary>
+    /// Description of the sub-agent, when available.
+    /// </summary>
+    [JsonPropertyName("agentDescription")]
+    public string? AgentDescription { get; set; }
+}
+
+/// <summary>
+/// Output for a subagent-start hook.
+/// </summary>
+public sealed class SubagentStartHookOutput
+{
+    /// <summary>
+    /// Additional context prepended to the sub-agent's initial prompt.
+    /// </summary>
+    [JsonPropertyName("additionalContext")]
+    public string? AdditionalContext { get; set; }
+}
+
+/// <summary>
+/// Input for a subagent-stop hook, after a sub-agent turn completes.
+/// </summary>
+public sealed class SubagentStopHookInput
+{
+    /// <summary>
+    /// The runtime session ID of the parent session.
+    /// </summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Unix timestamp in milliseconds when the hook was triggered.
+    /// </summary>
+    [JsonPropertyName("timestamp")]
+    [JsonConverter(typeof(UnixMillisecondsDateTimeOffsetConverter))]
+    public DateTimeOffset Timestamp { get; set; }
+
+    /// <summary>
+    /// Current working directory of the parent session.
+    /// </summary>
+    [JsonPropertyName("cwd")]
+    public string WorkingDirectory { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Path to the parent session's on-disk transcript, or empty if unavailable.
+    /// </summary>
+    [JsonPropertyName("transcriptPath")]
+    public string TranscriptPath { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Name of the sub-agent that stopped.
+    /// </summary>
+    [JsonPropertyName("agentName")]
+    public string AgentName { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Display name of the sub-agent, when available.
+    /// </summary>
+    [JsonPropertyName("agentDisplayName")]
+    public string? AgentDisplayName { get; set; }
+
+    /// <summary>
+    /// Description of the sub-agent, when available.
+    /// </summary>
+    [JsonPropertyName("agentDescription")]
+    public string? AgentDescription { get; set; }
+
+    /// <summary>
+    /// Identifier of the sub-agent, when available.
+    /// </summary>
+    [JsonPropertyName("agentId")]
+    public string? AgentId { get; set; }
+
+    /// <summary>
+    /// Type of the sub-agent that stopped.
+    /// </summary>
+    [JsonPropertyName("agentType")]
+    public string AgentType { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Reason the sub-agent stopped, such as <c>"end_turn"</c>.
+    /// </summary>
+    [JsonPropertyName("stopReason")]
+    public string StopReason { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Last assistant response from the sub-agent.
+    /// </summary>
+    [JsonPropertyName("response")]
+    public string Response { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Output for a subagent-stop hook.
+/// </summary>
+public sealed class SubagentStopHookOutput
+{
+    /// <summary>
+    /// Set to <c>"block"</c> to request another sub-agent turn, or <c>"allow"</c> to accept it.
+    /// Other values fail the sub-agent instead of silently allowing its stop.
+    /// </summary>
+    [JsonPropertyName("decision")]
+    public string? Decision { get; set; }
+
+    /// <summary>
+    /// Nonempty instruction required when the stop is blocked; invalid without <c>Decision = "block"</c>.
+    /// </summary>
+    [JsonPropertyName("reason")]
+    public string? Reason { get; set; }
+
+    /// <summary>
+    /// Replacement for the sub-agent's final response when the stop is not blocked.
+    /// </summary>
+    [JsonPropertyName("modifiedResponse")]
+    public string? ModifiedResponse { get; set; }
+}
+
+/// <summary>
 /// Hook handlers configuration for a session.
 /// </summary>
 public sealed class SessionHooks
@@ -2108,6 +2267,16 @@ public sealed class SessionHooks
     /// Handler called when the top-level agent reaches a natural stop.
     /// </summary>
     public Func<AgentStopHookInput, HookInvocation, Task<AgentStopHookOutput?>>? OnAgentStop { get; set; }
+
+    /// <summary>
+    /// Handler called before a sub-agent's first turn.
+    /// </summary>
+    public Func<SubagentStartHookInput, HookInvocation, Task<SubagentStartHookOutput?>>? OnSubagentStart { get; set; }
+
+    /// <summary>
+    /// Handler called after a sub-agent turn completes.
+    /// </summary>
+    public Func<SubagentStopHookInput, HookInvocation, Task<SubagentStopHookOutput?>>? OnSubagentStop { get; set; }
 }
 
 /// <summary>
@@ -2284,9 +2453,9 @@ public readonly struct SystemMessageSection : IEquatable<SystemMessageSection>
     public static SystemMessageSection ToolInstructions { get; } = new("tool_instructions");
     /// <summary>Repository and organization custom instructions.</summary>
     public static SystemMessageSection CustomInstructions { get; } = new("custom_instructions");
-    /// <summary>Runtime-provided context and instructions (e.g. system notifications, memories, workspace context, mode-specific instructions, content-exclusion policy).</summary>
+    /// <summary>Runtime-provided system-prompt context and instructions, such as system notifications, memories, workspace context, and content-exclusion policy. Mode-specific instructions can travel in transition messages instead.</summary>
     public static SystemMessageSection RuntimeInstructions { get; } = new("runtime_instructions");
-    /// <summary>End-of-prompt instructions: parallel tool calling, persistence, task completion.</summary>
+    /// <summary>End-of-prompt instructions: parallel tool calling, persistence, task completion, and configured subagent-model guidance when the task tool is available.</summary>
     public static SystemMessageSection LastInstructions { get; } = new("last_instructions");
 
     /// <summary>Gets the underlying string value of this <see cref="SystemMessageSection"/>.</summary>
@@ -2400,6 +2569,15 @@ public sealed class ProviderConfig
     /// </summary>
     [JsonPropertyName("transport")]
     public string? Transport { get; set; }
+
+    /// <summary>
+    /// Product serving the model, such as <c>ollama</c> or <c>lm_studio</c>, reported in telemetry
+    /// as <c>model_provider</c>. Allowed values are <c>openai</c>, <c>anthropic</c>,
+    /// <c>azure_openai</c>, <c>ollama</c>, <c>lm_studio</c>, <c>foundry_local</c>, and
+    /// <c>llama_cpp</c>; only affects telemetry.
+    /// </summary>
+    [JsonPropertyName("modelProvider")]
+    public string? ModelProvider { get; set; }
 
     /// <summary>
     /// Base URL of the provider's API endpoint.
@@ -2570,6 +2748,15 @@ public sealed class NamedProviderConfig
     /// </summary>
     [JsonPropertyName("wireApi")]
     public string? WireApi { get; set; }
+
+    /// <summary>
+    /// Product serving this provider's models, such as <c>ollama</c> or <c>lm_studio</c>, reported
+    /// in telemetry as <c>model_provider</c>. Allowed values are <c>openai</c>, <c>anthropic</c>,
+    /// <c>azure_openai</c>, <c>ollama</c>, <c>lm_studio</c>, <c>foundry_local</c>, and
+    /// <c>llama_cpp</c>; only affects telemetry.
+    /// </summary>
+    [JsonPropertyName("modelProvider")]
+    public string? ModelProvider { get; set; }
 
     /// <summary>
     /// API endpoint URL.

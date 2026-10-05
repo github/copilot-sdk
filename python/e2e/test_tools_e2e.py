@@ -1,9 +1,11 @@
+# Copyright (c) Microsoft Corporation. All rights reserved.
+
 """E2E Tools Tests"""
 
 import os
 
 import pytest
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, RootModel
 
 from copilot import ToolSet, define_tool
 from copilot.rpc import (
@@ -19,6 +21,31 @@ pytestmark = pytest.mark.asyncio(loop_scope="module")
 
 
 class TestTools:
+    async def test_string_schema_apply_patch_override_binds_patch_input(self, ctx: E2ETestContext):
+        patch = "*** Begin Patch\n*** Add File: override-marker.txt\n+from-native\n*** End Patch"
+        calls = []
+
+        @define_tool(
+            "apply_patch",
+            description="Apply a patch",
+            overrides_built_in_tool=True,
+        )
+        def apply_patch(params: RootModel[str], invocation: ToolInvocation) -> str:
+            calls.append((params.root, invocation.arguments))
+            return "HOST_PATCH_HANDLED"
+
+        session = await ctx.client.create_session(
+            on_permission_request=PermissionHandler.approve_all, tools=[apply_patch]
+        )
+        response = await session.send_and_wait(
+            "Use apply_patch to apply the supplied patch.", timeout=10.0
+        )
+
+        assert calls == [(patch, patch)]
+        assert response is not None
+        assert response.data.content == "Host override completed."
+        assert not os.path.exists(os.path.join(ctx.work_dir, "override-marker.txt"))
+
     async def test_invokes_built_in_tools(self, ctx: E2ETestContext):
         readme_path = os.path.join(ctx.work_dir, "README.md")
         with open(readme_path, "w") as f:

@@ -61,6 +61,7 @@ namespace GitHub.Copilot;
 [JsonDerivedType(typeof(HookEndEvent), "hook.end")]
 [JsonDerivedType(typeof(HookProgressEvent), "hook.progress")]
 [JsonDerivedType(typeof(HookStartEvent), "hook.start")]
+[JsonDerivedType(typeof(HumanResponseRecordedEvent), "human_response.recorded")]
 [JsonDerivedType(typeof(McpAppToolCallCompleteEvent), "mcp_app.tool_call_complete")]
 [JsonDerivedType(typeof(McpHeadersRefreshCompletedEvent), "mcp.headers_refresh_completed")]
 [JsonDerivedType(typeof(McpHeadersRefreshRequiredEvent), "mcp.headers_refresh_required")]
@@ -167,6 +168,7 @@ namespace GitHub.Copilot;
 [JsonDerivedType(typeof(ToolExecutionPartialResultEvent), "tool.execution_partial_result")]
 [JsonDerivedType(typeof(ToolExecutionProgressEvent), "tool.execution_progress")]
 [JsonDerivedType(typeof(ToolExecutionStartEvent), "tool.execution_start")]
+[JsonDerivedType(typeof(ToolShellOutputEvent), "tool.shell_output")]
 [JsonDerivedType(typeof(ToolUserRequestedEvent), "tool.user_requested")]
 [JsonDerivedType(typeof(UiEphemeralQueryEvent), "ui.ephemeral_query")]
 [JsonDerivedType(typeof(UserInputCompletedEvent), "user_input.completed")]
@@ -313,6 +315,8 @@ internal sealed partial class SessionEventJsonConverter : JsonConverter<SessionE
                     return SessionEventsJsonContext.Default.SkillInvokedRefEvent;
                 if (type.SequenceEqual("subagent.selected"u8))
                     return SessionEventsJsonContext.Default.SubagentSelectedEvent;
+                if (type.SequenceEqual("tool.shell_output"u8))
+                    return SessionEventsJsonContext.Default.ToolShellOutputEvent;
                 break;
             case 18:
                 if (type.SequenceEqual("assistant.turn_end"u8))
@@ -423,6 +427,8 @@ internal sealed partial class SessionEventJsonConverter : JsonConverter<SessionE
                     return SessionEventsJsonContext.Default.ExternalToolCompletedEvent;
                 if (type.SequenceEqual("external_tool.requested"u8))
                     return SessionEventsJsonContext.Default.ExternalToolRequestedEvent;
+                if (type.SequenceEqual("human_response.recorded"u8))
+                    return SessionEventsJsonContext.Default.HumanResponseRecordedEvent;
                 if (type.SequenceEqual("model.call_final_result"u8))
                     return SessionEventsJsonContext.Default.ModelCallFinalResultEvent;
                 if (type.SequenceEqual("session.canvas.recorded"u8))
@@ -1647,8 +1653,14 @@ public sealed partial class ToolExecutionStartEvent : SessionEvent
     public required ToolExecutionStartData Data { get; set; }
 }
 
-/// <summary>Streaming tool execution output for incremental result display.</summary>
+/// <summary>Deprecated merged replacement snapshot of shell output. Use tool.shell_output for append-only, stream-tagged output instead.</summary>
 /// <remarks>Represents the <c>tool.execution_partial_result</c> event.</remarks>
+[EditorBrowsable(EditorBrowsableState.Never)]
+#if NET5_0_OR_GREATER
+[Obsolete("This member is deprecated and will be removed in a future version.", DiagnosticId = "GHCP001")]
+#else
+[Obsolete("This member is deprecated and will be removed in a future version.")]
+#endif
 public sealed partial class ToolExecutionPartialResultEvent : SessionEvent
 {
     /// <inheritdoc />
@@ -1658,6 +1670,19 @@ public sealed partial class ToolExecutionPartialResultEvent : SessionEvent
     /// <summary>The <c>tool.execution_partial_result</c> event payload.</summary>
     [JsonPropertyName("data")]
     public required ToolExecutionPartialResultData Data { get; set; }
+}
+
+/// <summary>Live, append-only shell output. Not persisted or replayed to late subscribers. Text is decoded and redacted per chunk; chunks need not contain complete lines.</summary>
+/// <remarks>Represents the <c>tool.shell_output</c> event.</remarks>
+public sealed partial class ToolShellOutputEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "tool.shell_output";
+
+    /// <summary>The <c>tool.shell_output</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required ToolShellOutputData Data { get; set; }
 }
 
 /// <summary>Tool execution progress notification with status message.</summary>
@@ -2402,6 +2427,19 @@ public sealed partial class ExitPlanModeCompletedEvent : SessionEvent
     public required ExitPlanModeCompletedData Data { get; set; }
 }
 
+/// <summary>Durable request-correlated evidence for a typed response to a runtime-owned question or plan review.</summary>
+/// <remarks>Represents the <c>human_response.recorded</c> event.</remarks>
+public sealed partial class HumanResponseRecordedEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "human_response.recorded";
+
+    /// <summary>The <c>human_response.recorded</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required HumanResponseRecordedData Data { get; set; }
+}
+
 /// <summary>Payload of `session.tools_updated` identifying the model whose resolved tools were updated.</summary>
 /// <remarks>Represents the <c>session.tools_updated</c> event.</remarks>
 public sealed partial class SessionToolsUpdatedEvent : SessionEvent
@@ -2756,6 +2794,11 @@ public sealed partial class SessionStartData
     [JsonPropertyName("reasoningEffort")]
     public string? ReasoningEffort { get; set; }
 
+    /// <summary>Model that owns effort embedded in an authored model selection. Omitted for independent reasoning-effort overrides and legacy events.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("reasoningEffortModel")]
+    public string? ReasoningEffortModel { get; set; }
+
     /// <summary>Reasoning summary mode used for model calls, if applicable (e.g. "none", "concise", "detailed").</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("reasoningSummary")]
@@ -2835,6 +2878,11 @@ public sealed partial class SessionResumeData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("reasoningEffort")]
     public string? ReasoningEffort { get; set; }
+
+    /// <summary>Model that owns effort embedded in an authored model selection. Omitted for independent reasoning-effort overrides and legacy events.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("reasoningEffortModel")]
+    public string? ReasoningEffortModel { get; set; }
 
     /// <summary>Reasoning summary mode used for model calls, if applicable (e.g. "none", "concise", "detailed").</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -3156,6 +3204,11 @@ public sealed partial class SessionModelChangeData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("reasoningEffort")]
     public string? ReasoningEffort { get; set; }
+
+    /// <summary>Model that owns effort embedded in an authored model selection. Omitted for independent reasoning-effort overrides and legacy events.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("reasoningEffortModel")]
+    public string? ReasoningEffortModel { get; set; }
 
     /// <summary>Reasoning summary mode after the model change, if applicable.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -4670,6 +4723,8 @@ public sealed partial class AssistantMessageData
     [EditorBrowsable(EditorBrowsableState.Never)]
 #if NET5_0_OR_GREATER
     [Obsolete("This member is deprecated and will be removed in a future version.", DiagnosticId = "GHCP001")]
+#else
+    [Obsolete("This member is deprecated and will be removed in a future version.")]
 #endif
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("parentToolCallId")]
@@ -4759,6 +4814,8 @@ public sealed partial class AssistantMessageDeltaData
     [EditorBrowsable(EditorBrowsableState.Never)]
 #if NET5_0_OR_GREATER
     [Obsolete("This member is deprecated and will be removed in a future version.", DiagnosticId = "GHCP001")]
+#else
+    [Obsolete("This member is deprecated and will be removed in a future version.")]
 #endif
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("parentToolCallId")]
@@ -4815,6 +4872,11 @@ public sealed partial class AssistantUsageData
     [JsonInclude]
     [JsonPropertyName("availableToolCount")]
     internal long? AvailableToolCount { get; set; }
+
+    /// <summary>Where the bring-your-own-key model runs and who manages it: "local_managed" (on the device, managed by Copilot), "local_user" (on the device, managed by the user), or "remote_user" (off the device, managed by the user). Absent for Copilot-served models.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("byokKind")]
+    public string? ByokKind { get; set; }
 
     /// <summary>Whether the provider reported prompt-cache usage details for this call.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -4927,6 +4989,11 @@ public sealed partial class AssistantUsageData
     [JsonPropertyName("model")]
     public required string Model { get; set; }
 
+    /// <summary>Fixed-set provider family serving the bring-your-own-key model (for example "openai", "anthropic", "azure_openai", "ollama", "llama_cpp", or "other"). Never the caller-supplied provider name. Absent for Copilot-served models.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("modelProvider")]
+    public string? ModelProvider { get; set; }
+
     /// <summary>Number of tool calls returned by the model.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonInclude]
@@ -4948,6 +5015,8 @@ public sealed partial class AssistantUsageData
     [EditorBrowsable(EditorBrowsableState.Never)]
 #if NET5_0_OR_GREATER
     [Obsolete("This member is deprecated and will be removed in a future version.", DiagnosticId = "GHCP001")]
+#else
+    [Obsolete("This member is deprecated and will be removed in a future version.")]
 #endif
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("parentToolCallId")]
@@ -5184,6 +5253,11 @@ public sealed partial class ModelCallFailureData
     [JsonPropertyName("badRequestKind")]
     public ModelCallFailureBadRequestKind? BadRequestKind { get; set; }
 
+    /// <summary>Where the bring-your-own-key model for the failed call runs and who manages it: "local_managed" (on the device, managed by Copilot), "local_user" (on the device, managed by the user), or "remote_user" (off the device, managed by the user). Absent for Copilot-served models.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("byokKind")]
+    public string? ByokKind { get; set; }
+
     /// <summary>Duration of the failed API call in milliseconds.</summary>
     [JsonConverter(typeof(MillisecondsTimeSpanConverter))]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -5250,6 +5324,11 @@ public sealed partial class ModelCallFailureData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("model")]
     public string? Model { get; set; }
+
+    /// <summary>Fixed-set provider family serving the bring-your-own-key model for the failed call (for example "openai", "anthropic", "azure_openai", "ollama", "llama_cpp", or "other"). Never the caller-supplied provider name. Absent for Copilot-served models.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("modelProvider")]
+    public string? ModelProvider { get; set; }
 
     /// <summary>Parent task tool call ID when this failed model call belongs to a sub-agent.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -5458,6 +5537,8 @@ public sealed partial class ToolExecutionStartData
     [EditorBrowsable(EditorBrowsableState.Never)]
 #if NET5_0_OR_GREATER
     [Obsolete("This member is deprecated and will be removed in a future version.", DiagnosticId = "GHCP001")]
+#else
+    [Obsolete("This member is deprecated and will be removed in a future version.")]
 #endif
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("parentToolCallId")]
@@ -5497,14 +5578,41 @@ public sealed partial class ToolExecutionStartData
     public string? TurnId { get; set; }
 }
 
-/// <summary>Streaming tool execution output for incremental result display.</summary>
+/// <summary>Deprecated merged replacement snapshot of shell output. Use tool.shell_output for append-only, stream-tagged output instead.</summary>
+[EditorBrowsable(EditorBrowsableState.Never)]
+#if NET5_0_OR_GREATER
+[Obsolete("This member is deprecated and will be removed in a future version.", DiagnosticId = "GHCP001")]
+#else
+[Obsolete("This member is deprecated and will be removed in a future version.")]
+#endif
 public sealed partial class ToolExecutionPartialResultData
 {
-    /// <summary>Incremental output chunk from the running tool.</summary>
+    /// <summary>Merged replacement snapshot from the running shell, not an append-only chunk.</summary>
     [JsonPropertyName("partialOutput")]
     public required string PartialOutput { get; set; }
 
     /// <summary>Tool call ID this partial result belongs to.</summary>
+    [JsonPropertyName("toolCallId")]
+    public required string ToolCallId { get; set; }
+}
+
+/// <summary>Live, append-only shell output. Not persisted or replayed to late subscribers. Text is decoded and redacted per chunk; chunks need not contain complete lines.</summary>
+public sealed partial class ToolShellOutputData
+{
+    /// <summary>Zero-based publication sequence across all output streams for this tool call. Not a byte offset or an OS write-order guarantee.</summary>
+    [JsonPropertyName("sequence")]
+    public required long Sequence { get; set; }
+
+    /// <summary>Output source. Omission means stdout. Terminal output has no separate stdout/stderr attribution.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("stream")]
+    public ToolShellOutputStream? Stream { get; set; }
+
+    /// <summary>New output to append, without synthetic shell-result markers or stream-switch separators.</summary>
+    [JsonPropertyName("text")]
+    public required string Text { get; set; }
+
+    /// <summary>Tool call ID that owns this shell output.</summary>
     [JsonPropertyName("toolCallId")]
     public required string ToolCallId { get; set; }
 }
@@ -5534,6 +5642,12 @@ public sealed partial class ToolExecutionCompleteData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("error")]
     public ToolExecutionCompleteError? Error { get; set; }
+
+    /// <summary>Experimental. File mutations actually committed by a built-in file editing tool, in execution order. Present on successful edits and on partial failures when earlier mutations were committed. Paths are absolute in the session filesystem namespace.</summary>
+    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("fileEdits")]
+    public ToolExecutionCompleteFileEdit[]? FileEdits { get; set; }
 
     /// <summary>Experimental HydraFusion attribution for this tool completion.</summary>
     [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
@@ -5566,6 +5680,8 @@ public sealed partial class ToolExecutionCompleteData
     [EditorBrowsable(EditorBrowsableState.Never)]
 #if NET5_0_OR_GREATER
     [Obsolete("This member is deprecated and will be removed in a future version.", DiagnosticId = "GHCP001")]
+#else
+    [Obsolete("This member is deprecated and will be removed in a future version.")]
 #endif
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("parentToolCallId")]
@@ -7112,6 +7228,27 @@ public sealed partial class ExitPlanModeCompletedData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("selectedAction")]
     public ExitPlanModeAction? SelectedAction { get; set; }
+}
+
+/// <summary>Durable request-correlated evidence for a typed response to a runtime-owned question or plan review.</summary>
+public sealed partial class HumanResponseRecordedData
+{
+    /// <summary>Controlled actor provenance established at response ingress.</summary>
+    [JsonPropertyName("actor")]
+    public required HumanResponseActor Actor { get; set; }
+
+    /// <summary>Request ID of the runtime-owned question or plan review.</summary>
+    [JsonPropertyName("requestId")]
+    public required string RequestId { get; set; }
+
+    /// <summary>Typed request and response payload.</summary>
+    [JsonPropertyName("response")]
+    public required HumanResponseRecordedResponse Response { get; set; }
+
+    /// <summary>Tool call ID that opened the request, when present.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("toolCallId")]
+    public string? ToolCallId { get; set; }
 }
 
 /// <summary>Payload of `session.tools_updated` identifying the model whose resolved tools were updated.</summary>
@@ -8979,6 +9116,11 @@ public sealed partial class AssistantMessageReasoningBlocks
     [JsonPropertyName("blocks")]
     public JsonElement[]? Blocks { get; set; }
 
+    /// <summary>Anthropic Messages assistant block ordering preserved when the legacy reasoning-only representation cannot reproduce it exactly. Thinking and text blocks remain verbatim; tool-use entries retain identity and a payload fingerprint when later signed reasoning depends on them, and are hydrated from the message's tool requests during replay.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("orderedBlocks")]
+    public JsonElement[]? OrderedBlocks { get; set; }
+
     /// <summary>Model provider that produced these reasoning blocks.</summary>
     [JsonPropertyName("provider")]
     public required string Provider { get; set; }
@@ -9301,6 +9443,20 @@ public sealed partial class ToolExecutionCompleteError
     public RemediationAction? Remediation { get; set; }
 }
 
+/// <summary>A file mutation that was actually committed by a built-in file editing tool.</summary>
+/// <remarks>Nested data type for <c>ToolExecutionCompleteFileEdit</c>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed partial class ToolExecutionCompleteFileEdit
+{
+    /// <summary>Kind of mutation committed at this path.</summary>
+    [JsonPropertyName("kind")]
+    public required ToolExecutionCompleteFileEditKind Kind { get; set; }
+
+    /// <summary>Absolute path in the session filesystem namespace.</summary>
+    [JsonPropertyName("path")]
+    public required string Path { get; set; }
+}
+
 /// <summary>Binary result returned by a tool for the model.</summary>
 /// <remarks>Nested data type for <c>PersistedBinaryImage</c>.</remarks>
 public sealed partial class PersistedBinaryImage
@@ -9541,6 +9697,8 @@ public sealed partial class ToolExecutionCompleteContentText : ToolExecutionComp
 [EditorBrowsable(EditorBrowsableState.Never)]
 #if NET5_0_OR_GREATER
 [Obsolete("This member is deprecated and will be removed in a future version.", DiagnosticId = "GHCP001")]
+#else
+[Obsolete("This member is deprecated and will be removed in a future version.")]
 #endif
 public sealed partial class ToolExecutionCompleteContentTerminal : ToolExecutionCompleteContent
 {
@@ -12724,6 +12882,115 @@ public sealed partial class CapabilitiesChangedUI
     [JsonPropertyName("mcpApps")]
     public bool? McpApps { get; set; }
 }
+
+/// <summary>The <c>ask_user</c> variant of <see cref="HumanResponseRecordedResponse"/>.</summary>
+public sealed partial class HumanResponseRecordedResponseAskUser : HumanResponseRecordedResponse
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string ResponseKind => "ask_user";
+
+    /// <summary>Exact answer content accepted from the user.</summary>
+    [JsonPropertyName("content")]
+    public required IDictionary<string, JsonElement> Content { get; set; }
+
+    /// <summary>Exact question displayed to the user.</summary>
+    [JsonPropertyName("message")]
+    public required string Message { get; set; }
+
+    /// <summary>Exact response schema displayed to the user.</summary>
+    [JsonPropertyName("requestedSchema")]
+    public required ElicitationRequestedSchema RequestedSchema { get; set; }
+}
+
+/// <summary>The <c>user_input</c> variant of <see cref="HumanResponseRecordedResponse"/>.</summary>
+public sealed partial class HumanResponseRecordedResponseUserInput : HumanResponseRecordedResponse
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string ResponseKind => "user_input";
+
+    /// <summary>Whether the displayed request allowed a free-form answer.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("allowFreeform")]
+    public bool? AllowFreeform { get; set; }
+
+    /// <summary>Exact selected or free-form answer submitted by the user.</summary>
+    [JsonPropertyName("answer")]
+    public required string Answer { get; set; }
+
+    /// <summary>Exact choices displayed to the user, when the request offered choices.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("choices")]
+    public string[]? Choices { get; set; }
+
+    /// <summary>Exact question displayed to the user.</summary>
+    [JsonPropertyName("question")]
+    public required string Question { get; set; }
+
+    /// <summary>Whether the answer was typed as free-form text rather than selected from the displayed choices.</summary>
+    [JsonPropertyName("wasFreeform")]
+    public required bool WasFreeform { get; set; }
+}
+
+/// <summary>The <c>exit_plan_mode</c> variant of <see cref="HumanResponseRecordedResponse"/>.</summary>
+public sealed partial class HumanResponseRecordedResponseExitPlanMode : HumanResponseRecordedResponse
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string ResponseKind => "exit_plan_mode";
+
+    /// <summary>Actions offered by the plan review UI.</summary>
+    [JsonPropertyName("actions")]
+    public required ExitPlanModeAction[] Actions { get; set; }
+
+    /// <summary>Whether the user approved the reviewed plan.</summary>
+    [JsonPropertyName("approved")]
+    public required bool Approved { get; set; }
+
+    /// <summary>Whether the selected response requested edit auto-approval.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("autoApproveEdits")]
+    public bool? AutoApproveEdits { get; set; }
+
+    /// <summary>Exact feedback submitted with the plan decision, when present.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("feedback")]
+    public string? Feedback { get; set; }
+
+    /// <summary>Exact full plan content available from the review UI.</summary>
+    [JsonPropertyName("planContent")]
+    public required string PlanContent { get; set; }
+
+    /// <summary>Action the plan review UI recommended.</summary>
+    [JsonPropertyName("recommendedAction")]
+    public required ExitPlanModeAction RecommendedAction { get; set; }
+
+    /// <summary>Action selected by the user, when applicable.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("selectedAction")]
+    public ExitPlanModeAction? SelectedAction { get; set; }
+
+    /// <summary>Exact plan summary displayed to the user.</summary>
+    [JsonPropertyName("summary")]
+    public required string Summary { get; set; }
+}
+
+/// <summary>Exact runtime-owned question or reviewed plan paired with the typed response that settled it.</summary>
+/// <remarks>Polymorphic base type discriminated by <c>responseKind</c>.</remarks>
+[JsonPolymorphic(
+    TypeDiscriminatorPropertyName = "responseKind",
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+[JsonDerivedType(typeof(HumanResponseRecordedResponseAskUser), "ask_user")]
+[JsonDerivedType(typeof(HumanResponseRecordedResponseUserInput), "user_input")]
+[JsonDerivedType(typeof(HumanResponseRecordedResponseExitPlanMode), "exit_plan_mode")]
+public partial class HumanResponseRecordedResponse
+{
+    /// <summary>The type discriminator.</summary>
+    [JsonPropertyName("responseKind")]
+    public virtual string ResponseKind { get; set; } = string.Empty;
+}
+
 
 /// <summary>A single resolved skill in `session.skills_loaded`, including source, invocability, enabled state, path, and argument hint.</summary>
 /// <remarks>Nested data type for <c>SkillsLoadedSkill</c>.</remarks>
@@ -17202,6 +17469,135 @@ public readonly struct ToolExecutionStartToolDescriptionMetaUIVisibility : IEqua
     }
 }
 
+/// <summary>Shell output source. Terminal output has no separate stdout/stderr attribution.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct ToolShellOutputStream : IEquatable<ToolShellOutputStream>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="ToolShellOutputStream"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="ToolShellOutputStream"/>.</param>
+    [JsonConstructor]
+    public ToolShellOutputStream(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="ToolShellOutputStream"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Output from the shell command's standard output stream. This is the default when stream is omitted.</summary>
+    public static ToolShellOutputStream Stdout { get; } = new("stdout");
+
+    /// <summary>Output from the shell command's standard error stream.</summary>
+    public static ToolShellOutputStream Stderr { get; } = new("stderr");
+
+    /// <summary>Inherently merged output that cannot be attributed separately to stdout or stderr.</summary>
+    public static ToolShellOutputStream Terminal { get; } = new("terminal");
+
+    /// <summary>Returns a value indicating whether two <see cref="ToolShellOutputStream"/> instances are equivalent.</summary>
+    public static bool operator ==(ToolShellOutputStream left, ToolShellOutputStream right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="ToolShellOutputStream"/> instances are not equivalent.</summary>
+    public static bool operator !=(ToolShellOutputStream left, ToolShellOutputStream right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is ToolShellOutputStream other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(ToolShellOutputStream other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{ToolShellOutputStream}"/> for serializing <see cref="ToolShellOutputStream"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<ToolShellOutputStream>
+    {
+        /// <inheritdoc />
+        public override ToolShellOutputStream Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, ToolShellOutputStream value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ToolShellOutputStream));
+        }
+    }
+}
+
+/// <summary>Kind of file mutation committed by a built-in editing tool.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct ToolExecutionCompleteFileEditKind : IEquatable<ToolExecutionCompleteFileEditKind>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="ToolExecutionCompleteFileEditKind"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="ToolExecutionCompleteFileEditKind"/>.</param>
+    [JsonConstructor]
+    public ToolExecutionCompleteFileEditKind(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="ToolExecutionCompleteFileEditKind"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>A file was created.</summary>
+    public static ToolExecutionCompleteFileEditKind Create { get; } = new("create");
+
+    /// <summary>A file was written by an edit operation.</summary>
+    public static ToolExecutionCompleteFileEditKind Edit { get; } = new("edit");
+
+    /// <summary>A file was deleted.</summary>
+    public static ToolExecutionCompleteFileEditKind Delete { get; } = new("delete");
+
+    /// <summary>Returns a value indicating whether two <see cref="ToolExecutionCompleteFileEditKind"/> instances are equivalent.</summary>
+    public static bool operator ==(ToolExecutionCompleteFileEditKind left, ToolExecutionCompleteFileEditKind right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="ToolExecutionCompleteFileEditKind"/> instances are not equivalent.</summary>
+    public static bool operator !=(ToolExecutionCompleteFileEditKind left, ToolExecutionCompleteFileEditKind right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is ToolExecutionCompleteFileEditKind other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(ToolExecutionCompleteFileEditKind other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{ToolExecutionCompleteFileEditKind}"/> for serializing <see cref="ToolExecutionCompleteFileEditKind"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<ToolExecutionCompleteFileEditKind>
+    {
+        /// <inheritdoc />
+        public override ToolExecutionCompleteFileEditKind Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, ToolExecutionCompleteFileEditKind value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ToolExecutionCompleteFileEditKind));
+        }
+    }
+}
+
 /// <summary>Binary result type discriminator. Use "image" for images and "resource" for other binary data.</summary>
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
@@ -20767,6 +21163,70 @@ public readonly struct ExitPlanModeAction : IEquatable<ExitPlanModeAction>
     }
 }
 
+/// <summary>Controlled provenance for a typed runtime response. Only `human_response`, minted by a trusted direct-interaction ingress, is human authorization evidence.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct HumanResponseActor : IEquatable<HumanResponseActor>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="HumanResponseActor"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="HumanResponseActor"/>.</param>
+    [JsonConstructor]
+    public HumanResponseActor(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="HumanResponseActor"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>A built-in trusted client submitted the response after direct human interaction.</summary>
+    public static HumanResponseActor HumanResponse { get; } = new("human_response");
+
+    /// <summary>A host or SDK automation submitted the response without direct human interaction.</summary>
+    public static HumanResponseActor HostAutomation { get; } = new("host_automation");
+
+    /// <summary>The response came through a legacy or otherwise unattributed ingress.</summary>
+    public static HumanResponseActor Unknown { get; } = new("unknown");
+
+    /// <summary>Returns a value indicating whether two <see cref="HumanResponseActor"/> instances are equivalent.</summary>
+    public static bool operator ==(HumanResponseActor left, HumanResponseActor right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="HumanResponseActor"/> instances are not equivalent.</summary>
+    public static bool operator !=(HumanResponseActor left, HumanResponseActor right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is HumanResponseActor other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(HumanResponseActor other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{HumanResponseActor}"/> for serializing <see cref="HumanResponseActor"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<HumanResponseActor>
+    {
+        /// <inheritdoc />
+        public override HumanResponseActor Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, HumanResponseActor value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(HumanResponseActor));
+        }
+    }
+}
+
 /// <summary>Terminal status a workflow run committed. A settled run is never `pending` or `running`, so those two members of the run-status domain are deliberately absent.</summary>
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
@@ -21329,6 +21789,12 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(HookProgressEvent))]
 [JsonSerializable(typeof(HookStartData))]
 [JsonSerializable(typeof(HookStartEvent))]
+[JsonSerializable(typeof(HumanResponseRecordedData))]
+[JsonSerializable(typeof(HumanResponseRecordedEvent))]
+[JsonSerializable(typeof(HumanResponseRecordedResponse))]
+[JsonSerializable(typeof(HumanResponseRecordedResponseAskUser))]
+[JsonSerializable(typeof(HumanResponseRecordedResponseExitPlanMode))]
+[JsonSerializable(typeof(HumanResponseRecordedResponseUserInput))]
 [JsonSerializable(typeof(McpAppToolCallCompleteData))]
 [JsonSerializable(typeof(McpAppToolCallCompleteError))]
 [JsonSerializable(typeof(McpAppToolCallCompleteEvent))]
@@ -21644,6 +22110,7 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(ToolExecutionCompleteData))]
 [JsonSerializable(typeof(ToolExecutionCompleteError))]
 [JsonSerializable(typeof(ToolExecutionCompleteEvent))]
+[JsonSerializable(typeof(ToolExecutionCompleteFileEdit))]
 [JsonSerializable(typeof(ToolExecutionCompleteResult))]
 [JsonSerializable(typeof(ToolExecutionCompleteShellExecution))]
 [JsonSerializable(typeof(ToolExecutionCompleteToolDescription))]
@@ -21670,6 +22137,8 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(ToolExecutionStartToolDescriptionMetaUI))]
 [JsonSerializable(typeof(ToolSearchActivatedData))]
 [JsonSerializable(typeof(ToolSearchActivatedEvent))]
+[JsonSerializable(typeof(ToolShellOutputData))]
+[JsonSerializable(typeof(ToolShellOutputEvent))]
 [JsonSerializable(typeof(ToolUserRequestedData))]
 [JsonSerializable(typeof(ToolUserRequestedEvent))]
 [JsonSerializable(typeof(UiEphemeralQueryData))]

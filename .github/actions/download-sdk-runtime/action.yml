@@ -1,0 +1,34 @@
+# Copyright (c) Microsoft Corporation. All rights reserved.
+name: "Download SDK runtime"
+description: "Download an SDK runtime artifact with at most three attempts; fail after exhaustion."
+inputs:
+  artifact-name:
+    description: "Name of the target-specific runtime artifact."
+    required: true
+  path:
+    description: "Directory in which to download the artifact."
+    required: true
+runs:
+  using: "composite"
+  steps:
+    - name: Download runtime artifact (attempt 1/3)
+      id: download-runtime
+      uses: actions/download-artifact@v8
+      continue-on-error: true
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: ${{ inputs.path }}
+    - name: Download runtime artifact (attempt 2/3)
+      id: download-runtime-retry-1
+      if: steps.download-runtime.outcome == 'failure'
+      uses: actions/download-artifact@v8
+      continue-on-error: true
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: ${{ inputs.path }}
+    - name: Download runtime artifact (attempt 3/3)
+      if: steps.download-runtime.outcome == 'failure' && steps.download-runtime-retry-1.outcome == 'failure'
+      uses: actions/download-artifact@v8
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: ${{ inputs.path }}

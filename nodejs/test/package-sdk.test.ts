@@ -57,13 +57,16 @@ describe("release packaging", () => {
                 join(nodeRoot, "node_modules"),
                 "junction"
             );
+            const { files } = JSON.parse(
+                readFileSync(join(sourceNodeRoot, "package.json"), "utf8")
+            ) as { files: string[] };
             const manifest = JSON.stringify({
                 name: "@github/copilot-sdk",
                 version: "0.0.0-packaging-test",
                 type: "module",
                 repository: "https://github.com/github/copilot-sdk.git",
                 dependencies: {},
-                files: ["dist"],
+                files,
                 scripts: {
                     "pack:release": "tsx scripts/package-sdk.ts",
                     "verify:release-packages": "tsx scripts/verify-release-packages.ts",
@@ -72,6 +75,8 @@ describe("release packaging", () => {
             write(join(nodeRoot, "package.json"), manifest);
             write(join(nodeRoot, "dist/index.js"), "export {};");
             write(join(nodeRoot, "dist/cjs/index.js"), "module.exports = {};");
+            write(join(nodeRoot, "dist/index.d.ts"), "export {};");
+            write(join(nodeRoot, "dist/tsconfig.tsbuildinfo"), "local build metadata");
 
             const environment = { ...process.env };
             for (const key of [
@@ -162,6 +167,15 @@ globalThis.fetch = async (url) => {
             expect(
                 readFileSync(join(unpacked, "package/prebuilds/linux-x64/runtime.node"), "utf8")
             ).toBe(`${source} runtime: linux-x64`);
+            const sdkUnpacked = join(root, "unpacked-sdk");
+            mkdirSync(sdkUnpacked);
+            await extractTar({
+                file: join(nodeRoot, "github-copilot-sdk-0.0.0-packaging-test.tgz"),
+                cwd: sdkUnpacked,
+            });
+            expect(existsSync(join(sdkUnpacked, "package/dist/index.js"))).toBe(true);
+            expect(existsSync(join(sdkUnpacked, "package/dist/index.d.ts"))).toBe(true);
+            expect(existsSync(join(sdkUnpacked, "package/dist/tsconfig.tsbuildinfo"))).toBe(false);
 
             rmSync(join(packageRoots[0], "copilot-sdk/extension.js"));
             const incompletePack = run("pack:release");

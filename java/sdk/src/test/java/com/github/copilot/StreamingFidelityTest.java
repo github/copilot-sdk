@@ -213,7 +213,7 @@ public class StreamingFidelityTest {
                 CopilotSession session2 = newClient.resumeSession(sessionId, new ResumeSessionConfig()
                         .setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setStreaming(false)).get();
 
-                List<SessionEvent> events = new ArrayList<>();
+                List<SessionEvent> events = new CopyOnWriteArrayList<>();
                 session2.on(events::add);
 
                 AssistantMessageEvent answer = session2

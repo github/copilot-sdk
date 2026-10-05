@@ -1,0 +1,12 @@
+models:
+  - claude-sonnet-5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Do not use any tools. Report the verification word from your preloaded review skill and then OTEL_PRELOAD_DONE.
+      - role: assistant
+        content: |-
+          OTEL_SKILL_ORCHID
+          OTEL_PRELOAD_DONE

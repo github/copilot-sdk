@@ -1,5 +1,5 @@
 # Runs an SDK command inside x64 Alpine and verifies the container is
-# executing on musl with the requested transport.
+# executing on musl.
 name: "Run Alpine SDK Tests"
 description: "Run an SDK test command in an x64 Alpine container."
 inputs:
@@ -13,22 +13,18 @@ inputs:
     description: "SDK root inside the container."
     required: false
     default: "/workspace"
-  transport:
-    description: "SDK transport to test: default or inprocess."
-    required: true
   command:
     description: "Language-specific setup and test command."
     required: true
 runs:
   using: "composite"
   steps:
-    - name: Run ${{ inputs.transport }} tests in Alpine
+    - name: Run SDK tests in Alpine
       shell: bash
       env:
         ALPINE_TEST_COMMAND: ${{ inputs.command }}
         ALPINE_TEST_IMAGE: ${{ inputs.image }}
         ALPINE_TEST_SDK_ROOT: ${{ inputs.sdk-root }}
-        ALPINE_TEST_TRANSPORT: ${{ inputs.transport }}
         ALPINE_TEST_WORKDIR: ${{ inputs.workdir }}
       run: |
         script_path=$(mktemp "$RUNNER_TEMP/copilot-sdk-alpine-test.XXXXXX")
@@ -43,11 +39,6 @@ runs:
         test "$(uname -m)" = "x86_64"
         ldd --version 2>&1 | grep -qi musl
 
-        case "$COPILOT_SDK_TEST_TRANSPORT" in
-          inprocess) export COPILOT_SDK_DEFAULT_CONNECTION=inprocess ;;
-          default) unset COPILOT_SDK_DEFAULT_CONNECTION ;;
-          *) echo "Unknown transport: $COPILOT_SDK_TEST_TRANSPORT" >&2; exit 1 ;;
-        esac
         SCRIPT
         printf '%s\n' "$ALPINE_TEST_COMMAND" >> "$script_path"
         chmod +x "$script_path"
@@ -68,6 +59,5 @@ runs:
           --env RUST_BACKTRACE \
           --env RUSTDOCFLAGS \
           --env RUSTFLAGS \
-          --env COPILOT_SDK_TEST_TRANSPORT="$ALPINE_TEST_TRANSPORT" \
           "$ALPINE_TEST_IMAGE" \
           /bin/sh /tmp/copilot-sdk-alpine-test.sh

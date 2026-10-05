@@ -1,0 +1,166 @@
+models:
+  - claude-sonnet-5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: "Use the skill tool to load review. Then use view to read skills/review/references/policy.txt. Then use the
+          shell tool in sync mode to run exactly: node './skills/review/scripts/check.cjs'. Then use view to read
+          policy.txt in the working directory, outside the skill. Then use view to read skills/review/SKILL.md, and use
+          view to list the skills/review directory. After all six calls finish, reply with exactly
+          OTEL_SKILL_FLOW_DONE."
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: skill
+              arguments: '{"skill":"review"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Skill "review" loaded successfully. Follow the instructions in the skill context.
+      - role: user
+        content: |-
+          <skill-context name="review">
+          Base directory for this skill: ${workdir}/skills/review
+
+          Related files (use view tool to read):
+            - ${workdir}/skills/review/references/policy.txt
+            - ${workdir}/skills/review/scripts/check.cjs
+
+          Follow the user's explicit instructions. The verification word is OTEL_SKILL_ORCHID.
+
+          </skill-context>
+      - role: assistant
+        tool_calls:
+          - id: toolcall_1
+            type: function
+            function:
+              name: view
+              arguments: '{"path":"${workdir}/skills/review/references/policy.txt"}'
+      - role: tool
+        tool_call_id: toolcall_1
+        content: OTEL_RESOURCE_SAPPHIRE
+      - role: assistant
+        tool_calls:
+          - id: toolcall_2
+            type: function
+            function:
+              name: ${shell}
+              arguments: "{\"command\":\"node './skills/review/scripts/check.cjs'\",\"description\":\"Run skill check script\"}"
+      - role: tool
+        tool_call_id: toolcall_2
+        content: |-
+          OTEL_SCRIPT_AMBER
+          <exited with exit code 0>
+      - role: assistant
+        tool_calls:
+          - id: toolcall_3
+            type: function
+            function:
+              name: view
+              arguments: '{"path":"${workdir}/policy.txt"}'
+      - role: assistant
+        tool_calls:
+          - id: toolcall_4
+            type: function
+            function:
+              name: view
+              arguments: '{"path":"${workdir}/skills/review/SKILL.md"}'
+      - role: assistant
+        tool_calls:
+          - id: toolcall_5
+            type: function
+            function:
+              name: view
+              arguments: '{"path":"${workdir}/skills/review"}'
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: "Use the skill tool to load review. Then use view to read skills/review/references/policy.txt. Then use the
+          shell tool in sync mode to run exactly: node './skills/review/scripts/check.cjs'. Then use view to read
+          policy.txt in the working directory, outside the skill. Then use view to read skills/review/SKILL.md, and use
+          view to list the skills/review directory. After all six calls finish, reply with exactly
+          OTEL_SKILL_FLOW_DONE."
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: skill
+              arguments: '{"skill":"review"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Skill "review" loaded successfully. Follow the instructions in the skill context.
+      - role: user
+        content: |-
+          <skill-context name="review">
+          Base directory for this skill: ${workdir}/skills/review
+
+          Related files (use view tool to read):
+            - ${workdir}/skills/review/references/policy.txt
+            - ${workdir}/skills/review/scripts/check.cjs
+
+          Follow the user's explicit instructions. The verification word is OTEL_SKILL_ORCHID.
+
+          </skill-context>
+      - role: assistant
+        tool_calls:
+          - id: toolcall_1
+            type: function
+            function:
+              name: view
+              arguments: '{"path":"${workdir}/skills/review/references/policy.txt"}'
+      - role: tool
+        tool_call_id: toolcall_1
+        content: OTEL_RESOURCE_SAPPHIRE
+      - role: assistant
+        tool_calls:
+          - id: toolcall_2
+            type: function
+            function:
+              name: ${shell}
+              arguments: "{\"command\":\"node './skills/review/scripts/check.cjs'\",\"description\":\"Run skill check script\"}"
+      - role: tool
+        tool_call_id: toolcall_2
+        content: |-
+          OTEL_SCRIPT_AMBER
+          <exited with exit code 0>
+      - role: assistant
+        tool_calls:
+          - id: toolcall_3
+            type: function
+            function:
+              name: view
+              arguments: '{"path":"${workdir}/policy.txt"}'
+          - id: toolcall_4
+            type: function
+            function:
+              name: view
+              arguments: '{"path":"${workdir}/skills/review/SKILL.md"}'
+          - id: toolcall_5
+            type: function
+            function:
+              name: view
+              arguments: '{"path":"${workdir}/skills/review"}'
+      - role: tool
+        tool_call_id: toolcall_3
+        content: OTEL_UNRELATED_POLICY
+      - role: tool
+        tool_call_id: toolcall_4
+        content: |-
+          ---
+          name: review
+          description: OTel skill description sentinel
+          ---
+          Follow the user's explicit instructions. The verification word is OTEL_SKILL_ORCHID.
+      - role: tool
+        tool_call_id: toolcall_5
+        content: |-
+          SKILL.md
+          references
+          scripts
+      - role: assistant
+        content: OTEL_SKILL_FLOW_DONE

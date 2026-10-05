@@ -58,7 +58,7 @@ namespace GitHub.Copilot;
 /// </example>
 public sealed partial class CopilotSession : IAsyncDisposable
 {
-    private readonly Dictionary<string, AIFunction> _toolHandlers = [];
+    private IReadOnlyDictionary<string, AIFunction> _toolHandlers = new Dictionary<string, AIFunction>(StringComparer.Ordinal);
     private readonly Dictionary<string, Func<CommandContext, Task>> _commandHandlers = [];
     private readonly Dictionary<string, Func<ProviderTokenArgs, Task<string>>> _bearerTokenProviders = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, CancellationTokenSource> _pendingExternalTools = new(StringComparer.Ordinal);
@@ -79,6 +79,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
 
     private SessionHooks? _hooks;
     private readonly SemaphoreSlim _hooksLock = new(1, 1);
+    private readonly SemaphoreSlim _setToolsLock = new(1, 1);
 
     private Dictionary<string, Func<string, Task<string>>>? _transformCallbacks;
     private readonly SemaphoreSlim _transformCallbacksLock = new(1, 1);
@@ -605,13 +606,147 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// </remarks>
     internal void RegisterTools(ICollection<AIFunctionDeclaration> tools)
     {
-        _toolHandlers.Clear();
+        Volatile.Write(ref _toolHandlers, BuildToolHandlerMap(tools));
+    }
+
+    private static Dictionary<string, AIFunction> BuildToolHandlerMap(ICollection<AIFunctionDeclaration> tools)
+    {
+        var handlers = new Dictionary<string, AIFunction>(StringComparer.Ordinal);
         foreach (var tool in tools)
         {
             if (tool.GetService<AIFunction>() is { } function)
             {
-                _toolHandlers.Add(tool.Name, function);
+                handlers.Add(tool.Name, function);
             }
+        }
+
+        return handlers;
+    }
+
+    private static ProtocolExternalToolDefinition ToProtocolExternalToolDefinition(AIFunctionDeclaration function)
+    {
+        // Start from the create/resume definition so every path sends the same tool fields.
+        var definition = CopilotClient.ToolDefinition.FromAIFunction(function);
+        return new ProtocolExternalToolDefinition
+        {
+            Name = definition.Name,
+            // session.tools.set requires a description string.
+            Description = definition.Description ?? string.Empty,
+            Parameters = ToJsonElementDictionary(definition.Parameters),
+            OverridesBuiltInTool = definition.OverridesBuiltInTool,
+            SkipPermission = definition.SkipPermission,
+            Defer = definition.Defer switch
+            {
+                CopilotToolDefer.Auto => ProtocolExternalToolDefer.Auto,
+                CopilotToolDefer.Never => ProtocolExternalToolDefer.Never,
+                _ => (ProtocolExternalToolDefer?)null,
+            },
+            Metadata = definition.Metadata is { } metadata ? ToJsonElementDictionary(metadata) : null,
+            IsTerminal = definition.IsTerminal,
+        };
+    }
+
+    private static Dictionary<string, JsonElement>? ToJsonElementDictionary(JsonElement element)
+    {
+        if (element.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        var properties = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
+        foreach (var property in element.EnumerateObject())
+        {
+            properties.Add(property.Name, property.Value.Clone());
+        }
+
+        return properties;
+    }
+
+    private static Dictionary<string, JsonElement> ToJsonElementDictionary(IDictionary<string, JsonNode?> nodes)
+    {
+        var properties = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
+        foreach (var (name, value) in nodes)
+        {
+            using var document = JsonDocument.Parse(value?.ToJsonString() ?? "null");
+            properties.Add(name, document.RootElement.Clone());
+        }
+
+        return properties;
+    }
+
+    /// <summary>
+    /// Replaces the complete custom tool list supplied by this SDK client for the live session.
+    /// </summary>
+    /// <param name="tools">
+    /// The same tool declarations accepted by <see cref="SessionConfigBase.Tools"/> when creating or resuming a session.
+    /// Passing an empty collection removes all externally implemented tools supplied by this client.
+    /// </param>
+    /// <param name="cancellationToken">
+    /// A token that cancels the call. Cancelling while an earlier replacement is still in flight sends nothing. Once the
+    /// request is sent, cancelling only stops the wait: an accepted replacement still installs its handlers.
+    /// </param>
+    /// <returns>A task that completes after the runtime accepts the replacement.</returns>
+    /// <remarks>
+    /// <para>
+    /// This is a complete replacement for this client's externally implemented tools only. Built-in tools, MCP/plugin tools,
+    /// extension-discovered tools, subagent tools, and tools supplied by other connections are unchanged. The wire definitions
+    /// are the same as the tools supplied when creating or resuming a session.
+    /// </para>
+    /// <para>
+    /// Tool handlers switch after the runtime accepts the replacement. Tool calls already running finish with the handlers
+    /// that started them. If the runtime rejects the replacement, the previous handlers remain installed and the exception is
+    /// propagated. Concurrent calls are applied in order.
+    /// </para>
+    /// <para>
+    /// The agent sees the new tools from its next model request, which can fall within a turn in progress. A model request
+    /// already in flight was made with the previous tools, so the agent can still call a tool you removed. This session doesn't
+    /// answer that call, and it can stay pending until the turn is aborted. If a running turn might still call a tool you remove,
+    /// replace tools while the session is idle.
+    /// </para>
+    /// </remarks>
+    [Experimental(Diagnostics.Experimental)]
+    public async Task SetToolsAsync(ICollection<AIFunctionDeclaration> tools, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(tools);
+        ThrowIfDisposed();
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var wireTools = tools.Select(ToProtocolExternalToolDefinition).ToList();
+        var handlers = BuildToolHandlerMap(tools);
+
+        // Cancelling while an earlier call holds the lock sends nothing. Once this call holds it, the
+        // request runs to completion even if the caller stops waiting, so an accepted replacement still
+        // installs its handlers.
+        var replacement = ReplaceToolsAsync(wireTools, handlers, cancellationToken);
+        try
+        {
+            await replacement.WaitAsync(Timeout.InfiniteTimeSpan, cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            _ = replacement.ContinueWith(
+                static completed => _ = completed.Exception,
+                CancellationToken.None,
+                TaskContinuationOptions.ExecuteSynchronously | TaskContinuationOptions.OnlyOnFaulted,
+                TaskScheduler.Default);
+            throw;
+        }
+    }
+
+    private async Task ReplaceToolsAsync(
+        List<ProtocolExternalToolDefinition> wireTools,
+        Dictionary<string, AIFunction> handlers,
+        CancellationToken lockCancellationToken)
+    {
+        await _setToolsLock.WaitAsync(lockCancellationToken);
+        try
+        {
+            await Rpc.Tools.SetAsync(wireTools, CancellationToken.None);
+            Volatile.Write(ref _toolHandlers, handlers);
+        }
+        finally
+        {
+            _setToolsLock.Release();
         }
     }
 
@@ -622,7 +757,8 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// <returns>The tool if found; otherwise, <c>null</c>.</returns>
     internal AIFunction? GetTool(string name)
     {
-        return _toolHandlers.TryGetValue(name, out var tool) ? tool : null;
+        var handlers = Volatile.Read(ref _toolHandlers);
+        return handlers.TryGetValue(name, out var tool) ? tool : null;
     }
 
     /// <summary>
@@ -1064,6 +1200,17 @@ public sealed partial class CopilotSession : IAsyncDisposable
 
         static string GetSingleParameterName(AIFunction tool)
         {
+            if (tool.Name == "apply_patch" &&
+                tool.AdditionalProperties.TryGetValue(CopilotTool.OverridesBuiltInToolKey, out var isOverride) &&
+                isOverride is true &&
+                tool.JsonSchema.TryGetProperty("type", out var schemaType) &&
+                schemaType.ValueKind == JsonValueKind.String &&
+                schemaType.GetString() == "string")
+            {
+                // AIFunction uses named arguments even when the override declares a scalar schema.
+                return "input";
+            }
+
             if (tool.JsonSchema.TryGetProperty("properties", out var properties) &&
                 properties.ValueKind == JsonValueKind.Object)
             {
@@ -1867,6 +2014,16 @@ public sealed partial class CopilotSession : IAsyncDisposable
                         JsonSerializer.Deserialize(input.GetRawText(), SessionJsonContext.Default.AgentStopHookInput)!,
                         invocation)
                     : null,
+                "subagentStart" => hooks.OnSubagentStart != null
+                    ? await hooks.OnSubagentStart(
+                        JsonSerializer.Deserialize(input.GetRawText(), SessionJsonContext.Default.SubagentStartHookInput)!,
+                        invocation)
+                    : null,
+                "subagentStop" => hooks.OnSubagentStop != null
+                    ? await hooks.OnSubagentStop(
+                        JsonSerializer.Deserialize(input.GetRawText(), SessionJsonContext.Default.SubagentStopHookInput)!,
+                        invocation)
+                    : null,
                 _ => null
             };
         }
@@ -2263,7 +2420,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
         }
 
         _eventHandlers = ImmutableInterlocked.InterlockedExchange(ref _eventHandlers, ImmutableArray<EventSubscription>.Empty);
-        _toolHandlers.Clear();
+        Volatile.Write(ref _toolHandlers, new Dictionary<string, AIFunction>(StringComparer.Ordinal));
         _commandHandlers.Clear();
 
         _permissionHandler = null;
@@ -2373,6 +2530,10 @@ public sealed partial class CopilotSession : IAsyncDisposable
     [JsonSerializable(typeof(SessionEndHookOutput))]
     [JsonSerializable(typeof(SessionStartHookInput))]
     [JsonSerializable(typeof(SessionStartHookOutput))]
+    [JsonSerializable(typeof(SubagentStartHookInput))]
+    [JsonSerializable(typeof(SubagentStartHookOutput))]
+    [JsonSerializable(typeof(SubagentStopHookInput))]
+    [JsonSerializable(typeof(SubagentStopHookOutput))]
     [JsonSerializable(typeof(SystemMessageTransformRpcResponse))]
     [JsonSerializable(typeof(SystemMessageTransformSection))]
     [JsonSerializable(typeof(Attachment))]

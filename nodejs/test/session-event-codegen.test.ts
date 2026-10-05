@@ -2,7 +2,11 @@ import type { JSONSchema7 } from "json-schema";
 import { describe, expect, it } from "vitest";
 
 import { generateSessionEventsCode as generateCSharpSessionEventsCode } from "../../scripts/codegen/csharp.ts";
-import { generateGoSessionEventsCode } from "../../scripts/codegen/go.ts";
+import {
+    collectGoDeprecatedEventNames,
+    generateGoSessionEventAliasFile,
+    generateGoSessionEventsCode,
+} from "../../scripts/codegen/go.ts";
 import {
     generatePythonSessionEventsCode,
     postProcessExternalRefsForPython,
@@ -10,6 +14,67 @@ import {
 import { generateSessionEventsCode as generateRustSessionEventsCode } from "../../scripts/codegen/rust.ts";
 
 describe("session event codegen", () => {
+    it.each([
+        ["inline", "legacy"],
+        ["reference", "legacy"],
+        ["inline", "someEvent"],
+        ["reference", "someEvent"],
+    ])("deprecates the whole %s %s event across SDK projections", (shape, eventName) => {
+        const event = {
+            type: "object",
+            deprecated: true,
+            required: ["type", "data"],
+            properties: {
+                type: { const: `tool.${eventName}` },
+                data: { type: "object", properties: { text: { type: "string" } } },
+            },
+        } satisfies JSONSchema7 & { deprecated: boolean };
+        const schema: JSONSchema7 = {
+            definitions: {
+                LegacyEvent: event,
+                SessionEvent: {
+                    anyOf: [shape === "inline" ? event : { $ref: "#/definitions/LegacyEvent" }],
+                },
+            },
+        };
+
+        const className = `Tool${eventName[0].toUpperCase()}${eventName.slice(1)}`;
+        expect(generateCSharpSessionEventsCode(schema)).toMatch(
+            new RegExp(
+                `\\[Obsolete\\([^\\n]+\\)\\]\\n#endif\\npublic sealed partial class ${className}Event`
+            )
+        );
+        const { typeCode } = generateGoSessionEventsCode(schema, "rpc");
+        expect(typeCode).toMatch(
+            new RegExp(`// Deprecated:[^\\n]+\\n\\s*SessionEventType${className} `)
+        );
+        expect(typeCode).toMatch(
+            new RegExp(`//\\n// Deprecated:[^\\n]+\\ntype ${className}Data struct`)
+        );
+        const aliases = generateGoSessionEventAliasFile(
+            typeCode,
+            [],
+            [],
+            [],
+            collectGoDeprecatedEventNames(schema)
+        );
+        expect(aliases).toMatch(
+            new RegExp(`// Deprecated:[^\\n]+\\n\\s*${className}Data = rpc\\.${className}Data`)
+        );
+        expect(aliases).toMatch(
+            new RegExp(`// Deprecated:[^\\n]+\\n\\s*SessionEventType${className} = rpc\\.`)
+        );
+        const rust = generateRustSessionEventsCode(schema);
+        expect(
+            rust.match(
+                new RegExp(
+                    `#\\[deprecated\\]\\n\\s*#\\[serde\\(rename = "tool\\.${eventName}"\\)\\]`,
+                    "g"
+                )
+            )
+        ).toHaveLength(2);
+    });
+
     describe.each(["anyOf", "oneOf"] as const)("Go root %s payloads", (unionKeyword) => {
         it.each(["inline", "local", "shared"])(
             "preserves %s union payloads as raw JSON",

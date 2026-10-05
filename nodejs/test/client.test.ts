@@ -25,6 +25,9 @@ import {
     type GitHubTelemetryNotification,
     type ManagedSettings,
     type ModelInfo,
+    type SubagentStartHookOutput,
+    type SubagentStopHookOutput,
+    type SessionFsProvider,
 } from "../src/index.js";
 import { CopilotSession } from "../src/session.js";
 import { defaultJoinSessionPermissionHandler } from "../src/types.js";
@@ -1839,6 +1842,122 @@ describe("CopilotClient", () => {
         );
     });
 
+    it("deletes an uninitialized cloud session after binary provider validation fails", async () => {
+        const client = new CopilotClient({
+            sessionFs: {
+                initialCwd: "/",
+                sessionStatePath: "/state",
+                conventions: "posix",
+                capabilities: { binary: true },
+            },
+        });
+        await client.start();
+        onTestFinished(() => stopClient(client));
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string) => {
+                if (method === "session.create") return { sessionId: "cloud-invalid-provider" };
+                if (method === "session.delete") return { success: true };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+        try {
+            await expect(
+                client.createSession({
+                    onPermissionRequest: approveAll,
+                    cloud: { repository: { owner: "github", name: "copilot-sdk", branch: "main" } },
+                    createSessionFsProvider: () => ({}) as SessionFsProvider,
+                })
+            ).rejects.toThrow("does not implement readFileBytes");
+            expect(spy).toHaveBeenCalledWith("session.delete", {
+                sessionId: "cloud-invalid-provider",
+            });
+            expect((client as any).sessions.has("cloud-invalid-provider")).toBe(false);
+        } finally {
+            spy.mockRestore();
+        }
+    });
+
+    it("bounds cloud session cleanup when binary provider validation fails", async () => {
+        const client = new CopilotClient({
+            sessionFs: {
+                initialCwd: "/",
+                sessionStatePath: "/state",
+                conventions: "posix",
+                capabilities: { binary: true },
+            },
+        });
+        await client.start();
+        onTestFinished(() => stopClient(client));
+
+        const deleteStarted = Promise.withResolvers<void>();
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string) => {
+                if (method === "session.create") return { sessionId: "cloud-stalled-delete" };
+                if (method === "session.delete") {
+                    deleteStarted.resolve();
+                    return new Promise<never>(() => {});
+                }
+                throw new Error(`Unexpected method: ${method}`);
+            });
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+        try {
+            const failure = client
+                .createSession({
+                    onPermissionRequest: approveAll,
+                    cloud: { repository: { owner: "github", name: "copilot-sdk", branch: "main" } },
+                    createSessionFsProvider: () => ({}) as SessionFsProvider,
+                })
+                .catch((error: unknown) => error);
+
+            await deleteStarted.promise;
+            await vi.advanceTimersByTimeAsync(10_000);
+
+            const error = await failure;
+            expect(error).toBeInstanceOf(AggregateError);
+            if (!(error instanceof AggregateError)) throw error;
+            expect(error.errors).toEqual([
+                expect.objectContaining({
+                    message: expect.stringContaining("does not implement readFileBytes"),
+                }),
+                expect.objectContaining({ message: "session.delete timed out after 10000ms" }),
+            ]);
+            expect((client as any).sessions.has("cloud-stalled-delete")).toBe(false);
+        } finally {
+            vi.useRealTimers();
+            spy.mockRestore();
+        }
+    });
+
+    it("does not register a session when binary provider validation fails during local create or resume", async () => {
+        const client = new CopilotClient({
+            sessionFs: {
+                initialCwd: "/",
+                sessionStatePath: "/state",
+                conventions: "posix",
+                capabilities: { binary: true },
+            },
+        });
+        await client.start();
+        onTestFinished(() => stopClient(client));
+
+        const invalidProvider = () => ({}) as SessionFsProvider;
+        await expect(
+            client.createSession({
+                onPermissionRequest: approveAll,
+                createSessionFsProvider: invalidProvider,
+            })
+        ).rejects.toThrow("does not implement readFileBytes");
+        await expect(
+            client.resumeSession("missing-provider", {
+                onPermissionRequest: approveAll,
+                createSessionFsProvider: invalidProvider,
+            })
+        ).rejects.toThrow("does not implement readFileBytes");
+        expect((client as any).sessions.size).toBe(0);
+    });
+
     it("forwards clientName in session.resume request", async () => {
         const client = new CopilotClient();
         await client.start();
@@ -2490,6 +2609,7 @@ describe("CopilotClient", () => {
                 headers: { Authorization: "Bearer provider-token" },
                 modelId: "gpt-4o",
                 wireModel: "my-finetune-v3",
+                modelProvider: "lm_studio",
                 maxPromptTokens: 100_000,
                 maxOutputTokens: 4096,
                 transport: "websockets",
@@ -2503,6 +2623,7 @@ describe("CopilotClient", () => {
                 headers: { Authorization: "Bearer provider-token" },
                 modelId: "gpt-4o",
                 wireModel: "my-finetune-v3",
+                modelProvider: "lm_studio",
                 maxPromptTokens: 100_000,
                 maxOutputTokens: 4096,
                 transport: "websockets",
@@ -2531,6 +2652,7 @@ describe("CopilotClient", () => {
                 headers: { Authorization: "Bearer resume-token" },
                 modelId: "gpt-4o",
                 wireModel: "my-finetune-v3",
+                modelProvider: "ollama",
                 maxPromptTokens: 100_000,
                 maxOutputTokens: 4096,
                 transport: "websockets",
@@ -2544,11 +2666,50 @@ describe("CopilotClient", () => {
                 headers: { Authorization: "Bearer resume-token" },
                 modelId: "gpt-4o",
                 wireModel: "my-finetune-v3",
+                modelProvider: "ollama",
                 maxPromptTokens: 100_000,
                 maxOutputTokens: 4096,
                 transport: "websockets",
             })
         );
+        spy.mockRestore();
+    });
+
+    it("forwards named provider model provider in session.create request", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => stopClient(client));
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.create")
+                    return { sessionId: params.sessionId ?? "session-id" };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        await client.createSession({
+            onPermissionRequest: approveAll,
+            providers: [
+                {
+                    name: "local",
+                    baseUrl: "http://localhost:11434/v1",
+                    type: "openai",
+                    modelProvider: "ollama",
+                },
+            ],
+            models: [{ id: "llama3", provider: "local" }],
+        });
+
+        const payload = spy.mock.calls.find(([method]) => method === "session.create")![1] as any;
+        expect(payload.providers).toEqual([
+            expect.objectContaining({
+                name: "local",
+                baseUrl: "http://localhost:11434/v1",
+                type: "openai",
+                modelProvider: "ollama",
+            }),
+        ]);
         spy.mockRestore();
     });
 
@@ -4595,6 +4756,144 @@ connection.listen();
             });
             // No decision returned — the SDK forwards an empty output envelope.
             expect(response).toEqual({ output: undefined });
+        });
+
+        it("routes subagentStart hooks.invoke with normalized parent metadata and additional context", async () => {
+            const client = new CopilotClient({ autoStart: false });
+
+            const received: { input: unknown; invocation: { sessionId: string } }[] = [];
+            const session = new CopilotSession("session-1", {} as any);
+            session.registerHooks({
+                onSubagentStart: async (input, invocation) => {
+                    received.push({ input, invocation });
+                    return {
+                        additionalContext: "Read the requested file.",
+                    } satisfies SubagentStartHookOutput;
+                },
+            });
+            (client as any).sessions.set(session.sessionId, session);
+
+            const response = await (client as any).handleHooksInvoke({
+                sessionId: session.sessionId,
+                hookType: "subagentStart",
+                input: {
+                    sessionId: "parent-runtime-id",
+                    timestamp: 1700000000000,
+                    cwd: "/repo",
+                    transcriptPath: "/repo/transcript.jsonl",
+                    agentName: "explore",
+                    agentDisplayName: "Explore Agent",
+                    agentDescription: "Reads files",
+                },
+            });
+
+            expect(received).toEqual([
+                {
+                    input: {
+                        sessionId: "parent-runtime-id",
+                        timestamp: new Date(1700000000000),
+                        workingDirectory: "/repo",
+                        transcriptPath: "/repo/transcript.jsonl",
+                        agentName: "explore",
+                        agentDisplayName: "Explore Agent",
+                        agentDescription: "Reads files",
+                    },
+                    invocation: { sessionId: session.sessionId },
+                },
+            ]);
+            expect(response).toEqual({ output: { additionalContext: "Read the requested file." } });
+        });
+
+        it("routes subagentStop hooks.invoke with its response and forwards an explicit allow and rewrite", async () => {
+            const client = new CopilotClient({ autoStart: false });
+
+            const received: { input: unknown; invocation: { sessionId: string } }[] = [];
+            const session = new CopilotSession("session-1", {} as any);
+            session.registerHooks({
+                onSubagentStop: (input, invocation) => {
+                    received.push({ input, invocation });
+                    return {
+                        decision: "allow",
+                        modifiedResponse: "Reviewed: " + input.response,
+                    } satisfies SubagentStopHookOutput;
+                },
+            });
+            (client as any).sessions.set(session.sessionId, session);
+
+            const response = await (client as any).handleHooksInvoke({
+                sessionId: session.sessionId,
+                hookType: "subagentStop",
+                input: {
+                    sessionId: "parent-runtime-id",
+                    timestamp: 1700000000000,
+                    cwd: "/repo",
+                    transcriptPath: "/repo/transcript.jsonl",
+                    agentId: "read-file",
+                    agentType: "explore",
+                    agentName: "explore",
+                    stopReason: "end_turn",
+                    response: "The file contains a greeting.",
+                },
+            });
+
+            expect(received).toEqual([
+                {
+                    input: {
+                        sessionId: "parent-runtime-id",
+                        timestamp: new Date(1700000000000),
+                        workingDirectory: "/repo",
+                        transcriptPath: "/repo/transcript.jsonl",
+                        agentId: "read-file",
+                        agentType: "explore",
+                        agentName: "explore",
+                        stopReason: "end_turn",
+                        response: "The file contains a greeting.",
+                    },
+                    invocation: { sessionId: session.sessionId },
+                },
+            ]);
+            expect(response).toEqual({
+                output: {
+                    decision: "allow",
+                    modifiedResponse: "Reviewed: The file contains a greeting.",
+                },
+            });
+        });
+
+        it("forwards a subagentStop block reason without invoking the top-level agentStop hook", async () => {
+            const client = new CopilotClient({ autoStart: false });
+
+            const topLevelStop = vi.fn();
+            const session = new CopilotSession("session-1", {} as any);
+            session.registerHooks({
+                onAgentStop: topLevelStop,
+                onSubagentStop: () =>
+                    ({
+                        decision: "block",
+                        reason: "Read the rest of the file.",
+                    }) satisfies SubagentStopHookOutput,
+            });
+            (client as any).sessions.set(session.sessionId, session);
+
+            const response = await (client as any).handleHooksInvoke({
+                sessionId: session.sessionId,
+                hookType: "subagentStop",
+                input: {
+                    sessionId: session.sessionId,
+                    timestamp: 1700000000000,
+                    cwd: "/repo",
+                    transcriptPath: "/repo/transcript.jsonl",
+                    agentType: "explore",
+                    agentName: "explore",
+                    stopReason: "end_turn",
+                    response: "First line",
+                },
+            });
+
+            expect(response).toEqual({
+                output: { decision: "block", reason: "Read the rest of the file." },
+            });
+            expect(topLevelStop).not.toHaveBeenCalled();
         });
     });
 

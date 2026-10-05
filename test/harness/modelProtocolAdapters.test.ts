@@ -303,6 +303,40 @@ describe("Anthropic Messages adapter", () => {
 });
 
 describe("OpenAI Responses adapter", () => {
+  test("normalizes image-bearing function output without changing ordinary JSON output", () => {
+    const imageOutput = JSON.stringify([
+      { type: "input_text", text: "Viewed image file successfully." },
+      {
+        type: "input_image",
+        detail: "auto",
+        image_url: "data:image/png;base64,AQID",
+      },
+    ]);
+    const result = JSON.parse(
+      responsesApiRequestToChatCompletion(
+        JSON.stringify({
+          model: "test-model",
+          input: [
+            {
+              type: "function_call_output",
+              call_id: "view-1",
+              output: imageOutput,
+            },
+            {
+              type: "function_call_output",
+              call_id: "other-1",
+              output: '[{"ok":true}]',
+            },
+          ],
+        }),
+      ),
+    ) as { messages: Array<{ content: string }> };
+    expect(result.messages.map((message) => message.content)).toEqual([
+      "Viewed image file successfully.",
+      '[{"ok":true}]',
+    ]);
+  });
+
   test("normalizes messages, binary content, and tools", () => {
     const result = JSON.parse(
       responsesApiRequestToChatCompletion(

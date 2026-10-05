@@ -1,0 +1,31 @@
+models:
+  - claude-sonnet-5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Reply with SDK_DISPLAY_AGENT_DONE exactly.
+      - role: assistant
+        content: SDK_DISPLAY_AGENT_DONE
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Use the task tool with agent_type "sdk-display-model-agent", mode "sync", and prompt "Reply with
+          SDK_DISPLAY_AGENT_DONE exactly.". Do not specify model or reasoning_effort in the task arguments. After it
+          completes, reply with SDK_DISPLAY_PARENT_DONE exactly.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: task
+              arguments: '{"name":"sdk-display-model-agent","prompt":"Reply with SDK_DISPLAY_AGENT_DONE
+                exactly.","agent_type":"sdk-display-model-agent","mode":"sync","description":"Run SDK display model
+                agent"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: SDK_DISPLAY_AGENT_DONE
+      - role: assistant
+        content: SDK_DISPLAY_PARENT_DONE

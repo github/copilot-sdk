@@ -10,6 +10,7 @@ import pytest
 
 from _session_test_helpers import get_next_event_of_type, wait_for_event
 from copilot import AgentMessageSource, MessageSource
+from copilot._jsonrpc import JsonRpcError
 from copilot.session import Attachment, CopilotSession
 from copilot.session_events import (
     AssistantMessageData,
@@ -56,6 +57,31 @@ def _event(data, event_type: SessionEventType) -> SessionEvent:
         timestamp=datetime.now(UTC),
         type=event_type,
     )
+
+
+def _external_tool_request(tool_name: str, request_id: str = "request-1") -> SessionEvent:
+    return _event(
+        ExternalToolRequestedData(
+            request_id=request_id,
+            session_id="session-1",
+            tool_call_id=f"{request_id}-tool-call",
+            tool_name=tool_name,
+            arguments={},
+        ),
+        SessionEventType.EXTERNAL_TOOL_REQUESTED,
+    )
+
+
+async def _wait_for_tool_result(client: Mock, request_id: str) -> dict:
+    for _ in range(20):
+        for call in client.request.await_args_list:
+            if (
+                call.args[0] == "session.tools.handlePendingToolCall"
+                and call.args[1]["requestId"] == request_id
+            ):
+                return call.args[1]
+        await asyncio.sleep(0)
+    raise AssertionError(f"tool result was not sent for {request_id}")
 
 
 @pytest.mark.parametrize("use_send_and_wait", [False, True])
@@ -494,6 +520,283 @@ async def test_send_and_wait_ignores_child_events():
     finally:
         pending.cancel()
         await asyncio.gather(pending, return_exceptions=True)
+
+
+@pytest.mark.asyncio
+async def test_set_tools_sends_complete_wire_payload_and_installs_handlers_on_success():
+    client = Mock()
+    client.request = AsyncMock(return_value={})
+    session = CopilotSession("session-1", client)
+
+    async def handled(_invocation):
+        return ToolResult(text_result_for_llm="new result")
+
+    await session.set_tools(
+        [
+            Tool(
+                name="new_tool",
+                description="",
+                parameters={"type": "object"},
+                handler=handled,
+                overrides_built_in_tool=True,
+                skip_permission=True,
+                defer="never",
+                metadata={"owner": "test"},
+                is_terminal=True,
+            ),
+            Tool(name="declaration_only", description=None),  # type: ignore[arg-type]
+        ]
+    )
+
+    client.request.assert_awaited_once_with(
+        "session.tools.set",
+        {
+            "sessionId": "session-1",
+            "tools": [
+                {
+                    "description": "",
+                    "name": "new_tool",
+                    "defer": "never",
+                    "isTerminal": True,
+                    "metadata": {"owner": "test"},
+                    "overridesBuiltInTool": True,
+                    "parameters": {"type": "object"},
+                    "skipPermission": True,
+                },
+                {"description": "", "name": "declaration_only"},
+            ],
+        },
+    )
+
+    assert session._get_tool_handler("new_tool") is handled
+    assert session._get_tool_handler("declaration_only") is None
+
+
+@pytest.mark.asyncio
+async def test_set_tools_keeps_previous_handlers_while_rpc_is_pending_then_swaps():
+    rpc_started = asyncio.Event()
+    release_rpc = asyncio.Event()
+    client = Mock()
+
+    async def request(method, params):
+        if method == "session.tools.set":
+            rpc_started.set()
+            await release_rpc.wait()
+            return {}
+        return {"success": True}
+
+    client.request = AsyncMock(side_effect=request)
+    session = CopilotSession("session-1", client)
+    calls: list[str] = []
+
+    async def old_handler(_invocation):
+        calls.append("old")
+        return ToolResult(text_result_for_llm="old result")
+
+    async def new_handler(_invocation):
+        calls.append("new")
+        return ToolResult(text_result_for_llm="new result")
+
+    session._register_tools([Tool("old_tool", "Old", old_handler)])
+    replace = asyncio.create_task(session.set_tools([Tool("new_tool", "New", new_handler)]))
+    try:
+        await asyncio.wait_for(rpc_started.wait(), timeout=1)
+        session._dispatch_event(_external_tool_request("old_tool", "old-request"))
+        await _wait_for_tool_result(client, "old-request")
+        assert calls == ["old"]
+        assert session._get_tool_handler("new_tool") is None
+
+        release_rpc.set()
+        await asyncio.wait_for(replace, timeout=1)
+        assert session._get_tool_handler("old_tool") is None
+        assert session._get_tool_handler("new_tool") is new_handler
+
+        session._dispatch_event(_external_tool_request("new_tool", "new-request"))
+        await _wait_for_tool_result(client, "new-request")
+        assert calls == ["old", "new"]
+    finally:
+        release_rpc.set()
+        replace.cancel()
+        await asyncio.gather(replace, return_exceptions=True)
+
+
+@pytest.mark.asyncio
+async def test_set_tools_rejection_leaves_handlers_unchanged():
+    client = Mock()
+    client.request = AsyncMock(side_effect=JsonRpcError(-32602, "invalid params"))
+    session = CopilotSession("session-1", client)
+
+    async def old_handler(_invocation):
+        return ToolResult(text_result_for_llm="old result")
+
+    async def new_handler(_invocation):
+        return ToolResult(text_result_for_llm="new result")
+
+    session._register_tools([Tool("old_tool", "Old", old_handler)])
+
+    with pytest.raises(JsonRpcError):
+        await session.set_tools([Tool("new_tool", "New", new_handler)])
+
+    assert session._get_tool_handler("old_tool") is old_handler
+    assert session._get_tool_handler("new_tool") is None
+
+
+@pytest.mark.asyncio
+async def test_set_tools_empty_list_removes_handlers_after_success():
+    client = Mock()
+    client.request = AsyncMock(return_value={})
+    session = CopilotSession("session-1", client)
+
+    async def old_handler(_invocation):
+        return ToolResult(text_result_for_llm="old result")
+
+    session._register_tools([Tool("old_tool", "Old", old_handler)])
+
+    await session.set_tools([])
+
+    client.request.assert_awaited_once_with(
+        "session.tools.set", {"sessionId": "session-1", "tools": []}
+    )
+    assert session._get_tool_handler("old_tool") is None
+
+
+@pytest.mark.asyncio
+async def test_set_tools_serializes_concurrent_calls_and_allows_later_after_failure():
+    set_requests: list[dict] = []
+    releases = [asyncio.Event(), asyncio.Event()]
+    client = Mock()
+
+    async def request(method, params):
+        assert method == "session.tools.set"
+        index = len(set_requests)
+        set_requests.append(params)
+        await releases[index].wait()
+        if index == 0:
+            raise JsonRpcError(-32602, "invalid params")
+        return {}
+
+    client.request = AsyncMock(side_effect=request)
+    session = CopilotSession("session-1", client)
+
+    async def first_handler(_invocation):
+        return ToolResult(text_result_for_llm="first")
+
+    async def second_handler(_invocation):
+        return ToolResult(text_result_for_llm="second")
+
+    first = asyncio.create_task(session.set_tools([Tool("first_tool", "First", first_handler)]))
+    second = asyncio.create_task(session.set_tools([Tool("second_tool", "Second", second_handler)]))
+    try:
+        for _ in range(20):
+            if len(set_requests) == 1:
+                break
+            await asyncio.sleep(0)
+        assert [request["tools"][0]["name"] for request in set_requests] == ["first_tool"]
+
+        releases[0].set()
+        with pytest.raises(JsonRpcError):
+            await asyncio.wait_for(first, timeout=1)
+
+        for _ in range(20):
+            if len(set_requests) == 2:
+                break
+            await asyncio.sleep(0)
+        assert [request["tools"][0]["name"] for request in set_requests] == [
+            "first_tool",
+            "second_tool",
+        ]
+
+        releases[1].set()
+        await asyncio.wait_for(second, timeout=1)
+        assert session._get_tool_handler("first_tool") is None
+        assert session._get_tool_handler("second_tool") is second_handler
+    finally:
+        for release in releases:
+            release.set()
+        first.cancel()
+        second.cancel()
+        await asyncio.gather(first, second, return_exceptions=True)
+
+
+@pytest.mark.asyncio
+async def test_set_tools_caller_cancellation_after_request_still_installs_accepted_handlers():
+    rpc_started = asyncio.Event()
+    release_rpc = asyncio.Event()
+    client = Mock()
+
+    async def request(method, params):
+        assert method == "session.tools.set"
+        rpc_started.set()
+        await release_rpc.wait()
+        return {}
+
+    client.request = AsyncMock(side_effect=request)
+    session = CopilotSession("session-1", client)
+
+    async def new_handler(_invocation):
+        return ToolResult(text_result_for_llm="new result")
+
+    replace = asyncio.create_task(session.set_tools([Tool("new_tool", "New", new_handler)]))
+    try:
+        await asyncio.wait_for(rpc_started.wait(), timeout=1)
+        replace.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await replace
+
+        release_rpc.set()
+        for _ in range(20):
+            if session._get_tool_handler("new_tool") is new_handler:
+                break
+            await asyncio.sleep(0)
+        assert session._get_tool_handler("new_tool") is new_handler
+    finally:
+        release_rpc.set()
+
+
+@pytest.mark.asyncio
+async def test_set_tools_cancelled_while_queued_sends_nothing():
+    set_requests: list[dict] = []
+    release_first = asyncio.Event()
+    client = Mock()
+
+    async def request(method, params):
+        assert method == "session.tools.set"
+        set_requests.append(params)
+        await release_first.wait()
+        return {}
+
+    client.request = AsyncMock(side_effect=request)
+    session = CopilotSession("session-1", client)
+
+    async def first_handler(_invocation):
+        return ToolResult(text_result_for_llm="first")
+
+    async def queued_handler(_invocation):
+        return ToolResult(text_result_for_llm="queued")
+
+    first = asyncio.create_task(session.set_tools([Tool("first_tool", "First", first_handler)]))
+    queued = asyncio.create_task(session.set_tools([Tool("queued_tool", "Queued", queued_handler)]))
+    try:
+        for _ in range(20):
+            if set_requests:
+                break
+            await asyncio.sleep(0)
+        assert len(set_requests) == 1
+
+        queued.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await queued
+
+        release_first.set()
+        await asyncio.wait_for(first, timeout=1)
+        assert [request["tools"][0]["name"] for request in set_requests] == ["first_tool"]
+        assert session._get_tool_handler("first_tool") is first_handler
+        assert session._get_tool_handler("queued_tool") is None
+    finally:
+        release_first.set()
+        first.cancel()
+        queued.cancel()
+        await asyncio.gather(first, queued, return_exceptions=True)
 
 
 @pytest.mark.asyncio

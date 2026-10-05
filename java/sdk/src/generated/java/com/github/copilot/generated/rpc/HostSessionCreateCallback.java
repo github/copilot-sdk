@@ -21,7 +21,7 @@ import javax.annotation.processing.Generated;
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record HostSessionCreateCallback(
+record HostSessionCreateCallback(
     /** Listener UUID identifying the owning application's host. */
     @JsonProperty("hostId") String hostId,
     /** Unique identity of the session participation being requested. */

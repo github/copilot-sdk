@@ -100,9 +100,13 @@ cargo check --no-default-features --features local-runtime
 Run it with `COPILOT_SKIP_CLI_DOWNLOAD` unset. Tests that start the runtime must
 also set `COPILOT_CLI_PATH` to the prepared same-checkout wrapper.
 
-Follow the SDK's existing crate-local unit-test and `tests/` integration-test
-layout. Integration tests needing SDK test helpers use the `test-support`
-feature because the library is compiled without `cfg(test)`.
+Keep unit tests in external test-only modules: `foo.rs` declares
+`#[cfg(test)] mod tests;`, and its tests live in `foo/tests.rs`. Crate roots
+such as `lib.rs` use a sibling `tests.rs`; descriptive module names keep their
+corresponding file names. Start each test-only file with `#![cfg(test)]`.
+Keep integration tests in `tests/`. Integration tests needing SDK test helpers
+use the `test-support` feature because the library is compiled without
+`cfg(test)`.
 
 Default features bundle the CLI; disabling them changes what must be provided
 externally. For transport-specific E2E settings, bundled-runtime checks, and

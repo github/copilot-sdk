@@ -168,10 +168,10 @@ public final class SessionMcpApi {
      * @since 1.0.0
      */
     @CopilotExperimental
-    public CompletableFuture<SessionMcpReloadWithConfigResult> reloadWithConfig(SessionMcpReloadWithConfigParams params) {
+    CompletableFuture<McpStartServersResult> reloadWithConfig(SessionMcpReloadWithConfigParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
-        return caller.invoke("session.mcp.reloadWithConfig", _p, SessionMcpReloadWithConfigResult.class);
+        return caller.invoke("session.mcp.reloadWithConfig", _p, McpStartServersResult.class);
     }
 
     /**
@@ -243,10 +243,10 @@ public final class SessionMcpApi {
      * @since 1.0.0
      */
     @CopilotExperimental
-    public CompletableFuture<SessionMcpConfigureGitHubResult> configureGitHub(SessionMcpConfigureGitHubParams params) {
+    CompletableFuture<McpConfigureGitHubResult> configureGitHub(SessionMcpConfigureGitHubParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
-        return caller.invoke("session.mcp.configureGitHub", _p, SessionMcpConfigureGitHubResult.class);
+        return caller.invoke("session.mcp.configureGitHub", _p, McpConfigureGitHubResult.class);
     }
 
     /**
@@ -352,7 +352,7 @@ public final class SessionMcpApi {
      * @since 1.0.0
      */
     @CopilotExperimental
-    public CompletableFuture<Void> registerExternalClient(SessionMcpRegisterExternalClientParams params) {
+    CompletableFuture<Void> registerExternalClient(SessionMcpRegisterExternalClientParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
         return caller.invoke("session.mcp.registerExternalClient", _p, Void.class);
@@ -368,7 +368,7 @@ public final class SessionMcpApi {
      * @since 1.0.0
      */
     @CopilotExperimental
-    public CompletableFuture<Void> unregisterExternalClient(SessionMcpUnregisterExternalClientParams params) {
+    CompletableFuture<Void> unregisterExternalClient(SessionMcpUnregisterExternalClientParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
         return caller.invoke("session.mcp.unregisterExternalClient", _p, Void.class);

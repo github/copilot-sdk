@@ -101,11 +101,20 @@ download missing tools on first use.
 ### Prepare project dependencies
 
 Build tasks restore the selected SDK's dependencies: Node runs
-`npm ci --ignore-scripts`, Python runs `uv sync --all-extras --dev`, and the
+`npm ci --ignore-scripts --include=dev`, Python runs `uv sync --all-extras --dev`, and the
 other native build tools restore their project dependencies. In the runtime
 layout, build/test/generate tasks also install the codegen npm dependencies
 and refresh public schemas and the selected projections through Bazel.
 This preparation can update generated source files.
+
+Node SDK builds and codegen preparation explicitly include development
+dependencies even with `NODE_ENV=production` or `npm_config_omit=dev`, because
+these packages provide the build tools. They skip installation when the npm
+arguments, `package.json`, and `package-lock.json` match the last successful install's
+`node_modules/.copilot-sdk-install-stamp`. Changing either file, removing
+`node_modules` or its stamp, or an unsuccessful install requires a fresh install.
+The runtime root's `build:sdk:link` uses the same stamp for Node dependencies.
+Java codegen dependencies are installed only when Java is selected.
 
 Tests and checks need additional tools that `pnpm install` does not provide.
 Before Node, Python, Go, .NET, or Rust SDK tests, prepare Node tooling and the
@@ -142,6 +151,7 @@ Substitute `nodejs`, `python`, `go`, `dotnet`, `java`, or `rust` for `<language>
 | From the SDK root | Scope |
 | --- | --- |
 | `npm run build:<language>` | Build one SDK; `npm run build` builds all six. |
+| `npm run build:default` | Build the Node and Rust SDKs, in that order. |
 | `npm run test:<language>` | Run that language's suite; `npm test` runs all six. |
 | `npm run test:default` | Node SDK unit tests and default-feature Rust SDK tests with `test-support`. |
 | `npm run check:<language>` | Language-specific checks. Java includes `verify` (tests), .NET includes a solution build, and Rust includes Clippy and nightly formatting. |
@@ -158,11 +168,17 @@ sources. Runtime-root aliases live in the parent runtime's
 SDK-local commands live in [package.json](package.json) and
 [run-tasks.mjs](scripts/run-tasks.mjs).
 
+The runtime root's `pnpm run build` builds the CLI first, then invokes
+`pnpm run build:sdk:default`. This default SDK profile prepares Node and Rust
+projections together once and does not rebuild the CLI or build the other four SDKs.
+Node declaration generation uses TypeScript's incremental build information in
+`nodejs/dist/tsconfig.tsbuildinfo`; removing `dist` also clears that state.
+
 In a runtime checkout, SDK tests request a current host `build:cli` before
-running; Java and aggregate SDK builds also prepare the CLI. Unchanged Bazel
+running; Java and all-six SDK builds also prepare the CLI. Unchanged Bazel
 actions remain cached. The Rust SDK build uses Bazel, but its tests use the
 independent SDK Cargo toolchain. Standalone tasks instead use the SDK's pinned
-published runtime inputs. Do not work around a missing checkout artifact by
+published runtime inputs and build Rust with Cargo's `--all-features`. Do not work around a missing checkout artifact by
 changing release pins or switching to a published runtime.
 
 Rust's `test:rust` and `test:default` run `cargo test --features test-support`;
@@ -328,6 +344,32 @@ For TypeScript SDK E2Es, use the existing
 `nodejs/test/e2e/harness/sdkTestContext.ts` fixture. In the runtime repository,
 also follow the `e2e-test-author` skill's SDK section.
 
+SDK CI runs full subprocess coverage followed by a short in-process smoke
+step on the same runner wherever both modes share a platform. Smoke still
+runs if the subprocess tests fail, and either failure fails the job. Java's
+macOS, Windows, and musl smoke jobs remain separate because they have no
+matching subprocess job. Merge groups retain the reduced Linux TypeScript
+CAPI subprocess coverage.
+
+The three BYOK backend sweeps run in separate Linux TypeScript jobs, alongside
+the normal CAPI job; they do not repeat unit tests, packaging, or static
+checks. After preparing the runtime as described above, run a sweep from the
+SDK root:
+
+```bash
+COPILOT_SDK_E2E_BACKEND=anthropic-messages GITHUB_ACTIONS=true \
+  npm --prefix nodejs test -- test/e2e
+```
+
+Use `openai-completions` or `openai-responses` for the other sweeps; unset the
+variable or use `capi` for the normal suite. BYOK uses the shared captures
+through the corresponding protocol adapter and never forwards replay misses
+to a live provider. Use the fixture's `createClient()` for secondary clients
+that create or resume model-backed sessions. Tests that require CAPI or own
+their provider/request-handler setup stay in the normal job, with exclusions
+in `vitest.config.ts` or individual `it.skipIf(isByokBackend)` cases. Other SDK
+languages retain their language-specific provider tests in their normal suites.
+
 The Node.js Vitest global setup bundles the shared replay proxy once per run
 into Vitest's project-owned temporary directory (and refreshes it on watch
 reruns). Each E2E context launches that bundle directly with the test runner's
@@ -382,10 +424,12 @@ need copies across languages:
 
 Typed cases call the public idiomatic APIs: Node/Zod, C# generics, Python/Pydantic,
 Go generics, Java annotated records using the existing tool schema generator,
-and Rust generics with `derive`/schemars. The tool/follow-up case also checks the
-actual provider request's inferred schema, so a recorded JSON response alone
-cannot mask missing schema forwarding. Explicit-schema and event-stream cases
-exercise the corresponding raw public APIs instead.
+and Rust generics with `derive`/schemars. The CAPI leg's tool/follow-up case also
+checks the configured OpenAI provider request's inferred schema, so a recorded
+JSON response alone cannot mask missing schema forwarding there. BYOK sweeps
+retain the typed-result assertions without assuming the same wire-format
+encoding. Explicit-schema and event-stream cases exercise the corresponding
+raw public APIs instead.
 
 The existing suite in each language also checks rejection before admission
 and zero provider calls for oversized schemas and typed immediate steering.

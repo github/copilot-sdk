@@ -1,0 +1,24 @@
+models:
+  - claude-sonnet-5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Use the view tool to view /sdk-provider-image.png, then reply with exactly SDK_PROVIDER_IMAGE_DONE.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: view
+              arguments: '{"path":"/sdk-provider-image.png"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Viewed image file successfully.
+      - role: user
+        content: |-
+          Image file at path /sdk-provider-image.png
+          [image]
+      - role: assistant
+        content: SDK_PROVIDER_IMAGE_DONE

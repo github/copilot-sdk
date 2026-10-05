@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"strconv"
@@ -181,6 +182,321 @@ func TestSession_SetAutoTierSendsExplicitNull(t *testing.T) {
 	}
 	if value != nil {
 		t.Fatalf("expected autoTier to be null, got %v", value)
+	}
+}
+
+func TestSession_SetToolsSendsPayloadAndInstallsHandlers(t *testing.T) {
+	session, server := newSetToolsTestSession(t)
+	handler := func(_ ToolInvocation) (ToolResult, error) {
+		return ToolResult{TextResultForLLM: "handled"}, nil
+	}
+	tools := []Tool{
+		{
+			Name:                 "lookup_fruit",
+			Parameters:           map[string]any{"type": "object"},
+			OverridesBuiltInTool: true,
+			SkipPermission:       true,
+			IsTerminal:           true,
+			Defer:                ToolDeferNever,
+			Metadata:             map[string]any{"x-test": "metadata"},
+			Handler:              handler,
+		},
+		{
+			Name:        "declaration_only",
+			Description: "No handler",
+		},
+	}
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- session.SetTools(context.Background(), tools)
+	}()
+
+	request := server.expectRequest(t, "session.tools.set")
+	if request.Params["sessionId"] != "session-1" {
+		t.Fatalf("sessionId = %v, want session-1", request.Params["sessionId"])
+	}
+	wireTools, ok := request.Params["tools"].([]any)
+	if !ok || len(wireTools) != 2 {
+		t.Fatalf("tools = %#v, want two tools", request.Params["tools"])
+	}
+	first, ok := wireTools[0].(map[string]any)
+	if !ok {
+		t.Fatalf("first tool = %#v, want object", wireTools[0])
+	}
+	if first["name"] != "lookup_fruit" {
+		t.Fatalf("name = %v, want lookup_fruit", first["name"])
+	}
+	if description, ok := first["description"].(string); !ok || description != "" {
+		t.Fatalf("description = %#v, want empty string", first["description"])
+	}
+	for _, key := range []string{"overridesBuiltInTool", "skipPermission", "isTerminal"} {
+		if first[key] != true {
+			t.Fatalf("%s = %v, want true", key, first[key])
+		}
+	}
+	if first["defer"] != "never" {
+		t.Fatalf("defer = %v, want never", first["defer"])
+	}
+	if _, ok := first["parameters"].(map[string]any); !ok {
+		t.Fatalf("parameters = %#v, want object", first["parameters"])
+	}
+	if _, ok := first["metadata"].(map[string]any); !ok {
+		t.Fatalf("metadata = %#v, want object", first["metadata"])
+	}
+
+	server.respond(t, request.ID, map[string]any{})
+	if err := awaitSetTools(t, errCh); err != nil {
+		t.Fatalf("SetTools failed: %v", err)
+	}
+	if got, ok := session.getToolHandler("lookup_fruit"); !ok || got == nil {
+		t.Fatal("lookup_fruit handler was not installed")
+	}
+	if _, ok := session.getToolHandler("declaration_only"); ok {
+		t.Fatal("declaration-only tool installed a handler")
+	}
+}
+
+func TestSession_SetToolsSwitchesHandlersAfterAccepted(t *testing.T) {
+	session, server := newSetToolsTestSession(t)
+	oldHandler := func(_ ToolInvocation) (ToolResult, error) {
+		return ToolResult{TextResultForLLM: "old"}, nil
+	}
+	newHandler := func(_ ToolInvocation) (ToolResult, error) {
+		return ToolResult{TextResultForLLM: "new"}, nil
+	}
+	session.registerTools([]Tool{{Name: "lookup", Handler: oldHandler}})
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- session.SetTools(context.Background(), []Tool{{Name: "lookup", Handler: newHandler}})
+	}()
+	request := server.expectRequest(t, "session.tools.set")
+
+	handler, ok := session.getToolHandler("lookup")
+	if !ok {
+		t.Fatal("lookup handler missing while replacement RPC is pending")
+	}
+	result, err := handler(ToolInvocation{})
+	if err != nil || result.TextResultForLLM != "old" {
+		t.Fatalf("pending replacement used %q, %v; want old handler", result.TextResultForLLM, err)
+	}
+
+	server.respond(t, request.ID, map[string]any{})
+	if err := awaitSetTools(t, errCh); err != nil {
+		t.Fatalf("SetTools failed: %v", err)
+	}
+	handler, ok = session.getToolHandler("lookup")
+	if !ok {
+		t.Fatal("lookup handler missing after accepted replacement")
+	}
+	result, err = handler(ToolInvocation{})
+	if err != nil || result.TextResultForLLM != "new" {
+		t.Fatalf("accepted replacement used %q, %v; want new handler", result.TextResultForLLM, err)
+	}
+}
+
+func TestSession_SetToolsRunningCallsFinishOnOriginalHandler(t *testing.T) {
+	session, server := newSetToolsTestSession(t)
+	started := make(chan struct{})
+	release := make(chan struct{})
+	oldHandler := func(_ ToolInvocation) (ToolResult, error) {
+		close(started)
+		<-release
+		return ToolResult{TextResultForLLM: "old"}, nil
+	}
+	newHandler := func(_ ToolInvocation) (ToolResult, error) {
+		return ToolResult{TextResultForLLM: "new"}, nil
+	}
+	session.registerTools([]Tool{{Name: "lookup", Handler: oldHandler}})
+	session.startExternalTool(&ExternalToolRequestedData{
+		RequestID:  "request-1",
+		SessionID:  "session-1",
+		ToolCallID: "tool-call-1",
+		ToolName:   "lookup",
+	})
+	select {
+	case <-started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("tool handler did not start")
+	}
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- session.SetTools(context.Background(), []Tool{{Name: "lookup", Handler: newHandler}})
+	}()
+	request := server.expectRequest(t, "session.tools.set")
+	server.respond(t, request.ID, map[string]any{})
+	if err := awaitSetTools(t, errCh); err != nil {
+		t.Fatalf("SetTools failed: %v", err)
+	}
+	close(release)
+
+	completion := server.expectRequest(t, "session.tools.handlePendingToolCall")
+	result, ok := completion.Params["result"].(map[string]any)
+	if !ok {
+		t.Fatalf("completion result = %#v, want object", completion.Params["result"])
+	}
+	if result["textResultForLlm"] != "old" {
+		t.Fatalf("completion result = %#v, want old handler result", result)
+	}
+	server.respond(t, completion.ID, map[string]any{})
+}
+
+func TestSession_SetToolsRejectionLeavesHandlersUnchanged(t *testing.T) {
+	session, server := newSetToolsTestSession(t)
+	oldHandler := func(_ ToolInvocation) (ToolResult, error) {
+		return ToolResult{TextResultForLLM: "old"}, nil
+	}
+	newHandler := func(_ ToolInvocation) (ToolResult, error) {
+		return ToolResult{TextResultForLLM: "new"}, nil
+	}
+	session.registerTools([]Tool{{Name: "lookup", Handler: oldHandler}})
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- session.SetTools(context.Background(), []Tool{{Name: "lookup", Handler: newHandler}})
+	}()
+	request := server.expectRequest(t, "session.tools.set")
+	server.respondError(t, request.ID, -32602, "invalid tool name")
+	if err := awaitSetTools(t, errCh); err == nil {
+		t.Fatal("SetTools succeeded; want rejection error")
+	}
+
+	handler, ok := session.getToolHandler("lookup")
+	if !ok {
+		t.Fatal("lookup handler missing after rejected replacement")
+	}
+	result, err := handler(ToolInvocation{})
+	if err != nil || result.TextResultForLLM != "old" {
+		t.Fatalf("rejected replacement used %q, %v; want old handler", result.TextResultForLLM, err)
+	}
+}
+
+func TestSession_SetToolsEmptySetRemovesHandlers(t *testing.T) {
+	session, server := newSetToolsTestSession(t)
+	session.registerTools([]Tool{{Name: "lookup", Handler: func(_ ToolInvocation) (ToolResult, error) {
+		return ToolResult{TextResultForLLM: "old"}, nil
+	}}})
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- session.SetTools(context.Background(), []Tool{})
+	}()
+	request := server.expectRequest(t, "session.tools.set")
+	wireTools, ok := request.Params["tools"].([]any)
+	if !ok || len(wireTools) != 0 {
+		t.Fatalf("tools = %#v, want empty list", request.Params["tools"])
+	}
+	server.respond(t, request.ID, map[string]any{})
+	if err := awaitSetTools(t, errCh); err != nil {
+		t.Fatalf("SetTools failed: %v", err)
+	}
+	if _, ok := session.getToolHandler("lookup"); ok {
+		t.Fatal("handler remained after empty replacement")
+	}
+}
+
+func TestSession_SetToolsConcurrentCallsAreSerialized(t *testing.T) {
+	session, server := newSetToolsTestSession(t)
+
+	firstErr := make(chan error, 1)
+	go func() {
+		firstErr <- session.SetTools(context.Background(), []Tool{{Name: "first", Handler: func(_ ToolInvocation) (ToolResult, error) {
+			return ToolResult{}, nil
+		}}})
+	}()
+	first := server.expectRequest(t, "session.tools.set")
+
+	secondErr := make(chan error, 1)
+	go func() {
+		secondErr <- session.SetTools(context.Background(), []Tool{{Name: "second", Handler: func(_ ToolInvocation) (ToolResult, error) {
+			return ToolResult{}, nil
+		}}})
+	}()
+
+	server.expectNoRequest(t)
+	server.respondError(t, first.ID, -32602, "first rejected")
+	if err := awaitSetTools(t, firstErr); err == nil {
+		t.Fatal("first SetTools succeeded; want rejection error")
+	}
+
+	second := server.expectRequest(t, "session.tools.set")
+	server.respond(t, second.ID, map[string]any{})
+	if err := awaitSetTools(t, secondErr); err != nil {
+		t.Fatalf("second SetTools failed: %v", err)
+	}
+	if _, ok := session.getToolHandler("first"); ok {
+		t.Fatal("first handler installed after rejected replacement")
+	}
+	if _, ok := session.getToolHandler("second"); !ok {
+		t.Fatal("second handler was not installed after earlier rejection")
+	}
+}
+
+func TestSession_SetToolsCancelledAfterSendStillInstallsAcceptedHandlers(t *testing.T) {
+	session, server := newSetToolsTestSession(t)
+	oldHandler := func(_ ToolInvocation) (ToolResult, error) {
+		return ToolResult{TextResultForLLM: "old"}, nil
+	}
+	newHandler := func(_ ToolInvocation) (ToolResult, error) {
+		return ToolResult{TextResultForLLM: "new"}, nil
+	}
+	session.registerTools([]Tool{{Name: "lookup", Handler: oldHandler}})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- session.SetTools(ctx, []Tool{{Name: "lookup", Handler: newHandler}})
+	}()
+	request := server.expectRequest(t, "session.tools.set")
+	cancel()
+	if err := awaitSetTools(t, errCh); !errors.Is(err, context.Canceled) {
+		t.Fatalf("SetTools error = %v, want context.Canceled", err)
+	}
+	handler, ok := session.getToolHandler("lookup")
+	if !ok {
+		t.Fatal("lookup handler missing before accepted replacement resolves")
+	}
+	result, err := handler(ToolInvocation{})
+	if err != nil || result.TextResultForLLM != "old" {
+		t.Fatalf("cancelled pending replacement used %q, %v; want old handler", result.TextResultForLLM, err)
+	}
+
+	server.respond(t, request.ID, map[string]any{})
+	waitForToolHandlerResult(t, session, "lookup", "new")
+}
+
+func TestSession_SetToolsAlreadyCancelledWhileBlockedDoesNotSend(t *testing.T) {
+	session, server := newSetToolsTestSession(t)
+	firstErr := make(chan error, 1)
+	go func() {
+		firstErr <- session.SetTools(context.Background(), []Tool{{Name: "first", Handler: func(_ ToolInvocation) (ToolResult, error) {
+			return ToolResult{}, nil
+		}}})
+	}()
+	first := server.expectRequest(t, "session.tools.set")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	secondErr := make(chan error, 1)
+	go func() {
+		secondErr <- session.SetTools(ctx, []Tool{{Name: "second", Handler: func(_ ToolInvocation) (ToolResult, error) {
+			return ToolResult{}, nil
+		}}})
+	}()
+	cancel()
+	if err := awaitSetTools(t, secondErr); !errors.Is(err, context.Canceled) {
+		t.Fatalf("blocked SetTools error = %v, want context.Canceled", err)
+	}
+	server.expectNoRequest(t)
+
+	server.respond(t, first.ID, map[string]any{})
+	if err := awaitSetTools(t, firstErr); err != nil {
+		t.Fatalf("first SetTools failed: %v", err)
+	}
+	server.expectNoRequest(t)
+	if _, ok := session.getToolHandler("second"); ok {
+		t.Fatal("cancelled blocked replacement installed a handler")
 	}
 }
 
@@ -519,6 +835,169 @@ func readTestJSONRPCFrame(r io.Reader) ([]byte, error) {
 	data := make([]byte, contentLength)
 	_, err := io.ReadFull(reader, data)
 	return data, err
+}
+
+type setToolsJSONRPCRequest struct {
+	ID     json.RawMessage `json:"id"`
+	Method string          `json:"method"`
+	Params map[string]any  `json:"params"`
+}
+
+type setToolsTestServer struct {
+	stdinR  *io.PipeReader
+	stdinW  *io.PipeWriter
+	stdoutR *io.PipeReader
+	stdoutW *io.PipeWriter
+	client  *jsonrpc2.Client
+	mu      sync.Mutex
+	request chan setToolsJSONRPCRequest
+	errs    chan error
+}
+
+func newSetToolsTestSession(t *testing.T) (*Session, *setToolsTestServer) {
+	t.Helper()
+
+	stdinR, stdinW := io.Pipe()
+	stdoutR, stdoutW := io.Pipe()
+	client := jsonrpc2.NewClient(stdinW, stdoutR)
+	client.Start()
+
+	server := &setToolsTestServer{
+		stdinR:  stdinR,
+		stdinW:  stdinW,
+		stdoutR: stdoutR,
+		stdoutW: stdoutW,
+		client:  client,
+		request: make(chan setToolsJSONRPCRequest, 16),
+		errs:    make(chan error, 1),
+	}
+	go server.readRequests()
+	t.Cleanup(func() {
+		client.Stop()
+		stdinR.Close()
+		stdinW.Close()
+		stdoutR.Close()
+		stdoutW.Close()
+	})
+
+	session := &Session{
+		SessionID:    "session-1",
+		client:       client,
+		toolHandlers: make(map[string]ToolHandler),
+		RPC:          rpc.NewSessionRPC(client, "session-1"),
+	}
+	return session, server
+}
+
+func (s *setToolsTestServer) readRequests() {
+	for {
+		frame, err := readTestJSONRPCFrame(s.stdinR)
+		if err != nil {
+			return
+		}
+
+		var request setToolsJSONRPCRequest
+		if err := json.Unmarshal(frame, &request); err != nil {
+			select {
+			case s.errs <- err:
+			default:
+			}
+			return
+		}
+		s.request <- request
+	}
+}
+
+func (s *setToolsTestServer) expectRequest(t *testing.T, method string) setToolsJSONRPCRequest {
+	t.Helper()
+	select {
+	case request := <-s.request:
+		if request.Method != method {
+			t.Fatalf("method = %s, want %s", request.Method, method)
+		}
+		return request
+	case err := <-s.errs:
+		t.Fatal(err)
+	case <-time.After(2 * time.Second):
+		t.Fatalf("timed out waiting for %s request", method)
+	}
+	return setToolsJSONRPCRequest{}
+}
+
+func (s *setToolsTestServer) expectNoRequest(t *testing.T) {
+	t.Helper()
+	select {
+	case request := <-s.request:
+		t.Fatalf("unexpected request while replacement should be blocked: %s", request.Method)
+	case err := <-s.errs:
+		t.Fatal(err)
+	case <-time.After(100 * time.Millisecond):
+	}
+}
+
+func (s *setToolsTestServer) respond(t *testing.T, id json.RawMessage, result any) {
+	t.Helper()
+	s.writeResponse(t, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      id,
+		"result":  result,
+	})
+}
+
+func (s *setToolsTestServer) respondError(t *testing.T, id json.RawMessage, code int, message string) {
+	t.Helper()
+	s.writeResponse(t, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      id,
+		"error": map[string]any{
+			"code":    code,
+			"message": message,
+		},
+	})
+}
+
+func (s *setToolsTestServer) writeResponse(t *testing.T, response map[string]any) {
+	t.Helper()
+	data, err := json.Marshal(response)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, err := fmt.Fprintf(s.stdoutW, "Content-Length: %d\r\n\r\n%s", len(data), data); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func awaitSetTools(t *testing.T, errCh <-chan error) error {
+	t.Helper()
+	select {
+	case err := <-errCh:
+		return err
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for SetTools")
+	}
+	return nil
+}
+
+func waitForToolHandlerResult(t *testing.T, session *Session, name, want string) {
+	t.Helper()
+	deadline := time.After(2 * time.Second)
+	for {
+		handler, ok := session.getToolHandler(name)
+		if ok {
+			result, err := handler(ToolInvocation{})
+			if err == nil && result.TextResultForLLM == want {
+				return
+			}
+		}
+		select {
+		case <-deadline:
+			t.Fatalf("timed out waiting for %s handler to return %q", name, want)
+		default:
+			time.Sleep(time.Millisecond)
+		}
+	}
 }
 
 func TestSession_SendAndWaitSkipsSubagentAndAutopilotContinuationIdle(t *testing.T) {

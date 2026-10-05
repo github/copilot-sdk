@@ -1,0 +1,20 @@
+models:
+  - claude-sonnet-5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Use the kept_tool with input 'test' and tell me the result.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: kept_tool
+              arguments: '{"input":"test"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: KEPT_test
+      - role: assistant
+        content: "The result is: **KEPT_test**"

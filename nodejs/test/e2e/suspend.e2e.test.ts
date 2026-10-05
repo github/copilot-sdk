@@ -58,11 +58,11 @@ function onTestFinishedStop(client: CopilotClient): void {
 }
 
 describe("Suspend RPC", async () => {
-    const { copilotClient: client, env, workDir } = await createSdkTestContext();
+    const { copilotClient: client, env, workDir, createClient } = await createSdkTestContext();
     const SHARED_TOKEN = "suspend-shared-test-token";
 
     function createTcpServer(): CopilotClient {
-        const server = new CopilotClient({
+        const server = createClient({
             workingDirectory: workDir,
             env,
             gitHubToken: DEFAULT_GITHUB_TOKEN,
@@ -76,7 +76,7 @@ describe("Suspend RPC", async () => {
     }
 
     function createConnectingClient(cliUrl: string): CopilotClient {
-        const connectedClient = new CopilotClient({
+        const connectedClient = createClient({
             connection: RuntimeConnection.forUri(cliUrl, { connectionToken: SHARED_TOKEN }),
         });
         onTestFinishedStop(connectedClient);

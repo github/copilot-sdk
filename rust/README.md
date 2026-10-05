@@ -783,11 +783,13 @@ let session = client
     .await?;
 ```
 
-**Hook events:** `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `UserPromptSubmitted`, `UserPromptTransformed`, `SessionStart`, `SessionEnd`, `ErrorOccurred`. Each carries typed input/output structs. `PostToolUse` only fires on success; override `on_post_tool_use_failure` to observe failed tool calls. Return `HookOutput::None` for events you don't handle.
+**Hook events:** `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `UserPromptSubmitted`, `UserPromptTransformed`, `SessionStart`, `SessionEnd`, `ErrorOccurred`, `AgentStop`, `SubagentStart`, and `SubagentStop`. Each carries typed input/output structs. `PostToolUse` only fires on success; override `on_post_tool_use_failure` to observe failed tool calls. `on_subagent_start` can inject `additional_context` into the child agent's initial prompt; `on_subagent_stop` can return a `decision` of `"block"` with a `reason` to continue the child or a `modified_response` to replace its final answer. Return `HookOutput::None` for events you don't handle.
 
 ### System Message Transforms
 
 Transforms customize system message sections during session creation. The SDK injects `action: "transform"` entries for each section ID your transform handles.
+
+`last_instructions` includes configured subagent-model guidance when the `task` tool is available. Removing or replacing this section in customize mode also removes that guidance; a `SystemMessageTransform` handling this section receives its complete content, including the guidance, and any replacement it returns is authoritative. Append, prepend, and preserve retain their usual section semantics. These overrides change prompt prose only, not configured subagent models, tool availability, or runtime dispatch policy. `runtime_instructions` is a separate section: removing it does not remove `last_instructions`.
 
 ```rust,ignore
 use github_copilot_sdk::transforms::*;
@@ -894,6 +896,44 @@ let config = SessionConfig::default()
 The closure receives the full [`ToolInvocation`](crate::types::ToolInvocation) alongside the deserialized parameters, so handlers that need `inv.session_id` or `inv.tool_call_id` for telemetry, streaming updates, or scoped lookups can use them directly. Use `_inv` when you don't need the metadata.
 
 Reach for the `ToolHandler` trait directly when you need shared state across multiple methods or want a named type that shows up by name in stack traces.
+
+#### Replacing tools during a session
+
+`Session::set_tools` (experimental) replaces the complete set of tools this client supplies to a live session, together with the handlers that serve them. It takes the same `Tool` values as `with_tools`, and an empty collection removes all of this client's tools. Built-in, MCP, plugin, and extension tools, and tools that other connected clients supply, are unaffected.
+
+```rust,ignore
+session.set_tools(vec![search_tool, filter_tool]).await?;
+```
+
+The agent sees the new tools from its next model request. The new handlers take effect as soon as the runtime accepts the replacement, and calls already running finish on the handlers that started them. If the runtime rejects the replacement, nothing changes. A model request already in flight was made with the previous tools, so the agent can still call a tool you removed; this session won't answer that call, so replace tools while the session is idle if a running turn might still call a tool you remove. See [Changing tools during a session](../docs/features/changing-tools.md) for the behavior shared by all SDKs.
+
+#### String-schema `apply_patch` overrides
+
+With the `derive` feature enabled, an explicit `apply_patch` override can use
+`define_tool::<String, _, _>` to declare a root string schema. The model sees a
+required `input` property, but the runtime restores the scalar patch text before
+dispatch. The typed handler receives a `String`, not an `{"input": ...}` object.
+This example returns trimmed patch text; replace the handler body with your own
+patch implementation:
+
+```rust,ignore
+use github_copilot_sdk::tool::define_tool;
+use github_copilot_sdk::ToolResult;
+
+let apply_patch = define_tool::<String, _, _>(
+    "apply_patch",
+    "Apply a patch",
+    |_invocation, patch| async move {
+        Ok(ToolResult::Text(patch.trim().to_owned()))
+    },
+)
+.with_overrides_built_in_tool(true);
+
+let config = config.with_tools(vec![apply_patch]);
+```
+
+String-schema `apply_patch` overrides cannot contain JSON Schema references;
+use an object schema if references are needed.
 
 ### Permission Policies
 
@@ -1329,6 +1369,16 @@ let session = client
 
 See [`examples/session_fs.rs`](examples/session_fs.rs) for a complete
 in-memory provider implementation.
+To let the `view` tool read images stored only in that provider, enable
+`SessionFsCapabilities::new().with_binary(true)` with
+`SessionFsConfig::with_capabilities`, implement `SessionFsBinaryProvider`
+(`read_file_bytes` and `write_file_bytes`), and return it from
+`SessionFsProvider::binary`. A registered provider
+without binary support does not fall back to a local file with the same
+path.
+
+Binary reads and writes are limited to 50,330,880 raw bytes (approximately 48 MiB);
+larger results return a filesystem error before encoding or decoding.
 
 - **Canvas action dispatch is a single trait method, not per-action closures.**
   The Node SDK binds an optional `handler` closure on each entry of a canvas's

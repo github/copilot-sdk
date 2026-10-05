@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import datetime as dt
 import os
 import re
@@ -27,7 +28,10 @@ from copilot.session_events import (
     SessionCompactionCompleteData,
     SessionEvent,
 )
-from copilot.session_fs_provider import SessionFsFileInfo, SessionFsProvider
+from copilot.session_fs_provider import (
+    SessionFsFileInfo,
+    SessionFsProvider,
+)
 
 from .testharness import DEFAULT_GITHUB_TOKEN, E2ETestContext
 
@@ -66,6 +70,51 @@ async def session_fs_client(ctx: E2ETestContext):
 
 
 class TestSessionFs:
+    async def test_should_view_an_image_that_exists_only_in_the_binary_session_fs_provider(
+        self, ctx: E2ETestContext
+    ):
+        image_path = "/sdk-provider-image.png"
+        image_bytes = base64.b64decode(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg=="
+        )
+        provider_root = Path(ctx.work_dir) / "binary-provider"
+        read_paths: list[str] = []
+        client = CopilotClient(
+            connection=RuntimeConnection.for_stdio(path=ctx.cli_path),
+            working_directory=ctx.work_dir,
+            env=ctx.get_env(),
+            github_token=DEFAULT_GITHUB_TOKEN,
+            session_fs={**SESSION_FS_CONFIG, "capabilities": {"binary": True}},
+        )
+        try:
+            session = await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                create_session_fs_handler=lambda session: _BinaryTestSessionFsProvider(
+                    provider_root, session.session_id, read_paths
+                ),
+            )
+            stored_path = provider_path(provider_root, session.session_id, image_path)
+            stored_path.parent.mkdir(parents=True, exist_ok=True)
+            stored_path.write_bytes(image_bytes)
+            assert not Path(image_path).exists()
+
+            msg = await session.send_and_wait(
+                "Use the view tool to view /sdk-provider-image.png, "
+                "then reply with exactly SDK_PROVIDER_IMAGE_DONE."
+            )
+            assert msg is not None and "SDK_PROVIDER_IMAGE_DONE" in (msg.data.content or "")
+            assert image_path in read_paths
+            events = await session.get_events()
+            assert any(
+                event.type.value == "session.binary_asset"
+                and event.data.mime_type == "image/png"
+                and event.data.data == base64.b64encode(image_bytes).decode("ascii")
+                for event in events
+            )
+            await session.disconnect()
+        finally:
+            await client.stop()
+
     async def test_should_route_file_operations_through_the_session_fs_provider(
         self, ctx: E2ETestContext, session_fs_client: CopilotClient
     ):
@@ -636,6 +685,21 @@ class _TestSessionFsProvider(SessionFsProvider):
         d = self._path(dest)
         d.parent.mkdir(parents=True, exist_ok=True)
         self._path(src).replace(d)
+
+
+class _BinaryTestSessionFsProvider(_TestSessionFsProvider):
+    def __init__(self, provider_root: Path, session_id: str, read_paths: list[str]):
+        super().__init__(provider_root, session_id)
+        self._read_paths = read_paths
+
+    async def read_file_bytes(self, path: str) -> bytes:
+        self._read_paths.append(path)
+        return self._path(path).read_bytes()
+
+    async def write_file_bytes(self, path: str, content: bytes, mode: int | None = None) -> None:
+        target = self._path(path)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(content)
 
 
 def create_test_session_fs_handler(provider_root: Path):

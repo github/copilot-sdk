@@ -3,6 +3,7 @@
   "private": true,
   "scripts": {
     "build": "node scripts/run-tasks.mjs build",
+    "build:default": "node scripts/run-tasks.mjs build:default",
     "build:nodejs": "node scripts/run-tasks.mjs build nodejs",
     "build:python": "node scripts/run-tasks.mjs build python",
     "build:go": "node scripts/run-tasks.mjs build go",

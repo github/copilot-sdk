@@ -123,6 +123,7 @@ const defaultModel = "claude-sonnet-5";
  */
 export class ReplayingCapiProxy extends CapturingHttpProxy {
   private state: ReplayingCapiProxyState | null = null;
+  private memoryApiStub: MemoryApiStub | undefined;
   private startPromise: Promise<string> | null = null;
   private defaultToolResultNormalizers: ToolResultNormalizer[] = [
     { toolName: "*", normalizer: normalizeLargeOutputFilepaths },
@@ -201,6 +202,7 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
       filePath: config.filePath,
       workDir: config.workDir,
       testInfo: config.testInfo,
+      modelNames: config.modelNames,
       backend: parseReplayBackend(config.backend),
       replayOnly: config.replayOnly === true,
       autoResponseIndex: 0,
@@ -292,6 +294,16 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
           return;
         }
 
+        if (
+          options.requestOptions.path === "/memory-api-config" &&
+          options.requestOptions.method === "POST"
+        ) {
+          this.memoryApiStub = JSON.parse(options.body!) as MemoryApiStub;
+          options.onResponseStart(200, {});
+          options.onResponseEnd();
+          return;
+        }
+
         // Handle /config endpoint for updating proxy configuration
         if (
           options.requestOptions.path === "/config" &&
@@ -324,20 +336,22 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
           options.requestOptions.method === "GET"
         ) {
           const protocol = replayProtocols[this.state?.backend ?? "capi"];
-          const parsedExchanges = await Promise.all(
-            this.exchanges
-              .filter((exchange) => exchange.request.url === protocol.endpoint)
-              .map((exchange) =>
-                parseHttpExchange(
-                  protocol.normalizeRequest?.(exchange.request.body) ??
-                    exchange.request.body,
-                  protocol.canonicalResponse
-                    ? exchange.response?.body
-                    : undefined,
-                  exchange.request.headers,
-                ),
-              ),
+          const modelExchanges = this.exchanges.filter(
+            (exchange) => exchange.request.url === protocol.endpoint,
           );
+          const parsedExchanges = await Promise.all(
+            modelExchanges.map((exchange) =>
+              parseHttpExchange(
+                protocol.normalizeRequest?.(exchange.request.body) ??
+                  exchange.request.body,
+                protocol.canonicalResponse
+                  ? exchange.response?.body
+                  : undefined,
+                exchange.request.headers,
+              ),
+            ),
+          );
+          addCompactionProviderUsage(parsedExchanges, modelExchanges);
           options.onResponseStart(200, {});
           options.onData(Buffer.from(JSON.stringify(parsedExchanges)));
           options.onResponseEnd();
@@ -432,7 +446,7 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
             state.storedData?.models && state.storedData.models.length > 0
               ? state.storedData.models
               : [defaultModel];
-          const modelsResponse = createGetModelsResponse(models);
+          const modelsResponse = createGetModelsResponse(models, state.modelNames);
           const body = JSON.stringify(modelsResponse);
           const headers = {
             "content-type": "application/json",
@@ -516,8 +530,14 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
         // Matches: /agents/*/memory/*/enabled, /agents/*/memory/*/recent, etc.
         if (options.requestOptions.path?.match(/\/agents\/.*\/memory\//)) {
           let body: string;
+          let statusCode = 200;
           if (options.requestOptions.path.includes("/enabled")) {
-            body = JSON.stringify({ enabled: false });
+            body = JSON.stringify(this.memoryApiStub?.enabled ?? { enabled: false });
+          } else if (options.requestOptions.path.includes("/memories")) {
+            statusCode = this.memoryApiStub?.memoriesStatusCode ?? 200;
+            body = JSON.stringify(
+              statusCode === 404 ? {} : (this.memoryApiStub?.memories ?? {}),
+            );
           } else if (options.requestOptions.path.includes("/recent")) {
             body = JSON.stringify({ memories: [] });
           } else {
@@ -527,7 +547,7 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
             "content-type": "application/json",
             ...commonResponseHeaders,
           };
-          options.onResponseStart(200, headers);
+          options.onResponseStart(statusCode, headers);
           options.onData(Buffer.from(body));
           options.onResponseEnd();
           return;
@@ -1041,6 +1061,14 @@ function coalesceAdjacentUserMessages(requestBody: string): string {
 
   const messages: NonNullable<typeof request.messages> = [];
   for (const message of request.messages) {
+    if (
+      message.role === "user" &&
+      typeof message.content === "string" &&
+      containsModeChangedNotice(message.content) &&
+      normalizeUserMessage(message.content) === ""
+    ) {
+      continue;
+    }
     const previous = messages.at(-1);
     if (
       previous?.role === "user" &&
@@ -1072,6 +1100,70 @@ function openAIErrorBody(code: string | undefined, message: string): unknown {
   return { error: { message, type, code: type } };
 }
 
+function rewriteToolArgumentPaths(
+  toolName: string,
+  argumentsJson: string,
+  rewritePath: (value: string) => string,
+  rewriteTextWorkDir: (value: string) => string,
+): string {
+  const rewritePatchPaths = (patch: string) =>
+    patch.replace(
+      /^(\*\*\* (?:Add File|Update File|Delete File|Move to):[ \t]*)([^\r\n]*)/gm,
+      (_match, header: string, filename: string) =>
+        header + rewritePath(filename),
+    );
+  if (
+    toolName === "apply_patch" &&
+    argumentsJson.trimStart().startsWith("*** Begin Patch")
+  ) {
+    return rewritePatchPaths(argumentsJson);
+  }
+
+  let argumentsValue: unknown;
+  try {
+    argumentsValue = JSON.parse(argumentsJson, (key, value: unknown) => {
+      const isPath = /^(?:path|paths|file_path|filePath|cwd|directory)$/.test(
+        key,
+      );
+      if (typeof value === "string") {
+        if (toolName === "apply_patch" && (key === "" || key === "input")) {
+          return rewritePatchPaths(value);
+        }
+        if (isPath) {
+          return rewritePath(value);
+        }
+        if (toolName === "${shell}" && key === "command") {
+          return rewriteTextWorkDir(value);
+        }
+      } else if (isPath && Array.isArray(value)) {
+        return value.map((item: unknown) =>
+          typeof item === "string" ? rewritePath(item) : item,
+        );
+      }
+      return value;
+    });
+  } catch (error) {
+    if (error instanceof SyntaxError) {
+      return argumentsJson;
+    }
+    throw error;
+  }
+  if (
+    toolName === "task" &&
+    typeof argumentsValue === "object" &&
+    argumentsValue !== null &&
+    "prompt" in argumentsValue &&
+    typeof argumentsValue.prompt === "string"
+  ) {
+    argumentsValue.prompt = rewriteTextWorkDir(argumentsValue.prompt);
+  }
+  const rewritten = JSON.stringify(argumentsValue);
+  if (rewritten === undefined) {
+    throw new Error("Unable to encode rewritten tool arguments");
+  }
+  return rewritten;
+}
+
 function normalizeFilenames(
   conversations: NormalizedConversation[],
   workDir: string,
@@ -1095,6 +1187,10 @@ function normalizeFilenames(
     /(?<![a-zA-Z0-9_\\])([a-zA-Z0-9_.-]+(?:\\[a-zA-Z0-9_.-]+)+)/g;
   const windowsFnReplacer = (_: string, path: string) =>
     path.replace(/\\/g, "/");
+  const normalizePath = (value: string) =>
+    value.replace(workDirPattern, workDirReplacer).replace(/\\/g, "/");
+  const normalizeTextWorkDir = (value: string) =>
+    value.replace(workDirPattern, workDirReplacer);
 
   for (const conv of conversations) {
     for (const msg of conv.messages) {
@@ -1104,13 +1200,11 @@ function normalizeFilenames(
       }
       for (const tc of msg.tool_calls ?? []) {
         if (tc.function?.arguments) {
-          tc.function.arguments = tc.function.arguments.replace(
-            workDirPattern,
-            workDirReplacer,
-          );
-          tc.function.arguments = tc.function.arguments.replace(
-            windowsFnPattern,
-            windowsFnReplacer,
+          tc.function.arguments = rewriteToolArgumentPaths(
+            tc.function.name,
+            tc.function.arguments,
+            normalizePath,
+            normalizeTextWorkDir,
           );
         }
       }
@@ -1314,6 +1408,77 @@ async function parseHttpExchange(
   return { request, response, requestHeaders };
 }
 
+function addCompactionProviderUsage(
+  exchanges: ParsedHttpExchange[],
+  capturedExchanges: readonly CapturedExchange[],
+): void {
+  const chains = new Map<
+    string,
+    {
+      usage: CompactionProviderUsage;
+      previous: ParsedHttpExchange;
+    }
+  >();
+  for (const [index, exchange] of exchanges.entries()) {
+    const status = capturedExchanges[index].response?.statusCode;
+    const headers = exchange.requestHeaders;
+    if (
+      status === undefined ||
+      status < 200 ||
+      status >= 300 ||
+      headers?.["x-interaction-type"] !== "conversation-compaction" ||
+      !exchange.response?.choices
+    ) {
+      continue;
+    }
+    const interactionId = headers["x-interaction-id"];
+    if (typeof interactionId !== "string" || !interactionId) {
+      throw new Error(
+        "Compaction provider response has no interaction identity",
+      );
+    }
+    const lastMessage = exchange.request.messages.at(-1);
+    const lastContent =
+      typeof lastMessage?.content === "string"
+        ? lastMessage.content
+        : lastMessage?.role === "user" && Array.isArray(lastMessage.content)
+          ? lastMessage.content
+              .map((part) => (part.type === "text" ? part.text : ""))
+              .join("")
+          : "";
+    // The runtime appends this nudge for both length and reasoning-only continuations.
+    const continuation =
+      lastMessage?.role === "user" &&
+      lastContent.endsWith("Please continue from where you left off.");
+    let chain = continuation ? chains.get(interactionId) : undefined;
+    if (continuation && !chain) {
+      throw new Error(
+        "Compaction continuation has no captured preceding provider response",
+      );
+    }
+    if (!chain) {
+      chain = {
+        usage: { interactionId, summary: "", responseCount: 0, inputTokens: 0 },
+        previous: exchange,
+      };
+      chains.set(interactionId, chain);
+    } else {
+      delete chain.previous.compactionUsage;
+    }
+    const inputTokens = exchange.response.usage?.prompt_tokens;
+    chain.usage.inputTokens =
+      typeof inputTokens === "number" && chain.usage.inputTokens !== undefined
+        ? chain.usage.inputTokens + inputTokens
+        : undefined;
+    chain.usage.summary += exchange.response.choices
+      .map((choice) => choice.message.content ?? "")
+      .join("");
+    chain.usage.responseCount++;
+    exchange.compactionUsage = { ...chain.usage };
+    chain.previous = exchange;
+  }
+}
+
 // Converts a single HTTP exchange (request + response) into a normalized conversation
 async function transformHttpExchange(
   requestBody: string,
@@ -1323,7 +1488,9 @@ async function transformHttpExchange(
     requestBody,
     responseBody,
   );
-  const messages = request.messages.map(transformOpenAIRequestMessage);
+  const messages = request.messages
+    .map(transformOpenAIRequestMessage)
+    .filter((message): message is NormalizedMessage => message !== undefined);
 
   if (response?.choices?.length) {
     messages.push(...transformOpenAIResponseChoice(response.choices));
@@ -1336,29 +1503,41 @@ async function transformHttpExchange(
 // We use this to look up whether we already have a cached response for it
 function transformOpenAIRequestMessage(
   m: ChatCompletionMessageParam,
-): NormalizedMessage {
+): NormalizedMessage | undefined {
   let content: string | undefined;
+  let strippedModeNoticeOnly = false;
   if (m.role === "system") {
     // System message changes too often to include in snapshots - just store placeholder
     content = "${system}";
   } else if (m.role === "user" && typeof m.content === "string") {
     content = normalizeUserMessage(m.content);
+    strippedModeNoticeOnly =
+      content === "" && containsModeChangedNotice(m.content);
   } else if (m.role === "user" && Array.isArray(m.content)) {
     // Multimodal user messages have array content with text and image_url parts.
     // Extract and normalize text parts; represent image_url parts as a stable marker.
     const parts: string[] = [];
+    let sawModeNotice = false;
+    let sawVisibleContent = false;
     for (const part of m.content) {
       if (
         typeof part === "object" &&
         part.type === "text" &&
         typeof part.text === "string"
       ) {
-        parts.push(normalizeUserMessage(part.text));
+        sawModeNotice ||= containsModeChangedNotice(part.text);
+        const normalized = normalizeUserMessage(part.text);
+        if (normalized) {
+          parts.push(normalized);
+          sawVisibleContent = true;
+        }
       } else if (typeof part === "object" && part.type === "image_url") {
         parts.push("[image]");
+        sawVisibleContent = true;
       }
     }
     content = parts.join("\n") || undefined;
+    strippedModeNoticeOnly = sawModeNotice && !sawVisibleContent;
   } else if (m.role === "tool" && typeof m.content === "string") {
     // If it's a JSON tool call result, normalize the whitespace and property ordering.
     // For successful tool results wrapped in {resultType, textResultForLlm}, unwrap to
@@ -1385,6 +1564,9 @@ function transformOpenAIRequestMessage(
     content = m.content;
   }
 
+  if (strippedModeNoticeOnly) {
+    return undefined;
+  }
   const msg: NormalizedMessage = { role: m.role };
   if ("tool_call_id" in m && m.tool_call_id) {
     msg.tool_call_id = m.tool_call_id;
@@ -1397,7 +1579,7 @@ function transformOpenAIRequestMessage(
 }
 
 function normalizeUserMessage(content: string): string {
-  return normalizeSkillContextFrontmatter(content)
+  return stripModeChangedNotice(normalizeSkillContext(content))
     .replace(
       taskCompletionNotificationPattern,
       taskCompletionNotificationReplacement,
@@ -1419,16 +1601,54 @@ const taskCompletionNotificationPattern =
 const taskCompletionNotificationReplacement =
   'Agent "$1" ($2) has completed successfully. Use read_agent with agent_id "$1" to retrieve the full results.';
 
+const modeChangedNoticePattern =
+  /(\s*)<mode_changed_notice>[\s\S]*?<\/mode_changed_notice>(\s*)/g;
+
+function containsModeChangedNotice(content: string): boolean {
+  return /<mode_changed_notice>[\s\S]*?<\/mode_changed_notice>/.test(content);
+}
+
+function stripModeChangedNotice(content: string): string {
+  let removed = false;
+  const stripped = content.replace(
+    modeChangedNoticePattern,
+    (
+      match,
+      leading: string,
+      trailing: string,
+      offset: number,
+      source: string,
+    ) => {
+      removed = true;
+      const before = source.slice(0, offset);
+      const after = source.slice(offset + match.length);
+      if (!before.trim() || !after.trim()) {
+        return "";
+      }
+      return /[\r\n]/.test(leading + trailing) ? "\n\n" : " ";
+    },
+  );
+  return removed ? stripped.trim() : content;
+}
+
 function normalizeStoredUserMessages(conversations: NormalizedConversation[]) {
   for (const conversation of conversations) {
     for (const message of conversation.messages) {
       if (message.role === "user" && typeof message.content === "string") {
-        message.content = message.content.replace(
-          taskCompletionNotificationPattern,
-          taskCompletionNotificationReplacement,
+        message.content = stripModeChangedNotice(
+          normalizeSkillContext(message.content).replace(
+            taskCompletionNotificationPattern,
+            taskCompletionNotificationReplacement,
+          ),
         );
       }
     }
+    conversation.messages = conversation.messages.filter(
+      (message) =>
+        message.role !== "user" ||
+        message.content !== "" ||
+        Object.keys(message).length !== 2,
+    );
   }
 }
 
@@ -1491,12 +1711,19 @@ function normalizeStoredToolMessages(conversations: NormalizedConversation[]) {
   }
 }
 
-function normalizeSkillContextFrontmatter(content: string): string {
+function normalizeSkillContext(content: string): string {
   // Runtime versions may include or omit SKILL.md metadata in the prompt context.
-  return content.replace(
-    /(<skill-context\b[^>]*>\s*Base directory for this skill:[^\r\n]*(?:\r?\n)+)---\r?\n(?:(?!<\/skill-context>)[\s\S])*?\r?\n---(?:\r?\n)+/g,
-    "$1",
-  );
+  return content
+    .replace(
+      /(<skill-context\b[^>]*>\s*Base directory for this skill:[^\r\n]*(?:\r?\n)+)---\r?\n(?:(?!<\/skill-context>)[\s\S])*?\r?\n---(?:\r?\n)+/g,
+      "$1",
+    )
+    .replace(
+      // Filesystem enumeration order is not part of the OTel skill contract.
+      /(<skill-context\b[^>]*>\s*Base directory for this skill:[^\r\n]*(?:\r?\n)+Related files \(use view tool to read\):\r?\n)((?:  - [^\r\n]+\r?\n)+)/g,
+      (_match, prefix: string, files: string) =>
+        prefix + files.split(/\r?\n/).slice(0, -1).sort().join("\n") + "\n",
+    );
 }
 
 function normalizeLargeOutputFilepaths(result: string): string {
@@ -1582,6 +1809,7 @@ function normalizeReadAgentResult(result: string): string {
       /^Agent completed\. (.*), status: idle,/,
       "Agent completed. $1, status: completed,",
     )
+    .replace(/(, total_turns: \d+), model: [^,\r\n]+/, "$1")
     .replace(/, total_turns: \d+(?=\r?\n|$)/, ", total_turns: 0, duration: 0s")
     .replace(/\r?\n\r?\n\[Turn \d+\]\r?\n/, "\n\n");
 
@@ -1954,8 +2182,33 @@ function findAssistantIndexAfterPrefix(
 
     // A continuation can start after an assistant message. Never coalesce
     // across this candidate request/response boundary.
+    const savedPrefix = savedMessages.slice(0, nextIndex);
+    const requestHasRelocatedImage = requestMessages.some(
+      (message, index) =>
+        message.role === "user" &&
+        /^Image file at path [^\n]+\n\[image\]$/.test(message.content ?? "") &&
+        requestMessages[index - 1]?.role === "tool",
+    );
     const prefix = normalizeMessagesForBackend(
-      savedMessages.slice(0, nextIndex),
+      backend === "capi" || requestHasRelocatedImage
+        ? savedPrefix
+        : savedPrefix.filter((message, index) => {
+            const toolResult = savedPrefix[index - 1];
+            const toolCall = savedPrefix[index - 2];
+            // CAPI sends viewed images as a separate user turn; BYOK includes
+            // them in (or, for text-only models, omits them from) the tool result.
+            return !(
+              message.role === "user" &&
+              /^Image file at path [^\n]+\n\[image\]$/.test(
+                message.content ?? "",
+              ) &&
+              toolResult?.role === "tool" &&
+              toolResult.content === "Viewed image file successfully." &&
+              toolCall?.tool_calls?.some(
+                (call) => call.function?.name === "view",
+              )
+            );
+          }),
       backend,
     );
     if (prefix.length > requestMessages.length) break;
@@ -1979,21 +2232,6 @@ function findAssistantIndexAfterPrefix(
   return undefined;
 }
 
-function expandWorkDir(
-  content: string | undefined,
-  workDir: string,
-  jsonEscape: boolean,
-): string | undefined {
-  if (!content) {
-    return content;
-  }
-
-  const workDirValue = jsonEscape
-    ? JSON.stringify(workDir).replaceAll('"', "")
-    : workDir;
-  return content.replace(/\$\{workdir\}/g, workDirValue);
-}
-
 function expandToolName(name: string): string {
   for (const [fullName, normalized] of Object.entries(normalizedToolNames)) {
     if (name === normalized) {
@@ -2012,6 +2250,8 @@ function createOpenAIResponse(
   workDir: string,
   backgroundAgentIds: Map<string, string>,
 ): ChatCompletion {
+  const expandPath = (value: string) =>
+    value.replace(/\$\{workdir\}/g, () => workDir);
   // Here we recreate the strange CAPI/productcode behavior of using multiple choices to represent
   // multiple assistant messages in a row. This is the inverse of the logic in transformOpenAIResponseChoice().
   // So, find all successive assistant messages starting from responseStartIndex.
@@ -2028,7 +2268,12 @@ function createOpenAIResponse(
       function: {
         name: expandToolName(tc.function?.name ?? ""),
         arguments: expandBackgroundAgentArguments(
-          expandWorkDir(tc.function?.arguments, workDir, true) ?? "{}",
+          rewriteToolArgumentPaths(
+            tc.function?.name ?? "",
+            tc.function?.arguments ?? "{}",
+            expandPath,
+            expandPath,
+          ),
           backgroundAgentIds,
         ),
       },
@@ -2038,8 +2283,9 @@ function createOpenAIResponse(
       index,
       message: {
         role: "assistant",
-        content:
-          expandWorkDir(assistantMessage.content, workDir, false) ?? null,
+        content: assistantMessage.content
+          ? expandPath(assistantMessage.content)
+          : null,
         refusal: assistantMessage.refusal ?? null,
         tool_calls: toolCalls,
       },
@@ -2075,7 +2321,8 @@ function convertToStreamingResponseChunks(
   const toolCalls = completion.choices
     .flatMap((choice) => choice.message.tool_calls ?? [])
     .filter(
-      (tc): tc is ChatCompletionMessageFunctionToolCall => tc.type === "function",
+      (tc): tc is ChatCompletionMessageFunctionToolCall =>
+        tc.type === "function",
     );
 
   const makeChunk = (
@@ -2129,19 +2376,22 @@ function convertToStreamingResponseChunks(
   }
   chunks[chunks.length - 1].choices[0].finish_reason = toolCalls.length
     ? "tool_calls"
-    : completion.choices.at(-1)?.finish_reason ?? "stop";
+    : (completion.choices.at(-1)?.finish_reason ?? "stop");
 
   return chunks;
 }
 
-function createGetModelsResponse(modelIds: string[]) {
+function createGetModelsResponse(
+  modelIds: string[],
+  modelNames?: Record<string, string>,
+) {
   // Obviously the following might not match any given model. We could track the original responses from /models,
   // but that risks invalidating the caches too frequently and making this unmaintainable. If this approximation
   // turns out to be insufficient, we can tweak the logic here based on known model IDs.
   return {
     data: modelIds.map((id) => ({
       id,
-      name: id,
+      name: modelNames?.[id] ?? id,
       capabilities: {
         supports: { vision: true },
         limits: { max_context_window_tokens: 128000 },
@@ -2207,10 +2457,36 @@ export type CopilotUserResponse = {
   >;
 };
 
+export type MemoryApiStub = {
+  enabled?: { enabled: boolean };
+  memories?: {
+    repositoryMemories?: Array<{
+      subject: string;
+      fact: string;
+      citations: string[];
+    }>;
+    userMemories?: Array<{
+      subject: string;
+      fact: string;
+      citations: string[];
+    }>;
+  };
+  memoriesStatusCode?: number;
+};
+
 export type ParsedHttpExchange = {
   request: ChatCompletionCreateParamsBase;
   response: ChatCompletion | undefined;
   requestHeaders?: Record<string, string | string[] | undefined>;
+  /** Aggregated provider usage on the last successful response of a compaction chain. */
+  compactionUsage?: CompactionProviderUsage;
+};
+
+export type CompactionProviderUsage = {
+  interactionId: string;
+  summary: string;
+  responseCount: number;
+  inputTokens?: number;
 };
 
 // We want to be able to reuse the proxy across multiple tests, so it needs to be reconfigurable
@@ -2219,6 +2495,7 @@ type ReplayingCapiProxyState = {
   filePath: string;
   workDir: string;
   testInfo?: { file: string; line?: number };
+  modelNames?: Record<string, string>;
   backend: ReplayBackend;
   replayOnly: boolean;
   storedData?: NormalizedData | undefined;

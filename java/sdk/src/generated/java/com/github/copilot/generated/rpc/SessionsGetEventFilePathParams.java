@@ -23,7 +23,7 @@ import javax.annotation.processing.Generated;
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record SessionsGetEventFilePathParams(
+record SessionsGetEventFilePathParams(
     /** Session ID whose event-log file path to compute */
     @JsonProperty("sessionId") String sessionId
 ) {

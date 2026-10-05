@@ -3,8 +3,10 @@
 package copilot
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -807,6 +809,76 @@ func TestClient_ForwardsAskUserVariantToSessionRequests(t *testing.T) {
 	assertAskUserVariant(t, <-resumeParams, "")
 }
 
+func TestClient_EnablesSubagentHooksForCreateAndResume(t *testing.T) {
+	for _, tt := range []struct {
+		name  string
+		hooks *SessionHooks
+	}{
+		{
+			name: "start only",
+			hooks: &SessionHooks{
+				OnSubagentStart: func(SubagentStartHookInput, HookInvocation) (*SubagentStartHookOutput, error) {
+					return nil, nil
+				},
+			},
+		},
+		{
+			name: "stop only",
+			hooks: &SessionHooks{
+				OnSubagentStop: func(SubagentStopHookInput, HookInvocation) (*SubagentStopHookOutput, error) {
+					return nil, nil
+				},
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			rpcClient, server, _ := newRuntimeShutdownRpcPair(t)
+			t.Cleanup(server.Stop)
+			client := &Client{
+				client:   rpcClient,
+				RPC:      rpc.NewServerRPC(rpcClient),
+				sessions: make(map[string]*Session),
+			}
+			requests := make(chan json.RawMessage, 2)
+			for _, method := range []string{"session.create", "session.resume"} {
+				server.SetRequestHandler(method, func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+					requests <- append(json.RawMessage(nil), params...)
+					sessionID := sessionIDFromParams(t, params)
+					return []byte(`{"sessionId":"` + sessionID + `"}`), nil
+				})
+			}
+			server.SetRequestHandler("session.detach", func(json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+				return []byte(`{"success":true}`), nil
+			})
+
+			created, err := client.CreateSession(t.Context(), &SessionConfig{Hooks: tt.hooks})
+			if err != nil {
+				t.Fatalf("create session: %v", err)
+			}
+			if err := created.Disconnect(); err != nil {
+				t.Fatalf("disconnect session: %v", err)
+			}
+			resumed, err := client.ResumeSession(t.Context(), created.SessionID, &ResumeSessionConfig{Hooks: tt.hooks})
+			if err != nil {
+				t.Fatalf("resume session: %v", err)
+			}
+			if err := resumed.Disconnect(); err != nil {
+				t.Fatalf("disconnect resumed session: %v", err)
+			}
+
+			for _, method := range []string{"session.create", "session.resume"} {
+				var request map[string]any
+				if err := json.Unmarshal(<-requests, &request); err != nil {
+					t.Fatalf("decode %s request: %v", method, err)
+				}
+				if request["hooks"] != true {
+					t.Errorf("%s hooks = %v, want true", method, request["hooks"])
+				}
+			}
+		})
+	}
+}
+
 func TestClient_ForwardsDiagnosticsToSessionRequests(t *testing.T) {
 	rpcClient, server, _ := newRuntimeShutdownRpcPair(t)
 	t.Cleanup(server.Stop)
@@ -1449,6 +1521,63 @@ func (noSQLiteSessionFSProvider) ReadDirectoryWithTypes(string) ([]rpc.SessionFS
 func (noSQLiteSessionFSProvider) Remove(string, bool, bool) error { return nil }
 func (noSQLiteSessionFSProvider) Rename(string, string) error     { return nil }
 
+type oversizedBinarySessionFSProvider struct{ noSQLiteSessionFSProvider }
+
+func (oversizedBinarySessionFSProvider) ReadFileBytes(string) ([]byte, error) {
+	return make([]byte, maxSessionFSBinaryBytes+1), nil
+}
+
+func (oversizedBinarySessionFSProvider) WriteFileBytes(string, []byte, *int) error { return nil }
+
+type recordingBinarySessionFSProvider struct {
+	noSQLiteSessionFSProvider
+	content []byte
+	mode    *int
+}
+
+func (p *recordingBinarySessionFSProvider) ReadFileBytes(string) ([]byte, error) {
+	return p.content, nil
+}
+func (p *recordingBinarySessionFSProvider) WriteFileBytes(_ string, content []byte, mode *int) error {
+	p.content, p.mode = content, mode
+	return nil
+}
+
+func TestSessionFSAdapterWritesExactBytesAndRejectsInvalidInput(t *testing.T) {
+	provider := &recordingBinarySessionFSProvider{}
+	adapter := newSessionFSAdapter(provider)
+	mode := int64(0o600)
+	write := &rpc.SessionFSWriteFileBytesRequest{
+		SessionID: "session", Path: "/image.png", Content: "AP/+AQ==", Mode: &mode,
+	}
+	result, err := adapter.WriteFileBytes(write)
+	if err != nil || result != nil || !bytes.Equal(provider.content, []byte{0, 255, 254, 1}) ||
+		provider.mode == nil || *provider.mode != 0o600 {
+		t.Fatalf("binary write lost content/mode: result=%v err=%v bytes=%v mode=%v", result, err, provider.content, provider.mode)
+	}
+	for _, content := range []string{"AA==AAAA", "AA==\r\n", strings.Repeat("A", maxSessionFSBinaryContentLength+1)} {
+		result, err := adapter.WriteFileBytes(&rpc.SessionFSWriteFileBytesRequest{
+			SessionID: "session", Path: "/image.png", Content: content,
+		})
+		if err != nil || result == nil || !bytes.Equal(provider.content, []byte{0, 255, 254, 1}) {
+			t.Fatalf("invalid binary write modified file: result=%v err=%v bytes=%v", result, err, provider.content)
+		}
+	}
+}
+
+func TestSessionFSAdapterRejectsOversizedBinaryRead(t *testing.T) {
+	result, err := newSessionFSAdapter(oversizedBinarySessionFSProvider{}).ReadFileBytes(
+		&rpc.SessionFSReadFileBytesRequest{SessionID: "session", Path: "/image.png"},
+	)
+	if err != nil {
+		t.Fatalf("ReadFileBytes returned a transport error: %v", err)
+	}
+	if result.Content != "" || result.Error == nil || result.Error.Code != rpc.SessionFSErrorCodeUNKNOWN ||
+		result.Error.Message == nil || !strings.Contains(*result.Error.Message, "binary read limit") {
+		t.Fatalf("expected a filesystem error without encoded bytes, got %+v", result)
+	}
+}
+
 func assertRuntimeShutdownNotCalled(t *testing.T, shutdownCalled <-chan struct{}) {
 	t.Helper()
 	select {
@@ -1498,6 +1627,113 @@ func TestClient_SessionFSConfig(t *testing.T) {
 			},
 		})
 	})
+}
+
+func TestClient_CreateSessionDeletesCloudSessionWhenBinaryProviderValidationFails(t *testing.T) {
+	client, requests, cleanup := newInMemoryClientWithOptions(t, &ClientOptions{
+		SessionFS: &SessionFSConfig{
+			InitialWorkingDirectory: "/",
+			SessionStatePath:        "/state",
+			Conventions:             rpc.SessionFSSetProviderConventionsPosix,
+			Capabilities:            &SessionFSCapabilities{Binary: true},
+		},
+	})
+	defer cleanup()
+
+	_, err := client.CreateSession(t.Context(), &SessionConfig{
+		Cloud: &CloudSessionOptions{
+			Repository: &CloudSessionRepository{Owner: "github", Name: "copilot-sdk", Branch: "main"},
+		},
+		OnPermissionRequest: PermissionHandler.ApproveAll,
+		CreateSessionFSProvider: func(*Session) SessionFSProvider {
+			return nil
+		},
+	})
+	if err == nil || !strings.Contains(err.Error(), "does not implement SessionFSBinaryProvider") {
+		t.Fatalf("expected binary provider validation error, got %v", err)
+	}
+	snapshot := requests.snapshot()
+	if len(snapshot) != 2 || snapshot[0].Method != "session.create" || snapshot[1].Method != "session.delete" {
+		t.Fatalf("expected create then orphan cleanup, got %+v", snapshot)
+	}
+	if snapshot[1].Params["sessionId"] != "server-assigned-session-1" {
+		t.Fatalf("expected cleanup of server-assigned session, got %+v", snapshot[1])
+	}
+	client.sessionsMux.Lock()
+	defer client.sessionsMux.Unlock()
+	if len(client.sessions) != 0 {
+		t.Fatalf("failed creation left %d active sessions", len(client.sessions))
+	}
+}
+
+func TestClient_CreateSessionDeletesCloudSessionWhenProviderValidationFailsAfterCancellation(t *testing.T) {
+	client, requests, cleanup := newInMemoryClientWithOptions(t, &ClientOptions{
+		SessionFS: &SessionFSConfig{
+			InitialWorkingDirectory: "/",
+			SessionStatePath:        "/state",
+			Conventions:             rpc.SessionFSSetProviderConventionsPosix,
+			Capabilities:            &SessionFSCapabilities{Binary: true},
+		},
+	})
+	defer cleanup()
+	requests.notify = make(chan struct{}, 1)
+
+	providerStarted := make(chan struct{})
+	releaseProvider := make(chan struct{})
+	release := sync.OnceFunc(func() { close(releaseProvider) })
+	defer release()
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	createDone := make(chan error, 1)
+	go func() {
+		_, err := client.CreateSession(ctx, &SessionConfig{
+			Cloud:               &CloudSessionOptions{Repository: &CloudSessionRepository{Owner: "github", Name: "copilot-sdk", Branch: "main"}},
+			OnPermissionRequest: PermissionHandler.ApproveAll,
+			CreateSessionFSProvider: func(*Session) SessionFSProvider {
+				close(providerStarted)
+				<-releaseProvider
+				return noSQLiteSessionFSProvider{}
+			},
+		})
+		createDone <- err
+	}()
+
+	deadline := time.NewTimer(5 * time.Second)
+	defer deadline.Stop()
+	select {
+	case <-providerStarted:
+	case <-deadline.C:
+		t.Fatal("session.create did not reach the provider factory")
+	}
+	cancel()
+	select {
+	case err := <-createDone:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("CreateSession error = %v, want context cancellation", err)
+		}
+	case <-deadline.C:
+		t.Fatal("CreateSession did not return after cancellation")
+	}
+	release()
+
+	for {
+		snapshot := requests.snapshot()
+		if len(snapshot) >= 2 {
+			if len(snapshot) != 2 || snapshot[0].Method != "session.create" || snapshot[1].Method != "session.delete" {
+				t.Fatalf("expected one create and one orphan cleanup, got %+v", snapshot)
+			}
+			if snapshot[1].Params["sessionId"] != "server-assigned-session-1" {
+				t.Fatalf("expected cleanup of server-assigned session, got %+v", snapshot[1])
+			}
+			return
+		}
+		select {
+		case <-requests.notify:
+		case <-deadline.C:
+			t.Fatalf("cloud session was not deleted after provider validation failed; requests: %+v", snapshot)
+		}
+	}
 }
 
 func TestClient_AuthOptions(t *testing.T) {
@@ -3138,12 +3374,19 @@ type recordedRequest struct {
 type requestRecorder struct {
 	mu       sync.Mutex
 	requests []recordedRequest
+	notify   chan struct{}
 }
 
 func (r *requestRecorder) append(request recordedRequest) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.requests = append(r.requests, request)
+	if r.notify != nil {
+		select {
+		case r.notify <- struct{}{}:
+		default:
+		}
+	}
 }
 
 func (r *requestRecorder) snapshot() []recordedRequest {
@@ -3231,6 +3474,8 @@ func serveInMemoryRuntime(t *testing.T, stdinR *io.PipeReader, stdoutW *io.PipeW
 		case "session.skills.reload":
 			result = map[string]any{}
 		case "session.detach":
+			result = map[string]any{"success": true}
+		case "session.delete":
 			result = map[string]any{"success": true}
 		default:
 			t.Errorf("unexpected JSON-RPC method %s", request.Method)

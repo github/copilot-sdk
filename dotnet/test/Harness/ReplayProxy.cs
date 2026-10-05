@@ -40,18 +40,14 @@ public sealed partial class ReplayProxy : IAsyncDisposable
             };
 
             var process = new Process { StartInfo = startInfo };
-
-            var tcs = new TaskCompletionSource<string>();
-            var errorOutput = new StringBuilder();
-            var startupTimer = Stopwatch.StartNew();
-            string CapturedErrors()
-            {
-                lock (errorOutput) return errorOutput.ToString();
-            }
+            var tcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var diagnostics = new StartupDiagnostics();
+            var elapsed = Stopwatch.StartNew();
 
             process.OutputDataReceived += (_, e) =>
             {
                 if (e.Data == null) return;
+                diagnostics.AppendOutput(e.Data);
                 var match = Regex.Match(e.Data, @"Listening: (?<url>http://[^\s]+)\s+(?<metadata>\{.*\})$");
                 if (!match.Success)
                 {
@@ -92,7 +88,7 @@ public sealed partial class ReplayProxy : IAsyncDisposable
             process.ErrorDataReceived += (_, e) =>
             {
                 if (e.Data == null) return;
-                lock (errorOutput) errorOutput.AppendLine(e.Data);
+                diagnostics.AppendError(e.Data);
                 Console.Error.WriteLine(e.Data);
             };
 
@@ -112,18 +108,53 @@ public sealed partial class ReplayProxy : IAsyncDisposable
             {
                 if (!tcs.Task.IsCompleted)
                 {
-                    tcs.TrySetException(new Exception($"Proxy exited before listening with code {process.ExitCode}: {CapturedErrors()}"));
+                    tcs.TrySetException(new Exception(
+                        $"Proxy exited before readiness. {diagnostics.Describe(process.Id, elapsed.Elapsed, process.ExitCode)}"));
                 }
             });
 
             // Use longer timeout on Windows due to slower process startup
             var timeoutSeconds = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? 30 : 10;
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(timeoutSeconds));
-            cts.Token.Register(() => tcs.TrySetException(new TimeoutException(
-                $"Timeout waiting for proxy after {startupTimer.ElapsedMilliseconds}ms " +
-                $"(exited: {process.HasExited}; stderr: {CapturedErrors()})")));
+            using var registration = cts.Token.Register(() => tcs.TrySetException(new TimeoutException(
+                $"Timeout waiting for proxy. {diagnostics.Describe(process.Id, elapsed.Elapsed, process.HasExited ? process.ExitCode : null)}")));
 
             return await tcs.Task;
+        }
+    }
+
+    internal sealed class StartupDiagnostics
+    {
+        private const int OutputLimit = 4096;
+        private readonly object _gate = new();
+        private readonly StringBuilder _stdout = new();
+        private readonly StringBuilder _stderr = new();
+
+        public void AppendOutput(string line) => Append(_stdout, line);
+
+        public void AppendError(string line) => Append(_stderr, line);
+
+        private void Append(StringBuilder output, string line)
+        {
+            lock (_gate)
+            {
+                output.Append(line, Math.Max(0, line.Length - OutputLimit), Math.Min(line.Length, OutputLimit));
+                output.AppendLine();
+                if (output.Length > OutputLimit)
+                {
+                    output.Remove(0, output.Length - OutputLimit);
+                }
+            }
+        }
+
+        public string Describe(int processId, TimeSpan elapsed, int? exitCode)
+        {
+            lock (_gate)
+            {
+                var state = exitCode is int code ? $"exited with code {code}" : "running";
+                return $"PID {processId}, {state}, elapsed {elapsed.TotalSeconds:F1}s." +
+                    $"\n--- stdout tail ---\n{_stdout}\n--- stderr tail ---\n{_stderr}";
+            }
         }
     }
 
@@ -256,7 +287,10 @@ public record CopilotUserQuotaSnapshot(
 public record ParsedHttpExchange(
     ChatCompletionRequest Request,
     ChatCompletionResponse? Response,
-    Dictionary<string, JsonElement>? RequestHeaders);
+    Dictionary<string, JsonElement>? RequestHeaders,
+    CompactionProviderUsage? CompactionUsage = null);
+
+public record CompactionProviderUsage(string InteractionId, string Summary, int ResponseCount, long? InputTokens);
 
 public record ChatCompletionRequest(
     string Model,

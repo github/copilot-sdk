@@ -122,10 +122,12 @@ hooks: {
     onSessionStart: async (input, invocation) => { ... },
     onSessionEnd: async (input, invocation) => { ... },
     onErrorOccurred: async (input, invocation) => { ... },
+    onSubagentStart: async (input, invocation) => { ... },
+    onSubagentStop: async (input, invocation) => { ... },
 }
 ```
 
-All hook inputs include `timestamp` (`Date`) and `workingDirectory`.
+All hook inputs include `sessionId`, `timestamp` (`Date`) and `workingDirectory`.
 All handlers receive `invocation: { sessionId: string }` as the second argument.
 All handlers may return `void`/`undefined` (no-op) or an output object.
 
@@ -214,7 +216,32 @@ fire it.
 | `retryCount` | `number` | Max retries (when errorHandling is "retry") |
 | `userNotification` | `string` | Message shown to the user |
 
----
+### onSubagentStart
+
+Fires before a sub-agent's first turn. The input's `sessionId` and the
+invocation's `sessionId` identify the parent session, not the child.
+
+**Input:** `{ sessionId: string, transcriptPath: string, agentName: string, agentDisplayName?: string, agentDescription?: string, timestamp, workingDirectory }`
+
+**Output (optional):**
+| Field | Type | Effect |
+|-------|------|--------|
+| `additionalContext` | `string` | Prepended to the child's initial prompt |
+
+### onSubagentStop
+
+Fires after a sub-agent completes a turn. The input includes the child's last
+assistant `response` and the parent's session metadata. `agentId` is available
+when the task registry supplies one. This is distinct from `onAgentStop`, which
+only runs for the top-level agent.
+
+**Input:** `{ sessionId: string, transcriptPath: string, agentName: string, agentDisplayName?: string, agentDescription?: string, agentId?: string, agentType: string, stopReason: "end_turn", response: string, timestamp, workingDirectory }`
+
+**Output (choose one, or return nothing):**
+| Field | Type | Effect |
+|-------|------|--------|
+| `decision` and `reason` | `"block"` and `string` | Continue the child for another turn using `reason` |
+| `modifiedResponse` | `string` | Replace the child's response reported to the parent |
 
 ## Session Object
 

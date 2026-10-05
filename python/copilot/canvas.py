@@ -188,5 +188,12 @@ class CanvasHandler(ABC):
         """Canvas was closed by the user or agent. Default: no-op."""
 
     async def on_action(self, ctx: CanvasProviderInvokeActionRequest) -> Any:
-        """Handle a non-lifecycle action declared by the canvas."""
+        """Handle a non-lifecycle action declared by the canvas.
+
+        The returned value is sent to the model as the ``invoke_canvas_action``
+        tool result. To return text and images, as tool handlers do, return a
+        tool-result dict in wire form (``textResultForLlm``, ``resultType`` and
+        ``binaryResultsForLlm``); any other value is rendered to the model as
+        JSON text.
+        """
         raise CanvasError.no_handler()

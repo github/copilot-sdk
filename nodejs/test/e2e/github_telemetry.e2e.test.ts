@@ -54,4 +54,65 @@ describe("GitHub telemetry forwarding", async () => {
             await session.disconnect();
         }
     );
+
+    it("keeps telemetry ownership across disconnect and same-id recreation", async () => {
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+        const firstIdentity = await session.rpc.telemetry.getEngagementId();
+        try {
+            await session.setModel("gpt-4.1");
+            await waitForCondition(
+                () =>
+                    received.some(
+                        (notification) =>
+                            notification.sessionId === session.sessionId &&
+                            notification.event.kind === "session_model_change" &&
+                            notification.event.properties?.engagement_id ===
+                                firstIdentity.engagementId
+                    ),
+                { timeoutMessage: "The original pipeline did not forward its model change." }
+            );
+        } finally {
+            await session.disconnect();
+        }
+
+        // Native race tests control delayed enrichment. This boundary test proves
+        // the close/recreate path and forwarding transport retain the same ownership.
+        const resumeOffset = received.length;
+        const resumed = await client.createSession({
+            sessionId: session.sessionId,
+            model: "gpt-4.1",
+            onPermissionRequest: approveAll,
+        });
+        try {
+            const secondIdentity = await resumed.rpc.telemetry.getEngagementId();
+            expect(firstIdentity.engagementId).toBeTruthy();
+            expect(secondIdentity.engagementId).toBeTruthy();
+            expect(secondIdentity.engagementId).not.toBe(firstIdentity.engagementId);
+            await resumed.setModel("gpt-5.4");
+            await waitForCondition(
+                () =>
+                    received
+                        .slice(resumeOffset)
+                        .some(
+                            (notification) =>
+                                notification.sessionId === resumed.sessionId &&
+                                notification.event.kind === "session_model_change" &&
+                                notification.event.properties?.engagement_id ===
+                                    secondIdentity.engagementId
+                        ),
+                { timeoutMessage: "The replacement pipeline did not forward its model change." }
+            );
+            const afterResume = received
+                .slice(resumeOffset)
+                .filter((notification) => notification.sessionId === resumed.sessionId);
+            expect(
+                afterResume.some(
+                    (notification) =>
+                        notification.event.properties?.engagement_id === firstIdentity.engagementId
+                )
+            ).toBe(false);
+        } finally {
+            await resumed.disconnect();
+        }
+    });
 });

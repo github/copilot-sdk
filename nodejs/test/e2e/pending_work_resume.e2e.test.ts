@@ -140,11 +140,11 @@ function waitForPermissionRequest(session: CopilotSession): Promise<PermissionRe
 }
 
 describe("Pending work resume", async () => {
-    const { env, workDir, openAiEndpoint } = await createSdkTestContext();
+    const { env, workDir, openAiEndpoint, createClient } = await createSdkTestContext();
     const SHARED_TOKEN = "pending-work-resume-shared-test-token";
 
     function createTcpServer(): CopilotClient {
-        const server = new CopilotClient({
+        const server = createClient({
             workingDirectory: workDir,
             env,
             gitHubToken: DEFAULT_GITHUB_TOKEN,
@@ -164,7 +164,7 @@ describe("Pending work resume", async () => {
     }
 
     function createConnectingClient(cliUrl: string): CopilotClient {
-        const client = new CopilotClient({
+        const client = createClient({
             connection: RuntimeConnection.forUri(cliUrl, { connectionToken: SHARED_TOKEN }),
         });
         onTestFinished(async () => {
@@ -444,7 +444,21 @@ describe("Pending work resume", async () => {
                     requestId: toolB.data.requestId,
                     result: "PARALLEL_B_BETA",
                 });
-                expect(resultB.success).toBe(true);
+                expect(
+                    resultB.success,
+                    resultB.success
+                        ? undefined
+                        : `Rejected request ${toolB.data.requestId}; resumed events: ${JSON.stringify(
+                              (
+                                  await session2.rpc.eventLog.read({ max: 100, waitMs: 0 })
+                              ).events.filter(
+                                  (event) =>
+                                      event.type.startsWith("external_tool.") ||
+                                      event.type === "tool.execution_complete" ||
+                                      event.type === "session.resume"
+                              )
+                          )}`
+                ).toBe(true);
                 const resultA = await session2.rpc.tools.handlePendingToolCall({
                     requestId: toolA.data.requestId,
                     result: "PARALLEL_A_ALPHA",

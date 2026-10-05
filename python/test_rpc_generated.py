@@ -7,7 +7,13 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 
 from copilot._jsonrpc import JsonRpcClient
-from copilot.generated.rpc import ClientGlobalApiHandlers, register_client_global_api_handlers
+from copilot.generated.rpc import (
+    ClientGlobalApiHandlers,
+    CustomizationReloadOutcome,
+    CustomizationReloadStatus,
+    CustomizationReloadSubsystem,
+    register_client_global_api_handlers,
+)
 from copilot.rpc import (
     BuiltinToolInputSchemaType,
     CommandsApi,
@@ -29,6 +35,25 @@ from copilot.rpc import (
     TaskAgentInfo,
     UIElicitationSchemaType,
 )
+
+
+def test_customization_reload_outcome_preserves_future_enum_values():
+    payload = {"status": "newStatus", "subsystem": "newSubsystem", "detail": "new component"}
+    outcome = CustomizationReloadOutcome.from_dict(payload)
+
+    assert outcome.status.value == payload["status"]
+    assert outcome.subsystem.value == payload["subsystem"]
+    assert outcome.to_dict() == payload
+    assert outcome.status is CustomizationReloadStatus("newStatus")
+    assert outcome.subsystem is CustomizationReloadSubsystem("newSubsystem")
+    assert CustomizationReloadOutcome.from_dict(payload).status is outcome.status
+    assert CustomizationReloadOutcome.from_dict(payload).subsystem is outcome.subsystem
+    assert CustomizationReloadStatus("anotherStatus") is not outcome.status
+    assert CustomizationReloadSubsystem("anotherSubsystem") is not outcome.subsystem
+    assert CustomizationReloadStatus("reloaded") is CustomizationReloadStatus.RELOADED
+    assert CustomizationReloadSubsystem("skills") is CustomizationReloadSubsystem.SKILLS
+    with pytest.raises(ValueError):
+        CustomizationReloadStatus(None)
 
 
 async def test_host_dispose_deserializes_empty_acknowledgement():

@@ -251,6 +251,12 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
+	case SessionEventTypeHumanResponseRecorded:
+		var d HumanResponseRecordedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
 	case SessionEventTypeMCPAppToolCallComplete:
 		var d MCPAppToolCallCompleteData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
@@ -883,6 +889,12 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 		e.Data = &d
 	case SessionEventTypeToolSearchActivated:
 		var d ToolSearchActivatedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeToolShellOutput:
+		var d ToolShellOutputData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}
@@ -2638,6 +2650,110 @@ func (r *PermissionCompletedData) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		r.Result = value
+	}
+	r.ToolCallID = raw.ToolCallID
+	return nil
+}
+
+func unmarshalHumanResponseRecordedResponse(data []byte) (HumanResponseRecordedResponse, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	type rawUnion struct {
+		ResponseKind HumanResponseRecordedResponseResponseKind `json:"responseKind"`
+	}
+	var raw rawUnion
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+
+	switch raw.ResponseKind {
+	case HumanResponseRecordedResponseResponseKindAskUser:
+		var d HumanResponseRecordedResponseAskUser
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case HumanResponseRecordedResponseResponseKindExitPlanMode:
+		var d HumanResponseRecordedResponseExitPlanMode
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case HumanResponseRecordedResponseResponseKindUserInput:
+		var d HumanResponseRecordedResponseUserInput
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	default:
+		return &RawHumanResponseRecordedResponse{Discriminator: raw.ResponseKind, Raw: data}, nil
+	}
+}
+
+func (r RawHumanResponseRecordedResponse) MarshalJSON() ([]byte, error) {
+	if r.Raw != nil {
+		return r.Raw, nil
+	}
+	return json.Marshal(struct {
+		ResponseKind HumanResponseRecordedResponseResponseKind `json:"responseKind"`
+	}{
+		ResponseKind: r.Discriminator,
+	})
+}
+
+func (r HumanResponseRecordedResponseAskUser) MarshalJSON() ([]byte, error) {
+	type alias HumanResponseRecordedResponseAskUser
+	return json.Marshal(struct {
+		ResponseKind HumanResponseRecordedResponseResponseKind `json:"responseKind"`
+		alias
+	}{
+		ResponseKind: r.ResponseKind(),
+		alias:        alias(r),
+	})
+}
+
+func (r HumanResponseRecordedResponseExitPlanMode) MarshalJSON() ([]byte, error) {
+	type alias HumanResponseRecordedResponseExitPlanMode
+	return json.Marshal(struct {
+		ResponseKind HumanResponseRecordedResponseResponseKind `json:"responseKind"`
+		alias
+	}{
+		ResponseKind: r.ResponseKind(),
+		alias:        alias(r),
+	})
+}
+
+func (r HumanResponseRecordedResponseUserInput) MarshalJSON() ([]byte, error) {
+	type alias HumanResponseRecordedResponseUserInput
+	return json.Marshal(struct {
+		ResponseKind HumanResponseRecordedResponseResponseKind `json:"responseKind"`
+		alias
+	}{
+		ResponseKind: r.ResponseKind(),
+		alias:        alias(r),
+	})
+}
+
+func (r *HumanResponseRecordedData) UnmarshalJSON(data []byte) error {
+	type rawHumanResponseRecordedData struct {
+		Actor      HumanResponseActor `json:"actor"`
+		RequestID  string             `json:"requestId"`
+		Response   json.RawMessage    `json:"response"`
+		ToolCallID *string            `json:"toolCallId,omitempty"`
+	}
+	var raw rawHumanResponseRecordedData
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	r.Actor = raw.Actor
+	r.RequestID = raw.RequestID
+	if raw.Response != nil {
+		value, err := unmarshalHumanResponseRecordedResponse(raw.Response)
+		if err != nil {
+			return err
+		}
+		r.Response = value
 	}
 	r.ToolCallID = raw.ToolCallID
 	return nil

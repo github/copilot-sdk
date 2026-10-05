@@ -49,6 +49,8 @@ public final class SessionStartEvent extends SessionEvent {
         @JsonProperty("selectedModel") String selectedModel,
         /** Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh", "max") */
         @JsonProperty("reasoningEffort") String reasoningEffort,
+        /** Model that owns effort embedded in an authored model selection. Omitted for independent reasoning-effort overrides and legacy events. */
+        @JsonProperty("reasoningEffortModel") String reasoningEffortModel,
         /** Reasoning summary mode used for model calls, if applicable (e.g. "none", "concise", "detailed") */
         @JsonProperty("reasoningSummary") ReasoningSummary reasoningSummary,
         /** Output verbosity level used for model calls, if applicable (e.g. "low", "medium", "high") */

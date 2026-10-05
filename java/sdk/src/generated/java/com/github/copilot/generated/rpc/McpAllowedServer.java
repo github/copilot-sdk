@@ -20,7 +20,7 @@ import javax.annotation.processing.Generated;
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record McpAllowedServer(
+record McpAllowedServer(
     /** Allowed server name */
     @JsonProperty("name") String name,
     /** PII-free note explaining why the server was allowed */

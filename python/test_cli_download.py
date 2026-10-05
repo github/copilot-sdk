@@ -29,6 +29,7 @@ def _release_package(runtime_platform: str) -> bytes:
         f"package/ripgrep/bin/{runtime_platform}/rg": b"ripgrep",
         "package/definitions/future.json": b"{}",
         "package/app.js": b"excluded",
+        "package/cli-main.js": b"excluded",
         "package/LICENSE.md": b"excluded",
     }
     buffer = io.BytesIO()
@@ -190,6 +191,7 @@ def test_cli_and_runtime_share_one_staged_bundle(tmp_path, monkeypatch, version)
     assert (install_dir / "ripgrep" / "bin" / runtime_platform / "rg").read_bytes() == b"ripgrep"
     assert (install_dir / "definitions" / "future.json").read_bytes() == b"{}"
     assert not (install_dir / "app.js").exists()
+    assert not (install_dir / "cli-main.js").exists()
     assert (install_dir / ".hostless-runtime-assets-v2").is_file()
     assert fetch_mock.call_count == 2
     if os.name != "nt":

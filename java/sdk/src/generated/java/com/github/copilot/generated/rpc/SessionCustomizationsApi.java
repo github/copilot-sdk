@@ -35,8 +35,8 @@ public final class SessionCustomizationsApi {
      * @since 1.0.0
      */
     @CopilotExperimental
-    public CompletableFuture<SessionCustomizationsReloadResult> reload() {
-        return caller.invoke("session.customizations.reload", java.util.Map.of("sessionId", this.sessionId), SessionCustomizationsReloadResult.class);
+    public CompletableFuture<CustomizationsReloadResult> reload() {
+        return caller.invoke("session.customizations.reload", java.util.Map.of("sessionId", this.sessionId), CustomizationsReloadResult.class);
     }
 
 }

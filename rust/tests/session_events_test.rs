@@ -3,10 +3,27 @@
 #![allow(clippy::unwrap_used)]
 
 use github_copilot_sdk::session_events::{
-    IndexedSearchData, PermissionApprovalEvaluation, PermissionApprovalEvaluationEvaluationStage,
-    PermissionApprovalEvaluationJudgeStatus, PermissionApprovalEvaluationReasonCode,
-    SandboxDecisionData, SessionEventData, TypedSessionEvent, UserMessageData,
+    HumanResponseRecordedResponse, IndexedSearchData, PermissionApprovalEvaluation,
+    PermissionApprovalEvaluationEvaluationStage, PermissionApprovalEvaluationJudgeStatus,
+    PermissionApprovalEvaluationReasonCode, SandboxDecisionData, SessionEventData,
+    ToolExecutionCompleteFileEdit, ToolExecutionCompleteFileEditKind, TypedSessionEvent,
+    UserMessageData,
 };
+
+#[test]
+fn future_file_edit_kind_retains_its_wire_value() {
+    let wire = serde_json::json!({ "path": "/future.txt", "kind": "append" });
+    let edit: ToolExecutionCompleteFileEdit = serde_json::from_value(wire.clone()).unwrap();
+    assert_eq!(
+        edit.kind,
+        ToolExecutionCompleteFileEditKind::Unknown("append".to_owned())
+    );
+    assert_eq!(serde_json::to_value(edit).unwrap(), wire);
+    assert_eq!(
+        serde_json::to_value(ToolExecutionCompleteFileEditKind::Create).unwrap(),
+        "create"
+    );
+}
 
 fn event_envelope(event_type: &str, data: serde_json::Value) -> serde_json::Value {
     serde_json::json!({
@@ -213,6 +230,90 @@ fn ordinary_and_empty_payloads_round_trip_full_event_envelopes() {
             SessionEventData::SessionIdle(_) => assert_eq!(event_type, "session.idle"),
             _ => panic!("unexpected event variant"),
         }
+        assert_eq!(serde_json::to_value(event).unwrap(), wire);
+    }
+}
+
+#[test]
+fn human_response_variants_round_trip_as_typed_event_data() {
+    let payloads = [
+        serde_json::json!({
+            "requestId": "ask-user-request",
+            "toolCallId": "ask-user-tool",
+            "actor": "human_response",
+            "response": {
+                "responseKind": "ask_user",
+                "message": "Which repository?",
+                "requestedSchema": {
+                    "type": "object",
+                    "properties": {
+                        "answer": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "content": {
+                    "answer": "github/st-mcp-poc"
+                }
+            }
+        }),
+        serde_json::json!({
+            "requestId": "question-request",
+            "toolCallId": "question-tool",
+            "actor": "human_response",
+            "response": {
+                "responseKind": "user_input",
+                "question": "Which file?",
+                "choices": ["alpha.txt", "beta.txt"],
+                "allowFreeform": true,
+                "answer": "alpha.txt",
+                "wasFreeform": false
+            }
+        }),
+        serde_json::json!({
+            "requestId": "plan-request",
+            "toolCallId": "plan-tool",
+            "actor": "human_response",
+            "response": {
+                "responseKind": "exit_plan_mode",
+                "summary": "Edit alpha.txt",
+                "planContent": "Edit alpha.txt and run its test.",
+                "actions": ["autopilot", "interactive", "exit_only"],
+                "recommendedAction": "interactive",
+                "approved": true,
+                "selectedAction": "interactive",
+                "autoApproveEdits": false
+            }
+        }),
+    ];
+
+    for wire in payloads.map(|payload| event_envelope("human_response.recorded", payload)) {
+        let event: TypedSessionEvent = serde_json::from_value(wire.clone()).unwrap();
+        let SessionEventData::HumanResponseRecorded(data) = &event.payload else {
+            panic!("expected human-response event");
+        };
+        let response_kind = match &data.response {
+            HumanResponseRecordedResponse::AskUser(response) => {
+                assert_eq!(
+                    response.content.get("answer"),
+                    Some(&serde_json::json!("github/st-mcp-poc"))
+                );
+                "ask_user"
+            }
+            HumanResponseRecordedResponse::UserInput(response) => {
+                assert_eq!(response.answer, "alpha.txt");
+                "user_input"
+            }
+            HumanResponseRecordedResponse::ExitPlanMode(response) => {
+                assert!(response.approved);
+                "exit_plan_mode"
+            }
+        };
+
+        assert_eq!(
+            response_kind,
+            wire["data"]["response"]["responseKind"].as_str().unwrap()
+        );
         assert_eq!(serde_json::to_value(event).unwrap(), wire);
     }
 }

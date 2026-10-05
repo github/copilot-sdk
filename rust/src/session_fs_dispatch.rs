@@ -7,24 +7,28 @@
 
 use std::sync::Arc;
 
+use base64::Engine as _;
 use serde::Serialize;
 use serde_json::Value;
 use tracing::warn;
 
 use crate::generated::api_types::{
     SessionFsAppendFileRequest, SessionFsError, SessionFsErrorCode, SessionFsExistsRequest,
-    SessionFsExistsResult, SessionFsMkdirRequest, SessionFsReadFileRequest,
-    SessionFsReadFileResult, SessionFsReaddirRequest, SessionFsReaddirResult,
-    SessionFsReaddirWithTypesRequest, SessionFsReaddirWithTypesResult, SessionFsRenameRequest,
-    SessionFsRmRequest, SessionFsSqliteExistsParams, SessionFsSqliteExistsResult,
-    SessionFsSqliteQueryRequest, SessionFsSqliteQueryResult as GeneratedSqliteQueryResult,
+    SessionFsExistsResult, SessionFsMkdirRequest, SessionFsReadFileBytesRequest,
+    SessionFsReadFileBytesResult, SessionFsReadFileRequest, SessionFsReadFileResult,
+    SessionFsReaddirRequest, SessionFsReaddirResult, SessionFsReaddirWithTypesRequest,
+    SessionFsReaddirWithTypesResult, SessionFsRenameRequest, SessionFsRmRequest,
+    SessionFsSqliteExistsParams, SessionFsSqliteExistsResult, SessionFsSqliteQueryRequest,
+    SessionFsSqliteQueryResult as GeneratedSqliteQueryResult,
     SessionFsSqliteTransactionError as GeneratedSqliteTransactionError,
     SessionFsSqliteTransactionErrorClass, SessionFsSqliteTransactionRequest,
     SessionFsSqliteTransactionResult as GeneratedSqliteTransactionResult, SessionFsStatRequest,
-    SessionFsStatResult, SessionFsWriteFileRequest,
+    SessionFsStatResult, SessionFsWriteFileBytesRequest, SessionFsWriteFileRequest,
 };
 use crate::session_fs::SessionFsProvider;
 use crate::{Client, JsonRpcRequest, JsonRpcResponse, error_codes};
+
+const MAX_BINARY_BYTES: usize = (64 * 1024 * 1024 - 1024) / 4 * 3;
 
 /// Helper: serialize a typed result, send the response.
 async fn respond<T: Serialize>(client: &Client, request_id: u64, result: T) {
@@ -94,6 +98,53 @@ pub(crate) async fn read_file(
     respond(client, id, result).await;
 }
 
+pub(crate) async fn read_file_bytes(
+    client: &Client,
+    provider: &Arc<dyn SessionFsProvider>,
+    request: JsonRpcRequest,
+) {
+    let params: SessionFsReadFileBytesRequest = match parse_params(&request) {
+        Some(params) => params,
+        None => {
+            send_error(client, request.id, "invalid sessionFs.readFileBytes params").await;
+            return;
+        }
+    };
+    let result = match provider.binary() {
+        Some(binary) => binary.read_file_bytes(&params.path).await,
+        None => Err(crate::session_fs::FsError::with_message(
+            crate::session_fs::FsErrorKind::Other,
+            "binary reads are not supported",
+        )),
+    };
+    respond(client, request.id, binary_read_response(result)).await;
+}
+
+fn binary_read_response(
+    result: Result<Vec<u8>, crate::session_fs::FsError>,
+) -> SessionFsReadFileBytesResult {
+    match result {
+        Ok(bytes) if bytes.len() > MAX_BINARY_BYTES => SessionFsReadFileBytesResult {
+            content: String::new(),
+            error: Some(
+                crate::session_fs::FsError::with_message(
+                    crate::session_fs::FsErrorKind::Other,
+                    "sessionFs.readFileBytes content exceeds the binary read limit",
+                )
+                .into_wire(),
+            ),
+        },
+        Ok(bytes) => SessionFsReadFileBytesResult {
+            content: base64::engine::general_purpose::STANDARD.encode(bytes),
+            error: None,
+        },
+        Err(error) => SessionFsReadFileBytesResult {
+            content: String::new(),
+            error: Some(error.into_wire()),
+        },
+    }
+}
+
 pub(crate) async fn write_file(
     client: &Client,
     provider: &Arc<dyn SessionFsProvider>,
@@ -112,7 +163,54 @@ pub(crate) async fn write_file(
         .await
     {
         Ok(()) => respond(client, id, Value::Null).await,
-        Err(e) => respond(client, id, e.into_wire()).await,
+        Err(e) => respond(client, id, e.into_write_wire()).await,
+    }
+}
+
+pub(crate) async fn write_file_bytes(
+    client: &Client,
+    provider: &Arc<dyn SessionFsProvider>,
+    request: JsonRpcRequest,
+) {
+    let params: SessionFsWriteFileBytesRequest = match parse_params(&request) {
+        Some(params) => params,
+        None => {
+            send_error(
+                client,
+                request.id,
+                "invalid sessionFs.writeFileBytes params",
+            )
+            .await;
+            return;
+        }
+    };
+    let result = if params.content.len() > MAX_BINARY_BYTES.div_ceil(3) * 4 {
+        Err(crate::session_fs::FsError::with_message(
+            crate::session_fs::FsErrorKind::Other,
+            "sessionFs.writeFileBytes content exceeds the binary write limit",
+        ))
+    } else {
+        match base64::engine::general_purpose::STANDARD.decode(&params.content) {
+            Ok(content) => match provider.binary() {
+                Some(binary) => {
+                    binary
+                        .write_file_bytes(&params.path, &content, params.mode)
+                        .await
+                }
+                None => Err(crate::session_fs::FsError::with_message(
+                    crate::session_fs::FsErrorKind::Other,
+                    "binary writes are not supported",
+                )),
+            },
+            Err(error) => Err(crate::session_fs::FsError::with_message(
+                crate::session_fs::FsErrorKind::Other,
+                format!("invalid sessionFs.writeFileBytes base64 content: {error}"),
+            )),
+        }
+    };
+    match result {
+        Ok(()) => respond(client, request.id, Value::Null).await,
+        Err(error) => respond(client, request.id, error.into_wire()).await,
     }
 }
 
@@ -334,6 +432,7 @@ pub(crate) async fn sqlite_query(
                         message: Some(
                             "SQLite is not supported by this SessionFs provider".to_string(),
                         ),
+                        write_changed: None,
                     }),
                     last_insert_rowid: None,
                     rows: Vec::new(),
@@ -487,6 +586,8 @@ pub(crate) async fn dispatch(
     };
     match method {
         "sessionFs.readFile" => read_file(client, &provider, request).await,
+        "sessionFs.readFileBytes" => read_file_bytes(client, &provider, request).await,
+        "sessionFs.writeFileBytes" => write_file_bytes(client, &provider, request).await,
         "sessionFs.writeFile" => write_file(client, &provider, request).await,
         "sessionFs.appendFile" => append_file(client, &provider, request).await,
         "sessionFs.exists" => exists(client, &provider, request).await,
@@ -506,3 +607,6 @@ pub(crate) async fn dispatch(
     }
     true
 }
+
+#[cfg(test)]
+mod tests;

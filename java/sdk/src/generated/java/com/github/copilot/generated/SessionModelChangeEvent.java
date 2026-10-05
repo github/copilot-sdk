@@ -42,6 +42,8 @@ public final class SessionModelChangeEvent extends SessionEvent {
         @JsonProperty("previousReasoningEffort") String previousReasoningEffort,
         /** Reasoning effort level after the model change, if applicable */
         @JsonProperty("reasoningEffort") String reasoningEffort,
+        /** Model that owns effort embedded in an authored model selection. Omitted for independent reasoning-effort overrides and legacy events. */
+        @JsonProperty("reasoningEffortModel") String reasoningEffortModel,
         /** Reasoning summary mode before the model change, if applicable */
         @JsonProperty("previousReasoningSummary") ReasoningSummary previousReasoningSummary,
         /** Reasoning summary mode after the model change, if applicable */

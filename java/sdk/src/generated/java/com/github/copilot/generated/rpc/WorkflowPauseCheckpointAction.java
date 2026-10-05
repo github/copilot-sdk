@@ -15,7 +15,7 @@ import javax.annotation.processing.Generated;
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
-public enum WorkflowPauseCheckpointAction {
+enum WorkflowPauseCheckpointAction {
     /** The {@code continue} variant. */
     CONTINUE("continue"),
     /** The {@code pause} variant. */

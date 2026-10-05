@@ -625,6 +625,7 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
             _ => evt.Type,
         };
 
+#pragma warning disable CS0618 // Compatibility coverage still reads the legacy terminal variant.
     private static bool ToolCompleteContains(ToolExecutionCompleteEvent evt, string expected)
         => evt.Data.Result?.Content.Contains(expected, StringComparison.OrdinalIgnoreCase) == true ||
             evt.Data.Result?.DetailedContent?.Contains(expected, StringComparison.OrdinalIgnoreCase) == true ||
@@ -634,4 +635,5 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
                 ToolExecutionCompleteContentTerminal terminal => terminal.Text.Contains(expected, StringComparison.OrdinalIgnoreCase),
                 _ => false,
             }) == true;
+#pragma warning restore CS0618
 }

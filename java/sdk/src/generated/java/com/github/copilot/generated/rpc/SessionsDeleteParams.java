@@ -23,7 +23,7 @@ import javax.annotation.processing.Generated;
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record SessionsDeleteParams(
+record SessionsDeleteParams(
     /** Session ID to delete */
     @JsonProperty("sessionId") String sessionId,
     /** Internal resolved session directory path to delete */

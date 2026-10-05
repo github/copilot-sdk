@@ -54,7 +54,8 @@ describe("System message transform", async () => {
     });
 
     it("should apply transform modifications to section content", async () => {
-        const session = await client.createSession({
+        let lastInstructions = "";
+        await using session = await client.createSession({
             onPermissionRequest: approveAll,
             systemMessage: {
                 mode: "customize",
@@ -64,22 +65,37 @@ describe("System message transform", async () => {
                             return content + "\nTRANSFORM_MARKER";
                         },
                     },
+                    last_instructions: {
+                        action: (content) => {
+                            lastInstructions = content;
+                            return content.replace(
+                                /\n*<subagent_model_preferences>\n[\s\S]*?<\/subagent_model_preferences>/g,
+                                ""
+                            );
+                        },
+                    },
                 },
             },
+        });
+        await session.rpc.tools.updateSubagentSettings({
+            subagents: { agents: { "general-purpose": { model: "claude-haiku-4.5" } } },
         });
 
         await writeFile(join(workDir, "hello.txt"), "Hello!");
 
-        await session.sendAndWait({
+        const assistantMessage = await session.sendAndWait({
             prompt: "Read the contents of hello.txt",
         });
+        expect(assistantMessage?.type).toBe("assistant.message");
 
         // Verify the transform result was actually applied to the system message
         const traffic = await openAiEndpoint.getExchanges();
         const systemMessage = getSystemMessage(traffic[0]);
         expect(systemMessage).toContain("TRANSFORM_MARKER");
-
-        await session.disconnect();
+        expect(lastInstructions.match(/<subagent_model_preferences>\n/g)).toHaveLength(1);
+        expect(lastInstructions).toContain("- general-purpose: claude-haiku-4.5");
+        expect(systemMessage).not.toContain("<subagent_model_preferences>\n");
+        expect(systemMessage).not.toContain("- general-purpose: claude-haiku-4.5");
     });
 
     it("should work with static overrides and transforms together", async () => {

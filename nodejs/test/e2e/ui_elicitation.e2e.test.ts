@@ -10,6 +10,7 @@ import {
     getLegacyCliPathForTests,
     isInProcessTransport,
 } from "./harness/sdkTestContext.js";
+import { waitForCondition } from "./harness/sdkTestHelper.js";
 
 describe("UI Elicitation", async () => {
     const { copilotClient: client } = await createSdkTestContext();
@@ -28,6 +29,74 @@ describe("UI Elicitation", async () => {
 describe("UI Elicitation Callback", async () => {
     const ctx = await createSdkTestContext();
     const client = ctx.copilotClient;
+
+    it(
+        "automated SDK ask_user callback settles without trusted human authority",
+        { timeout: 60_000 },
+        async () => {
+            const events: SessionEvent[] = [];
+            let receivedMessage: string | undefined;
+            const session = await client.createSession({
+                onPermissionRequest: approveAll,
+                askUserVariant: "elicitation",
+                onElicitationRequest: async (request) => {
+                    receivedMessage = request.message;
+                    return {
+                        action: "accept",
+                        content: { answer: "github/st-mcp-poc" },
+                    };
+                },
+            });
+            const unsubscribe = session.on((event) => {
+                events.push(event);
+            });
+            try {
+                const response = await session.sendAndWait({
+                    prompt:
+                        "Invoke the ask_user tool now. Set message to exactly 'Which repository should I inspect?' " +
+                        "and request an object with one required string field named answer. Do not describe the tool call. " +
+                        "After the tool returns, reply with exactly SDK_AUTOMATED_ASK_USER_DONE.",
+                });
+                await waitForCondition(
+                    () =>
+                        events.some((event) => event.type === "elicitation.completed") &&
+                        events.some((event) => event.type === "tool.execution_complete"),
+                    {
+                        timeoutMs: 60_000,
+                        timeoutMessage: `Timed out waiting for ask_user completion; events: ${events
+                            .map((event) => event.type)
+                            .join(", ")}`,
+                    }
+                );
+                const elicitationEvent = events.find(
+                    (event) => event.type === "elicitation.completed"
+                );
+                const toolEvent = events.find((event) => event.type === "tool.execution_complete");
+
+                expect(receivedMessage).toBe("Which repository should I inspect?");
+                expect(elicitationEvent).toMatchObject({
+                    type: "elicitation.completed",
+                    data: {
+                        action: "accept",
+                        content: { answer: "github/st-mcp-poc" },
+                    },
+                });
+                expect(toolEvent).toMatchObject({
+                    type: "tool.execution_complete",
+                    data: { success: true },
+                });
+                expect(events.some((event) => event.type === "elicitation.requested")).toBe(true);
+                expect(events.some((event) => event.type === "elicitation.completed")).toBe(true);
+                expect(events.some((event) => event.type === "human_response.recorded")).toBe(
+                    false
+                );
+                expect(response?.data.content).toBe("SDK_AUTOMATED_ASK_USER_DONE");
+            } finally {
+                unsubscribe();
+                await session.disconnect();
+            }
+        }
+    );
 
     it(
         "session created with onElicitationRequest reports elicitation capability",

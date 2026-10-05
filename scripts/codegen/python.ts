@@ -1636,7 +1636,7 @@ export function appendLastPythonRpcConstructorFields(
     return updated;
 }
 
-function reorderPythonDataclassFields(code: string): string {
+function reorderPythonDataclassFields(code: string, keywordOnlyLastInClass?: string): string {
     const fieldRe =
         /^    \w+: (?:Any|bool|int|float|str|dict|list|ClassVar|[A-Z_]\w*|['"][A-Z_]\w*)(?:[^=]*)?(?: = .*)?$/;
     const methodRe = /^    (?:@(?:staticmethod|classmethod|property)|(?:async\s+)?def\s+)/;
@@ -1677,7 +1677,13 @@ function reorderPythonDataclassFields(code: string): string {
 
         const required = groups.filter((group) => !group[0].includes(" = "));
         const optional = groups.filter((group) => group[0].includes(" = "));
-        const reorderedGroups = [...required, ...optional];
+        const reorderedGroups = block.startsWith(`@dataclass\nclass ${keywordOnlyLastInClass}:`)
+            ? [
+                  ...required,
+                  ...optional.filter((group) => !group[0].includes("kw_only=True")),
+                  ...optional.filter((group) => group[0].includes("kw_only=True")),
+              ]
+            : [...required, ...optional];
         const changed = reorderedGroups.some((group, index) => group !== groups[index]);
         if (!changed) {
             return block;
@@ -2289,6 +2295,17 @@ function getOrCreatePyEnum(
             }
         }
         lines.push(`    ${toEnumMemberName(value)} = ${JSON.stringify(value)}`);
+    }
+    if (enumName === "ToolExecutionCompleteFileEditKind") {
+        lines.push(``);
+        lines.push(`    @classmethod`);
+        lines.push(`    def _missing_(cls, value: object) -> "ToolExecutionCompleteFileEditKind | None":`);
+        lines.push(`        if not isinstance(value, str):`);
+        lines.push(`            return None`);
+        lines.push(`        member = object.__new__(cls)`);
+        lines.push(`        member._name_ = "UNKNOWN"`);
+        lines.push(`        member._value_ = value`);
+        lines.push(`        return cls._value2member_map_.setdefault(value, member)`);
     }
     ctx.enumsByName.set(enumName, enumName);
     ctx.enums.push(lines.join("\n"));
@@ -3275,6 +3292,24 @@ async function generateSessionEvents(schemaPath?: string): Promise<void> {
 
 // ── RPC Types ───────────────────────────────────────────────────────────────
 
+function preserveUnknownPythonEnumValues(code: string, name: string): string {
+    const declaration = new RegExp(`^class ${name}\\(Enum\\):\\n(?:[ \\t].*\\n|\\n)*`, "m");
+    const match = code.match(declaration);
+    if (!match) throw new Error(`Missing generated ${name} enum`);
+    const method = `
+    @classmethod
+    def _missing_(cls, value: object) -> ${name} | None:
+        if not isinstance(value, str):
+            return None
+        member = object.__new__(cls)
+        member._name_ = "UNKNOWN"
+        member._value_ = value
+        return cls._value2member_map_.setdefault(value, member)
+
+`;
+    return code.replace(declaration, `${match[0].trimEnd()}\n${method}`);
+}
+
 async function generateRpc(schemaPath?: string, sessionEventsSchema?: JSONSchema7): Promise<void> {
     console.log("Python: generating RPC types...");
     const { FetchingJSONSchemaStore, InputData, JSONSchemaInput, quicktype } = await import("quicktype-core");
@@ -3472,12 +3507,20 @@ async function generateRpc(schemaPath?: string, sessionEventsSchema?: JSONSchema
     // Reorder class/enum definitions to resolve forward references.
     // Quicktype may emit classes before their dependencies are defined.
     typesCode = reorderPythonForwardRefs(typesCode);
+    for (const name of ["CustomizationReloadStatus", "CustomizationReloadSubsystem"]) {
+        if (Object.hasOwn(allDefinitions, name)) {
+            typesCode = preserveUnknownPythonEnumValues(typesCode, name);
+        }
+    }
     typesCode = makePythonDataclassFieldKeywordOnly(
         typesCode,
         "MCPServerConfigHTTP",
         "oauth_scopes"
     );
     typesCode = applyPythonLegacyParameters(typesCode, allDefinitions);
+    // Preserve the published positional SQLite capability when adding binary reads.
+    typesCode = makePythonDataclassFieldKeywordOnly(typesCode, "SessionFSSetProviderCapabilities", "binary");
+    typesCode = reorderPythonDataclassFields(typesCode, "SessionFSSetProviderCapabilities");
 
     // Strip quicktype's import block and preamble — we provide our own unified header.
     // The preamble ends just before the first helper function (e.g. "def from_str")

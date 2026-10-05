@@ -11,6 +11,7 @@ Usage: run-dotnet-tests.sh [--help]
 Runs the full .NET SDK test project. Environment variables:
   DOTNET_TEST_FILTER   Optional dotnet test filter (e.g. for a backend or transport).
   DOTNET_TEST_RUNTIME  Optional runtime identifier passed to dotnet test.
+  DOTNET_TEST_RESULTS_DIRECTORY  Results directory (default: TestResults).
 EOF
 }
 
@@ -34,7 +35,7 @@ args=(
     --blame-hang-timeout 10m
     --blame-hang-dump-type none
     --logger "trx;LogFilePrefix=test-results"
-    --results-directory TestResults
+    --results-directory "${DOTNET_TEST_RESULTS_DIRECTORY:-TestResults}"
     -p:RunAnalyzers=false
 )
 filter="${DOTNET_TEST_FILTER:-}"

@@ -15,6 +15,8 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import yaml from "yaml";
 import {
   NormalizedData,
+  type ReplayBackend,
+  ParsedHttpExchange,
   ReplayingCapiProxy,
   ToolResultNormalizer,
   workingDirPlaceholder,
@@ -81,6 +83,43 @@ describe("ReplayingCapiProxy", () => {
     return yaml.parse(content) as NormalizedData;
   }
 
+  test("does not impose idle expiry on pooled control connections", async () => {
+    const proxy = new ReplayingCapiProxy("http://localhost");
+    const address = await proxy.start();
+    const agent = new http.Agent({ keepAlive: true, maxSockets: 1 });
+    const getExchanges = () =>
+      new Promise<{
+        headers: http.IncomingHttpHeaders;
+        reusedSocket: boolean;
+      }>((resolve, reject) => {
+        const request = http.get(
+          `${address}/exchanges`,
+          { agent },
+          (response) => {
+            response.on("error", reject);
+            response.on("end", () =>
+              resolve({
+                headers: response.headers,
+                reusedSocket: request.reusedSocket,
+              }),
+            );
+            response.resume();
+          },
+        );
+        request.on("error", reject);
+      });
+
+    try {
+      const first = await getExchanges();
+      expect(first.headers.connection).toBe("keep-alive");
+      expect(first.headers["keep-alive"]).toBeUndefined();
+      expect((await getExchanges()).reusedSocket).toBe(true);
+    } finally {
+      agent.destroy();
+      await proxy.stop();
+    }
+  });
+
   test("validates registered GitHub identities before replay configuration", async () => {
     const proxy = new ReplayingCapiProxy("http://localhost");
     proxy.setCopilotUserByToken("owner-token", { login: "owner", id: 42 });
@@ -121,6 +160,32 @@ describe("ReplayingCapiProxy", () => {
     await expect(readFile(outputPath)).rejects.toThrow(/ENOENT/);
   });
 
+  test("uses configured model display names and resets them between tests", async () => {
+    const proxy = new ReplayingCapiProxy("http://localhost");
+    const address = await proxy.start();
+    const config = { filePath: path.join(tempDir, "models.yaml"), workDir };
+    try {
+      await proxy.updateConfig({
+        ...config,
+        modelNames: { "claude-sonnet-5": "Claude Sonnet 5" },
+      });
+      const named = await fetch(`${address}/models`);
+      expect(named.status).toBe(200);
+      expect(await named.json()).toMatchObject({
+        data: [{ id: "claude-sonnet-5", name: "Claude Sonnet 5" }],
+      });
+
+      await proxy.updateConfig(config);
+      const reset = await fetch(`${address}/models`);
+      expect(reset.status).toBe(200);
+      expect(await reset.json()).toMatchObject({
+        data: [{ id: "claude-sonnet-5", name: "claude-sonnet-5" }],
+      });
+    } finally {
+      await proxy.stop();
+    }
+  });
+
   test("captures chat completion request and response", async () => {
     const requestBody = JSON.stringify({
       messages: [
@@ -144,6 +209,545 @@ describe("ReplayingCapiProxy", () => {
       { role: "assistant", content: "Hi there!" },
     ]);
   });
+
+  test.each([
+    [false, 37],
+    [true, 37],
+    [false, 0],
+    [true, 0],
+    [false, undefined],
+    [true, undefined],
+    [false, null],
+    [true, null],
+  ] as const)(
+    "exposes provider input usage for compaction assertions (streaming: %s, input: %s)",
+    async (streaming, inputTokens) => {
+      const summary = "<overview>Completed summary</overview>";
+      const usage = {
+        prompt_tokens: inputTokens,
+        completion_tokens: 5,
+        total_tokens: (inputTokens ?? 0) + 5,
+      };
+      const response = {
+        id: "compaction-response",
+        object: streaming ? "chat.completion.chunk" : "chat.completion",
+        created: 1,
+        model: "test-model",
+        choices: [
+          {
+            index: 0,
+            ...(streaming
+              ? { delta: { role: "assistant", content: summary } }
+              : { message: { role: "assistant", content: summary } }),
+            finish_reason: "stop",
+            logprobs: null,
+          },
+        ],
+        usage,
+      };
+      const proxy = new ReplayingCapiProxy(
+        "http://localhost",
+        path.join(tempDir, "compaction.yaml"),
+        workDir,
+      );
+      (proxy.exchanges as Array<unknown>).push({
+        request: {
+          url: "/chat/completions",
+          method: "POST",
+          body: JSON.stringify({ messages: [], model: "test-model" }),
+          headers: {
+            "x-interaction-type": "conversation-compaction",
+            "x-interaction-id": "compaction-interaction",
+          },
+        },
+        response: {
+          statusCode: 200,
+          body: streaming
+            ? `data: ${JSON.stringify(response)}\n\ndata: [DONE]\n\n`
+            : JSON.stringify(response),
+        },
+      });
+      const address = await proxy.start();
+      try {
+        const result = await fetch(`${address}/exchanges`);
+        expect(result.ok).toBe(true);
+        const exchanges = (await result.json()) as ParsedHttpExchange[];
+        const compactionResponses = exchanges.filter(
+          (exchange) =>
+            exchange.response?.choices &&
+            exchange.requestHeaders?.["x-interaction-type"] ===
+              "conversation-compaction",
+        );
+        expect(compactionResponses).toHaveLength(1);
+        expect(
+          compactionResponses[0].response?.choices
+            .map((choice) => choice.message.content ?? "")
+            .join(""),
+        ).toBe(summary);
+        expect(
+          compactionResponses[0].response?.usage?.prompt_tokens ?? undefined,
+        ).toBe(inputTokens ?? undefined);
+        expect(compactionResponses[0].compactionUsage).toEqual({
+          interactionId: "compaction-interaction",
+          summary,
+          responseCount: 1,
+          ...(inputTokens == null ? {} : { inputTokens }),
+        });
+      } finally {
+        await proxy.stop(true);
+      }
+    },
+  );
+
+  test.each([
+    [
+      "reasoning-only",
+      null,
+      11,
+      "<overview>Completed summary</overview>",
+      37,
+      true,
+      48,
+    ],
+    [
+      "split text",
+      "<overview>",
+      11,
+      "Completed summary</overview>",
+      37,
+      true,
+      48,
+      true,
+    ],
+    [
+      "missing first input",
+      null,
+      undefined,
+      "<overview>Completed summary</overview>",
+      37,
+      true,
+      undefined,
+    ],
+    [
+      "null final input",
+      null,
+      11,
+      "<overview>Completed summary</overview>",
+      null,
+      true,
+      undefined,
+    ],
+    [
+      "explicit zero",
+      null,
+      0,
+      "<overview>Completed summary</overview>",
+      0,
+      true,
+      0,
+    ],
+    [
+      "new attempt",
+      null,
+      11,
+      "<overview>Completed summary</overview>",
+      37,
+      false,
+      37,
+    ],
+  ] as const)(
+    "correlates compaction provider usage across %s",
+    async (
+      _name,
+      firstContent,
+      firstInput,
+      finalContent,
+      finalInput,
+      continuation,
+      expectedInput,
+      multipartContinuation: boolean = false,
+    ) => {
+      const proxy = new ReplayingCapiProxy(
+        "http://localhost",
+        path.join(tempDir, "compaction.yaml"),
+        workDir,
+      );
+      const responses = [
+        { content: firstContent, inputTokens: firstInput },
+        { content: finalContent, inputTokens: finalInput },
+      ];
+      for (const [index, { content, inputTokens }] of responses.entries()) {
+        (proxy.exchanges as Array<unknown>).push({
+          request: {
+            url: "/chat/completions",
+            method: "POST",
+            body: JSON.stringify({
+              messages: [
+                {
+                  role: "user",
+                  content:
+                    index === 1 && continuation
+                      ? multipartContinuation
+                        ? [
+                            {
+                              type: "text",
+                              text: "<current_datetime>clock</current_datetime>\n",
+                            },
+                            {
+                              type: "text",
+                              text: "Please continue from where you left off.",
+                            },
+                          ]
+                        : "Please continue from where you left off."
+                      : "Summarize the conversation.",
+                },
+              ],
+              model: "test-model",
+            }),
+            headers: {
+              "x-interaction-type": "conversation-compaction",
+              "x-interaction-id": "compaction-interaction",
+            },
+          },
+          response: {
+            statusCode: 200,
+            body: JSON.stringify({
+              choices: [
+                {
+                  message: {
+                    role: "assistant",
+                    content,
+                    reasoning_content:
+                      content === null ? "Reasoning before summary" : undefined,
+                  },
+                  finish_reason:
+                    index === 0 && content !== null ? "length" : "stop",
+                },
+              ],
+              usage: { prompt_tokens: inputTokens, completion_tokens: 5 },
+            }),
+          },
+        });
+        if (index === 0) {
+          for (const [interactionType, interactionId, statusCode] of [
+            ["conversation", "compaction-interaction", 200],
+            ["conversation-compaction", "other-interaction", 200],
+            ["conversation-compaction", "compaction-interaction", 500],
+          ]) {
+            (proxy.exchanges as Array<unknown>).push({
+              request: {
+                url: "/chat/completions",
+                method: "POST",
+                body: JSON.stringify({ messages: [], model: "test-model" }),
+                headers: {
+                  "x-interaction-type": interactionType,
+                  "x-interaction-id": interactionId,
+                },
+              },
+              response: {
+                statusCode,
+                body: JSON.stringify({
+                  choices: [
+                    {
+                      message: {
+                        role: "assistant",
+                        content: "Unrelated response",
+                      },
+                    },
+                  ],
+                  usage: { prompt_tokens: 999 },
+                }),
+              },
+            });
+          }
+        }
+      }
+      const address = await proxy.start();
+      try {
+        const result = await fetch(`${address}/exchanges`);
+        expect(result.ok).toBe(true);
+        const exchanges = (await result.json()) as ParsedHttpExchange[];
+        const compactions = exchanges.filter(
+          (exchange) =>
+            exchange.compactionUsage?.summary ===
+            "<overview>Completed summary</overview>",
+        );
+        expect(compactions).toHaveLength(1);
+        expect(compactions[0].compactionUsage).toEqual({
+          interactionId: "compaction-interaction",
+          summary: "<overview>Completed summary</overview>",
+          responseCount: continuation ? 2 : 1,
+          ...(expectedInput === undefined
+            ? {}
+            : { inputTokens: expectedInput }),
+        });
+      } finally {
+        await proxy.stop(true);
+      }
+    },
+  );
+
+  test.each(["object", "scalar", "freeform"] as const)(
+    "preserves opaque tool text while normalizing and replaying paths (%s)",
+    async (argumentKind) => {
+      const opaqueText = String.raw`word\b before\nafter ${workingDirPlaceholder}`;
+      const patchBody = [
+        String.raw`+const pattern = /word\b/;`,
+        String.raw`+const text = "before\nafter";`,
+        String.raw`+const escapes = "\r\t\b\u0041";`,
+        `+const root = "${workDir}\\literal\\b";`,
+        `+const placeholder = "${workingDirPlaceholder}";`,
+        String.raw`+*** Add File: body\must\stay.txt`,
+      ].join("\n");
+      const patch = [
+        "*** Begin Patch",
+        `*** Add File: ${workDir}\\src\\marker.txt`,
+        patchBody,
+        String.raw`*** Update File: src\before.txt`,
+        String.raw`*** Move to: src\after.txt`,
+        "@@",
+        "-before",
+        "+after",
+        String.raw`*** Delete File: src\obsolete.txt`,
+        "*** End Patch",
+      ].join("\n");
+      const expectedPatch = (root: string) =>
+        [
+          "*** Begin Patch",
+          `*** Add File: ${root}/src/marker.txt`,
+          patchBody,
+          "*** Update File: src/before.txt",
+          "*** Move to: src/after.txt",
+          "@@",
+          "-before",
+          "+after",
+          "*** Delete File: src/obsolete.txt",
+          "*** End Patch",
+        ].join("\n");
+      const patchArguments = (input: string, filename: string) =>
+        argumentKind === "object"
+          ? JSON.stringify({ input, path: filename, content: opaqueText })
+          : argumentKind === "scalar"
+            ? JSON.stringify(input)
+            : input;
+      const textArguments = (root: string, separator: string) =>
+        JSON.stringify({
+          input: opaqueText,
+          content: opaqueText,
+          prompt: opaqueText,
+          paths: [
+            `src${separator}one.txt`,
+            `${root}${separator}src${separator}two.txt`,
+          ],
+        });
+      const request = {
+        model: "test-model",
+        messages: [{ role: "user", content: "Apply the patch" }],
+      };
+      const outputPath = await createProxy([
+        {
+          url: "/chat/completions",
+          requestBody: JSON.stringify(request),
+          responseBody: JSON.stringify({
+            choices: [
+              {
+                message: {
+                  role: "assistant",
+                  tool_calls: [
+                    {
+                      id: "patch-call",
+                      type: "function",
+                      function: {
+                        name: "apply_patch",
+                        arguments: patchArguments(patch, "src\\marker.txt"),
+                      },
+                    },
+                    {
+                      id: "text-call",
+                      type: "function",
+                      function: {
+                        name: "literal_tool",
+                        arguments: textArguments(workDir, "\\"),
+                      },
+                    },
+                    {
+                      id: "scalar-call",
+                      type: "function",
+                      function: {
+                        name: "scalar_tool",
+                        arguments: JSON.stringify(opaqueText),
+                      },
+                    },
+                  ],
+                },
+              },
+            ],
+          }),
+        },
+      ]);
+
+      const result = await readYamlOutput(outputPath);
+      expect(
+        result.conversations[0].messages[1].tool_calls?.map(
+          (call) => call.function?.arguments,
+        ),
+      ).toEqual([
+        patchArguments(expectedPatch(workingDirPlaceholder), "src/marker.txt"),
+        textArguments(workingDirPlaceholder, "/"),
+        JSON.stringify(opaqueText),
+      ]);
+
+      const proxy = new ReplayingCapiProxy("http://localhost:1");
+      await proxy.updateConfig({
+        filePath: outputPath,
+        workDir,
+        backend: "capi",
+        replayOnly: true,
+      });
+      const proxyUrl = await proxy.start();
+      try {
+        const response = await fetch(`${proxyUrl}/chat/completions`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ ...request, stream: false }),
+        });
+        expect(response.status).toBe(200);
+        const completion = (await response.json()) as ChatCompletion;
+        expect(
+          completion.choices[0].message.tool_calls?.map((call) =>
+            call.type === "function" ? call.function.arguments : undefined,
+          ),
+        ).toEqual([
+          patchArguments(expectedPatch(workDir), "src/marker.txt"),
+          textArguments(workDir, "/"),
+          JSON.stringify(opaqueText),
+        ]);
+      } finally {
+        await proxy.stop(true);
+      }
+    },
+  );
+
+  test.each(["/", "\\"])(
+    "normalizes and replays delegated prompts across working directories (%s)",
+    async (separator) => {
+      const promptForDir = (root: string, pathSeparator: string) =>
+        `Read ${root}${pathSeparator}src${pathSeparator}marker.txt`;
+      const taskArguments = (prompt: string) =>
+        JSON.stringify({
+          agent_type: "explore",
+          description: "Read marker.txt",
+          prompt,
+        });
+      const parentRequest = {
+        model: "test-model",
+        messages: [{ role: "user", content: "Delegate the file read" }],
+      };
+      const outputPath = await createProxy([
+        {
+          url: "/chat/completions",
+          requestBody: JSON.stringify(parentRequest),
+          responseBody: JSON.stringify({
+            choices: [
+              {
+                message: {
+                  role: "assistant",
+                  tool_calls: [
+                    {
+                      id: "task-call",
+                      type: "function",
+                      function: {
+                        name: "task",
+                        arguments: taskArguments(
+                          promptForDir(workDir, separator),
+                        ),
+                      },
+                    },
+                  ],
+                },
+              },
+            ],
+          }),
+        },
+        {
+          url: "/chat/completions",
+          requestBody: JSON.stringify({
+            model: "test-model",
+            messages: [
+              { role: "user", content: promptForDir(workDir, separator) },
+            ],
+          }),
+          responseBody: JSON.stringify({
+            choices: [
+              {
+                message: {
+                  role: "assistant",
+                  content: "Delegated file read completed.",
+                },
+              },
+            ],
+          }),
+        },
+      ]);
+      const result = await readYamlOutput(outputPath);
+      const normalizedPrompt = promptForDir(workingDirPlaceholder, "/");
+      expect(result.conversations).toHaveLength(2);
+      expect(
+        result.conversations[0].messages[1].tool_calls?.[0].function?.arguments,
+      ).toBe(taskArguments(normalizedPrompt));
+      expect(result.conversations[1].messages[0].content).toBe(
+        normalizedPrompt,
+      );
+
+      const replayWorkDir = path.join(tempDir, "replay-work");
+      const proxy = new ReplayingCapiProxy("http://localhost:1");
+      await proxy.updateConfig({
+        filePath: outputPath,
+        workDir: replayWorkDir,
+        backend: "capi",
+        replayOnly: true,
+      });
+      const proxyUrl = await proxy.start();
+      try {
+        const parentResponse = await fetch(`${proxyUrl}/chat/completions`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ ...parentRequest, stream: false }),
+        });
+        expect(parentResponse.status).toBe(200);
+        const parentCompletion =
+          (await parentResponse.json()) as ChatCompletion;
+        const taskCall = parentCompletion.choices[0].message.tool_calls?.[0];
+        expect(taskCall?.type).toBe("function");
+        if (taskCall?.type !== "function") {
+          throw new Error("Expected a delegated task tool call");
+        }
+        expect(taskCall.function.name).toBe("task");
+        expect(taskCall.function.arguments).toBe(
+          taskArguments(promptForDir(replayWorkDir, "/")),
+        );
+        const { prompt } = JSON.parse(taskCall.function.arguments) as {
+          prompt: string;
+        };
+        const childResponse = await fetch(`${proxyUrl}/chat/completions`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            model: "test-model",
+            messages: [{ role: "user", content: prompt }],
+            stream: false,
+          }),
+        });
+        expect(childResponse.status).toBe(200);
+        const childCompletion = (await childResponse.json()) as ChatCompletion;
+        expect(childCompletion.choices[0].message.content).toBe(
+          "Delegated file read completed.",
+        );
+      } finally {
+        await proxy.stop(true);
+      }
+    },
+  );
 
   test("normalizes tool call IDs to sequential values", async () => {
     const requestBody = JSON.stringify({
@@ -358,6 +962,70 @@ describe("ReplayingCapiProxy", () => {
 
     const result = await readYamlOutput(outputPath);
     expect(result.conversations[0].messages[0].content).toBe("What is 2+2?");
+  });
+
+  test("strips mode_changed_notice from user messages", async () => {
+    const requestBody = JSON.stringify({
+      messages: [
+        {
+          role: "user",
+          content:
+            "Context before.\n\n<mode_changed_notice>\n<plan_mode>Write a plan only.</plan_mode>\n</mode_changed_notice>\n\nCreate a brief implementation plan.",
+        },
+      ],
+    });
+    const responseBody = JSON.stringify({
+      choices: [{ message: { role: "assistant", content: "Plan ready" } }],
+    });
+
+    const outputPath = await createProxy([
+      { url: "/chat/completions", requestBody, responseBody },
+    ]);
+
+    const result = await readYamlOutput(outputPath);
+    expect(result.conversations[0].messages[0].content).toBe(
+      "Context before.\n\nCreate a brief implementation plan.",
+    );
+  });
+
+  test("drops notice-only user turns while preserving genuinely empty input", async () => {
+    const responseBody = JSON.stringify({
+      choices: [{ message: { role: "assistant", content: "Ready" } }],
+    });
+    const noticeOutputPath = await createProxy([
+      {
+        url: "/chat/completions",
+        requestBody: JSON.stringify({
+          messages: [
+            {
+              role: "user",
+              content:
+                "<mode_changed_notice>\nPlan mode is no longer active.\n</mode_changed_notice>",
+            },
+          ],
+        }),
+        responseBody,
+      },
+    ]);
+    const noticeResult = await readYamlOutput(noticeOutputPath);
+    expect(noticeResult.conversations[0].messages).toEqual([
+      { role: "assistant", content: "Ready" },
+    ]);
+
+    const emptyOutputPath = await createProxy([
+      {
+        url: "/chat/completions",
+        requestBody: JSON.stringify({
+          messages: [{ role: "user", content: "" }],
+        }),
+        responseBody,
+      },
+    ]);
+    const emptyResult = await readYamlOutput(emptyOutputPath);
+    expect(emptyResult.conversations[0].messages).toEqual([
+      { role: "user" },
+      { role: "assistant", content: "Ready" },
+    ]);
   });
 
   test("strips plan mode prefix from user messages", async () => {
@@ -692,47 +1360,49 @@ Always include PINEAPPLE_COCONUT_42.
     expect(toolMessage?.content).toBe(stableResult);
   });
 
-  test("normalizes read_agent result metadata", async () => {
-    const requestBody = JSON.stringify({
-      messages: [
-        { role: "user", content: "Help me" },
-        {
-          role: "assistant",
-          tool_calls: [
-            {
-              id: "tc1",
-              type: "function",
-              function: {
-                name: "read_agent",
-                arguments: '{"agent_id":"read-file","wait":true}',
+  test.each(["", ", model: claude-sonnet-5"])(
+    "normalizes read_agent result metadata%s",
+    async (model) => {
+      const requestBody = JSON.stringify({
+        messages: [
+          { role: "user", content: "Help me" },
+          {
+            role: "assistant",
+            tool_calls: [
+              {
+                id: "tc1",
+                type: "function",
+                function: {
+                  name: "read_agent",
+                  arguments: '{"agent_id":"read-file","wait":true}',
+                },
               },
-            },
-          ],
-        },
-        {
-          role: "tool",
-          tool_call_id: "tc1",
-          content:
-            "Agent is idle (waiting for messages). agent_id: read-file, agent_type: explore, status: idle, description: Reading subagent-test.txt, elapsed: 1.25s, total_turns: 1\n\n[Turn 0]\nDone.",
-        },
-      ],
-    });
-    const responseBody = JSON.stringify({
-      choices: [{ message: { role: "assistant", content: "Done" } }],
-    });
+            ],
+          },
+          {
+            role: "tool",
+            tool_call_id: "tc1",
+            content: `Agent is idle (waiting for messages). agent_id: read-file, agent_type: explore, status: idle, description: Reading subagent-test.txt, elapsed: 1.25s, total_turns: 1${model}\n\n[Turn 0]\nDone.`,
+          },
+        ],
+      });
+      const responseBody = JSON.stringify({
+        choices: [{ message: { role: "assistant", content: "Done" } }],
+      });
 
-    const outputPath = await createProxy([
-      { url: "/chat/completions", requestBody, responseBody },
-    ]);
+      const outputPath = await createProxy([
+        { url: "/chat/completions", requestBody, responseBody },
+      ]);
 
-    const result = await readYamlOutput(outputPath);
-    const toolMessage = result.conversations[0].messages.find(
-      (m) => m.role === "tool",
-    );
-    expect(toolMessage?.content).toBe(
-      "Agent completed. agent_id: read-file, agent_type: explore, status: completed, description: Reading subagent-test.txt, elapsed: 0s, total_turns: 0, duration: 0s\n\nDone.",
-    );
-  });
+      const result = await readYamlOutput(outputPath);
+      const toolMessage = result.conversations[0].messages.find(
+        (m) => m.role === "tool",
+      );
+      expect(toolMessage?.content).toBe(
+        "Agent completed. agent_id: read-file, agent_type: explore, status: completed, description: Reading subagent-test.txt, elapsed: 0s, total_turns: 0, duration: 0s\n\nDone.",
+      );
+    },
+  );
 
   test("names runtime agent IDs that no task call introduced", async () => {
     const runtimeAgentId = "3e0c7565-6091-58cb-85bb-6cb14db23ef7";
@@ -879,6 +1549,103 @@ Always include PINEAPPLE_COCONUT_42.
       });
     }
 
+    test.each([
+      ["scripts/check.cjs", "references/policy.txt"],
+      ["references/policy.txt", "scripts/check.cjs"],
+    ])(
+      "replays OTel skill resource fixtures independently of enumeration order %s %s",
+      async (first, second) => {
+        const cachePath = path.join(tempDir, "skill-order.yaml");
+        const context = (root: string, files: string[]) =>
+          `<skill-context name="review">
+Base directory for this skill: ${root}
+
+Related files (use view tool to read):
+${files.map((file) => `  - ${root}/${file}`).join("\n")}
+
+Follow the user's explicit instructions.
+Related files (use view tool to read):
+  - authored-second
+  - authored-first
+</skill-context>`;
+        await writeFile(
+          cachePath,
+          yaml.stringify({
+            models: ["test-model"],
+            conversations: [
+              {
+                messages: [
+                  {
+                    role: "user",
+                    content:
+                      "<mode_changed_notice>\n<plan_mode>Write a plan only.</plan_mode>\n</mode_changed_notice>\n\n" +
+                      context(`${workingDirPlaceholder}/skills/review`, [
+                        first,
+                        second,
+                      ]),
+                  },
+                  { role: "assistant", content: "OTEL_RESOURCE_REPLAY_DONE" },
+                ],
+              },
+            ],
+          } satisfies NormalizedData),
+        );
+        const proxy = new ReplayingCapiProxy("http://localhost");
+        await proxy.updateConfig({
+          filePath: cachePath,
+          workDir,
+          replayOnly: true,
+        });
+        const proxyUrl = await proxy.start();
+        try {
+          const request = {
+            model: "test-model",
+            messages: [
+              {
+                role: "user",
+                content:
+                  context(path.join(workDir, "skills", "review"), [
+                    second,
+                    first,
+                  ]) +
+                  "\n\n<mode_changed_notice>\nPlan mode is no longer active.\n</mode_changed_notice>",
+              },
+            ],
+          };
+          const response = await makeRequest(proxyUrl, "/chat/completions", {
+            body: request,
+          });
+          expect(response.status).toBe(200);
+          expect(JSON.parse(response.body).choices[0].message.content).toBe(
+            "OTEL_RESOURCE_REPLAY_DONE",
+          );
+
+          for (const content of [
+            context(path.join(workDir, "skills", "review"), [first]),
+            context(path.join(workDir, "skills", "review"), [
+              first,
+              second,
+              second,
+            ]),
+            request.messages[0].content.replace(
+              "  - authored-second\n  - authored-first",
+              "  - authored-first\n  - authored-second",
+            ),
+          ]) {
+            const mismatch = await makeRequest(proxyUrl, "/chat/completions", {
+              body: {
+                model: "test-model",
+                messages: [{ role: "user", content }],
+              },
+            });
+            expect(mismatch.status).toBe(500);
+          }
+        } finally {
+          await proxy.stop(true);
+        }
+      },
+    );
+
     test("replay-only mode rejects cache misses without contacting the upstream", async () => {
       let upstreamRequests = 0;
       const upstream = http.createServer((_request, response) => {
@@ -929,6 +1696,107 @@ Always include PINEAPPLE_COCONUT_42.
         );
       }
     });
+
+    test.each<ReplayBackend>([
+      "capi",
+      "openai-completions",
+      "openai-responses",
+      "anthropic-messages",
+    ])(
+      "replays a notice-only stored turn while preserving empty user input through %s",
+      async (backend) => {
+      const cachePath = path.join(tempDir, `mode-notice-${backend}.yaml`);
+      await writeFile(
+        cachePath,
+        yaml.stringify({
+          models: ["test-model"],
+          conversations: [
+            {
+              messages: [
+                {
+                  role: "user",
+                  content:
+                    "<mode_changed_notice>\nPlan mode is no longer active.\n</mode_changed_notice>",
+                },
+                { role: "assistant", content: "Notice ready" },
+              ],
+            },
+            {
+              messages: [
+                { role: "user" },
+                { role: "assistant", content: "Empty ready" },
+              ],
+            },
+          ],
+        } satisfies NormalizedData),
+      );
+      const proxy = new ReplayingCapiProxy("http://localhost:9999");
+      await proxy.updateConfig({
+        filePath: cachePath,
+        workDir,
+        backend,
+        replayOnly: true,
+      });
+      const proxyUrl = await proxy.start();
+      const request = (content: string) => {
+        switch (backend) {
+          case "capi":
+          case "openai-completions":
+            return {
+              endpoint: "/chat/completions",
+              body: {
+                model: "test-model",
+                messages: [{ role: "user", content }],
+              },
+            };
+          case "openai-responses":
+            return {
+              endpoint: "/responses",
+              body: {
+                model: "test-model",
+                input: [
+                  {
+                    type: "message",
+                    role: "user",
+                    content: [{ type: "input_text", text: content }],
+                  },
+                ],
+              },
+            };
+          case "anthropic-messages":
+            return {
+              endpoint: "/v1/messages",
+              body: {
+                model: "test-model",
+                max_tokens: 100,
+                messages: [{ role: "user", content }],
+              },
+            };
+        }
+      };
+
+      try {
+        const noticeRequest = request(
+          "<mode_changed_notice>\nPlan mode is no longer active.\n</mode_changed_notice>",
+        );
+        const response = await makeRequest(proxyUrl, noticeRequest.endpoint, {
+          body: noticeRequest.body,
+        });
+
+        expect(response.status).toBe(200);
+        expect(response.body).toContain("Notice ready");
+
+        const emptyRequest = request("");
+        const emptyResponse = await makeRequest(proxyUrl, emptyRequest.endpoint, {
+          body: emptyRequest.body,
+        });
+        expect(emptyResponse.status).toBe(200);
+        expect(emptyResponse.body).toContain("Empty ready");
+      } finally {
+        await proxy.stop(true);
+      }
+      },
+    );
 
     test.each([
       ["should_accept_blob_attachments", "pixel.png"],
@@ -1124,6 +1992,127 @@ Always include PINEAPPLE_COCONUT_42.
         expect(toolCall.function.name).toBe("list_files");
       } finally {
         await proxy.stop();
+      }
+    });
+
+    test("replays a CAPI view-image capture for BYOK tool-result and image-turn continuations", async () => {
+      const cachePath = path.join(tempDir, "view-image.yaml");
+      await writeFile(
+        cachePath,
+        yaml.stringify({
+          models: ["test-model"],
+          conversations: [
+            {
+              messages: [
+                { role: "system", content: "${system}" },
+                { role: "user", content: "View the image" },
+                {
+                  role: "assistant",
+                  tool_calls: [
+                    {
+                      id: "toolcall_0",
+                      type: "function",
+                      function: {
+                        name: "view",
+                        arguments: '{"path":"/image.png"}',
+                      },
+                    },
+                  ],
+                },
+                {
+                  role: "tool",
+                  tool_call_id: "toolcall_0",
+                  content: "Viewed image file successfully.",
+                },
+                { role: "user", content: "Image file at path /image.png\n[image]" },
+                { role: "assistant", content: "Image viewed" },
+              ],
+            },
+          ],
+        } satisfies NormalizedData),
+      );
+      const proxy = new ReplayingCapiProxy("http://localhost:9999");
+      await proxy.updateConfig({
+        filePath: cachePath,
+        workDir,
+        backend: "openai-completions",
+        replayOnly: true,
+      });
+      const proxyUrl = await proxy.start();
+
+      try {
+        const response = await makeRequest(proxyUrl, "/chat/completions", {
+          body: {
+            model: "test-model",
+            messages: [
+              { role: "system", content: "System prompt" },
+              { role: "user", content: "View the image" },
+              {
+                role: "assistant",
+                tool_calls: [
+                  {
+                    id: "runtime-call-id",
+                    type: "function",
+                    function: { name: "view", arguments: '{"path":"/image.png"}' },
+                  },
+                ],
+              },
+              {
+                role: "tool",
+                tool_call_id: "runtime-call-id",
+                content: "Viewed image file successfully.",
+              },
+            ],
+          },
+        });
+
+        expect(response.status).toBe(200);
+        expect((JSON.parse(response.body) as ChatCompletion).choices[0].message.content).toBe(
+          "Image viewed",
+        );
+
+        const visionResponse = await makeRequest(
+          proxyUrl,
+          "/chat/completions",
+          {
+            body: {
+              model: "test-model",
+              messages: [
+                { role: "system", content: "System prompt" },
+                { role: "user", content: "View the image" },
+                {
+                  role: "assistant",
+                  tool_calls: [
+                    {
+                      id: "runtime-call-id",
+                      type: "function",
+                      function: {
+                        name: "view",
+                        arguments: '{"path":"/image.png"}',
+                      },
+                    },
+                  ],
+                },
+                {
+                  role: "tool",
+                  tool_call_id: "runtime-call-id",
+                  content: "Viewed image file successfully.",
+                },
+                {
+                  role: "user",
+                  content: "Image file at path /image.png\n[image]",
+                },
+              ],
+            },
+          },
+        );
+        expect(visionResponse.status).toBe(200);
+        expect(
+          (JSON.parse(visionResponse.body) as ChatCompletion).choices[0].message
+            .content,
+        ).toBe("Image viewed");
+      } finally {
+        await proxy.stop(true);
       }
     });
 
@@ -1937,7 +2926,9 @@ Always include PINEAPPLE_COCONUT_42.
           "magic_number",
         ]);
         expect(calls.map((call) => call.index)).toEqual([0, 1]);
-        expect(JSON.parse(calls[1].function!.arguments!)).toEqual({ seed: "hello" });
+        expect(JSON.parse(calls[1].function!.arguments!)).toEqual({
+          seed: "hello",
+        });
         expect(chunks.at(-1)?.choices[0].finish_reason).toBe("tool_calls");
       } finally {
         await proxy.stop();

@@ -154,10 +154,13 @@ func (p *CapiProxy) StopWithOptions(skipWritingCache bool) error {
 		exited <- struct{}{}
 	}()
 	if !waitForProcessExit(exited, proxyShutdownTimeout) {
-		if err := killProcessTree(cmd); err != nil {
-			return fmt.Errorf("failed to kill proxy process: %w", err)
-		}
+		// Windows Wait can release the process handle before the kill attempt.
+		// A late kill error is harmless only when our own Wait confirms exit.
+		killErr := killProcessTree(cmd)
 		if !waitForProcessExit(exited, proxyShutdownTimeout) {
+			if killErr != nil {
+				return fmt.Errorf("failed to kill proxy process: %w", killErr)
+			}
 			return fmt.Errorf("proxy process did not exit after being killed")
 		}
 	}
@@ -278,9 +281,18 @@ type CapturedRequest struct {
 
 // ParsedHttpExchange represents a captured HTTP exchange.
 type ParsedHttpExchange struct {
-	Request        ChatCompletionRequest      `json:"request"`
-	Response       *ChatCompletionResponse    `json:"response,omitempty"`
-	RequestHeaders map[string]json.RawMessage `json:"requestHeaders,omitempty"`
+	Request         ChatCompletionRequest      `json:"request"`
+	Response        *ChatCompletionResponse    `json:"response,omitempty"`
+	RequestHeaders  map[string]json.RawMessage `json:"requestHeaders,omitempty"`
+	CompactionUsage *CompactionProviderUsage   `json:"compactionUsage,omitempty"`
+}
+
+// CompactionProviderUsage folds all responses in one correlated compaction request chain.
+type CompactionProviderUsage struct {
+	InteractionID string `json:"interactionId"`
+	Summary       string `json:"summary"`
+	ResponseCount int    `json:"responseCount"`
+	InputTokens   *int64 `json:"inputTokens,omitempty"`
 }
 
 // ChatCompletionRequest represents an OpenAI chat completion request.

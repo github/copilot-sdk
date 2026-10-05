@@ -27,7 +27,7 @@ public final class SessionCanvasApi {
     /** API methods for the {@code canvas.action} sub-namespace. */
     public final SessionCanvasActionApi action;
     /** API methods for the {@code canvas.provider} sub-namespace. */
-    public final SessionCanvasProviderApi provider;
+    final SessionCanvasProviderApi provider;
 
     /** @param caller the RPC transport function */
     SessionCanvasApi(RpcCaller caller, String sessionId) {

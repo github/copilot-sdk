@@ -20,7 +20,7 @@ import javax.annotation.processing.Generated;
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record HookInvokeRequest(
+record HookInvokeRequest(
     @JsonProperty("sessionId") String sessionId,
     @JsonProperty("hookType") HookType hookType,
     @JsonProperty("input") Object input

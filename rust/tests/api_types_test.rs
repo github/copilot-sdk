@@ -8,6 +8,7 @@ use github_copilot_sdk::rpc::{
     ConnectorCapabilities, ConnectorCatalogEntry, ConnectorCatalogStatus, ConnectorConnectRequest,
     ConnectorConnectResult, ConnectorContinueRequest, ConnectorReconcileOptions,
     ConnectorReconcileRequest, ConnectorSessionAccount, ConnectorSessionAccountResult,
+    CustomizationReloadOutcome, CustomizationReloadStatus, CustomizationReloadSubsystem,
     EnqueueCommandResult, Extension, ExtensionList, ExtensionSource, ExtensionStatus,
     ExtensionsDisableRequest, ExtensionsEnableRequest, FleetStartRequest, FleetStartResult,
     McpDisableRequest, McpEnableOptions, McpEnableRequest, McpInstallationOperationStatus,
@@ -21,6 +22,35 @@ use github_copilot_sdk::session_events::{
     TypedSessionEvent,
 };
 use github_copilot_sdk::{AutoTier, AutoTierPreference, SetModelOptions};
+
+#[test]
+fn customization_reload_outcome_preserves_future_wire_values() {
+    let wire = serde_json::json!({
+        "status": "future-status",
+        "subsystem": "future-subsystem",
+        "detail": "new component",
+    });
+    let outcome: CustomizationReloadOutcome = serde_json::from_value(wire.clone()).unwrap();
+    assert_eq!(serde_json::to_value(outcome).unwrap(), wire);
+
+    assert_eq!(
+        serde_json::from_value::<CustomizationReloadStatus>(serde_json::json!("reloaded")).unwrap(),
+        CustomizationReloadStatus::Reloaded
+    );
+    assert_eq!(
+        serde_json::from_value::<CustomizationReloadSubsystem>(serde_json::json!("skills"))
+            .unwrap(),
+        CustomizationReloadSubsystem::Skills
+    );
+    assert_eq!(
+        serde_json::to_value(CustomizationReloadStatus::Reloaded).unwrap(),
+        serde_json::json!("reloaded")
+    );
+    assert_eq!(
+        serde_json::to_value(CustomizationReloadSubsystem::Skills).unwrap(),
+        serde_json::json!("skills")
+    );
+}
 
 #[test]
 fn operation_status_preserves_required_phases_and_original_identity() {

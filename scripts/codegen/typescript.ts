@@ -385,6 +385,9 @@ export function normalizeSchemaForTypeScript(
     root.definitions = definitions;
     delete root.$defs;
 
+    const openReloadEnums = new Set(
+        ["CustomizationReloadStatus", "CustomizationReloadSubsystem"].map((name) => definitions[name])
+    );
     const internalDefinitionNames = new Set(
         Object.entries(definitions)
             .filter(([, definition]) => typeof definition === "object" && definition !== null && isSchemaInternal(definition as JSONSchema7))
@@ -439,14 +442,19 @@ export function normalizeSchemaForTypeScript(
         }
 
         const enumValueDescriptions = getEnumValueDescriptions(rewritten as JSONSchema7);
-        if (enumValueDescriptions && Array.isArray(rewritten.enum) && rewritten.enum.every((entry) => typeof entry === "string")) {
-            rewritten.tsType = (rewritten.enum as string[])
+        if ((enumValueDescriptions || openReloadEnums.has(source)) && Array.isArray(rewritten.enum) && rewritten.enum.every((entry) => typeof entry === "string")) {
+            const documentedValues = (rewritten.enum as string[])
                 .map((entry) => {
-                    const comment = enumValueDescriptions[entry];
+                    const comment = enumValueDescriptions?.[entry];
                     const literal = JSON.stringify(entry);
                     return comment ? `${tsDocCommentText(comment)}\n| ${literal}` : `| ${literal}`;
                 })
                 .join("\n");
+            // Preserve future wire values without losing completion for the known edit kinds.
+            rewritten.tsType =
+                rewritten.title === "ToolExecutionCompleteFileEditKind" || openReloadEnums.has(source)
+                    ? `${documentedValues}\n| (string & {})`
+                    : documentedValues;
             delete rewritten.type;
             delete rewritten.enum;
             delete rewritten["x-enumDescriptions"];

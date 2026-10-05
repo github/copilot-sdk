@@ -46,6 +46,8 @@ public class SessionHooks {
     private SessionStartHandler onSessionStart;
     private SessionEndHandler onSessionEnd;
     private AgentStopHandler onAgentStop;
+    private SubagentStartHandler onSubagentStart;
+    private SubagentStopHandler onSubagentStop;
 
     /**
      * Gets the pre-tool-use handler.
@@ -255,6 +257,48 @@ public class SessionHooks {
     }
 
     /**
+     * Gets the handler called before a subagent's first turn.
+     *
+     * @return the handler, or {@code null} if not set
+     */
+    public SubagentStartHandler getOnSubagentStart() {
+        return onSubagentStart;
+    }
+
+    /**
+     * Sets the handler called before a subagent's first turn.
+     *
+     * @param onSubagentStart
+     *            the handler
+     * @return this instance for method chaining
+     */
+    public SessionHooks setOnSubagentStart(SubagentStartHandler onSubagentStart) {
+        this.onSubagentStart = onSubagentStart;
+        return this;
+    }
+
+    /**
+     * Gets the handler called after a subagent's turn.
+     *
+     * @return the handler, or {@code null} if not set
+     */
+    public SubagentStopHandler getOnSubagentStop() {
+        return onSubagentStop;
+    }
+
+    /**
+     * Sets the handler called after a subagent's turn.
+     *
+     * @param onSubagentStop
+     *            the handler
+     * @return this instance for method chaining
+     */
+    public SessionHooks setOnSubagentStop(SubagentStopHandler onSubagentStop) {
+        this.onSubagentStop = onSubagentStop;
+        return this;
+    }
+
+    /**
      * Returns whether any hooks are registered.
      *
      * @return {@code true} if at least one hook handler is set
@@ -262,6 +306,6 @@ public class SessionHooks {
     public boolean hasHooks() {
         return onPreToolUse != null || onPreMcpToolCall != null || onPostToolUse != null || onPostToolUseFailure != null
                 || onUserPromptSubmitted != null || onUserPromptTransformed != null || onSessionStart != null
-                || onSessionEnd != null || onAgentStop != null;
+                || onSessionEnd != null || onAgentStop != null || onSubagentStart != null || onSubagentStop != null;
     }
 }

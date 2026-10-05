@@ -69,7 +69,7 @@ public final class SessionGitHubAuthApi {
      * @since 1.0.0
      */
     @CopilotExperimental
-    public CompletableFuture<AuthIdentity> getCurrentAuthInfo() {
+    CompletableFuture<AuthIdentity> getCurrentAuthInfo() {
         return caller.invoke("session.gitHubAuth.getCurrentAuthInfo", java.util.Map.of("sessionId", this.sessionId), AuthIdentity.class);
     }
 
@@ -80,7 +80,7 @@ public final class SessionGitHubAuthApi {
      * @since 1.0.0
      */
     @CopilotExperimental
-    public CompletableFuture<List<SessionAuthStatus>> getAllAuthAvailable() {
+    CompletableFuture<List<SessionAuthStatus>> getAllAuthAvailable() {
         return caller.invoke("session.gitHubAuth.getAllAuthAvailable", java.util.Map.of("sessionId", this.sessionId), RpcMapper.INSTANCE.getTypeFactory().constructCollectionType(List.class, SessionAuthStatus.class));
     }
 
@@ -95,7 +95,7 @@ public final class SessionGitHubAuthApi {
      * @since 1.0.0
      */
     @CopilotExperimental
-    public CompletableFuture<AuthIdentity> refreshCopilotUser() {
+    CompletableFuture<AuthIdentity> refreshCopilotUser() {
         return caller.invoke("session.gitHubAuth.refreshCopilotUser", java.util.Map.of("sessionId", this.sessionId), AuthIdentity.class);
     }
 
@@ -109,7 +109,7 @@ public final class SessionGitHubAuthApi {
      * @since 1.0.0
      */
     @CopilotExperimental
-    public CompletableFuture<AuthInfo> login(SessionGitHubAuthLoginParams params) {
+    CompletableFuture<AuthInfo> login(SessionGitHubAuthLoginParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
         return caller.invoke("session.gitHubAuth.login", _p, AuthInfo.class);
@@ -125,7 +125,7 @@ public final class SessionGitHubAuthApi {
      * @since 1.0.0
      */
     @CopilotExperimental
-    public CompletableFuture<Void> switchToAuth(SessionGitHubAuthSwitchToAuthParams params) {
+    CompletableFuture<Void> switchToAuth(SessionGitHubAuthSwitchToAuthParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
         return caller.invoke("session.gitHubAuth.switchToAuth", _p, Void.class);
@@ -138,7 +138,7 @@ public final class SessionGitHubAuthApi {
      * @since 1.0.0
      */
     @CopilotExperimental
-    public CompletableFuture<Void> logout() {
+    CompletableFuture<Void> logout() {
         return caller.invoke("session.gitHubAuth.logout", java.util.Map.of("sessionId", this.sessionId), Void.class);
     }
 
@@ -152,7 +152,7 @@ public final class SessionGitHubAuthApi {
      * @since 1.0.0
      */
     @CopilotExperimental
-    public CompletableFuture<Void> logoutUser(SessionGitHubAuthLogoutUserParams params) {
+    CompletableFuture<Void> logoutUser(SessionGitHubAuthLogoutUserParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
         return caller.invoke("session.gitHubAuth.logoutUser", _p, Void.class);
@@ -165,7 +165,7 @@ public final class SessionGitHubAuthApi {
      * @since 1.0.0
      */
     @CopilotExperimental
-    public CompletableFuture<List<AuthValidationError>> lastAuthErrors() {
+    CompletableFuture<List<AuthValidationError>> lastAuthErrors() {
         return caller.invoke("session.gitHubAuth.lastAuthErrors", java.util.Map.of("sessionId", this.sessionId), RpcMapper.INSTANCE.getTypeFactory().constructCollectionType(List.class, AuthValidationError.class));
     }
 

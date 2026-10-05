@@ -172,6 +172,7 @@ describe("materializeRuntimeBundle", () => {
         mkdirSync(join(sourceDir, "preloads"), { recursive: true });
         writeFileSync(join(sourceDir, "preloads", "extension_bootstrap.mjs"), "bootstrap");
         writeFileSync(join(sourceDir, "app.js"), "excluded");
+        writeFileSync(join(sourceDir, "cli-main.js"), "excluded");
         writeFileSync(join(sourceDir, "copilot"), "excluded");
         writeFileSync(join(sourceDir, "copilot.exe"), "excluded");
         writeFileSync(join(sourceDir, "LICENSE.md"), "excluded");
@@ -206,6 +207,7 @@ describe("materializeRuntimeBundle", () => {
             "bootstrap"
         );
         expect(existsSync(join(installDir, "app.js"))).toBe(false);
+        expect(existsSync(join(installDir, "cli-main.js"))).toBe(false);
         expect(existsSync(join(installDir, "copilot"))).toBe(false);
         expect(existsSync(join(installDir, "copilot.exe"))).toBe(false);
         expect(existsSync(join(installDir, "LICENSE.md"))).toBe(false);

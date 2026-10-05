@@ -1,5 +1,5 @@
 import { rm } from "fs/promises";
-import { describe, expect, it, onTestFinished, vi } from "vitest";
+import { describe, expect, it, onTestFailed, onTestFinished, vi } from "vitest";
 import { ParsedHttpExchange } from "../../../test/harness/replayingCapiProxy.js";
 import { CopilotClient, approveAll, defineTool, RuntimeConnection } from "../../src/index.js";
 import { createSdkTestContext, DEFAULT_GITHUB_TOKEN, isCI } from "./harness/sdkTestContext.js";
@@ -99,7 +99,7 @@ describe("Sessions", () => {
     it("should recover marker after cold resume with explicit session id", async () => {
         const sessionId = `e2e-resume-${Date.now()}`;
         const marker = "MARKER-7f3ac21e";
-        const firstClient = new CopilotClient({
+        const firstClient = createClient({
             workingDirectory: workDir,
             env,
             connection: RuntimeConnection.forStdio({ path: process.env.COPILOT_CLI_PATH }),
@@ -127,7 +127,7 @@ describe("Sessions", () => {
         await session.disconnect();
         await firstClient.stop();
 
-        const secondClient = new CopilotClient({
+        const secondClient = createClient({
             workingDirectory: workDir,
             env,
             connection: RuntimeConnection.forStdio({ path: process.env.COPILOT_CLI_PATH }),
@@ -241,6 +241,9 @@ describe("Sessions", () => {
                 content: systemMessageSuffix,
             },
         });
+        await session.rpc.tools.updateSubagentSettings({
+            subagents: { agents: { "general-purpose": { model: "claude-haiku-4.5" } } },
+        });
 
         const assistantMessage = await session.sendAndWait({ prompt: "What is your full name?" });
         expect(assistantMessage?.data.content).toContain("GitHub");
@@ -251,6 +254,8 @@ describe("Sessions", () => {
         const systemMessage = getSystemMessage(traffic[0]);
         expect(systemMessage).toContain("GitHub");
         expect(systemMessage).toContain(systemMessageSuffix);
+        expect(systemMessage?.match(/<subagent_model_preferences>\n/g)).toHaveLength(1);
+        expect(systemMessage).toContain("- general-purpose: claude-haiku-4.5");
     });
 
     it("should create a session with replaced systemMessage config", async () => {
@@ -258,6 +263,9 @@ describe("Sessions", () => {
         await using session = await client.createSession({
             onPermissionRequest: approveAll,
             systemMessage: { mode: "replace", content: testSystemMessage },
+        });
+        await session.rpc.tools.updateSubagentSettings({
+            subagents: { agents: { "general-purpose": { model: "claude-haiku-4.5" } } },
         });
 
         const assistantMessage = await session.sendAndWait({ prompt: "What is your full name?" });
@@ -283,12 +291,17 @@ describe("Sessions", () => {
                     sections: {
                         tone: { action: "replace", content: customTone },
                         code_change_rules: { action: "remove" },
+                        last_instructions: { action: "remove" },
                     },
                     content: appendedContent,
                 },
             });
+            await session.rpc.tools.updateSubagentSettings({
+                subagents: { agents: { "general-purpose": { model: "claude-haiku-4.5" } } },
+            });
 
-            await session.send({ prompt: "Who are you?" });
+            const assistantMessage = await session.sendAndWait({ prompt: "Who are you?" });
+            expect(assistantMessage?.type).toBe("assistant.message");
 
             // Validate the system message sent to the model
             const traffic = await waitForExchanges();
@@ -297,6 +310,15 @@ describe("Sessions", () => {
             expect(systemMessage).toContain(appendedContent);
             // The code_change_rules section should have been removed
             expect(systemMessage).not.toContain("<code_change_instructions>");
+            expect(systemMessage).not.toContain("<subagent_model_preferences>\n");
+            expect(systemMessage).not.toContain("- general-purpose: claude-haiku-4.5");
+            expect(traffic[0].request.tools).toEqual(
+                expect.arrayContaining([
+                    expect.objectContaining({
+                        function: expect.objectContaining({ name: "task" }),
+                    }),
+                ])
+            );
         }
     );
 
@@ -400,26 +422,41 @@ describe("Sessions", () => {
     });
 
     it("should resume a session using the same client", async () => {
+        let phase = "create session";
+        const events: string[] = [];
+        const onEvent = (event: { type: string }) => {
+            events.push(event.type);
+        };
+        onTestFailed(() => {
+            console.error("Same-client resume diagnostics", { phase, events });
+        });
+
         // Create initial session
-        const session1 = await client.createSession({ onPermissionRequest: approveAll });
+        const session1 = await client.createSession({ onPermissionRequest: approveAll, onEvent });
         const sessionId = session1.sessionId;
+        phase = "first sendAndWait";
         const answer = await session1.sendAndWait({ prompt: "What is 1+1?" });
         expect(answer?.data.content).toContain("2");
 
         // Resume using the same client
+        phase = "resume session";
         await using session2 = await client.resumeSession(sessionId, {
             onPermissionRequest: approveAll,
+            onEvent,
         });
         expect(session2.sessionId).toBe(sessionId);
+        phase = "read resumed history";
         const messages = await session2.getEvents();
         const assistantMessages = messages.filter((m) => m.type === "assistant.message");
         expect(assistantMessages[assistantMessages.length - 1].data.content).toContain("2");
 
         // Can continue the conversation statefully
+        phase = "second sendAndWait";
         const secondAssistantMessage = await session2.sendAndWait({
             prompt: "Now if you double that, what do you get?",
         });
         expect(secondAssistantMessage?.data.content).toContain("4");
+        phase = "disconnect resumed session";
     });
 
     it("should resume a session using a new client", async () => {
@@ -657,11 +694,13 @@ describe("Sessions", () => {
     });
 
     it("should create session with custom config dir", async () => {
+        // Stop the config directory's writer before the fixture removes its files.
+        await using customClient = createClient();
         const customConfigDir = `${homeDir}/custom-config`;
         onTestFinished(async () => {
             await rm(customConfigDir, { recursive: true, force: true }).catch(() => {});
         });
-        await using session = await client.createSession({
+        await using session = await customClient.createSession({
             onPermissionRequest: approveAll,
             configDirectory: customConfigDir,
         });

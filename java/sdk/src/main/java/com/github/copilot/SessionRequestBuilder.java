@@ -11,6 +11,7 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.github.copilot.rpc.CopilotClientMode;
 import com.github.copilot.rpc.CreateSessionRequest;
 import com.github.copilot.rpc.ProviderConfig;
@@ -23,6 +24,10 @@ import com.github.copilot.rpc.SectionOverride;
 import com.github.copilot.rpc.SectionOverrideAction;
 import com.github.copilot.rpc.SessionConfig;
 import com.github.copilot.rpc.SystemMessageConfig;
+import com.github.copilot.rpc.ToolDefinition;
+import com.github.copilot.rpc.ToolDefer;
+import com.github.copilot.generated.rpc.ProtocolExternalToolDefer;
+import com.github.copilot.generated.rpc.ProtocolExternalToolDefinition;
 
 /**
  * Builds JSON-RPC request objects from session configuration.
@@ -87,6 +92,39 @@ final class SessionRequestBuilder {
                 .setContent(systemMessage.getContent()).setSections(wireSections);
 
         return new ExtractedTransforms(wireConfig, callbacks);
+    }
+
+    static List<ProtocolExternalToolDefinition> toProtocolExternalTools(List<ToolDefinition> tools) {
+        if (tools == null) {
+            return null;
+        }
+        return tools.stream().map(SessionRequestBuilder::toProtocolExternalTool).toList();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static ProtocolExternalToolDefinition toProtocolExternalTool(ToolDefinition tool) {
+        Map<String, Object> parameters = null;
+        if (tool.parameters() instanceof Map<?, ?> map) {
+            parameters = (Map<String, Object>) map;
+        } else if (tool.parameters() != null) {
+            parameters = JsonRpcClient.getObjectMapper().convertValue(tool.parameters(),
+                    new TypeReference<Map<String, Object>>() {
+                    });
+        }
+        return new ProtocolExternalToolDefinition(tool.name(), tool.description() != null ? tool.description() : "",
+                null, parameters, tool.overridesBuiltInTool(), tool.skipPermission(), toProtocolDefer(tool.defer()),
+                tool.isTerminal(), tool.metadata());
+    }
+
+    private static ProtocolExternalToolDefer toProtocolDefer(ToolDefer defer) {
+        if (defer == null || defer == ToolDefer.NONE) {
+            return null;
+        }
+        return switch (defer) {
+            case AUTO -> ProtocolExternalToolDefer.AUTO;
+            case NEVER -> ProtocolExternalToolDefer.NEVER;
+            case NONE -> null;
+        };
     }
 
     /**

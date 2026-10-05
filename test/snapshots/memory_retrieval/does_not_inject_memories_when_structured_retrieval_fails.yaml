@@ -1,0 +1,10 @@
+models:
+  - claude-sonnet-5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Reply with exactly SDK_MEMORY_RETRIEVAL_COMPLETE.
+      - role: assistant
+        content: SDK_MEMORY_RETRIEVAL_COMPLETE

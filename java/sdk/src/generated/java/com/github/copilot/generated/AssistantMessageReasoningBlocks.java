@@ -29,6 +29,8 @@ public record AssistantMessageReasoningBlocks(
     /** Model provider that produced these reasoning blocks. */
     @JsonProperty("provider") String provider,
     /** Provider-native reasoning items or content blocks preserved verbatim, in order. A single response can carry several, and provider signatures or identifiers may depend on their exact content and ordering. */
-    @JsonProperty("blocks") List<Object> blocks
+    @JsonProperty("blocks") List<Object> blocks,
+    /** Anthropic Messages assistant block ordering preserved when the legacy reasoning-only representation cannot reproduce it exactly. Thinking and text blocks remain verbatim; tool-use entries retain identity and a payload fingerprint when later signed reasoning depends on them, and are hydrated from the message's tool requests during replay. */
+    @JsonProperty("orderedBlocks") List<Object> orderedBlocks
 ) {
 }

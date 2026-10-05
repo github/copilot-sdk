@@ -23,7 +23,7 @@ import javax.annotation.processing.Generated;
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record SessionScheduleAddParams(
+record SessionScheduleAddParams(
     /** Target session identifier */
     @JsonProperty("sessionId") String sessionId,
     /** Human-readable interval such as `30s`, `5m`, or `2h`. */

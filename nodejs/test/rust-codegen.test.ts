@@ -13,21 +13,8 @@ import {
     generateApiTypesCode,
     generateRpcCode,
     generateSessionEventsCode,
-    isRustCodegenEntrypoint,
 } from "../../scripts/codegen/rust.ts";
 import { legacyRequestSchema } from "./legacy-parameters-fixture.ts";
-
-describe("Rust codegen entrypoint", () => {
-    it("matches Windows paths case-insensitively", () => {
-        expect(
-            isRustCodegenEntrypoint(
-                "C:\\a\\copilot-agent-runtime\\src\\sdk\\scripts\\codegen\\rust.ts",
-                "c:\\a\\copilot-agent-runtime\\src\\sdk\\scripts\\codegen\\rust.ts",
-                "win32"
-            )
-        ).toBe(true);
-    });
-});
 
 describe("Rust API type codegen", () => {
     it.each([
@@ -70,6 +57,25 @@ describe("Rust API type codegen", () => {
             expect(code).not.toContain("pub struct SessionAccountResult {");
         }
     );
+    it("preserves future customization reload enum values in both directions", () => {
+        const code = generateApiTypesCode({
+            definitions: {
+                CustomizationReloadStatus: { type: "string", enum: ["reloaded", "skipped"] },
+                CustomizationReloadSubsystem: { type: "string", enum: ["skills", "hooks"] },
+                ClosedStatus: { type: "string", enum: ["ready"] },
+            },
+        } as ApiSchema);
+
+        for (const name of ["CustomizationReloadStatus", "CustomizationReloadSubsystem"]) {
+            expect(code).toContain(`pub enum ${name} {`);
+            expect(code).toContain(`impl From<String> for ${name} {`);
+            expect(code).toContain(`impl From<${name}> for String {`);
+        }
+        expect(code).toContain('#[serde(from = "String", into = "String")]');
+        expect(code).toContain("Unknown(String),");
+        expect(code).toContain("pub enum ClosedStatus {");
+        expect(code).toContain("#[serde(other)]");
+    });
 
     it.each(["anyOf", "oneOf"] as const)(
         "keeps required phase results typed through %s references",
@@ -315,6 +321,54 @@ pub struct Container`);
         expect(code).toContain("pub enum EnqueueCommandResult {");
         expect(code).toContain("True(AcceptedEnqueueCommandResult)");
         expect(code).toContain("False(UnsupportedEnqueueCommandResult)");
+    });
+
+    it("reuses the get-sources result for instructions reload without generating an unused type", () => {
+        const schema = {
+            definitions: {
+                InstructionsGetSourcesResult: {
+                    type: "object",
+                    properties: { sources: { type: "array", items: { type: "string" } } },
+                    required: ["sources"],
+                },
+                OtherResult: {
+                    type: "object",
+                    properties: { sources: { type: "array", items: { type: "string" } } },
+                    required: ["sources"],
+                },
+            },
+            session: {
+                instructions: {
+                    getSources: {
+                        rpcMethod: "session.instructions.getSources",
+                        params: null,
+                        result: { $ref: "#/definitions/InstructionsGetSourcesResult" },
+                    },
+                    reload: {
+                        rpcMethod: "session.instructions.reload",
+                        params: null,
+                        result: { $ref: "#/definitions/InstructionsGetSourcesResult" },
+                    },
+                },
+            },
+        };
+        const apiSchema = schema as ApiSchema;
+
+        const types = generateApiTypesCode(apiSchema);
+        const rpc = generateRpcCode(apiSchema);
+        expect(types).toContain("pub struct InstructionsGetSourcesResult {");
+        expect(types).not.toContain("pub struct SessionInstructionsReloadResult {");
+        expect(rpc).toContain(
+            "pub async fn reload(&self) -> Result<InstructionsGetSourcesResult, Error>"
+        );
+
+        schema.session.instructions.reload.result.$ref = "#/definitions/OtherResult";
+        expect(generateApiTypesCode(apiSchema)).toContain(
+            "pub struct SessionInstructionsReloadResult {"
+        );
+        expect(generateRpcCode(apiSchema)).toContain(
+            "pub async fn reload(&self) -> Result<OtherResult, Error>"
+        );
     });
 
     it.each([true, false])(
@@ -602,6 +656,49 @@ pub enum ${name} {
         expect(empty).toContain("pub struct SessionSearchData {\n}");
         expect(ordinary).not.toContain("pub type SessionSearchData");
         expect(empty).not.toContain("pub type SessionSearchData");
+    });
+
+    it("types the durable human response event union", () => {
+        const response: JSONSchema7 = {
+            title: "HumanResponseRecordedResponse",
+            anyOf: [
+                {
+                    type: "object",
+                    required: ["responseKind", "answer"],
+                    properties: {
+                        responseKind: { type: "string", const: "user_input" },
+                        answer: { type: "string" },
+                    },
+                },
+                {
+                    type: "object",
+                    required: ["responseKind", "approved"],
+                    properties: {
+                        responseKind: { type: "string", const: "exit_plan_mode" },
+                        approved: { type: "boolean" },
+                    },
+                },
+            ],
+        };
+        const code = generateSessionEventsCode(
+            eventSchema(
+                {
+                    type: "object",
+                    required: ["response"],
+                    properties: {
+                        response: { $ref: "#/definitions/HumanResponseRecordedResponse" },
+                    },
+                },
+                { HumanResponseRecordedResponse: response }
+            )
+        );
+
+        expect(code).toContain("pub response: HumanResponseRecordedResponse,");
+        expect(code).toContain(`pub enum HumanResponseRecordedResponse {
+    UserInput(HumanResponseRecordedResponseUserInput),
+    ExitPlanMode(HumanResponseRecordedResponseExitPlanMode),
+}`);
+        expect(code).not.toContain("pub response: serde_json::Value,");
     });
 
     it.each(["reasonCode", "judgeStatus", "evaluationStage"])(

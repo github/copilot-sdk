@@ -5,12 +5,16 @@
 package copilot
 
 import (
+	"encoding/base64"
 	"errors"
 	"os"
 	"time"
 
 	"github.com/github/copilot-sdk/go/rpc"
 )
+
+const maxSessionFSBinaryBytes = (64*1024*1024 - 1024) / 4 * 3
+const maxSessionFSBinaryContentLength = (maxSessionFSBinaryBytes + 2) / 3 * 4
 
 // SessionFSProvider is the interface that SDK users implement to provide
 // a session filesystem. Methods use idiomatic Go error handling: return an
@@ -23,6 +27,7 @@ type SessionFSProvider interface {
 	ReadFile(path string) (string, error)
 	// WriteFile writes content to a file, creating it and parent directories if needed.
 	// mode is an optional POSIX-style permission mode. Pass nil to use the OS default.
+	// Return a *SessionFSWriteFailure if the failed write changed the target.
 	WriteFile(path string, content string, mode *int) error
 	// AppendFile appends content to a file, creating it and parent directories if needed.
 	// mode is an optional POSIX-style permission mode. Pass nil to use the OS default.
@@ -46,6 +51,32 @@ type SessionFSProvider interface {
 	Remove(path string, recursive bool, force bool) error
 	// Rename moves/renames a file or directory.
 	Rename(src string, dest string) error
+}
+
+// SessionFSWriteFailure reports that a failed WriteFile changed its target.
+// Wrap the original error so its cause remains available to errors.Is and errors.As.
+type SessionFSWriteFailure struct {
+	Err error
+}
+
+func (e *SessionFSWriteFailure) Error() string {
+	if e == nil || e.Err == nil {
+		return "session filesystem write failed after changing the target"
+	}
+	return e.Err.Error()
+}
+func (e *SessionFSWriteFailure) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.Err
+}
+
+// SessionFSBinaryProvider is an optional interface for exact file bytes.
+// Declare capabilities.binary only when the provider implements both methods.
+type SessionFSBinaryProvider interface {
+	ReadFileBytes(path string) ([]byte, error)
+	WriteFileBytes(path string, content []byte, mode *int) error
 }
 
 // SessionFSSqliteProvider is an optional interface that a [SessionFSProvider]
@@ -129,6 +160,23 @@ func (a *sessionFSAdapter) ReadFile(request *rpc.SessionFSReadFileRequest) (*rpc
 	return &rpc.SessionFSReadFileResult{Content: content}, nil
 }
 
+func (a *sessionFSAdapter) ReadFileBytes(request *rpc.SessionFSReadFileBytesRequest) (*rpc.SessionFSReadFileBytesResult, error) {
+	provider, ok := a.provider.(SessionFSBinaryProvider)
+	if !ok {
+		return &rpc.SessionFSReadFileBytesResult{Error: toSessionFSError(errors.New("binary reads are not supported"))}, nil
+	}
+	bytes, err := provider.ReadFileBytes(request.Path)
+	if err != nil {
+		return &rpc.SessionFSReadFileBytesResult{Error: toSessionFSError(err)}, nil
+	}
+	if len(bytes) > maxSessionFSBinaryBytes {
+		return &rpc.SessionFSReadFileBytesResult{
+			Error: toSessionFSError(errors.New("sessionFs.readFileBytes content exceeds the binary read limit")),
+		}, nil
+	}
+	return &rpc.SessionFSReadFileBytesResult{Content: base64.StdEncoding.EncodeToString(bytes)}, nil
+}
+
 func (a *sessionFSAdapter) WriteFile(request *rpc.SessionFSWriteFileRequest) (*rpc.SessionFSError, error) {
 	var mode *int
 	if request.Mode != nil {
@@ -136,6 +184,41 @@ func (a *sessionFSAdapter) WriteFile(request *rpc.SessionFSWriteFileRequest) (*r
 		mode = &m
 	}
 	if err := a.provider.WriteFile(request.Path, request.Content, mode); err != nil {
+		wire := toSessionFSError(err)
+		var changed *SessionFSWriteFailure
+		if errors.As(err, &changed) && changed != nil {
+			value := true
+			wire.WriteChanged = &value
+		}
+		return wire, nil
+	}
+	return nil, nil
+}
+
+func (a *sessionFSAdapter) WriteFileBytes(request *rpc.SessionFSWriteFileBytesRequest) (*rpc.SessionFSError, error) {
+	provider, ok := a.provider.(SessionFSBinaryProvider)
+	if !ok {
+		return toSessionFSError(errors.New("binary writes are not supported")), nil
+	}
+	if len(request.Content) > maxSessionFSBinaryContentLength {
+		return toSessionFSError(errors.New("sessionFs.writeFileBytes content exceeds the binary write limit")), nil
+	}
+	content, err := base64.StdEncoding.Strict().DecodeString(request.Content)
+	if err != nil {
+		return toSessionFSError(err), nil
+	}
+	if base64.StdEncoding.EncodeToString(content) != request.Content {
+		return toSessionFSError(errors.New("invalid sessionFs.writeFileBytes base64 content")), nil
+	}
+	if len(content) > maxSessionFSBinaryBytes {
+		return toSessionFSError(errors.New("sessionFs.writeFileBytes content exceeds the binary write limit")), nil
+	}
+	var mode *int
+	if request.Mode != nil {
+		m := int(*request.Mode)
+		mode = &m
+	}
+	if err := provider.WriteFileBytes(request.Path, content, mode); err != nil {
 		return toSessionFSError(err), nil
 	}
 	return nil, nil

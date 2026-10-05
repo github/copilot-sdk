@@ -30,6 +30,7 @@ from copilot.session_events import (
     SessionResumeData,
     SessionStartData,
     SessionTaskCompleteData,
+    ToolExecutionCompleteData,
     UserMessageAgentMode,
     session_event_from_dict,
     session_event_to_dict,
@@ -38,6 +39,30 @@ from copilot.session_events import (
 
 class TestEventForwardCompatibility:
     """Test forward compatibility for unknown event types."""
+
+    def test_future_file_edit_kind_preserves_tool_completion(self):
+        wire = {
+            "id": str(uuid4()),
+            "timestamp": datetime.now().isoformat(),
+            "parentId": None,
+            "type": "tool.execution_complete",
+            "data": {
+                "toolCallId": "call-1",
+                "success": True,
+                "fileEdits": [{"path": "/future.txt", "kind": "append"}],
+            },
+        }
+
+        event = session_event_from_dict(wire)
+        assert isinstance(event.data, ToolExecutionCompleteData)
+        assert event.data.file_edits is not None
+        assert event.data.file_edits[0].kind.name == "UNKNOWN"
+        assert event.data.file_edits[0].kind.value == "append"
+        assert session_event_to_dict(event)["data"]["fileEdits"] == wire["data"]["fileEdits"]
+        other = session_event_from_dict(wire)
+        assert event.data.file_edits[0].kind is other.data.file_edits[0].kind
+        assert event.data.file_edits[0] == other.data.file_edits[0]
+        assert len({event.data.file_edits[0].kind, other.data.file_edits[0].kind}) == 1
 
     @pytest.mark.parametrize(
         ("event_type", "data"), [("session.idle", {}), ("user.message", {"content": "hello"})]

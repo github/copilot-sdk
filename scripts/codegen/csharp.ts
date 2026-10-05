@@ -587,6 +587,8 @@ const EXPERIMENTAL_ATTRIBUTE = "[Experimental(global::GitHub.Copilot.Diagnostics
 const EDITOR_BROWSABLE_NEVER_ATTRIBUTE = "[EditorBrowsable(EditorBrowsableState.Never)]";
 const OBSOLETE_ATTRIBUTE = `#if NET5_0_OR_GREATER
 [Obsolete("This member is deprecated and will be removed in a future version.", DiagnosticId = "GHCP001")]
+#else
+[Obsolete("This member is deprecated and will be removed in a future version.")]
 #endif`;
 const STRING_ENUM_RESERVED_MEMBER_NAMES = new Set(["Value", "Equals", "GetHashCode", "ToString", "Converter"]);
 
@@ -637,6 +639,7 @@ interface EventVariant {
     dataClassName: string;
     dataSchema: JSONSchema7;
     dataDescription?: string;
+    eventDeprecated: boolean;
     eventExperimental: boolean;
     dataExperimental: boolean;
 }
@@ -738,6 +741,7 @@ function extractEventVariants(schema: JSONSchema7): EventVariant[] {
                 dataClassName: `${baseName}Data`,
                 dataSchema,
                 dataDescription: dataSchema?.description,
+                eventDeprecated: isSchemaDeprecated(variant),
                 eventExperimental: isSchemaExperimental(variant),
                 dataExperimental: isSchemaExperimental(dataSchema),
             };
@@ -1629,6 +1633,9 @@ namespace GitHub.Copilot;
         }
         if (variant.eventExperimental) {
             pushExperimentalAttribute(lines);
+        }
+        if (variant.eventDeprecated) {
+            pushObsoleteAttributes(lines);
         }
         lines.push(`public sealed partial class ${variant.className} : SessionEvent`, `{`);
         lines.push(`    /// <inheritdoc />`);

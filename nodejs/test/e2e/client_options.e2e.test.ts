@@ -206,7 +206,7 @@ function getArray(value: unknown): unknown[] {
 }
 
 describe("Client options", async () => {
-    const { copilotClient: defaultClient, env, workDir } = await createSdkTestContext();
+    const { createClient, env, workDir } = await createSdkTestContext();
 
     it("createSession starts the client lazily", async () => {
         const client = new CopilotClient({
@@ -260,11 +260,7 @@ describe("Client options", async () => {
         fs.mkdirSync(clientCwd, { recursive: true });
         fs.writeFileSync(path.join(clientCwd, "marker.txt"), "I am in the client cwd");
 
-        // Reference defaultClient to keep the shared test context (and its CAPI proxy/env)
-        // alive for the duration of this test; we deliberately spin up a fresh client with
-        // a custom cwd to assert that the custom cwd is honored.
-        void defaultClient;
-        const client = new CopilotClient({
+        const client = createClient({
             workingDirectory: clientCwd,
             env,
             connection: RuntimeConnection.forStdio({ path: process.env.COPILOT_CLI_PATH }),

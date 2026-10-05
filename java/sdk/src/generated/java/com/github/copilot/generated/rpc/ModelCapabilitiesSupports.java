@@ -21,6 +21,8 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record ModelCapabilitiesSupports(
+    /** Whether the model supports provider-native thinking. Independent of configurable reasoning effort; omission means unknown. */
+    @JsonProperty("thinking") Boolean thinking,
     /** Whether this model supports vision/image input */
     @JsonProperty("vision") Boolean vision,
     /** Whether this model supports canonical tool calling */

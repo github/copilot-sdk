@@ -19,6 +19,7 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.copilot.AllowCopilotExperimental;
 import com.github.copilot.TestUtil;
 
 /**
@@ -220,6 +221,52 @@ class GeneratedRpcRecordsCoverageTest {
         assertEquals("posix", SessionFsSetProviderConventions.POSIX.getValue());
         assertEquals(SessionFsSetProviderConventions.POSIX, SessionFsSetProviderConventions.fromValue("posix"));
         assertThrows(IllegalArgumentException.class, () -> SessionFsSetProviderConventions.fromValue("unknown"));
+    }
+
+    @Test
+    void sessionFsSetProviderCapabilities_preserves_legacy_constructor_and_binary_wire_field() throws Exception {
+        var mapper = new ObjectMapper();
+        var legacy = new SessionFsSetProviderCapabilities(true);
+        var legacyJson = mapper.readTree(mapper.writeValueAsString(legacy));
+        assertTrue(legacyJson.get("sqlite").asBoolean());
+        assertFalse(legacyJson.has("binary"));
+        assertEquals(legacy, mapper.treeToValue(legacyJson, SessionFsSetProviderCapabilities.class));
+
+        var binary = new SessionFsSetProviderCapabilities(false, true);
+        var binaryJson = mapper.readTree(mapper.writeValueAsString(binary));
+        assertFalse(binaryJson.get("sqlite").asBoolean());
+        assertTrue(binaryJson.get("binary").asBoolean());
+        assertEquals(binary, mapper.treeToValue(binaryJson, SessionFsSetProviderCapabilities.class));
+    }
+
+    @Test
+    @AllowCopilotExperimental
+    void sessionFsReadFileBytes_preserves_base64_wire_content() throws Exception {
+        var mapper = new ObjectMapper();
+        var params = new SessionFsReadFileBytesParams("sess-15", "/image.png");
+        var paramsJson = mapper.readTree(mapper.writeValueAsString(params));
+        assertEquals("sess-15", paramsJson.get("sessionId").asText());
+        assertEquals("/image.png", paramsJson.get("path").asText());
+        assertEquals(params, mapper.treeToValue(paramsJson, SessionFsReadFileBytesParams.class));
+
+        var result = new SessionFsReadFileBytesResult("AAECAw==", null);
+        var resultJson = mapper.readTree(mapper.writeValueAsString(result));
+        assertEquals("AAECAw==", resultJson.get("content").asText());
+        assertFalse(resultJson.has("error"));
+        assertEquals(result, mapper.treeToValue(resultJson, SessionFsReadFileBytesResult.class));
+    }
+
+    @Test
+    @AllowCopilotExperimental
+    void sessionFsWriteFileBytes_preserves_base64_wire_content_and_mode() throws Exception {
+        var mapper = new ObjectMapper();
+        var params = new SessionFsWriteFileBytesParams("sess-15", "/image.png", "AP/+AQ==", 384L);
+        var json = mapper.readTree(mapper.writeValueAsString(params));
+        assertEquals("sess-15", json.get("sessionId").asText());
+        assertEquals("/image.png", json.get("path").asText());
+        assertEquals("AP/+AQ==", json.get("content").asText());
+        assertEquals(384L, json.get("mode").asLong());
+        assertEquals(params, mapper.treeToValue(json, SessionFsWriteFileBytesParams.class));
     }
 
     @Test
@@ -850,8 +897,10 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionModelGetCurrentResult_record() {
-        var result = new SessionModelGetCurrentResult("claude-sonnet-5", null, null, null, null, null);
+        var result = new SessionModelGetCurrentResult("claude-sonnet-5", "claude-sonnet-4.5", null, null, null, null,
+                null);
         assertEquals("claude-sonnet-5", result.modelId());
+        assertEquals("claude-sonnet-4.5", result.planBaseModelId());
     }
 
     @Test
@@ -1015,7 +1064,7 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void modelsListResult_nested() {
-        var supports = new ModelCapabilitiesSupports(true, null, false, null);
+        var supports = new ModelCapabilitiesSupports(false, true, null, false, null);
         var limits = new ModelCapabilitiesLimits(100000L, 8192L, 128000L, null);
         var capabilities = new ModelCapabilities(supports, limits);
         var policy = new ModelPolicy(ModelPolicyState.ENABLED, null);
@@ -1028,6 +1077,7 @@ class GeneratedRpcRecordsCoverageTest {
         assertEquals(1, result.models().size());
         assertEquals("gpt-5", result.models().get(0).id());
         assertEquals("GPT-5", result.models().get(0).name());
+        assertFalse(result.models().get(0).capabilities().supports().thinking());
         assertTrue(result.models().get(0).capabilities().supports().vision());
         assertFalse(result.models().get(0).capabilities().supports().reasoningEffort());
         assertEquals(100000L, result.models().get(0).capabilities().limits().maxPromptTokens());

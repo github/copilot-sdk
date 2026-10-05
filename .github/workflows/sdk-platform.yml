@@ -11,6 +11,11 @@ on:
       sdk-home:
         required: true
         type: string
+    outputs:
+      nodejs-result:
+        description: "Node.js SDK result, independent of other languages"
+        # Direct result outputs can be empty: https://github.com/actions/runner/issues/2495
+        value: ${{ fromJSON(toJSON(jobs.nodejs)).result }}
 
 permissions:
   contents: read

@@ -11,7 +11,7 @@ import { createSdkTestContext } from "./harness/sdkTestContext.js";
 import { waitForCondition } from "./harness/sdkTestHelper.js";
 
 describe("User-requested shell RPC", async () => {
-    const { copilotClient: client, homeDir } = await createSdkTestContext();
+    const { copilotClient: client, homeDir, workDir } = await createSdkTestContext();
 
     function compactUuid(): string {
         return randomUUID().replace(/-/g, "");
@@ -174,6 +174,125 @@ describe("User-requested shell RPC", async () => {
             expect(dispatchedBeforeRelease).toBe(false);
             await withTimeout(idle.promise, 30_000, "Session did not settle after queued exit.");
             expect((await session.rpc.queue.pendingItems()).items).toEqual([]);
+        }
+    );
+
+    it(
+        "streams separate stdout and stderr before a controlled exit and never replays chunks",
+        {
+            timeout: 120_000,
+        },
+        async () => {
+            const session = await client.createSession({
+                onPermissionRequest: approveAll,
+                workingDirectory: workDir,
+            });
+            const requestId = `stream-${compactUuid()}`;
+            const releasePath = join(workDir, "release");
+            const events: SessionEvent[] = [];
+            let stdout = "";
+            let stderr = "";
+            let released = false;
+            let settled = false;
+            const unsubscribe = session.on((event) => {
+                events.push(event);
+                if (event.type !== "tool.shell_output") {
+                    return;
+                }
+                if ((event.data.stream ?? "stdout") === "stdout") {
+                    stdout += event.data.text;
+                } else if (event.data.stream === "stderr") {
+                    stderr += event.data.text;
+                }
+                if (
+                    !released &&
+                    stdout.includes("shell-stream-live-out") &&
+                    stderr.includes("shell-stream-live-err")
+                ) {
+                    released = true;
+                    writeFileSync(releasePath, "");
+                }
+            });
+            // The public shell RPC exercises live delivery without a model choosing
+            // a tool or requiring a synthesized model response.
+            const execution = session.rpc.shell
+                .executeUserRequested({
+                    requestId,
+                    command: `node -e "const fs=require('fs'),newline=String.fromCharCode(10);fs.watch('.',()=>{if(fs.existsSync('release')){fs.writeSync(1,'shell-stream-tail'+newline);process.exit(0)}});fs.writeSync(1,'shell-stream-live-out'+newline);fs.writeSync(2,'shell-stream-live-err'+newline)"`,
+                })
+                .finally(() => {
+                    settled = true;
+                });
+            try {
+                const result = await withTimeout(
+                    execution,
+                    75_000,
+                    "Timed out waiting for live stdout/stderr to release the shell command."
+                );
+                expect(result.success).toBe(true);
+                expect(result.exitCode).toBe(0);
+                expect(released).toBe(true);
+                expect(stdout).toBe("shell-stream-live-out\nshell-stream-tail\n");
+                expect(stderr).toBe("shell-stream-live-err\n");
+                const chunks = events.filter((event) => event.type === "tool.shell_output");
+                expect(chunks.map((event) => event.data.sequence)).toEqual(
+                    chunks.map((_, index) => index)
+                );
+                expect(chunks.every((event) => event.ephemeral === true)).toBe(true);
+                expect(chunks.every((event) => event.data.toolCallId === result.toolCallId)).toBe(
+                    true
+                );
+                expect(result.toolCallId).toBeTruthy();
+                const completionIndex = events.findIndex(
+                    (event) =>
+                        event.type === "tool.execution_complete" &&
+                        event.data.toolCallId === result.toolCallId
+                );
+                expect(completionIndex).toBeGreaterThan(0);
+                expect(
+                    events
+                        .slice(completionIndex)
+                        .some(
+                            (event) =>
+                                event.type === "tool.shell_output" &&
+                                event.data.toolCallId === result.toolCallId
+                        )
+                ).toBe(false);
+                expect(
+                    events.some(
+                        (event) =>
+                            event.type === "tool.execution_partial_result" &&
+                            event.data.toolCallId === result.toolCallId
+                    )
+                ).toBe(true);
+                let history: SessionEvent[] = [];
+                await waitForCondition(
+                    async () => {
+                        history = await session.getEvents();
+                        return history.some(
+                            (event) =>
+                                event.type === "tool.execution_complete" &&
+                                event.data.toolCallId === result.toolCallId
+                        );
+                    },
+                    { timeoutMessage: "Shell completion did not appear in session history." }
+                );
+                expect(history.some((event) => event.type === "tool.shell_output")).toBe(false);
+            } finally {
+                unsubscribe();
+                try {
+                    if (!settled) {
+                        await session.rpc.shell.cancelUserRequested({ requestId });
+                        await withTimeout(
+                            execution,
+                            30_000,
+                            "Timed out draining the streaming shell command."
+                        );
+                    }
+                } finally {
+                    await session.disconnect();
+                }
+            }
         }
     );
 

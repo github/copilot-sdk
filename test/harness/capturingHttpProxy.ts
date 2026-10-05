@@ -119,6 +119,9 @@ export class CapturingHttpProxy {
         });
       });
     });
+    // Tests pause between control requests; idle expiry can race a pooled POST.
+    // Fixture teardown already closes every connection explicitly.
+    this.server.keepAliveTimeout = 0;
 
     return new Promise((resolve, reject) => {
       this.server!.on("error", (err) => {

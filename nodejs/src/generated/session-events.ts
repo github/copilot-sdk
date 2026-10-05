@@ -76,6 +76,7 @@ export type SessionEvent =
   | ToolUserRequestedEvent
   | ToolExecutionStartEvent
   | ToolExecutionPartialResultEvent
+  | ToolShellOutputEvent
   | ToolExecutionProgressEvent
   | ToolExecutionCompleteEvent
   | ToolSearchActivatedEvent
@@ -128,6 +129,7 @@ export type SessionEvent =
   | CapabilitiesChangedEvent
   | ExitPlanModeRequestedEvent
   | ExitPlanModeCompletedEvent
+  | HumanResponseRecordedEvent
   | ToolsUpdatedEvent
   | BackgroundTasksChangedEvent
   | WorkflowRunUpdatedEvent
@@ -946,6 +948,28 @@ export type ToolExecutionStartToolDescriptionMetaUIVisibility =
   /** Tool is callable by the MCP App view (iframe) via session.mcp.apps.callTool */
   | "app";
 /**
+ * Shell output source. Terminal output has no separate stdout/stderr attribution.
+ */
+export type ToolShellOutputStream =
+  /** Output from the shell command's standard output stream. This is the default when stream is omitted. */
+  | "stdout"
+  /** Output from the shell command's standard error stream. */
+  | "stderr"
+  /** Inherently merged output that cannot be attributed separately to stdout or stderr. */
+  | "terminal";
+/**
+ * Kind of file mutation committed by a built-in editing tool.
+ */
+/** @experimental */
+export type ToolExecutionCompleteFileEditKind =
+  /** A file was created. */
+  | "create"
+  /** A file was written by an edit operation. */
+  | "edit"
+  /** A file was deleted. */
+  | "delete"
+  | (string & {});
+/**
  * A model-facing binary result as persisted: full inline data, a size-omitted marker, or a deduplicated asset reference
  */
 /** @experimental */
@@ -1450,6 +1474,95 @@ export type ExitPlanModeAction =
   /** Exit plan mode and continue with parallel autonomous workers. */
   | "autopilot_fleet";
 /**
+ * Controlled provenance for a typed runtime response. Only `human_response`, minted by a trusted direct-interaction ingress, is human authorization evidence.
+ */
+export type HumanResponseActor =
+  /** A built-in trusted client submitted the response after direct human interaction. */
+  | "human_response"
+  /** A host or SDK automation submitted the response without direct human interaction. */
+  | "host_automation"
+  /** The response came through a legacy or otherwise unattributed ingress. */
+  | "unknown";
+/**
+ * Exact runtime-owned question or reviewed plan paired with the typed response that settled it.
+ */
+export type HumanResponseRecordedResponse =
+  | {
+      /**
+       * Exact answer content accepted from the user.
+       */
+      content: {
+        [k: string]: ElicitationCompletedContent | undefined;
+      };
+      /**
+       * Exact question displayed to the user.
+       */
+      message: string;
+      requestedSchema: ElicitationRequestedSchema;
+      /**
+       * Runtime-owned response kind discriminator.
+       */
+      responseKind: "ask_user";
+    }
+  | {
+      /**
+       * Whether the displayed request allowed a free-form answer.
+       */
+      allowFreeform?: boolean;
+      /**
+       * Exact selected or free-form answer submitted by the user.
+       */
+      answer: string;
+      /**
+       * Exact choices displayed to the user, when the request offered choices.
+       */
+      choices?: string[];
+      /**
+       * Exact question displayed to the user.
+       */
+      question: string;
+      /**
+       * Runtime-owned response kind discriminator.
+       */
+      responseKind: "user_input";
+      /**
+       * Whether the answer was typed as free-form text rather than selected from the displayed choices.
+       */
+      wasFreeform: boolean;
+    }
+  | {
+      /**
+       * Actions offered by the plan review UI.
+       */
+      actions: ExitPlanModeAction[];
+      /**
+       * Whether the user approved the reviewed plan.
+       */
+      approved: boolean;
+      /**
+       * Whether the selected response requested edit auto-approval.
+       */
+      autoApproveEdits?: boolean;
+      /**
+       * Exact feedback submitted with the plan decision, when present.
+       */
+      feedback?: string;
+      /**
+       * Exact full plan content available from the review UI.
+       */
+      planContent: string;
+      recommendedAction: ExitPlanModeAction;
+      /**
+       * Runtime-owned response kind discriminator.
+       */
+      responseKind: "exit_plan_mode";
+      selectedAction?: ExitPlanModeAction;
+      /**
+       * Exact plan summary displayed to the user.
+       */
+      summary: string;
+    };
+/**
  * Terminal status a workflow run committed. A settled run is never `pending` or `running`, so those two members of the run-status domain are deliberately absent.
  */
 export type WorkflowRunSettledStatus =
@@ -1595,6 +1708,10 @@ export interface StartData {
    * Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh", "max")
    */
   reasoningEffort?: string;
+  /**
+   * Model that owns effort embedded in an authored model selection. Omitted for independent reasoning-effort overrides and legacy events.
+   */
+  reasoningEffortModel?: string;
   reasoningSummary?: ReasoningSummary;
   /**
    * Whether this session supports remote steering via GitHub
@@ -1747,6 +1864,10 @@ export interface ResumeData {
    * Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh", "max")
    */
   reasoningEffort?: string;
+  /**
+   * Model that owns effort embedded in an authored model selection. Omitted for independent reasoning-effort overrides and legacy events.
+   */
+  reasoningEffortModel?: string;
   reasoningSummary?: ReasoningSummary;
   /**
    * Whether this session supports remote steering via GitHub
@@ -2349,6 +2470,10 @@ export interface ModelChangeData {
    * Reasoning effort level after the model change, if applicable
    */
   reasoningEffort?: string | null;
+  /**
+   * Model that owns effort embedded in an authored model selection. Omitted for independent reasoning-effort overrides and legacy events.
+   */
+  reasoningEffortModel?: string;
   reasoningSummary?: ReasoningSummary;
   source?: ModelChangeSource;
   verbosity?: Verbosity;
@@ -5854,6 +5979,10 @@ export interface AssistantMessageReasoningBlocks {
    */
   blocks?: JsonValue[];
   /**
+   * Anthropic Messages assistant block ordering preserved when the legacy reasoning-only representation cannot reproduce it exactly. Thinking and text blocks remain verbatim; tool-use entries retain identity and a payload fingerprint when later signed reasoning depends on them, and are hydrated from the message's tool requests during replay.
+   */
+  orderedBlocks?: JsonValue[];
+  /**
    * Model provider that produced these reasoning blocks.
    */
   provider: string;
@@ -6158,6 +6287,10 @@ export interface AssistantUsageData {
    */
   availableToolCount?: number;
   /**
+   * Where the bring-your-own-key model runs and who manages it: "local_managed" (on the device, managed by Copilot), "local_user" (on the device, managed by the user), or "remote_user" (off the device, managed by the user). Absent for Copilot-served models.
+   */
+  byokKind?: string;
+  /**
    * Whether the provider reported prompt-cache usage details for this call
    *
    * @internal
@@ -6248,6 +6381,10 @@ export interface AssistantUsageData {
    * Model identifier used for this API call
    */
   model: string;
+  /**
+   * Fixed-set provider family serving the bring-your-own-key model (for example "openai", "anthropic", "azure_openai", "ollama", "llama_cpp", or "other"). Never the caller-supplied provider name. Absent for Copilot-served models.
+   */
+  modelProvider?: string;
   /**
    * Number of tool calls returned by the model
    *
@@ -6489,6 +6626,10 @@ export interface ModelCallFailureData {
   apiEndpoint?: AssistantUsageApiEndpoint;
   badRequestKind?: ModelCallFailureBadRequestKind;
   /**
+   * Where the bring-your-own-key model for the failed call runs and who manages it: "local_managed" (on the device, managed by Copilot), "local_user" (on the device, managed by the user), or "remote_user" (off the device, managed by the user). Absent for Copilot-served models.
+   */
+  byokKind?: string;
+  /**
    * Duration of the failed API call in milliseconds
    */
   durationMs?: number;
@@ -6539,6 +6680,10 @@ export interface ModelCallFailureData {
    * Model identifier used for the failed API call
    */
   model?: string;
+  /**
+   * Fixed-set provider family serving the bring-your-own-key model for the failed call (for example "openai", "anthropic", "azure_openai", "ollama", "llama_cpp", or "other"). Never the caller-supplied provider name. Absent for Copilot-served models.
+   */
+  modelProvider?: string;
   /**
    * Parent task tool call ID when this failed model call belongs to a sub-agent
    */
@@ -6894,7 +7039,8 @@ export interface ToolExecutionStartToolDescriptionMetaUI {
   visibility?: ToolExecutionStartToolDescriptionMetaUIVisibility[];
 }
 /**
- * Session event "tool.execution_partial_result". Streaming tool execution output for incremental result display
+ * @deprecated
+ * Session event "tool.execution_partial_result". Deprecated merged replacement snapshot of shell output. Use tool.shell_output for append-only, stream-tagged output instead.
  */
 export interface ToolExecutionPartialResultEvent {
   /**
@@ -6924,15 +7070,64 @@ export interface ToolExecutionPartialResultEvent {
   type: "tool.execution_partial_result";
 }
 /**
- * Streaming tool execution output for incremental result display
+ * @deprecated
+ * Deprecated merged replacement snapshot of shell output. Use tool.shell_output for append-only, stream-tagged output instead.
  */
 export interface ToolExecutionPartialData {
   /**
-   * Incremental output chunk from the running tool
+   * Merged replacement snapshot from the running shell, not an append-only chunk
    */
   partialOutput: string;
   /**
    * Tool call ID this partial result belongs to
+   */
+  toolCallId: string;
+}
+/**
+ * Session event "tool.shell_output". Live, append-only shell output. Not persisted or replayed to late subscribers. Text is decoded and redacted per chunk; chunks need not contain complete lines.
+ */
+export interface ToolShellOutputEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: ToolShellOutputData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
+  ephemeral: true;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "tool.shell_output".
+   */
+  type: "tool.shell_output";
+}
+/**
+ * Live, append-only shell output. Not persisted or replayed to late subscribers. Text is decoded and redacted per chunk; chunks need not contain complete lines.
+ */
+export interface ToolShellOutputData {
+  /**
+   * Zero-based publication sequence across all output streams for this tool call. Not a byte offset or an OS write-order guarantee.
+   */
+  sequence: number;
+  stream?: ToolShellOutputStream;
+  /**
+   * New output to append, without synthetic shell-result markers or stream-switch separators
+   */
+  text: string;
+  /**
+   * Tool call ID that owns this shell output
    */
   toolCallId: string;
 }
@@ -7021,6 +7216,12 @@ export interface ToolExecutionCompleteEvent {
 export interface ToolExecutionCompleteData {
   error?: ToolExecutionCompleteError;
   /**
+   * Experimental. File mutations actually committed by a built-in file editing tool, in execution order. Present on successful edits and on partial failures when earlier mutations were committed. Paths are absolute in the session filesystem namespace.
+   *
+   * @experimental
+   */
+  fileEdits?: ToolExecutionCompleteFileEdit[];
+  /**
    * Experimental HydraFusion attribution for this tool completion.
    *
    * @experimental
@@ -7097,6 +7298,17 @@ export interface ToolExecutionCompleteError {
    */
   message: string;
   remediation?: RemediationAction;
+}
+/**
+ * A file mutation that was actually committed by a built-in file editing tool.
+ */
+/** @experimental */
+export interface ToolExecutionCompleteFileEdit {
+  kind: ToolExecutionCompleteFileEditKind;
+  /**
+   * Absolute path in the session filesystem namespace.
+   */
+  path: string;
 }
 /**
  * Tool execution result on success
@@ -12157,6 +12369,51 @@ export interface ExitPlanModeCompletedData {
    */
   requestId: string;
   selectedAction?: ExitPlanModeAction;
+}
+/**
+ * Session event "human_response.recorded". Durable request-correlated evidence for a typed response to a runtime-owned question or plan review.
+ */
+export interface HumanResponseRecordedEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: HumanResponseRecordedData;
+  /**
+   * When true, the event is transient and not persisted to the session event log on disk
+   */
+  ephemeral?: boolean;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "human_response.recorded".
+   */
+  type: "human_response.recorded";
+}
+/**
+ * Durable request-correlated evidence for a typed response to a runtime-owned question or plan review.
+ */
+export interface HumanResponseRecordedData {
+  actor: HumanResponseActor;
+  /**
+   * Request ID of the runtime-owned question or plan review.
+   */
+  requestId: string;
+  response: HumanResponseRecordedResponse;
+  /**
+   * Tool call ID that opened the request, when present.
+   */
+  toolCallId?: string;
 }
 /**
  * Session event "session.tools_updated". Payload of `session.tools_updated` identifying the model whose resolved tools were updated.

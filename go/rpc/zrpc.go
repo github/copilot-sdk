@@ -3630,6 +3630,10 @@ type CurrentModel struct {
 	// Latest unclaimed Auto preference waiting for a future user turn. Null means the pending
 	// request is returning to provider-default routing.
 	PendingAutoTier *AutoTier `json:"pendingAutoTier,omitempty"`
+	// Captured base model to restore when leaving plan mode. Omitted outside plan mode or when
+	// no plan override has captured a base model. Persistent agent model requirements apply to
+	// this model rather than the temporary plan model.
+	PlanBaseModelID *string `json:"planBaseModelId,omitempty"`
 	// Reasoning effort level currently applied to the active model, when one is set. Reads
 	// `Session.getReasoningEffort()` synchronously after `getSelectedModel()` resolves so the
 	// two values are reported as a snapshot.
@@ -3654,6 +3658,33 @@ type CurrentToolMetadata struct {
 	Name string `json:"name"`
 	// Optional MCP/config namespaced tool name
 	NamespacedName *string `json:"namespacedName,omitempty"`
+}
+
+// Result of one customization reload component.
+// Experimental: CustomizationReloadOutcome is part of an experimental API and may change or
+// be removed.
+type CustomizationReloadOutcome struct {
+	// Reason for a skipped component or description of a failure, when available
+	Detail *string `json:"detail,omitempty"`
+	// Whether the component reloaded, was skipped, or failed
+	Status CustomizationReloadStatus `json:"status"`
+	// Component whose reload was attempted or skipped
+	Subsystem CustomizationReloadSubsystem `json:"subsystem"`
+}
+
+// Results of reloading discovered session customizations. Inspect outcomes for reloaded,
+// skipped, or failed subsystems; a rejection may follow partial mutation. Changes to the
+// model-facing prompt and tools apply on the next turn.
+// Experimental: CustomizationsReloadResult is part of an experimental API and may change or
+// be removed.
+type CustomizationsReloadResult struct {
+	// Errors from any component that could not be refreshed
+	Errors []string `json:"errors"`
+	// Outcome of each component in reload order; a skipped component was not configured or
+	// loaded
+	Outcomes []CustomizationReloadOutcome `json:"outcomes"`
+	// Warnings from skill discovery
+	Warnings []string `json:"warnings"`
 }
 
 // A file included in the session debug bundle.
@@ -3997,6 +4028,44 @@ type DiscoveredMCPServer struct {
 	Type *DiscoveredMCPServerType `json:"type,omitempty"`
 }
 
+// A model offered for agent conversations. Missing capability metadata does not disqualify
+// a candidate. Models known to be incompatible, such as embedding-only models, are excluded
+// by the adapter.
+// Experimental: DiscoveredModel is part of an experimental API and may change or be removed.
+type DiscoveredModel struct {
+	// Provider-reported model capabilities. Omitted capability fields are unknown; explicit
+	// false values are preserved.
+	Capabilities ModelCapabilities `json:"capabilities"`
+	// Provider-reported model artifact details.
+	Details ModelArtifactDetails `json:"details"`
+	// Provider-reported artifact digest.
+	Digest *string `json:"digest,omitempty"`
+	// Provider-native model identifier.
+	ID string `json:"id"`
+	// Provider-reported last-modified timestamp.
+	ModifiedAt *time.Time `json:"modifiedAt,omitempty"`
+	// Provider-reported display name.
+	Name *string `json:"name,omitempty"`
+	// Attribution for the adapter that produced this model row.
+	Provenance ModelProviderProvenance `json:"provenance"`
+	// Provider-reported artifact size in bytes.
+	SizeBytes *int64 `json:"sizeBytes,omitempty"`
+	// Non-fatal warnings encountered while enriching this model.
+	Warnings []ModelProviderWarning `json:"warnings"`
+}
+
+// Models offered for agent conversations by one provider instance. Adapters exclude
+// known-incompatible models, but retain candidates with unknown capabilities. Listing does
+// not guarantee compatibility.
+// Experimental: DiscoveredModelList is part of an experimental API and may change or be
+// removed.
+type DiscoveredModelList struct {
+	// Provider-native models in provider order.
+	Models []DiscoveredModel `json:"models"`
+	// Typed operation outcome.
+	Outcome ModelProviderOperationOutcome `json:"outcome"`
+}
+
 // Slash-prefixed command string to enqueue for FIFO processing.
 // Experimental: EnqueueCommandParams is part of an experimental API and may change or be
 // removed.
@@ -4038,66 +4107,6 @@ type UnsupportedEnqueueCommandResult struct {
 func (UnsupportedEnqueueCommandResult) enqueueCommandResult() {}
 func (UnsupportedEnqueueCommandResult) Queued() bool {
 	return false
-}
-
-// OneAuth token request supplied by a trusted host application.
-// Experimental: EntraTokenAcquireRequest is part of an experimental API and may change or
-// be removed.
-type EntraTokenAcquireRequest struct {
-	// Previously rejected token that OneAuth must bypass during renewal.
-	AccessTokenToRenew *string `json:"accessTokenToRenew,omitempty"`
-	// Public client application id.
-	ClientID string `json:"clientId"`
-	// Whether the broker may show interaction.
-	Interaction EntraTokenInteraction `json:"interaction"`
-	// Broker redirect URI registered for the client. Required: the OneAuth broker validates a
-	// non-empty, registered redirect URI for the public client (MSAL broker registration), so
-	// this is not a browser-flow vestige and cannot be omitted.
-	RedirectURI string `json:"redirectUri"`
-	// Exact delegated scopes to request.
-	Scopes []string `json:"scopes"`
-	// Tenant id or tenant selector, such as common or organizations.
-	TenantID string `json:"tenantId"`
-}
-
-// Result of a OneAuth token acquisition.
-// Experimental: EntraTokenAcquireResult is part of an experimental API and may change or be
-// removed.
-type EntraTokenAcquireResult interface {
-	entraTokenAcquireResult()
-	Status() EntraTokenAcquireResultStatus
-}
-
-type RawEntraTokenAcquireResultData struct {
-	Discriminator EntraTokenAcquireResultStatus
-	Raw           json.RawMessage
-}
-
-func (RawEntraTokenAcquireResultData) entraTokenAcquireResult() {}
-func (r RawEntraTokenAcquireResultData) Status() EntraTokenAcquireResultStatus {
-	return r.Discriminator
-}
-
-type EntraTokenAcquireResultInteractionRequired struct {
-}
-
-func (EntraTokenAcquireResultInteractionRequired) entraTokenAcquireResult() {}
-func (EntraTokenAcquireResultInteractionRequired) Status() EntraTokenAcquireResultStatus {
-	return EntraTokenAcquireResultStatusInteractionRequired
-}
-
-type EntraTokenAcquireResultOk struct {
-	// Opaque access token.
-	AccessToken string `json:"accessToken"`
-	// Opaque OneAuth account id, when supplied by the broker.
-	AccountID *string `json:"accountId,omitempty"`
-	// Expiry as milliseconds since Unix epoch, when supplied by OneAuth.
-	ExpiresOnTimestamp *float64 `json:"expiresOnTimestamp,omitempty"`
-}
-
-func (EntraTokenAcquireResultOk) entraTokenAcquireResult() {}
-func (EntraTokenAcquireResultOk) Status() EntraTokenAcquireResultStatus {
-	return EntraTokenAcquireResultStatusOk
 }
 
 // Hosting capabilities and session capacity advertised by an environment.
@@ -9576,6 +9585,26 @@ type ModelApplyStartupOverlayRequest struct {
 	ServerManagedModel *string `json:"serverManagedModel,omitempty"`
 }
 
+// Provider-reported model artifact metadata.
+// Experimental: ModelArtifactDetails is part of an experimental API and may change or be
+// removed.
+type ModelArtifactDetails struct {
+	// Provider-reported model architecture.
+	Architecture *string `json:"architecture,omitempty"`
+	// Provider-reported model families.
+	Families []string `json:"families,omitzero"`
+	// Primary model family.
+	Family *string `json:"family,omitempty"`
+	// Artifact format, such as `gguf`.
+	Format *string `json:"format,omitempty"`
+	// Provider-reported parameter count label.
+	ParameterSize *string `json:"parameterSize,omitempty"`
+	// Provider-reported quantization label.
+	Quantization *string `json:"quantization,omitempty"`
+	// Provider-reported tokenizer.
+	Tokenizer *string `json:"tokenizer,omitempty"`
+}
+
 // Billing information
 // Experimental: ModelBilling is part of an experimental API and may change or be removed.
 type ModelBilling struct {
@@ -9771,6 +9800,9 @@ type ModelCapabilitiesSupports struct {
 	AdaptiveThinking *AdaptiveThinkingSupport `json:"adaptive_thinking,omitempty"`
 	// Whether this model supports reasoning effort configuration
 	ReasoningEffort *bool `json:"reasoningEffort,omitempty"`
+	// Whether the model supports provider-native thinking. Independent of configurable
+	// reasoning effort; omission means unknown.
+	Thinking *bool `json:"thinking,omitempty"`
 	// Whether this model supports canonical tool calling
 	ToolCalls *bool `json:"toolCalls,omitempty"`
 	// Whether this model supports vision/image input
@@ -9834,6 +9866,106 @@ type ModelPolicy struct {
 	Terms *string `json:"terms,omitempty"`
 }
 
+// Normalized model-provider adapter definitions available to the session, not discovered
+// instances.
+// Experimental: ModelProviderAdapterCatalog is part of an experimental API and may change
+// or be removed.
+type ModelProviderAdapterCatalog struct {
+	// Available provider adapters ordered by adapterId.
+	Providers []ModelProviderAdapterDescriptor `json:"providers"`
+}
+
+// A normalized model-provider adapter in the session's effective catalog.
+// Experimental: ModelProviderAdapterDescriptor is part of an experimental API and may
+// change or be removed.
+type ModelProviderAdapterDescriptor struct {
+	// Stable opaque identity for routing to this adapter. Unique in the effective catalog,
+	// independent of live registration generations.
+	AdapterID string `json:"adapterId"`
+	// Adapter-declared policy for passive and automatic discovery.
+	AutomaticDiscovery ModelProviderAutomaticDiscoveryPolicy `json:"automaticDiscovery"`
+	// Human-readable provider name.
+	DisplayName string `json:"displayName"`
+	// Operations supported by this provider adapter.
+	Operations []ModelProviderAdapterOperationDescriptor `json:"operations"`
+	// Attribution for the adapter itself.
+	Provenance ModelProviderAttribution `json:"provenance"`
+	// Descriptive provider family, such as `ollama`. Different adapters may have the same
+	// family; use adapterId for routing.
+	ProviderKind string `json:"providerKind"`
+}
+
+// An operation supported by a model-provider adapter.
+// Experimental: ModelProviderAdapterOperationDescriptor is part of an experimental API and
+// may change or be removed.
+type ModelProviderAdapterOperationDescriptor struct {
+	// Optional self-contained JSON Schema Draft 7 for non-null discovery input. Only supported
+	// on discover. No external references are resolved. Omitted or null input selects defaults
+	// when requiresInput is false. Without a schema, the adapter validates supplied input.
+	InputSchema any `json:"inputSchema,omitempty"`
+	// Supported operation name: `discover`, `getStatus`, or `models.list`. Unknown names and
+	// duplicate declarations are rejected.
+	Name string `json:"name"`
+}
+
+// Contributor attribution, independent of routing identity and authorization.
+// Experimental: ModelProviderAttribution is part of an experimental API and may change or
+// be removed.
+type ModelProviderAttribution struct {
+	// Human-readable contributor name, not the adapter display name.
+	OwnerDisplayName *string `json:"ownerDisplayName,omitempty"`
+	// Stable contributor identifier. Required and nonblank for extension and custom sources;
+	// optional for built-in and configured sources. Does not grant authority.
+	OwnerID *string `json:"ownerId,omitempty"`
+	// Kind of component that supplied the adapter. Attribution does not confer authority.
+	Source ModelProviderProvenanceSource `json:"source"`
+}
+
+// Adapter-declared policy that tells clients whether discovery may run automatically.
+// Experimental: ModelProviderAutomaticDiscoveryPolicy is part of an experimental API and
+// may change or be removed.
+type ModelProviderAutomaticDiscoveryPolicy struct {
+	// Whether automatic discovery is allowed, limited to configured providers, or explicit-only.
+	Mode ModelProviderAutomaticDiscoveryMode `json:"mode"`
+	// Maximum network scope used by this adapter during discovery.
+	NetworkScope ModelProviderDiscoveryNetworkScope `json:"networkScope"`
+	// True when discovery requires non-null caller input. Omission or null is rejected before
+	// adapter execution. When false, omitted or null input selects adapter defaults without
+	// schema validation.
+	RequiresInput bool `json:"requiresInput"`
+	// True when the adapter must be enabled by a trusted owner, such as a trusted extension,
+	// before automatic discovery may run.
+	RequiresTrust bool `json:"requiresTrust"`
+}
+
+// Provider configuration prepared from a discovered model. Preparing a plan changes
+// nothing: it neither registers the model with the session nor writes durable
+// configuration. To apply it, pass `provider` and `model` to `session.provider.add`,
+// omitting whichever the dispositions report as already configured.
+// Experimental: ModelProviderConfigurationPlan is part of an experimental API and may
+// change or be removed.
+type ModelProviderConfigurationPlan struct {
+	// Model definition prepared from the discovered model. Capability fields the provider did
+	// not report stay omitted rather than being asserted false.
+	Model ProviderModelConfig `json:"model"`
+	// Whether `model` still needs to be registered. When `alreadyConfigured`, `selectionId` is
+	// already registered and the caller can select it without adding anything.
+	ModelDisposition ModelProviderConfigurationDisposition `json:"modelDisposition"`
+	// Provider connection prepared from the instance's inference metadata. Carries no
+	// credential; supply one if the endpoint requires it.
+	Provider NamedProviderConfig `json:"provider"`
+	// Whether `provider` still needs to be registered. When `alreadyConfigured`, a provider
+	// with the same endpoint is already registered and `provider` restates it under its
+	// existing name; adding it again is rejected as a duplicate.
+	ProviderDisposition ModelProviderConfigurationDisposition `json:"providerDisposition"`
+	// Provider-qualified selection id (`provider/id`) to pass to `switchTo` once the plan is
+	// applied.
+	SelectionID string `json:"selectionId"`
+	// Non-fatal warnings carried over from the discovered model, such as capabilities the
+	// provider did not report.
+	Warnings []ModelProviderWarning `json:"warnings"`
+}
+
 // One model provider available to the session — the model analog of the account
 // `ProviderDescriptor`. Opaque id/label/kind plus a stable ordering; central code never
 // branches on kind.
@@ -9850,6 +9982,126 @@ type ModelProviderDescriptor struct {
 	Ordering int64 `json:"ordering"`
 }
 
+// Provider discovery parameters.
+// Experimental: ModelProviderDiscoverRequest is part of an experimental API and may change
+// or be removed.
+type ModelProviderDiscoverRequest struct {
+	// Opaque adapter identity returned by `session.providers.getCatalog`.
+	AdapterID string `json:"adapterId"`
+	// Provider-specific JSON input. Omission or null selects adapter defaults unless
+	// requiresInput is true. Non-null input is validated against the advertised Draft 7 schema
+	// when present; otherwise validation belongs to the adapter.
+	Input any `json:"input,omitempty"`
+}
+
+// Provider instances found by a discovery operation.
+// Experimental: ModelProviderDiscoverResult is part of an experimental API and may change
+// or be removed.
+type ModelProviderDiscoverResult struct {
+	// Discovered provider instances. Empty when passive default discovery finds no reachable
+	// provider.
+	Instances []ModelProviderInstance `json:"instances"`
+	// Typed operation outcome. Passive discovery can return `absent` with an empty instance
+	// list.
+	Outcome ModelProviderOperationOutcome `json:"outcome"`
+}
+
+// Provider status request parameters.
+// Experimental: ModelProviderGetStatusRequest is part of an experimental API and may change
+// or be removed.
+type ModelProviderGetStatusRequest struct {
+	// Provider instance reference returned by discovery.
+	Instance ModelProviderInstanceReference `json:"instance"`
+}
+
+// A normalized model-provider instance discovered by the runtime.
+// Experimental: ModelProviderInstance is part of an experimental API and may change or be
+// removed.
+type ModelProviderInstance struct {
+	// Human-readable instance name.
+	DisplayName string `json:"displayName"`
+	// Inference API endpoint when the provider exposes one separately from its management
+	// endpoint.
+	InferenceEndpoint *string `json:"inferenceEndpoint,omitempty"`
+	// Transport to use for inference against this instance.
+	InferenceTransport *ProviderEndpointTransport `json:"inferenceTransport,omitempty"`
+	// Provider family to use for inference against this instance.
+	InferenceType *ProviderEndpointType `json:"inferenceType,omitempty"`
+	// Wire API to use for inference against this instance, when required by the provider family.
+	InferenceWireAPI *ProviderEndpointWireAPI `json:"inferenceWireApi,omitempty"`
+	// Attribution for the adapter that produced this instance.
+	Provenance ModelProviderProvenance `json:"provenance"`
+	// Self-contained reference for subsequent provider operations.
+	Reference ModelProviderInstanceReference `json:"reference"`
+}
+
+// Serializable reference to a discovered provider instance.
+// Experimental: ModelProviderInstanceReference is part of an experimental API and may
+// change or be removed.
+type ModelProviderInstanceReference struct {
+	// Stable opaque identity of the adapter that owns this reference. Must be present in the
+	// target session's effective catalog.
+	AdapterID string `json:"adapterId"`
+	// Stable instance identifier derived by the provider adapter, such as
+	// `ollama:{normalizedEndpoint}`.
+	ID string `json:"id"`
+	// Absolute provider management URI. The adapter validates normalization, supported schemes,
+	// and permission to access it against its bound configuration; a reference does not grant
+	// authority.
+	ManagementEndpoint string `json:"managementEndpoint"`
+	// Descriptive provider family. Must match the selected adapter; not a routing key.
+	ProviderKind string `json:"providerKind"`
+}
+
+// Provider model inventory request parameters.
+// Experimental: ModelProviderModelsListRequest is part of an experimental API and may
+// change or be removed.
+type ModelProviderModelsListRequest struct {
+	// Provider instance reference returned by discovery.
+	Instance ModelProviderInstanceReference `json:"instance"`
+}
+
+// Typed provider-operation outcome. Use the code for control flow and the optional message
+// for display.
+// Experimental: ModelProviderOperationOutcome is part of an experimental API and may change
+// or be removed.
+type ModelProviderOperationOutcome struct {
+	// Machine-readable operation outcome.
+	Code ModelProviderOperationOutcomeCode `json:"code"`
+	// Human-readable detail for non-success outcomes.
+	Message *string `json:"message,omitempty"`
+}
+
+// A discovered instance and one of its models to translate into provider configuration.
+// Pass back the instance and model as returned by `session.providers.discover` and
+// `session.providers.models.list`.
+// Experimental: ModelProviderPrepareConfigurationRequest is part of an experimental API and
+// may change or be removed.
+type ModelProviderPrepareConfigurationRequest struct {
+	// The discovered instance that serves the model.
+	Instance ModelProviderInstance `json:"instance"`
+	// The discovered model to configure.
+	Model DiscoveredModel `json:"model"`
+}
+
+// Attribution for the adapter that produced a provider row.
+// Experimental: ModelProviderProvenance is part of an experimental API and may change or be
+// removed.
+type ModelProviderProvenance struct {
+	// Stable opaque adapter identity from the effective catalog. Treat this as a whole
+	// identifier, not a parseable owner or kind.
+	AdapterID string `json:"adapterId"`
+	// Human-readable contributor name, not the adapter display name.
+	OwnerDisplayName *string `json:"ownerDisplayName,omitempty"`
+	// Stable contributor identifier when the adapter has an owner outside the runtime.
+	// Independent of the contribution mechanism and not a routing key.
+	OwnerID *string `json:"ownerId,omitempty"`
+	// Descriptive provider family that produced this row; not a routing key.
+	ProviderKind string `json:"providerKind"`
+	// Kind of component that supplied the adapter.
+	Source ModelProviderProvenanceSource `json:"source"`
+}
+
 // A neutral reference to the model provider that produced a model: an opaque id, a
 // human-readable label, and the provider kind. Carried on each enumerated Model so
 // consumers can group by provider without reaching into a provider-shaped internal type.
@@ -9864,6 +10116,30 @@ type ModelProviderRef struct {
 	// Human-readable provider label, owned by the runtime so every consumer renders identical
 	// text.
 	Label string `json:"label"`
+}
+
+// Current health information for a provider instance.
+// Experimental: ModelProviderStatus is part of an experimental API and may change or be
+// removed.
+type ModelProviderStatus struct {
+	// Normalized provider instance.
+	Instance ModelProviderInstance `json:"instance"`
+	// Typed operation outcome.
+	Outcome ModelProviderOperationOutcome `json:"outcome"`
+	// Open provider status value, such as `healthy`, `unreachable`, or `notInstalled`.
+	Status string `json:"status"`
+	// Provider-reported version.
+	Version *string `json:"version,omitempty"`
+}
+
+// A non-fatal provider observation warning.
+// Experimental: ModelProviderWarning is part of an experimental API and may change or be
+// removed.
+type ModelProviderWarning struct {
+	// Machine-readable warning code.
+	Code string `json:"code"`
+	// Human-readable warning message.
+	Message string `json:"message"`
 }
 
 // Host-supplied exact model selection IDs to allow for this running session. CAPI IDs are
@@ -10143,6 +10419,9 @@ type NamedProviderConfig struct {
 	HasBearerTokenProvider *bool `json:"hasBearerTokenProvider,omitempty"`
 	// Additional HTTP headers included with provider requests.
 	Headers map[string]string `json:"headers,omitzero"`
+	// The product serving the provider's models, reported in telemetry as `model_provider`.
+	// Only affects telemetry.
+	ModelProvider *ProviderConfigModelProvider `json:"modelProvider,omitempty"`
 	// Unique provider name used to qualify model selection IDs.
 	Name string `json:"name"`
 	// Transport used to communicate with the provider.
@@ -12104,6 +12383,10 @@ type ProviderConfig struct {
 	// Well-known model ID used for capability lookup. When set, agent behavior config and token
 	// limits are inferred from this model.
 	ModelID *string `json:"modelId,omitempty"`
+	// The product serving the model, reported in telemetry as `model_provider`. Set it when
+	// `type` alone cannot identify the product, such as Ollama or LM Studio behind an
+	// OpenAI-compatible endpoint. Only affects telemetry.
+	ModelProvider *ProviderConfigModelProvider `json:"modelProvider,omitempty"`
 	// Provider name used for model and telemetry attribution.
 	ProviderName *string `json:"providerName,omitempty"`
 	// Provider transport. Defaults to "http".
@@ -13631,6 +13914,41 @@ type SandboxMaskedEnvVar struct {
 	InjectHosts []string `json:"injectHosts"`
 }
 
+// Result of creating the persistent certificate authority of the sandbox credential proxy.
+// Experimental: SandboxProxyCaCreateResult is part of an experimental API and may change or
+// be removed.
+type SandboxProxyCaCreateResult struct {
+	// Absolute path of the public certificate of the certificate authority, in PEM format.
+	CertificatePath string `json:"certificatePath"`
+}
+
+// Identifies the credential hosts that the persistent certificate authority of the sandbox
+// credential proxy must cover. The runtime always adds the hosts from the saved user
+// settings.
+// Experimental: SandboxProxyCaRequest is part of an experimental API and may change or be
+// removed.
+type SandboxProxyCaRequest struct {
+	// The sandbox configuration that the host gives its sessions. The runtime reads the
+	// credential hosts from `auth` and `credentials`; it ignores `enabled` and the other fields.
+	SandboxConfig *SandboxConfig `json:"sandboxConfig,omitempty"`
+}
+
+// Status of the persistent certificate authority of the sandbox credential proxy.
+// Experimental: SandboxProxyCaStatus is part of an experimental API and may change or be
+// removed.
+type SandboxProxyCaStatus struct {
+	// Whether this process can add the certificate authority to OS trust without credentials
+	// from a different user. False where OS trust is unsupported, and on Windows when the
+	// process cannot elevate itself to write the machine trust store. When false, do not offer
+	// to set up the certificate authority.
+	CanInstall bool `json:"canInstall"`
+	// Human-readable reason for the state. On `installed` or `notInstalled`, present only when
+	// the certificate authority must be rotated, and then says why.
+	Detail *string `json:"detail,omitempty"`
+	// The state of the certificate authority.
+	State SandboxProxyCaState `json:"state"`
+}
+
 // Register an absolute-time scheduled prompt.
 // Experimental: ScheduleAddAtRequest is part of an experimental API and may change or be
 // removed.
@@ -14346,6 +14664,9 @@ type SessionFSError struct {
 	Code SessionFSErrorCode `json:"code"`
 	// Free-form detail about the error, for logging/diagnostics
 	Message *string `json:"message,omitempty"`
+	// For failed writeFile requests only: true if the provider changed the target before
+	// failing. Omit when unknown or unchanged.
+	WriteChanged *bool `json:"writeChanged,omitempty"`
 }
 
 // Path to test for existence in the client-provided session filesystem.
@@ -14434,6 +14755,26 @@ type SessionFSReaddirWithTypesResult struct {
 	Error *SessionFSError `json:"error,omitempty"`
 }
 
+// Path of the binary file to read from the client-provided session filesystem.
+// Experimental: SessionFSReadFileBytesRequest is part of an experimental API and may change
+// or be removed.
+type SessionFSReadFileBytesRequest struct {
+	// Path using SessionFs conventions
+	Path string `json:"path"`
+	// Target session identifier
+	SessionID string `json:"sessionId"`
+}
+
+// File bytes as standard base64, or a filesystem error if the read failed.
+// Experimental: SessionFSReadFileBytesResult is part of an experimental API and may change
+// or be removed.
+type SessionFSReadFileBytesResult struct {
+	// Exact file bytes encoded as standard base64
+	Content string `json:"content"`
+	// Describes a filesystem error.
+	Error *SessionFSError `json:"error,omitempty"`
+}
+
 // Path of the file to read from the client-provided session filesystem.
 // Experimental: SessionFSReadFileRequest is part of an experimental API and may change or
 // be removed.
@@ -14486,6 +14827,9 @@ type SessionFSRmRequest struct {
 // Experimental: SessionFSSetProviderCapabilities is part of an experimental API and may
 // change or be removed.
 type SessionFSSetProviderCapabilities struct {
+	// Whether the provider supports binary reads and writes through sessionFs.readFileBytes and
+	// sessionFs.writeFileBytes
+	Binary *bool `json:"binary,omitempty"`
 	// Whether the provider supports SQLite query/exists operations
 	Sqlite *bool `json:"sqlite,omitempty"`
 }
@@ -14640,6 +14984,21 @@ type SessionFSStatResult struct {
 	Size int64 `json:"size"`
 }
 
+// File path, standard-base64-encoded bytes to write, and optional mode for the
+// client-provided session filesystem.
+// Experimental: SessionFSWriteFileBytesRequest is part of an experimental API and may
+// change or be removed.
+type SessionFSWriteFileBytesRequest struct {
+	// Exact file bytes encoded as standard base64
+	Content string `json:"content"`
+	// Optional POSIX-style mode for newly created files
+	Mode *int64 `json:"mode,omitempty"`
+	// Path using SessionFs conventions
+	Path string `json:"path"`
+	// Target session identifier
+	SessionID string `json:"sessionId"`
+}
+
 // File path, content to write, and optional mode for the client-provided session filesystem.
 // Experimental: SessionFSWriteFileRequest is part of an experimental API and may change or
 // be removed.
@@ -14778,11 +15137,6 @@ type SessionInstalledPluginSourceURL struct {
 	Source SessionInstalledPluginSourceURLSource `json:"source"`
 	// URL of the plugin source.
 	URL string `json:"url"`
-}
-
-// Experimental: SessionInstructionsReloadResult is part of an experimental API and may
-// change or be removed.
-type SessionInstructionsReloadResult struct {
 }
 
 // Baseline data provenance for a prediction.
@@ -22170,6 +22524,44 @@ const (
 	CopilotAPITokenAuthInfoHostHTTPSGitHubCom CopilotAPITokenAuthInfoHost = "https://github.com"
 )
 
+// Result of reloading a customization component.
+// Experimental: CustomizationReloadStatus is part of an experimental API and may change or
+// be removed.
+type CustomizationReloadStatus string
+
+const (
+	// The component could not be refreshed; other components may still reload.
+	CustomizationReloadStatusFailed CustomizationReloadStatus = "failed"
+	// The component was refreshed successfully.
+	CustomizationReloadStatusReloaded CustomizationReloadStatus = "reloaded"
+	// The component was not configured, loaded, or eligible for refresh.
+	CustomizationReloadStatusSkipped CustomizationReloadStatus = "skipped"
+)
+
+// Component of session customization discovery.
+// Experimental: CustomizationReloadSubsystem is part of an experimental API and may change
+// or be removed.
+type CustomizationReloadSubsystem string
+
+const (
+	// Discovered custom agents.
+	CustomizationReloadSubsystemAgents CustomizationReloadSubsystem = "agents"
+	// Configured session extensions.
+	CustomizationReloadSubsystemExtensions CustomizationReloadSubsystem = "extensions"
+	// Configured session and plugin hooks.
+	CustomizationReloadSubsystemHooks CustomizationReloadSubsystem = "hooks"
+	// Session instructions and their cached dynamic context.
+	CustomizationReloadSubsystemInstructions CustomizationReloadSubsystem = "instructions"
+	// Loaded MCP server configuration.
+	CustomizationReloadSubsystemMCP CustomizationReloadSubsystem = "mcp"
+	// Discovered plugin configuration.
+	CustomizationReloadSubsystemPlugins CustomizationReloadSubsystem = "plugins"
+	// Repository metadata and working-directory context.
+	CustomizationReloadSubsystemRepositoryContext CustomizationReloadSubsystem = "repositoryContext"
+	// Discovered skills.
+	CustomizationReloadSubsystemSkills CustomizationReloadSubsystem = "skills"
+)
+
 // Kind discriminator for DebugCollectLogsDestination.
 type DebugCollectLogsDestinationKind string
 
@@ -22342,31 +22734,6 @@ const (
 	DiscoveredMCPServerTypeSSE DiscoveredMCPServerType = "sse"
 	// Server communicates over stdio with a local child process.
 	DiscoveredMCPServerTypeStdio DiscoveredMCPServerType = "stdio"
-)
-
-// Status discriminator for EntraTokenAcquireResult.
-// Experimental: EntraTokenAcquireResultStatus is part of an experimental API and may change
-// or be removed.
-type EntraTokenAcquireResultStatus string
-
-const (
-	EntraTokenAcquireResultStatusInteractionRequired EntraTokenAcquireResultStatus = "interaction-required"
-	EntraTokenAcquireResultStatusOk                  EntraTokenAcquireResultStatus = "ok"
-)
-
-// How far OneAuth may go to acquire the requested token.
-// Experimental: EntraTokenInteraction is part of an experimental API and may change or be
-// removed.
-type EntraTokenInteraction string
-
-const (
-	// Always prompt interactively, bypassing any cached or silently-refreshable token.
-	EntraTokenInteractionForceInteractive EntraTokenInteraction = "force-interactive"
-	// Allow interactive acquisition, prompting the user only when a cached or silent token is
-	// unavailable.
-	EntraTokenInteractionInteractive EntraTokenInteraction = "interactive"
-	// Acquire the token without any user interaction, failing if interaction would be required.
-	EntraTokenInteractionSilent EntraTokenInteraction = "silent"
 )
 
 // GitHub Mission Control compute kind.
@@ -23815,6 +24182,53 @@ const (
 	ModelPolicyStateUnconfigured ModelPolicyState = "unconfigured"
 )
 
+// When the runtime may run an adapter without an explicit user action.
+// Experimental: ModelProviderAutomaticDiscoveryMode is part of an experimental API and may
+// change or be removed.
+type ModelProviderAutomaticDiscoveryMode string
+
+const (
+	// The adapter declares that automatic discovery is safe when the other policy fields are
+	// satisfied.
+	ModelProviderAutomaticDiscoveryModeAutomatic ModelProviderAutomaticDiscoveryMode = "automatic"
+	// The adapter may refresh instances the user already configured, but must not scan for new
+	// instances automatically.
+	ModelProviderAutomaticDiscoveryModeConfiguredOnly ModelProviderAutomaticDiscoveryMode = "configuredOnly"
+	// The adapter must run only after an explicit user action.
+	ModelProviderAutomaticDiscoveryModeExplicit ModelProviderAutomaticDiscoveryMode = "explicit"
+)
+
+// Whether a planned configuration entry is new or already present in the session registry.
+// Experimental: ModelProviderConfigurationDisposition is part of an experimental API and
+// may change or be removed.
+type ModelProviderConfigurationDisposition string
+
+const (
+	// An equivalent entry is already registered; the caller should reuse it rather than adding
+	// a duplicate.
+	ModelProviderConfigurationDispositionAlreadyConfigured ModelProviderConfigurationDisposition = "alreadyConfigured"
+	// No matching entry is registered; the caller should add the entry.
+	ModelProviderConfigurationDispositionCreate ModelProviderConfigurationDisposition = "create"
+)
+
+// Network reach an adapter may use during discovery.
+// Experimental: ModelProviderDiscoveryNetworkScope is part of an experimental API and may
+// change or be removed.
+type ModelProviderDiscoveryNetworkScope string
+
+const (
+	// Discovery contacts only endpoints the user already configured.
+	ModelProviderDiscoveryNetworkScopeConfiguredEndpointOnly ModelProviderDiscoveryNetworkScope = "configuredEndpointOnly"
+	// Discovery may contact remote internet services.
+	ModelProviderDiscoveryNetworkScopeInternet ModelProviderDiscoveryNetworkScope = "internet"
+	// Discovery may scan or contact the local network.
+	ModelProviderDiscoveryNetworkScopeLocalNetwork ModelProviderDiscoveryNetworkScope = "localNetwork"
+	// Discovery is limited to loopback addresses on the local machine.
+	ModelProviderDiscoveryNetworkScopeLoopbackOnly ModelProviderDiscoveryNetworkScope = "loopbackOnly"
+	// Discovery does not contact a network service.
+	ModelProviderDiscoveryNetworkScopeNone ModelProviderDiscoveryNetworkScope = "none"
+)
+
 // The neutral kind of a model provider — the model analog of `AccountKind`. A model
 // provider is the live, entitled source a model came from; central code never branches on
 // this beyond a single dispatch.
@@ -23829,6 +24243,40 @@ const (
 	// Microsoft 365 Copilot (Loki) inference models, spawned by a resolvable Entra-derived Loki
 	// account.
 	ModelProviderKindLoki ModelProviderKind = "loki"
+)
+
+// Typed outcome for a provider operation.
+// Experimental: ModelProviderOperationOutcomeCode is part of an experimental API and may
+// change or be removed.
+type ModelProviderOperationOutcomeCode string
+
+const (
+	// The provider or instance is absent during discovery, status, or model listing. Distinct
+	// from a successful empty inventory.
+	ModelProviderOperationOutcomeCodeAbsent ModelProviderOperationOutcomeCode = "absent"
+	// The operation failed for a reason other than absence or reachability.
+	ModelProviderOperationOutcomeCodeFailed ModelProviderOperationOutcomeCode = "failed"
+	// The operation completed successfully; an empty inventory is valid.
+	ModelProviderOperationOutcomeCodeSuccess ModelProviderOperationOutcomeCode = "success"
+	// The provider is configured or expected but could not be reached.
+	ModelProviderOperationOutcomeCodeUnreachable ModelProviderOperationOutcomeCode = "unreachable"
+)
+
+// Kind of component that supplied a provider adapter or row. Attribution does not confer
+// authority.
+// Experimental: ModelProviderProvenanceSource is part of an experimental API and may change
+// or be removed.
+type ModelProviderProvenanceSource string
+
+const (
+	// Built into the runtime.
+	ModelProviderProvenanceSourceBuiltIn ModelProviderProvenanceSource = "builtIn"
+	// Derived from existing user configuration.
+	ModelProviderProvenanceSourceConfigured ModelProviderProvenanceSource = "configured"
+	// Supplied by another trusted contributor.
+	ModelProviderProvenanceSourceCustom ModelProviderProvenanceSource = "custom"
+	// Supplied by an extension.
+	ModelProviderProvenanceSourceExtension ModelProviderProvenanceSource = "extension"
 )
 
 // Whether the requested preference was already effective or was accepted for later
@@ -24347,6 +24795,28 @@ const (
 	ProtocolSystemMessageConfigModeReplace   ProtocolSystemMessageConfigMode = "replace"
 )
 
+// The product serving the model, reported in telemetry as `model_provider`.
+// Experimental: ProviderConfigModelProvider is part of an experimental API and may change
+// or be removed.
+type ProviderConfigModelProvider string
+
+const (
+	// Anthropic API.
+	ProviderConfigModelProviderAnthropic ProviderConfigModelProvider = "anthropic"
+	// Azure OpenAI Service.
+	ProviderConfigModelProviderAzureOpenai ProviderConfigModelProvider = "azure_openai"
+	// Foundry Local.
+	ProviderConfigModelProviderFoundryLocal ProviderConfigModelProvider = "foundry_local"
+	// llama.cpp server.
+	ProviderConfigModelProviderLlamaCpp ProviderConfigModelProvider = "llama_cpp"
+	// LM Studio.
+	ProviderConfigModelProviderLmStudio ProviderConfigModelProvider = "lm_studio"
+	// Ollama.
+	ProviderConfigModelProviderOllama ProviderConfigModelProvider = "ollama"
+	// OpenAI API.
+	ProviderConfigModelProviderOpenai ProviderConfigModelProvider = "openai"
+)
+
 // Provider transport. Defaults to "http".
 // Experimental: ProviderConfigTransport is part of an experimental API and may change or be
 // removed.
@@ -24594,6 +25064,23 @@ const (
 	SandboxConfigSourceUserDisabled SandboxConfigSource = "user_disabled"
 	// The user's persisted settings enabled the sandbox.
 	SandboxConfigSourceUserEnabled SandboxConfigSource = "user_enabled"
+)
+
+// State of the persistent certificate authority of the sandbox credential proxy.
+// Experimental: SandboxProxyCaState is part of an experimental API and may change or be
+// removed.
+type SandboxProxyCaState string
+
+const (
+	// The runtime could not read the certificate authority or the OS trust store.
+	SandboxProxyCaStateError SandboxProxyCaState = "error"
+	// OS trust includes the stored certificate authority.
+	SandboxProxyCaStateInstalled SandboxProxyCaState = "installed"
+	// OS trust does not include the certificate authority, or none is stored.
+	SandboxProxyCaStateNotInstalled SandboxProxyCaState = "notInstalled"
+	// This platform has no supported OS trust store. The proxy uses a per-process certificate
+	// bundle.
+	SandboxProxyCaStateUnsupported SandboxProxyCaState = "unsupported"
 )
 
 // A session-scoped sandbox transition applied while handling a slash command
@@ -27384,6 +27871,133 @@ func (a *ServerSandboxAPI) GetHostSupport(ctx context.Context) (*SandboxHostSupp
 	return &result, nil
 }
 
+// Experimental: ServerSandboxProxyCaAPI contains experimental APIs that may change or be
+// removed.
+type ServerSandboxProxyCaAPI serverAPI
+
+// Creates the persistent certificate authority of the sandbox credential proxy if none is
+// stored, without changing OS trust, and returns the path of its public certificate. Keeps
+// an existing certificate authority, even one that must be rotated. Fails where OS trust is
+// unsupported. Trust it with sandbox.proxyCa.trust: the CLI trusts only the hosts in the
+// saved user settings, so it refuses a certificate authority that also covers hosts from
+// sandboxConfig.
+//
+// RPC method: sandbox.proxyCa.create.
+//
+// Parameters: Identifies the credential hosts that the persistent certificate authority of
+// the sandbox credential proxy must cover. The runtime always adds the hosts from the saved
+// user settings.
+//
+// Returns: Result of creating the persistent certificate authority of the sandbox
+// credential proxy.
+func (a *ServerSandboxProxyCaAPI) Create(ctx context.Context, params *SandboxProxyCaRequest) (*SandboxProxyCaCreateResult, error) {
+	raw, err := a.client.Request(ctx, "sandbox.proxyCa.create", params)
+	if err != nil {
+		return nil, err
+	}
+	var result SandboxProxyCaCreateResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// GetStatus reports whether the persistent certificate authority of the sandbox credential
+// proxy exists, whether OS trust includes it, and whether it must be rotated. Changes
+// nothing.
+//
+// RPC method: sandbox.proxyCa.getStatus.
+//
+// Parameters: Identifies the credential hosts that the persistent certificate authority of
+// the sandbox credential proxy must cover. The runtime always adds the hosts from the saved
+// user settings.
+//
+// Returns: Status of the persistent certificate authority of the sandbox credential proxy.
+func (a *ServerSandboxProxyCaAPI) GetStatus(ctx context.Context, params *SandboxProxyCaRequest) (*SandboxProxyCaStatus, error) {
+	raw, err := a.client.Request(ctx, "sandbox.proxyCa.getStatus", params)
+	if err != nil {
+		return nil, err
+	}
+	var result SandboxProxyCaStatus
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Removes the persistent certificate authority of the sandbox credential proxy from OS
+// trust. Keeps the stored certificate authority. Can show an OS authentication prompt.
+// Sandboxed clients that read only OS trust then reject the proxy; clients that read the
+// per-process certificate bundle continue to work.
+//
+// RPC method: sandbox.proxyCa.remove.
+//
+// Returns: Status of the persistent certificate authority of the sandbox credential proxy.
+func (a *ServerSandboxProxyCaAPI) Remove(ctx context.Context) (*SandboxProxyCaStatus, error) {
+	raw, err := a.client.Request(ctx, "sandbox.proxyCa.remove", nil)
+	if err != nil {
+		return nil, err
+	}
+	var result SandboxProxyCaStatus
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Rotate replaces the persistent certificate authority of the sandbox credential proxy with
+// a new one for the current credential hosts. If OS trust included the old one, removes it
+// and trusts the new one, which can show an OS authentication prompt. Running sandboxed
+// tools keep the old certificate authority until they restart.
+//
+// RPC method: sandbox.proxyCa.rotate.
+//
+// Parameters: Identifies the credential hosts that the persistent certificate authority of
+// the sandbox credential proxy must cover. The runtime always adds the hosts from the saved
+// user settings.
+//
+// Returns: Status of the persistent certificate authority of the sandbox credential proxy.
+func (a *ServerSandboxProxyCaAPI) Rotate(ctx context.Context, params *SandboxProxyCaRequest) (*SandboxProxyCaStatus, error) {
+	raw, err := a.client.Request(ctx, "sandbox.proxyCa.rotate", params)
+	if err != nil {
+		return nil, err
+	}
+	var result SandboxProxyCaStatus
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Trust adds the persistent certificate authority of the sandbox credential proxy to OS
+// trust, so sandboxed clients that read only OS trust accept the proxy. Call create first.
+// Refuses a certificate authority that is not constrained to the current credential hosts.
+// Can show an OS authentication prompt.
+//
+// RPC method: sandbox.proxyCa.trust.
+//
+// Parameters: Identifies the credential hosts that the persistent certificate authority of
+// the sandbox credential proxy must cover. The runtime always adds the hosts from the saved
+// user settings.
+//
+// Returns: Status of the persistent certificate authority of the sandbox credential proxy.
+func (a *ServerSandboxProxyCaAPI) Trust(ctx context.Context, params *SandboxProxyCaRequest) (*SandboxProxyCaStatus, error) {
+	raw, err := a.client.Request(ctx, "sandbox.proxyCa.trust", params)
+	if err != nil {
+		return nil, err
+	}
+	var result SandboxProxyCaStatus
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Experimental: ProxyCa returns experimental APIs that may change or be removed.
+func (s *ServerSandboxAPI) ProxyCa() *ServerSandboxProxyCaAPI {
+	return (*ServerSandboxProxyCaAPI)(s)
+}
+
 // Experimental: ServerSecretsAPI contains experimental APIs that may change or be removed.
 type ServerSecretsAPI serverAPI
 
@@ -28478,35 +29092,6 @@ type internalServerAPI struct {
 	client *jsonrpc2.Client
 }
 
-// Experimental: InternalServerAccountsAPI contains experimental APIs that may change or be
-// removed.
-type InternalServerAccountsAPI internalServerAPI
-
-// AcquireEntraToken acquire a Microsoft Entra access token through the runtime's OneAuth
-// broker. Account-scoped because it uses the same native broker as the account stack: a
-// trusted host application mints a scoped Entra token for its own use, most notably to
-// authenticate to a remote MCP server whose authorization server is Entra ID (in place of
-// the generic browser-OAuth flow).
-//
-// RPC method: accounts.acquireEntraToken.
-//
-// Parameters: OneAuth token request supplied by a trusted host application.
-//
-// Returns: Result of a OneAuth token acquisition.
-// Internal: AcquireEntraToken is part of the SDK's internal handshake/plumbing; external
-// callers should not use it.
-func (a *InternalServerAccountsAPI) AcquireEntraToken(ctx context.Context, params *EntraTokenAcquireRequest) (EntraTokenAcquireResult, error) {
-	raw, err := a.client.Request(ctx, "accounts.acquireEntraToken", params)
-	if err != nil {
-		return nil, err
-	}
-	result, err := unmarshalEntraTokenAcquireResult(raw)
-	if err != nil {
-		return nil, err
-	}
-	return result, nil
-}
-
 // Experimental: InternalServerHostAPI contains experimental APIs that may change or be
 // removed.
 type InternalServerHostAPI internalServerAPI
@@ -28791,7 +29376,6 @@ type InternalServerRPC struct {
 	// Reuse a single struct instead of allocating one for each service on the heap.
 	common internalServerAPI
 
-	Accounts *InternalServerAccountsAPI
 	Host     *InternalServerHostAPI
 	Sessions *InternalServerSessionsAPI
 }
@@ -28828,7 +29412,6 @@ func (a *InternalServerRPC) Connect(ctx context.Context, params *ConnectRequest)
 func NewInternalServerRPC(client *jsonrpc2.Client) *InternalServerRPC {
 	r := &InternalServerRPC{}
 	r.common = internalServerAPI{client: client}
-	r.Accounts = (*InternalServerAccountsAPI)(&r.common)
 	r.Host = (*InternalServerHostAPI)(&r.common)
 	r.Sessions = (*InternalServerSessionsAPI)(&r.common)
 	return r
@@ -29788,21 +30371,24 @@ func (a *ContentExclusionAPI) CheckPaths(ctx context.Context, params *ContentExc
 // Experimental: CustomizationsAPI contains experimental APIs that may change or be removed.
 type CustomizationsAPI sessionAPI
 
-// Reloads all repository and user customizations for the active session: instructions,
-// plugins and their MCP servers and hooks, custom agents, extensions, and skills. Returns
-// diagnostics from the final skill reload.
+// Reload for local sessions, reconciles repository context and discovered instructions,
+// plugins, skills, agents, hooks, MCP servers, and extensions after files appear or change
+// under the working directory. Independent component failures are returned in outcomes and
+// errors; a rejected call can have partially applied earlier steps. Remote sessions must
+// reload on their agent host instead. The model-facing context is rebuilt on the next turn.
 //
 // RPC method: session.customizations.reload.
 //
-// Returns: Diagnostics from reloading skill definitions, with warnings and errors as
-// separate lists.
-func (a *CustomizationsAPI) Reload(ctx context.Context) (*SkillsLoadDiagnostics, error) {
+// Returns: Results of reloading discovered session customizations. Inspect outcomes for
+// reloaded, skipped, or failed subsystems; a rejection may follow partial mutation. Changes
+// to the model-facing prompt and tools apply on the next turn.
+func (a *CustomizationsAPI) Reload(ctx context.Context) (*CustomizationsReloadResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request(ctx, "session.customizations.reload", req)
 	if err != nil {
 		return nil, err
 	}
-	var result SkillsLoadDiagnostics
+	var result CustomizationsReloadResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -30463,17 +31049,20 @@ func (a *InstructionsAPI) GetSources(ctx context.Context) (*InstructionsGetSourc
 	return &result, nil
 }
 
-// Reload invalidates cached custom-instruction discovery so subsequent turns and source
-// reads observe instruction files currently on disk.
+// Reload for local sessions, invalidates instruction discovery and the model-facing prompt,
+// then returns freshly discovered sources. The updated prompt takes effect on the next
+// turn. Remote sessions must reload on their agent host instead.
 //
 // RPC method: session.instructions.reload.
-func (a *InstructionsAPI) Reload(ctx context.Context) (*SessionInstructionsReloadResult, error) {
+//
+// Returns: Instruction sources loaded for the session, in merge order.
+func (a *InstructionsAPI) Reload(ctx context.Context) (*InstructionsGetSourcesResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request(ctx, "session.instructions.reload", req)
 	if err != nil {
 		return nil, err
 	}
-	var result SessionInstructionsReloadResult
+	var result InstructionsGetSourcesResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -33513,6 +34102,146 @@ func (a *ProviderAPI) Withdraw(ctx context.Context, params *ProviderWithdrawRequ
 	return &result, nil
 }
 
+// Experimental: ProvidersAPI contains experimental APIs that may change or be removed.
+type ProvidersAPI sessionAPI
+
+// Discovers reachable instances using an adapter from this session's effective provider
+// catalog and provider-specific discovery input.
+//
+// RPC method: session.providers.discover.
+//
+// Parameters: Provider discovery parameters.
+//
+// Returns: Provider instances found by a discovery operation.
+func (a *ProvidersAPI) Discover(ctx context.Context, params *ModelProviderDiscoverRequest) (*ModelProviderDiscoverResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["adapterId"] = params.AdapterID
+		if params.Input != nil {
+			req["input"] = params.Input
+		}
+	}
+	raw, err := a.client.Request(ctx, "session.providers.discover", req)
+	if err != nil {
+		return nil, err
+	}
+	var result ModelProviderDiscoverResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// GetCatalog returns adapter definitions and supported operations in this session's
+// effective provider catalog, without running discovery. Does not list provider instances
+// or select inference models.
+//
+// RPC method: session.providers.getCatalog.
+//
+// Returns: Normalized model-provider adapter definitions available to the session, not
+// discovered instances.
+func (a *ProvidersAPI) GetCatalog(ctx context.Context) (*ModelProviderAdapterCatalog, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request(ctx, "session.providers.getCatalog", req)
+	if err != nil {
+		return nil, err
+	}
+	var result ModelProviderAdapterCatalog
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// GetStatus gets current health and version information for a discovered model-provider
+// instance.
+//
+// RPC method: session.providers.getStatus.
+//
+// Parameters: Provider status request parameters.
+//
+// Returns: Current health information for a provider instance.
+func (a *ProvidersAPI) GetStatus(ctx context.Context, params *ModelProviderGetStatusRequest) (*ModelProviderStatus, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["instance"] = params.Instance
+	}
+	raw, err := a.client.Request(ctx, "session.providers.getStatus", req)
+	if err != nil {
+		return nil, err
+	}
+	var result ModelProviderStatus
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Experimental: ProvidersModelsAPI contains experimental APIs that may change or be removed.
+type ProvidersModelsAPI sessionAPI
+
+// Lists models installed or otherwise available from a discovered model-provider instance.
+//
+// RPC method: session.providers.models.list.
+//
+// Parameters: Provider model inventory request parameters.
+//
+// Returns: Models offered for agent conversations by one provider instance. Adapters
+// exclude known-incompatible models, but retain candidates with unknown capabilities.
+// Listing does not guarantee compatibility.
+func (a *ProvidersModelsAPI) List(ctx context.Context, params *ModelProviderModelsListRequest) (*DiscoveredModelList, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["instance"] = params.Instance
+	}
+	raw, err := a.client.Request(ctx, "session.providers.models.list", req)
+	if err != nil {
+		return nil, err
+	}
+	var result DiscoveredModelList
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// PrepareConfiguration translates a discovered model into the provider and model
+// configuration needed to use it, and reports whether each is already registered in this
+// session. Prepares only: it registers nothing, writes nothing, and performs no provider
+// requests.
+//
+// RPC method: session.providers.models.prepareConfiguration.
+//
+// Parameters: A discovered instance and one of its models to translate into provider
+// configuration. Pass back the instance and model as returned by
+// `session.providers.discover` and `session.providers.models.list`.
+//
+// Returns: Provider configuration prepared from a discovered model. Preparing a plan
+// changes nothing: it neither registers the model with the session nor writes durable
+// configuration. To apply it, pass `provider` and `model` to `session.provider.add`,
+// omitting whichever the dispositions report as already configured.
+func (a *ProvidersModelsAPI) PrepareConfiguration(ctx context.Context, params *ModelProviderPrepareConfigurationRequest) (*ModelProviderConfigurationPlan, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["instance"] = params.Instance
+		req["model"] = params.Model
+	}
+	raw, err := a.client.Request(ctx, "session.providers.models.prepareConfiguration", req)
+	if err != nil {
+		return nil, err
+	}
+	var result ModelProviderConfigurationPlan
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Experimental: Models returns experimental APIs that may change or be removed.
+func (s *ProvidersAPI) Models() *ProvidersModelsAPI {
+	return (*ProvidersModelsAPI)(s)
+}
+
 // Experimental: QueueAPI contains experimental APIs that may change or be removed.
 type QueueAPI sessionAPI
 
@@ -35995,6 +36724,7 @@ type SessionRPC struct {
 	Plan               *PlanAPI
 	Plugins            *PluginsAPI
 	Provider           *ProviderAPI
+	Providers          *ProvidersAPI
 	Queue              *QueueAPI
 	Remote             *RemoteAPI
 	Sandbox            *SandboxAPI
@@ -36332,6 +37062,7 @@ func NewSessionRPC(client *jsonrpc2.Client, sessionID string) *SessionRPC {
 	r.Plan = (*PlanAPI)(&r.common)
 	r.Plugins = (*PluginsAPI)(&r.common)
 	r.Provider = (*ProviderAPI)(&r.common)
+	r.Providers = (*ProvidersAPI)(&r.common)
 	r.Queue = (*QueueAPI)(&r.common)
 	r.Remote = (*RemoteAPI)(&r.common)
 	r.Sandbox = (*SandboxAPI)(&r.common)
@@ -37306,6 +38037,94 @@ func (a *InternalSettingsAPI) Snapshot(ctx context.Context) (*SessionSettingsSna
 	return &result, nil
 }
 
+// Experimental: InternalUIAPI contains experimental APIs that may change or be removed.
+type InternalUIAPI internalSessionAPI
+
+// HandleHumanAskUser resolves a pending elicitation request after direct interaction in the
+// trusted in-process client. Only an accepted response to the built-in ask_user tool can
+// become trusted human evidence.
+//
+// RPC method: session.ui.handleHumanAskUser.
+//
+// Parameters: Pending elicitation request ID and the user's response (accept/decline/cancel
+// + form values).
+//
+// Returns: Indicates whether the elicitation response was accepted; false if it was already
+// resolved by another client.
+// Internal: HandleHumanAskUser is part of the SDK's internal handshake/plumbing; external
+// callers should not use it.
+func (a *InternalUIAPI) HandleHumanAskUser(ctx context.Context, params *UIHandlePendingElicitationRequest) (*UIElicitationResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["requestId"] = params.RequestID
+		req["result"] = params.Result
+	}
+	raw, err := a.client.Request(ctx, "session.ui.handleHumanAskUser", req)
+	if err != nil {
+		return nil, err
+	}
+	var result UIElicitationResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// HandleHumanExitPlanMode resolves a pending `exit_plan_mode.requested` event after direct
+// interaction in the trusted in-process client.
+//
+// RPC method: session.ui.handleHumanExitPlanMode.
+//
+// Parameters: Request ID of a pending `exit_plan_mode.requested` event and the user's
+// response.
+//
+// Returns: Indicates whether the pending UI request was resolved by this call.
+// Internal: HandleHumanExitPlanMode is part of the SDK's internal handshake/plumbing;
+// external callers should not use it.
+func (a *InternalUIAPI) HandleHumanExitPlanMode(ctx context.Context, params *UIHandlePendingExitPlanModeRequest) (*UIHandlePendingResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["requestId"] = params.RequestID
+		req["response"] = params.Response
+	}
+	raw, err := a.client.Request(ctx, "session.ui.handleHumanExitPlanMode", req)
+	if err != nil {
+		return nil, err
+	}
+	var result UIHandlePendingResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// HandleHumanUserInput resolves a pending `user_input.requested` event after direct
+// interaction in the trusted in-process client.
+//
+// RPC method: session.ui.handleHumanUserInput.
+//
+// Parameters: Request ID of a pending `user_input.requested` event and the user's response.
+//
+// Returns: Indicates whether the pending UI request was resolved by this call.
+// Internal: HandleHumanUserInput is part of the SDK's internal handshake/plumbing; external
+// callers should not use it.
+func (a *InternalUIAPI) HandleHumanUserInput(ctx context.Context, params *UIHandlePendingUserInputRequest) (*UIHandlePendingResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["requestId"] = params.RequestID
+		req["response"] = params.Response
+	}
+	raw, err := a.client.Request(ctx, "session.ui.handleHumanUserInput", req)
+	if err != nil {
+		return nil, err
+	}
+	var result UIHandlePendingResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // Experimental: InternalWorkflowAPI contains experimental APIs that may change or be
 // removed.
 type InternalWorkflowAPI internalSessionAPI
@@ -37414,6 +38233,7 @@ type InternalSessionRPC struct {
 	Queue      *InternalQueueAPI
 	Schedule   *InternalScheduleAPI
 	Settings   *InternalSettingsAPI
+	UI         *InternalUIAPI
 	Workflow   *InternalWorkflowAPI
 }
 
@@ -37461,6 +38281,7 @@ func NewInternalSessionRPC(client *jsonrpc2.Client, sessionID string) *InternalS
 	r.Queue = (*InternalQueueAPI)(&r.common)
 	r.Schedule = (*InternalScheduleAPI)(&r.common)
 	r.Settings = (*InternalSettingsAPI)(&r.common)
+	r.UI = (*InternalUIAPI)(&r.common)
 	r.Workflow = (*InternalWorkflowAPI)(&r.common)
 	return r
 }
@@ -37574,6 +38395,14 @@ type SessionFSHandler interface {
 	//
 	// Returns: File content as a UTF-8 string, or a filesystem error if the read failed.
 	ReadFile(request *SessionFSReadFileRequest) (*SessionFSReadFileResult, error)
+	// ReadFileBytes reads binary file content from the client-provided session filesystem.
+	//
+	// RPC method: sessionFs.readFileBytes.
+	//
+	// Parameters: Path of the binary file to read from the client-provided session filesystem.
+	//
+	// Returns: File bytes as standard base64, or a filesystem error if the read failed.
+	ReadFileBytes(request *SessionFSReadFileBytesRequest) (*SessionFSReadFileBytesResult, error)
 	// Renames or moves a path in the client-provided session filesystem.
 	//
 	// RPC method: sessionFs.rename.
@@ -37641,6 +38470,15 @@ type SessionFSHandler interface {
 	//
 	// Returns: Describes a filesystem error.
 	WriteFile(request *SessionFSWriteFileRequest) (*SessionFSError, error)
+	// WriteFileBytes writes binary file content to the client-provided session filesystem.
+	//
+	// RPC method: sessionFs.writeFileBytes.
+	//
+	// Parameters: File path, standard-base64-encoded bytes to write, and optional mode for the
+	// client-provided session filesystem.
+	//
+	// Returns: Describes a filesystem error.
+	WriteFileBytes(request *SessionFSWriteFileBytesRequest) (*SessionFSError, error)
 }
 
 // Experimental: TasksHandler contains experimental APIs that may change or be removed.
@@ -37890,6 +38728,25 @@ func RegisterClientSessionAPIHandlers(client *jsonrpc2.Client, getHandlers func(
 		}
 		return raw, nil
 	})
+	client.SetRequestHandler("sessionFs.readFileBytes", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		var request SessionFSReadFileBytesRequest
+		if err := json.Unmarshal(params, &request); err != nil {
+			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
+		}
+		handlers := getHandlers(request.SessionID)
+		if handlers == nil || handlers.SessionFS == nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No sessionFs handler registered for session: %s", request.SessionID)}
+		}
+		result, err := handlers.SessionFS.ReadFileBytes(&request)
+		if err != nil {
+			return nil, clientSessionHandlerError(err)
+		}
+		raw, err := json.Marshal(result)
+		if err != nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("Failed to marshal response: %v", err)}
+		}
+		return raw, nil
+	})
 	client.SetRequestHandler("sessionFs.rename", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
 		var request SessionFSRenameRequest
 		if err := json.Unmarshal(params, &request); err != nil {
@@ -38014,6 +38871,25 @@ func RegisterClientSessionAPIHandlers(client *jsonrpc2.Client, getHandlers func(
 			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No sessionFs handler registered for session: %s", request.SessionID)}
 		}
 		result, err := handlers.SessionFS.WriteFile(&request)
+		if err != nil {
+			return nil, clientSessionHandlerError(err)
+		}
+		raw, err := json.Marshal(result)
+		if err != nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("Failed to marshal response: %v", err)}
+		}
+		return raw, nil
+	})
+	client.SetRequestHandler("sessionFs.writeFileBytes", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		var request SessionFSWriteFileBytesRequest
+		if err := json.Unmarshal(params, &request); err != nil {
+			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
+		}
+		handlers := getHandlers(request.SessionID)
+		if handlers == nil || handlers.SessionFS == nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No sessionFs handler registered for session: %s", request.SessionID)}
+		}
+		result, err := handlers.SessionFS.WriteFileBytes(&request)
 		if err != nil {
 			return nil, clientSessionHandlerError(err)
 		}

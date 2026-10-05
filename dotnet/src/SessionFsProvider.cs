@@ -73,6 +73,22 @@ public interface ISessionFsSqliteProvider
     Task<bool> ExistsAsync(CancellationToken cancellationToken);
 }
 
+/// <summary>Optional interface for providers that support exact binary file reads and writes.</summary>
+public interface ISessionFsBinaryProvider
+{
+    /// <summary>Reads exact bytes of a file in the session filesystem.</summary>
+    /// <param name="path">Path to read.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    Task<byte[]> ReadFileBytesAsync(string path, CancellationToken cancellationToken);
+
+    /// <summary>Writes exact bytes of a file in the session filesystem.</summary>
+    /// <param name="path">Path to write.</param>
+    /// <param name="content">Exact file bytes.</param>
+    /// <param name="mode">Optional POSIX-style permission mode.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    Task WriteFileBytesAsync(string path, ReadOnlyMemory<byte> content, int? mode, CancellationToken cancellationToken);
+}
+
 /// <summary>
 /// Optional capability for session filesystem providers that support atomic SQLite transactions.
 /// </summary>
@@ -119,73 +135,92 @@ public sealed class SessionFsSqliteTransactionException : Exception
     public SessionFsSqliteTransactionErrorClass ErrorClass { get; }
 }
 
+/// <summary>Thrown from a provider's WriteFileAsync when the failed write changed its target.</summary>
+public sealed class SessionFsWriteException : Exception
+{
+    /// <summary>Initializes a failed write that changed its target.</summary>
+    /// <param name="message">Human-readable failure description.</param>
+    /// <param name="innerException">Optional underlying exception.</param>
+    public SessionFsWriteException(string message, Exception? innerException = null)
+        : base(message, innerException)
+    {
+    }
+}
+
 /// <summary>
 /// Base class for session filesystem providers. Subclasses override the
 /// virtual methods and use normal C# patterns (return values, throw exceptions).
 /// The base class catches exceptions and converts them to <see cref="SessionFsError"/>
-/// results expected by the runtime.
+/// results expected by the runtime. Existence checks instead return <c>false</c> if the provider throws.
 /// To add SQLite support, also implement <see cref="ISessionFsSqliteProvider"/>.
 /// </summary>
+/// <remarks>
+/// Paths use the configured <see cref="SessionFsConfig.Conventions"/> and are passed to the provider unchanged.
+/// Absolute paths refer to the provider's filesystem namespace, not necessarily the runtime host's filesystem.
+/// </remarks>
 public abstract class SessionFsProvider : ISessionFsHandler
 {
+    private const int MaxBinaryBytes = (64 * 1024 * 1024 - 1024) / 4 * 3;
+    private const int MaxBinaryContentLength = (MaxBinaryBytes + 2) / 3 * 4;
+
     /// <summary>Reads the full content of a file. Throw if the file does not exist.</summary>
-    /// <param name="path">SessionFs-relative path.</param>
+    /// <param name="path">Absolute or relative path in the provider's filesystem namespace.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The file content as a UTF-8 string.</returns>
     protected abstract Task<string> ReadFileAsync(string path, CancellationToken cancellationToken);
 
-    /// <summary>Writes content to a file, creating it (and parent directories) if needed.</summary>
-    /// <param name="path">SessionFs-relative path.</param>
+    /// <summary>Writes content to a file, creating it (and parent directories) if needed. Throw <see cref="SessionFsWriteException"/> if a failed write changed the target.</summary>
+    /// <param name="path">Absolute or relative path in the provider's filesystem namespace.</param>
     /// <param name="content">Content to write.</param>
     /// <param name="mode">Optional POSIX-style permission mode. Null means use OS default.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     protected abstract Task WriteFileAsync(string path, string content, int? mode, CancellationToken cancellationToken);
 
     /// <summary>Appends content to a file, creating it (and parent directories) if needed.</summary>
-    /// <param name="path">SessionFs-relative path.</param>
+    /// <param name="path">Absolute or relative path in the provider's filesystem namespace.</param>
     /// <param name="content">Content to append.</param>
     /// <param name="mode">Optional POSIX-style permission mode. Null means use OS default.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     protected abstract Task AppendFileAsync(string path, string content, int? mode, CancellationToken cancellationToken);
 
     /// <summary>Checks whether a path exists.</summary>
-    /// <param name="path">SessionFs-relative path.</param>
+    /// <param name="path">Absolute or relative path in the provider's filesystem namespace.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns><c>true</c> if the path exists, <c>false</c> otherwise.</returns>
     protected abstract Task<bool> ExistsAsync(string path, CancellationToken cancellationToken);
 
     /// <summary>Gets metadata about a file or directory. Throw if the path does not exist.</summary>
-    /// <param name="path">SessionFs-relative path.</param>
+    /// <param name="path">Absolute or relative path in the provider's filesystem namespace.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     protected abstract Task<SessionFsStatResult> StatAsync(string path, CancellationToken cancellationToken);
 
-    /// <summary>Creates a directory (and optionally parents). Does not fail if it already exists.</summary>
-    /// <param name="path">SessionFs-relative path.</param>
+    /// <summary>Creates a directory. If <paramref name="recursive"/> is true, creates parent directories as needed.</summary>
+    /// <param name="path">Absolute or relative path in the provider's filesystem namespace.</param>
     /// <param name="recursive">Whether to create parent directories.</param>
     /// <param name="mode">Optional POSIX-style permission mode (e.g., 0x1FF for 0777). Null means use OS default.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     protected abstract Task MakeDirectoryAsync(string path, bool recursive, int? mode, CancellationToken cancellationToken);
 
     /// <summary>Lists entry names in a directory. Throw if the directory does not exist.</summary>
-    /// <param name="path">SessionFs-relative path.</param>
+    /// <param name="path">Absolute or relative path in the provider's filesystem namespace.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     protected abstract Task<IList<string>> ReadDirectoryAsync(string path, CancellationToken cancellationToken);
 
     /// <summary>Lists entries with type info in a directory. Throw if the directory does not exist.</summary>
-    /// <param name="path">SessionFs-relative path.</param>
+    /// <param name="path">Absolute or relative path in the provider's filesystem namespace.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     protected abstract Task<IList<SessionFsReaddirWithTypesEntry>> ReadDirectoryWithTypesAsync(string path, CancellationToken cancellationToken);
 
     /// <summary>Removes a file or directory. Throw if the path does not exist (unless <paramref name="force"/> is true).</summary>
-    /// <param name="path">SessionFs-relative path.</param>
+    /// <param name="path">Absolute or relative path in the provider's filesystem namespace.</param>
     /// <param name="recursive">Whether to remove directory contents recursively.</param>
     /// <param name="force">If true, do not throw when the path does not exist.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     protected abstract Task RemoveAsync(string path, bool recursive, bool force, CancellationToken cancellationToken);
 
     /// <summary>Renames/moves a file or directory.</summary>
-    /// <param name="src">Source path.</param>
-    /// <param name="dest">Destination path.</param>
+    /// <param name="src">Absolute or relative source path in the provider's filesystem namespace.</param>
+    /// <param name="dest">Absolute or relative destination path in the provider's filesystem namespace.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     protected abstract Task RenameAsync(string src, string dest, CancellationToken cancellationToken);
 
@@ -206,6 +241,37 @@ public abstract class SessionFsProvider : ISessionFsHandler
         }
     }
 
+    async Task<SessionFsReadFileBytesResult> ISessionFsHandler.ReadFileBytesAsync(SessionFsReadFileBytesRequest request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        try
+        {
+            if (this is not ISessionFsBinaryProvider provider)
+            {
+                throw new NotSupportedException("Binary reads are not supported by this provider.");
+            }
+            var bytes = await provider.ReadFileBytesAsync(request.Path, cancellationToken).ConfigureAwait(false);
+            if (bytes.Length > MaxBinaryBytes)
+            {
+                return new SessionFsReadFileBytesResult
+                {
+                    Content = string.Empty,
+                    Error = new SessionFsError
+                    {
+                        Code = SessionFsErrorCode.UNKNOWN,
+                        Message = "sessionFs.readFileBytes content exceeds the binary read limit"
+                    }
+                };
+            }
+            return new SessionFsReadFileBytesResult { Content = Convert.ToBase64String(bytes) };
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            return new SessionFsReadFileBytesResult { Content = string.Empty, Error = ToSessionFsError(ex) };
+        }
+    }
+
     async Task<SessionFsError?> ISessionFsHandler.WriteFileAsync(SessionFsWriteFileRequest request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -216,6 +282,39 @@ public abstract class SessionFsProvider : ISessionFsHandler
             return null;
         }
         catch (Exception ex)
+        {
+            var error = ToSessionFsError(ex);
+            if (ex is SessionFsWriteException)
+            {
+                error.WriteChanged = true;
+            }
+            return error;
+        }
+    }
+
+    async Task<SessionFsError?> ISessionFsHandler.WriteFileBytesAsync(SessionFsWriteFileBytesRequest request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        try
+        {
+            if (this is not ISessionFsBinaryProvider provider)
+            {
+                throw new NotSupportedException("Binary writes are not supported by this provider.");
+            }
+            if (request.Content.Length > MaxBinaryContentLength)
+            {
+                return new SessionFsError { Code = SessionFsErrorCode.UNKNOWN, Message = "sessionFs.writeFileBytes content exceeds the binary write limit" };
+            }
+            var content = Convert.FromBase64String(request.Content);
+            if (Convert.ToBase64String(content) != request.Content)
+            {
+                return new SessionFsError { Code = SessionFsErrorCode.UNKNOWN, Message = "invalid sessionFs.writeFileBytes base64 content" };
+            }
+            await provider.WriteFileBytesAsync(request.Path, content, (int?)request.Mode, cancellationToken).ConfigureAwait(false);
+            return null;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             return ToSessionFsError(ex);
         }
