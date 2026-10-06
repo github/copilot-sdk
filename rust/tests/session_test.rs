@@ -24,7 +24,8 @@ use github_copilot_sdk::rpc::{
     ConnectorConnectResult, ConnectorContinueRequest, ConnectorDisconnectResult,
     ConnectorMcpStatus, ConnectorReconcileOptions, ConnectorReconcileRequest,
     ConnectorSessionAccount, ConnectorStatus, ModelSetAllowedModelsRequest, OpenCanvasInstance,
-    RemotePolicyInputs, SendAgentMode, SendMode, SendRequest, SessionRpcConnectors,
+    RemoteGuardExportResult, RemotePolicyInputs, SendAgentMode, SendMode, SendRequest,
+    SessionRpcConnectors,
 };
 use github_copilot_sdk::session_events::{
     ManagedSettingsResolvedSource, McpOauthRequiredData, ReasoningSummary, SessionLimitsConfig,
@@ -7482,6 +7483,128 @@ async fn remote_policy_inputs_propagates_rpc_errors_without_fallback() {
         )
         .await;
     timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap();
+}
+
+#[tokio::test]
+async fn remote_guard_export_preserves_original_session_and_boolean_receipts() {
+    let (session, mut server) =
+        create_session_pair_with_config(|cfg| cfg.with_session_id("original-guard-session")).await;
+    let session = Arc::new(session);
+    assert_eq!(session.id().as_str(), "original-guard-session");
+
+    for guarded in [true, false] {
+        let handle = tokio::spawn({
+            let session = session.clone();
+            async move { session.rpc().remote().guard_export().await }
+        });
+        let request = timeout(TIMEOUT, server.read_request()).await.unwrap();
+        assert_eq!(request["method"], "session.remote.guardExport");
+        assert_eq!(
+            request["params"],
+            serde_json::json!({ "sessionId": "original-guard-session" })
+        );
+        let expected = serde_json::json!({ "guarded": guarded });
+        server.respond(&request, expected.clone()).await;
+
+        let result: RemoteGuardExportResult =
+            timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap();
+        assert_eq!(result.guarded, guarded);
+        assert_eq!(serde_json::to_value(result).unwrap(), expected);
+        assert!(
+            timeout(Duration::from_millis(50), server.read_request())
+                .await
+                .is_err(),
+            "guard enrollment must not issue extra or mutating RPCs"
+        );
+    }
+}
+
+#[tokio::test]
+async fn remote_guard_export_rejects_missing_and_malformed_required_boolean() {
+    let (session, mut server) =
+        create_session_pair_with_config(|cfg| cfg.with_session_id("original-guard-session")).await;
+    let session = Arc::new(session);
+    for response in [
+        Value::Null,
+        serde_json::json!([]),
+        serde_json::json!({}),
+        serde_json::json!({ "guarded": null }),
+        serde_json::json!({ "guarded": "false" }),
+        serde_json::json!({ "guarded": 0 }),
+        serde_json::json!({ "guarded": [] }),
+        serde_json::json!({ "guarded": {} }),
+    ] {
+        let handle = tokio::spawn({
+            let session = session.clone();
+            async move { session.rpc().remote().guard_export().await }
+        });
+        let request = timeout(TIMEOUT, server.read_request()).await.unwrap();
+        assert_eq!(request["method"], "session.remote.guardExport");
+        assert_eq!(
+            request["params"],
+            serde_json::json!({ "sessionId": "original-guard-session" })
+        );
+        server.respond(&request, response.clone()).await;
+
+        let error = timeout(TIMEOUT, handle)
+            .await
+            .unwrap()
+            .unwrap()
+            .expect_err("malformed guard receipts must not default to false");
+        assert_eq!(error.kind(), &ErrorKind::Json, "response: {response}");
+        assert!(
+            timeout(Duration::from_millis(50), server.read_request())
+                .await
+                .is_err(),
+            "malformed guard receipts must not trigger fallback RPCs"
+        );
+    }
+}
+
+#[tokio::test]
+async fn remote_guard_export_propagates_rpc_refusals_without_fallback() {
+    let (session, mut server) =
+        create_session_pair_with_config(|cfg| cfg.with_session_id("original-guard-session")).await;
+    let session = Arc::new(session);
+    for (code, message) in [
+        (-32601, "Method not found"),
+        (-32000, "Original session is not attached"),
+        (-32000, "Caller is not the original session owner"),
+        (-32000, "Original session not found"),
+    ] {
+        let handle = tokio::spawn({
+            let session = session.clone();
+            async move { session.rpc().remote().guard_export().await }
+        });
+        let request = timeout(TIMEOUT, server.read_request()).await.unwrap();
+        assert_eq!(request["method"], "session.remote.guardExport");
+        assert_eq!(
+            request["params"],
+            serde_json::json!({ "sessionId": "original-guard-session" })
+        );
+        let data = serde_json::json!({ "sessionId": "original-guard-session" });
+        let response = serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": request["id"],
+            "error": { "code": code, "message": message, "data": data },
+        });
+        write_framed(&mut server.write, &serde_json::to_vec(&response).unwrap()).await;
+
+        let error = timeout(TIMEOUT, handle)
+            .await
+            .unwrap()
+            .unwrap()
+            .expect_err("guard enrollment refusals must propagate");
+        assert_eq!(error.kind(), &ErrorKind::Rpc { code });
+        assert_eq!(error.message(), Some(message));
+        assert_eq!(error.rpc_data(), Some(&data));
+        assert!(
+            timeout(Duration::from_millis(50), server.read_request())
+                .await
+                .is_err(),
+            "guard enrollment refusals must not trigger fallback RPCs"
+        );
+    }
 }
 
 #[tokio::test]

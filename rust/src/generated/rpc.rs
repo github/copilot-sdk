@@ -12195,6 +12195,31 @@ impl<'a> SessionRpcRemote<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
+    /// Irreversibly protects the original resident session's non-steerable export from native steering or disposal. Requires its still-live original SDK creation authority. Attachment, import, and resident resume do not confer this authority; protection survives owner disconnect until actual native session retirement.
+    ///
+    /// Wire method: `session.remote.guardExport`.
+    ///
+    /// # Returns
+    ///
+    /// Successful original-owner enrollment of the resident session's monotonic export protection.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn guard_export(&self) -> Result<RemoteGuardExportResult, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_REMOTE_GUARDEXPORT, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
     /// Persists a remote-steerability change emitted by the host as a session event.
     ///
     /// Wire method: `session.remote.notifySteerableChanged`.

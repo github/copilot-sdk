@@ -477,6 +477,21 @@ runtimes, and malformed responses return errors rather than inferred inputs.
 Use a matching runtime and its emitted schemas for this unreleased API; the
 SDK change alone does not add support to an older pinned CLI.
 
+The experimental `original_session.rpc().remote().guard_export().await?`
+returns `github_copilot_sdk::rpc::RemoteGuardExportResult` with a required
+`guarded` boolean. It sends only `session.remote.guardExport` with that retained
+session's own ID; missing or malformed receipts and runtime refusals are errors.
+This explicit RPC irreversibly enrolls the original resident session's
+non-steerable export protection. Native authority belongs only to the still-live
+original subscribed Create or cold-Resume owner, not attached/imported peers or
+resident-resume callers. Peers cannot enroll or clear an owner's guard, and
+protection survives owner disconnect until actual native session retirement.
+Caller policy configuration cannot impersonate authoritative storage revocation;
+real native storage denial or disposing-owner retirement still permits shutdown.
+The SDK does not enable or disable Native Mode, create an Export, start a
+listener, or issue additional RPCs. Use a matching runtime; this API alone does
+not admit an executable or provider.
+
 #### Typed MCP installation and removal payloads (breaking change)
 
 Three payloads in the experimental MCP installation and removal workflow are now typed

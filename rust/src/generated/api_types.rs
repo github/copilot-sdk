@@ -907,6 +907,8 @@ pub mod rpc_methods {
     pub const SESSION_REMOTE_DISABLE: &str = "session.remote.disable";
     /// `session.remote.getPolicyInputs`
     pub const SESSION_REMOTE_GETPOLICYINPUTS: &str = "session.remote.getPolicyInputs";
+    /// `session.remote.guardExport`
+    pub const SESSION_REMOTE_GUARDEXPORT: &str = "session.remote.guardExport";
     /// `session.remote.notifySteerableChanged`
     pub const SESSION_REMOTE_NOTIFYSTEERABLECHANGED: &str = "session.remote.notifySteerableChanged";
     /// `session.visibility.get`
@@ -18940,6 +18942,21 @@ pub struct RemoteEnableResult {
     pub url: Option<String>,
 }
 
+/// Successful original-owner enrollment of the resident session's monotonic export protection.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoteGuardExportResult {
+    /// True after successful enrollment. There is no reset operation.
+    pub guarded: bool,
+}
+
 /// New remote-steerability state to persist as a `session.remote_steerable_changed` event.
 ///
 /// <div class="warning">
@@ -34763,6 +34780,36 @@ pub struct SessionRemoteGetPolicyInputsResult {
     pub owner_adc_sandbox: bool,
     /// Whether CODESPACES is the literal string "true" in the original session's owning runtime process.
     pub owner_codespaces: bool,
+}
+
+/// Identifies the target session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionRemoteGuardExportParams {
+    /// Target session identifier
+    pub session_id: SessionId,
+}
+
+/// Successful original-owner enrollment of the resident session's monotonic export protection.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionRemoteGuardExportResult {
+    /// True after successful enrollment. There is no reset operation.
+    pub guarded: bool,
 }
 
 /// Persist a steerability change as a `session.remote_steerable_changed` event. Used by the host (CLI / SDK consumer) when it has just finished enabling or disabling steering on a remote exporter that the runtime does not directly own.
