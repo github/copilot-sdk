@@ -973,6 +973,8 @@ pub mod rpc_methods {
     pub const SESSION_REMOTE_ENABLE: &str = "session.remote.enable";
     /// `session.remote.disable`
     pub const SESSION_REMOTE_DISABLE: &str = "session.remote.disable";
+    /// `session.remote.getPolicyInputs`
+    pub const SESSION_REMOTE_GETPOLICYINPUTS: &str = "session.remote.getPolicyInputs";
     /// `session.remote.notifySteerableChanged`
     pub const SESSION_REMOTE_NOTIFYSTEERABLECHANGED: &str = "session.remote.notifySteerableChanged";
     /// `session.visibility.get`
@@ -20120,6 +20122,27 @@ pub struct RemoteNotifySteerableChangedRequest {
 #[serde(rename_all = "camelCase")]
 pub struct RemoteNotifySteerableChangedResult {}
 
+/// Read-only remote-policy inputs from the original live session and its owning runtime process.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RemotePolicyInputs {
+    /// Resolved MANAGED_REMOTE_CONTROL_SETTING flag, including the runtime default when no boolean override exists.
+    pub managed_remote_control_setting: bool,
+    /// Resolved MANAGED_REMOTE_CONTROL_SETTING_STAFF_OVERRIDE flag, including the runtime default when no boolean override exists.
+    pub managed_remote_control_staff_override: bool,
+    /// Whether ADC_SANDBOX_ID is nonempty in the original session's owning runtime process.
+    pub owner_adc_sandbox: bool,
+    /// Whether CODESPACES is the literal string "true" in the original session's owning runtime process.
+    pub owner_codespaces: bool,
+}
+
 /// Remote session connection result.
 ///
 /// <div class="warning">
@@ -36532,6 +36555,42 @@ pub struct SessionRemoteEnableResult {
 pub struct SessionRemoteDisableParams {
     /// Target session identifier
     pub session_id: SessionId,
+}
+
+/// Identifies the target session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionRemoteGetPolicyInputsParams {
+    /// Target session identifier
+    pub session_id: SessionId,
+}
+
+/// Read-only remote-policy inputs from the original live session and its owning runtime process.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionRemoteGetPolicyInputsResult {
+    /// Resolved MANAGED_REMOTE_CONTROL_SETTING flag, including the runtime default when no boolean override exists.
+    pub managed_remote_control_setting: bool,
+    /// Resolved MANAGED_REMOTE_CONTROL_SETTING_STAFF_OVERRIDE flag, including the runtime default when no boolean override exists.
+    pub managed_remote_control_staff_override: bool,
+    /// Whether ADC_SANDBOX_ID is nonempty in the original session's owning runtime process.
+    pub owner_adc_sandbox: bool,
+    /// Whether CODESPACES is the literal string "true" in the original session's owning runtime process.
+    pub owner_codespaces: bool,
 }
 
 /// Persist a steerability change as a `session.remote_steerable_changed` event. Used by the host (CLI / SDK consumer) when it has just finished enabling or disabling steering on a remote exporter that the runtime does not directly own.

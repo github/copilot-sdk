@@ -13168,6 +13168,34 @@ impl<'a> SessionRpcRemote<'a> {
         Ok(())
     }
 
+    /// Reads the original live session's resolved remote-policy feature flags and owner-process environment booleans without changing remote export or steering. Requires the caller's already-established session subscription.
+    ///
+    /// Wire method: `session.remote.getPolicyInputs`.
+    ///
+    /// # Returns
+    ///
+    /// Read-only remote-policy inputs from the original live session and its owning runtime process.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn get_policy_inputs(&self) -> Result<RemotePolicyInputs, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_REMOTE_GETPOLICYINPUTS,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
     /// Persists a remote-steerability change emitted by the host as a session event.
     ///
     /// Wire method: `session.remote.notifySteerableChanged`.
