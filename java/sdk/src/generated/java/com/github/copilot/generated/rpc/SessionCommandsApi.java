@@ -31,7 +31,7 @@ public final class SessionCommandsApi {
     }
 
     /**
-     * Optional filters controlling which command sources to include in the listing.
+     * Lists slash commands available in the session.
      * <p>
      * Invokes the method with no params, applying the runtime defaults.
      *
@@ -44,7 +44,7 @@ public final class SessionCommandsApi {
     }
 
     /**
-     * Optional filters controlling which command sources to include in the listing.
+     * Lists slash commands available in the session.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -60,7 +60,7 @@ public final class SessionCommandsApi {
     }
 
     /**
-     * Slash command name and optional raw input string to invoke.
+     * Invokes a slash command in the session.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -76,7 +76,7 @@ public final class SessionCommandsApi {
     }
 
     /**
-     * The pending slash-command invocation effect to finalize, plus whether the host applied or cancelled it.
+     * Finalizes persistence associated with a client-applied slash-command effect.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -92,7 +92,7 @@ public final class SessionCommandsApi {
     }
 
     /**
-     * Pending command request ID and an optional error if the client handler failed.
+     * Reports completion of a pending client-handled slash command.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -108,7 +108,7 @@ public final class SessionCommandsApi {
     }
 
     /**
-     * Slash command name and argument string to execute synchronously.
+     * Executes a slash command synchronously and returns any error.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -124,7 +124,7 @@ public final class SessionCommandsApi {
     }
 
     /**
-     * Slash-prefixed command string to enqueue for FIFO processing.
+     * Enqueues a slash command for FIFO processing on the local session.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -140,7 +140,7 @@ public final class SessionCommandsApi {
     }
 
     /**
-     * Queued-command request ID and the result indicating whether the host executed it (and whether to stop processing further queued commands).
+     * Reports whether the host actually executed a queued command and whether to continue processing.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.

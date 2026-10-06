@@ -47,7 +47,6 @@ final class InstallationConfirmationAdapter {
 
     void registerHandlers(JsonRpcClient rpc) {
         rpc.registerMethodHandler("installations.confirm", (rpcId, params) -> handleConfirm(rpc, rpcId, params));
-        rpc.registerMethodHandler("$/cancelRequest", (rpcId, params) -> handleCancel(rpc, params));
     }
 
     void closePending() {
@@ -80,7 +79,10 @@ final class InstallationConfirmationAdapter {
         }
     }
 
-    private void handleCancel(JsonRpcClient rpc, JsonNode params) {
+    /**
+     * Cancels the confirmation named by a {@code $/cancelRequest} notification.
+     */
+    void handleCancel(JsonRpcClient rpc, JsonNode params) {
         if (params == null || !params.has("id") || !params.get("id").canConvertToLong()
                 || !params.get("id").isIntegralNumber()) {
             return;

@@ -27,7 +27,7 @@ public final class ServerEnvironmentsApi {
     }
 
     /**
-     * Optional discovery filters supported by GitHub Mission Control.
+     * Lists GitHub Mission Control environments visible to the authenticated identity. Does not require a running host and excludes host relay credentials.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -38,7 +38,7 @@ public final class ServerEnvironmentsApi {
     }
 
     /**
-     * Identify a Mission Control environment to retrieve.
+     * Gets safe discovery information for a GitHub Mission Control environment without requiring a running host.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -49,7 +49,7 @@ public final class ServerEnvironmentsApi {
     }
 
     /**
-     * Identify a user-managed Mission Control environment to delete.
+     * Deletes a user-managed GitHub Mission Control environment. GitHub-managed environments cannot be deleted. Does not stop a running host, which may register again.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0

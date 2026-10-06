@@ -31,7 +31,7 @@ public final class SessionHistoryApi {
     }
 
     /**
-     * Optional compaction parameters.
+     * Compacts the session history to reduce context usage.
      * <p>
      * Invokes the method with no params, applying the runtime defaults.
      *
@@ -44,7 +44,7 @@ public final class SessionHistoryApi {
     }
 
     /**
-     * Optional compaction parameters.
+     * Compacts the session history to reduce context usage.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -60,7 +60,7 @@ public final class SessionHistoryApi {
     }
 
     /**
-     * Identifier of the event to truncate to; this event and all later events are removed.
+     * Truncates persisted session history to a specific event.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -76,7 +76,7 @@ public final class SessionHistoryApi {
     }
 
     /**
-     * Identifies the target session.
+     * Lists the user turns that the session can rewind to. Never rejects for a busy session: rewind reads need the session's file-change captures to be settled, so a session that still holds active work answers with `unavailableReason: "session-busy"` and no points, which the caller can retry.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -87,7 +87,7 @@ public final class SessionHistoryApi {
     }
 
     /**
-     * Event boundary to preview for conversation-and-files rewind.
+     * Previews the files that a conversation-and-files rewind would restore.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -103,7 +103,7 @@ public final class SessionHistoryApi {
     }
 
     /**
-     * Boundary and mode for rewinding session history.
+     * Rewinds the session conversation, optionally restoring files changed by the discarded turns. Not crash-atomic: file restore and conversation truncation are separate stores, applied in that order, so a process crash between them can leave the workspace rewound while the conversation still contains the discarded turns. There is no recovery journal; re-running the same rewind is the recovery path for a crash before truncation lands, since file restore is idempotent (already-restored files are reported as skipped) and truncation is re-derived from the still-retained boundary event. After truncation lands that boundary no longer exists, so the same request is rejected; the only stage that can still be outstanding is snapshot pruning, whose failure leaves orphan snapshots the capture store tolerates. The reverse inconsistency cannot occur, because truncation is never applied before file restore succeeds.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -119,7 +119,7 @@ public final class SessionHistoryApi {
     }
 
     /**
-     * Identifies the target session.
+     * Cancels any in-progress background compaction on a local session.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -130,7 +130,7 @@ public final class SessionHistoryApi {
     }
 
     /**
-     * Identifies the target session.
+     * Aborts any in-progress manual compaction on a local session.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -141,7 +141,7 @@ public final class SessionHistoryApi {
     }
 
     /**
-     * Identifies the target session.
+     * Produces a markdown summary of the session's conversation context for hand-off scenarios.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -152,7 +152,7 @@ public final class SessionHistoryApi {
     }
 
     /**
-     * Parameters for clearing the conversation and seeding the window that replaces it.
+     * Clears the session's conversation history, keeping only system and developer messages, and seeds the fresh context window with a first user message. Must be called from inside a tool handler: the clear has to drop the results of the tool calls its wipe orphans, and it rejects when no tool call is in flight.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.

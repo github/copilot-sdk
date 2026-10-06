@@ -182,6 +182,17 @@ pub mod rpc_methods {
     pub const AGENTS_DISCOVER: &str = "agents.discover";
     /// `agents.getDiscoveryPaths`
     pub const AGENTS_GETDISCOVERYPATHS: &str = "agents.getDiscoveryPaths";
+    /// `agents.getBuiltins`
+    pub const AGENTS_GETBUILTINS: &str = "agents.getBuiltins";
+    /// `agents.getAvailableBuiltins`
+    pub const AGENTS_GETAVAILABLEBUILTINS: &str = "agents.getAvailableBuiltins";
+    /// `agents.getBuiltinDefinition`
+    pub const AGENTS_GETBUILTINDEFINITION: &str = "agents.getBuiltinDefinition";
+    /// `agents.getBuiltinListingDefinition`
+    pub const AGENTS_GETBUILTINLISTINGDEFINITION: &str = "agents.getBuiltinListingDefinition";
+    /// `agents.customAgentInitialModelDecision`
+    pub const AGENTS_CUSTOMAGENTINITIALMODELDECISION: &str =
+        "agents.customAgentInitialModelDecision";
     /// `instructions.discover`
     pub const INSTRUCTIONS_DISCOVER: &str = "instructions.discover";
     /// `instructions.getDiscoveryPaths`
@@ -194,6 +205,20 @@ pub mod rpc_methods {
     pub const USER_SETTINGS_GET: &str = "user.settings.get";
     /// `user.settings.set`
     pub const USER_SETTINGS_SET: &str = "user.settings.set";
+    /// `gitHubRepository.atPath`
+    pub const GITHUBREPOSITORY_ATPATH: &str = "gitHubRepository.atPath";
+    /// `gitHubOwners.nextRequestId`
+    pub const GITHUBOWNERS_NEXTREQUESTID: &str = "gitHubOwners.nextRequestId";
+    /// `gitHubOwners.list`
+    pub const GITHUBOWNERS_LIST: &str = "gitHubOwners.list";
+    /// `gitHubOwners.cancel`
+    pub const GITHUBOWNERS_CANCEL: &str = "gitHubOwners.cancel";
+    /// `git.currentBranchRemote`
+    pub const GIT_CURRENTBRANCHREMOTE: &str = "git.currentBranchRemote";
+    /// `git.workingDirectoryContext`
+    pub const GIT_WORKINGDIRECTORYCONTEXT: &str = "git.workingDirectoryContext";
+    /// `git.reposFromRemotes`
+    pub const GIT_REPOSFROMREMOTES: &str = "git.reposFromRemotes";
     /// `managedSettings.read`
     pub const MANAGEDSETTINGS_READ: &str = "managedSettings.read";
     /// `managedSettings.clearCache`
@@ -260,6 +285,12 @@ pub mod rpc_methods {
     pub const SESSIONS_RELEASELOCK: &str = "sessions.releaseLock";
     /// `sessions.enrichMetadata`
     pub const SESSIONS_ENRICHMETADATA: &str = "sessions.enrichMetadata";
+    /// `sessions.createWorkspace`
+    pub const SESSIONS_CREATEWORKSPACE: &str = "sessions.createWorkspace";
+    /// `sessions.loadWorkspace`
+    pub const SESSIONS_LOADWORKSPACE: &str = "sessions.loadWorkspace";
+    /// `sessions.updateWorkspaceFields`
+    pub const SESSIONS_UPDATEWORKSPACEFIELDS: &str = "sessions.updateWorkspaceFields";
     /// `sessions.reloadPluginHooks`
     pub const SESSIONS_RELOADPLUGINHOOKS: &str = "sessions.reloadPluginHooks";
     /// `sessions.loadDeferredRepoHooks`
@@ -282,6 +313,14 @@ pub mod rpc_methods {
     pub const SESSIONS_CONFIGURESESSIONEXTENSIONS: &str = "sessions.configureSessionExtensions";
     /// `agentRegistry.spawn`
     pub const AGENTREGISTRY_SPAWN: &str = "agentRegistry.spawn";
+    /// `connectors.getCapabilities`
+    pub const CONNECTORS_GETCAPABILITIES: &str = "connectors.getCapabilities";
+    /// `connectors.getAccounts`
+    pub const CONNECTORS_GETACCOUNTS: &str = "connectors.getAccounts";
+    /// `connectors.list`
+    pub const CONNECTORS_LIST: &str = "connectors.list";
+    /// `connectors.refresh`
+    pub const CONNECTORS_REFRESH: &str = "connectors.refresh";
     /// `session.providers.getCatalog`
     pub const SESSION_PROVIDERS_GETCATALOG: &str = "session.providers.getCatalog";
     /// `session.providers.discover`
@@ -539,8 +578,12 @@ pub mod rpc_methods {
     pub const SESSION_SKILLS_RELOAD: &str = "session.skills.reload";
     /// `session.skills.ensureLoaded`
     pub const SESSION_SKILLS_ENSURELOADED: &str = "session.skills.ensureLoaded";
+    /// `session.mcp.setConnectedIdeInfo`
+    pub const SESSION_MCP_SETCONNECTEDIDEINFO: &str = "session.mcp.setConnectedIdeInfo";
     /// `session.mcp.list`
     pub const SESSION_MCP_LIST: &str = "session.mcp.list";
+    /// `session.mcp.listConfigured`
+    pub const SESSION_MCP_LISTCONFIGURED: &str = "session.mcp.listConfigured";
     /// `session.mcp.listTools`
     pub const SESSION_MCP_LISTTOOLS: &str = "session.mcp.listTools";
     /// `session.mcp.enable`
@@ -1610,6 +1653,25 @@ pub struct UserAuthInfo {
     pub r#type: UserAuthInfoType,
 }
 
+/// An interactive account whose model provider owns its credentials. It carries no GitHub credential.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountAuthInfo {
+    /// Host coordinate owned by the account's model provider.
+    pub host: String,
+    /// Login identifying the provider-owned account.
+    pub login: String,
+    /// Provider-owned account authentication.
+    pub r#type: AccountAuthInfoType,
+}
+
 /// Authentication-info input variant for GitHub CLI credentials, carrying host, login, and the `gh auth token` value.
 ///
 /// <div class="warning">
@@ -2337,6 +2399,45 @@ pub struct AgentReloadResult {
     pub agents: Vec<AgentInfo>,
 }
 
+/// The models a custom agent asks for, and the models actually available.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct AgentsCustomAgentInitialModelDecisionParams {
+    /// The agent's declared `model:` entry, serialized. A single name or an ordered list of acceptable names.
+    pub agent_models_json: String,
+    /// The models available to this session, serialized in the shape the model list carries.
+    pub available_models_json: String,
+}
+
+/// The model to switch to, and the warning to show when the agent's preference could not be met.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct AgentsCustomAgentInitialModelDecisionResult {
+    /// The reasoning effort attached to the selected model preference. Absent when that preference does not specify an effort.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning_effort: Option<String>,
+    /// The first available model that matches the agent's preferences. Absent when none of the requested models is available.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub target_model: Option<String>,
+    /// What to tell the user about an unmet preference. Absent when the preference was met. A warning with no `targetModel` means the agent's models are all unavailable.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub warning: Option<String>,
+}
+
 /// Optional project paths to include in agent discovery.
 ///
 /// <div class="warning">
@@ -2401,6 +2502,140 @@ pub struct AgentSetPromptRequest {
     pub id: String,
     /// Replacement authored prompt. Empty text is valid.
     pub prompt: String,
+}
+
+/// The feature flags to evaluate shipped agents against.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct AgentsGetAvailableBuiltinsRequest {
+    /// The surface asking, which gates agents that only apply to one client. Omit or pass null to apply no client filter.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub context: Option<String>,
+    /// Feature flag values keyed by name, evaluated with the runtime's truthiness rules. Omit or pass null for no flags.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub feature_flags: Option<HashMap<String, serde_json::Value>>,
+    /// Flag overrides keyed by name. A null entry uses the corresponding base flag; false explicitly disables it. Omit or pass null for no overrides.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub overrides: Option<HashMap<String, serde_json::Value>>,
+}
+
+/// A shipped agent, named and described.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct BuiltinAgentSummary {
+    /// One-line description of what the agent does.
+    pub description: String,
+    /// The agent name, as it appears in `getBuiltins`.
+    pub name: String,
+}
+
+/// The shipped agents available under the requested flags.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct AgentsGetAvailableBuiltinsResult {
+    /// Available shipped agents, in the runtime's own order.
+    #[doc(hidden)]
+    pub(crate) agents: Vec<BuiltinAgentSummary>,
+}
+
+/// The shipped agent whose definition to load.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct AgentsGetBuiltinDefinitionRequest {
+    /// The agent name, which must be one of `getBuiltins`'s `yamlBasedNames`. A name outside that list is special-cased in code and has no definition, and is reported as an error rather than as an empty definition.
+    pub name: String,
+}
+
+/// One shipped agent's definition.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct AgentsGetBuiltinDefinitionResult {
+    /// The agent's definition, serialized as JSON. It carries the authored keys plus the runtime's projected `__nativeCustomAgent` view of the same agent. It is a string rather than an object because the runtime parses it with the agent schema's tolerant shape, which accepts keys this contract does not name.
+    pub definition_json: String,
+}
+
+/// The shipped agent whose listing entry to load.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct AgentsGetBuiltinListingDefinitionRequest {
+    /// The agent name, taken from `getAvailableBuiltins`. Unlike `getBuiltinDefinition`, the agent that `getBuiltins` reports as special-cased rather than YAML-based is answered here too, from its in-code definition.
+    pub name: String,
+}
+
+/// One shipped agent, projected for a listing.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct AgentsGetBuiltinListingDefinitionResult {
+    /// The agent projected as a custom agent, serialized as JSON. It is a string rather than an object for the same reason as `getBuiltinDefinition`: the runtime parses the underlying definition with the agent schema's tolerant shape, which accepts keys this contract does not name.
+    pub definition_json: String,
+}
+
+/// The agents this runtime ships, named so a consumer can tell them apart from authored ones.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct AgentsGetBuiltinsResult {
+    /// The subset of `names` a user is allowed to turn off. A shipped agent outside this list is always active and a client should not offer a toggle for it.
+    pub disableable_names: Vec<String>,
+    /// Every agent name this runtime ships.
+    pub names: Vec<String>,
+    /// The subset of `names` defined by a shipped YAML definition. The remainder are special-cased in code and have no definition to load.
+    pub yaml_based_names: Vec<String>,
 }
 
 /// Optional project paths to include when enumerating agent discovery directories.
@@ -3008,6 +3243,27 @@ pub struct AuthIdentityMetadata {
     pub r#type: AuthInfoType,
 }
 
+/// A credential-free account choice after sign-in.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AuthLoginAccount {
+    /// Host coordinate owned by the selected account's provider.
+    pub host: String,
+    /// Provider kind that owns this account choice.
+    pub kind: AccountKind,
+    /// Human-readable login for the account choice.
+    pub login: String,
+    /// Opaque identifier supplied to the next login step to select this account.
+    pub selection_id: String,
+}
+
 /// Advance an in-flight login flow, optionally fulfilling an input-required step.
 ///
 /// <div class="warning">
@@ -3101,7 +3357,7 @@ pub struct AuthLoginStepNeedsInteraction {
     pub kind: AuthLoginStepNeedsInteractionKind,
 }
 
-/// Terminal result of an interactive login flow.
+/// Result of an interactive login flow. Pending consent or account selection is not terminal.
 ///
 /// <div class="warning">
 ///
@@ -3112,13 +3368,16 @@ pub struct AuthLoginStepNeedsInteraction {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AuthLoginResultDto {
+    /// Available accounts when sign-in is awaiting account selection, ordered with Microsoft 365 first.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub accounts: Option<Vec<AuthLoginAccount>>,
     /// Host that was signed in, when completed.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub host: Option<String>,
     /// Login that was signed in, when completed.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub login: Option<String>,
-    /// Terminal disposition of the login.
+    /// Current disposition of the login, including pending user decisions.
     pub status: AuthLoginResultStatus,
 }
 
@@ -3134,7 +3393,7 @@ pub struct AuthLoginResultDto {
 pub struct AuthLoginStepCompleted {
     /// Login flow step variant discriminator.
     pub kind: AuthLoginStepCompletedKind,
-    /// The terminal login result.
+    /// Login result. When status is needs-plaintext-consent or needs-account-selection, advance with the user's decision to continue.
     pub result: AuthLoginResultDto,
 }
 
@@ -5899,6 +6158,147 @@ pub struct ConnectorDisconnectResult {
     pub status: ConnectorStatus,
 }
 
+/// Account metadata.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnectorDiscoveryAuthInfo {
+    /// Host.
+    pub host: String,
+    /// Login.
+    pub login: String,
+    /// Authentication type.
+    pub r#type: AuthInfoType,
+}
+
+/// Eligible account.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnectorDiscoveryAccount {
+    /// Opaque account ID.
+    pub account_id: String,
+    /// Account metadata.
+    pub auth_info: ConnectorDiscoveryAuthInfo,
+}
+
+/// Eligible accounts.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnectorDiscoveryAccountList {
+    /// Eligible accounts.
+    pub accounts: Vec<ConnectorDiscoveryAccount>,
+    /// Availability.
+    pub availability: ConnectorDiscoveryAvailability,
+}
+
+/// Selected account.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnectorDiscoveryAccountRequest {
+    /// Opaque account ID.
+    pub account_id: String,
+}
+
+/// Feature availability.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnectorDiscoveryCapabilities {
+    /// API version.
+    pub api_version: i64,
+    /// Availability.
+    pub availability: ConnectorDiscoveryAvailability,
+    /// Whether results are cached.
+    pub conditional_cache: bool,
+    /// Whether accounts are selected by opaque ID.
+    pub opaque_account_selection: bool,
+}
+
+/// Entry.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnectorDiscoveryCatalogEntry {
+    /// Description.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Display name.
+    pub display_name: String,
+    /// Logo.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub logo: Option<String>,
+    /// Name.
+    pub name: String,
+    /// Release tag.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub release_tag: Option<String>,
+    /// Status.
+    pub status: ConnectorCatalogStatus,
+    /// Tier.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tier: Option<String>,
+}
+
+/// Entries for the selected account.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnectorDiscoveryCatalogResult {
+    /// Opaque account ID.
+    pub account_id: String,
+    /// Entries.
+    pub connectors: Vec<ConnectorDiscoveryCatalogEntry>,
+    /// Refresh time in Unix epoch milliseconds.
+    pub refreshed_at_ms: i64,
+    /// Revision.
+    pub revision: i64,
+}
+
 /// Requests authoritative Connector-to-MCP reconciliation for the pinned account.
 ///
 /// <div class="warning">
@@ -7793,6 +8193,191 @@ pub struct FolderTrustCheckResult {
     pub trusted: bool,
 }
 
+/// The remote the checked-out branch tracks.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct GitCurrentBranchRemoteResult {
+    /// Name of the tracked remote. Reports `origin` whenever the working tree has no tracking configuration to read, including on a detached HEAD, so this is never null and never empty.
+    pub remote: String,
+}
+
+/// Working-tree path a git query applies to.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct GitCwdRequest {
+    /// Absolute path to a directory inside the git working tree to query.
+    pub cwd: String,
+}
+
+/// A GitHub login the authenticated user may act as: their own account, or an organization they belong to.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct GitHubOwnerOption {
+    /// The owner's GitHub login.
+    pub login: String,
+    /// Which kind of owner this is. The authenticated user's own account is always reported as `user`.
+    pub r#type: String,
+}
+
+/// The owner listing to abandon.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct GitHubOwnersCancelRequest {
+    /// Request id the listing was started with.
+    pub request_id: i64,
+}
+
+/// Whether the id named a running owner listing.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct GitHubOwnersCancelResult {
+    /// True when a listing with the id was running and the cancel stopped it. False when the id was never registered, was registered but unused, was released after being abandoned, or its listing had ended. An unused id is released and cannot start a later listing.
+    pub canceled: bool,
+}
+
+/// Credential to list owners under, and the request id that makes the listing cancellable.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct GitHubOwnersListRequest {
+    /// The credential the listing runs under, carried opaquely because its shape is the host's own and the runtime only resolves a token and a GitHub host from it. No credential travels: this selects one the runtime already holds.
+    pub auth_info: serde_json::Value,
+    /// Request id from `gitHubOwners.nextRequestId`. An id that was never registered, canceled before use, released after being abandoned, or already used is refused rather than silently running uncancellable.
+    pub request_id: i64,
+}
+
+/// Outcome of an owner listing. Exactly one of `owners` and `message` is present, except that `throwError` reports a failure the caller is expected to raise rather than render.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct GitHubOwnersListResult {
+    /// Why no owners could be listed, phrased for a user. Present when the listing failed in a way the caller should render rather than raise.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
+    /// The owners, on success: the authenticated user first, then the organizations they belong to.
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) owners: Option<Vec<GitHubOwnerOption>>,
+    /// A malformed request or an unreadable credential, which the caller raises instead of rendering. Kept a field rather than a dispatch error so it stays distinct from `message`, which the caller renders.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub throw_error: Option<String>,
+    /// A line the caller should log. Present only alongside `message`, and only for failures worth recording.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub warning: Option<String>,
+}
+
+/// A freshly registered request id. Registering it before the listing starts is what lets a cancel that races the request still find the owner listing slot. The id serves one listing only. Long-abandoned unused ids can be released by later allocations.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct GitHubOwnersRequestIdResult {
+    /// Request id to pass to `gitHubOwners.list` and, to abandon it, `gitHubOwners.cancel`.
+    pub request_id: i64,
+}
+
+/// Working-tree path whose owning GitHub repository should be resolved.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct GitHubRepositoryAtPathRequest {
+    /// Absolute path to a directory inside the git working tree to resolve.
+    pub path: String,
+}
+
+/// Owner, name, and host of a GitHub repository, as resolved from a git remote URL.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitHubRepositoryIdentity {
+    /// Host the remote points at, for example `github.com` or a GitHub Enterprise hostname.
+    pub host: String,
+    /// Repository name, without the owner prefix or the `.git` suffix.
+    pub name: String,
+    /// Repository owner login (user or organization).
+    pub owner: String,
+}
+
+/// The GitHub repository that owns the requested path, when the selected remote (`origin`, else the first) is on a GitHub host.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct GitHubRepositoryAtPathResult {
+    /// Resolved repository identity, or null when the selected remote resolves to no GitHub host.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub repository: Option<GitHubRepositoryIdentity>,
+}
+
 /// Client environment metadata describing the process that produced a telemetry event.
 ///
 /// <div class="warning">
@@ -7949,6 +8534,58 @@ pub struct GitHubTokenAcquireResultToken {
 pub struct GitHubTokenAcquireResultCancelled {
     /// GitHub credential response variant discriminator.
     pub kind: GitHubTokenAcquireResultCancelledKind,
+}
+
+/// A GitHub repository one of a working tree's remotes points at.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct GitRemoteRepository {
+    /// GitHub host serving the repository, which is not `github.com` for a GitHub Enterprise remote.
+    pub host: String,
+    /// Repository name, without the owner.
+    pub name: String,
+    /// Account or organization owning the repository.
+    pub owner: String,
+    /// Name of the first remote that produced this distinct repository entry, such as `origin` or `upstream`.
+    pub remote_name: String,
+}
+
+/// Git working tree whose GitHub remotes should be listed.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct GitReposFromRemotesRequest {
+    /// Absolute path to the root of the git working tree.
+    pub git_root: String,
+}
+
+/// The GitHub repositories a working tree's remotes point at.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct GitReposFromRemotesResult {
+    /// One entry per distinct GitHub repository, in the order git reports the first remote for each repository. Empty when no remote points at a GitHub host, which a caller should read as `not connected to GitHub`. Failing to read the remotes is an error, not an empty list.
+    #[doc(hidden)]
+    pub(crate) repositories: Vec<GitRemoteRepository>,
 }
 
 /// Pending external tool call request ID, with the tool result or an error describing why it failed.
@@ -11004,6 +11641,71 @@ pub struct McpConfigUpdateRequest {
     pub config: serde_json::Value,
     /// Name of the MCP server to update
     pub name: String,
+}
+
+/// Observational state for a matching already materialized MCP server.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpConfiguredServerState {
+    /// Observed connection error, when the materialized server failed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+    /// Observed connection status. This is not a configuration or readiness guarantee.
+    pub status: McpServerStatus,
+}
+
+/// Effective MCP configuration entry. Configuration enablement is distinct from the optional live observation.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpConfiguredServer {
+    /// Human-readable display name supplied by configuration.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub display_name: Option<String>,
+    /// Whether this configured server is enabled after session configuration and policy filtering.
+    pub enabled: bool,
+    /// Observed state from an already materialized matching server. Omitted when no live graph has this configured server; it never determines configuration enablement.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub live: Option<McpConfiguredServerState>,
+    /// Server name (config key)
+    pub name: String,
+    /// Configuration provenance: user, workspace, plugin, builtin, or managed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source: Option<McpServerSource>,
+    /// Plugin name that provided this server, when source is plugin.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_plugin: Option<String>,
+    /// Plugin version that provided this server, when source is plugin.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_plugin_version: Option<String>,
+}
+
+/// Effective MCP configuration with optional live observations from matching already materialized servers.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpConfiguredServerList {
+    /// Effective configured MCP servers.
+    pub servers: Vec<McpConfiguredServer>,
 }
 
 /// Credential-free authentication identity used to configure GitHub MCP.
@@ -20637,6 +21339,23 @@ pub struct SessionBulkDeleteResult {
     pub freed_bytes: HashMap<String, i64>,
 }
 
+/// The IDE a host is connected to, as reported to the session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionConnectedIdeInfo {
+    /// Display name of the connected IDE, for example `VS Code`.
+    pub ide_name: String,
+    /// Absolute path of the workspace folder the IDE has open.
+    pub workspace_folder: String,
+}
+
 /// The six normalized `/context` header buckets, computed from the same tokenization as `entries` so the two never disagree. Convenience rollups: `freeSpace` and `buffer` describe window capacity rather than occupied context, so the values do not sum to `totalTokens`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -21646,6 +22365,22 @@ pub struct SessionManagedSettings {
     pub permissions: Option<SessionManagedPermissions>,
 }
 
+/// Records which IDE the host is connected to, or clears it.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionMcpSetConnectedIdeInfoParams {
+    /// The connected IDE. Null or omitted clears the recorded IDE, which is how a host reports that it is disconnected.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ide: Option<SessionConnectedIdeInfo>,
+}
+
 /// Public-facing projection of workspace metadata for SDK / TUI consumers
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -22588,6 +23323,85 @@ pub struct SessionsCloseRequest {
 #[serde(rename_all = "camelCase")]
 pub struct SessionsCloseResult {}
 
+/// A working-directory context together with the client that produced it.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionWorkingDirectoryContextWithClient {
+    /// Merge-base commit SHA
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub base_commit: Option<String>,
+    /// Current git branch name
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub branch: Option<String>,
+    /// Name of the client that created the session
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub client_name: Option<String>,
+    /// Current working directory path
+    pub cwd: String,
+    /// Root directory of the git repository
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub git_root: Option<String>,
+    /// Head commit of the current git branch
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub head_commit: Option<String>,
+    /// Hosting platform type of the repository
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub host_type: Option<String>,
+    /// Repository identifier derived from the git remote URL
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub repository: Option<String>,
+    /// Raw host string from the git remote URL
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub repository_host: Option<String>,
+}
+
+/// Identity, state location and starting context for a workspace record.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionsCreateWorkspaceRequest {
+    /// Starting working-directory context. The record keeps `cwd`, `gitRoot`, `repository`, `hostType`, `branch`, and `clientName`. Other fields, including `repositoryHost`, `headCommit`, and `baseCommit`, are ignored. `hostType` must be `github` or `ado`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub context: Option<SessionWorkingDirectoryContextWithClient>,
+    /// `windows` (any letter case) selects Windows path rules. Any other value selects POSIX path rules.
+    pub convention: String,
+    /// User-supplied display name for the workspace
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    /// Session ID the workspace record belongs to
+    pub session_id: SessionId,
+    /// Directory the session's state is written under when no session filesystem provider is configured. Ignored when a provider is configured; the provider's session state path is used instead.
+    pub session_state_path: String,
+}
+
+/// The workspace record that was written.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionsCreateWorkspaceResult {
+    /// The created workspace record, as JSON
+    pub workspace_json: String,
+}
+
 /// Session ID to delete from disk.
 ///
 /// <div class="warning">
@@ -23282,6 +24096,39 @@ pub struct SessionsLoadDeferredRepoHooksRequest {
     pub session_id: SessionId,
 }
 
+/// Where the session's state lives, as a root directory and the session ID under it.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionsLoadWorkspaceRequest {
+    /// Session ID naming the state directory under the sessions home. Rejected when it is absolute or contains a parent component, so it cannot escape the sessions home.
+    pub session_id: SessionId,
+    /// Root directory every session's state directory sits under
+    pub sessions_home: String,
+}
+
+/// The workspace record on disk, omitted when the session has none.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionsLoadWorkspaceResult {
+    /// The workspace record, as JSON. Omitted when the record does not exist.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub workspace_json: Option<String>,
+}
+
 /// Age threshold and optional flags controlling which old sessions are pruned (or simulated when dryRun is true).
 ///
 /// <div class="warning">
@@ -23509,6 +24356,37 @@ pub struct SessionsTransferRemoteControlRequest {
     /// Local session id to point remote control at.
     pub to_session_id: String,
 }
+
+/// Where the session's state lives, plus workspace-schema fields to merge into its workspace record. Stored keys outside the schema are not preserved, and a stored `fork_count` is never replaced.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionsUpdateWorkspaceFieldsRequest {
+    /// Workspace-schema fields to merge into the record, as a JSON object. Fields the object omits keep their stored values, except stored keys outside the schema are not preserved and a stored `fork_count` is never replaced.
+    pub fields_json: String,
+    /// Session ID naming the state directory under the sessions home. Rejected when it is absolute or contains a parent component, so it cannot escape the sessions home.
+    pub session_id: SessionId,
+    /// Root directory every session's state directory sits under
+    pub sessions_home: String,
+}
+
+/// The merge completed. The record carries the supplied workspace-schema fields, but a stored `fork_count` stays.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionsUpdateWorkspaceFieldsResult {}
 
 /// Telemetry engagement ID for the session, when available.
 ///
@@ -24378,7 +25256,7 @@ pub struct SkillPlanUninstallRequest {
     pub policy_session_id: String,
 }
 
-/// Catalog-only metadata for one SDK-provided skill. The complete SKILL.md is fetched separately and lazily.
+/// Authoritative catalog metadata for one SDK-provided skill. The skill's SKILL.md text is fetched separately and lazily.
 ///
 /// <div class="warning">
 ///
@@ -24436,7 +25314,7 @@ pub(crate) struct SkillProviderReadRequest {
     pub name: String,
 }
 
-/// Complete text-only SKILL.md content returned by an SDK session's skill provider. Related files and assets are not supported.
+/// Text-only SKILL.md content returned by an SDK session's skill provider. YAML frontmatter is optional: fields it omits come from the catalog descriptor, fields it declares must match the descriptor, and `allowed-tools` is read only from frontmatter. Related files and assets are not supported.
 ///
 /// <div class="warning">
 ///
@@ -24447,8 +25325,8 @@ pub(crate) struct SkillProviderReadRequest {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct SkillProviderReadResult {
-    /// Complete SKILL.md text. The runtime enforces a 1 MiB UTF-8 byte limit.
-    pub markdown: String,
+    /// SKILL.md text, with or without YAML frontmatter, or null when the provider has no skill with the requested name. The runtime enforces a 1 MiB UTF-8 byte limit.
+    pub markdown: Option<String>,
 }
 
 /// Skill names to mark as disabled in global configuration, replacing any previous list.
@@ -29198,6 +30076,57 @@ pub struct CommandsListResult {
     pub commands: Vec<SlashCommandInfo>,
 }
 
+/// A freshly registered request id. Registering it before the listing starts is what lets a cancel that races the request still find the owner listing slot. The id serves one listing only. Long-abandoned unused ids can be released by later allocations.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct GitHubOwnersNextRequestIdResult {
+    /// Request id to pass to `gitHubOwners.list` and, to abandon it, `gitHubOwners.cancel`.
+    pub request_id: i64,
+}
+
+/// Updated working directory and git context. Emitted as the new payload of `session.context_changed`.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitWorkingDirectoryContextResult {
+    /// Merge-base commit SHA (fork point from the remote default branch)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub base_commit: Option<String>,
+    /// Current git branch name
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub branch: Option<String>,
+    /// Current working directory path
+    pub cwd: String,
+    /// Root directory of the git repository, resolved via git rev-parse
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub git_root: Option<String>,
+    /// Head commit of the current git branch
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub head_commit: Option<String>,
+    /// Hosting platform type of the repository
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub host_type: Option<SessionWorkingDirectoryContextHostType>,
+    /// Repository identifier derived from the git remote URL ("owner/name" for GitHub, "org/project/repo" for Azure DevOps)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub repository: Option<String>,
+    /// Raw host string from the git remote URL (e.g. "github.com", "dev.azure.com")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub repository_host: Option<String>,
+}
+
 /// Result of opening a session.
 ///
 /// <div class="warning">
@@ -29463,6 +30392,86 @@ pub struct SessionsStopRemoteControlResult {
 pub struct SessionsGetRemoteControlStatusResult {
     /// State of the runtime-managed remote-control singleton.
     pub status: serde_json::Value,
+}
+
+/// Feature availability.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnectorsGetCapabilitiesResult {
+    /// API version.
+    pub api_version: i64,
+    /// Availability.
+    pub availability: ConnectorDiscoveryAvailability,
+    /// Whether results are cached.
+    pub conditional_cache: bool,
+    /// Whether accounts are selected by opaque ID.
+    pub opaque_account_selection: bool,
+}
+
+/// Eligible accounts.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnectorsGetAccountsResult {
+    /// Eligible accounts.
+    pub accounts: Vec<ConnectorDiscoveryAccount>,
+    /// Availability.
+    pub availability: ConnectorDiscoveryAvailability,
+}
+
+/// Entries for the selected account.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnectorsListResult {
+    /// Opaque account ID.
+    pub account_id: String,
+    /// Entries.
+    pub connectors: Vec<ConnectorDiscoveryCatalogEntry>,
+    /// Refresh time in Unix epoch milliseconds.
+    pub refreshed_at_ms: i64,
+    /// Revision.
+    pub revision: i64,
+}
+
+/// Entries for the selected account.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnectorsRefreshResult {
+    /// Opaque account ID.
+    pub account_id: String,
+    /// Entries.
+    pub connectors: Vec<ConnectorDiscoveryCatalogEntry>,
+    /// Refresh time in Unix epoch milliseconds.
+    pub refreshed_at_ms: i64,
+    /// Revision.
+    pub revision: i64,
 }
 
 /// Identifies the target session.
@@ -32165,6 +33174,36 @@ pub struct SessionMcpListResult {
     pub host: Option<McpHostState>,
     /// Configured MCP servers
     pub servers: Vec<McpServer>,
+}
+
+/// Identifies the target session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionMcpListConfiguredParams {
+    /// Target session identifier
+    pub session_id: SessionId,
+}
+
+/// Effective MCP configuration with optional live observations from matching already materialized servers.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionMcpListConfiguredResult {
+    /// Effective configured MCP servers.
+    pub servers: Vec<McpConfiguredServer>,
 }
 
 /// Tools exposed by the connected MCP server. Throws when the server is not connected.
@@ -36138,6 +37177,14 @@ pub enum UserAuthInfoType {
     User,
 }
 
+/// Provider-owned account authentication.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AccountAuthInfoType {
+    #[serde(rename = "account")]
+    #[default]
+    Account,
+}
+
 /// Authentication via the `gh` CLI's saved credentials.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum GhCliAuthInfoType {
@@ -36171,6 +37218,7 @@ pub enum AuthInfo {
     TokenProvider(TokenProviderAuthInfo),
     CopilotApiToken(CopilotApiTokenAuthInfo),
     User(UserAuthInfo),
+    Account(AccountAuthInfo),
     GhCli(GhCliAuthInfo),
     ApiKey(ApiKeyAuthInfo),
 }
@@ -36877,6 +37925,9 @@ pub enum AuthInfoType {
     /// Authentication from an interactive user sign-in.
     #[serde(rename = "user")]
     User,
+    /// Authentication from a selected provider-owned account, without a GitHub credential.
+    #[serde(rename = "account")]
+    Account,
     /// Authentication delegated to the GitHub CLI.
     #[serde(rename = "gh-cli")]
     GhCli,
@@ -36938,7 +37989,7 @@ pub enum AuthLoginStepCompletedKind {
     Completed,
 }
 
-/// Terminal disposition of a login persistence attempt.
+/// Disposition of a login attempt, including pending user decisions.
 ///
 /// <div class="warning">
 ///
@@ -36948,12 +37999,15 @@ pub enum AuthLoginStepCompletedKind {
 /// </div>
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AuthLoginResultStatus {
-    /// The credential was persisted and the account is signed in.
+    /// The credential was persisted and the selected account is signed in.
     #[serde(rename = "completed")]
     Completed,
     /// Persistence needs explicit consent to store the token in plaintext.
     #[serde(rename = "needs-plaintext-consent")]
     NeedsPlaintextConsent,
+    /// Credentials are saved; select an account using a returned selectionId as advance input to complete sign-in.
+    #[serde(rename = "needs-account-selection")]
+    NeedsAccountSelection,
     /// The user declined plaintext persistence.
     #[serde(rename = "declined")]
     Declined,
@@ -38650,6 +39704,31 @@ pub enum ConnectorConnectResult {
     Connected(ConnectorConnectResultConnected),
     ConsentRequired(ConnectorConnectResultConsentRequired),
     Pending(ConnectorConnectResultPending),
+}
+
+/// Availability.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ConnectorDiscoveryAvailability {
+    /// Enabled.
+    #[serde(rename = "enabled")]
+    Enabled,
+    /// Disabled.
+    #[serde(rename = "disabled")]
+    Disabled,
+    /// Unavailable.
+    #[serde(rename = "unavailable")]
+    Unavailable,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
 }
 
 /// Closed set of public task kinds a connection can negotiate.
@@ -44146,6 +45225,7 @@ pub enum SettableAuthInfo {
     Token(SettableTokenAuthInfo),
     CopilotApiToken(CopilotApiTokenAuthInfo),
     User(UserAuthInfo),
+    Account(AccountAuthInfo),
     GhCli(GhCliAuthInfo),
     ApiKey(ApiKeyAuthInfo),
 }

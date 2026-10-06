@@ -457,6 +457,7 @@ async function main() {
     cwd: DOCS_DIR,
     ignore: [".validation/**", "node_modules/**", "IMPROVEMENT_PLAN.md"],
   });
+  mdFiles.push("../java/README.md");
 
   console.log(`Found ${mdFiles.length} markdown files\n`);
 
@@ -472,7 +473,15 @@ async function main() {
 
   for (const mdFile of mdFiles) {
     const fullPath = path.join(DOCS_DIR, mdFile);
-    const content = fs.readFileSync(fullPath, "utf-8");
+    let content = fs.readFileSync(fullPath, "utf-8");
+    if (mdFile === "../java/README.md") {
+      // Replace the legacy README smoke with validation of its exact Quick Start.
+      const quickStart = /^## Quick Start\r?\n[\s\S]*?^```java\r?\n[\s\S]*?^```/m.exec(content);
+      if (!quickStart) {
+        throw new Error(`Could not find the Java Quick Start in ${mdFile}`);
+      }
+      content = "\n".repeat(content.slice(0, quickStart.index).split("\n").length - 1) + quickStart[0];
+    }
     const blocks = parseMarkdownCodeBlocks(content, mdFile);
 
     for (const block of blocks) {

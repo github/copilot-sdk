@@ -29,7 +29,7 @@ public final class SessionManagedSettingsApi {
     }
 
     /**
-     * Identifies the target session.
+     * Waits for the live session's in-flight managed-settings application, then returns the retained effective snapshot used by runtime enforcement and by `session.managed_settings_resolved`. It does not perform another account, device, or server resolution, and rejects when resolution has not produced a snapshot.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0

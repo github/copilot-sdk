@@ -31,7 +31,7 @@ public final class SessionNameApi {
     }
 
     /**
-     * Identifies the target session.
+     * Gets the session's friendly name.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -42,7 +42,7 @@ public final class SessionNameApi {
     }
 
     /**
-     * New friendly name to apply to the session.
+     * Sets the session's friendly name.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -58,7 +58,7 @@ public final class SessionNameApi {
     }
 
     /**
-     * Auto-generated session summary to apply as the session's name when no user-set name exists.
+     * Persists an auto-generated session summary as the session's name when no user-set name exists.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.

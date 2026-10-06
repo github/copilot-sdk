@@ -29,7 +29,7 @@ public final class SessionCustomizationsApi {
     }
 
     /**
-     * Identifies the target session.
+     * For local sessions, reconciles repository context and discovered instructions, plugins, skills, agents, hooks, MCP servers, and extensions after files appear or change under the working directory. Independent component failures are returned in outcomes and errors; a rejected call can have partially applied earlier steps. Remote sessions must reload on their agent host instead. The model-facing context is rebuilt on the next turn.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0

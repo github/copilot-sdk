@@ -286,6 +286,51 @@ provider errors, and invalid token responses reject that operation instead of
 falling back to ambient authentication. Idle sessions refresh only before their
 next credential-consuming operation; there is no background refresh timer.
 
+### Skill providers (experimental)
+
+`SessionConfig.setSkillProvider(...)` registers session-scoped skills that the
+runtime can list and read on demand. The API is experimental; see
+[Using experimental APIs](#using-experimental-apis) before compiling code that
+references it.
+
+```java
+import com.github.copilot.SkillProvider;
+import com.github.copilot.SkillProviderDescriptor;
+
+SkillProvider provider = new SkillProvider() {
+    @Override
+    public CompletableFuture<List<SkillProviderDescriptor>> listSkills() {
+        return CompletableFuture.completedFuture(List.of(
+            new SkillProviderDescriptor("team-plan", "Team planning guidance", true, false, null)));
+    }
+
+    @Override
+    public CompletableFuture<String> readSkill(String name) {
+        if (!name.equals("team-plan")) {
+            return CompletableFuture.completedFuture(null); // not found
+        }
+        return CompletableFuture.completedFuture("# Team plan\nWrite a concise monthly team plan.");
+    }
+};
+
+var config = new SessionConfig()
+    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+    .setEnableSkills(true)
+    .setSkillProvider(provider);
+```
+
+Provider callbacks may be invoked concurrently, so implementations should be
+thread-safe. When the runtime cancels a call, for example after its 30-second
+limit or when the session disconnects, the SDK calls `cancel(true)` on the
+returned future; check `isCancelled()` or attach a completion callback to stop
+early. The provider is not persisted with the session; pass it again via
+`ResumeSessionConfig.setSkillProvider(...)` on every resume. Resuming without a
+provider unbinds any provider the session had. In
+`CopilotClientMode.EMPTY`, explicitly set `setEnableSkills(true)` if the
+assistant should use skills, because empty mode disables skill loading by
+default. Skill providers are local-session only and are rejected for cloud
+sessions.
+
 ### Typed MCP installation and removal payloads (breaking change)
 
 Three payloads in the experimental MCP installation and removal workflow are now sealed

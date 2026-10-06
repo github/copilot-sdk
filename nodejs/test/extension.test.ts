@@ -80,6 +80,20 @@ describe("joinSession", () => {
         expect(resumeForExtension.mock.calls[1]![3]).toBeUndefined();
     });
 
+    it("strips a skill provider, which only the session's owning client may supply", async () => {
+        process.env.SESSION_ID = "session-123";
+        const resumeForExtension = vi
+            .spyOn(CopilotClient.prototype, "resumeSessionForExtension")
+            .mockResolvedValue({} as any);
+        const skillProvider = { listSkills: () => [], readSkill: () => null };
+
+        // Untyped callers can still pass the field that JoinSessionConfig omits.
+        await joinSession({ tools: [], skillProvider } as Parameters<typeof joinSession>[0]);
+
+        const [, config] = resumeForExtension.mock.calls[0]!;
+        expect(config).not.toHaveProperty("skillProvider");
+    });
+
     it("forwards workflow contributions independently", async () => {
         process.env.SESSION_ID = "session-123";
         const resumeForExtension = vi

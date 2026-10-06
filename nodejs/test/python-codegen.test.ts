@@ -271,6 +271,23 @@ describe("Python append-last fields for a selected schema", () => {
         ).toEqual(fields);
     });
 
+    it("includes fields marked append-last by the contract schema", () => {
+        expect(
+            pythonAppendLastFieldsPresentIn({
+                Response: {
+                    type: "object",
+                    properties: {
+                        stableField: { type: "string" },
+                        addedField: {
+                            type: "string",
+                            "x-copilot-sdk-append-last": true,
+                        },
+                    },
+                },
+            })
+        ).toContainEqual(["Response", "addedField"]);
+    });
+
     it("skips an entry for a legacy request or a schema without the definition", () => {
         expect(
             pythonAppendLastFieldsPresentIn(

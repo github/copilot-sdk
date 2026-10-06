@@ -1039,11 +1039,12 @@ internal sealed partial class JsonRpc : IDisposable
         public IncomingRequestCancellation(long id, CancellationToken connectionClosedToken)
         {
             Id = id;
-            _combinedSource = CancellationTokenSource.CreateLinkedTokenSource(_requestSource.Token, connectionClosedToken);
             _registration = _requestSource.Token.Register(static state =>
             {
                 ((TaskCompletionSource)state!).TrySetResult();
             }, _requestCancelled);
+            // Cancellation callbacks run in reverse registration order: propagate to handlers before replying.
+            _combinedSource = CancellationTokenSource.CreateLinkedTokenSource(_requestSource.Token, connectionClosedToken);
         }
 
         public long Id { get; }

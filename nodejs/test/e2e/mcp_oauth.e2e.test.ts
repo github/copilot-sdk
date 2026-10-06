@@ -117,6 +117,16 @@ describe("MCP OAuth host auth", async () => {
             expect(tokenForm.get("redirect_uri")).toBe(redirectUri);
             expect(tokenForm.get("client_id")).toBe("sdk-e2e-client");
             expect(tokenForm.get("code_verifier")).toEqual(expect.any(String));
+            // This server issues neither a refresh token nor an account pin.
+            await expect(
+                session.rpc.mcp.oauth.authenticationStateChanged({
+                    serverName,
+                    refreshSessionToken: true,
+                })
+            ).rejects.toThrow("no refresh token or eligible saved Entra account");
+            const afterRefresh = await oauthServer.requests();
+            expect(afterRefresh.filter((request) => request.path === "/token")).toHaveLength(1);
+            expect(afterRefresh.filter((request) => request.path === "/register")).toHaveLength(0);
             expect(
                 requests.some((request) => request.authorization === `Bearer ${EXPECTED_TOKEN}`)
             ).toBe(true);

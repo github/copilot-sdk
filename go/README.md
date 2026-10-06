@@ -180,6 +180,56 @@ attribute. Custom handlers must support concurrent calls, as required by `slog`.
 Errors returned by SDK calls remain unchanged and also require deliberate
 handling before logging.
 
+## Skill providers (experimental)
+
+Use `SessionConfig.SkillProvider` or `ResumeSessionConfig.SkillProvider` to
+serve session-scoped skills from your application instead of from `SKILL.md`
+files on disk. The provider is ephemeral: it is not serialized or persisted, so
+re-supply it on every resume. Resuming without a provider unbinds any previous
+provider for that session.
+
+<!-- docs-validate: skip -->
+
+```go
+type memorySkillProvider struct{}
+
+func (memorySkillProvider) ListSkills(ctx context.Context) ([]rpc.SkillProviderDescriptor, error) {
+    return []rpc.SkillProviderDescriptor{{
+        Name:        "review",
+        Description: "Review code using the host application's policy",
+    }}, nil
+}
+
+func (memorySkillProvider) ReadSkill(ctx context.Context, name string) (string, error) {
+    if name != "review" {
+        return "", copilot.ErrSkillNotFound
+    }
+    return "Review the changes and call out policy violations.", nil
+}
+
+session, err := client.CreateSession(ctx, &copilot.SessionConfig{
+    SkillProvider: memorySkillProvider{},
+    // Required only when ClientOptions.Mode is ModeEmpty.
+    // EnableSkills: copilot.Bool(true),
+})
+```
+
+`ReadSkill` returns an error for which
+`errors.Is(err, copilot.ErrSkillNotFound)` is true when a listed skill no
+longer exists. Other errors are reported to the runtime as generic provider
+failures so provider error text is not exposed to the model.
+
+Skill providers are not supported for cloud sessions. Creating a cloud session
+with a provider fails before the client connects with:
+`Skill providers are not supported for cloud sessions.`
+
+Provider methods can be called concurrently by the runtime, including from
+sub-agents that inherit the root session binding. Implementations must be safe
+for concurrent calls and should observe the `context.Context`. The context is
+cancelled when the runtime abandons the request: the call times out, the
+session disconnects or is deleted, or a resume replaces the provider. It is not
+cancelled when the connection closes or the client is force-stopped.
+
 ## Installation confirmation (experimental)
 
 Set `ClientOptions.InstallationConfirmationHandler` to receive the runtime's

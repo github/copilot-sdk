@@ -122,6 +122,8 @@ export type { SessionFsSqliteTransactionErrorClass } from "./sessionFsProvider.j
 export { SessionFsSqliteTransactionFailure } from "./sessionFsProvider.js";
 export { SessionFsWriteFailure } from "./sessionFsProvider.js";
 export type { LlmInferenceHeaders } from "./generated/rpc.js";
+import type { SkillProviderDescriptor } from "./generated/rpc.js";
+export type { SkillProviderDescriptor };
 export type {
     PermissionDecisionContext,
     PermissionDecisionOutcome,
@@ -2375,6 +2377,65 @@ export interface ManagedSettings {
 export type AskUserVariant = "legacy" | "elicitation";
 
 /**
+ * Supplies session-scoped skills from the host's own storage, such as a
+ * database, instead of `SKILL.md` files on disk.
+ *
+ * The runtime calls {@link SkillProvider.listSkills} when it builds the
+ * session's skill catalog, and {@link SkillProvider.readSkill} each time it
+ * needs a skill's instructions: when the model loads the skill through the
+ * `skill` tool, when a user runs `/skill-name`, or when a custom agent lists
+ * the skill. Calls may run concurrently, including on behalf of sub-agents, and
+ * each call must finish within 30 seconds. Errors thrown by a provider are
+ * never shown to the model.
+ *
+ * Supply a provider with {@link SessionConfigBase.skillProvider}. Providers
+ * aren't supported for cloud sessions.
+ *
+ * @experimental Session-scoped skill providers are experimental and may change
+ * or be removed in future SDK or CLI releases.
+ */
+export interface SkillProvider {
+    /**
+     * Returns catalog metadata for every skill the provider supplies. The
+     * descriptors are authoritative: names must be unique ignoring case, and
+     * the runtime validates their limits.
+     */
+    listSkills(
+        options: SkillProviderCallOptions
+    ): SkillProviderDescriptor[] | Promise<SkillProviderDescriptor[]>;
+
+    /**
+     * Returns the `SKILL.md` text for the named skill, or `null`/`undefined`
+     * when the skill no longer exists.
+     *
+     * YAML frontmatter is optional. Fields it omits come from the skill's
+     * descriptor, fields it declares must match the descriptor, and
+     * `allowed-tools` can only be set there. Text whose first line is `---` is
+     * parsed as frontmatter.
+     *
+     * @param name - The skill's name, as listed by {@link SkillProvider.listSkills}.
+     */
+    readSkill(
+        name: string,
+        options: SkillProviderCallOptions
+    ): string | null | undefined | Promise<string | null | undefined>;
+}
+
+/**
+ * Per-call options passed to {@link SkillProvider} methods.
+ *
+ * @experimental Session-scoped skill providers are experimental and may change
+ * or be removed in future SDK or CLI releases.
+ */
+export interface SkillProviderCallOptions {
+    /**
+     * Aborted when the runtime cancels the call, for example when it times out
+     * or the session disconnects. The runtime ignores any later result.
+     */
+    signal: AbortSignal;
+}
+
+/**
  * Shared configuration fields used by both {@link SessionConfig} (for
  * creating a new session) and {@link ResumeSessionConfig} (for resuming
  * an existing one).
@@ -2851,6 +2912,23 @@ export interface SessionConfigBase {
      * Directories to load skills from.
      */
     skillDirectories?: string[];
+
+    /**
+     * Supplies skills from the host's own storage instead of `SKILL.md` files on
+     * disk. Provider skills join the session's skill catalog alongside file-based
+     * skills. See {@link SkillProvider}.
+     *
+     * Supplying a provider enables skills unless `enableSkills` is set explicitly,
+     * so set `enableSkills: true` when the client runs in `"empty"` mode. With
+     * `enableSkills: false` the provider stays bound but receives no calls.
+     *
+     * The provider isn't persisted. Pass it again when resuming the session;
+     * resuming without one removes the provider's skills.
+     *
+     * @experimental Session-scoped skill providers are experimental and may change
+     * or be removed in future SDK or CLI releases.
+     */
+    skillProvider?: SkillProvider;
 
     /**
      * Local filesystem paths to Open Plugins-format directories

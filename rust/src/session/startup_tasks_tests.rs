@@ -68,6 +68,7 @@ async fn check_aborted_nested_dispatches(nested_first: bool) {
         user_input: None,
         exit_plan_mode: None,
         auto_mode_switch: None,
+        skill_provider: None,
         tools: Arc::new(Default::default()),
     };
     let startup_tasks = Arc::new(StartupTasks::default());

@@ -31,7 +31,7 @@ public final class SessionMcpResourcesApi {
     }
 
     /**
-     * MCP server and resource URI to fetch.
+     * Fetch an MCP resource from a connected server by URI (proxies MCP `resources/read`).
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -47,7 +47,7 @@ public final class SessionMcpResourcesApi {
     }
 
     /**
-     * MCP server whose resources to enumerate.
+     * Enumerate one page of resources a connected MCP server exposes (proxies MCP `resources/list`). Pass `cursor` to continue from a prior result's `nextCursor`.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -63,7 +63,7 @@ public final class SessionMcpResourcesApi {
     }
 
     /**
-     * MCP server whose resource templates to enumerate.
+     * Enumerate one page of resource templates a connected MCP server exposes (proxies MCP `resources/templates/list`). Pass `cursor` to continue from a prior result's `nextCursor`.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.

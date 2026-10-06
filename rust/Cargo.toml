@@ -154,6 +154,10 @@ bench = false
 [[test]]
 name = "prepared_session_test"
 required-features = ["test-support"]
+
+[[test]]
+name = "skill_provider_test"
+required-features = ["test-support"]
 [build-dependencies]
 dirs = "5"
 flate2 = "1"

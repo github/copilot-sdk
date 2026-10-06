@@ -27,7 +27,7 @@ public final class ServerToolsApi {
     }
 
     /**
-     * Optional model identifier whose tool overrides should be applied to the listing.
+     * Lists built-in tools available for a model.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0

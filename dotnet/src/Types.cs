@@ -53,6 +53,74 @@ internal static class Diagnostics
 }
 
 /// <summary>
+/// Describes a skill supplied by a session-scoped <see cref="ISkillProvider"/>.
+/// </summary>
+/// <remarks>
+/// Experimental. The runtime validates descriptor limits, name syntax, and
+/// case-insensitive uniqueness when it reads the provider catalog.
+/// </remarks>
+[Experimental(Diagnostics.Experimental)]
+public sealed class SkillProviderDescriptor
+{
+    /// <summary>Stable skill name.</summary>
+    [JsonPropertyName("name")]
+    public required string Name { get; set; }
+
+    /// <summary>Human-readable description of what the skill teaches the model.</summary>
+    [JsonPropertyName("description")]
+    public required string Description { get; set; }
+
+    /// <summary>
+    /// Whether users can invoke the skill explicitly. When unset, the runtime default is <see langword="true"/>.
+    /// </summary>
+    [JsonPropertyName("userInvocable")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? UserInvocable { get; set; }
+
+    /// <summary>
+    /// Whether model-initiated invocation is disabled. When unset, the runtime default is <see langword="false"/>.
+    /// </summary>
+    [JsonPropertyName("disableModelInvocation")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? DisableModelInvocation { get; set; }
+
+    /// <summary>Optional argument hint shown for explicit invocations.</summary>
+    [JsonPropertyName("argumentHint")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ArgumentHint { get; set; }
+}
+
+/// <summary>
+/// Provides session-scoped skills to the Copilot runtime.
+/// </summary>
+/// <remarks>
+/// Experimental. Implementations can be called concurrently and must be safe for
+/// concurrent use. The provider is not persisted; supply it again when resuming a
+/// session. Returning <see langword="null"/> from <see cref="ReadSkillAsync"/>
+/// reports that the requested skill was not found.
+/// </remarks>
+[Experimental(Diagnostics.Experimental)]
+public interface ISkillProvider
+{
+    /// <summary>Lists the skills currently available from this provider.</summary>
+    /// <param name="cancellationToken">
+    /// Cancels when the runtime abandons the request (for example, on timeout, session disposal,
+    /// or provider replacement on resume) or the connection closes.
+    /// </param>
+    /// <returns>The available skill descriptors.</returns>
+    Task<IReadOnlyList<SkillProviderDescriptor>> ListSkillsAsync(CancellationToken cancellationToken);
+
+    /// <summary>Reads the SKILL.md markdown for a named skill.</summary>
+    /// <param name="name">The skill name requested by the runtime.</param>
+    /// <param name="cancellationToken">
+    /// Cancels when the runtime abandons the request (for example, on timeout, session disposal,
+    /// or provider replacement on resume) or the connection closes.
+    /// </param>
+    /// <returns>The skill markdown, or <see langword="null"/> when the skill is not found.</returns>
+    Task<string?> ReadSkillAsync(string name, CancellationToken cancellationToken);
+}
+
+/// <summary>
 /// Log level for the Copilot runtime. Use the well-known values exposed as
 /// static members (<see cref="None"/>, <see cref="Error"/>, <see cref="Warning"/>,
 /// <see cref="Info"/>, <see cref="Debug"/>, <see cref="All"/>), or construct
@@ -3572,6 +3640,7 @@ public abstract class SessionConfigBase
         ExpAssignments = other.ExpAssignments;
         EnableManagedSettings = other.EnableManagedSettings;
         ManagedSettings = other.ManagedSettings;
+        SkillProvider = other.SkillProvider;
 #pragma warning disable GHCP001
         Canvases = other.Canvases is not null ? [.. other.Canvases] : null;
         RequestCanvasRenderer = other.RequestCanvasRenderer;
@@ -3713,6 +3782,20 @@ public abstract class SessionConfigBase
     /// <see cref="EnableConfigDiscovery"/>.
     /// </summary>
     public bool? EnableSkills { get; set; }
+
+    /// <summary>
+    /// Session-scoped skill provider. When set, the runtime can list and read
+    /// skills by calling back into this SDK host.
+    /// </summary>
+    /// <remarks>
+    /// Experimental. The provider is ephemeral and is never persisted; supply it
+    /// again when resuming a session. In <see cref="CopilotClientMode.Empty"/>,
+    /// set <see cref="EnableSkills"/> to <see langword="true"/> to make provider
+    /// skills active. Providers can be called concurrently.
+    /// </remarks>
+    [JsonIgnore]
+    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+    public ISkillProvider? SkillProvider { get; set; }
 
     /// <summary>
     /// Built-in skill names to include in the session. In
@@ -4877,6 +4960,7 @@ public sealed class SystemMessageTransformRpcResponse
 [JsonSerializable(typeof(SectionOverride))]
 [JsonSerializable(typeof(SessionMetadata))]
 [JsonSerializable(typeof(SetForegroundSessionResponse))]
+[JsonSerializable(typeof(SkillProviderDescriptor))]
 [JsonSerializable(typeof(SystemMessageConfig))]
 [JsonSerializable(typeof(ToolBinaryResult))]
 [JsonSerializable(typeof(ToolBinaryResultType))]

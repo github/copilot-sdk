@@ -106,7 +106,7 @@ jobs:
 
       - name: Test in-process smoke
         id: inprocess
-        if: ${{ !cancelled() && runner.os != 'Windows' && (steps.subprocess.outcome == 'success' || steps.subprocess.outcome == 'failure') }}
+        if: ${{ !cancelled() && (steps.subprocess.outcome == 'success' || steps.subprocess.outcome == 'failure') }}
         env:
           COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
           COPILOT_SDK_DEFAULT_CONNECTION: inprocess

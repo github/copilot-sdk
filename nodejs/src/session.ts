@@ -8,7 +8,7 @@
  */
 
 import { AsyncLocalStorage } from "node:async_hooks";
-import type { MessageConnection } from "vscode-jsonrpc/node.js";
+import type { CancellationToken, MessageConnection } from "vscode-jsonrpc/node.js";
 import { ConnectionError, ErrorCodes, ResponseError } from "vscode-jsonrpc/node.js";
 import { createInternalSessionRpc, createSessionRpc } from "./generated/rpc.js";
 import type {
@@ -60,6 +60,9 @@ import type {
     SessionEventType,
     SessionHooks,
     SessionUiApi,
+    SkillProvider,
+    SkillProviderCallOptions,
+    SkillProviderDescriptor,
     Tool,
     ToolHandler,
     ToolResult,
@@ -463,6 +466,7 @@ export class CopilotSession {
     private elicitationHandler?: ElicitationHandler;
     private exitPlanModeHandler?: ExitPlanModeHandler;
     private autoModeSwitchHandler?: AutoModeSwitchHandler;
+    private skillProvider?: SkillProvider;
     private hooks?: SessionHooks;
     private transformCallbacks?: Map<string, SectionTransformFn>;
     private _rpc: ReturnType<typeof createSessionRpc> | null = null;
@@ -1035,6 +1039,7 @@ export class CopilotSession {
         this.elicitationHandler = undefined;
         this.exitPlanModeHandler = undefined;
         this.autoModeSwitchHandler = undefined;
+        this.skillProvider = undefined;
         this.commandHandlers.clear();
         this.canvases.clear();
         this.workflows.clear();
@@ -2135,6 +2140,82 @@ export class CopilotSession {
     }
 
     /**
+     * Registers the session's skill provider.
+     *
+     * @param provider - The skill provider, or undefined to remove it
+     * @internal This method is typically called internally when creating a session.
+     */
+    registerSkillProvider(provider?: SkillProvider): void {
+        this.skillProvider = provider;
+    }
+
+    /**
+     * Handles a `skillProvider.list` request from the runtime.
+     *
+     * @internal This method is for internal use by the SDK.
+     */
+    async _handleSkillProviderList(
+        token?: CancellationToken
+    ): Promise<{ skills: SkillProviderDescriptor[] }> {
+        const provider = this.requireSkillProvider();
+        return await this.callSkillProvider("listSkills", token, async (options) => ({
+            skills: (await provider.listSkills(options)) ?? [],
+        }));
+    }
+
+    /**
+     * Handles a `skillProvider.read` request from the runtime.
+     *
+     * @internal This method is for internal use by the SDK.
+     */
+    async _handleSkillProviderRead(
+        name: string,
+        token?: CancellationToken
+    ): Promise<{ markdown: string | null }> {
+        const provider = this.requireSkillProvider();
+        return await this.callSkillProvider("readSkill", token, async (options) => ({
+            markdown: (await provider.readSkill(name, options)) ?? null,
+        }));
+    }
+
+    private requireSkillProvider(): SkillProvider {
+        if (!this.skillProvider) {
+            throw new Error(`No skill provider for session: ${this.sessionId}`);
+        }
+        return this.skillProvider;
+    }
+
+    /**
+     * Runs a provider call with an abort signal tied to the runtime's request
+     * cancellation. Failures are logged locally and reported generically.
+     */
+    private async callSkillProvider<T>(
+        operation: string,
+        token: CancellationToken | undefined,
+        call: (options: SkillProviderCallOptions) => Promise<T>
+    ): Promise<T> {
+        const controller = new AbortController();
+        const subscription = token?.onCancellationRequested(() => controller.abort());
+        if (token?.isCancellationRequested) {
+            controller.abort();
+        }
+        try {
+            return await call({ signal: controller.signal });
+        } catch (error) {
+            if (controller.signal.aborted) {
+                throw new ResponseError(-32800, `Skill provider ${operation} cancelled`);
+            }
+            console.error(`Skill provider ${operation} failed`, {
+                sessionId: this.sessionId,
+                error,
+            });
+            throw skillProviderFailure(operation);
+        } finally {
+            subscription?.dispose();
+        }
+    }
+
+    /**
      * Registers hook handlers for session lifecycle events.
      *
      * Hooks allow custom logic to be executed at various points during
@@ -2561,6 +2642,11 @@ function toCanvasRpcError(error: unknown): ResponseError<unknown> {
     const code = error instanceof CanvasError ? error.code : "canvas_handler_error";
     const message = error instanceof Error ? error.message : String(error);
     return new ResponseError(ErrorCodes.InternalError, message, { code, message });
+}
+
+// The provider's own error text is deliberately not forwarded to the runtime.
+function skillProviderFailure(operation: string): ResponseError<undefined> {
+    return new ResponseError(ErrorCodes.InternalError, `Skill provider ${operation} failed`);
 }
 
 type WorkflowResultValidationCategory =

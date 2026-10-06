@@ -31,7 +31,7 @@ public final class SessionWorkflowJournalApi {
     }
 
     /**
-     * Parameters for reading a workflow journal entry.
+     * Reads a memoized dynamic workflow journal entry.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -47,7 +47,7 @@ public final class SessionWorkflowJournalApi {
     }
 
     /**
-     * Parameters for storing a workflow journal entry.
+     * Stores a memoized dynamic workflow journal entry.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.

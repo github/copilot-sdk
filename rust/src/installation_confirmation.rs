@@ -2,14 +2,12 @@
 
 //! Connection-global human confirmation for experimental installation operations.
 
-use std::collections::HashMap;
-use std::collections::hash_map::Entry;
 use std::panic::AssertUnwindSafe;
 use std::sync::{Arc, OnceLock, Weak};
 
 use async_trait::async_trait;
 use futures_util::FutureExt;
-use parking_lot::{Mutex, RwLock};
+use parking_lot::RwLock;
 use tokio_util::sync::CancellationToken;
 use tracing::warn;
 
@@ -22,7 +20,6 @@ use crate::{
 };
 
 pub(crate) const CONFIRM_METHOD: &str = "installations.confirm";
-const REQUEST_CANCELLED: i32 = -32800;
 
 /// The cancellation lifetime of one confirmation.
 ///
@@ -66,63 +63,6 @@ pub trait InstallationConfirmationHandler: Send + Sync + 'static {
     ) -> Result<InstallationDecision>;
 }
 
-/// Registered synchronously by the transport before forwarding each confirmation.
-/// This preserves request/cancellation ordering across the router's separate queues.
-#[derive(Default)]
-pub(crate) struct ConfirmationRequests {
-    pending: Mutex<HashMap<u64, Arc<CancellationToken>>>,
-}
-
-impl ConfirmationRequests {
-    pub(crate) fn register(&self, id: u64) -> bool {
-        let mut pending = self.pending.lock();
-        match pending.entry(id) {
-            Entry::Vacant(entry) => {
-                entry.insert(Arc::new(CancellationToken::new()));
-                true
-            }
-            Entry::Occupied(_) => false,
-        }
-    }
-
-    pub(crate) fn cancel(&self, id: u64) {
-        if let Some(token) = self.pending.lock().get(&id) {
-            token.cancel();
-        }
-    }
-
-    pub(crate) fn clear(&self) {
-        self.pending.lock().clear();
-    }
-
-    fn claim(self: &Arc<Self>, id: u64) -> Option<PendingConfirmation> {
-        let cancellation = self.pending.lock().get(&id)?.clone();
-        Some(PendingConfirmation {
-            requests: self.clone(),
-            id,
-            cancellation,
-        })
-    }
-}
-
-struct PendingConfirmation {
-    requests: Arc<ConfirmationRequests>,
-    id: u64,
-    cancellation: Arc<CancellationToken>,
-}
-
-impl Drop for PendingConfirmation {
-    fn drop(&mut self) {
-        let mut pending = self.requests.pending.lock();
-        if pending
-            .get(&self.id)
-            .is_some_and(|token| Arc::ptr_eq(token, &self.cancellation))
-        {
-            pending.remove(&self.id);
-        }
-    }
-}
-
 pub(crate) struct InstallationConfirmationDispatcher {
     handler: RwLock<Option<Arc<dyn InstallationConfirmationHandler>>>,
     client: OnceLock<Weak<ClientInner>>,
@@ -153,11 +93,11 @@ impl InstallationConfirmationDispatcher {
         let Some(client) = self.client.get().and_then(Weak::upgrade) else {
             return;
         };
-        let Some(pending) = client.rpc.confirmation_requests.claim(request.id) else {
+        let Some(pending) = client.rpc.cancellable_requests.claim(request.id) else {
             warn!("confirmation request retired before dispatch");
             return;
         };
-        let request_cancelled = pending.cancellation.as_ref().clone();
+        let request_cancelled = pending.cancellation().clone();
         let connection_closed = client.rpc.connection_closed_token();
         let context = InstallationConfirmationContext {
             cancellation: connection_closed.child_token(),
@@ -170,7 +110,7 @@ impl InstallationConfirmationDispatcher {
                 _ = connection_closed.cancelled() => return,
                 _ = request_cancelled.cancelled() => {
                     context.cancellation.cancel();
-                    Err((REQUEST_CANCELLED, "Installation confirmation request cancelled"))
+                    Err((error_codes::REQUEST_CANCELLED, "Installation confirmation request cancelled"))
                 }
                 outcome = Self::handle(handler, request.params, context.clone()) => outcome,
             };
@@ -180,7 +120,7 @@ impl InstallationConfirmationDispatcher {
             let outcome = if request_cancelled.is_cancelled() {
                 context.cancellation.cancel();
                 Err((
-                    REQUEST_CANCELLED,
+                    error_codes::REQUEST_CANCELLED,
                     "Installation confirmation request cancelled",
                 ))
             } else {

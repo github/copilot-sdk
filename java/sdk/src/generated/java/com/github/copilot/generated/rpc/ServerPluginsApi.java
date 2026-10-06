@@ -34,7 +34,7 @@ public final class ServerPluginsApi {
     }
 
     /**
-     * Plugins installed in user/global state.
+     * Lists plugins installed in user/global state.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -45,7 +45,7 @@ public final class ServerPluginsApi {
     }
 
     /**
-     * Plugin source and optional working directory for relative-path resolution.
+     * Installs a plugin from a marketplace, GitHub repo, URL, or local path.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -56,7 +56,7 @@ public final class ServerPluginsApi {
     }
 
     /**
-     * Name (or spec) of the plugin to uninstall.
+     * Uninstalls an installed plugin.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -67,7 +67,7 @@ public final class ServerPluginsApi {
     }
 
     /**
-     * Name (or spec) of the plugin to update.
+     * Updates an installed plugin to its latest published version.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -78,7 +78,7 @@ public final class ServerPluginsApi {
     }
 
     /**
-     * Result of updating all installed plugins.
+     * Updates every installed plugin to its latest published version.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -89,7 +89,7 @@ public final class ServerPluginsApi {
     }
 
     /**
-     * Plugin names (or specs) to enable, plus the optional working directory the repository-controlled guard is evaluated against.
+     * Enables installed plugins for new sessions.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -100,7 +100,7 @@ public final class ServerPluginsApi {
     }
 
     /**
-     * Plugin names (or specs) to disable, plus the optional working directory the repository-controlled guard is evaluated against.
+     * Disables installed plugins for new sessions.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0

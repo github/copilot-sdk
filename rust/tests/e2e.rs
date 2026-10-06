@@ -80,6 +80,8 @@ mod session_lifecycle;
 mod session_todos_changed;
 #[path = "e2e/set_tools.rs"]
 mod set_tools;
+#[path = "e2e/skill_provider.rs"]
+mod skill_provider;
 #[path = "e2e/skills.rs"]
 mod skills;
 #[path = "e2e/streaming_fidelity.rs"]

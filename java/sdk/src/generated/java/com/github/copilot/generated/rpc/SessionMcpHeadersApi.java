@@ -31,7 +31,7 @@ public final class SessionMcpHeadersApi {
     }
 
     /**
-     * MCP headers refresh request id and the host response.
+     * Responds to a pending MCP dynamic headers refresh request. Hosts that subscribe to `mcp.headers_refresh_required` use this to provide short-lived per-server headers or to indicate that no dynamic headers are available for this refresh.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.

@@ -31,7 +31,7 @@ public final class SessionScheduleApi {
     }
 
     /**
-     * Identifies the target session.
+     * Lists the session's currently active scheduled prompts.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -42,7 +42,7 @@ public final class SessionScheduleApi {
     }
 
     /**
-     * Identifies the target session.
+     * Hydrates the native schedule registry from persisted session events.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -53,7 +53,7 @@ public final class SessionScheduleApi {
     }
 
     /**
-     * Identifies the target session.
+     * Reports whether the session has an active self-paced scheduled prompt.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -64,7 +64,7 @@ public final class SessionScheduleApi {
     }
 
     /**
-     * Register a relative-interval scheduled prompt.
+     * Registers a relative-interval scheduled prompt.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -80,7 +80,7 @@ public final class SessionScheduleApi {
     }
 
     /**
-     * Register a cron scheduled prompt.
+     * Registers a recurring cron scheduled prompt.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -96,7 +96,7 @@ public final class SessionScheduleApi {
     }
 
     /**
-     * Register an absolute-time scheduled prompt.
+     * Registers an absolute-time scheduled prompt.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -112,7 +112,7 @@ public final class SessionScheduleApi {
     }
 
     /**
-     * Register a self-paced scheduled prompt.
+     * Registers a self-paced scheduled prompt.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -128,7 +128,7 @@ public final class SessionScheduleApi {
     }
 
     /**
-     * Re-arm a self-paced scheduled prompt.
+     * Re-arms an active self-paced scheduled prompt.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -144,7 +144,7 @@ public final class SessionScheduleApi {
     }
 
     /**
-     * Identifier of the scheduled prompt to remove.
+     * Removes a scheduled prompt by id.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.

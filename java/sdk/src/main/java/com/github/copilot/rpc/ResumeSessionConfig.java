@@ -15,6 +15,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import com.github.copilot.CopilotExperimental;
+import com.github.copilot.SkillProvider;
 import com.github.copilot.generated.SessionEvent;
 import com.github.copilot.generated.rpc.DiagnosticsConfiguration;
 import com.github.copilot.generated.rpc.SessionLimitsConfig;
@@ -83,6 +84,7 @@ public class ResumeSessionConfig {
     private Boolean enableHostGitOperations;
     private Boolean enableSessionStore;
     private Boolean enableSkills;
+    private SkillProvider skillProvider;
     private String embeddingCacheStorage;
     private boolean disableResume;
     private boolean streaming;
@@ -1312,6 +1314,35 @@ public class ResumeSessionConfig {
     }
 
     /**
+     * Gets the session-scoped skill provider for the resumed session.
+     *
+     * @return the skill provider, or {@code null} when not configured
+     * @apiNote This API is experimental and may change in a future version.
+     */
+    @CopilotExperimental
+    @JsonIgnore
+    public SkillProvider getSkillProvider() {
+        return skillProvider;
+    }
+
+    /**
+     * Sets the session-scoped skill provider for the resumed session.
+     * <p>
+     * Skill provider registrations are not persisted; re-supply the provider when
+     * resuming.
+     *
+     * @param skillProvider
+     *            the skill provider to expose to the runtime
+     * @return this config for method chaining
+     * @apiNote This API is experimental and may change in a future version.
+     */
+    @CopilotExperimental
+    public ResumeSessionConfig setSkillProvider(SkillProvider skillProvider) {
+        this.skillProvider = skillProvider;
+        return this;
+    }
+
+    /**
      * Gets the embedding cache storage mode.
      *
      * @return the embedding cache storage mode ({@code "persistent"} or
@@ -2244,6 +2275,7 @@ public class ResumeSessionConfig {
         copy.enableHostGitOperations = this.enableHostGitOperations;
         copy.enableSessionStore = this.enableSessionStore;
         copy.enableSkills = this.enableSkills;
+        copy.skillProvider = this.skillProvider;
         copy.embeddingCacheStorage = this.embeddingCacheStorage;
         copy.disableResume = this.disableResume;
         copy.streaming = this.streaming;

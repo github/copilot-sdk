@@ -335,12 +335,6 @@ class GeneratedRpcRecordsCoverageTest {
     }
 
     @Test
-    void sessionMcpListParams_record() {
-        var params = new SessionMcpListParams("sess-27");
-        assertEquals("sess-27", params.sessionId());
-    }
-
-    @Test
     void sessionMcpReloadParams_record() {
         var params = new SessionMcpReloadParams("sess-28");
         assertEquals("sess-28", params.sessionId());

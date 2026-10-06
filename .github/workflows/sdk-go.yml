@@ -86,6 +86,17 @@ jobs:
         run: |
           go test -v -race -timeout=20m ./internal/e2e -run '^TestInProcessFfiE2E$'
           go test -v -race -timeout=20m ./internal/e2e -run '^TestClientE2E$/^should_use_configured_github_host_for_authentication$'
+      - if: github.event_name != 'merge_group' && runner.os == 'Linux'
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - name: Validate documentation examples
+        if: github.event_name != 'merge_group' && runner.os == 'Linux'
+        working-directory: ${{ inputs.sdk-home }}/scripts/docs-validation
+        run: |
+          npm ci
+          npm run extract
+          npm run validate:go
 
   go-musl-x64:
     name: "Go (Alpine x64)"
@@ -138,24 +149,3 @@ jobs:
             go test -v -race -timeout=20m ./internal/e2e -run '^TestInProcessFfiE2E$' || status=$?
             go test -v -race -timeout=20m ./internal/e2e -run '^TestClientE2E$/^should_use_configured_github_host_for_authentication$' || status=$?
             exit "$status"
-
-  docs-go:
-    name: "Docs (Go)"
-    if: inputs.platform == 'all' || inputs.platform == 'docs'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-        timeout-minutes: 4
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 22
-      - uses: actions/setup-go@v6
-        with:
-          go-version: "1.24"
-          cache-dependency-path: ${{ inputs.sdk-home }}/go/go.sum
-      - run: npm ci
-        working-directory: ${{ inputs.sdk-home }}/scripts/docs-validation
-      - run: npm run extract && npm run validate:go
-        working-directory: ${{ inputs.sdk-home }}/scripts/docs-validation

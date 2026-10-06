@@ -69,6 +69,7 @@ const selfConfiguredBackendE2E = [
     "**/test/e2e/per_session_auth.e2e.test.ts",
     "**/test/e2e/provider_endpoint.e2e.test.ts",
     "**/test/e2e/subagent_prompt_resume.e2e.test.ts",
+    "**/test/e2e/websocket_terminals.e2e.test.ts",
 ];
 
 export default defineConfig({

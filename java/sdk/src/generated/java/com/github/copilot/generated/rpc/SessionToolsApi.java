@@ -31,7 +31,7 @@ public final class SessionToolsApi {
     }
 
     /**
-     * A tool name and arguments to execute through the session's native invocation pipeline.
+     * Executes one tool from the session's currently offered tool set through the native invocation pipeline.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -47,7 +47,7 @@ public final class SessionToolsApi {
     }
 
     /**
-     * Options controlling how Rust-owned built-in tool descriptors are materialized.
+     * Returns the Rust-owned built-in tool descriptors used to construct the session's offered tool set.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -63,7 +63,7 @@ public final class SessionToolsApi {
     }
 
     /**
-     * Task-completion tool arguments and final result used to build a label-safe session event payload.
+     * Projects a completed task_complete tool call into its label-safe session event payload.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -79,7 +79,7 @@ public final class SessionToolsApi {
     }
 
     /**
-     * Pending external tool call request ID, with the tool result or an error describing why it failed.
+     * Provides the result for a pending external tool call.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -95,7 +95,7 @@ public final class SessionToolsApi {
     }
 
     /**
-     * Identifies the target session.
+     * Resolves, builds, and validates the runtime tool list for the session.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -106,7 +106,7 @@ public final class SessionToolsApi {
     }
 
     /**
-     * Identifies the target session.
+     * Returns lightweight metadata for the session's currently initialized tools.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -117,7 +117,7 @@ public final class SessionToolsApi {
     }
 
     /**
-     * Complete externally implemented tool list for the calling connection. An empty list removes every tool previously supplied by that connection.
+     * Atomically replaces the complete externally implemented tool list supplied by the calling connection. Built-in, MCP/plugin, extension-discovered, subagent, and tools supplied by other connections remain unchanged.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -133,7 +133,7 @@ public final class SessionToolsApi {
     }
 
     /**
-     * Subagent settings to apply to the current session
+     * Sets the current session's live subagent settings override, which takes precedence over persisted user settings until cleared. Persisted user settings remain the source of truth for future sessions.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.

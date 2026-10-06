@@ -88,6 +88,15 @@ public class CloneTests
             Task.FromResult(new GitHub.Copilot.Rpc.ExtensionLaunchProviderResolveResult());
     }
 
+    private sealed class TestSkillProvider : ISkillProvider
+    {
+        public Task<IReadOnlyList<SkillProviderDescriptor>> ListSkillsAsync(CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<SkillProviderDescriptor>>([]);
+
+        public Task<string?> ReadSkillAsync(string name, CancellationToken cancellationToken) =>
+            Task.FromResult<string?>(null);
+    }
+
     [Fact]
     public void SessionConfig_Clone_CopiesAllProperties()
     {
@@ -203,6 +212,28 @@ public class CloneTests
         Assert.Null(new SessionConfig().RefreshCustomInstructions);
         Assert.Null(typeof(SessionConfigBase).GetProperty(nameof(SessionConfig.RefreshCustomInstructions)));
         Assert.Null(typeof(ResumeSessionConfig).GetProperty(nameof(SessionConfig.RefreshCustomInstructions)));
+    }
+
+    [Fact]
+    public void SessionConfig_Clone_CopiesSkillProvider()
+    {
+        var provider = new TestSkillProvider();
+        var original = new SessionConfig { SkillProvider = provider };
+
+        var clone = original.Clone();
+
+        Assert.Same(provider, clone.SkillProvider);
+    }
+
+    [Fact]
+    public void ResumeSessionConfig_Clone_CopiesSkillProvider()
+    {
+        var provider = new TestSkillProvider();
+        var original = new ResumeSessionConfig { SkillProvider = provider };
+
+        var clone = original.Clone();
+
+        Assert.Same(provider, clone.SkillProvider);
     }
 
     [Fact]

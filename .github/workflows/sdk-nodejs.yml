@@ -19,6 +19,11 @@ on:
       sdk-home:
         required: true
         type: string
+    outputs:
+      capi-result:
+        description: "Standard-platform CAPI job result, independent of BYOK jobs"
+        # Direct result outputs can be empty: https://github.com/actions/runner/issues/2495
+        value: ${{ fromJSON(toJSON(jobs.nodejs)).result }}
 
 permissions:
   contents: read
@@ -109,6 +114,13 @@ jobs:
           COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
           COPILOT_SDK_DEFAULT_CONNECTION: inprocess
         run: npm test -- test/e2e/inprocess_ffi.e2e.test.ts test/e2e/auth_host.e2e.test.ts
+      - name: Validate documentation examples
+        if: github.event_name != 'merge_group' && runner.os == 'Linux'
+        working-directory: ${{ inputs.sdk-home }}/scripts/docs-validation
+        run: |
+          npm ci
+          npm run extract
+          npm run validate:ts
 
   # Keep each BYOK backend on its own runner; shared runtime E2E coverage belongs
   # in TypeScript rather than repeating these sweeps across SDK languages.
@@ -197,24 +209,3 @@ jobs:
             npm test || status=$?
             COPILOT_SDK_DEFAULT_CONNECTION=inprocess npm test -- test/e2e/inprocess_ffi.e2e.test.ts test/e2e/auth_host.e2e.test.ts || status=$?
             exit "$status"
-
-  docs-typescript:
-    name: "Docs (TypeScript)"
-    if: inputs.platform == 'all' || inputs.platform == 'docs'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-        timeout-minutes: 4
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: ${{ inputs.sdk-home }}/nodejs/package-lock.json
-      - run: npm ci --ignore-scripts
-        working-directory: ${{ inputs.sdk-home }}/nodejs
-      - run: npm ci
-        working-directory: ${{ inputs.sdk-home }}/scripts/docs-validation
-      - run: npm run extract && npm run validate:ts
-        working-directory: ${{ inputs.sdk-home }}/scripts/docs-validation

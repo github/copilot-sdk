@@ -6,6 +6,7 @@
 #pragma warning disable GHCP001 // Live tool replacement is intentionally experimental.
 
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Logging;
 using System.Net;
 using System.Net.Sockets;
 using System.Reflection;
@@ -241,6 +242,40 @@ public sealed class SetToolsTests
     }
 
     [Fact]
+    public async Task SetToolsAsync_Publishes_Accepted_Replacement_Before_Next_Tool_Request()
+    {
+        await using var server = await SetToolsFakeServer.StartAsync();
+        var logger = new SetToolsResponseLogger();
+        var releaseSet = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        server.BeforeSetToolsResponseAsync = _ => releaseSet.Task;
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url), Logger = logger });
+        await using var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            Tools = [Tool("cancel_tool", "old")],
+        });
+
+        using var cts = new CancellationTokenSource();
+        try
+        {
+            var replacement = session.SetToolsAsync([Tool("cancel_tool", "new")], cts.Token);
+            await server.WaitForRequestAsync("session.tools.set");
+            await cts.CancelAsync();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => replacement);
+
+            releaseSet.SetResult();
+            await logger.ResponseReceived.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+            var result = await InvokeToolAsync(server, session, "cancel_tool", "cancel-request");
+            Assert.Equal("new", result);
+        }
+        finally
+        {
+            releaseSet.TrySetResult();
+            logger.ContinueResponse.TrySetResult();
+        }
+    }
+
+    [Fact]
     public async Task SetToolsAsync_Cancellation_While_Queued_Does_Not_Send_Request()
     {
         await using var server = await SetToolsFakeServer.StartAsync();
@@ -272,6 +307,52 @@ public sealed class SetToolsTests
         Assert.Single(server.Requests, request => request.Method == "session.tools.set");
         var result = await InvokeToolAsync(server, session, "queued_tool", "queued-request");
         Assert.Equal("first", result);
+    }
+
+    [Fact]
+    public async Task SetToolsAsync_Cancellation_Before_Queued_Waiter_Resumes_Does_Not_Send_Request()
+    {
+        await using var server = await SetToolsFakeServer.StartAsync();
+        var releaseSet = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        server.BeforeSetToolsResponseAsync = _ => releaseSet.Task;
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await using var session = await client.CreateSessionAsync(new SessionConfig());
+
+        var first = session.SetToolsAsync([Tool("queued_tool", "first")]);
+        await server.WaitForRequestAsync("session.tools.set");
+        using var cts = new CancellationTokenSource();
+        var context = new PausedContinuationContext();
+        var previousContext = SynchronizationContext.Current;
+        Task queued;
+        try
+        {
+            SynchronizationContext.SetSynchronizationContext(context);
+            queued = session.SetToolsAsync([Tool("queued_tool", "queued")], cts.Token);
+        }
+        finally
+        {
+            SynchronizationContext.SetSynchronizationContext(previousContext);
+            releaseSet.TrySetResult();
+        }
+
+        await first;
+        var continuation = await context.Continuation.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        try
+        {
+            await cts.CancelAsync();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => queued);
+        }
+        finally
+        {
+            continuation.Callback(continuation.State);
+        }
+
+        // A later completed replacement proves the cancelled waiter has left the queue.
+        await session.SetToolsAsync([Tool("queued_tool", "last")]);
+        Assert.Equal(
+            ["Returns first", "Returns last"],
+            server.Requests.Where(request => request.Method == "session.tools.set")
+                .Select(request => request.Params.GetProperty("tools")[0].GetProperty("description").GetString()));
     }
 
     private static AIFunction Tool(string name, string result)
@@ -438,6 +519,40 @@ public sealed class SetToolsTests
         {
             Resume();
             _available.Dispose();
+        }
+    }
+
+    private sealed class PausedContinuationContext : SynchronizationContext
+    {
+        public TaskCompletionSource<(SendOrPostCallback Callback, object? State)> Continuation { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public override void Post(SendOrPostCallback callback, object? state)
+        {
+            if (!Continuation.TrySetResult((callback, state)))
+            {
+                base.Post(callback, state);
+            }
+        }
+    }
+
+    private sealed class SetToolsResponseLogger : ILogger
+    {
+        public TaskCompletionSource ResponseReceived { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource ContinueResponse { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            if (state is IReadOnlyList<KeyValuePair<string, object?>> properties &&
+                properties.Any(entry => entry is { Key: "Method", Value: "session.tools.set" }) &&
+                properties.Any(entry => entry is { Key: "Status", Value: "Succeeded" }))
+            {
+                // Hold the RPC awaiter after acceptance without blocking the reader's next tool event.
+                ResponseReceived.TrySetResult();
+                ContinueResponse.Task.GetAwaiter().GetResult();
+            }
         }
     }
 

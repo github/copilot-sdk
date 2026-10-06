@@ -27,7 +27,7 @@ public final class ServerSkillsConfigApi {
     }
 
     /**
-     * Skill names to mark as disabled in global configuration, replacing any previous list.
+     * Replaces the global list of disabled skills.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -38,7 +38,7 @@ public final class ServerSkillsConfigApi {
     }
 
     /**
-     * Adds or removes a single skill from the global disabled list, leaving every other entry untouched.
+     * Atomically adds or removes one skill from the disabled list.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0

@@ -44,7 +44,7 @@ public final class SessionPermissionsApi {
     }
 
     /**
-     * Patch of permission policy fields to apply (omit a field to leave it unchanged).
+     * Replaces selected permission policy fields (rules, paths, URLs, exclusions, allow-all flags) on the session.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -60,7 +60,7 @@ public final class SessionPermissionsApi {
     }
 
     /**
-     * Pending permission request ID and the decision to apply (approve/reject and scope).
+     * Provides a decision for a pending tool permission request.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -76,7 +76,7 @@ public final class SessionPermissionsApi {
     }
 
     /**
-     * No parameters; returns currently-pending permission requests for the session.
+     * Reconstructs the set of pending tool permission requests from the session's event history.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -87,7 +87,7 @@ public final class SessionPermissionsApi {
     }
 
     /**
-     * Allow-all toggle for tool permission requests, with an optional telemetry source.
+     * Enables or disables automatic approval of tool permission requests for the session.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -103,7 +103,7 @@ public final class SessionPermissionsApi {
     }
 
     /**
-     * Permission mode to apply for the session.
+     * Sets the permission mode for the session. `manual` follows the normal approval flow, `assisted` attaches LLM safety recommendations, and `allow-all` automatically approves permission requests. The result returns the authoritative post-mutation mode so callers can update local state without racing the `session.permissions_changed` notification.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -119,7 +119,7 @@ public final class SessionPermissionsApi {
     }
 
     /**
-     * No parameters.
+     * Returns the current permission mode for the session.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -130,7 +130,7 @@ public final class SessionPermissionsApi {
     }
 
     /**
-     * Scope and add/remove instructions for modifying session- or location-scoped permission rules.
+     * Adds or removes session-scoped or location-scoped permission rules.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -146,7 +146,7 @@ public final class SessionPermissionsApi {
     }
 
     /**
-     * Toggles whether permission prompts should be bridged into session events for this client.
+     * Sets whether the client wants permission prompts bridged into session events.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -162,7 +162,7 @@ public final class SessionPermissionsApi {
     }
 
     /**
-     * Clears session-scoped tool approvals and optionally clears location-scoped approvals and exact session-approved paths.
+     * Clears session-scoped tool approvals and, for full resets, exact session-approved paths.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -178,7 +178,7 @@ public final class SessionPermissionsApi {
     }
 
     /**
-     * Notification payload describing the permission prompt that the client just rendered.
+     * Notifies the runtime that a permission prompt UI has been shown to the user.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.

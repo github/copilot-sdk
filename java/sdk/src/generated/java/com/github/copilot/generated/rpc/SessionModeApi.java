@@ -31,7 +31,7 @@ public final class SessionModeApi {
     }
 
     /**
-     * Identifies the target session.
+     * Gets the current agent interaction mode.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -42,7 +42,7 @@ public final class SessionModeApi {
     }
 
     /**
-     * Agent interaction mode to apply to the session.
+     * Sets the current agent interaction mode.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.

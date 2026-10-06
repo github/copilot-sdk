@@ -21,7 +21,9 @@ from copilot.session_events import (
     ElicitationRequestedMode,
     ElicitationRequestedSchema,
     ManagedSettingsResolvedSource,
+    PermissionApprovalEvaluationReasonCode,
     PermissionPromptRequestMemory,
+    PermissionRequestedData,
     PermissionRequestMemory,
     PermissionRequestMemoryAction,
     SessionAutoTierSwitchFailedData,
@@ -63,6 +65,67 @@ class TestEventForwardCompatibility:
         assert event.data.file_edits[0].kind is other.data.file_edits[0].kind
         assert event.data.file_edits[0] == other.data.file_edits[0]
         assert len({event.data.file_edits[0].kind, other.data.file_edits[0].kind}) == 1
+
+    @staticmethod
+    def _permission_requested_with_reason(reason_code):
+        return {
+            "id": "11111111-1111-1111-1111-111111111111",
+            "timestamp": "2026-09-18T22:00:00+00:00",
+            "parentId": None,
+            "type": "permission.requested",
+            "data": {
+                "requestId": "request-1",
+                "permissionRequest": {
+                    "kind": "memory",
+                    "fact": "fact",
+                    "assistedApproval": {
+                        "recommendation": "requireApproval",
+                        "evaluation": {
+                            "reasonCode": reason_code,
+                            "judgeStatus": "not_called",
+                            "evaluationStage": "pre_judge",
+                            "judgeAttempted": False,
+                        },
+                    },
+                },
+            },
+        }
+
+    @pytest.mark.parametrize("reason", list(PermissionApprovalEvaluationReasonCode))
+    def test_permission_event_decodes_every_published_reason_code(self, reason):
+        wire = self._permission_requested_with_reason(reason.value)
+
+        event = session_event_from_dict(wire)
+        assert isinstance(event.data, PermissionRequestedData)
+        evaluation = event.data.permission_request.assisted_approval.evaluation
+        assert evaluation.reason_code is reason
+        assert session_event_to_dict(event) == wire
+
+    def test_shell_evidence_reason_codes_are_published(self):
+        assert {
+            "content-excluded",
+            "unsupported-command-shape",
+            "unsupported-source",
+            "dynamic-source",
+            "too-many-sources",
+            "executable-unavailable",
+            "executable-too-large",
+        } <= {reason.value for reason in PermissionApprovalEvaluationReasonCode}
+
+    def test_future_reason_code_decodes_as_unknown(self):
+        event = session_event_from_dict(
+            self._permission_requested_with_reason("future-runtime-reason")
+        )
+
+        assert isinstance(event.data, PermissionRequestedData)
+        evaluation = event.data.permission_request.assisted_approval.evaluation
+        assert evaluation.reason_code is PermissionApprovalEvaluationReasonCode.UNKNOWN
+        assert evaluation.judge_status.value == "not_called"
+        assert evaluation.evaluation_stage.value == "pre_judge"
+
+    def test_non_string_reason_code_still_raises(self):
+        with pytest.raises(ValueError):
+            PermissionApprovalEvaluationReasonCode(7)
 
     @pytest.mark.parametrize(
         ("event_type", "data"), [("session.idle", {}), ("user.message", {"content": "hello"})]

@@ -31,7 +31,7 @@ public final class SessionExtensionsApi {
     }
 
     /**
-     * Identifies the target session.
+     * Lists extensions discovered for the session and their current status.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -42,7 +42,7 @@ public final class SessionExtensionsApi {
     }
 
     /**
-     * Source-qualified extension identifier to enable for the session.
+     * Enables an extension for the session.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -58,7 +58,7 @@ public final class SessionExtensionsApi {
     }
 
     /**
-     * Source-qualified extension identifier to disable for the session.
+     * Disables an extension for the session.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -74,7 +74,7 @@ public final class SessionExtensionsApi {
     }
 
     /**
-     * Identifies the target session.
+     * Reloads extension definitions and processes for the session.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -85,7 +85,7 @@ public final class SessionExtensionsApi {
     }
 
     /**
-     * Parameters for session.extensions.sendAttachmentsToMessage.
+     * Push attachments into the next user-message turn from an extension. The host should surface them as composer pills and forward them via the next session.send call. Callable only by extension-owned connections.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.

@@ -5,12 +5,89 @@
 import { describe, expect, it, vi } from "vitest";
 import type { MessageConnection } from "vscode-jsonrpc";
 
+import { createServerRpc } from "../src/generated/rpc.js";
 import type {
     AuthIdentityMetadata,
     ConnectorSessionAccount,
     ConnectorSessionAccountResult,
 } from "../src/index.js";
 import { CopilotSession } from "../src/session.js";
+
+describe("client Connector discovery RPC", () => {
+    it("lists Connectors without creating a session", async () => {
+        const sendRequest = vi.fn(async (method: string) => {
+            if (method === "connectors.getCapabilities") {
+                return {
+                    apiVersion: 1,
+                    availability: "enabled",
+                    opaqueAccountSelection: true,
+                    conditionalCache: true,
+                };
+            }
+            if (method === "connectors.getAccounts") {
+                return {
+                    availability: "enabled",
+                    accounts: [
+                        {
+                            accountId: "account-1",
+                            authInfo: {
+                                type: "user",
+                                host: "https://github.com",
+                                login: "octocat",
+                            },
+                        },
+                    ],
+                };
+            }
+            return {
+                accountId: "account-1",
+                revision: 1,
+                refreshedAtMs: 1,
+                connectors: [
+                    {
+                        name: "calendar",
+                        displayName: "Calendar",
+                        status: "connected",
+                    },
+                ],
+            };
+        });
+        const rpc = createServerRpc({
+            sendRequest,
+        } as unknown as MessageConnection);
+
+        expect(await rpc.connectors.getCapabilities()).toMatchObject({
+            apiVersion: 1,
+            availability: "enabled",
+        });
+        expect(await rpc.connectors.getAccounts()).toEqual({
+            availability: "enabled",
+            accounts: [
+                {
+                    accountId: "account-1",
+                    authInfo: {
+                        type: "user",
+                        host: "https://github.com",
+                        login: "octocat",
+                    },
+                },
+            ],
+        });
+        expect(await rpc.connectors.list({ accountId: "account-1" })).toMatchObject({
+            revision: 1,
+        });
+        expect(await rpc.connectors.refresh({ accountId: "account-1" })).toMatchObject({
+            revision: 1,
+        });
+
+        expect(sendRequest.mock.calls).toEqual([
+            ["connectors.getCapabilities", {}],
+            ["connectors.getAccounts", {}],
+            ["connectors.list", { accountId: "account-1" }],
+            ["connectors.refresh", { accountId: "account-1" }],
+        ]);
+    });
+});
 
 describe("session Connector RPC", () => {
     it("exposes the host-owned experimental Connector lifecycle", async () => {

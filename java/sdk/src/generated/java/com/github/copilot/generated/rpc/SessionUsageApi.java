@@ -29,7 +29,7 @@ public final class SessionUsageApi {
     }
 
     /**
-     * Identifies the target session.
+     * Gets accumulated usage metrics for the session.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0

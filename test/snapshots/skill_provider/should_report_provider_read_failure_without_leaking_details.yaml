@@ -1,0 +1,20 @@
+models:
+  - claude-sonnet-5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Use the skill tool to load the broken-lookup skill. If loading fails, reply with exactly LOAD_FAILED.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: skill
+              arguments: '{"skill":"broken-lookup"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Failed to load SDK-provided skill "broken-lookup". Its provider may be unavailable.
+      - role: assistant
+        content: LOAD_FAILED

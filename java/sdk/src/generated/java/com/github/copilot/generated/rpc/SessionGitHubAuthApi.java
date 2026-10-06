@@ -32,7 +32,7 @@ public final class SessionGitHubAuthApi {
     }
 
     /**
-     * Identifies the target session.
+     * Gets authentication status and account metadata for the session.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -43,7 +43,7 @@ public final class SessionGitHubAuthApi {
     }
 
     /**
-     * New auth credentials to install on the session. Omit to leave credentials unchanged.
+     * Updates the session's auth credentials used for outbound model and API requests.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -59,7 +59,7 @@ public final class SessionGitHubAuthApi {
     }
 
     /**
-     * Identifies the target session.
+     * Gets the current authentication information for internal session hosts.
      *
      * @return a future that completes with the {@code AuthIdentity} value,
      *     or {@code null} when the result is absent. Callers must handle the
@@ -74,7 +74,7 @@ public final class SessionGitHubAuthApi {
     }
 
     /**
-     * Identifies the target session.
+     * Gets all authentication accounts available to the internal session host.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -85,7 +85,7 @@ public final class SessionGitHubAuthApi {
     }
 
     /**
-     * Identifies the target session.
+     * Refreshes Copilot account metadata for the current authentication.
      *
      * @return a future that completes with the {@code AuthIdentity} value,
      *     or {@code null} when the result is absent. Callers must handle the
@@ -100,7 +100,7 @@ public final class SessionGitHubAuthApi {
     }
 
     /**
-     * Internal GitHub login parameters.
+     * Logs in a GitHub user through the internal session host.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -116,7 +116,7 @@ public final class SessionGitHubAuthApi {
     }
 
     /**
-     * Parameters for switching the session's active authentication.
+     * Switches the session to another available authentication.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -132,7 +132,7 @@ public final class SessionGitHubAuthApi {
     }
 
     /**
-     * Identifies the target session.
+     * Logs out the session's current GitHub authentication.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -143,7 +143,7 @@ public final class SessionGitHubAuthApi {
     }
 
     /**
-     * Parameters identifying a GitHub authentication to log out.
+     * Logs out a specific GitHub authentication.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -159,7 +159,7 @@ public final class SessionGitHubAuthApi {
     }
 
     /**
-     * Identifies the target session.
+     * Gets validation errors from the most recent authentication attempt.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0

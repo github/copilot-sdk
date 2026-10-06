@@ -27,7 +27,7 @@ public final class ServerMcpConfigApi {
     }
 
     /**
-     * User-configured MCP servers, keyed by server name.
+     * Lists MCP servers from user configuration.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -38,7 +38,7 @@ public final class ServerMcpConfigApi {
     }
 
     /**
-     * MCP server name and configuration to add to user configuration.
+     * Adds an MCP server to user configuration.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -49,7 +49,7 @@ public final class ServerMcpConfigApi {
     }
 
     /**
-     * MCP server name and replacement configuration to write to user configuration.
+     * Updates an MCP server in user configuration.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -60,7 +60,7 @@ public final class ServerMcpConfigApi {
     }
 
     /**
-     * MCP server name to remove from user configuration.
+     * Removes an MCP server from user configuration.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -71,7 +71,7 @@ public final class ServerMcpConfigApi {
     }
 
     /**
-     * MCP server names to enable for new sessions.
+     * Enables MCP servers in user configuration for new sessions.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -82,7 +82,7 @@ public final class ServerMcpConfigApi {
     }
 
     /**
-     * MCP server names to disable for new sessions.
+     * Disables MCP servers in user configuration for new sessions.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -93,7 +93,7 @@ public final class ServerMcpConfigApi {
     }
 
     /**
-     * Invokes {@code mcp.config.reload}.
+     * Drops this runtime process's in-memory MCP server-definition cache so the next MCP config read observes disk.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0

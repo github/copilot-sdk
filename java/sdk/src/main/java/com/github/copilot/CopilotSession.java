@@ -211,6 +211,7 @@ public final class CopilotSession implements AutoCloseable {
     private final AtomicReference<ExitPlanModeHandler> exitPlanModeHandler = new AtomicReference<>();
     private final AtomicReference<AutoModeSwitchHandler> autoModeSwitchHandler = new AtomicReference<>();
     private final AtomicReference<SessionHooks> hooksHandler = new AtomicReference<>();
+    private final AtomicReference<SkillProvider> skillProvider = new AtomicReference<>();
     private volatile EventErrorHandler eventErrorHandler;
     private volatile EventErrorPolicy eventErrorPolicy = EventErrorPolicy.PROPAGATE_AND_LOG_ERRORS;
     private volatile Map<String, java.util.function.Function<String, CompletableFuture<String>>> transformCallbacks;
@@ -1774,6 +1775,18 @@ public final class CopilotSession implements AutoCloseable {
         mcpAuthHandler.set(handler);
     }
 
+    void registerSkillProvider(SkillProvider provider) {
+        skillProvider.set(provider);
+    }
+
+    SkillProvider getSkillProvider() {
+        return skillProvider.get();
+    }
+
+    void clearSkillProvider() {
+        skillProvider.set(null);
+    }
+
     /**
      * Handles a permission request from the Copilot CLI.
      * <p>
@@ -2816,6 +2829,7 @@ public final class CopilotSession implements AutoCloseable {
         structuredWaits.forEach(wait -> wait
                 .completeExceptionally(new IllegalStateException("Session closed before structured output completed")));
         cancelPendingExternalTools();
+        clearSkillProvider();
         timeoutScheduler.shutdownNow();
         releaseGitHubTokenProviderRegistration();
 
@@ -2844,6 +2858,7 @@ public final class CopilotSession implements AutoCloseable {
         exitPlanModeHandler.set(null);
         autoModeSwitchHandler.set(null);
         hooksHandler.set(null);
+        skillProvider.set(null);
 
         if (detachFailure != null) {
             throw detachFailure;

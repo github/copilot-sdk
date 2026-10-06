@@ -27,7 +27,7 @@ public final class ServerSkillsInstallationsApi {
     }
 
     /**
-     * Inventory request under an explicitly selected existing session.
+     * Lists owned verified Agent Finder Skill installations for the selected existing session. Listing is never gated by the Skill-install feature flag.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -38,7 +38,7 @@ public final class ServerSkillsInstallationsApi {
     }
 
     /**
-     * Inventory request under an explicitly selected existing session.
+     * Reconciles interrupted owned Skill installation work for the selected existing session, then inspects owned inventory. Recovery is never gated by the Skill-install feature flag.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -49,7 +49,7 @@ public final class ServerSkillsInstallationsApi {
     }
 
     /**
-     * Existing-operation control. A new session selector is deliberately not accepted.
+     * Inspects a known Skill installation operation on its original runtime connection. Status is never gated by the Skill-install feature flag.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -60,7 +60,7 @@ public final class ServerSkillsInstallationsApi {
     }
 
     /**
-     * Existing-operation control. A new session selector is deliberately not accepted.
+     * Requests cancellation of a known Skill installation operation before commit. Already-started durable work requires recovery instead of silent replay.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -71,7 +71,7 @@ public final class ServerSkillsInstallationsApi {
     }
 
     /**
-     * Persisted enablement update for one owned Skill installation.
+     * Atomically persists enablement for one owned Agent Finder Skill and reconciles the selected bound session. Enablement is installation-scoped by receipt identity and is never gated by the Skill-install feature flag.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0

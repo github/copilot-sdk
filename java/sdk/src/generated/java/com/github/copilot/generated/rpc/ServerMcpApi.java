@@ -35,7 +35,7 @@ public final class ServerMcpApi {
     }
 
     /**
-     * Optional working directory used as context for MCP server discovery.
+     * Discovers MCP servers from user, workspace, plugin, and builtin sources.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -46,7 +46,7 @@ public final class ServerMcpApi {
     }
 
     /**
-     * A side-effect-free request for an MCP install plan. Computing a plan never writes configuration, stores a secret, or reloads MCP servers.
+     * Requests a side-effect-free MCP install plan from a catalog candidate handle or a caller-supplied card. This host-implemented server method is available through SDK/TUI hosts; standalone and C-ABI runtimes whose host does not implement server-method dispatch return JSON-RPC MethodNotFound. A runtime with planning available returns a normalised plan and opaque single-use plan handle; a runtime without it returns the typed planning-unavailable result. A completed plan reports resource identity, provenance, eligible transport choices, the user-scope target, required typed values and secret placeholders, the policy result, the configuration changes installing would make, and whether a reload would be needed. Planning never writes configuration, stores a secret, or reloads MCP servers, so abandoning a plan needs no call and leaves nothing behind.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -57,7 +57,7 @@ public final class ServerMcpApi {
     }
 
     /**
-     * A side-effect-free request for an MCP install plan. Computing a plan never writes configuration, stores a secret, or reloads MCP servers.
+     * Requests a side-effect-free MCP install plan from a catalog candidate handle or a caller-supplied card. This host-implemented server method is available through SDK/TUI hosts; standalone and C-ABI runtimes whose host does not implement server-method dispatch return JSON-RPC MethodNotFound. A runtime with planning available returns a normalised plan and opaque single-use plan handle; a runtime without it returns the typed planning-unavailable result. A completed plan reports resource identity, provenance, eligible transport choices, the user-scope target, required typed values and secret placeholders, the policy result, the configuration changes installing would make, and whether a reload would be needed. Planning never writes configuration, stores a secret, or reloads MCP servers, so abandoning a plan needs no call and leaves nothing behind.
      * <p>
      * Accepts the extensible request, including inputs added after the params record.
      *
@@ -70,7 +70,7 @@ public final class ServerMcpApi {
     }
 
     /**
-     * Side-effect-free preparation of one original bound remote MCP choice.
+     * Consumes a bound catalogue plan and retains one exact fully resolved personal remote MCP operation requiring no supplied values or configured secrets. Returns its runtime operation ID and original expiry before any confirmation, activation, writer initialisation or installation effect. Register the original connection, operation and selected-session binding before calling applyInstall. Missing lower owned admission is unavailable, never a raw-config fallback.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -81,7 +81,7 @@ public final class ServerMcpApi {
     }
 
     /**
-     * Applies exactly one previously prepared operation on its original connection.
+     * Consumes a retained prepared MCP operation once, revalidates its original authority, requests explicit human consent through installations.confirm on the original connection, then revalidates source and applies the sealed transaction. An uncertain result requires original-operation inspection or recovery, never replay.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -92,7 +92,7 @@ public final class ServerMcpApi {
     }
 
     /**
-     * Read-only preparation of one owned removal under fresh selected-session authority.
+     * Prepares a read-only removal plan for an exact owned receipt under the selected existing session. Returns the original operation ID before confirmation; neither planning nor abandonment changes configuration or shared OAuth credentials.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -103,7 +103,7 @@ public final class ServerMcpApi {
     }
 
     /**
-     * One-use application of the exact retained removal plan.
+     * Consumes the original owned-removal plan once and requests fresh exact human confirmation on its original connection. Drift is refused; unrelated manual configuration and shared OAuth credentials are preserved.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0

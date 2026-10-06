@@ -2379,13 +2379,22 @@ export function generateRpcClass(
     }
 
     if (localNestedTypes.size > 0 && lines[lines.length - 1] === "") lines.pop();
-    const legacyFieldNames =
+    const legacyConstructor =
         className === "McpOauthRequiredStaticClientConfig"
-            ? ["clientId", "clientSecret", "publicClient", "grantType"]
+            ? {
+                fieldNames: ["clientId", "clientSecret", "publicClient", "grantType"],
+                omittedField: "scope",
+                description: "Creates a static OAuth client configuration without an explicit scope.",
+            }
             : className === "SessionFsSetProviderCapabilities"
-              ? ["sqlite"]
-            : undefined;
-    if (legacyFieldNames) {
+              ? {
+                  fieldNames: ["sqlite"],
+                  omittedField: "binary",
+                  description: "Creates provider capabilities without binary reads.",
+              }
+              : undefined;
+    if (legacyConstructor) {
+        const legacyFieldNames = legacyConstructor.fieldNames;
         const legacyFields = legacyFieldNames.map((fieldName) => {
             const field = fields.find((candidate) => candidate.javaName === fieldName);
             if (!field) {
@@ -2394,14 +2403,13 @@ export function generateRpcClass(
             return field;
         });
         const omittedFields = fields.filter((field) => !legacyFieldNames.includes(field.javaName));
-        const expectedAddedField = className === "SessionFsSetProviderCapabilities" ? "binary" : "scope";
-        if (omittedFields.length !== 1 || omittedFields[0].javaName !== expectedAddedField) {
+        if (omittedFields.length !== 1 || omittedFields[0].javaName !== legacyConstructor.omittedField) {
             throw new Error(`Unexpected compatibility fields for ${className}`);
         }
 
         lines.push(``);
         lines.push(`    /**`);
-        lines.push(`     * Creates ${className === "SessionFsSetProviderCapabilities" ? "provider capabilities without binary reads" : "a static OAuth client configuration without an explicit scope"}.`);
+        lines.push(`     * ${legacyConstructor.description}`);
         lines.push(`     *`);
         for (const field of legacyFields) {
             const description = (field.description || field.propName)
@@ -2424,7 +2432,7 @@ export function generateRpcClass(
         ? readLegacyParameters(schema, className, { ordered: true })
         : undefined;
     if (recordLegacy) {
-        if (legacyFieldNames) {
+        if (legacyConstructor) {
             throw new Error(`Conflicting compatibility constructors for ${className}`);
         }
         const legacyNames = new Set(recordLegacy.legacy);
@@ -2942,6 +2950,7 @@ async function generateRpcDataClass(
 /** A single RPC method node parsed from the schema */
 interface RpcMethodNode {
     rpcMethod: string;
+    description: string | null;
     visibility: string;
     stability: string;
     deprecated: boolean;
@@ -2964,6 +2973,7 @@ function buildNamespaceTree(node: Record<string, unknown>): NamespaceTree {
         if ("rpcMethod" in obj) {
             tree.methods.set(key, {
                 rpcMethod: String(obj.rpcMethod),
+                description: typeof obj.description === "string" ? obj.description : null,
                 visibility: String(obj.visibility ?? "public"),
                 stability: String(obj.stability ?? "stable"),
                 deprecated: obj.deprecated === true,
@@ -3162,7 +3172,8 @@ export function generateApiMethod(
     const lines: string[] = [];
 
     // Javadoc
-    const description = (method.params as JSONSchema7 | null)?.description
+    const description = method.description
+        ?? (method.params as JSONSchema7 | null)?.description
         ?? (method.result as JSONSchema7 | null)?.description
         ?? `Invokes {@code ${method.rpcMethod}}.`;
     const pushJavadoc = (extraLines: string[] = [], includeSessionIdNote = true): void => {

@@ -10494,6 +10494,9 @@ pub enum PermissionApprovalEvaluationReasonCode {
     /// The script path was not authorized for inspection.
     #[serde(rename = "path-not-authorized")]
     PathNotAuthorized,
+    /// A code source was excluded from review by content exclusion policy.
+    #[serde(rename = "content-excluded")]
+    ContentExcluded,
     /// The script working directory was invalid.
     #[serde(rename = "invalid-working-directory")]
     InvalidWorkingDirectory,
@@ -10530,6 +10533,24 @@ pub enum PermissionApprovalEvaluationReasonCode {
     /// The script argument binding could not be reviewed.
     #[serde(rename = "argument-binding-unreviewable")]
     ArgumentBindingUnreviewable,
+    /// The shell command could not be analyzed for execution evidence.
+    #[serde(rename = "unsupported-command-shape")]
+    UnsupportedCommandShape,
+    /// The shell command used a code source that cannot be bound for review.
+    #[serde(rename = "unsupported-source")]
+    UnsupportedSource,
+    /// The shell command used a code source computed at run time.
+    #[serde(rename = "dynamic-source")]
+    DynamicSource,
+    /// The shell command referenced more code sources than can be reviewed.
+    #[serde(rename = "too-many-sources")]
+    TooManySources,
+    /// A code-bearing executable could not be inspected.
+    #[serde(rename = "executable-unavailable")]
+    ExecutableUnavailable,
+    /// A code-bearing executable exceeded the binding size limit.
+    #[serde(rename = "executable-too-large")]
+    ExecutableTooLarge,
     /// The script review metadata was malformed.
     #[serde(rename = "malformed-script-action-review")]
     MalformedScriptActionReview,
@@ -11553,7 +11574,7 @@ pub enum McpServerStatus {
     /// The server is configured but disabled.
     #[serde(rename = "disabled")]
     Disabled,
-    /// The server was intentionally stopped and can be restarted on demand when policy permits; a server quarantined by restrictive managed policy stays stopped and cannot be restarted until the policy allows it.
+    /// The server is not running: it may not have started yet, may have been explicitly stopped, or may be quarantined by restrictive managed policy. It can be restarted on demand when policy permits.
     #[serde(rename = "stopped")]
     Stopped,
     /// The server is not configured for this session.

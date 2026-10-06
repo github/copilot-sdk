@@ -95,6 +95,25 @@ for (const language of ["nodejs", "rust"]) {
     });
 }
 
+for (const checkout of [true, false]) {
+    test(`Java docs install once through the Maven wrapper before validation (${checkout ? "checkout" : "standalone"})`, async (t) => {
+        const { runTasks, preparations, calls, sdkRoot } = await taskFixture(t, checkout);
+
+        runTasks("docs", "java", { environment: {}, runtimeSource: checkout ? "checkout" : "published" });
+
+        assert.deepEqual(preparations, []);
+        assert.deepEqual(calls, [
+            { executable: "npm", args: ["run", "extract"], cwd: path.join(sdkRoot, "scripts/docs-validation") },
+            {
+                executable: process.platform === "win32" ? "mvnw.cmd" : "./mvnw",
+                args: ["install", "-Dmaven.test.skip=true", "-Dskip.test.harness=true", "-Dcopilot.native.skip.download=true"],
+                cwd: path.join(sdkRoot, "java"),
+            },
+            { executable: "npm", args: ["run", "validate:java"], cwd: path.join(sdkRoot, "scripts/docs-validation") },
+        ]);
+    });
+}
+
 async function taskFixture(t, checkout) {
     const root = fs.mkdtempSync(path.join(import.meta.dirname, ".run-tasks-"));
     t.after(() => fs.rmSync(root, { recursive: true, force: true }));

@@ -1,0 +1,29 @@
+models:
+  - claude-sonnet-5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Use the skill tool to load the provider-lookup skill, then reply with its verification word.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: skill
+              arguments: '{"skill":"provider-lookup"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Skill "provider-lookup" loaded successfully. Follow the instructions in the skill context.
+      - role: user
+        content: |-
+          <skill-context name="provider-lookup">
+          This is an SDK-provided text-only skill - related files, scripts, templates, and assets are not available.
+          # Provider lookup
+
+          The verification word is TANGERINE_QUARTZ_19. Reply with it.
+
+          </skill-context>
+      - role: assistant
+        content: The verification word is **TANGERINE_QUARTZ_19**.

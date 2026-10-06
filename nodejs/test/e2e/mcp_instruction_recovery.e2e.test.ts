@@ -101,14 +101,14 @@ describe("MCP catalog recovery", async () => {
                     events.some(
                         (event) =>
                             event.type === "tool.execution_complete" &&
-                            event.data.success &&
-                            event.data.result?.content.includes("CATALOG_RECORD")
+                            !event.data.success &&
+                            event.data.error?.message.includes(
+                                "MCP tool catalog changed before tool"
+                            )
                     ),
-                    "the reconnected server must execute the offered tool"
+                    "the first stale call must be refused before dispatch"
                 ).toBe(true);
-                expect(changing.calls, "only one call may reach the reconnected MCP server").toBe(
-                    1
-                );
+                expect(changing.calls, "only the recovered call may reach the MCP server").toBe(1);
             }
 
             const exchanges = await openAiEndpoint.getExchanges();
@@ -121,7 +121,7 @@ describe("MCP catalog recovery", async () => {
                     (message) =>
                         message.role === "tool" &&
                         JSON.stringify(message.content).includes(
-                            staleCall ? "CATALOG_RECORD" : RECONNECT_RESULT
+                            staleCall ? "MCP tool catalog changed before tool" : RECONNECT_RESULT
                         )
                 )
             );

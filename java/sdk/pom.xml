@@ -230,6 +230,27 @@
                     </execution>
                 </executions>
             </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <version>3.6.1</version>
+                <executions>
+                    <execution>
+                        <id>packaged-consumer-dependencies</id>
+                        <phase>generate-test-resources</phase>
+                        <goals>
+                            <goal>copy-dependencies</goal>
+                        </goals>
+                        <configuration>
+                            <skip>${maven.test.skip}</skip>
+                            <includeScope>runtime</includeScope>
+                            <!-- Default consumers do not receive optional JNA. -->
+                            <excludeArtifactIds>jna</excludeArtifactIds>
+                            <outputDirectory>${project.build.directory}/consumer-dependencies</outputDirectory>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
             <!--
                 Failsafe runs integration tests against the actually packaged
                 JAR (after the package phase). Used to validate multi-release

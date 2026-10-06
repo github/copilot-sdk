@@ -856,7 +856,7 @@ A skill was activated for the current conversation.
 | `name` | `string` | ✅ | Skill name |
 | `path` | `string` | ✅ | File path to the SKILL.md definition |
 | `content` | `string` | ✅ | Full skill content injected into the conversation |
-| `allowedTools` | `string[]` | | Tools auto-approved while this skill is active |
+| `allowedTools` | `string[]` | | Tools listed in the skill's `allowed-tools` frontmatter. The SDK doesn't approve them automatically; your permission handler still decides. The Copilot CLI auto-approves them while the skill is active. |
 | `pluginName` | `string` | | Plugin the skill originated from |
 | `pluginVersion` | `string` | | Plugin version |
 

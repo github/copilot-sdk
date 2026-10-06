@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::collections::hash_map::Entry;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
@@ -98,6 +99,8 @@ pub mod error_codes {
     /// Internal server error (-32603).
     #[allow(dead_code, reason = "standard JSON-RPC code, reserved for future use")]
     pub const INTERNAL_ERROR: i32 = -32603;
+    /// Request cancelled by the peer's `$/cancelRequest` (-32800).
+    pub const REQUEST_CANCELLED: i32 = -32800;
 }
 
 /// A JSON-RPC 2.0 notification (no `id`, no response expected).
@@ -276,6 +279,85 @@ struct WriteCommand {
     ack: oneshot::Sender<Result<(), std::io::Error>>,
 }
 
+/// Inbound requests that honor `$/cancelRequest`.
+///
+/// The read loop registers each one synchronously before forwarding it. This
+/// preserves request/cancellation ordering across the router's separate queues.
+#[derive(Default)]
+pub(crate) struct CancellableRequests {
+    pending: Mutex<HashMap<u64, Arc<CancellationToken>>>,
+}
+
+impl CancellableRequests {
+    fn honors_cancellation(method: &str) -> bool {
+        use crate::generated::api_types::rpc_methods;
+
+        matches!(
+            method,
+            crate::installation_confirmation::CONFIRM_METHOD
+                | rpc_methods::SKILLPROVIDER_LIST
+                | rpc_methods::SKILLPROVIDER_READ
+        )
+    }
+
+    fn register(&self, id: u64) -> bool {
+        let mut pending = self.pending.lock();
+        match pending.entry(id) {
+            Entry::Vacant(entry) => {
+                entry.insert(Arc::new(CancellationToken::new()));
+                true
+            }
+            Entry::Occupied(_) => false,
+        }
+    }
+
+    fn cancel(&self, id: u64) {
+        if let Some(token) = self.pending.lock().get(&id) {
+            token.cancel();
+        }
+    }
+
+    fn clear(&self) {
+        self.pending.lock().clear();
+    }
+
+    /// Take ownership of a registered request's cancellation until the
+    /// returned guard drops, or `None` if the connection already retired it.
+    pub(crate) fn claim(self: &Arc<Self>, id: u64) -> Option<PendingCancellation> {
+        let cancellation = self.pending.lock().get(&id)?.clone();
+        Some(PendingCancellation {
+            requests: self.clone(),
+            id,
+            cancellation,
+        })
+    }
+}
+
+pub(crate) struct PendingCancellation {
+    requests: Arc<CancellableRequests>,
+    id: u64,
+    cancellation: Arc<CancellationToken>,
+}
+
+impl PendingCancellation {
+    /// Cancelled when the runtime sends `$/cancelRequest` for this request.
+    pub(crate) fn cancellation(&self) -> &CancellationToken {
+        &self.cancellation
+    }
+}
+
+impl Drop for PendingCancellation {
+    fn drop(&mut self) {
+        let mut pending = self.requests.pending.lock();
+        if pending
+            .get(&self.id)
+            .is_some_and(|token| Arc::ptr_eq(token, &self.cancellation))
+        {
+            pending.remove(&self.id);
+        }
+    }
+}
+
 /// Low-level JSON-RPC 2.0 client over Content-Length-framed streams.
 ///
 /// # Cancel safety
@@ -300,7 +382,7 @@ pub struct JsonRpcClient {
     request_tx: mpsc::UnboundedSender<JsonRpcRequest>,
     request_handlers: RequestHandlers,
     connection_closed: CancellationToken,
-    pub(crate) confirmation_requests: Arc<crate::installation_confirmation::ConfirmationRequests>,
+    pub(crate) cancellable_requests: Arc<CancellableRequests>,
     read_task: Mutex<Option<JoinHandle<()>>>,
     write_task: Mutex<Option<JoinHandle<()>>>,
 }
@@ -342,9 +424,7 @@ impl JsonRpcClient {
             request_tx,
             request_handlers: Arc::new(RwLock::new(HashMap::new())),
             connection_closed: CancellationToken::new(),
-            confirmation_requests: Arc::new(
-                crate::installation_confirmation::ConfirmationRequests::default(),
-            ),
+            cancellable_requests: Arc::new(CancellableRequests::default()),
             read_task: Mutex::new(None),
             write_task: Mutex::new(Some(write_task)),
         };
@@ -353,7 +433,7 @@ impl JsonRpcClient {
         let notification_tx_clone = client.notification_tx.clone();
         let request_tx_clone = client.request_tx.clone();
         let connection_closed = client.connection_closed.clone();
-        let confirmation_requests = client.confirmation_requests.clone();
+        let cancellable_requests = client.cancellable_requests.clone();
         let request_handlers = client.request_handlers.clone();
         let write_tx = client.write_tx.clone();
         let reader_span = tracing::error_span!("jsonrpc_read_loop");
@@ -367,7 +447,7 @@ impl JsonRpcClient {
                     request_tx_clone,
                     request_handlers,
                     write_tx,
-                    (connection_closed, confirmation_requests),
+                    (connection_closed, cancellable_requests),
                 )
                 .await;
             }
@@ -380,7 +460,7 @@ impl JsonRpcClient {
 
     pub(crate) fn force_close(&self) {
         self.connection_closed.cancel();
-        self.confirmation_requests.clear();
+        self.cancellable_requests.clear();
         let handlers = std::mem::take(&mut *self.request_handlers.write());
         drop(handlers);
         if let Some(task) = self.read_task.lock().take() {
@@ -464,13 +544,10 @@ impl JsonRpcClient {
         request_tx: mpsc::UnboundedSender<JsonRpcRequest>,
         request_handlers: RequestHandlers,
         write_tx: mpsc::UnboundedSender<WriteCommand>,
-        connection: (
-            CancellationToken,
-            Arc<crate::installation_confirmation::ConfirmationRequests>,
-        ),
+        connection: (CancellationToken, Arc<CancellableRequests>),
     ) {
         let mut reader = BufReader::new(reader);
-        let (connection_closed, confirmation_requests) = connection;
+        let (connection_closed, cancellable_requests) = connection;
 
         loop {
             match Self::read_message(&mut reader).await {
@@ -537,7 +614,7 @@ impl JsonRpcClient {
                                 .and_then(|params| params.get("id"))
                                 .and_then(Value::as_u64)
                             {
-                                confirmation_requests.cancel(id);
+                                cancellable_requests.cancel(id);
                             } else {
                                 warn!("invalid numeric request cancellation");
                             }
@@ -552,10 +629,10 @@ impl JsonRpcClient {
                         let _ = notifications.0.send(notification);
                     }
                     JsonRpcMessage::Request(request) => {
-                        if request.method == crate::installation_confirmation::CONFIRM_METHOD
-                            && !confirmation_requests.register(request.id)
+                        if CancellableRequests::honors_cancellation(&request.method)
+                            && !cancellable_requests.register(request.id)
                         {
-                            warn!("duplicate pending installation confirmation request ID");
+                            warn!(method = %request.method, "duplicate pending cancellable request ID");
                             break;
                         }
                         let handler = request_handlers.read().get(&request.method).cloned();
@@ -608,7 +685,7 @@ impl JsonRpcClient {
             }
         }
         connection_closed.cancel();
-        confirmation_requests.clear();
+        cancellable_requests.clear();
         // A handler may own the last Client clone, whose drop closes the RPC.
         // Release the registry lock before dropping those captured values.
         let handlers = std::mem::take(&mut *request_handlers.write());

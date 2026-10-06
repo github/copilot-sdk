@@ -31,7 +31,7 @@ public final class SessionLimitPredictionApi {
     }
 
     /**
-     * Parameters for predicting an AI-credit session limit. Omitting `modelId` uses the session's currently selected model.
+     * Predicts an AI-credit session limit for the session's resolved model. Returns an unavailable result instead of falling back when the current model is unresolved auto.
      * <p>
      * Invokes the method with no params, applying the runtime defaults.
      *
@@ -44,7 +44,7 @@ public final class SessionLimitPredictionApi {
     }
 
     /**
-     * Parameters for predicting an AI-credit session limit. Omitting `modelId` uses the session's currently selected model.
+     * Predicts an AI-credit session limit for the session's resolved model. Returns an unavailable result instead of falling back when the current model is unresolved auto.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.

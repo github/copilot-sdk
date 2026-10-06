@@ -14260,7 +14260,7 @@ class McpServerStatus(Enum):
     PENDING = "pending"
     # The server is configured but disabled.
     DISABLED = "disabled"
-    # The server was intentionally stopped and can be restarted on demand when policy permits; a server quarantined by restrictive managed policy stays stopped and cannot be restarted until the policy allows it.
+    # The server is not running: it may not have started yet, may have been explicitly stopped, or may be quarantined by restrictive managed policy. It can be restarted on demand when policy permits.
     STOPPED = "stopped"
     # The server is not configured for this session.
     NOT_CONFIGURED = "not_configured"
@@ -14444,6 +14444,8 @@ class PermissionApprovalEvaluationReasonCode(Enum):
     ACTION_TOO_LONG = "action-too-long"
     # The script path was not authorized for inspection.
     PATH_NOT_AUTHORIZED = "path-not-authorized"
+    # A code source was excluded from review by content exclusion policy.
+    CONTENT_EXCLUDED = "content-excluded"
     # The script working directory was invalid.
     INVALID_WORKING_DIRECTORY = "invalid-working-directory"
     # The script snapshot could not be read.
@@ -14468,6 +14470,18 @@ class PermissionApprovalEvaluationReasonCode(Enum):
     UNREVIEWABLE_SCRIPT_INVOCATION = "unreviewable-script-invocation"
     # The script argument binding could not be reviewed.
     ARGUMENT_BINDING_UNREVIEWABLE = "argument-binding-unreviewable"
+    # The shell command could not be analyzed for execution evidence.
+    UNSUPPORTED_COMMAND_SHAPE = "unsupported-command-shape"
+    # The shell command used a code source that cannot be bound for review.
+    UNSUPPORTED_SOURCE = "unsupported-source"
+    # The shell command used a code source computed at run time.
+    DYNAMIC_SOURCE = "dynamic-source"
+    # The shell command referenced more code sources than can be reviewed.
+    TOO_MANY_SOURCES = "too-many-sources"
+    # A code-bearing executable could not be inspected.
+    EXECUTABLE_UNAVAILABLE = "executable-unavailable"
+    # A code-bearing executable exceeded the binding size limit.
+    EXECUTABLE_TOO_LARGE = "executable-too-large"
     # The script review metadata was malformed.
     MALFORMED_SCRIPT_ACTION_REVIEW = "malformed-script-action-review"
     # The script snapshot manifest was malformed.
@@ -14480,6 +14494,10 @@ class PermissionApprovalEvaluationReasonCode(Enum):
     JUDGE_ERROR = "judge-error"
     # The request inherited an outcome from another decision.
     INHERITED = "inherited"
+
+    @classmethod
+    def _missing_(cls, value: object) -> "PermissionApprovalEvaluationReasonCode | None":
+        return cls.UNKNOWN if isinstance(value, str) else None
 
 
 class PermissionDecisionSource(Enum):

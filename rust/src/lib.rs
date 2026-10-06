@@ -69,6 +69,8 @@ pub mod session;
 /// Custom session filesystem provider (virtualizable filesystem layer).
 pub mod session_fs;
 mod session_fs_dispatch;
+/// Session-scoped skill provider callbacks.
+pub mod skill_provider;
 /// Per-phase timing breakdown for [`Client::start`].
 pub mod startup_timings;
 /// Event subscription handles returned by `subscribe()` methods.
@@ -131,6 +133,7 @@ pub(crate) use jsonrpc::{
 };
 pub use mode::{BUILTIN_TOOLS_ISOLATED, ClientMode, ToolSet};
 pub use provider_token::{BearerTokenError, BearerTokenProvider, ProviderTokenArgs};
+pub use skill_provider::{SkillProvider, SkillProviderDescriptor};
 
 /// Re-exported JSON-RPC internals for integration tests (requires `test-support` feature).
 #[cfg(feature = "test-support")]
@@ -2055,6 +2058,22 @@ impl Client {
         )
     }
 
+    /// Construct a client from raw streams with a preset mode, for integration
+    /// tests that need mode-specific session defaults without spawning a CLI.
+    #[doc(hidden)]
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn from_streams_with_mode_for_test(
+        reader: impl AsyncRead + Unpin + Send + 'static,
+        writer: impl AsyncWrite + Unpin + Send + 'static,
+        cwd: PathBuf,
+        mode: ClientMode,
+    ) -> Result<Self> {
+        Self::from_transport(
+            reader, writer, None, None, cwd, None, None, false, false, false, None, None, None,
+            mode, None, false,
+        )
+    }
+
     #[allow(clippy::too_many_arguments)]
     fn from_transport(
         reader: impl AsyncRead + Unpin + Send + 'static,
@@ -2594,6 +2613,31 @@ impl Client {
     ) -> crate::router::SessionRegistration {
         self.inner.router.ensure_started(&self.inner);
         self.inner.router.register(session_id)
+    }
+
+    /// Like [`register_session`](Self::register_session), but keeps the
+    /// registration it displaced so a failed resume can restore it with
+    /// [`restore_session_owned`](Self::restore_session_owned).
+    pub(crate) fn replace_session_registration(
+        &self,
+        session_id: &SessionId,
+    ) -> (
+        crate::router::SessionRegistration,
+        Option<crate::router::ReplacedRegistration>,
+    ) {
+        self.inner.router.ensure_started(&self.inner);
+        self.inner.router.replace(session_id)
+    }
+
+    /// Unregister the registration identified by `token`, handing the ID back
+    /// to `replaced` if that session is still running.
+    pub(crate) fn restore_session_owned(
+        &self,
+        session_id: &SessionId,
+        token: crate::router::RegistrationToken,
+        replaced: Option<crate::router::ReplacedRegistration>,
+    ) {
+        self.inner.router.restore_owned(session_id, token, replaced);
     }
 
     /// Unregister a session only if `token` still identifies the live

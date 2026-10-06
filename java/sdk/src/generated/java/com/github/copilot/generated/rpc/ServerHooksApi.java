@@ -27,7 +27,7 @@ public final class ServerHooksApi {
     }
 
     /**
-     * Optional project paths and host-exclusion behavior for server-scoped hook discovery.
+     * Discovers hook actions enabled under server-side discovery settings from user, repository, plugin, and managed-policy sources.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0

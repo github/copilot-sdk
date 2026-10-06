@@ -27,7 +27,7 @@ public final class ServerMcpInstallationsApi {
     }
 
     /**
-     * New-work inventory or recovery request under an explicitly selected existing session.
+     * Reads receipt-owned MCP inventory for the selected account and host without activating servers or reconstructing missing ownership. Configuration ownership does not prove session-specific usability.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -38,7 +38,7 @@ public final class ServerMcpInstallationsApi {
     }
 
     /**
-     * New-work inventory or recovery request under an explicitly selected existing session.
+     * Reconciles already-confirmed durable MCP transactions, then inspects owned inventory. Does not replay apply or reconstruct deleted ownership metadata; unresolved or unsafe evidence remains an explicit refusal.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -49,7 +49,7 @@ public final class ServerMcpInstallationsApi {
     }
 
     /**
-     * Existing-operation control. A new session selector is deliberately not accepted.
+     * Inspects a known operation only on its original connection. Remains available after account or selected-session loss; does not acquire new authority or rebind an operation.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -60,7 +60,7 @@ public final class ServerMcpInstallationsApi {
     }
 
     /**
-     * Existing-operation control. A new session selector is deliberately not accepted.
+     * Requests cancellation of a known operation on its original connection, including before apply or confirmation. Already-started effects retain their transaction lease and report an honest terminal or recovery outcome.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0

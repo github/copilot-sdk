@@ -324,6 +324,17 @@ class ConfigCloneTest {
     }
 
     @Test
+    @AllowCopilotExperimental
+    void sessionConfigSkillProviderCloned() {
+        SkillProvider provider = testSkillProvider();
+        SessionConfig original = new SessionConfig().setSkillProvider(provider);
+
+        SessionConfig cloned = original.clone();
+
+        assertSame(provider, cloned.getSkillProvider());
+    }
+
+    @Test
     void resumeSessionConfigEnableSessionTelemetryCopied() {
         ResumeSessionConfig original = new ResumeSessionConfig();
         original.setEnableSessionTelemetry(false);
@@ -360,6 +371,17 @@ class ConfigCloneTest {
         assertTrue(cloned.getEnableHostGitOperations().orElse(false));
         assertFalse(cloned.getEnableSessionStore().orElse(true));
         assertTrue(cloned.getEnableSkills().orElse(false));
+    }
+
+    @Test
+    @AllowCopilotExperimental
+    void resumeSessionConfigSkillProviderCloned() {
+        SkillProvider provider = testSkillProvider();
+        ResumeSessionConfig original = new ResumeSessionConfig().setSkillProvider(provider);
+
+        ResumeSessionConfig cloned = original.clone();
+
+        assertSame(provider, cloned.getSkillProvider());
     }
 
     @Test
@@ -547,5 +569,20 @@ class ConfigCloneTest {
 
         assertSame(original.getOnExitPlanMode(), cloned.getOnExitPlanMode());
         assertSame(original.getOnAutoModeSwitch(), cloned.getOnAutoModeSwitch());
+    }
+
+    @AllowCopilotExperimental
+    private static SkillProvider testSkillProvider() {
+        return new SkillProvider() {
+            @Override
+            public CompletableFuture<List<SkillProviderDescriptor>> listSkills() {
+                return CompletableFuture.completedFuture(List.of());
+            }
+
+            @Override
+            public CompletableFuture<String> readSkill(String name) {
+                return CompletableFuture.completedFuture(null);
+            }
+        };
     }
 }

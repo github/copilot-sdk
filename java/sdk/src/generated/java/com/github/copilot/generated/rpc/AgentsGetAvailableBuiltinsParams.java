@@ -1,0 +1,35 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+// AUTO-GENERATED FILE - DO NOT EDIT
+// Generated from: api.schema.json
+
+package com.github.copilot.generated.rpc;
+
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.github.copilot.CopilotExperimental;
+import java.util.Map;
+import javax.annotation.processing.Generated;
+
+/**
+ * The feature flags to evaluate shipped agents against.
+ *
+ * @apiNote This method is experimental and may change in a future version.
+ * @since 1.0.0
+ */
+@CopilotExperimental
+@javax.annotation.processing.Generated("copilot-sdk-codegen")
+@JsonInclude(JsonInclude.Include.NON_NULL)
+@JsonIgnoreProperties(ignoreUnknown = true)
+record AgentsGetAvailableBuiltinsParams(
+    /** Feature flag values keyed by name, evaluated with the runtime's truthiness rules. Omit or pass null for no flags. */
+    @JsonProperty("featureFlags") Map<String, Object> featureFlags,
+    /** Flag overrides keyed by name. A null entry uses the corresponding base flag; false explicitly disables it. Omit or pass null for no overrides. */
+    @JsonProperty("overrides") Map<String, Object> overrides,
+    /** The surface asking, which gates agents that only apply to one client. Omit or pass null to apply no client filter. */
+    @JsonProperty("context") String context
+) {
+}

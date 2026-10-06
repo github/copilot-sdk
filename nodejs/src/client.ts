@@ -1662,6 +1662,9 @@ export class CopilotClient {
         if (config.gitHubToken !== undefined && config.gitHubTokenProvider !== undefined) {
             throw new Error("gitHubToken and gitHubTokenProvider are mutually exclusive");
         }
+        if (config.cloud != null && config.skillProvider) {
+            throw new Error("Skill providers are not supported for cloud sessions.");
+        }
         if (!this.connection) {
             await this.start();
         }
@@ -1745,12 +1748,17 @@ export class CopilotClient {
             if (config.hooks) {
                 s.registerHooks(config.hooks);
             }
+            if (config.skillProvider) {
+                s.registerSkillProvider(config.skillProvider);
+            }
             if (transformCallbacks) {
                 s.registerTransformCallbacks(transformCallbacks);
             }
             if (config.onEvent) {
                 s.on(config.onEvent);
             }
+            // Session-FS setup can throw, so finish it before the session
+            // becomes routable; a failed open must not leave handlers behind.
             this.setupSessionFs(s, config);
             this.sessions.set(sessionId, s);
             return s;
@@ -1862,6 +1870,7 @@ export class CopilotClient {
                 enableSessionStore: config.enableSessionStore,
                 enableSkills: config.enableSkills,
                 skillDirectories: config.skillDirectories,
+                ...(config.skillProvider ? { hasSkillProvider: true } : {}),
                 pluginDirectories: config.pluginDirectories,
                 instructionDirectories: config.instructionDirectories,
                 disabledSkills: config.disabledSkills,
@@ -2041,6 +2050,9 @@ export class CopilotClient {
         if (config.hooks) {
             session.registerHooks(config.hooks);
         }
+        if (config.skillProvider) {
+            session.registerSkillProvider(config.skillProvider);
+        }
 
         const modeDefaults = this.configDefaultsForMode();
         config = { ...modeDefaults, ...config };
@@ -2057,10 +2069,13 @@ export class CopilotClient {
         if (config.onEvent) {
             session.on(config.onEvent);
         }
+        // Validation and session-FS setup can throw, so finish them before the
+        // replacement session becomes routable over any resident one.
+        const toolFilterOptions = this.resolveToolFilterOptions(config);
         this.setupSessionFs(session, config);
+        const replacedSession = this.sessions.get(sessionId);
         this.sessions.set(sessionId, session);
 
-        const toolFilterOptions = this.resolveToolFilterOptions(config);
         const gitHubTokenProviderRegistrationId = this.registerGitHubTokenProvider(
             config.gitHubTokenProvider,
             sessionId
@@ -2159,6 +2174,7 @@ export class CopilotClient {
                 defaultAgent: config.defaultAgent,
                 agent: config.agent,
                 skillDirectories: config.skillDirectories,
+                ...(config.skillProvider ? { hasSkillProvider: true } : {}),
                 pluginDirectories: config.pluginDirectories,
                 instructionDirectories: config.instructionDirectories,
                 disabledSkills: config.disabledSkills,
@@ -2222,7 +2238,15 @@ export class CopilotClient {
             this.commitGitHubTokenProvider(sessionId, gitHubTokenProviderRegistrationId);
         } catch (e) {
             session._markDisconnected();
-            this.sessions.delete(sessionId);
+            // The runtime keeps the resident session's bindings when a resume
+            // fails, so its callbacks must keep reaching the replaced session.
+            if (this.sessions.get(sessionId) === session) {
+                if (replacedSession) {
+                    this.sessions.set(sessionId, replacedSession);
+                } else {
+                    this.sessions.delete(sessionId);
+                }
+            }
             if (gitHubTokenProviderRegistrationId !== undefined) {
                 this.githubTokenProviders.delete(gitHubTokenProviderRegistrationId);
             }
@@ -3513,6 +3537,23 @@ export class CopilotClient {
             }
         );
 
+        // Internal experimental callbacks backing `SessionConfigBase.skillProvider`.
+        this.connection.onRequest(
+            "skillProvider.list",
+            async (params: { sessionId: string }, token: CancellationToken) =>
+                await this.resolveSkillProviderSession(params)._handleSkillProviderList(token)
+        );
+        this.connection.onRequest(
+            "skillProvider.read",
+            async (params: { sessionId: string; name: string }, token: CancellationToken) => {
+                const session = this.resolveSkillProviderSession(params);
+                if (typeof params.name !== "string") {
+                    throw new Error("Invalid skillProvider.read payload");
+                }
+                return await session._handleSkillProviderRead(params.name, token);
+            }
+        );
+
         const connection = this.connection;
         const messageWriter = this.messageWriter;
         const cliProcess = this.isExternalServer ? null : this.cliProcess;
@@ -3734,6 +3775,17 @@ export class CopilotClient {
             retryAfterSeconds: params.retryAfterSeconds,
         });
         return { response };
+    }
+
+    private resolveSkillProviderSession(params: { sessionId: string }): CopilotSession {
+        if (!params || typeof params.sessionId !== "string") {
+            throw new Error("Invalid skillProvider payload");
+        }
+        const session = this.sessions.get(params.sessionId);
+        if (!session) {
+            throw new Error(`Session not found: ${params.sessionId}`);
+        }
+        return session;
     }
 
     private async handleHooksInvoke(params: {

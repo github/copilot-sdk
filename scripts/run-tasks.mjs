@@ -143,7 +143,15 @@ const tasks = {
         python: [command("scripts/docs-validation", "npm", ["run", "validate:py"])],
         go: [command("scripts/docs-validation", "npm", ["run", "validate:go"])],
         dotnet: [command("scripts/docs-validation", "npm", ["run", "validate:cs"])],
-        java: [command("scripts/docs-validation", "npm", ["run", "validate:java"])],
+        java: [
+            command("java", maven, [
+                "install",
+                "-Dmaven.test.skip=true",
+                "-Dskip.test.harness=true",
+                "-Dcopilot.native.skip.download=true",
+            ]),
+            command("scripts/docs-validation", "npm", ["run", "validate:java"]),
+        ],
     },
 };
 

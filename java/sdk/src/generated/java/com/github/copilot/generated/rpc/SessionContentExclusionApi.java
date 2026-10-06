@@ -31,7 +31,7 @@ public final class SessionContentExclusionApi {
     }
 
     /**
-     * Local file system absolute paths within the session working directory to check against its content-exclusion policy.
+     * Checks local file system absolute paths within the session working directory against its content-exclusion policy. Results preserve input order. Unsupported paths/filesystems and unavailable policy evaluation return available false, and callers must treat every requested path as excluded.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.

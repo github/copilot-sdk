@@ -31,7 +31,7 @@ public final class SessionPlanApi {
     }
 
     /**
-     * Identifies the target session.
+     * Reads the session plan file from the workspace.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -42,7 +42,7 @@ public final class SessionPlanApi {
     }
 
     /**
-     * Replacement contents to write to the session plan file.
+     * Writes new content to the session plan file.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -58,7 +58,7 @@ public final class SessionPlanApi {
     }
 
     /**
-     * Identifies the target session.
+     * Deletes the session plan file from the workspace.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -69,7 +69,7 @@ public final class SessionPlanApi {
     }
 
     /**
-     * Identifies the target session.
+     * Reads todo rows from the session SQL database for plan rendering.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -80,7 +80,7 @@ public final class SessionPlanApi {
     }
 
     /**
-     * Identifies the target session.
+     * Reads todo rows AND dependency edges from the session SQL database for structured progress UI. Same defensive behavior as readSqlTodos — returns empty arrays when the database, tables, or columns aren't available. Clients should call this on session start and after every `session.todos_changed` event to refresh structured-UI rendering.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0

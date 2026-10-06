@@ -207,6 +207,7 @@ Create a new conversation session.
 - `WorkingDirectory` - Working directory for the session. When not set, the runtime uses its own process working directory.
 - `EnableSessionStore` - Enables the cross-session store for search and retrieval across sessions. When unset in `CopilotClientMode.CopilotCli`, the runtime default applies (enabled). In `CopilotClientMode.Empty`, defaults to disabled.
 - `GitHubTokenProvider` - Acquires session-scoped GitHub tokens on demand. Return `GitHubTokenProviderResult.FromToken` with a positive `ExpiresIn` value (production GitHub tokens typically use `8 * 60 * 60` seconds), or `GitHubTokenProviderResult.Cancel()`. Cannot be combined with `GitHubToken`.
+- `SkillProvider` - Experimental session-scoped skill provider. See [Skill providers (experimental)](#skill-providers-experimental).
 - `OnPermissionRequest` - Optional handler called before each tool execution to approve or deny it. When omitted, permission requests are emitted as events and left pending for manual resolution. `PermissionHandler.ApproveAll` approves requests when managed settings are disabled and throws when `EnableManagedSettings` is true. Custom handlers can inspect `ManagedApprovalRequired` for human-facing confirmation logic. See [Permission Handling](#permission-handling) section.
 - `OnUserInputRequest` - Handler for legacy question-and-answer requests from the agent. Enables the legacy `ask_user` tool. See [User Input Requests](#user-input-requests) section.
 - `AskUserVariant` - Selects the model-facing `ask_user` tool shape. Defaults to `AskUserVariant.Legacy`; use `AskUserVariant.Elicitation` with `OnElicitationRequest`.
@@ -225,6 +226,7 @@ Resume an existing session. Returns the session with `WorkspacePath` populated i
 
 - `OnPermissionRequest` - Optional handler called before each tool execution to approve or deny it. See [Permission Handling](#permission-handling) section.
 - `GitHubTokenProvider` - Replaces the session-scoped token provider when resuming. Cannot be combined with `GitHubToken`.
+- `SkillProvider` - Re-supplies the session-scoped skill provider when resuming.
 - `AskUserVariant` - Re-supplies the model-facing `ask_user` tool shape on cold resume.
 - `AllowTranscriptRecovery` - Repairs a damaged transcript when true. The default
   is true in all modes; set false to reject recovery. `session.TranscriptRecovery` contains
@@ -253,6 +255,62 @@ await using var session = await client.CreateSessionAsync(new SessionConfig
 ```
 
 Initial acquisition runs during session creation or resume. Cancellation, provider errors, and invalid token responses reject that operation instead of falling back to ambient authentication. Idle sessions refresh only before their next credential-consuming operation; there is no background refresh timer.
+
+##### Skill providers (experimental)
+
+Set `SessionConfig.SkillProvider` or `ResumeSessionConfig.SkillProvider` to
+serve session-scoped skills from your application. The provider is not persisted:
+pass it again on every resume, because resuming without one unbinds it. Skill
+providers are only supported for local sessions; `CreateSessionAsync` throws if
+`Cloud` and `SkillProvider` are both set. The skill provider types are
+experimental and raise the `GHCP001` diagnostic; suppress it with
+`#pragma warning disable GHCP001` or `<NoWarn>GHCP001</NoWarn>`.
+
+```csharp
+#pragma warning disable GHCP001 // Skill providers are experimental.
+
+public sealed class MySkillProvider : ISkillProvider
+{
+    public Task<IReadOnlyList<SkillProviderDescriptor>> ListSkillsAsync(CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<SkillProviderDescriptor>>(
+        [
+            new()
+            {
+                Name = "project-facts",
+                Description = "Important facts about this host application",
+                ArgumentHint = "<topic>"
+            }
+        ]);
+
+    public Task<string?> ReadSkillAsync(string name, CancellationToken cancellationToken) =>
+        Task.FromResult(name == "project-facts"
+            ? """
+              # Project facts
+
+              Use the application's project index before answering.
+              """
+            : null);
+}
+
+await using var client = new CopilotClient(new CopilotClientOptions
+{
+    Mode = CopilotClientMode.Empty
+});
+
+await using var session = await client.CreateSessionAsync(new SessionConfig
+{
+    AvailableTools = [], // Empty mode requires an explicit tool allow-list.
+    SkillProvider = new MySkillProvider(),
+    EnableSkills = true // Required in empty mode; otherwise skills default off.
+});
+```
+
+The runtime may call `ListSkillsAsync` and `ReadSkillAsync` concurrently. Honor
+the supplied cancellation token; it is canceled when the runtime abandons the
+request (for example, on timeout, session disposal, or a resume that replaces the
+provider) or the connection closes. Return `null` from `ReadSkillAsync` when a
+skill name is not found. Optional `SkillProviderDescriptor` properties are
+omitted from JSON when unset.
 
 ##### `PingAsync(string? message = null): Task<PingResponse>`
 

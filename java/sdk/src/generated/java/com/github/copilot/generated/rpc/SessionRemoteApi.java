@@ -31,7 +31,7 @@ public final class SessionRemoteApi {
     }
 
     /**
-     * Optional remote session mode ("off", "export", or "on"); defaults to enabling both export and remote steering.
+     * Enables remote session export or steering.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -47,7 +47,7 @@ public final class SessionRemoteApi {
     }
 
     /**
-     * Identifies the target session.
+     * Disables remote session export and steering.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -58,7 +58,7 @@ public final class SessionRemoteApi {
     }
 
     /**
-     * New remote-steerability state to persist as a `session.remote_steerable_changed` event.
+     * Persists a remote-steerability change emitted by the host as a session event.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.

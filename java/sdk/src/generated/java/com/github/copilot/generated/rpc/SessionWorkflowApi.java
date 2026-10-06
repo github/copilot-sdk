@@ -35,7 +35,7 @@ public final class SessionWorkflowApi {
     }
 
     /**
-     * Parameters for invoking a registered workflow.
+     * Runs a registered dynamic workflow by name at the top level.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -51,7 +51,7 @@ public final class SessionWorkflowApi {
     }
 
     /**
-     * Parameters for resuming a workflow run from its persisted identity.
+     * Resumes a dynamic workflow run using its persisted name, arguments, journal, and accounting.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -67,7 +67,7 @@ public final class SessionWorkflowApi {
     }
 
     /**
-     * Internal parameters for invoking a registered workflow from a tool.
+     * Internal tool-originated dynamic workflow invocation.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -83,7 +83,7 @@ public final class SessionWorkflowApi {
     }
 
     /**
-     * Internal parameters for resuming a workflow run from a tool.
+     * Internal tool-originated dynamic workflow resume.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -99,7 +99,7 @@ public final class SessionWorkflowApi {
     }
 
     /**
-     * Parameters for retrieving a workflow run.
+     * Gets the current or settled envelope for a dynamic workflow run.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -115,7 +115,7 @@ public final class SessionWorkflowApi {
     }
 
     /**
-     * Parameters for paging workflow runs.
+     * Lists durable dynamic workflow runs for this session in creation order.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -131,7 +131,7 @@ public final class SessionWorkflowApi {
     }
 
     /**
-     * Parameters for retrieving a workflow run.
+     * Gets durable and live observability detail for one dynamic workflow run.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -147,7 +147,7 @@ public final class SessionWorkflowApi {
     }
 
     /**
-     * Parameters for paging workflow progress.
+     * Pages durable progress for one dynamic workflow run.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -163,7 +163,7 @@ public final class SessionWorkflowApi {
     }
 
     /**
-     * Parameters for cancelling a workflow run.
+     * Requests cancellation of a dynamic workflow run and returns its run envelope.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -179,7 +179,7 @@ public final class SessionWorkflowApi {
     }
 
     /**
-     * Parameters for pausing a running workflow.
+     * Pauses a running dynamic workflow and returns its settled run envelope.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -195,7 +195,7 @@ public final class SessionWorkflowApi {
     }
 
     /**
-     * Parameters for an owned durable pause checkpoint.
+     * Atomically pauses an owned dynamic workflow attempt at a durable checkpoint.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -211,7 +211,7 @@ public final class SessionWorkflowApi {
     }
 
     /**
-     * Parameters for recording workflow progress.
+     * Records a batch of ordered dynamic workflow progress lines.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -227,7 +227,7 @@ public final class SessionWorkflowApi {
     }
 
     /**
-     * Parameters for one workflow-scoped subagent call.
+     * Runs one dynamic-workflow-scoped subagent and returns its result.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.

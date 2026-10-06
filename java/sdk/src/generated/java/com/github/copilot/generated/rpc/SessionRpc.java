@@ -180,7 +180,7 @@ public final class SessionRpc {
     }
 
     /**
-     * Identifies the target session.
+     * Suspends the session while preserving persisted state for later resume.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -191,7 +191,7 @@ public final class SessionRpc {
     }
 
     /**
-     * Parameters for sending a user message to the session
+     * Sends a user message to the session and returns its message ID.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -207,7 +207,7 @@ public final class SessionRpc {
     }
 
     /**
-     * Parameters for sending zero or more user messages to the session in a single turn. Remote-backed (Mission Control) sessions do not support this method and will return an error.
+     * Sends zero or more user messages to the session in a single turn and returns their message IDs. All provided messages are appended to the conversation in order, then exactly one agent turn runs over the resulting history. When the list is empty, one turn runs over the existing history with no new user message. Remote-backed (Mission Control) sessions do not support this method and will return an error.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -223,7 +223,7 @@ public final class SessionRpc {
     }
 
     /**
-     * Internal request for sending a system notification.
+     * Queues or sends an internal system notification to the session according to its passive policy.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -239,7 +239,7 @@ public final class SessionRpc {
     }
 
     /**
-     * Parameters for aborting the current turn
+     * Aborts the current agent turn.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -255,7 +255,7 @@ public final class SessionRpc {
     }
 
     /**
-     * Parameters for interrupting the main agent turn.
+     * Interrupts the current main agent turn while leaving running background work (subagents, sidekicks, and promoted attached shells) alive. No-op when the main loop is not processing.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -271,7 +271,7 @@ public final class SessionRpc {
     }
 
     /**
-     * Identifies the target session.
+     * Cancels every running background agent (task-registry subagents plus sidekick agents) without interrupting the main agent loop. Promoted attached shells are left running.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -282,7 +282,7 @@ public final class SessionRpc {
     }
 
     /**
-     * Parameters for shutting down the session
+     * Shuts down the session and persists its final state. Awaits any deferred sessionEnd hooks before resolving so user-supplied hook scripts complete before the runtime tears down.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -298,7 +298,7 @@ public final class SessionRpc {
     }
 
     /**
-     * Message text, optional severity level, persistence flag, optional follow-up URL, and optional tip.
+     * Emits a user-visible session log event.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.

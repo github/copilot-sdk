@@ -213,12 +213,20 @@ class JsonRpcClient implements AutoCloseable {
      * Sends a JSON-RPC error response to a server request.
      */
     public void sendErrorResponse(Object id, int code, String message) throws IOException {
+        sendErrorResponse(id, code, message, null);
+    }
+
+    /**
+     * Sends a JSON-RPC error response to a server request with optional data.
+     */
+    public void sendErrorResponse(Object id, int code, String message, Object data) throws IOException {
         var response = new JsonRpcResponse();
         response.setJsonrpc("2.0");
         response.setId(id);
         var error = new JsonRpcError();
         error.setCode(code);
         error.setMessage(message);
+        error.setData(data);
         response.setError(error);
         sendMessage(response);
     }

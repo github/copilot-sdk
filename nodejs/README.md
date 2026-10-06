@@ -369,6 +369,7 @@ Create a new conversation session.
 - `askUserVariant?: "legacy" | "elicitation"` - Selects the model-facing `ask_user` tool shape when creating or cold-resuming a session. Defaults to `"legacy"`; use `"elicitation"` with `onElicitationRequest`.
 - `onElicitationRequest?: ElicitationHandler` - Handler for elicitation requests dispatched by the server. Enables this client to present form-based UI dialogs on behalf of the agent or other session participants. See [Elicitation Requests](#elicitation-requests) section.
 - `hooks?: SessionHooks` - Hook handlers for session lifecycle events. See [Session Hooks](#session-hooks) section.
+- `skillProvider?: SkillProvider` - **Experimental.** Serves skills from host storage instead of skill directories. Not persisted; pass it again on resume. See [Skill providers](#skill-providers-experimental).
 
 ```typescript
 const session = await client.createSession({
@@ -1119,6 +1120,46 @@ const session = await client.createSession({
     memory: { enabled: false },
 });
 ```
+
+### Skill providers (experimental)
+
+A skill provider serves skills from your own storage, such as a database, instead of `SKILL.md`
+files on disk. Provider skills join the session's skill catalog and load on demand through the
+`skill` tool, just like file-based skills.
+
+```typescript
+import type { SkillProvider } from "@github/copilot-sdk";
+
+const skillProvider: SkillProvider = {
+    listSkills: async () => [
+        { name: "release-notes", description: "Writes release notes in the team's format." },
+    ],
+    readSkill: async (name, { signal }) => (await db.findSkill(name, { signal }))?.markdown ?? null,
+};
+
+const session = await client.createSession({
+    onPermissionRequest: approveAll,
+    skillProvider,
+});
+```
+
+- `listSkills()` returns the catalog metadata. `readSkill(name)` returns the skill's markdown, or
+  `null`/`undefined` if the skill no longer exists. The markdown may omit YAML frontmatter; when
+  frontmatter is present, its fields must agree with the listed metadata, and `allowed-tools` is
+  read only from frontmatter.
+- Each call receives `{ signal }`, an `AbortSignal` that fires when the runtime cancels the call,
+  for example after its 30-second limit or when the session disconnects. It doesn't fire when the
+  connection closes or the client is force-stopped; a running call then continues until it returns.
+- The provider is never persisted. Pass it again to `resumeSession`; resuming without it unbinds
+  the provider.
+- A provider enables skills unless you set `enableSkills: false`, which keeps it bound but unused.
+  In `mode: "empty"`, skills stay disabled until you set `enableSkills: true`.
+- Errors thrown by the provider are reported to the model as a generic load failure; their
+  messages are not forwarded.
+- The runtime may call the provider concurrently, so both methods must be safe for concurrent use.
+- Skill providers are not supported for cloud sessions.
+
+See [Custom skills](../docs/features/skills.md#skill-providers-experimental) for limits and details.
 
 ### Multiple Sessions
 

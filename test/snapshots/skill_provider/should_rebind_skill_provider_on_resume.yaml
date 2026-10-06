@@ -1,0 +1,31 @@
+models:
+  - claude-sonnet-5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Without using any tools or skills, reply with exactly REBIND_READY.
+      - role: assistant
+        content: REBIND_READY
+      - role: user
+        content: Use the skill tool to load the rebind-check skill, then reply with its verification word.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: skill
+              arguments: '{"skill":"rebind-check"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Skill "rebind-check" loaded successfully. Follow the instructions in the skill context.
+      - role: user
+        content: |-
+          <skill-context name="rebind-check">
+          This is an SDK-provided text-only skill - related files, scripts, templates, and assets are not available.
+          The rebind verification word is BRONZE_BETA_22.
+
+          </skill-context>
+      - role: assistant
+        content: BRONZE_BETA_22

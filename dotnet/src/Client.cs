@@ -892,6 +892,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         session.RegisterElicitationHandler(config.OnElicitationRequest);
         session.RegisterExitPlanModeHandler(config.OnExitPlanModeRequest);
         session.RegisterAutoModeSwitchHandler(config.OnAutoModeSwitchRequest);
+        session.RegisterSkillProvider(config.SkillProvider);
         if (config.OnUserInputRequest != null)
         {
             session.RegisterUserInputHandler(config.OnUserInputRequest);
@@ -1190,6 +1191,10 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     {
         ArgumentNullException.ThrowIfNull(config);
         ValidateGitHubTokenConfig(config);
+        if (config.Cloud is not null && config.SkillProvider is not null)
+        {
+            throw new ArgumentException("Skill providers are not supported for cloud sessions.");
+        }
 
         var connection = await EnsureConnectedAsync(cancellationToken);
         var totalTimestamp = Stopwatch.GetTimestamp();
@@ -1327,7 +1332,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 GitHubMcpToolConfig: config.GitHubMcpToolConfig,
                 ManagedSettings: config.ManagedSettings,
                 EnableGitHubTelemetryForwarding: _options.OnGitHubTelemetry != null ? true : null,
-                AdditionalDirectories: config.AdditionalDirectories);
+                AdditionalDirectories: config.AdditionalDirectories,
+                HasSkillProvider: config.SkillProvider is not null ? true : null);
 
             var rpcTimestamp = Stopwatch.GetTimestamp();
 
@@ -1593,7 +1599,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 ManagedSettings: config.ManagedSettings,
                 EnableGitHubTelemetryForwarding: _options.OnGitHubTelemetry != null ? true : null,
                 AdditionalDirectories: config.AdditionalDirectories,
-                AllowTranscriptRecovery: config.AllowTranscriptRecovery);
+                AllowTranscriptRecovery: config.AllowTranscriptRecovery,
+                HasSkillProvider: config.SkillProvider is not null ? true : null);
 
             var rpcTimestamp = Stopwatch.GetTimestamp();
             var response = await InvokeRpcAsync<ResumeSessionResponse>(
@@ -1807,6 +1814,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
         if (_sessions.TryRemove(sessionId, out var session))
         {
+            session.ClearSkillProvider();
             session.ReleaseGitHubTokenProviderRegistration();
         }
     }
@@ -2753,6 +2761,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             rpc.SetLocalRpcMethod("autoModeSwitch.request", handler.OnAutoModeSwitchRequest);
             rpc.SetLocalRpcMethod("hooks.invoke", handler.OnHooksInvoke);
             rpc.SetLocalRpcMethod("systemMessage.transform", handler.OnSystemMessageTransform);
+            rpc.SetLocalRpcMethod("skillProvider.list", handler.OnSkillProviderList, singleObjectParam: true);
+            rpc.SetLocalRpcMethod("skillProvider.read", handler.OnSkillProviderRead, singleObjectParam: true);
             ClientSessionApiRegistration.RegisterClientSessionApiHandlers(rpc, sessionId =>
             {
                 var session = GetSession(sessionId) ?? throw new ArgumentException($"Unknown session {sessionId}");
@@ -2864,6 +2874,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         }
         foreach (var session in _sessions.Values)
         {
+            session.ClearSkillProvider();
             session.CancelPendingExternalTools();
         }
     }
@@ -3039,6 +3050,32 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             return await session.HandleSystemMessageTransformAsync(sections);
         }
 
+        public async ValueTask<SkillProviderListResult> OnSkillProviderList(SkillProviderListRequest request, CancellationToken cancellationToken)
+        {
+            ArgumentNullException.ThrowIfNull(request);
+            if (string.IsNullOrEmpty(request.SessionId))
+            {
+                throw new ArgumentException("Skill provider list request is missing a session id.");
+            }
+
+            var session = client.GetSession(request.SessionId)
+                ?? throw new InvalidOperationException($"No skill provider for session: {request.SessionId}");
+            return await session.HandleSkillProviderListAsync(cancellationToken);
+        }
+
+        public async ValueTask<SkillProviderReadResult> OnSkillProviderRead(SkillProviderReadRequest request, CancellationToken cancellationToken)
+        {
+            ArgumentNullException.ThrowIfNull(request);
+            if (string.IsNullOrEmpty(request.SessionId) || string.IsNullOrEmpty(request.Name))
+            {
+                throw new ArgumentException("Skill provider read request is missing a session id or skill name.");
+            }
+
+            var session = client.GetSession(request.SessionId)
+                ?? throw new InvalidOperationException($"No skill provider for session: {request.SessionId}");
+            return await session.HandleSkillProviderReadAsync(request.Name, cancellationToken);
+        }
+
     }
 
     private class Connection(
@@ -3197,7 +3234,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         [property: JsonPropertyName("managedSettings")] ManagedSettings? ManagedSettings = null,
         bool? EnableGitHubTelemetryForwarding = null,
         [property: JsonPropertyName("githubMcpToolConfig")] GitHubMcpToolConfig? GitHubMcpToolConfig = null,
-        IList<string>? AdditionalDirectories = null);
+        IList<string>? AdditionalDirectories = null,
+        bool? HasSkillProvider = null);
 #pragma warning restore GHCP001
 
     internal record ToolDefinition(
@@ -3319,7 +3357,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         bool? EnableGitHubTelemetryForwarding = null,
         [property: JsonPropertyName("githubMcpToolConfig")] GitHubMcpToolConfig? GitHubMcpToolConfig = null,
         IList<string>? AdditionalDirectories = null,
-        bool? AllowTranscriptRecovery = null);
+        bool? AllowTranscriptRecovery = null,
+        bool? HasSkillProvider = null);
 #pragma warning restore GHCP001
 
     internal record ResumeSessionResponse(
@@ -3407,6 +3446,21 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         string Answer,
         bool WasFreeform);
 
+    internal record SkillProviderListRequest(
+        string SessionId);
+
+#pragma warning disable GHCP001
+    internal record SkillProviderListResult(
+        IReadOnlyList<SkillProviderDescriptor> Skills);
+#pragma warning restore GHCP001
+
+    internal record SkillProviderReadRequest(
+        string SessionId,
+        string Name);
+
+    internal record SkillProviderReadResult(
+        [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] string? Markdown);
+
     internal record AutoModeSwitchRequestResponse(
         AutoModeSwitchResponse Response);
 
@@ -3435,6 +3489,12 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     [JsonSerializable(typeof(ExitPlanModeResult))]
     [JsonSerializable(typeof(GetLastSessionIdResponse))]
     [JsonSerializable(typeof(HooksInvokeResponse))]
+    [JsonSerializable(typeof(SkillProviderListRequest))]
+#pragma warning disable GHCP001
+    [JsonSerializable(typeof(SkillProviderListResult))]
+#pragma warning restore GHCP001
+    [JsonSerializable(typeof(SkillProviderReadRequest))]
+    [JsonSerializable(typeof(SkillProviderReadResult))]
     [JsonSerializable(typeof(ListSessionsRequest))]
     [JsonSerializable(typeof(ListSessionsResponse))]
     [JsonSerializable(typeof(GetSessionMetadataRequest))]

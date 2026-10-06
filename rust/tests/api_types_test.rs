@@ -11,17 +11,75 @@ use github_copilot_sdk::rpc::{
     CustomizationReloadOutcome, CustomizationReloadStatus, CustomizationReloadSubsystem,
     EnqueueCommandResult, Extension, ExtensionList, ExtensionSource, ExtensionStatus,
     ExtensionsDisableRequest, ExtensionsEnableRequest, FleetStartRequest, FleetStartResult,
-    McpDisableRequest, McpEnableOptions, McpEnableRequest, McpInstallationOperationStatus,
-    McpOauthLoginOptions, McpOauthLoginRequest, McpServer, McpStopServerRequest,
-    ModelSetAllowedModelsRequest, ModelSetAllowedModelsResult, ModelSwitchAutoTierRequest,
-    ModelSwitchAutoTierResult, ModelSwitchAutoTierStatus, QueuePendingItems, QueuePendingItemsKind,
-    SandboxConfig, SendAgentMode, TasksStartAgentRequest, UnsupportedEnqueueCommandResult,
+    McpConfiguredServer, McpConfiguredServerList, McpConfiguredServerState, McpDisableRequest,
+    McpEnableOptions, McpEnableRequest, McpInstallationOperationStatus, McpOauthLoginOptions,
+    McpOauthLoginRequest, McpServer, McpStopServerRequest, ModelSetAllowedModelsRequest,
+    ModelSetAllowedModelsResult, ModelSwitchAutoTierRequest, ModelSwitchAutoTierResult,
+    ModelSwitchAutoTierStatus, QueuePendingItems, QueuePendingItemsKind, SandboxConfig,
+    SendAgentMode, SessionMcpListConfiguredResult, TasksStartAgentRequest,
+    UnsupportedEnqueueCommandResult,
 };
 use github_copilot_sdk::session_events::{
     McpServerStatus, PermissionRequest, PermissionRequestedData, SessionEventData,
     TypedSessionEvent,
 };
 use github_copilot_sdk::{AutoTier, AutoTierPreference, SetModelOptions};
+
+#[test]
+fn configured_mcp_servers_preserve_enablement_without_live_state() {
+    for enabled in [false, true] {
+        let server = McpConfiguredServer {
+            name: "configured".to_string(),
+            enabled,
+            ..Default::default()
+        };
+        let wire = serde_json::json!({
+            "servers": [{ "name": "configured", "enabled": enabled }],
+        });
+        assert_eq!(
+            serde_json::to_value(McpConfiguredServerList {
+                servers: vec![server],
+            })
+            .unwrap(),
+            wire
+        );
+        let result: SessionMcpListConfiguredResult = serde_json::from_value(wire.clone()).unwrap();
+        assert!(result.servers[0].live.is_none());
+        assert_eq!(serde_json::to_value(result).unwrap(), wire);
+    }
+}
+
+#[test]
+fn configured_mcp_servers_preserve_live_observations_independently_of_enablement() {
+    for enabled in [false, true] {
+        let server = McpConfiguredServer {
+            name: "configured".to_string(),
+            enabled,
+            live: Some(McpConfiguredServerState {
+                status: McpServerStatus::Stopped,
+                error: None,
+            }),
+            ..Default::default()
+        };
+        assert_eq!(
+            serde_json::to_value(server).unwrap(),
+            serde_json::json!({
+                "name": "configured",
+                "enabled": enabled,
+                "live": { "status": "stopped" },
+            })
+        );
+    }
+    let wire = serde_json::json!({
+        "servers": [{
+            "name": "configured",
+            "enabled": true,
+            "live": { "status": "failed", "error": "connection failed" },
+        }],
+    });
+    let result: SessionMcpListConfiguredResult = serde_json::from_value(wire.clone()).unwrap();
+    assert_eq!(serde_json::to_value(result).unwrap(), wire);
+}
 
 #[test]
 fn customization_reload_outcome_preserves_future_wire_values() {

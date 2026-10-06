@@ -27,7 +27,7 @@ public final class ServerInstructionsApi {
     }
 
     /**
-     * Optional project paths to include in instruction discovery.
+     * Discovers instruction sources across user, repository, and plugin sources.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -38,7 +38,7 @@ public final class ServerInstructionsApi {
     }
 
     /**
-     * Optional project paths to include when enumerating instruction discovery targets.
+     * Returns the canonical files and directories where a client may create custom instructions that the runtime will recognize, including ones that do not exist yet. Repository targets become active once created.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0

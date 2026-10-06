@@ -32,7 +32,7 @@ public final class SessionMcpOauthApi {
     }
 
     /**
-     * Pending MCP OAuth request ID and host-provided token or cancellation response.
+     * Resolves a pending MCP OAuth request with a host-provided token or cancellation. The pending request is emitted as mcp.oauth_required with the data necessary to authorize the request.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -48,7 +48,7 @@ public final class SessionMcpOauthApi {
     }
 
     /**
-     * Identifies the MCP server whose persisted OAuth credentials were updated.
+     * Notifies the session that MCP OAuth authentication succeeded and updated credentials were persisted, so cached tool definitions can be refreshed.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -64,7 +64,7 @@ public final class SessionMcpOauthApi {
     }
 
     /**
-     * Effect-free preparation bound to the existing local session, requester and installation, with frozen options.
+     * Prepares an inert, expiring owned OAuth login bound to the original session requester and exact installation. Does not activate, connect, read credentials or open a browser.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -80,7 +80,7 @@ public final class SessionMcpOauthApi {
     }
 
     /**
-     * Remote MCP server name and optional overrides controlling reauthentication, OAuth client display name, callback handling, and static OAuth client selection.
+     * Starts OAuth authentication for a remote MCP server. Owned servers require the original one-use prepareLogin handle and exact installation ID; manual servers retain the existing direct login behaviour.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -96,7 +96,7 @@ public final class SessionMcpOauthApi {
     }
 
     /**
-     * Remote MCP server name and optional overrides controlling reauthentication, OAuth client display name, callback handling, and static OAuth client selection.
+     * Starts OAuth authentication for a remote MCP server. Owned servers require the original one-use prepareLogin handle and exact installation ID; manual servers retain the existing direct login behaviour.
      * <p>
      * Accepts the extensible request, including inputs added after the params record.
      *
@@ -111,7 +111,7 @@ public final class SessionMcpOauthApi {
     }
 
     /**
-     * Host-delivered callback for a runtime-managed MCP OAuth login.
+     * Completes a runtime-managed MCP OAuth login after the authorization server redirects to a host-managed callback URL.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -127,7 +127,7 @@ public final class SessionMcpOauthApi {
     }
 
     /**
-     * Remote MCP server name for a passive OAuth status probe.
+     * Passively probes a configured remote MCP server to classify whether OAuth is required or a cached/override token is accepted. Does not start OAuth, emit pending OAuth requests, or mutate MCP connection state.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -143,7 +143,7 @@ public final class SessionMcpOauthApi {
     }
 
     /**
-     * Remote MCP server name for a passive OAuth status probe.
+     * Passively probes a configured remote MCP server to classify whether OAuth is required or a cached/override token is accepted. Does not start OAuth, emit pending OAuth requests, or mutate MCP connection state.
      * <p>
      * Accepts the extensible request, including inputs added after the params record.
      *
@@ -158,7 +158,7 @@ public final class SessionMcpOauthApi {
     }
 
     /**
-     * Targets only the original prepared/applying owned login on this exact session requester.
+     * Cancels the exact owned OAuth login issued to this original session requester, without clearing shared credentials.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -174,7 +174,7 @@ public final class SessionMcpOauthApi {
     }
 
     /**
-     * Pending MCP OAuth request id to respond to.
+     * Responds to a pending MCP OAuth authorization request by its request id.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.

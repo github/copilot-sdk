@@ -21,7 +21,18 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import Enum
 from types import TracebackType
-from typing import TYPE_CHECKING, Any, Literal, NotRequired, Required, TypedDict, TypeVar, cast
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Literal,
+    NotRequired,
+    Protocol,
+    Required,
+    TypedDict,
+    TypeVar,
+    cast,
+    runtime_checkable,
+)
 
 from pydantic import BaseModel
 
@@ -58,6 +69,7 @@ from .generated.rpc import (
     ProviderTokenAcquireResult,
     SessionLogLevel,
     SessionRpc,
+    SkillProviderDescriptor,
     ToolsSetRequest,
     UIElicitationRequest,
     UIElicitationResponse,
@@ -66,6 +78,8 @@ from .generated.rpc import (
     UIElicitationSchemaProperty,
     UIElicitationSchemaPropertyType,
     UIHandlePendingElicitationRequest,
+    _SkillProviderListResult,
+    _SkillProviderReadResult,
 )
 from .generated.rpc import (
     CanvasHandler as RpcCanvasHandler,
@@ -1507,6 +1521,34 @@ class ProviderTokenArgs(TypedDict):
 BearerTokenProvider = Callable[[ProviderTokenArgs], str | Awaitable[str]]
 
 
+@runtime_checkable
+class SkillProvider(Protocol):
+    """**Experimental.** Provides session-scoped skills from SDK-owned storage.
+
+    Providers are ephemeral and must be supplied again when resuming a session.
+    The runtime may call providers concurrently, so implementations must be
+    concurrency-safe. Synchronous providers run on the event loop like other
+    Python SDK callbacks; keep them fast or make them async. When the runtime
+    cancels a call, for example after its 30-second limit or when the session
+    disconnects, an async provider's task is cancelled with
+    :class:`asyncio.CancelledError`.
+    """
+
+    def list_skills(
+        self,
+    ) -> list[SkillProviderDescriptor] | None | Awaitable[list[SkillProviderDescriptor] | None]:
+        """Return skill catalog descriptors, or ``None`` for an empty catalog."""
+        ...
+
+    def read_skill(self, name: str) -> str | None | Awaitable[str | None]:
+        """Return SKILL.md markdown for ``name``, or ``None`` when not found."""
+        ...
+
+
+def _skill_provider_failure_error(method_name: Literal["listSkills", "readSkill"]) -> JsonRpcError:
+    return JsonRpcError(-32603, f"Skill provider {method_name} failed")
+
+
 ProviderConfigModelProvider = Literal[
     "openai",
     "anthropic",
@@ -1792,6 +1834,8 @@ class CopilotSession:
         self._transform_callbacks_lock = threading.Lock()
         self._command_handlers: dict[str, CommandHandler] = {}
         self._command_handlers_lock = threading.Lock()
+        self._skill_provider: SkillProvider | None = None
+        self._skill_provider_lock = threading.Lock()
         self._bearer_token_providers: dict[str, BearerTokenProvider] = {}
         self._bearer_token_providers_lock = threading.Lock()
         self._elicitation_handler: ElicitationHandler | None = None
@@ -1830,6 +1874,7 @@ class CopilotSession:
         self._destroyed = True
         self._fail_structured_waits()
         self._cancel_pending_external_tools()
+        self._clear_skill_provider()
         self._run_disconnect_callback()
 
     def _fail_structured_waits(self) -> None:
@@ -3081,6 +3126,77 @@ class CopilotSession:
         with self._tool_handlers_lock:
             return self._tool_handlers.get(name)
 
+    def _register_skill_provider(self, provider: SkillProvider | None) -> None:
+        """Register or clear the session-scoped skill provider."""
+        with self._skill_provider_lock:
+            self._skill_provider = provider
+
+    def _clear_skill_provider(self) -> None:
+        self._register_skill_provider(None)
+
+    async def _handle_skill_provider_list(self) -> dict:
+        provider = self._require_skill_provider()
+        skills = await self._call_skill_provider("listSkills", provider.list_skills)
+        resolved_skills = cast(list[SkillProviderDescriptor] | None, skills)
+        try:
+            return _SkillProviderListResult(
+                skills=[] if resolved_skills is None else list(resolved_skills)
+            ).to_dict()
+        except Exception:
+            self._log_skill_provider_failure("listSkills")
+            raise _skill_provider_failure_error("listSkills") from None
+
+    async def _handle_skill_provider_read(self, name: str) -> dict:
+        provider = self._require_skill_provider()
+        markdown = await self._call_skill_provider(
+            "readSkill", functools.partial(provider.read_skill, name)
+        )
+        return _SkillProviderReadResult(markdown=cast(str | None, markdown)).to_dict()
+
+    def _require_skill_provider(self) -> SkillProvider:
+        with self._skill_provider_lock:
+            provider = self._skill_provider
+        if provider is None:
+            raise JsonRpcError(-32603, f"No skill provider for session: {self.session_id}")
+        return provider
+
+    async def _call_skill_provider(
+        self, operation: Literal["listSkills", "readSkill"], call: Callable[[], Any]
+    ) -> Any:
+        """Run a provider callback, reporting any failure to the runtime generically."""
+        provider_start = time.perf_counter()
+        try:
+            result = call()
+            if inspect.isawaitable(result):
+                result = await result
+        except asyncio.CancelledError:
+            # Only a cancellation of this dispatch task propagates; one raised by
+            # the provider itself is an ordinary provider failure.
+            task = asyncio.current_task()
+            if task is not None and task.cancelling():
+                raise
+            self._log_skill_provider_failure(operation)
+            raise _skill_provider_failure_error(operation) from None
+        except Exception:
+            self._log_skill_provider_failure(operation)
+            raise _skill_provider_failure_error(operation) from None
+        log_timing(
+            logger,
+            logging.DEBUG,
+            f"CopilotSession skill provider {operation} dispatch",
+            provider_start,
+            session_id=self.session_id,
+        )
+        return result
+
+    def _log_skill_provider_failure(self, operation: Literal["listSkills", "readSkill"]) -> None:
+        logger.warning(
+            "Skill provider %s failed",
+            operation,
+            extra={"session_id": self.session_id},
+            exc_info=True,
+        )
+
     def _register_permission_handler(self, handler: _PermissionHandlerFn | None) -> None:
         """
         Register a handler for permission requests.
@@ -3467,6 +3583,7 @@ class CopilotSession:
                 self._event_handlers.clear()
             with self._tool_handlers_lock:
                 self._tool_handlers.clear()
+            self._clear_skill_provider()
             with self._permission_handler_lock:
                 self._permission_handler = None
             with self._command_handlers_lock:

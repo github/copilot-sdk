@@ -27,7 +27,7 @@ public final class ServerRuntimeApi {
     }
 
     /**
-     * Invokes {@code runtime.shutdown}.
+     * Gracefully shuts down an SDK-owned runtime. The response is sent only after cleanup completes; callers may then terminate the owned runtime process.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0

@@ -6440,6 +6440,14 @@ const (
 	PermissionApprovalEvaluationReasonCodeArgumentBindingUnreviewable PermissionApprovalEvaluationReasonCode = "argument-binding-unreviewable"
 	// The judge was skipped because authorization extraction could not safely establish a complete recent history.
 	PermissionApprovalEvaluationReasonCodeAuthorizationHistoryIncomplete PermissionApprovalEvaluationReasonCode = "authorization-history-incomplete"
+	// A code source was excluded from review by content exclusion policy.
+	PermissionApprovalEvaluationReasonCodeContentExcluded PermissionApprovalEvaluationReasonCode = "content-excluded"
+	// The shell command used a code source computed at run time.
+	PermissionApprovalEvaluationReasonCodeDynamicSource PermissionApprovalEvaluationReasonCode = "dynamic-source"
+	// A code-bearing executable exceeded the binding size limit.
+	PermissionApprovalEvaluationReasonCodeExecutableTooLarge PermissionApprovalEvaluationReasonCode = "executable-too-large"
+	// A code-bearing executable could not be inspected.
+	PermissionApprovalEvaluationReasonCodeExecutableUnavailable PermissionApprovalEvaluationReasonCode = "executable-unavailable"
 	// Assisted approval was inactive for this request.
 	PermissionApprovalEvaluationReasonCodeInactive PermissionApprovalEvaluationReasonCode = "inactive"
 	// The request inherited an outcome from another decision.
@@ -6476,6 +6484,8 @@ const (
 	PermissionApprovalEvaluationReasonCodeShellEnvironmentUnreviewable PermissionApprovalEvaluationReasonCode = "shell-environment-unreviewable"
 	// The script snapshot exceeded the size limit.
 	PermissionApprovalEvaluationReasonCodeTooLarge PermissionApprovalEvaluationReasonCode = "too-large"
+	// The shell command referenced more code sources than can be reviewed.
+	PermissionApprovalEvaluationReasonCodeTooManySources PermissionApprovalEvaluationReasonCode = "too-many-sources"
 	// Script review was unavailable.
 	PermissionApprovalEvaluationReasonCodeUnavailable PermissionApprovalEvaluationReasonCode = "unavailable"
 	// Attribution is missing or outside the supported vocabulary.
@@ -6486,6 +6496,10 @@ const (
 	PermissionApprovalEvaluationReasonCodeUnrepresentablePath PermissionApprovalEvaluationReasonCode = "unrepresentable-path"
 	// The script invocation could not be reviewed.
 	PermissionApprovalEvaluationReasonCodeUnreviewableScriptInvocation PermissionApprovalEvaluationReasonCode = "unreviewable-script-invocation"
+	// The shell command could not be analyzed for execution evidence.
+	PermissionApprovalEvaluationReasonCodeUnsupportedCommandShape PermissionApprovalEvaluationReasonCode = "unsupported-command-shape"
+	// The shell command used a code source that cannot be bound for review.
+	PermissionApprovalEvaluationReasonCodeUnsupportedSource PermissionApprovalEvaluationReasonCode = "unsupported-source"
 )
 
 // Direction stored in a historical extractor claim. Current runtimes do not apply it.

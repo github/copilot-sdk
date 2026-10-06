@@ -11,9 +11,67 @@ from copilot.generated.rpc import (
     ConnectorConnectRequest,
     ConnectorConnectResultKind,
     ConnectorContinueRequest,
+    ConnectorDiscoveryAccount,
+    ConnectorDiscoveryAccountList,
+    ConnectorDiscoveryAvailability,
+    ConnectorDiscoveryCapabilities,
     ConnectorReconcileRequest,
+    ServerRpc,
 )
 from copilot.session import CopilotSession
+
+
+@pytest.mark.parametrize("availability", ["disabled", "enabled", "unavailable"])
+@pytest.mark.parametrize(
+    ("result_type", "payload"),
+    [
+        (ConnectorDiscoveryAccountList, {"availability": "enabled", "accounts": []}),
+        (
+            ConnectorDiscoveryCapabilities,
+            {
+                "apiVersion": 1,
+                "availability": "enabled",
+                "conditionalCache": True,
+                "opaqueAccountSelection": True,
+            },
+        ),
+    ],
+)
+def test_discovery_availability_is_distinct_from_session_availability(
+    result_type, payload, availability
+):
+    assert ConnectorDiscoveryAvailability is not ConnectorAvailability
+    payload = {**payload, "availability": availability}
+    result = result_type.from_dict(payload)
+    assert result.availability is ConnectorDiscoveryAvailability(availability)
+    assert result.to_dict() == payload
+
+
+@pytest.mark.asyncio
+async def test_client_connector_accounts_are_typed():
+    transport = Mock()
+    transport.request = AsyncMock(
+        return_value={
+            "availability": "enabled",
+            "accounts": [
+                {
+                    "accountId": "account-1",
+                    "authInfo": {
+                        "type": "user",
+                        "host": "https://github.com",
+                        "login": "octocat",
+                    },
+                }
+            ],
+        }
+    )
+
+    result = await ServerRpc(transport).connectors.get_accounts()
+
+    assert len(result.accounts) == 1
+    assert isinstance(result.accounts[0], ConnectorDiscoveryAccount)
+    assert result.accounts[0].account_id == "account-1"
+    assert result.accounts[0].auth_info.login == "octocat"
 
 
 @pytest.mark.asyncio

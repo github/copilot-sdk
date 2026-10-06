@@ -31,7 +31,7 @@ public final class SessionWorkspacesApi {
     }
 
     /**
-     * Identifies the target session.
+     * Gets current workspace metadata for the session.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -42,7 +42,7 @@ public final class SessionWorkspacesApi {
     }
 
     /**
-     * Workspace metadata fields to update.
+     * Updates workspace metadata for a local session and returns the refreshed workspace.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -58,7 +58,7 @@ public final class SessionWorkspacesApi {
     }
 
     /**
-     * Optional session context used when creating a local workspace.
+     * Ensures a local session workspace exists and returns it.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -74,7 +74,7 @@ public final class SessionWorkspacesApi {
     }
 
     /**
-     * Identifies the target session.
+     * Lists files stored in the session workspace files directory.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -85,7 +85,7 @@ public final class SessionWorkspacesApi {
     }
 
     /**
-     * Relative path of the workspace file to read.
+     * Reads a file from the session workspace files directory.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -101,7 +101,7 @@ public final class SessionWorkspacesApi {
     }
 
     /**
-     * Relative path and UTF-8 content for the workspace file to create or overwrite.
+     * Creates or overwrites a file in the session workspace files directory.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -117,7 +117,7 @@ public final class SessionWorkspacesApi {
     }
 
     /**
-     * Relative path of the workspace file or directory to inspect.
+     * Returns metadata for a file or directory in the session workspace files directory.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -133,7 +133,7 @@ public final class SessionWorkspacesApi {
     }
 
     /**
-     * Directory to create within the session workspace files directory.
+     * Creates a directory in the session workspace files directory.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -149,7 +149,7 @@ public final class SessionWorkspacesApi {
     }
 
     /**
-     * File or directory to remove from the session workspace files directory.
+     * Removes a file or directory from the session workspace files directory.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -165,7 +165,7 @@ public final class SessionWorkspacesApi {
     }
 
     /**
-     * Source and destination paths for a rename within the session workspace files directory.
+     * Renames a file or directory within the session workspace files directory.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -181,7 +181,7 @@ public final class SessionWorkspacesApi {
     }
 
     /**
-     * Identifies the target session.
+     * Lists workspace checkpoints in chronological order.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -192,7 +192,7 @@ public final class SessionWorkspacesApi {
     }
 
     /**
-     * Checkpoint number to read.
+     * Reads the content of a workspace checkpoint by number.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -208,7 +208,7 @@ public final class SessionWorkspacesApi {
     }
 
     /**
-     * Compaction summary checkpoint to persist.
+     * Adds a compaction summary checkpoint to the local session workspace.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -224,7 +224,7 @@ public final class SessionWorkspacesApi {
     }
 
     /**
-     * Rollback point for local workspace summaries.
+     * Truncates local workspace compaction summaries after a rollback.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -240,7 +240,7 @@ public final class SessionWorkspacesApi {
     }
 
     /**
-     * Identifies the target session.
+     * Reads the autopilot objective state file from the local session workspace.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -251,7 +251,7 @@ public final class SessionWorkspacesApi {
     }
 
     /**
-     * Autopilot objective file content to persist.
+     * Writes the autopilot objective state file in the local session workspace.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -267,7 +267,7 @@ public final class SessionWorkspacesApi {
     }
 
     /**
-     * Identifies the target session.
+     * Deletes the autopilot objective state file from the local session workspace.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -278,7 +278,7 @@ public final class SessionWorkspacesApi {
     }
 
     /**
-     * Identifies the target session.
+     * Checks whether the local session workspace has an autopilot objective state file.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -289,7 +289,7 @@ public final class SessionWorkspacesApi {
     }
 
     /**
-     * Pasted content to save as a UTF-8 file in the session workspace.
+     * Saves pasted content as a UTF-8 file in the session workspace.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -305,7 +305,7 @@ public final class SessionWorkspacesApi {
     }
 
     /**
-     * Parameters for computing a workspace diff.
+     * Computes a diff for the session workspace. Never rejects for a busy session: a `session`-mode diff that cannot read the session's file-change captures falls back to an unstaged git diff with `isFallback: true` and reports why in `unavailableReason`.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.

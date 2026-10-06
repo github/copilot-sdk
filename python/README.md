@@ -205,6 +205,58 @@ asyncio.run(main())
 - ✅ Async/await native
 - ✅ Async context manager support for automatic resource cleanup
 
+### Skill providers (experimental)
+
+Skill providers let a session serve skills from SDK-owned storage instead of
+`SKILL.md` files on disk. Implement `SkillProvider`, return generated
+`SkillProviderDescriptor` values from `list_skills()`, and return the skill
+markdown from `read_skill(name)`. Both methods can be sync or async; keep sync
+providers fast because they run on the event loop.
+
+```python
+import asyncio
+
+from copilot import CopilotClient, SkillProvider, SkillProviderDescriptor
+
+
+class MemorySkills(SkillProvider):
+    def list_skills(self):
+        return [
+            SkillProviderDescriptor(
+                name="release-notes",
+                description="Draft release notes from recent changes",
+            )
+        ]
+
+    async def read_skill(self, name: str) -> str | None:
+        if name != "release-notes":
+            return None
+        return "Draft concise release notes with highlights and migration notes."
+
+
+async def main():
+    async with CopilotClient(mode="empty", base_directory="./.copilot-empty") as client:
+        async with await client.create_session(
+            available_tools=[],
+            enable_skills=True,
+            skill_provider=MemorySkills(),
+        ) as session:
+            await session.send("Use /release-notes for this change set")
+
+
+asyncio.run(main())
+```
+
+In `"empty"` mode, set `enable_skills=True`; otherwise the provider is bound but
+dormant. Providers are ephemeral and are not persisted, so pass `skill_provider=`
+again to `resume_session()`. Cloud sessions do not support skill providers.
+Providers must be safe for concurrent calls because the runtime may list or read
+skills from multiple agent paths at the same time. When the runtime cancels a
+call, for example after its 30-second limit or when the session disconnects, an
+async provider's task is cancelled and receives `asyncio.CancelledError`. Closing
+the connection or force-stopping the client doesn't cancel a running call; it
+continues until it returns.
+
 ## API Reference
 
 ### CopilotClient

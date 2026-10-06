@@ -93,6 +93,8 @@ type Session struct {
 	elicitationMu               sync.RWMutex
 	canvasHandler               CanvasHandler
 	canvasMu                    sync.RWMutex
+	skillProvider               SkillProvider
+	skillProviderMu             sync.RWMutex
 	bearerTokenProviders        map[string]BearerTokenProvider
 	bearerTokenMu               sync.RWMutex
 	releaseGitHubTokenProvider  func()
@@ -219,6 +221,24 @@ func (s *Session) getCanvasHandler() CanvasHandler {
 	s.canvasMu.RLock()
 	defer s.canvasMu.RUnlock()
 	return s.canvasHandler
+}
+
+func (s *Session) registerSkillProvider(provider SkillProvider) {
+	s.skillProviderMu.Lock()
+	defer s.skillProviderMu.Unlock()
+	s.skillProvider = provider
+}
+
+func (s *Session) getSkillProvider() SkillProvider {
+	s.skillProviderMu.RLock()
+	defer s.skillProviderMu.RUnlock()
+	return s.skillProvider
+}
+
+func (s *Session) clearSkillProvider() {
+	s.skillProviderMu.Lock()
+	s.skillProvider = nil
+	s.skillProviderMu.Unlock()
 }
 
 // registerBearerTokenProviders installs per-provider [BearerTokenProvider] callbacks
@@ -1520,6 +1540,7 @@ func (s *Session) processEvents() {
 // CreateSession/ResumeSession use this when a locally registered session fails
 // before it can be returned to the caller.
 func (s *Session) stopEventProcessing() {
+	s.clearSkillProvider()
 	s.closeOnce.Do(func() { close(s.eventDone) })
 }
 
@@ -1895,6 +1916,7 @@ func (s *Session) GetEvents(ctx context.Context) ([]SessionEvent, error) {
 //	    log.Printf("Failed to disconnect session: %v", err)
 //	}
 func (s *Session) Disconnect() error {
+	s.clearSkillProvider()
 	s.cancelPendingExternalTools()
 	result, err := s.client.Request(context.Background(), "session.detach", sessionDetachRequest{SessionID: s.SessionID})
 	if err == nil {

@@ -4,7 +4,7 @@
 
 // Shared SDK shutdown fixture: node <script> <cleanup-marker> <mode> <pid-file>.
 const fs = require("node:fs");
-const { writeFile } = require("node:fs/promises");
+const { rename, writeFile } = require("node:fs/promises");
 
 const [marker, mode, pidFile] = process.argv.slice(2);
 if (!marker || !pidFile || !["stop", "dispose", "force", "fallback", "start-failure"].includes(mode)) {
@@ -55,5 +55,7 @@ process.stdin.on("data", (chunk) => {
 process.stdin.on("end", async () => {
     if (!shutdownRequested) throw new Error("Missing runtime.shutdown");
     // Like the native wrapper, finalize host output only after transport EOF.
-    await writeFile(marker, '{"type":"span"}\n');
+    // Marker existence signals a completed write to tests that force-stop the child.
+    await writeFile(`${marker}.tmp`, '{"type":"span"}\n');
+    await rename(`${marker}.tmp`, marker);
 });

@@ -434,6 +434,59 @@ session
 session.disconnect().await?;
 ```
 
+#### Skill providers (experimental)
+
+Hosts can supply a session-scoped skill catalog and lazy markdown reader with
+`SkillProvider`. The provider is runtime-only: the SDK sends only
+`hasSkillProvider: true` on `session.create` / `session.resume`, and routes
+`skillProvider.list` and `skillProvider.read` callbacks back to the trait.
+
+```rust,no_run
+use std::sync::Arc;
+use async_trait::async_trait;
+use github_copilot_sdk::skill_provider::{SkillProvider, SkillProviderDescriptor};
+use github_copilot_sdk::{Client, ClientOptions, Error, SessionConfig};
+
+struct AppSkills;
+
+#[async_trait]
+impl SkillProvider for AppSkills {
+    async fn list_skills(
+        &self,
+    ) -> Result<Vec<SkillProviderDescriptor>, Error> {
+        Ok(vec![SkillProviderDescriptor {
+            name: "review".to_string(),
+            description: "Review the current change".to_string(),
+            ..Default::default()
+        }])
+    }
+
+    async fn read_skill(&self, name: &str) -> Result<Option<String>, Error> {
+        Ok((name == "review").then(|| "# Review\nInspect the diff carefully.".to_string()))
+    }
+}
+
+# async fn example() -> Result<(), Error> {
+let client = Client::start(ClientOptions::default()).await?;
+let session = client
+    .create_session(SessionConfig::default().with_skill_provider(Arc::new(AppSkills)))
+    .await?;
+# session.disconnect().await?;
+# client.stop().await.ok();
+# Ok(())
+# }
+```
+
+In `ClientMode::Empty`, built-in skill loading defaults to disabled; set
+`enable_skills` to `Some(true)` when the session should use provider-backed
+skills in that mode. Providers are not persisted, so re-supply one with
+`ResumeSessionConfig::with_skill_provider` on every resume. Cloud sessions do
+not support skill providers. Each callback is dispatched on its own spawned
+task, so provider implementations must be safe for concurrent calls. When the
+runtime cancels a call, for example after its 30-second limit or when the
+session disconnects, the SDK drops the provider future; await cancel-safe work
+so that dropping it stops the lookup.
+
 #### Typed RPC namespace
 
 High-level helpers are convenience wrappers over a fully-typed

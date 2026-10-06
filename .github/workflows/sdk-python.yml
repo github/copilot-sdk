@@ -83,6 +83,14 @@ jobs:
           COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
           COPILOT_SDK_DEFAULT_CONNECTION: inprocess
         run: uv run --locked pytest -v -s e2e/test_inprocess_ffi_e2e.py e2e/test_auth_host_e2e.py
+      - name: Validate documentation examples
+        if: github.event_name != 'merge_group' && runner.os == 'Linux'
+        working-directory: ${{ inputs.sdk-home }}/scripts/docs-validation
+        run: |
+          npm ci
+          npm run extract
+          uv run --locked --python 3.12 --project "$GITHUB_WORKSPACE/$SDK_HOME/python" python3 -m mypy --version
+          uv run --locked --python 3.12 --project "$GITHUB_WORKSPACE/$SDK_HOME/python" npm run validate:py
       - name: Upload Python test diagnostics
         if: failure()
         uses: actions/upload-artifact@v7
@@ -149,29 +157,3 @@ jobs:
           include-hidden-files: true
           if-no-files-found: warn
           retention-days: 7
-
-  docs-python:
-    name: "Docs (Python)"
-    if: inputs.platform == 'all' || inputs.platform == 'docs'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-        timeout-minutes: 4
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 22
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.12"
-      - uses: astral-sh/setup-uv@v7
-      - run: uv sync --locked
-        working-directory: ${{ inputs.sdk-home }}/python
-      - run: npm ci
-        working-directory: ${{ inputs.sdk-home }}/scripts/docs-validation
-      - run: npm run extract
-        working-directory: ${{ inputs.sdk-home }}/scripts/docs-validation
-      - run: uv run --locked --project "$GITHUB_WORKSPACE/$SDK_HOME/python" python3 -m mypy --version
-      - run: uv run --locked --project "$GITHUB_WORKSPACE/$SDK_HOME/python" npm run validate:py
-        working-directory: ${{ inputs.sdk-home }}/scripts/docs-validation

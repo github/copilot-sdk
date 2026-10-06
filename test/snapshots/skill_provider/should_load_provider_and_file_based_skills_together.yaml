@@ -1,0 +1,48 @@
+models:
+  - claude-sonnet-5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Use the skill tool to load the file-notes skill and the provider-audit skill, then reply with both verification
+          words.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: skill
+              arguments: '{"skill":"file-notes"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Skill "file-notes" loaded successfully. Follow the instructions in the skill context.
+      - role: user
+        content: |-
+          <skill-context name="file-notes">
+          Base directory for this skill: ${workdir}/file-skills/file-notes
+
+          The file notes verification word is MAPLE_FALCON_27.
+
+          </skill-context>
+      - role: assistant
+        tool_calls:
+          - id: toolcall_1
+            type: function
+            function:
+              name: skill
+              arguments: '{"skill":"provider-audit"}'
+      - role: tool
+        tool_call_id: toolcall_1
+        content: Skill "provider-audit" loaded successfully. Follow the instructions in the skill context.
+      - role: user
+        content: |-
+          <skill-context name="provider-audit">
+          This is an SDK-provided text-only skill - related files, scripts, templates, and assets are not available.
+          The provider audit verification word is COBALT_HERON_58.
+
+          </skill-context>
+      - role: assistant
+        content: |-
+          - file-notes: MAPLE_FALCON_27
+          - provider-audit: COBALT_HERON_58

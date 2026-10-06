@@ -736,6 +736,10 @@ const (
 	PermissionApprovalEvaluationReasonCodeActionTooLong                  = rpc.PermissionApprovalEvaluationReasonCodeActionTooLong
 	PermissionApprovalEvaluationReasonCodeArgumentBindingUnreviewable    = rpc.PermissionApprovalEvaluationReasonCodeArgumentBindingUnreviewable
 	PermissionApprovalEvaluationReasonCodeAuthorizationHistoryIncomplete = rpc.PermissionApprovalEvaluationReasonCodeAuthorizationHistoryIncomplete
+	PermissionApprovalEvaluationReasonCodeContentExcluded                = rpc.PermissionApprovalEvaluationReasonCodeContentExcluded
+	PermissionApprovalEvaluationReasonCodeDynamicSource                  = rpc.PermissionApprovalEvaluationReasonCodeDynamicSource
+	PermissionApprovalEvaluationReasonCodeExecutableTooLarge             = rpc.PermissionApprovalEvaluationReasonCodeExecutableTooLarge
+	PermissionApprovalEvaluationReasonCodeExecutableUnavailable          = rpc.PermissionApprovalEvaluationReasonCodeExecutableUnavailable
 	PermissionApprovalEvaluationReasonCodeInactive                       = rpc.PermissionApprovalEvaluationReasonCodeInactive
 	PermissionApprovalEvaluationReasonCodeInherited                      = rpc.PermissionApprovalEvaluationReasonCodeInherited
 	PermissionApprovalEvaluationReasonCodeInterpreterTooLarge            = rpc.PermissionApprovalEvaluationReasonCodeInterpreterTooLarge
@@ -754,11 +758,14 @@ const (
 	PermissionApprovalEvaluationReasonCodeSandboxBypass                  = rpc.PermissionApprovalEvaluationReasonCodeSandboxBypass
 	PermissionApprovalEvaluationReasonCodeShellEnvironmentUnreviewable   = rpc.PermissionApprovalEvaluationReasonCodeShellEnvironmentUnreviewable
 	PermissionApprovalEvaluationReasonCodeTooLarge                       = rpc.PermissionApprovalEvaluationReasonCodeTooLarge
+	PermissionApprovalEvaluationReasonCodeTooManySources                 = rpc.PermissionApprovalEvaluationReasonCodeTooManySources
 	PermissionApprovalEvaluationReasonCodeUnavailable                    = rpc.PermissionApprovalEvaluationReasonCodeUnavailable
 	PermissionApprovalEvaluationReasonCodeUnknown                        = rpc.PermissionApprovalEvaluationReasonCodeUnknown
 	PermissionApprovalEvaluationReasonCodeUnreadable                     = rpc.PermissionApprovalEvaluationReasonCodeUnreadable
 	PermissionApprovalEvaluationReasonCodeUnrepresentablePath            = rpc.PermissionApprovalEvaluationReasonCodeUnrepresentablePath
 	PermissionApprovalEvaluationReasonCodeUnreviewableScriptInvocation   = rpc.PermissionApprovalEvaluationReasonCodeUnreviewableScriptInvocation
+	PermissionApprovalEvaluationReasonCodeUnsupportedCommandShape        = rpc.PermissionApprovalEvaluationReasonCodeUnsupportedCommandShape
+	PermissionApprovalEvaluationReasonCodeUnsupportedSource              = rpc.PermissionApprovalEvaluationReasonCodeUnsupportedSource
 	PermissionDecisionSourceAuthorizationCarryForward                    = rpc.PermissionDecisionSourceAuthorizationCarryForward
 	PermissionMessageAuthorizationPolarityDenial                         = rpc.PermissionMessageAuthorizationPolarityDenial
 	PermissionMessageAuthorizationPolarityGrant                          = rpc.PermissionMessageAuthorizationPolarityGrant

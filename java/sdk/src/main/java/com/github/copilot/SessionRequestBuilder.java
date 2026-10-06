@@ -215,6 +215,9 @@ final class SessionRequestBuilder {
         config.getEnableHostGitOperations().ifPresent(request::setEnableHostGitOperations);
         config.getEnableSessionStore().ifPresent(request::setEnableSessionStore);
         config.getEnableSkills().ifPresent(request::setEnableSkills);
+        if (config.getSkillProvider() != null) {
+            request.setHasSkillProvider(true);
+        }
         if (config.getEmbeddingCacheStorage() != null) {
             request.setEmbeddingCacheStorage(config.getEmbeddingCacheStorage());
         }
@@ -335,6 +338,9 @@ final class SessionRequestBuilder {
         config.getEnableHostGitOperations().ifPresent(request::setEnableHostGitOperations);
         config.getEnableSessionStore().ifPresent(request::setEnableSessionStore);
         config.getEnableSkills().ifPresent(request::setEnableSkills);
+        if (config.getSkillProvider() != null) {
+            request.setHasSkillProvider(true);
+        }
         if (config.getEmbeddingCacheStorage() != null) {
             request.setEmbeddingCacheStorage(config.getEmbeddingCacheStorage());
         }
@@ -435,6 +441,9 @@ final class SessionRequestBuilder {
         if (config.getOnUserInputRequest() != null) {
             session.registerUserInputHandler(config.getOnUserInputRequest());
         }
+        if (config.getSkillProvider() != null) {
+            session.registerSkillProvider(config.getSkillProvider());
+        }
         if (config.getHooks() != null) {
             session.registerHooks(config.getHooks());
         }
@@ -486,6 +495,9 @@ final class SessionRequestBuilder {
         }
         if (config.getOnUserInputRequest() != null) {
             session.registerUserInputHandler(config.getOnUserInputRequest());
+        }
+        if (config.getSkillProvider() != null) {
+            session.registerSkillProvider(config.getSkillProvider());
         }
         if (config.getHooks() != null) {
             session.registerHooks(config.getHooks());

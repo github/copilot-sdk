@@ -16,8 +16,13 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -43,6 +48,7 @@ import com.github.copilot.rpc.GitHubTokenProviderResult;
  * identified by JaCoCo: unknown sessions, missing fields, error paths, and edge
  * cases for each handler method.
  */
+@AllowCopilotExperimental
 class RpcHandlerDispatcherTest {
 
     private static final ObjectMapper MAPPER = JsonRpcClient.getObjectMapper();
@@ -509,6 +515,213 @@ class RpcHandlerDispatcherTest {
         assertEquals(-32603, response.get("error").get("code").asInt());
     }
 
+    // ===== skillProvider.* tests =====
+
+    @Test
+    void skillProviderListAndReadSuccess() throws Exception {
+        CopilotSession session = createSession("s1");
+        session.registerSkillProvider(skillProvider(
+                () -> CompletableFuture.completedFuture(
+                        List.of(new SkillProviderDescriptor("docs", "Documentation", null, null, "topic"))),
+                name -> CompletableFuture.completedFuture("# " + name)));
+
+        ObjectNode listParams = MAPPER.createObjectNode();
+        listParams.put("sessionId", "s1");
+        invokeHandler("skillProvider.list", "60", listParams);
+
+        JsonNode listResponse = readResponse();
+        JsonNode descriptor = listResponse.at("/result/skills/0");
+        assertEquals("docs", descriptor.path("name").asText());
+        assertEquals("Documentation", descriptor.path("description").asText());
+        assertEquals("topic", descriptor.path("argumentHint").asText());
+        assertFalse(descriptor.has("userInvocable"));
+        assertFalse(descriptor.has("disableModelInvocation"));
+
+        ObjectNode readParams = MAPPER.createObjectNode();
+        readParams.put("sessionId", "s1");
+        readParams.put("name", "docs");
+        invokeHandler("skillProvider.read", "61", readParams);
+
+        JsonNode readResponse = readResponse();
+        assertEquals("# docs", readResponse.at("/result/markdown").asText());
+    }
+
+    @Test
+    void skillProviderNullListReturnsEmptyList() throws Exception {
+        CopilotSession session = createSession("s1");
+        session.registerSkillProvider(skillProvider(() -> CompletableFuture.completedFuture(null),
+                name -> CompletableFuture.completedFuture("# " + name)));
+
+        ObjectNode params = MAPPER.createObjectNode();
+        params.put("sessionId", "s1");
+        invokeHandler("skillProvider.list", "62", params);
+
+        JsonNode response = readResponse();
+        assertTrue(response.at("/result/skills").isArray());
+        assertEquals(0, response.at("/result/skills").size());
+    }
+
+    @Test
+    void skillProviderReadNullReturnsNullMarkdown() throws Exception {
+        CopilotSession session = createSession("s1");
+        session.registerSkillProvider(skillProvider(() -> CompletableFuture.completedFuture(List.of()),
+                name -> CompletableFuture.completedFuture(null)));
+
+        ObjectNode params = MAPPER.createObjectNode();
+        params.put("sessionId", "s1");
+        params.put("name", "missing");
+        invokeHandler("skillProvider.read", "63", params);
+
+        JsonNode response = readResponse();
+        assertNull(response.get("error"));
+        assertTrue(response.at("/result").has("markdown"));
+        assertTrue(response.at("/result/markdown").isNull());
+    }
+
+    @Test
+    void skillProviderFailuresUseStableMessagesWithoutData() throws Exception {
+        CopilotSession session = createSession("s1");
+        session.registerSkillProvider(skillProvider(
+                () -> CompletableFuture.failedFuture(new IllegalStateException("secret list failure")), name -> {
+                    throw new IllegalStateException("secret read failure");
+                }));
+
+        ObjectNode listParams = MAPPER.createObjectNode();
+        listParams.put("sessionId", "s1");
+        invokeHandler("skillProvider.list", "64", listParams);
+        JsonNode listResponse = readResponse();
+        assertEquals(-32603, listResponse.at("/error/code").asInt());
+        assertEquals("Skill provider listSkills failed", listResponse.at("/error/message").asText());
+        assertFalse(listResponse.path("error").has("data"));
+
+        ObjectNode readParams = MAPPER.createObjectNode();
+        readParams.put("sessionId", "s1");
+        readParams.put("name", "docs");
+        invokeHandler("skillProvider.read", "65", readParams);
+        JsonNode readResponse = readResponse();
+        assertEquals(-32603, readResponse.at("/error/code").asInt());
+        assertEquals("Skill provider readSkill failed", readResponse.at("/error/message").asText());
+        assertFalse(readResponse.path("error").has("data"));
+    }
+
+    @Test
+    void skillProviderErrorsForUnknownMissingOrClearedProviderHaveNoData() throws Exception {
+        ObjectNode unknownParams = MAPPER.createObjectNode();
+        unknownParams.put("sessionId", "missing-session");
+        invokeHandler("skillProvider.list", "66", unknownParams);
+        JsonNode unknownResponse = readResponse();
+        assertEquals(-32603, unknownResponse.at("/error/code").asInt());
+        assertEquals("No skill provider for session: missing-session", unknownResponse.at("/error/message").asText());
+        assertFalse(unknownResponse.path("error").has("data"));
+
+        createSession("s1");
+        ObjectNode noProviderParams = MAPPER.createObjectNode();
+        noProviderParams.put("sessionId", "s1");
+        noProviderParams.put("name", "docs");
+        invokeHandler("skillProvider.read", "67", noProviderParams);
+        JsonNode noProviderResponse = readResponse();
+        assertEquals(-32603, noProviderResponse.at("/error/code").asInt());
+        assertEquals("No skill provider for session: s1", noProviderResponse.at("/error/message").asText());
+        assertFalse(noProviderResponse.path("error").has("data"));
+
+        CopilotSession session = sessions.get("s1");
+        session.registerSkillProvider(skillProvider(() -> CompletableFuture.completedFuture(List.of()),
+                name -> CompletableFuture.completedFuture("# " + name)));
+        session.clearSkillProvider();
+        invokeHandler("skillProvider.list", "68", noProviderParams);
+        JsonNode clearedResponse = readResponse();
+        assertEquals(-32603, clearedResponse.at("/error/code").asInt());
+        assertEquals("No skill provider for session: s1", clearedResponse.at("/error/message").asText());
+        assertFalse(clearedResponse.path("error").has("data"));
+    }
+
+    @Test
+    void skillProviderCallIsCancelledByCancelRequest() throws Exception {
+        CopilotSession session = createSession("s1");
+        var entered = new CountDownLatch(1);
+        var pending = new CompletableFuture<List<SkillProviderDescriptor>>();
+        session.registerSkillProvider(skillProvider(() -> {
+            entered.countDown();
+            return pending;
+        }, name -> CompletableFuture.completedFuture(null)));
+
+        ObjectNode params = MAPPER.createObjectNode();
+        params.put("sessionId", "s1");
+        invokeHandler("skillProvider.list", "69", params);
+        assertTrue(entered.await(5, TimeUnit.SECONDS));
+        dispatcher.handleCancelRequest(MAPPER.createObjectNode().put("id", 69));
+
+        JsonNode response = readResponse();
+        assertEquals(69, response.path("id").asInt());
+        assertEquals(-32800, response.at("/error/code").asInt());
+        assertTrue(pending.isCancelled());
+    }
+
+    @Test
+    void skillProviderCallCancelledBeforeDispatchIsNotStarted() throws Exception {
+        CopilotSession session = createSession("s1");
+        var calls = new AtomicInteger();
+        session.registerSkillProvider(skillProvider(() -> {
+            calls.incrementAndGet();
+            return CompletableFuture.completedFuture(List.of());
+        }, name -> CompletableFuture.completedFuture(null)));
+        var blockedExecutor = new CompletableFuture<Void>();
+        var cancellingDispatcher = new RpcHandlerDispatcher(sessions, lifecycleEvents::add,
+                task -> blockedExecutor.thenRun(task), gitHubTokenProviders);
+        cancellingDispatcher.registerHandlers(rpc);
+
+        ObjectNode params = MAPPER.createObjectNode();
+        params.put("sessionId", "s1");
+        invokeHandler("skillProvider.list", "70", params);
+        cancellingDispatcher.handleCancelRequest(MAPPER.createObjectNode().put("id", 70));
+        blockedExecutor.complete(null);
+
+        assertEquals(-32800, readResponse().at("/error/code").asInt());
+        assertEquals(0, calls.get());
+    }
+
+    @Test
+    void skillProviderCallsAreCancelledWhenTheConnectionCloses() throws Exception {
+        CopilotSession session = createSession("s1");
+        var entered = new CountDownLatch(1);
+        var pending = new CompletableFuture<String>();
+        session.registerSkillProvider(skillProvider(() -> CompletableFuture.completedFuture(List.of()), name -> {
+            entered.countDown();
+            return pending;
+        }));
+
+        ObjectNode params = MAPPER.createObjectNode();
+        params.put("sessionId", "s1");
+        params.put("name", "docs");
+        invokeHandler("skillProvider.read", "71", params);
+        assertTrue(entered.await(5, TimeUnit.SECONDS));
+        dispatcher.cancelSkillProviderCalls();
+
+        assertEquals(-32800, readResponse().at("/error/code").asInt());
+        assertTrue(pending.isCancelled());
+    }
+
+    @Test
+    void cancelRequestForAnotherRequestLeavesSkillProviderCallRunning() throws Exception {
+        CopilotSession session = createSession("s1");
+        var entered = new CountDownLatch(1);
+        var pending = new CompletableFuture<String>();
+        session.registerSkillProvider(skillProvider(() -> CompletableFuture.completedFuture(List.of()), name -> {
+            entered.countDown();
+            return pending;
+        }));
+
+        ObjectNode params = MAPPER.createObjectNode();
+        params.put("sessionId", "s1");
+        params.put("name", "docs");
+        invokeHandler("skillProvider.read", "72", params);
+        assertTrue(entered.await(5, TimeUnit.SECONDS));
+        dispatcher.handleCancelRequest(MAPPER.createObjectNode().put("id", 73));
+        pending.complete("# docs");
+
+        assertEquals("# docs", readResponse().at("/result/markdown").asText());
+    }
+
     // ===== hooks.invoke tests =====
 
     @Test
@@ -648,5 +861,20 @@ class RpcHandlerDispatcherTest {
         JsonNode resultSections = response.get("result").get("sections");
         assertNotNull(resultSections);
         assertEquals("Original content", resultSections.get("identity").get("content").asText());
+    }
+
+    private static SkillProvider skillProvider(Supplier<CompletableFuture<List<SkillProviderDescriptor>>> listSkills,
+            Function<String, CompletableFuture<String>> readSkill) {
+        return new SkillProvider() {
+            @Override
+            public CompletableFuture<List<SkillProviderDescriptor>> listSkills() {
+                return listSkills.get();
+            }
+
+            @Override
+            public CompletableFuture<String> readSkill(String name) {
+                return readSkill.apply(name);
+            }
+        };
     }
 }

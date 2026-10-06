@@ -23,9 +23,11 @@ const cliDistDirectory = process.env.COPILOT_EXTENSION_SDK_PATH
     ? dirname(process.env.COPILOT_EXTENSION_SDK_PATH)
     : dirname(cliPath);
 const workflowTestContext = await createSdkTestContext({
+    logLevel: "debug",
     copilotClientOptions: {
         connection: RuntimeConnection.forStdio({ path: cliPath }),
         env: {
+            RUST_LOG: "error,sdk_diagnostics=debug",
             COPILOT_CLI_ENABLED_FEATURE_FLAGS: "EXTENSIONS",
         },
         extensionLaunchProvider: {

@@ -21,6 +21,12 @@ func unmarshalAuthInfo(data []byte) (AuthInfo, error) {
 	}
 
 	switch raw.Type {
+	case AuthInfoTypeAccount:
+		var d AccountAuthInfo
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
 	case AuthInfoTypeAPIKey:
 		var d APIKeyAuthInfo
 		if err := json.Unmarshal(data, &d); err != nil {
@@ -82,6 +88,17 @@ func (r RawAuthInfoData) MarshalJSON() ([]byte, error) {
 		Type AuthInfoType `json:"type"`
 	}{
 		Type: r.Discriminator,
+	})
+}
+
+func (r AccountAuthInfo) MarshalJSON() ([]byte, error) {
+	type alias AccountAuthInfo
+	return json.Marshal(struct {
+		Type AuthInfoType `json:"type"`
+		alias
+	}{
+		Type:  r.Type(),
+		alias: alias(r),
 	})
 }
 
@@ -8140,6 +8157,12 @@ func unmarshalSettableAuthInfo(data []byte) (SettableAuthInfo, error) {
 	}
 
 	switch raw.Type {
+	case SettableAuthInfoTypeAccount:
+		var d AccountAuthInfo
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
 	case SettableAuthInfoTypeAPIKey:
 		var d APIKeyAuthInfo
 		if err := json.Unmarshal(data, &d); err != nil {

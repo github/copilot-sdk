@@ -129,6 +129,7 @@ from .session import (
     SessionFsConfig,
     SessionHooks,
     SessionLimitsConfig,
+    SkillProvider,
     SystemMessageConfig,
     ToolSearchConfig,
     TranscriptRecoveryReport,
@@ -185,6 +186,14 @@ typically last eight hours. Initial cancellation, callback errors, and invalid
 token responses reject session creation or resume instead of falling back to
 ambient authentication.
 """
+
+
+def _required_string_param(params: dict, name: str) -> str:
+    value = params.get(name) if isinstance(params, dict) else None
+    if not isinstance(value, str):
+        raise JsonRpcError(-32602, "Invalid params")
+    return value
+
 
 # ============================================================================
 # Connection Types
@@ -2374,6 +2383,7 @@ class CopilotClient:
         enable_skills: bool | None = None,
         included_builtin_skills: list[str] | None = None,
         skill_directories: list[str] | None = None,
+        skill_provider: SkillProvider | None = None,
         plugin_directories: list[str] | None = None,
         instruction_directories: list[str] | None = None,
         disabled_skills: list[str] | None = None,
@@ -2524,6 +2534,11 @@ class CopilotClient:
             enable_session_store: Enables the cross-session store.
             enable_skills: Enables skill loading.
             skill_directories: Directories to search for skills.
+            skill_provider: **Experimental.** Session-scoped provider for SDK-owned
+                skills. Providers are not persisted; re-supply the provider when
+                resuming the session. Synchronous providers run on the event loop,
+                so keep them fast or make them async. Not supported for cloud
+                sessions.
             instruction_directories: Additional directories to search for custom
                 instruction files.
             disabled_skills: Skills to disable.
@@ -2616,6 +2631,8 @@ class CopilotClient:
             raise ValueError("github_token and github_token_provider are mutually exclusive")
         if ask_user_variant not in (None, "legacy", "elicitation"):
             raise ValueError('ask_user_variant must be "legacy" or "elicitation"')
+        if cloud is not None and skill_provider is not None:
+            raise ValueError("Skill providers are not supported for cloud sessions.")
         if not self._client:
             await self.start()
 
@@ -2839,6 +2856,8 @@ class CopilotClient:
             payload["enableSessionStore"] = enable_session_store
         if enable_skills is not None:
             payload["enableSkills"] = enable_skills
+        if skill_provider is not None:
+            payload["hasSkillProvider"] = True
 
         # Add skill directories configuration if provided
         if skill_directories:
@@ -2969,6 +2988,7 @@ class CopilotClient:
                 s._client_session_apis.session_fs = create_session_fs_adapter(fs_provider)
             s._register_tools(tools)
             s._register_commands(commands)
+            s._register_skill_provider(skill_provider)
             s._register_permission_handler(on_permission_request)
             s._register_mcp_auth_handler(on_mcp_auth_request)
             if on_user_input_request:
@@ -3110,6 +3130,9 @@ class CopilotClient:
                 request_failed = True
                 registered_id = registered_session_id
                 orphaned_id = server_assigned_session_id
+                failed_session = session
+            if failed_session is not None:
+                failed_session._clear_skill_provider()
             if registered_id is not None:
                 with self._sessions_lock:
                     self._sessions.pop(registered_id, None)
@@ -3206,6 +3229,7 @@ class CopilotClient:
         enable_skills: bool | None = None,
         included_builtin_skills: list[str] | None = None,
         skill_directories: list[str] | None = None,
+        skill_provider: SkillProvider | None = None,
         plugin_directories: list[str] | None = None,
         instruction_directories: list[str] | None = None,
         disabled_skills: list[str] | None = None,
@@ -3354,6 +3378,10 @@ class CopilotClient:
             enable_session_store: Enables the cross-session store.
             enable_skills: Enables skill loading.
             skill_directories: Directories to search for skills.
+            skill_provider: **Experimental.** Session-scoped provider for SDK-owned
+                skills. Providers are not persisted; callers must re-supply the
+                provider on resume. Synchronous providers run on the event loop,
+                so keep them fast or make them async.
             instruction_directories: Additional directories to search for custom
                 instruction files.
             disabled_skills: Skills to disable.
@@ -3612,6 +3640,8 @@ class CopilotClient:
             payload["enableSessionStore"] = enable_session_store
         if enable_skills is not None:
             payload["enableSkills"] = enable_skills
+        if skill_provider is not None:
+            payload["hasSkillProvider"] = True
 
         if continue_pending_work is not None:
             payload["continuePendingWork"] = continue_pending_work
@@ -3740,6 +3770,7 @@ class CopilotClient:
             session._client_session_apis.session_fs = create_session_fs_adapter(fs_provider)
         session._register_tools(tools)
         session._register_commands(commands)
+        session._register_skill_provider(skill_provider)
         session._register_permission_handler(on_permission_request)
         session._register_mcp_auth_handler(on_mcp_auth_request)
         if on_user_input_request:
@@ -3762,6 +3793,7 @@ class CopilotClient:
         if on_event:
             session.on(on_event)
         with self._sessions_lock:
+            replaced_session = self._sessions.get(session_id)
             self._sessions[session_id] = session
         log_timing(
             logger,
@@ -3815,8 +3847,15 @@ class CopilotClient:
                     {"sessionId": session.session_id, "eventType": "mcp.oauth_required"},
                 )
         except BaseException as exc:
+            # The runtime keeps the resident session's bindings when a resume
+            # fails, so its callbacks must keep reaching the replaced session.
             with self._sessions_lock:
-                self._sessions.pop(session_id, None)
+                if self._sessions.get(session_id) is session:
+                    if replaced_session is not None:
+                        self._sessions[session_id] = replaced_session
+                    else:
+                        del self._sessions[session_id]
+            session._clear_skill_provider()
             self._unregister_github_token_provider(github_token_provider_registration_id)
             if not isinstance(exc, asyncio.CancelledError):
                 log_timing(
@@ -4077,6 +4116,7 @@ class CopilotClient:
         with self._sessions_lock:
             session = self._sessions.pop(session_id, None)
         if session is not None:
+            session._clear_skill_provider()
             session._run_disconnect_callback()
 
     async def get_last_session_id(self) -> str | None:
@@ -4791,6 +4831,7 @@ class CopilotClient:
         self._client.set_request_handler(
             "systemMessage.transform", self._handle_system_message_transform
         )
+        self._register_session_scoped_request_handlers()
         register_client_session_api_handlers(self._client, self._get_client_session_handlers)
         self._register_client_global_handlers()
 
@@ -4910,6 +4951,7 @@ class CopilotClient:
         self._client.set_request_handler(
             "systemMessage.transform", self._handle_system_message_transform
         )
+        self._register_session_scoped_request_handlers()
         register_client_session_api_handlers(self._client, self._get_client_session_handlers)
         self._register_client_global_handlers()
 
@@ -5049,6 +5091,8 @@ class CopilotClient:
             sessions = list(self._sessions.values())
         with self._github_token_providers_lock:
             self._github_token_providers.clear()
+        for session in sessions:
+            session._clear_skill_provider()
         client = self._client
         llm_inference_adapter = self._llm_inference_adapter
         loop = client._loop if client is not None else None
@@ -5099,6 +5143,17 @@ class CopilotClient:
         with self._sessions_lock:
             return self._sessions.get(session_id)
 
+    def _register_session_scoped_request_handlers(self) -> None:
+        if not self._client:
+            return
+        # Cancellable so a runtime ``$/cancelRequest`` cancels an async provider's task.
+        self._client.set_request_handler(
+            "skillProvider.list", self._handle_skill_provider_list, cancellable=True
+        )
+        self._client.set_request_handler(
+            "skillProvider.read", self._handle_skill_provider_read, cancellable=True
+        )
+
     async def _set_llm_inference_provider(self) -> None:
         if self._request_handler is None or self._rpc is None:
             return
@@ -5110,6 +5165,21 @@ class CopilotClient:
         if session is None:
             raise ValueError(f"unknown session {session_id}")
         return session._client_session_apis
+
+    async def _handle_skill_provider_list(self, params: dict) -> dict:
+        session_id = _required_string_param(params, "sessionId")
+        session = self._get_session(session_id)
+        if session is None:
+            raise JsonRpcError(-32603, f"Session not found: {session_id}")
+        return await session._handle_skill_provider_list()
+
+    async def _handle_skill_provider_read(self, params: dict) -> dict:
+        session_id = _required_string_param(params, "sessionId")
+        name = _required_string_param(params, "name")
+        session = self._get_session(session_id)
+        if session is None:
+            raise JsonRpcError(-32603, f"Session not found: {session_id}")
+        return await session._handle_skill_provider_read(name)
 
     async def _handle_user_input_request(self, params: dict) -> dict:
         """

@@ -1227,8 +1227,7 @@ fn cli_path(repo_root: &Path) -> std::io::Result<PathBuf> {
         }
     }
 
-    let npm = if cfg!(windows) { "npm.cmd" } else { "npm" };
-    let output = std::process::Command::new(npm)
+    let output = std::process::Command::new(npm_program())
         .args(["run", "--silent", "prepare:runtime", "--", "--print-path"])
         .current_dir(repo_root.join("nodejs"))
         .output()?;
@@ -1569,6 +1568,28 @@ fn parse_http_url(url: &str) -> std::io::Result<(String, u16)> {
 
 fn node_program() -> &'static str {
     if cfg!(windows) { "node.exe" } else { "node" }
+}
+
+fn npm_program() -> &'static str {
+    if cfg!(windows) {
+        windows_program(&["npm.cmd", "npm.exe", "npm"])
+    } else {
+        "npm"
+    }
+}
+
+fn windows_program(candidates: &[&'static str]) -> &'static str {
+    candidates
+        .iter()
+        .copied()
+        .find(|candidate| program_exists_on_path(candidate))
+        .unwrap_or(candidates[0])
+}
+
+fn program_exists_on_path(program: &str) -> bool {
+    std::env::var_os("PATH").is_some_and(|path| {
+        std::env::split_paths(&path).any(|directory| directory.join(program).is_file())
+    })
 }
 
 #[test]

@@ -1692,6 +1692,10 @@ export async function generateSessionEvents(schemaPath?: string): Promise<void> 
 // ══════════════════════════════════════════════════════════════════════════════
 
 let emittedRpcClassSchemas = new Map<string, string>();
+// Class names reachable from a public method's params or result. A type shared
+// with an internal method must stay public regardless of which method emits it
+// first; see the upgrade in `emitRpcClass`.
+const publicReachableRpcClasses = new Set<string>();
 const nonSessionRequestTypeNames = new Set<string>();
 let emittedRpcEnumResultTypes = new Set<string>();
 let experimentalRpcTypes = new Set<string>();
@@ -2035,6 +2039,13 @@ function emitRpcClass(
         (effectiveSchema as Record<string, unknown>).visibility === "internal"
     ) {
         visibility = "internal";
+    } else if (publicReachableRpcClasses.has(className)) {
+        // The caller's default follows the *method* being emitted, and only the
+        // first emission of a class name wins. When an internal method shares a
+        // type with a public one and is emitted first, that would freeze the
+        // type as internal and leave the public method referencing it
+        // (CS0050/CS0051). Reachability from a public method decides instead.
+        visibility = "public";
     }
     const schemaKey = stableStringify(effectiveSchema);
     const existingSchema = emittedRpcClassSchemas.get(className);
@@ -2906,6 +2917,7 @@ export function generateRpcCode(
     schema = cloneSchemaForCodegen(schema);
     omitUnrepresentableInternalProperties(schema);
     emittedRpcClassSchemas.clear();
+    publicReachableRpcClasses.clear();
     nonSessionRequestTypeNames.clear();
     emittedRpcEnumResultTypes.clear();
     experimentalRpcTypes.clear();
@@ -2946,6 +2958,18 @@ export function generateRpcCode(
                 experimentalRpcTypes.add(typeToClassName(name));
             }
         }
+    }
+    for (const name of collectRpcMethodReferencedDefinitionNames(
+        allMethods.filter((method) => method.visibility !== "internal"),
+        rpcDefinitions
+    )) {
+        publicReachableRpcClasses.add(typeToClassName(name));
+    }
+    // A method's own request wrapper is deliberately emitted `internal` at its
+    // call site; public methods take the individual parameters instead. Only
+    // types shared *inside* a signature need the upgrade, so drop the wrappers.
+    for (const method of allMethods) {
+        publicReachableRpcClasses.delete(paramsTypeName(method));
     }
     const classes: string[] = [];
 

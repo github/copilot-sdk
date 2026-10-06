@@ -59,6 +59,12 @@ public final class ServerRpc {
     public final ServerCommandsApi commands;
     /** API methods for the {@code user} namespace. */
     public final ServerUserApi user;
+    /** API methods for the {@code gitHubRepository} namespace. */
+    final ServerGitHubRepositoryApi gitHubRepository;
+    /** API methods for the {@code gitHubOwners} namespace. */
+    final ServerGitHubOwnersApi gitHubOwners;
+    /** API methods for the {@code git} namespace. */
+    final ServerGitApi git;
     /** API methods for the {@code managedSettings} namespace. */
     public final ServerManagedSettingsApi managedSettings;
     /** API methods for the {@code runtime} namespace. */
@@ -71,6 +77,8 @@ public final class ServerRpc {
     public final ServerSessionsApi sessions;
     /** API methods for the {@code agentRegistry} namespace. */
     public final ServerAgentRegistryApi agentRegistry;
+    /** API methods for the {@code connectors} namespace. */
+    public final ServerConnectorsApi connectors;
 
     /**
      * Creates a new server RPC client.
@@ -96,16 +104,20 @@ public final class ServerRpc {
         this.instructions = new ServerInstructionsApi(caller);
         this.commands = new ServerCommandsApi(caller);
         this.user = new ServerUserApi(caller);
+        this.gitHubRepository = new ServerGitHubRepositoryApi(caller);
+        this.gitHubOwners = new ServerGitHubOwnersApi(caller);
+        this.git = new ServerGitApi(caller);
         this.managedSettings = new ServerManagedSettingsApi(caller);
         this.runtime = new ServerRuntimeApi(caller);
         this.sessionFs = new ServerSessionFsApi(caller);
         this.llmInference = new ServerLlmInferenceApi(caller);
         this.sessions = new ServerSessionsApi(caller);
         this.agentRegistry = new ServerAgentRegistryApi(caller);
+        this.connectors = new ServerConnectorsApi(caller);
     }
 
     /**
-     * Optional message to echo back to the caller.
+     * Checks server responsiveness and returns protocol information.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -116,7 +128,7 @@ public final class ServerRpc {
     }
 
     /**
-     * Connection-level opt-ins for the `server.connect` handshake. Transport authentication is consumed by the native protocol boundary before dispatch.
+     * Performs the SDK server connection handshake and validates the optional connection token. Marked internal because this is JSON-RPC transport plumbing invoked automatically by an SDK client's own `connect()` wrapper, not a user-facing method. Stays internal as long as the SDK client owns the handshake; would only become public if the SDK ever exposed the raw schema surface to consumers without a connection wrapper.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -127,7 +139,7 @@ public final class ServerRpc {
     }
 
     /**
-     * Invokes {@code registerExtensionLaunchProvider}.
+     * Registers the calling SDK client as the per-entrypoint extension launch provider. Call before creating any sessions. When omitted, the runtime uses its built-in extension launcher.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0

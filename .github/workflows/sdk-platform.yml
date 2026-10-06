@@ -16,6 +16,9 @@ on:
         description: "Node.js SDK result, independent of other languages"
         # Direct result outputs can be empty: https://github.com/actions/runner/issues/2495
         value: ${{ fromJSON(toJSON(jobs.nodejs)).result }}
+      nodejs-capi-result:
+        description: "Standard-platform Node.js CAPI result, independent of BYOK and other languages"
+        value: ${{ jobs.nodejs.outputs.capi-result }}
 
 permissions:
   contents: read

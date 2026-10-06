@@ -17,6 +17,21 @@ import {
 import { legacyRequestSchema } from "./legacy-parameters-fixture.ts";
 
 describe("Rust API type codegen", () => {
+    it("does not emit MCP list request types for a parameterless endpoint", () => {
+        const code = generateApiTypesCode({
+            session: {
+                mcp: {
+                    list: {
+                        rpcMethod: "session.mcp.list",
+                        params: null,
+                    },
+                },
+            },
+        });
+        expect(code).not.toContain("SessionMcpListParams");
+        expect(code).not.toContain("McpListRequest");
+    });
+
     it.each([
         {
             sentinel: { type: "null" },

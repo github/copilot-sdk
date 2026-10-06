@@ -48,6 +48,7 @@ pub use crate::session_fs::{
     SessionFsSqliteQueryResult, SessionFsSqliteQueryType, SessionFsSqliteTransactionError,
     SessionFsSqliteTransactionErrorClass, SessionFsSqliteTransactionStatement,
 };
+use crate::skill_provider::SkillProvider;
 pub use crate::trace_context::{TraceContext, TraceContextProvider};
 use crate::transforms::SystemMessageTransform;
 
@@ -2115,6 +2116,13 @@ pub struct SessionConfig {
     pub enable_session_store: Option<bool>,
     /// When true, enables skills for this session.
     pub enable_skills: Option<bool>,
+    /// **Experimental.** Supplies session-scoped skills from the SDK host.
+    ///
+    /// The provider is runtime-only and is not serialized. Set
+    /// [`enable_skills`](Self::enable_skills) to `Some(true)` when using this
+    /// in [`ClientMode::Empty`](crate::ClientMode::Empty), where built-in
+    /// skill loading is otherwise disabled by default.
+    pub skill_provider: Option<Arc<dyn SkillProvider>>,
     /// **Experimental.** This option is part of an experimental wire-protocol
     /// surface (SEP-1865) and may change or be removed in a future release.
     ///
@@ -2434,6 +2442,10 @@ impl std::fmt::Debug for SessionConfig {
             )
             .field("enable_session_store", &self.enable_session_store)
             .field("enable_skills", &self.enable_skills)
+            .field(
+                "skill_provider",
+                &self.skill_provider.as_ref().map(|_| "<set>"),
+            )
             .field("enable_mcp_apps", &self.enable_mcp_apps)
             .field("skill_directories", &self.skill_directories)
             .field("instruction_directories", &self.instruction_directories)
@@ -2565,6 +2577,7 @@ impl Default for SessionConfig {
             enable_host_git_operations: None,
             enable_session_store: None,
             enable_skills: None,
+            skill_provider: None,
             embedding_cache_storage: None,
             enable_mcp_apps: None,
             github_mcp_tool_config: None,
@@ -2641,6 +2654,7 @@ pub(crate) struct SessionConfigRuntime {
     pub tool_handlers: ToolHandlerMap,
     pub canvas_handler: Option<Arc<dyn CanvasHandler>>,
     pub session_fs_provider: Option<Arc<dyn SessionFsProvider>>,
+    pub skill_provider: Option<Arc<dyn SkillProvider>>,
     pub bearer_token_providers: HashMap<String, Arc<dyn BearerTokenProvider>>,
     pub github_token_provider: Option<Arc<dyn GitHubTokenProvider>>,
     pub commands: Option<Vec<CommandDefinition>>,
@@ -2675,6 +2689,7 @@ impl SessionConfig {
         let request_auto_mode_switch = self.auto_mode_switch_handler.is_some();
         let request_elicitation = self.elicitation_handler.is_some();
         let hooks_flag = self.hooks_handler.is_some();
+        let has_skill_provider = self.skill_provider.is_some();
 
         let tool_handlers = take_tool_handlers(self.tools.as_deref_mut().unwrap_or_default())?;
 
@@ -2728,6 +2743,7 @@ impl SessionConfig {
             enable_host_git_operations: self.enable_host_git_operations,
             enable_session_store: self.enable_session_store,
             enable_skills: self.enable_skills,
+            has_skill_provider: has_skill_provider.then_some(true),
             request_user_input,
             request_permission: permission_active,
             request_exit_plan_mode,
@@ -2788,6 +2804,7 @@ impl SessionConfig {
             tool_handlers,
             canvas_handler,
             session_fs_provider: self.session_fs_provider,
+            skill_provider: self.skill_provider,
             bearer_token_providers,
             github_token_provider: self.github_token_provider,
             commands: self.commands,
@@ -3148,6 +3165,14 @@ impl SessionConfig {
     /// Set [`Self::enable_skills`].
     pub fn with_enable_skills(mut self, value: bool) -> Self {
         self.enable_skills = Some(value);
+        self
+    }
+
+    /// Install an experimental session-scoped [`SkillProvider`].
+    ///
+    /// The provider is not serialized and must be re-supplied on resume.
+    pub fn with_skill_provider(mut self, provider: Arc<dyn SkillProvider>) -> Self {
+        self.skill_provider = Some(provider);
         self
     }
 
@@ -3599,6 +3624,11 @@ pub struct ResumeSessionConfig {
     pub enable_session_store: Option<bool>,
     /// When true, enables skills on resume.
     pub enable_skills: Option<bool>,
+    /// **Experimental.** Supplies session-scoped skills from the SDK host.
+    ///
+    /// The provider is runtime-only and is not serialized. Re-supply it on
+    /// each resume because providers are not persisted by the runtime.
+    pub skill_provider: Option<Arc<dyn SkillProvider>>,
     /// **Experimental.** This option is part of an experimental wire-protocol
     /// surface (SEP-1865) and may change or be removed in a future release.
     ///
@@ -3840,6 +3870,10 @@ impl std::fmt::Debug for ResumeSessionConfig {
             )
             .field("enable_session_store", &self.enable_session_store)
             .field("enable_skills", &self.enable_skills)
+            .field(
+                "skill_provider",
+                &self.skill_provider.as_ref().map(|_| "<set>"),
+            )
             .field("enable_mcp_apps", &self.enable_mcp_apps)
             .field("skill_directories", &self.skill_directories)
             .field("instruction_directories", &self.instruction_directories)
@@ -3949,6 +3983,7 @@ impl ResumeSessionConfig {
         let request_auto_mode_switch = self.auto_mode_switch_handler.is_some();
         let request_elicitation = self.elicitation_handler.is_some();
         let hooks_flag = self.hooks_handler.is_some();
+        let has_skill_provider = self.skill_provider.is_some();
 
         let tool_handlers = take_tool_handlers(self.tools.as_deref_mut().unwrap_or_default())?;
 
@@ -4002,6 +4037,7 @@ impl ResumeSessionConfig {
             enable_host_git_operations: self.enable_host_git_operations,
             enable_session_store: self.enable_session_store,
             enable_skills: self.enable_skills,
+            has_skill_provider: has_skill_provider.then_some(true),
             request_user_input,
             request_permission: permission_active,
             request_exit_plan_mode,
@@ -4064,6 +4100,7 @@ impl ResumeSessionConfig {
             tool_handlers,
             canvas_handler,
             session_fs_provider: self.session_fs_provider,
+            skill_provider: self.skill_provider,
             bearer_token_providers,
             github_token_provider: self.github_token_provider,
             commands: self.commands,
@@ -4113,6 +4150,7 @@ impl ResumeSessionConfig {
             enable_host_git_operations: None,
             enable_session_store: None,
             enable_skills: None,
+            skill_provider: None,
             embedding_cache_storage: None,
             enable_mcp_apps: None,
             github_mcp_tool_config: None,
@@ -4245,6 +4283,14 @@ impl ResumeSessionConfig {
     /// filesystem. See [`SessionConfig::with_session_fs_provider`].
     pub fn with_session_fs_provider(mut self, provider: Arc<dyn SessionFsProvider>) -> Self {
         self.session_fs_provider = Some(provider);
+        self
+    }
+
+    /// Install an experimental session-scoped [`SkillProvider`].
+    ///
+    /// The provider is not persisted and must be re-supplied on each resume.
+    pub fn with_skill_provider(mut self, provider: Arc<dyn SkillProvider>) -> Self {
+        self.skill_provider = Some(provider);
         self
     }
 

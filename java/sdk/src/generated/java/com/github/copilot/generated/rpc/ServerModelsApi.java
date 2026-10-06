@@ -27,7 +27,7 @@ public final class ServerModelsApi {
     }
 
     /**
-     * Optional opaque account selection or compatibility GitHub token used to list models.
+     * Lists Copilot models available to the authenticated user.
      * <p>
      * Invokes the method with no params, applying the runtime defaults.
      *
@@ -40,7 +40,7 @@ public final class ServerModelsApi {
     }
 
     /**
-     * Optional opaque account selection or compatibility GitHub token used to list models.
+     * Lists Copilot models available to the authenticated user.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -51,7 +51,7 @@ public final class ServerModelsApi {
     }
 
     /**
-     * The running runtime's complete catalog of well-known built-in model IDs, including supported models and additional IDs with built-in metadata.
+     * Returns the running runtime's complete catalog of well-known built-in model IDs without authentication or network access.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0

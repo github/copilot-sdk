@@ -385,12 +385,10 @@ async function validateJava(): Promise<ValidationResult[]> {
     fs.copyFileSync(path.join(javaDir, file), path.join(srcDir, file));
   }
 
-  // Read the inherited SDK version from java/sdk/pom.xml
-  const sdkPomPath = path.join(ROOT_DIR, "java", "sdk", "pom.xml");
+  // The required SDK install writes a flattened POM with ${revision} resolved.
+  const sdkPomPath = path.join(ROOT_DIR, "java", "sdk", ".flattened-pom.xml");
   const sdkPomContent = fs.readFileSync(sdkPomPath, "utf-8");
-  const versionMatch = sdkPomContent.match(
-    /<parent>[\s\S]*?<version>([^<]+)<\/version>[\s\S]*?<\/parent>/,
-  );
+  const versionMatch = sdkPomContent.match(/<version>([^<]+)<\/version>/);
   if (!versionMatch) {
     throw new Error(`Could not read the Java SDK version from ${sdkPomPath}`);
   }
@@ -421,37 +419,13 @@ async function validateJava(): Promise<ValidationResult[]> {
 
   fs.writeFileSync(path.join(javaDir, "pom.xml"), pomXml);
 
-  // First, install the local SDK into the local Maven repo
-  const pomPath = path.join(ROOT_DIR, "java", "pom.xml");
-  try {
-    execSync(`mvn install -f "${pomPath}" -Dmaven.test.skip=true -q`, {
-      encoding: "utf-8",
-      cwd: path.join(ROOT_DIR, "java"),
-    });
-  } catch (err: any) {
-    // If SDK install fails, all Java snippets fail
-    const errorMsg = `SDK install failed: ${(err.stderr || err.message || "").slice(0, 200)}`;
-    for (const file of files) {
-      const block = manifest.blocks.find(
-        (b) => b.outputFile === `java/${file}`,
-      );
-      results.push({
-        file: `java/${file}`,
-        sourceFile: block?.sourceFile || "unknown",
-        sourceLine: block?.sourceLine || 0,
-        success: false,
-        errors: [errorMsg],
-      });
-    }
-    return results;
-  }
-
-  // Compile the validation project
+  // The docs task or CI installs the SDK before validation.
   try {
     const validationPom = path.join(javaDir, "pom.xml");
-    execSync(`mvn compile -f "${validationPom}" -q`, {
+    const maven = process.platform === "win32" ? "mvnw.cmd" : "./mvnw";
+    execSync(`${maven} compile -f "${validationPom}" -q`, {
       encoding: "utf-8",
-      cwd: javaDir,
+      cwd: path.join(ROOT_DIR, "java"),
     });
 
     // All files passed
@@ -485,6 +459,10 @@ async function validateJava(): Promise<ValidationResult[]> {
         }
         fileErrors.get(fileName)!.push(`${fileName}:${match[2]}: ${match[4]}`);
       }
+    }
+
+    if (fileErrors.size === 0) {
+      throw new Error(`Java documentation compilation failed:\n${output}`);
     }
 
     for (const file of files) {

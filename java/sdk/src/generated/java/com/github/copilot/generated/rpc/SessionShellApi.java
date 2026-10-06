@@ -31,7 +31,7 @@ public final class SessionShellApi {
     }
 
     /**
-     * Shell command to run, with optional working directory and timeout in milliseconds. Spawn failures return an RPC error.
+     * Starts a shell command, returning an RPC error if it cannot be spawned. The command runs as the leader of its own process group (POSIX) or in a dedicated job object (Windows), so a forced termination — via "shell.kill", the request timeout, or session disposal — signals that whole group/job rather than only the direct child. Two gaps are worth planning for: a command that exits on its own does not trigger that teardown, and on POSIX a descendant that moves itself into a new session or process group (for example via "setsid") leaves the signalled group, so either can leave a background process running.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -47,7 +47,7 @@ public final class SessionShellApi {
     }
 
     /**
-     * Identifier of a process previously returned by "shell.exec" and the signal to send.
+     * Sends a signal to a shell process previously started via "shell.exec". The signal targets the command's whole process group (POSIX) or job object (Windows), so descendants still in that group are signalled too, not just the direct child. On POSIX a descendant that moved itself into a new session or process group (for example via "setsid") is no longer in the signalled group and survives.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -63,7 +63,7 @@ public final class SessionShellApi {
     }
 
     /**
-     * User-requested shell command and cancellation handle.
+     * Executes a user-requested shell command through the session runtime.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -79,7 +79,7 @@ public final class SessionShellApi {
     }
 
     /**
-     * User-requested shell execution cancellation handle.
+     * Cancels a user-requested shell command by request ID.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.

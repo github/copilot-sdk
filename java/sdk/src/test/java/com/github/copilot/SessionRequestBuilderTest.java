@@ -111,6 +111,7 @@ public class SessionRequestBuilderTest {
         assertNull(request.getModel());
         assertTrue(request.getRequestPermission(), "requestPermission should be true even for null config");
         assertEquals("direct", request.getEnvValueMode(), "envValueMode should be 'direct' even for null config");
+        assertNull(request.getHasSkillProvider());
     }
 
     @Test
@@ -160,6 +161,36 @@ public class SessionRequestBuilderTest {
         assertFalse(mapper.readTree(mapper.writeValueAsBytes(createRequest)).has("askUserVariant"));
         assertNull(resumeRequest.getAskUserVariant());
         assertFalse(mapper.readTree(mapper.writeValueAsBytes(resumeRequest)).has("askUserVariant"));
+    }
+
+    @Test
+    @AllowCopilotExperimental
+    void skillProviderFlagIsForwardedAndSerializedForCreateAndResume() throws Exception {
+        SkillProvider provider = testSkillProvider();
+        var mapper = JsonRpcClient.getObjectMapper();
+
+        var createRequest = SessionRequestBuilder.buildCreateRequest(new SessionConfig().setSkillProvider(provider),
+                "skill-provider-create");
+        var resumeRequest = SessionRequestBuilder.buildResumeRequest("skill-provider-resume",
+                new ResumeSessionConfig().setSkillProvider(provider));
+
+        assertTrue(createRequest.getHasSkillProvider());
+        assertTrue(resumeRequest.getHasSkillProvider());
+        assertTrue(mapper.readTree(mapper.writeValueAsBytes(createRequest)).path("hasSkillProvider").asBoolean());
+        assertTrue(mapper.readTree(mapper.writeValueAsBytes(resumeRequest)).path("hasSkillProvider").asBoolean());
+    }
+
+    @Test
+    void skillProviderFlagIsOmittedWhenUnset() throws Exception {
+        var mapper = JsonRpcClient.getObjectMapper();
+        var createRequest = SessionRequestBuilder.buildCreateRequest(new SessionConfig(), "skill-provider-create");
+        var resumeRequest = SessionRequestBuilder.buildResumeRequest("skill-provider-resume",
+                new ResumeSessionConfig());
+
+        assertNull(createRequest.getHasSkillProvider());
+        assertNull(resumeRequest.getHasSkillProvider());
+        assertFalse(mapper.readTree(mapper.writeValueAsBytes(createRequest)).has("hasSkillProvider"));
+        assertFalse(mapper.readTree(mapper.writeValueAsBytes(resumeRequest)).has("hasSkillProvider"));
     }
 
     @Test
@@ -399,6 +430,7 @@ public class SessionRequestBuilderTest {
         assertNull(request.getContinuePendingWork());
         assertTrue(request.getRequestPermission(), "requestPermission should be true even for null config");
         assertEquals("direct", request.getEnvValueMode(), "envValueMode should be 'direct' even for null config");
+        assertNull(request.getHasSkillProvider());
     }
 
     @Test
@@ -851,6 +883,17 @@ public class SessionRequestBuilderTest {
     }
 
     @Test
+    @AllowCopilotExperimental
+    void configureSessionWithSkillProvider_registersProvider() {
+        CopilotSession session = new CopilotSession("session-1", null);
+        SkillProvider provider = testSkillProvider();
+
+        SessionRequestBuilder.configureSession(session, new SessionConfig().setSkillProvider(provider));
+
+        assertSame(provider, session.getSkillProvider());
+    }
+
+    @Test
     void configureSessionWithCommands_registersCommands() {
         CopilotSession session = new CopilotSession("session-1", null);
 
@@ -920,6 +963,17 @@ public class SessionRequestBuilderTest {
 
         // Covers ResumeSessionConfig.getOnEvent() != null branch (L277-278)
         SessionRequestBuilder.configureSession(session, config);
+    }
+
+    @Test
+    @AllowCopilotExperimental
+    void configureResumedSessionWithSkillProvider_registersProvider() {
+        CopilotSession session = new CopilotSession("session-1", null);
+        SkillProvider provider = testSkillProvider();
+
+        SessionRequestBuilder.configureSession(session, new ResumeSessionConfig().setSkillProvider(provider));
+
+        assertSame(provider, session.getSkillProvider());
     }
 
     @Test
@@ -1299,5 +1353,20 @@ public class SessionRequestBuilderTest {
         assertFalse(
                 mapper.writeValueAsString(SessionRequestBuilder.buildCreateRequest(new SessionConfig(), "session-2"))
                         .contains("\"githubMcpToolConfig\""));
+    }
+
+    @AllowCopilotExperimental
+    private static SkillProvider testSkillProvider() {
+        return new SkillProvider() {
+            @Override
+            public CompletableFuture<List<SkillProviderDescriptor>> listSkills() {
+                return CompletableFuture.completedFuture(List.of());
+            }
+
+            @Override
+            public CompletableFuture<String> readSkill(String name) {
+                return CompletableFuture.completedFuture(null);
+            }
+        };
     }
 }

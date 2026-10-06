@@ -41,7 +41,7 @@ class FakeJsonRpcClient:
     async def stop(self) -> None:
         pass
 
-    def set_request_handler(self, method: str, handler: Any) -> None:
+    def set_request_handler(self, method: str, handler: Any, **_options: Any) -> None:
         self.request_handlers[method] = handler
 
     def set_raw_request_handler(self, method: str, handler: Any) -> None:

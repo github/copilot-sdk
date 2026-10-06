@@ -34,7 +34,7 @@ public final class ServerSkillsApi {
     }
 
     /**
-     * Side-effect-free planning of one verified Agent Finder Skill candidate.
+     * Plans installation of a verified Agent Finder Skill candidate without writing files. The returned review is safe to present to a user and installing always leaves the Skill disabled until separately enabled.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -45,7 +45,7 @@ public final class ServerSkillsApi {
     }
 
     /**
-     * Applies exactly one retained verified Skill installation plan.
+     * Consumes one verified Skill installation plan, requests explicit human consent through installations.confirm on the original connection, then revalidates and installs the Skill disabled.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -56,7 +56,7 @@ public final class ServerSkillsApi {
     }
 
     /**
-     * Read-only preparation of one owned Skill removal under fresh selected-session authority.
+     * Prepares a read-only removal plan for an owned verified Agent Finder Skill installation. Uninstall planning is never gated by the Skill-install feature flag.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -67,7 +67,7 @@ public final class ServerSkillsApi {
     }
 
     /**
-     * One-use application of the exact retained Skill removal plan.
+     * Consumes an owned Skill removal plan, requests explicit human consent through installations.confirm, refuses drift, and removes the exact owned files through quarantine.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -78,7 +78,7 @@ public final class ServerSkillsApi {
     }
 
     /**
-     * Optional project paths and additional skill directories to include in discovery.
+     * Discovers skills across global and project sources.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -89,7 +89,7 @@ public final class ServerSkillsApi {
     }
 
     /**
-     * Optional project paths to enumerate.
+     * Returns the canonical directories where a client may create skills that the runtime will recognize, including ones that do not exist yet. Project directories become active once created.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0

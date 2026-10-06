@@ -31,7 +31,7 @@ public final class SessionUiApi {
     }
 
     /**
-     * Transient question to answer without adding it to conversation history.
+     * Runs a transient no-tools model query against the current conversation context.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -47,7 +47,7 @@ public final class SessionUiApi {
     }
 
     /**
-     * Prompt message and JSON schema describing the form fields to elicit from the user.
+     * Requests structured input from a UI-capable client.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -63,7 +63,7 @@ public final class SessionUiApi {
     }
 
     /**
-     * Pending elicitation request ID and the user's response (accept/decline/cancel + form values).
+     * Provides the user response for a pending elicitation request.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -79,7 +79,7 @@ public final class SessionUiApi {
     }
 
     /**
-     * Pending elicitation request ID and the user's response (accept/decline/cancel + form values).
+     * Resolves a pending elicitation request after direct interaction in the trusted in-process client. Only an accepted response to the built-in ask_user tool can become trusted human evidence.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -95,7 +95,7 @@ public final class SessionUiApi {
     }
 
     /**
-     * Request ID of a pending `user_input.requested` event and the user's response.
+     * Resolves a pending `user_input.requested` event with the user's response.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -111,7 +111,7 @@ public final class SessionUiApi {
     }
 
     /**
-     * Request ID of a pending `user_input.requested` event and the user's response.
+     * Resolves a pending `user_input.requested` event after direct interaction in the trusted in-process client.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -127,7 +127,7 @@ public final class SessionUiApi {
     }
 
     /**
-     * Request ID of a pending `sampling.requested` event and an optional sampling result payload (omit to reject).
+     * Resolves a pending `sampling.requested` event with a sampling result, or rejects it.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -143,7 +143,7 @@ public final class SessionUiApi {
     }
 
     /**
-     * Request ID of a pending `auto_mode_switch.requested` event and the user's response.
+     * Resolves a pending `auto_mode_switch.requested` event with the user's accept/decline decision.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -159,7 +159,7 @@ public final class SessionUiApi {
     }
 
     /**
-     * Request ID of a pending `session_limits_exhausted.requested` event and the user's selected limit action.
+     * Resolves a pending `session_limits_exhausted.requested` event with the user's selected limit action.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -175,7 +175,7 @@ public final class SessionUiApi {
     }
 
     /**
-     * Request ID of a pending `exit_plan_mode.requested` event and the user's response.
+     * Resolves a pending `exit_plan_mode.requested` event with the user's response.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -191,7 +191,7 @@ public final class SessionUiApi {
     }
 
     /**
-     * Request ID of a pending `exit_plan_mode.requested` event and the user's response.
+     * Resolves a pending `exit_plan_mode.requested` event after direct interaction in the trusted in-process client.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -207,7 +207,7 @@ public final class SessionUiApi {
     }
 
     /**
-     * Identifies the target session.
+     * Registers an in-process handler for auto-mode-switch requests so the server bridge skips dispatch.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -218,7 +218,7 @@ public final class SessionUiApi {
     }
 
     /**
-     * Opaque handle previously returned by `registerDirectAutoModeSwitchHandler` to release.
+     * Unregisters a previously-registered in-process auto-mode-switch handler by its opaque handle.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
