@@ -31,7 +31,7 @@ public final class ServerSandboxApi {
     }
 
     /**
-     * Reports whether the host running this runtime can run the command sandbox, without starting a session or spawning a sandboxed command.
+     * Whether the host running this runtime can run the command sandbox. The runtime checks `supported` once per process. A capability answer can change while the process runs, for example after the user installs a missing package.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0

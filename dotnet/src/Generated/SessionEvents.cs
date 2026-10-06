@@ -19634,9 +19634,6 @@ public readonly struct PermissionApprovalEvaluationReasonCode : IEquatable<Permi
     /// <summary>The script path was not authorized for inspection.</summary>
     public static PermissionApprovalEvaluationReasonCode PathNotAuthorized { get; } = new("path-not-authorized");
 
-    /// <summary>A code source was excluded from review by content exclusion policy.</summary>
-    public static PermissionApprovalEvaluationReasonCode ContentExcluded { get; } = new("content-excluded");
-
     /// <summary>The script working directory was invalid.</summary>
     public static PermissionApprovalEvaluationReasonCode InvalidWorkingDirectory { get; } = new("invalid-working-directory");
 
@@ -19672,24 +19669,6 @@ public readonly struct PermissionApprovalEvaluationReasonCode : IEquatable<Permi
 
     /// <summary>The script argument binding could not be reviewed.</summary>
     public static PermissionApprovalEvaluationReasonCode ArgumentBindingUnreviewable { get; } = new("argument-binding-unreviewable");
-
-    /// <summary>The shell command could not be analyzed for execution evidence.</summary>
-    public static PermissionApprovalEvaluationReasonCode UnsupportedCommandShape { get; } = new("unsupported-command-shape");
-
-    /// <summary>The shell command used a code source that cannot be bound for review.</summary>
-    public static PermissionApprovalEvaluationReasonCode UnsupportedSource { get; } = new("unsupported-source");
-
-    /// <summary>The shell command used a code source computed at run time.</summary>
-    public static PermissionApprovalEvaluationReasonCode DynamicSource { get; } = new("dynamic-source");
-
-    /// <summary>The shell command referenced more code sources than can be reviewed.</summary>
-    public static PermissionApprovalEvaluationReasonCode TooManySources { get; } = new("too-many-sources");
-
-    /// <summary>A code-bearing executable could not be inspected.</summary>
-    public static PermissionApprovalEvaluationReasonCode ExecutableUnavailable { get; } = new("executable-unavailable");
-
-    /// <summary>A code-bearing executable exceeded the binding size limit.</summary>
-    public static PermissionApprovalEvaluationReasonCode ExecutableTooLarge { get; } = new("executable-too-large");
 
     /// <summary>The script review metadata was malformed.</summary>
     public static PermissionApprovalEvaluationReasonCode MalformedScriptActionReview { get; } = new("malformed-script-action-review");
@@ -21492,7 +21471,7 @@ public readonly struct McpServerStatus : IEquatable<McpServerStatus>
     /// <summary>The server is configured but disabled.</summary>
     public static McpServerStatus Disabled { get; } = new("disabled");
 
-    /// <summary>The server is not running: it may not have started yet, may have been explicitly stopped, or may be quarantined by restrictive managed policy. It can be restarted on demand when policy permits.</summary>
+    /// <summary>The server was intentionally stopped and can be restarted on demand when policy permits; a server quarantined by restrictive managed policy stays stopped and cannot be restarted until the policy allows it.</summary>
     public static McpServerStatus Stopped { get; } = new("stopped");
 
     /// <summary>The server is not configured for this session.</summary>

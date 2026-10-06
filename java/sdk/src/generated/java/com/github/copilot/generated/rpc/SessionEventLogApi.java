@@ -31,7 +31,7 @@ public final class SessionEventLogApi {
     }
 
     /**
-     * Reads a batch of session events from a cursor, optionally waiting for new events. Supports tail-first reads via `direction: backward`.
+     * Cursor, batch size, and optional long-poll/filter parameters for reading session events.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -47,7 +47,7 @@ public final class SessionEventLogApi {
     }
 
     /**
-     * Returns a snapshot of the current tail cursor without consuming events.
+     * Identifies the target session.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -58,7 +58,7 @@ public final class SessionEventLogApi {
     }
 
     /**
-     * Registers consumer interest in an event type for runtime gating purposes.
+     * Event type to register consumer interest for, used by runtime gating logic.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -74,7 +74,7 @@ public final class SessionEventLogApi {
     }
 
     /**
-     * Releases a consumer's previously-registered interest in an event type.
+     * Opaque handle previously returned by `registerInterest` to release.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.

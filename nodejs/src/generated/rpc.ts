@@ -31,7 +31,6 @@ export type AuthInfo =
   | TokenProviderAuthInfo
   | CopilotApiTokenAuthInfo
   | UserAuthInfo
-  | AccountAuthInfo
   | GhCliAuthInfo
   | ApiKeyAuthInfo;
 /**
@@ -417,8 +416,6 @@ export type AuthInfoType =
   | "env"
   /** Authentication from an interactive user sign-in. */
   | "user"
-  /** Authentication from a selected provider-owned account, without a GitHub credential. */
-  | "account"
   /** Authentication delegated to the GitHub CLI. */
   | "gh-cli"
   /** Authentication from an API key credential. */
@@ -487,19 +484,17 @@ export type AuthLoginStep =
       kind: "error";
     };
 /**
- * Disposition of a login attempt, including pending user decisions.
+ * Terminal disposition of a login persistence attempt.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "AuthLoginResultStatus".
  */
 /** @experimental */
 export type AuthLoginResultStatus =
-  /** The credential was persisted and the selected account is signed in. */
+  /** The credential was persisted and the account is signed in. */
   | "completed"
   /** Persistence needs explicit consent to store the token in plaintext. */
   | "needs-plaintext-consent"
-  /** Credentials are saved; select an account using a returned selectionId as advance input to complete sign-in. */
-  | "needs-account-selection"
   /** The user declined plaintext persistence. */
   | "declined";
 /**
@@ -1441,20 +1436,6 @@ export type ConnectorMcpStatus =
   | "disabled"
   /** The Connector currently has no live server configuration. */
   | "not_configured";
-/**
- * Availability.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "ConnectorDiscoveryAvailability".
- */
-/** @experimental */
-export type ConnectorDiscoveryAvailability =
-  /** Enabled. */
-  | "enabled"
-  /** Disabled. */
-  | "disabled"
-  /** Unavailable. */
-  | "unavailable";
 /**
  * Session account selection, or null.
  *
@@ -5048,7 +5029,6 @@ export type SettableAuthInfo =
   | SettableTokenAuthInfo
   | CopilotApiTokenAuthInfo
   | UserAuthInfo
-  | AccountAuthInfo
   | GhCliAuthInfo
   | ApiKeyAuthInfo;
 /**
@@ -6794,27 +6774,6 @@ export interface UserAuthInfo {
   copilotUser?: CopilotUserResponse;
 }
 /**
- * An interactive account whose model provider owns its credentials. It carries no GitHub credential.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "AccountAuthInfo".
- */
-/** @experimental */
-export interface AccountAuthInfo {
-  /**
-   * Provider-owned account authentication.
-   */
-  type: "account";
-  /**
-   * Host coordinate owned by the account's model provider.
-   */
-  host: string;
-  /**
-   * Login identifying the provider-owned account.
-   */
-  login: string;
-}
-/**
  * Authentication-info input variant for GitHub CLI credentials, carrying host, login, and the `gh auth token` value.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -7401,46 +7360,6 @@ export interface AgentReloadResult {
   agents: AgentInfo[];
 }
 /**
- * The models a custom agent asks for, and the models actually available.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "AgentsCustomAgentInitialModelDecisionParams".
- */
-/** @experimental */
-/** @internal */
-export interface AgentsCustomAgentInitialModelDecisionParams {
-  /**
-   * The agent's declared `model:` entry, serialized. A single name or an ordered list of acceptable names.
-   */
-  agentModelsJson: string;
-  /**
-   * The models available to this session, serialized in the shape the model list carries.
-   */
-  availableModelsJson: string;
-}
-/**
- * The model to switch to, and the warning to show when the agent's preference could not be met.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "AgentsCustomAgentInitialModelDecisionResult".
- */
-/** @experimental */
-/** @internal */
-export interface AgentsCustomAgentInitialModelDecisionResult {
-  /**
-   * The first available model that matches the agent's preferences. Absent when none of the requested models is available.
-   */
-  targetModel?: string;
-  /**
-   * The reasoning effort attached to the selected model preference. Absent when that preference does not specify an effort.
-   */
-  reasoningEffort?: string;
-  /**
-   * What to tell the user about an unmet preference. Absent when the preference was met. A warning with no `targetModel` means the agent's models are all unavailable.
-   */
-  warning?: string;
-}
-/**
  * Optional project paths to include in agent discovery.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -7496,142 +7415,6 @@ export interface AgentSetPromptRequest {
    * Replacement authored prompt. Empty text is valid.
    */
   prompt: string;
-}
-/**
- * The feature flags to evaluate shipped agents against.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "AgentsGetAvailableBuiltinsRequest".
- */
-/** @experimental */
-/** @internal */
-export interface AgentsGetAvailableBuiltinsRequest {
-  /**
-   * Feature flag values keyed by name, evaluated with the runtime's truthiness rules. Omit or pass null for no flags.
-   */
-  featureFlags?: {
-    [k: string]: unknown | undefined;
-  } | null;
-  /**
-   * Flag overrides keyed by name. A null entry uses the corresponding base flag; false explicitly disables it. Omit or pass null for no overrides.
-   */
-  overrides?: {
-    [k: string]: unknown | undefined;
-  } | null;
-  /**
-   * The surface asking, which gates agents that only apply to one client. Omit or pass null to apply no client filter.
-   */
-  context?: string | null;
-}
-/**
- * The shipped agents available under the requested flags.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "AgentsGetAvailableBuiltinsResult".
- */
-/** @experimental */
-/** @internal */
-export interface AgentsGetAvailableBuiltinsResult {
-  /**
-   * Available shipped agents, in the runtime's own order.
-   */
-  agents: BuiltinAgentSummary[];
-}
-/**
- * A shipped agent, named and described.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "BuiltinAgentSummary".
- */
-/** @experimental */
-/** @internal */
-export interface BuiltinAgentSummary {
-  /**
-   * The agent name, as it appears in `getBuiltins`.
-   */
-  name: string;
-  /**
-   * One-line description of what the agent does.
-   */
-  description: string;
-}
-/**
- * The shipped agent whose definition to load.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "AgentsGetBuiltinDefinitionRequest".
- */
-/** @experimental */
-/** @internal */
-export interface AgentsGetBuiltinDefinitionRequest {
-  /**
-   * The agent name, which must be one of `getBuiltins`'s `yamlBasedNames`. A name outside that list is special-cased in code and has no definition, and is reported as an error rather than as an empty definition.
-   */
-  name: string;
-}
-/**
- * One shipped agent's definition.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "AgentsGetBuiltinDefinitionResult".
- */
-/** @experimental */
-/** @internal */
-export interface AgentsGetBuiltinDefinitionResult {
-  /**
-   * The agent's definition, serialized as JSON. It carries the authored keys plus the runtime's projected `__nativeCustomAgent` view of the same agent. It is a string rather than an object because the runtime parses it with the agent schema's tolerant shape, which accepts keys this contract does not name.
-   */
-  definitionJson: string;
-}
-/**
- * The shipped agent whose listing entry to load.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "AgentsGetBuiltinListingDefinitionRequest".
- */
-/** @experimental */
-/** @internal */
-export interface AgentsGetBuiltinListingDefinitionRequest {
-  /**
-   * The agent name, taken from `getAvailableBuiltins`. Unlike `getBuiltinDefinition`, the agent that `getBuiltins` reports as special-cased rather than YAML-based is answered here too, from its in-code definition.
-   */
-  name: string;
-}
-/**
- * One shipped agent, projected for a listing.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "AgentsGetBuiltinListingDefinitionResult".
- */
-/** @experimental */
-/** @internal */
-export interface AgentsGetBuiltinListingDefinitionResult {
-  /**
-   * The agent projected as a custom agent, serialized as JSON. It is a string rather than an object for the same reason as `getBuiltinDefinition`: the runtime parses the underlying definition with the agent schema's tolerant shape, which accepts keys this contract does not name.
-   */
-  definitionJson: string;
-}
-/**
- * The agents this runtime ships, named so a consumer can tell them apart from authored ones.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "AgentsGetBuiltinsResult".
- */
-/** @experimental */
-/** @internal */
-export interface AgentsGetBuiltinsResult {
-  /**
-   * Every agent name this runtime ships.
-   */
-  names: string[];
-  /**
-   * The subset of `names` a user is allowed to turn off. A shipped agent outside this list is always active and a client should not offer a toggle for it.
-   */
-  disableableNames: string[];
-  /**
-   * The subset of `names` defined by a shipped YAML definition. The remainder are special-cased in code and have no definition to load.
-   */
-  yamlBasedNames: string[];
 }
 /**
  * Optional project paths to include when enumerating agent discovery directories.
@@ -7714,28 +7497,6 @@ export interface AuthIdentityMetadata {
   login: string;
 }
 /**
- * A credential-free account choice after sign-in.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "AuthLoginAccount".
- */
-/** @experimental */
-export interface AuthLoginAccount {
-  /**
-   * Opaque identifier supplied to the next login step to select this account.
-   */
-  selectionId: string;
-  /**
-   * Host coordinate owned by the selected account's provider.
-   */
-  host: string;
-  /**
-   * Human-readable login for the account choice.
-   */
-  login: string;
-  kind: AccountKind;
-}
-/**
  * Advance an in-flight login flow, optionally fulfilling an input-required step.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -7777,7 +7538,7 @@ export interface AuthLoginBegun {
   step: AuthLoginStep;
 }
 /**
- * Result of an interactive login flow. Pending consent or account selection is not terminal.
+ * Terminal result of an interactive login flow.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "AuthLoginResultDto".
@@ -7793,10 +7554,6 @@ export interface AuthLoginResultDto {
    * Login that was signed in, when completed.
    */
   login?: string;
-  /**
-   * Available accounts when sign-in is awaiting account selection, ordered with Microsoft 365 first.
-   */
-  accounts?: AuthLoginAccount[];
 }
 /**
  * Cancel an in-flight login flow.
@@ -10082,146 +9839,6 @@ export interface ConnectorDisconnectResult {
   status: ConnectorStatus;
 }
 /**
- * Eligible account.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "ConnectorDiscoveryAccount".
- */
-/** @experimental */
-export interface ConnectorDiscoveryAccount {
-  /**
-   * Opaque account ID.
-   */
-  accountId: string;
-  authInfo: ConnectorDiscoveryAuthInfo;
-}
-/**
- * Account metadata.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "ConnectorDiscoveryAuthInfo".
- */
-/** @experimental */
-export interface ConnectorDiscoveryAuthInfo {
-  type: AuthInfoType;
-  /**
-   * Host.
-   */
-  host: string;
-  /**
-   * Login.
-   */
-  login: string;
-}
-/**
- * Eligible accounts.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "ConnectorDiscoveryAccountList".
- */
-/** @experimental */
-export interface ConnectorDiscoveryAccountList {
-  availability: ConnectorDiscoveryAvailability;
-  /**
-   * Eligible accounts.
-   */
-  accounts: ConnectorDiscoveryAccount[];
-}
-/**
- * Selected account.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "ConnectorDiscoveryAccountRequest".
- */
-/** @experimental */
-export interface ConnectorDiscoveryAccountRequest {
-  /**
-   * Opaque account ID.
-   */
-  accountId: string;
-}
-/**
- * Feature availability.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "ConnectorDiscoveryCapabilities".
- */
-/** @experimental */
-export interface ConnectorDiscoveryCapabilities {
-  /**
-   * API version.
-   */
-  apiVersion: number;
-  availability: ConnectorDiscoveryAvailability;
-  /**
-   * Whether accounts are selected by opaque ID.
-   */
-  opaqueAccountSelection: boolean;
-  /**
-   * Whether results are cached.
-   */
-  conditionalCache: boolean;
-}
-/**
- * Entry.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "ConnectorDiscoveryCatalogEntry".
- */
-/** @experimental */
-export interface ConnectorDiscoveryCatalogEntry {
-  /**
-   * Name.
-   */
-  name: string;
-  /**
-   * Display name.
-   */
-  displayName: string;
-  /**
-   * Description.
-   */
-  description?: string;
-  /**
-   * Logo.
-   */
-  logo?: string;
-  /**
-   * Tier.
-   */
-  tier?: string;
-  /**
-   * Release tag.
-   */
-  releaseTag?: string;
-  status: ConnectorCatalogStatus;
-}
-/**
- * Entries for the selected account.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "ConnectorDiscoveryCatalogResult".
- */
-/** @experimental */
-export interface ConnectorDiscoveryCatalogResult {
-  /**
-   * Opaque account ID.
-   */
-  accountId: string;
-  /**
-   * Revision.
-   */
-  revision: number;
-  /**
-   * Refresh time in Unix epoch milliseconds.
-   */
-  refreshedAtMs: number;
-  /**
-   * Entries.
-   */
-  connectors: ConnectorDiscoveryCatalogEntry[];
-}
-/**
  * Requests authoritative Connector-to-MCP reconciliation for the pinned account.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -11939,187 +11556,6 @@ export interface FolderTrustCheckResult {
   trusted: boolean;
 }
 /**
- * The remote the checked-out branch tracks.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "GitCurrentBranchRemoteResult".
- */
-/** @experimental */
-/** @internal */
-export interface GitCurrentBranchRemoteResult {
-  /**
-   * Name of the tracked remote. Reports `origin` whenever the working tree has no tracking configuration to read, including on a detached HEAD, so this is never null and never empty.
-   */
-  remote: string;
-}
-/**
- * Working-tree path a git query applies to.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "GitCwdRequest".
- */
-/** @experimental */
-/** @internal */
-export interface GitCwdRequest {
-  /**
-   * Absolute path to a directory inside the git working tree to query.
-   */
-  cwd: string;
-}
-/**
- * A GitHub login the authenticated user may act as: their own account, or an organization they belong to.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "GitHubOwnerOption".
- */
-/** @experimental */
-/** @internal */
-export interface GitHubOwnerOption {
-  /**
-   * The owner's GitHub login.
-   */
-  login: string;
-  /**
-   * Which kind of owner this is. The authenticated user's own account is always reported as `user`.
-   */
-  type: string;
-}
-/**
- * The owner listing to abandon.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "GitHubOwnersCancelRequest".
- */
-/** @experimental */
-/** @internal */
-export interface GitHubOwnersCancelRequest {
-  /**
-   * Request id the listing was started with.
-   */
-  requestId: number;
-}
-/**
- * Whether the id named a running owner listing.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "GitHubOwnersCancelResult".
- */
-/** @experimental */
-/** @internal */
-export interface GitHubOwnersCancelResult {
-  /**
-   * True when a listing with the id was running and the cancel stopped it. False when the id was never registered, was registered but unused, was released after being abandoned, or its listing had ended. An unused id is released and cannot start a later listing.
-   */
-  canceled: boolean;
-}
-/**
- * Credential to list owners under, and the request id that makes the listing cancellable.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "GitHubOwnersListRequest".
- */
-/** @experimental */
-/** @internal */
-export interface GitHubOwnersListRequest {
-  /**
-   * Request id from `gitHubOwners.nextRequestId`. An id that was never registered, canceled before use, released after being abandoned, or already used is refused rather than silently running uncancellable.
-   */
-  requestId: number;
-  /**
-   * The credential the listing runs under, carried opaquely because its shape is the host's own and the runtime only resolves a token and a GitHub host from it. No credential travels: this selects one the runtime already holds.
-   */
-  authInfo: JsonValue;
-}
-/**
- * Outcome of an owner listing. Exactly one of `owners` and `message` is present, except that `throwError` reports a failure the caller is expected to raise rather than render.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "GitHubOwnersListResult".
- */
-/** @experimental */
-/** @internal */
-export interface GitHubOwnersListResult {
-  /**
-   * The owners, on success: the authenticated user first, then the organizations they belong to.
-   */
-  owners?: GitHubOwnerOption[];
-  /**
-   * Why no owners could be listed, phrased for a user. Present when the listing failed in a way the caller should render rather than raise.
-   */
-  message?: string;
-  /**
-   * A line the caller should log. Present only alongside `message`, and only for failures worth recording.
-   */
-  warning?: string;
-  /**
-   * A malformed request or an unreadable credential, which the caller raises instead of rendering. Kept a field rather than a dispatch error so it stays distinct from `message`, which the caller renders.
-   */
-  throwError?: string;
-}
-/**
- * A freshly registered request id. Registering it before the listing starts is what lets a cancel that races the request still find the owner listing slot. The id serves one listing only. Long-abandoned unused ids can be released by later allocations.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "GitHubOwnersRequestIdResult".
- */
-/** @experimental */
-/** @internal */
-export interface GitHubOwnersRequestIdResult {
-  /**
-   * Request id to pass to `gitHubOwners.list` and, to abandon it, `gitHubOwners.cancel`.
-   */
-  requestId: number;
-}
-/**
- * Working-tree path whose owning GitHub repository should be resolved.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "GitHubRepositoryAtPathRequest".
- */
-/** @experimental */
-/** @internal */
-export interface GitHubRepositoryAtPathRequest {
-  /**
-   * Absolute path to a directory inside the git working tree to resolve.
-   */
-  path: string;
-}
-/**
- * The GitHub repository that owns the requested path, when the selected remote (`origin`, else the first) is on a GitHub host.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "GitHubRepositoryAtPathResult".
- */
-/** @experimental */
-/** @internal */
-export interface GitHubRepositoryAtPathResult {
-  /**
-   * Resolved repository identity, or null when the selected remote resolves to no GitHub host.
-   */
-  repository?: GitHubRepositoryIdentity | null;
-}
-/**
- * Owner, name, and host of a GitHub repository, as resolved from a git remote URL.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "GitHubRepositoryIdentity".
- */
-/** @experimental */
-export interface GitHubRepositoryIdentity {
-  /**
-   * Repository owner login (user or organization).
-   */
-  owner: string;
-  /**
-   * Repository name, without the owner prefix or the `.git` suffix.
-   */
-  name: string;
-  /**
-   * Host the remote points at, for example `github.com` or a GitHub Enterprise hostname.
-   */
-  host: string;
-}
-/**
  * Client environment metadata describing the process that produced a telemetry event.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -12267,60 +11703,6 @@ export interface GitHubTokenAcquireRequest {
    */
   sessionId?: string;
   reason: GitHubTokenAcquireReason;
-}
-/**
- * A GitHub repository one of a working tree's remotes points at.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "GitRemoteRepository".
- */
-/** @experimental */
-/** @internal */
-export interface GitRemoteRepository {
-  /**
-   * Account or organization owning the repository.
-   */
-  owner: string;
-  /**
-   * Repository name, without the owner.
-   */
-  name: string;
-  /**
-   * GitHub host serving the repository, which is not `github.com` for a GitHub Enterprise remote.
-   */
-  host: string;
-  /**
-   * Name of the first remote that produced this distinct repository entry, such as `origin` or `upstream`.
-   */
-  remoteName: string;
-}
-/**
- * Git working tree whose GitHub remotes should be listed.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "GitReposFromRemotesRequest".
- */
-/** @experimental */
-/** @internal */
-export interface GitReposFromRemotesRequest {
-  /**
-   * Absolute path to the root of the git working tree.
-   */
-  gitRoot: string;
-}
-/**
- * The GitHub repositories a working tree's remotes point at.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "GitReposFromRemotesResult".
- */
-/** @experimental */
-/** @internal */
-export interface GitReposFromRemotesResult {
-  /**
-   * One entry per distinct GitHub repository, in the order git reports the first remote for each repository. Empty when no remote points at a GitHub host, which a caller should read as `not connected to GitHub`. Failing to read the remotes is an error, not an empty list.
-   */
-  repositories: GitRemoteRepository[];
 }
 /**
  * Pending external tool call request ID, with the tool result or an error describing why it failed.
@@ -15392,64 +14774,6 @@ export interface McpConfigUpdateRequest {
    */
   name: string;
   config: McpSerializableServerConfig;
-}
-/**
- * Effective MCP configuration entry. Configuration enablement is distinct from the optional live observation.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "McpConfiguredServer".
- */
-/** @experimental */
-export interface McpConfiguredServer {
-  /**
-   * Server name (config key)
-   */
-  name: string;
-  /**
-   * Whether this configured server is enabled after session configuration and policy filtering.
-   */
-  enabled: boolean;
-  source?: McpServerSource;
-  /**
-   * Plugin name that provided this server, when source is plugin.
-   */
-  sourcePlugin?: string;
-  /**
-   * Plugin version that provided this server, when source is plugin.
-   */
-  sourcePluginVersion?: string;
-  /**
-   * Human-readable display name supplied by configuration.
-   */
-  displayName?: string;
-  live?: McpConfiguredServerState;
-}
-/**
- * Observational state for a matching already materialized MCP server.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "McpConfiguredServerState".
- */
-/** @experimental */
-export interface McpConfiguredServerState {
-  status: McpServerStatus;
-  /**
-   * Observed connection error, when the materialized server failed.
-   */
-  error?: string;
-}
-/**
- * Effective MCP configuration with optional live observations from matching already materialized servers.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "McpConfiguredServerList".
- */
-/** @experimental */
-export interface McpConfiguredServerList {
-  /**
-   * Effective configured MCP servers.
-   */
-  servers: McpConfiguredServer[];
 }
 /**
  * Credential-free authentication identity used to configure GitHub MCP.
@@ -23458,23 +22782,6 @@ export interface SessionBulkDeleteResult {
   };
 }
 /**
- * The IDE a host is connected to, as reported to the session.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "SessionConnectedIdeInfo".
- */
-/** @experimental */
-export interface SessionConnectedIdeInfo {
-  /**
-   * Display name of the connected IDE, for example `VS Code`.
-   */
-  ideName: string;
-  /**
-   * Absolute path of the workspace folder the IDE has open.
-   */
-  workspaceFolder: string;
-}
-/**
  * The enriched metadata records, with summary and context fields backfilled where available. Sessions confirmed empty and unnamed are omitted.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -24315,19 +23622,6 @@ export interface SessionManagedPermissions {
 /** @experimental */
 export interface SessionManagedSettings {
   permissions?: SessionManagedPermissions;
-}
-/**
- * Records which IDE the host is connected to, or clears it.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "SessionMcpSetConnectedIdeInfoParams".
- */
-/** @experimental */
-export interface SessionMcpSetConnectedIdeInfoParams {
-  /**
-   * The connected IDE. Null or omitted clears the recorded IDE, which is how a host reports that it is disconnected.
-   */
-  ide?: SessionConnectedIdeInfo | null;
 }
 /**
  * Point-in-time snapshot of slow-changing session identifier and state fields
@@ -25202,90 +24496,6 @@ export interface SessionsCloseRequest {
 /** @experimental */
 export interface SessionsCloseResult {}
 /**
- * Identity, state location and starting context for a workspace record.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "SessionsCreateWorkspaceRequest".
- */
-/** @experimental */
-export interface SessionsCreateWorkspaceRequest {
-  /**
-   * Session ID the workspace record belongs to
-   */
-  sessionId: string;
-  /**
-   * Directory the session's state is written under when no session filesystem provider is configured. Ignored when a provider is configured; the provider's session state path is used instead.
-   */
-  sessionStatePath: string;
-  /**
-   * `windows` (any letter case) selects Windows path rules. Any other value selects POSIX path rules.
-   */
-  convention: string;
-  context?: SessionWorkingDirectoryContextWithClient;
-  /**
-   * User-supplied display name for the workspace
-   */
-  name?: string;
-}
-/**
- * A working-directory context together with the client that produced it.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "SessionWorkingDirectoryContextWithClient".
- */
-/** @experimental */
-export interface SessionWorkingDirectoryContextWithClient {
-  /**
-   * Current working directory path
-   */
-  cwd: string;
-  /**
-   * Root directory of the git repository
-   */
-  gitRoot?: string;
-  /**
-   * Repository identifier derived from the git remote URL
-   */
-  repository?: string;
-  /**
-   * Hosting platform type of the repository
-   */
-  hostType?: string;
-  /**
-   * Current git branch name
-   */
-  branch?: string;
-  /**
-   * Raw host string from the git remote URL
-   */
-  repositoryHost?: string;
-  /**
-   * Head commit of the current git branch
-   */
-  headCommit?: string;
-  /**
-   * Merge-base commit SHA
-   */
-  baseCommit?: string;
-  /**
-   * Name of the client that created the session
-   */
-  clientName?: string;
-}
-/**
- * The workspace record that was written.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "SessionsCreateWorkspaceResult".
- */
-/** @experimental */
-export interface SessionsCreateWorkspaceResult {
-  /**
-   * The created workspace record, as JSON
-   */
-  workspaceJson: string;
-}
-/**
  * Session ID to delete from disk.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -25913,36 +25123,6 @@ export interface SessionsLoadDeferredRepoHooksRequest {
   sessionId: string;
 }
 /**
- * Where the session's state lives, as a root directory and the session ID under it.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "SessionsLoadWorkspaceRequest".
- */
-/** @experimental */
-export interface SessionsLoadWorkspaceRequest {
-  /**
-   * Root directory every session's state directory sits under
-   */
-  sessionsHome: string;
-  /**
-   * Session ID naming the state directory under the sessions home. Rejected when it is absolute or contains a parent component, so it cannot escape the sessions home.
-   */
-  sessionId: string;
-}
-/**
- * The workspace record on disk, omitted when the session has none.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "SessionsLoadWorkspaceResult".
- */
-/** @experimental */
-export interface SessionsLoadWorkspaceResult {
-  /**
-   * The workspace record, as JSON. Omitted when the record does not exist.
-   */
-  workspaceJson?: string;
-}
-/**
  * Age threshold and optional flags controlling which old sessions are pruned (or simulated when dryRun is true).
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -26133,35 +25313,6 @@ export interface SessionsTransferRemoteControlRequest {
    */
   expectedFromSessionId?: string;
 }
-/**
- * Where the session's state lives, plus workspace-schema fields to merge into its workspace record. Stored keys outside the schema are not preserved, and a stored `fork_count` is never replaced.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "SessionsUpdateWorkspaceFieldsRequest".
- */
-/** @experimental */
-export interface SessionsUpdateWorkspaceFieldsRequest {
-  /**
-   * Root directory every session's state directory sits under
-   */
-  sessionsHome: string;
-  /**
-   * Session ID naming the state directory under the sessions home. Rejected when it is absolute or contains a parent component, so it cannot escape the sessions home.
-   */
-  sessionId: string;
-  /**
-   * Workspace-schema fields to merge into the record, as a JSON object. Fields the object omits keep their stored values, except stored keys outside the schema are not preserved and a stored `fork_count` is never replaced.
-   */
-  fieldsJson: string;
-}
-/**
- * The merge completed. The record carries the supplied workspace-schema fields, but a stored `fork_count` stays.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "SessionsUpdateWorkspaceFieldsResult".
- */
-/** @experimental */
-export interface SessionsUpdateWorkspaceFieldsResult {}
 /**
  * Telemetry engagement ID for the session, when available.
  *
@@ -26763,7 +25914,7 @@ export interface SkillPlanUninstallRequest {
   policySessionId: string;
 }
 /**
- * Authoritative catalog metadata for one SDK-provided skill. The skill's SKILL.md text is fetched separately and lazily.
+ * Catalog-only metadata for one SDK-provided skill. The complete SKILL.md is fetched separately and lazily.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SkillProviderDescriptor".
@@ -26826,7 +25977,7 @@ export interface SkillProviderReadRequest {
   name: string;
 }
 /**
- * Text-only SKILL.md content returned by an SDK session's skill provider. YAML frontmatter is optional: fields it omits come from the catalog descriptor, fields it declares must match the descriptor, and `allowed-tools` is read only from frontmatter. Related files and assets are not supported.
+ * Complete text-only SKILL.md content returned by an SDK session's skill provider. Related files and assets are not supported.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SkillProviderReadResult".
@@ -26835,9 +25986,9 @@ export interface SkillProviderReadRequest {
 /** @internal */
 export interface SkillProviderReadResult {
   /**
-   * SKILL.md text, with or without YAML frontmatter, or null when the provider has no skill with the requested name. The runtime enforces a 1 MiB UTF-8 byte limit.
+   * Complete SKILL.md text. The runtime enforces a 1 MiB UTF-8 byte limit.
    */
-  markdown: string | null;
+  markdown: string;
 }
 /**
  * Skill names to mark as disabled in global configuration, replacing any previous list.
@@ -32434,41 +31585,6 @@ export function createServerRpc(connection: MessageConnection) {
             spawn: async (params: AgentRegistrySpawnRequest): Promise<AgentRegistrySpawnResult> =>
                 connection.sendRequest("agentRegistry.spawn", params),
         },
-        /** @experimental */
-        connectors: {
-            /**
-             * Returns feature availability.
-             *
-             * @returns Feature availability.
-             */
-            getCapabilities: async (): Promise<ConnectorDiscoveryCapabilities> =>
-                connection.sendRequest("connectors.getCapabilities", {}),
-            /**
-             * Returns eligible accounts.
-             *
-             * @returns Eligible accounts.
-             */
-            getAccounts: async (): Promise<ConnectorDiscoveryAccountList> =>
-                connection.sendRequest("connectors.getAccounts", {}),
-            /**
-             * Lists entries for the selected account.
-             *
-             * @param params Selected account.
-             *
-             * @returns Entries for the selected account.
-             */
-            list: async (params: ConnectorDiscoveryAccountRequest): Promise<ConnectorDiscoveryCatalogResult> =>
-                connection.sendRequest("connectors.list", params),
-            /**
-             * Refreshes entries for the selected account.
-             *
-             * @param params Selected account.
-             *
-             * @returns Entries for the selected account.
-             */
-            refresh: async (params: ConnectorDiscoveryAccountRequest): Promise<ConnectorDiscoveryCatalogResult> =>
-                connection.sendRequest("connectors.refresh", params),
-        },
     };
 }
 
@@ -32535,122 +31651,6 @@ export function createInternalServerRpc(connection: MessageConnection) {
         connect: async (params: ConnectRequest): Promise<ConnectResult> =>
             connection.sendRequest("connect", params),
         /** @experimental */
-        agents: {
-            /**
-             * Lists the agents this runtime ships, by name. A consumer separating shipped agents from ones the user or a plugin authored should compare against these names rather than against `AgentInfo.source`: an authored agent may carry the `builtin` source while not being one of these, and the runtime treats the two as separate questions. `disableableNames` is the subset a user may turn off, which a client needs to decide whether to offer a toggle. `yamlBasedNames` is the subset backed by a shipped YAML definition, which a client needs before asking the runtime to load one.
-             *
-             * @returns The agents this runtime ships, named so a consumer can tell them apart from authored ones.
-             */
-            getBuiltins: async (): Promise<AgentsGetBuiltinsResult> =>
-                connection.sendRequest("agents.getBuiltins", {}),
-            /**
-             * Lists the shipped agents a client should offer right now, filtered by the feature flags it passes. `getBuiltins` names every agent the runtime knows about; some of those are gated, so a client rendering a picker wants this narrower list together with the description to show beside each name.
-             *
-             * @param params The feature flags to evaluate shipped agents against.
-             *
-             * @returns The shipped agents available under the requested flags.
-             */
-            getAvailableBuiltins: async (params: AgentsGetAvailableBuiltinsRequest): Promise<AgentsGetAvailableBuiltinsResult> =>
-                connection.sendRequest("agents.getAvailableBuiltins", params),
-            /**
-             * Loads one shipped agent's YAML definition, for a client that needs what the agent declares rather than only its name. `getBuiltins` reports which names have a definition to load: a name outside its `yamlBasedNames` is special-cased in code and has none. The definition crosses as its own JSON rather than as contract-typed fields, because the runtime parses it with the agent schema's tolerant shape and re-typing it here would drop the keys that shape accepts and this one does not. The projected `__nativeCustomAgent` view the runtime derives is included, so a caller reading the declared model and a caller rendering the agent see the same definition.
-             *
-             * @param params The shipped agent whose definition to load.
-             *
-             * @returns One shipped agent's definition.
-             */
-            getBuiltinDefinition: async (params: AgentsGetBuiltinDefinitionRequest): Promise<AgentsGetBuiltinDefinitionResult> =>
-                connection.sendRequest("agents.getBuiltinDefinition", params),
-            /**
-             * Projects one shipped agent the way a picker lists it, reading only the metadata at the head of the definition file and stopping before the prompt body. `getBuiltinDefinition` answers the whole definition instead, so a client listing every shipped agent should prefer this one: the cost of a listing grows with the number of agents, and the prompt body is the part a listing never shows. The two also differ in shape. This returns the projected custom agent on its own, whereas `getBuiltinDefinition` returns the authored definition with that projection nested under `__nativeCustomAgent`.
-             *
-             * @param params The shipped agent whose listing entry to load.
-             *
-             * @returns One shipped agent, projected for a listing.
-             */
-            getBuiltinListingDefinition: async (params: AgentsGetBuiltinListingDefinitionRequest): Promise<AgentsGetBuiltinListingDefinitionResult> =>
-                connection.sendRequest("agents.getBuiltinListingDefinition", params),
-            /**
-             * Resolves the model a custom agent asks for against the models actually available, and answers both the model to switch to and the warning a user should see when the agent's preference cannot be met. A custom agent may name several acceptable models in preference order, so the decision is a match rather than a lookup, and an agent whose preference is unavailable is a normal outcome that produces a warning rather than an error. A host must call this rather than pick the first available name itself, because the preference order and the wording of the warning are what keep one installation's agent selection the same as another's.
-             *
-             * @param params The models a custom agent asks for, and the models actually available.
-             *
-             * @returns The model to switch to, and the warning to show when the agent's preference could not be met.
-             */
-            customAgentInitialModelDecision: async (params: AgentsCustomAgentInitialModelDecisionParams): Promise<AgentsCustomAgentInitialModelDecisionResult> =>
-                connection.sendRequest("agents.customAgentInitialModelDecision", params),
-        },
-        /** @experimental */
-        gitHubRepository: {
-            /**
-             * Resolves the GitHub repository that owns a working-tree path by reading the selected git remote configured for it, preferring `origin`. Returns a null `repository` when the path is inside a git working tree but that selected remote does not resolve to a GitHub host. Fails when the path is not inside a git working tree at all, so a caller can tell 'not a repository' apart from 'a repository with no GitHub remote'.
-             *
-             * @param params Working-tree path whose owning GitHub repository should be resolved.
-             *
-             * @returns The GitHub repository that owns the requested path, when the selected remote (`origin`, else the first) is on a GitHub host.
-             */
-            atPath: async (params: GitHubRepositoryAtPathRequest): Promise<GitHubRepositoryAtPathResult> =>
-                connection.sendRequest("gitHubRepository.atPath", params),
-        },
-        /** @experimental */
-        gitHubOwners: {
-            /**
-             * Registers a cancellable owner listing and returns its request id. Separate from `gitHubOwners.list` so the id exists before the listing starts: a caller that abandons the listing the moment it begins would otherwise have nothing to name in `gitHubOwners.cancel`. The id serves one listing only. Long-abandoned unused ids can be released by later allocations.
-             *
-             * @returns A freshly registered request id. Registering it before the listing starts is what lets a cancel that races the request still find the owner listing slot. The id serves one listing only. Long-abandoned unused ids can be released by later allocations.
-             */
-            nextRequestId: async (): Promise<GitHubOwnersRequestIdResult> =>
-                connection.sendRequest("gitHubOwners.nextRequestId", {}),
-            /**
-             * Lists the logins the authenticated user may act as — their own account first, then the organizations they belong to — by asking the GitHub API under the supplied credential. No credential travels in the request: `authInfo` selects one the runtime already holds, and the runtime resolves the token and the GitHub host from it. A failure the caller should render arrives as `message`; one it should raise arrives as `throwError`.
-             *
-             * @param params Credential to list owners under, and the request id that makes the listing cancellable.
-             *
-             * @returns Outcome of an owner listing. Exactly one of `owners` and `message` is present, except that `throwError` reports a failure the caller is expected to raise rather than render.
-             */
-            list: async (params: GitHubOwnersListRequest): Promise<GitHubOwnersListResult> =>
-                connection.sendRequest("gitHubOwners.list", params),
-            /**
-             * Abandons an owner listing started with the given request id. Answers `canceled: true` while a listing with that id is running. Answers `canceled: false` when the id was never registered, was registered but not used, was released after being abandoned, or its listing has ended. Canceling an unused id releases it, and a later `list` with that id is refused. The cancel acts only on owner listings and never reaches another request of the host.
-             *
-             * @param params The owner listing to abandon.
-             *
-             * @returns Whether the id named a running owner listing.
-             */
-            cancel: async (params: GitHubOwnersCancelRequest): Promise<GitHubOwnersCancelResult> =>
-                connection.sendRequest("gitHubOwners.cancel", params),
-        },
-        /** @experimental */
-        git: {
-            /**
-             * Reads the remote that the branch checked out in a working tree tracks, as `branch.<name>.remote` configures it. Reports `origin` rather than failing whenever there is no tracking configuration to read — on a detached HEAD, on a branch with no upstream, or when git itself fails — because a caller asking which remote to talk to needs an answer it can act on, not an error. Marked internal because it exists to carry a CLI call site off the napi boundary onto the SDK contract; it is migration plumbing, not a surface consumers are meant to depend on.
-             *
-             * @param params Working-tree path a git query applies to.
-             *
-             * @returns The remote the checked-out branch tracks.
-             */
-            currentBranchRemote: async (params: GitCwdRequest): Promise<GitCurrentBranchRemoteResult> =>
-                connection.sendRequest("git.currentBranchRemote", params),
-            /**
-             * Collects the repository context of a working directory in one call: working tree root, repository identifier and host, current branch, and the HEAD and base commits. Every repository field is omitted when the path is not inside a git working tree, and the requested path is echoed back as `cwd`. The answer is the same `SessionWorkingDirectoryContext` that `session.metadata.recordContextChange` accepts, so a caller polling for a context change can forward the result unchanged. Marked internal because it exists to carry a CLI call site off the napi boundary onto the SDK contract; it is migration plumbing, not a surface consumers are meant to depend on. It can become public once an SDK consumer needs to derive session context from a directory itself.
-             *
-             * @param params Working-tree path a git query applies to.
-             *
-             * @returns Updated working directory and git context. Emitted as the new payload of `session.context_changed`.
-             */
-            workingDirectoryContext: async (params: GitCwdRequest): Promise<SessionWorkingDirectoryContext> =>
-                connection.sendRequest("git.workingDirectoryContext", params),
-            /**
-             * Lists the GitHub repositories a working tree's remotes point at, one entry per distinct repository, so a caller can resolve a base and head repository without parsing remote URLs itself. When several remotes name the same repository, only the first is listed, and the entry keeps that remote name. Remotes pointing at no GitHub host are left out, so an empty list means the tree reaches GitHub through no remote. Failing to read the remotes is reported as an error rather than as an empty list, because the two mean different things to a caller. Marked internal because it exists to carry a CLI call site off the napi boundary onto the SDK contract; it is migration plumbing, not a surface consumers are meant to depend on.
-             *
-             * @param params Git working tree whose GitHub remotes should be listed.
-             *
-             * @returns The GitHub repositories a working tree's remotes point at.
-             */
-            reposFromRemotes: async (params: GitReposFromRemotesRequest): Promise<GitReposFromRemotesResult> =>
-                connection.sendRequest("git.reposFromRemotes", params),
-        },
-        /** @experimental */
         sessions: {
             /**
              * Reads lightweight persisted metadata for one local session without opening it.
@@ -32695,33 +31695,6 @@ export function createInternalServerRpc(connection: MessageConnection) {
              */
             delete: async (params: SessionsDeleteRequest): Promise<void> =>
                 connection.sendRequest("sessions.delete", params),
-            /**
-             * Creates the workspace record for a session that has not been opened yet. A host that hands a session off to another application — writing the record and then launching that application against the session ID — needs the record on disk before any session exists to carry it, which the session-scoped workspace methods cannot do. Replaces any existing record and resets the checkpoint index. When writing to the local filesystem, a stored `fork_count` survives on disk. Returns the record it built, so a surviving stored `fork_count` can differ from the answer.
-             *
-             * @param params Identity, state location and starting context for a workspace record.
-             *
-             * @returns The workspace record that was written.
-             */
-            createWorkspace: async (params: SessionsCreateWorkspaceRequest): Promise<SessionsCreateWorkspaceResult> =>
-                connection.sendRequest("sessions.createWorkspace", params),
-            /**
-             * Reads a session's workspace record straight from disk, without opening the session. Resuming by session ID has to know where the session lives before it can connect, so the lookup cannot come from the session-scoped workspace methods, which resolve their location from a live session's context. Returns no record when the file is absent.
-             *
-             * @param params Where the session's state lives, as a root directory and the session ID under it.
-             *
-             * @returns The workspace record on disk, omitted when the session has none.
-             */
-            loadWorkspace: async (params: SessionsLoadWorkspaceRequest): Promise<SessionsLoadWorkspaceResult> =>
-                connection.sendRequest("sessions.loadWorkspace", params),
-            /**
-             * Merges fields into a session's workspace record on disk, creating the record when it is absent. The counterpart to `sessions.loadWorkspace`, for the same before-the-session-exists case. It preserves stored workspace-schema fields the request does not supply, does not preserve stored keys outside the workspace schema, and never replaces a stored `fork_count`.
-             *
-             * @param params Where the session's state lives, plus workspace-schema fields to merge into its workspace record. Stored keys outside the schema are not preserved, and a stored `fork_count` is never replaced.
-             *
-             * @returns The merge completed. The record carries the supplied workspace-schema fields, but a stored `fork_count` stays.
-             */
-            updateWorkspaceFields: async (params: SessionsUpdateWorkspaceFieldsRequest): Promise<SessionsUpdateWorkspaceFieldsResult> =>
-                connection.sendRequest("sessions.updateWorkspaceFields", params),
             /**
              * Gets the dynamic-context board entry count associated with a session, when available. Internal: this exists solely so CLI telemetry events (`rem_spawn_gate`, `rem_consolidation_complete`) can pair START / END board counts around the detached rem-agent spawn. "Dynamic context board" is a runtime-internal concept that is not part of the public SDK contract; the long-term plan is to relocate the telemetry emission into the runtime so this method can be deleted entirely.
              *
@@ -33709,19 +32682,12 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
         /** @experimental */
         mcp: {
             /**
-             * Lists materialized MCP servers and their connection status. Cache misses may start and wait for MCP servers.
+             * Lists MCP servers configured for the session, their connection status, and host-level state. The host-level state (disabled/filtered servers, failed/needs-auth/pending connections, mcp3p policy, full config) is empty/zero when no MCP host has been initialized for the session.
              *
              * @returns MCP servers configured for the session, with their connection status and host-level state.
              */
             list: async (): Promise<McpServerList> =>
                 connection.sendRequest("session.mcp.list", { sessionId }),
-            /**
-             * Lists effective MCP configuration without starting, restarting, authenticating, or waiting for servers. An optional live observation is from an already materialized matching server; this is not a readiness guarantee.
-             *
-             * @returns Effective MCP configuration with optional live observations from matching already materialized servers.
-             */
-            listConfigured: async (): Promise<McpConfiguredServerList> =>
-                connection.sendRequest("session.mcp.listConfigured", { sessionId }),
             /**
              * Lists the tools exposed by a connected MCP server on this session's host. This performs a live `tools/list` request. Tool UI metadata is returned independently of whether MCP Apps rendering is enabled for the session.
              *
@@ -35358,13 +34324,6 @@ export function createInternalSessionRpc(connection: MessageConnection, sessionI
         },
         /** @experimental */
         mcp: {
-            /**
-             * Records the IDE the host is connected to, so the agent's system prompt can name it and its workspace folder. Null or an omitted `ide` clears the recorded value, which is how a host reports that it is disconnected; there is no separate clear method. Both `ideName` and `workspaceFolder` are required together, because half a state cannot be attributed to a project.
-             *
-             * @param params Records which IDE the host is connected to, or clears it.
-             */
-            setConnectedIdeInfo: async (params: SessionMcpSetConnectedIdeInfoParams): Promise<void> =>
-                connection.sendRequest("session.mcp.setConnectedIdeInfo", { ...params, sessionId }),
             /**
              * Reloads MCP server connections for the session with an explicit host-provided configuration.
              *

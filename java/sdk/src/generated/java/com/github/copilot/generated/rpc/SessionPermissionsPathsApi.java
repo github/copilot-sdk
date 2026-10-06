@@ -31,7 +31,7 @@ public final class SessionPermissionsPathsApi {
     }
 
     /**
-     * Returns the session's recursive directory grants, exact session-approved paths, and primary working directory.
+     * No parameters; returns the session's recursive directory grants and exact session-approved paths.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -42,7 +42,7 @@ public final class SessionPermissionsPathsApi {
     }
 
     /**
-     * Adds a directory to the session's allow-list and activates conventional skill and agent definitions under it.
+     * Directory path to add to the session's allowed directories.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -58,7 +58,7 @@ public final class SessionPermissionsPathsApi {
     }
 
     /**
-     * Updates the session's primary working directory used by the permission policy.
+     * Directory path to set as the session's new primary working directory.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -74,7 +74,7 @@ public final class SessionPermissionsPathsApi {
     }
 
     /**
-     * Reports whether a path falls within any of the session's allowed directories.
+     * Path to evaluate against the session's allowed directories.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -90,7 +90,7 @@ public final class SessionPermissionsPathsApi {
     }
 
     /**
-     * Reports whether a path falls within the session's workspace (primary) directory.
+     * Path to evaluate against the session's workspace (primary) directory.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.

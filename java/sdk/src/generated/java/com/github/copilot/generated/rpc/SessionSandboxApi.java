@@ -31,7 +31,7 @@ public final class SessionSandboxApi {
     }
 
     /**
-     * Returns whether managed policy requires sandbox enforcement and whether an enforcement failure has permanently blocked the session.
+     * Identifies the target session.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -42,7 +42,7 @@ public final class SessionSandboxApi {
     }
 
     /**
-     * Disables sandboxing for the remainder of the current session and approves the referenced pending sandbox-bypass permission request. The request is rejected unless the exact request is still pending and the effective sandbox policy permits bypass.
+     * Request to disable sandboxing for the current session while resolving an active sandbox-bypass permission prompt.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -58,7 +58,7 @@ public final class SessionSandboxApi {
     }
 
     /**
-     * Adds the path offered by a pending sandbox escalation permission request's sandboxPathGrant to the session's sandbox policy and approves the request, so the blocked operation re-runs inside the sandbox rather than outside it. The request is rejected unless the exact request is still pending, carries a sandboxPathGrant, and the grant still takes effect under the current managed policy. Does not persist the path; hosts that store sandbox settings save it themselves.
+     * Request to accept the sandbox path grant offered on an active sandbox escalation permission prompt.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.

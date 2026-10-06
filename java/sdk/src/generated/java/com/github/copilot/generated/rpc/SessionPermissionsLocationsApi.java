@@ -31,7 +31,7 @@ public final class SessionPermissionsLocationsApi {
     }
 
     /**
-     * Resolves the permission location key and type for a working directory.
+     * Working directory to resolve into a location-permissions key.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -47,7 +47,7 @@ public final class SessionPermissionsLocationsApi {
     }
 
     /**
-     * Applies persisted location-scoped tool approvals and allowed directories for a working directory to this session's permission service.
+     * Working directory to load persisted location permissions for.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -63,7 +63,7 @@ public final class SessionPermissionsLocationsApi {
     }
 
     /**
-     * Persists a tool approval for a permission location and applies its rules to this session's live permission service.
+     * Location-scoped tool approval to persist.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.

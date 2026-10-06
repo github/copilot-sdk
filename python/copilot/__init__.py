@@ -110,7 +110,6 @@ from .generated.rpc import (
     PermissionDecisionOutcome,
     PermissionDecisionSurface,
     PermissionResponseCapability,
-    SkillProviderDescriptor,
 )
 from .generated.session_events import (
     AutoTierSwitchFailureReason,
@@ -210,7 +209,6 @@ from .session import (
     SessionStartHookOutput,
     SessionUiApi,
     SessionUiCapabilities,
-    SkillProvider,
     SubagentStartHandler,
     SubagentStartHookInput,
     SubagentStartHookOutput,
@@ -442,8 +440,6 @@ __all__ = [
     "SessionStartHandler",
     "SessionStartHookInput",
     "SessionStartHookOutput",
-    "SkillProvider",
-    "SkillProviderDescriptor",
     "SessionUiApi",
     "SessionUiCapabilities",
     "SessionUpdatedEvent",

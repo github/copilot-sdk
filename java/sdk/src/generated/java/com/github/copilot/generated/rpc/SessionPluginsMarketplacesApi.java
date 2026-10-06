@@ -31,7 +31,7 @@ public final class SessionPluginsMarketplacesApi {
     }
 
     /**
-     * Lists registered and enterprise-managed desired marketplaces using the live session's retained policy.
+     * Identifies the target session.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -42,7 +42,7 @@ public final class SessionPluginsMarketplacesApi {
     }
 
     /**
-     * Adds a marketplace when permitted by the live session's retained managed policy.
+     * Marketplace source and optional working directory for relative-path resolution.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -58,7 +58,7 @@ public final class SessionPluginsMarketplacesApi {
     }
 
     /**
-     * Removes a marketplace when permitted by the live session's retained managed policy.
+     * Name of the marketplace to remove and an optional force flag.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -74,7 +74,7 @@ public final class SessionPluginsMarketplacesApi {
     }
 
     /**
-     * Browses a marketplace resolved through the live session's working directory and retained managed policy.
+     * Name of the marketplace whose plugin catalog to fetch.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -90,7 +90,7 @@ public final class SessionPluginsMarketplacesApi {
     }
 
     /**
-     * Refreshes marketplaces resolved through the live session's working directory and retained managed policy.
+     * Optional marketplace name; omit to refresh all.
      * <p>
      * Invokes the method with no params, applying the runtime defaults.
      *
@@ -103,7 +103,7 @@ public final class SessionPluginsMarketplacesApi {
     }
 
     /**
-     * Refreshes marketplaces resolved through the live session's working directory and retained managed policy.
+     * Optional marketplace name; omit to refresh all.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.

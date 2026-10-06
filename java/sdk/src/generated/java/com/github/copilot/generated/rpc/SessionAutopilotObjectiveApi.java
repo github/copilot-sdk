@@ -29,7 +29,7 @@ public final class SessionAutopilotObjectiveApi {
     }
 
     /**
-     * Reads the current canonical autopilot objective state for this session.
+     * Identifies the target session.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0

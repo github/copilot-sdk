@@ -27,7 +27,7 @@ public final class ServerHostApi {
     }
 
     /**
-     * Publishes an attached resident session for this listener's lifetime without copying it.
+     * Publishes a resident session attached to the listener's owning connection.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -38,7 +38,7 @@ public final class ServerHostApi {
     }
 
     /**
-     * Requests app-owned materialization over the owning SDK participant.
+     * One application-owned session handoff, requested by the supervised hosting participant.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -49,7 +49,7 @@ public final class ServerHostApi {
     }
 
     /**
-     * Releases app ownership retention after AHP detaches.
+     * Ends one participation, not the application's session lifetime.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -60,7 +60,7 @@ public final class ServerHostApi {
     }
 
     /**
-     * Starts a connection-owned AHP host with explicit localServer and/or githubEnvironment transports as a supervised SDK participant.
+     * Starts a supervised AHP host with at least one explicitly selected transport.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -71,7 +71,7 @@ public final class ServerHostApi {
     }
 
     /**
-     * Stops a listener owned by this SDK connection and joins its cleanup without deleting sessions.
+     * Stops a connection-owned listener and joins its teardown.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -82,7 +82,7 @@ public final class ServerHostApi {
     }
 
     /**
-     * Resolves current authenticated credentials and remote-control policy only for the runtime-owned Mission Control hosting participant.
+     * Empty acknowledgement for a completed host lifecycle operation.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -93,7 +93,7 @@ public final class ServerHostApi {
     }
 
     /**
-     * Returns listener settings only to the supervised hosting participant over its SDK connection.
+     * Empty acknowledgement for a completed host lifecycle operation.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -104,7 +104,7 @@ public final class ServerHostApi {
     }
 
     /**
-     * Reports a supervised hosting participant's bound AHP endpoint after its SDK handshake.
+     * Readiness reported by the supervised hosting participant on its own SDK connection.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0

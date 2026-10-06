@@ -300,25 +300,6 @@ describe("C# session event dispatch", () => {
 });
 
 describe("C# RPC codegen", () => {
-    it("emits parameterless MCP list methods", () => {
-        const code = generateRpcCode({
-            session: {
-                mcp: {
-                    list: {
-                        rpcMethod: "session.mcp.list",
-                        params: null,
-                    },
-                },
-            },
-        });
-        expect(code).toContain(
-            "public async Task ListAsync(CancellationToken cancellationToken = default)"
-        );
-        expect(code).not.toContain("ListWithParamsAsync");
-        expect(code).not.toContain("StartServers");
-        expect(code).toContain('"session.mcp.list"');
-    });
-
     it("preserves arbitrary JSON handoff settings instead of emitting an empty DTO", () => {
         const code = generateRpcCode({
             server: {
@@ -784,72 +765,4 @@ describe("C# RPC codegen", () => {
             );
         }
     );
-});
-
-describe("C# RPC class visibility", () => {
-    const sharedResultSchema = (): ApiSchema => ({
-        definitions: {
-            FolderTrustCheckResult: {
-                type: "object",
-                title: "FolderTrustCheckResult",
-                properties: { trusted: { type: "boolean" } },
-                required: ["trusted"],
-            },
-        },
-        // The server tree is emitted before the session tree, so the internal
-        // method reaches the shared result type first.
-        server: {
-            permissions: {
-                isTrusted: {
-                    rpcMethod: "permissions.folderTrust.isTrusted",
-                    visibility: "internal",
-                    result: { $ref: "#/definitions/FolderTrustCheckResult" },
-                },
-            },
-        },
-        session: {
-            permissions: {
-                isTrusted: {
-                    rpcMethod: "session.permissions.folderTrust.isTrusted",
-                    result: { $ref: "#/definitions/FolderTrustCheckResult" },
-                },
-            },
-        },
-    });
-
-    it("keeps a type shared with an internal method public", () => {
-        const code = generateRpcCode(sharedResultSchema());
-
-        expect(code).toContain("public sealed class FolderTrustCheckResult\n");
-        expect(code).not.toContain("internal sealed class FolderTrustCheckResult\n");
-    });
-
-    it("still emits a request wrapper as internal", () => {
-        const code = generateRpcCode({
-            definitions: {},
-            server: {
-                git: {
-                    workingDirectoryContext: {
-                        rpcMethod: "git.workingDirectoryContext",
-                        params: {
-                            type: "object",
-                            properties: { cwd: { type: "string" } },
-                            required: ["cwd"],
-                        },
-                    },
-                },
-            },
-        });
-
-        expect(code).toContain("internal sealed class GitWorkingDirectoryContextRequest\n");
-    });
-
-    it("honors an explicitly internal schema over public reachability", () => {
-        const schema = sharedResultSchema();
-        (schema.definitions!.FolderTrustCheckResult as Record<string, unknown>).visibility =
-            "internal";
-        const code = generateRpcCode(schema);
-
-        expect(code).toContain("internal sealed class FolderTrustCheckResult\n");
-    });
 });

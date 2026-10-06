@@ -32,7 +32,7 @@ public final class SessionConnectorsApi {
     }
 
     /**
-     * Returns feature availability and bounded polling limits for the EXPERIMENTAL session connector API. This method never performs a Connector service request.
+     * Identifies the target session.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -43,7 +43,7 @@ public final class SessionConnectorsApi {
     }
 
     /**
-     * Returns the session account selection, or null.
+     * Identifies the target session.
      *
      * @return a future that completes with the {@code ConnectorSessionAccount} value,
      *     or {@code null} when the result is absent. Callers must handle the
@@ -58,7 +58,7 @@ public final class SessionConnectorsApi {
     }
 
     /**
-     * Returns authoritative session Connector state from current availability, pinned account selection, cached catalog, and live MCP projection without performing a Connector service request.
+     * Identifies the target session.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -69,7 +69,7 @@ public final class SessionConnectorsApi {
     }
 
     /**
-     * Returns the cached Connector catalog for the pinned opaque account selection, fetching it only when this session has no cached catalog.
+     * Pins a Connector operation to one host-owned GitHub account through its opaque selection ID. Provider tokens are never accepted.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -85,7 +85,7 @@ public final class SessionConnectorsApi {
     }
 
     /**
-     * Refreshes and validates the Connector catalog for the pinned opaque account selection.
+     * Pins a Connector operation to one host-owned GitHub account through its opaque selection ID. Provider tokens are never accepted.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -101,7 +101,7 @@ public final class SessionConnectorsApi {
     }
 
     /**
-     * Initiates an idempotent Connector connection request without opening a browser. Returns connected when the service is immediately authoritative, consent_required with a validated URL, or pending with an opaque continuation ID.
+     * Selects one Connector and the pinned host-owned account used for its service and MCP authorization.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -117,7 +117,7 @@ public final class SessionConnectorsApi {
     }
 
     /**
-     * Re-initiates an idempotent Connector connection request without browser or UI effects, with the same typed outcomes as connect.
+     * Selects one Connector and the pinned host-owned account used for its service and MCP authorization.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -133,7 +133,7 @@ public final class SessionConnectorsApi {
     }
 
     /**
-     * Continues a pending Connector connection with caller-supplied attempt, interval, and deadline bounds. The runtime never opens the returned consent URL.
+     * Explicitly bounded continuation of a pending Connector connection.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -149,7 +149,7 @@ public final class SessionConnectorsApi {
     }
 
     /**
-     * Disconnects one Connector for the pinned opaque account selection, refreshes the authoritative catalog, and removes its session-owned MCP projection.
+     * Selects one Connector and the pinned host-owned account used for its service and MCP authorization.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -165,7 +165,7 @@ public final class SessionConnectorsApi {
     }
 
     /**
-     * Reconciles the authoritative cached or freshly requested Connector catalog into the session Connector MCP projection and returns live status.
+     * Requests authoritative Connector-to-MCP reconciliation for the pinned account.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -181,7 +181,7 @@ public final class SessionConnectorsApi {
     }
 
     /**
-     * Reconciles the authoritative cached or freshly requested Connector catalog into the session Connector MCP projection and returns live status.
+     * Requests authoritative Connector-to-MCP reconciliation for the pinned account.
      * <p>
      * Accepts the extensible request, including inputs added after the params record.
      *
@@ -196,7 +196,7 @@ public final class SessionConnectorsApi {
     }
 
     /**
-     * Reconciles the authoritative Connector catalog into the session MCP projection during startup with a bounded deadline and fail-closed cleanup.
+     * Pins a Connector operation to one host-owned GitHub account through its opaque selection ID. Provider tokens are never accepted.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -212,7 +212,7 @@ public final class SessionConnectorsApi {
     }
 
     /**
-     * Removes the runtime-owned Connector MCP projection without changing service-side connections.
+     * Identifies the target session.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0

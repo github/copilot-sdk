@@ -73,7 +73,6 @@ public sealed partial class CopilotSession : IAsyncDisposable
     private volatile Func<ElicitationContext, Task<ElicitationResult>>? _elicitationHandler;
     private volatile Func<ExitPlanModeRequest, ExitPlanModeInvocation, Task<ExitPlanModeResult>>? _exitPlanModeHandler;
     private volatile Func<AutoModeSwitchRequest, AutoModeSwitchInvocation, Task<AutoModeSwitchResponse>>? _autoModeSwitchHandler;
-    private volatile ISkillProvider? _skillProvider;
     private ImmutableArray<EventSubscription> _eventHandlers = ImmutableArray<EventSubscription>.Empty;
 
     private sealed record EventSubscription(Type EventType, Action<SessionEvent> Handler, bool RootAgentOnly);
@@ -234,7 +233,6 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// </summary>
     internal void Unregister()
     {
-        ClearSkillProvider();
         CancelPendingExternalTools();
         CloseEventChannel();
         RemoveFromClient();
@@ -695,9 +693,9 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// are the same as the tools supplied when creating or resuming a session.
     /// </para>
     /// <para>
-    /// Tool handlers switch when the runtime's acceptance response arrives, before subsequent tool requests are dispatched.
-    /// Tool calls already running finish with the handlers that started them. If the runtime rejects the replacement, the
-    /// previous handlers remain installed and the exception is propagated. Concurrent calls are applied in order.
+    /// Tool handlers switch after the runtime accepts the replacement. Tool calls already running finish with the handlers
+    /// that started them. If the runtime rejects the replacement, the previous handlers remain installed and the exception is
+    /// propagated. Concurrent calls are applied in order.
     /// </para>
     /// <para>
     /// The agent sees the new tools from its next model request, which can fall within a turn in progress. A model request
@@ -716,8 +714,9 @@ public sealed partial class CopilotSession : IAsyncDisposable
         var wireTools = tools.Select(ToProtocolExternalToolDefinition).ToList();
         var handlers = BuildToolHandlerMap(tools);
 
-        // Cancelling before sending the request leaves handlers unchanged. Once sent, the request runs
-        // to completion even if the caller stops waiting, so an accepted replacement still installs its handlers.
+        // Cancelling while an earlier call holds the lock sends nothing. Once this call holds it, the
+        // request runs to completion even if the caller stops waiting, so an accepted replacement still
+        // installs its handlers.
         var replacement = ReplaceToolsAsync(wireTools, handlers, cancellationToken);
         try
         {
@@ -742,13 +741,8 @@ public sealed partial class CopilotSession : IAsyncDisposable
         await _setToolsLock.WaitAsync(lockCancellationToken);
         try
         {
-            // SemaphoreSlim can grant a released slot while its cancellation continuation is pending.
-            lockCancellationToken.ThrowIfCancellationRequested();
-            ThrowIfDisposed();
-            var request = new ToolsSetRequest { SessionId = SessionId, Tools = wireTools };
-            await CopilotClient.InvokeRpcAsync<ToolsSetResult>(
-                JsonRpc, "session.tools.set", [request], null, CancellationToken.None,
-                onResponseInline: _ => Volatile.Write(ref _toolHandlers, handlers));
+            await Rpc.Tools.SetAsync(wireTools, CancellationToken.None);
+            Volatile.Write(ref _toolHandlers, handlers);
         }
         finally
         {
@@ -1406,48 +1400,6 @@ public sealed partial class CopilotSession : IAsyncDisposable
     internal void RegisterAutoModeSwitchHandler(Func<AutoModeSwitchRequest, AutoModeSwitchInvocation, Task<AutoModeSwitchResponse>>? handler)
     {
         _autoModeSwitchHandler = handler;
-    }
-
-    /// <summary>
-    /// Registers the session-scoped skill provider callback.
-    /// </summary>
-    internal void RegisterSkillProvider(ISkillProvider? provider)
-    {
-        _skillProvider = provider;
-    }
-
-    internal void ClearSkillProvider() => _skillProvider = null;
-
-    internal async ValueTask<CopilotClient.SkillProviderListResult> HandleSkillProviderListAsync(CancellationToken cancellationToken)
-    {
-        var provider = _skillProvider ?? throw new InvalidOperationException($"No skill provider for session: {SessionId}");
-
-        try
-        {
-            var skills = await provider.ListSkillsAsync(cancellationToken).ConfigureAwait(false);
-            return new CopilotClient.SkillProviderListResult(skills?.ToList() ?? []);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
-        {
-            LogSkillProviderFailed(ex, "listSkills", SessionId);
-            throw new InvalidOperationException("Skill provider listSkills failed", ex);
-        }
-    }
-
-    internal async ValueTask<CopilotClient.SkillProviderReadResult> HandleSkillProviderReadAsync(string name, CancellationToken cancellationToken)
-    {
-        var provider = _skillProvider ?? throw new InvalidOperationException($"No skill provider for session: {SessionId}");
-
-        try
-        {
-            var markdown = await provider.ReadSkillAsync(name, cancellationToken).ConfigureAwait(false);
-            return new CopilotClient.SkillProviderReadResult(markdown);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
-        {
-            LogSkillProviderFailed(ex, "readSkill", SessionId);
-            throw new InvalidOperationException("Skill provider readSkill failed", ex);
-        }
     }
 
     /// <summary>
@@ -2440,7 +2392,6 @@ public sealed partial class CopilotSession : IAsyncDisposable
             return;
         }
 
-        ClearSkillProvider();
         CancelPendingExternalTools();
         CloseEventChannel();
 
@@ -2477,7 +2428,6 @@ public sealed partial class CopilotSession : IAsyncDisposable
         _elicitationHandler = null;
         _exitPlanModeHandler = null;
         _autoModeSwitchHandler = null;
-        _skillProvider = null;
     }
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Unhandled exception in broadcast event handler")]
@@ -2494,9 +2444,6 @@ public sealed partial class CopilotSession : IAsyncDisposable
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Permission handler or response delivery failed. SessionId={SessionId}, RequestId={RequestId}")]
     private partial void LogPermissionHandlerOrDeliveryFailed(Exception exception, string sessionId, string requestId);
-
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Skill provider {Operation} failed. SessionId={SessionId}")]
-    private partial void LogSkillProviderFailed(Exception exception, string operation, string sessionId);
 
     internal record SendMessageRequest
     {

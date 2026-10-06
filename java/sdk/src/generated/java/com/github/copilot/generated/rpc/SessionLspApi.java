@@ -31,7 +31,7 @@ public final class SessionLspApi {
     }
 
     /**
-     * Loads the merged LSP configuration set for the session's working directory.
+     * Parameters for (re)loading the merged LSP configuration set.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.

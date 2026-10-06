@@ -28,7 +28,7 @@ public final class ServerSessionsApi {
     }
 
     /**
-     * Creates or resumes a local session and returns the opened session ID.
+     * Open a session by creating, resuming, attaching, connecting to a remote, or handing off.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -39,7 +39,7 @@ public final class ServerSessionsApi {
     }
 
     /**
-     * Creates a new session by forking persisted history from an existing session.
+     * Source session identifier to fork from, optional event-ID boundary, and optional friendly name for the new session.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -50,7 +50,7 @@ public final class ServerSessionsApi {
     }
 
     /**
-     * Connects to an existing remote session and exposes it as an SDK session.
+     * Remote session connection parameters.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -61,7 +61,7 @@ public final class ServerSessionsApi {
     }
 
     /**
-     * Lists sessions, optionally filtered by source and working-directory context. Returned entries are discriminated by `isRemote`: local entries carry only the lightweight `LocalSessionMetadataValue` shape; remote entries carry the full `RemoteSessionMetadataValue` shape (repository, PR number, taskType, etc.).
+     * Optional source filter, metadata-load limit, and context filter applied to the returned sessions.
      * <p>
      * Invokes the method with no params, applying the runtime defaults.
      *
@@ -74,7 +74,7 @@ public final class ServerSessionsApi {
     }
 
     /**
-     * Lists sessions, optionally filtered by source and working-directory context. Returned entries are discriminated by `isRemote`: local entries carry only the lightweight `LocalSessionMetadataValue` shape; remote entries carry the full `RemoteSessionMetadataValue` shape (repository, PR number, taskType, etc.).
+     * Optional source filter, metadata-load limit, and context filter applied to the returned sessions.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -85,7 +85,7 @@ public final class ServerSessionsApi {
     }
 
     /**
-     * Reads lightweight persisted metadata for one local session without opening it.
+     * Session ID whose persisted metadata should be read.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -96,7 +96,7 @@ public final class ServerSessionsApi {
     }
 
     /**
-     * Reads client-owned metadata for multiple persisted local sessions without opening them. Results preserve request order and report missing, corrupt, unsupported, or temporarily unavailable sessions independently.
+     * Bounded batch request for client-owned metadata from persisted local sessions.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -107,7 +107,7 @@ public final class ServerSessionsApi {
     }
 
     /**
-     * Reads a page of durable events directly from a local session's persisted journal without creating, resuming, or activating the session. The first read pins the currently opened journal generation and its byte-length boundary; opaque cursor continuations remain on that generation across runtime-owned compaction, truncation, and rewrite operations, which replace the live path atomically, and events appended after the boundary are excluded. For cold hydration, await the first successful page before activation and establish lossless live-event buffering before resume; merge subsequent live events by ID, preserving persisted order and letting live payloads win. Continuations are process-local, single-use capabilities bound to the originating session and storage context and must be paged sequentially; concurrent or repeated use of the same cursor expires that duplicate read rather than reading the generation twice. A complete snapshot has cursorStatus 'ok' and hasMore false. Snapshots expire after five idle minutes, with at most eight retained per process and idle-only eviction under pressure; completion and cancelled-worker exit release their handles. No transcript copy is created, but retained handles may keep replaced files' disk blocks alive until release. Pages have a soft 1 MiB serialized event-array budget including resolved binary assets; one oversized event is returned alone to guarantee progress. Working memory also includes a record/lookahead and asset resolution; resolving the first binary reference may scan the full pinned generation to build a bounded offset index. If the snapshot expires, is evicted, is cancelled before a continuation is established, or becomes unreadable after an observable unsupported in-place shortening, the continuation returns cursorStatus 'expired' with an empty terminal page and never falls back to a different generation. A missing or initially unreadable journal is an RPC error. Persisted history excludes ephemeral events and may omit payloads that are reconstructed only for an active session; use the active session event stream for post-resume live events.
+     * Pagination options for reading an inactive or active local session's persisted event journal.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -118,7 +118,7 @@ public final class ServerSessionsApi {
     }
 
     /**
-     * Lists recent local session IDs that contain user-visible history, omitting housekeeping-only sessions.
+     * Limit for non-empty local session IDs.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -129,7 +129,7 @@ public final class ServerSessionsApi {
     }
 
     /**
-     * Finds the local session bound to a GitHub task ID, if any.
+     * GitHub task ID to look up.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -140,7 +140,7 @@ public final class ServerSessionsApi {
     }
 
     /**
-     * Resolves a UUID prefix to a unique session ID, if exactly one session matches.
+     * UUID prefix to resolve to a unique session ID.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -151,7 +151,7 @@ public final class ServerSessionsApi {
     }
 
     /**
-     * Returns the most-relevant prior session for a given working-directory context.
+     * Optional working-directory context used to score session relevance.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -162,7 +162,7 @@ public final class ServerSessionsApi {
     }
 
     /**
-     * Computes the absolute path to a session's persisted events.jsonl file. Internal: filesystem paths are only meaningful in-process (CLI and runtime share a filesystem). Currently used by the CLI's contribution-graph feature to read historical events directly. Remote SDK consumers must not depend on this; a proper event-query API would replace it if the contribution graph ever needed to work over the wire.
+     * Session ID whose event-log file path to compute.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -173,7 +173,7 @@ public final class ServerSessionsApi {
     }
 
     /**
-     * Returns the on-disk byte size of each session's workspace directory.
+     * Map of sessionId -> on-disk size in bytes for each session's workspace directory.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -184,7 +184,7 @@ public final class ServerSessionsApi {
     }
 
     /**
-     * Returns the subset of the supplied session IDs that are currently held by another running process.
+     * Session IDs to test for live in-use locks.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -195,7 +195,7 @@ public final class ServerSessionsApi {
     }
 
     /**
-     * Returns a session's persisted remote-steerable flag, if any has been recorded. Internal: this is CLI-specific book-keeping used by `--continue` / `--resume` to inherit the prior session's remote-steerable preference. SDK consumers that want similar behavior should manage their own persistence around start/stop calls rather than relying on this runtime-side flag.
+     * Session ID to look up the persisted remote-steerable flag for.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -206,7 +206,7 @@ public final class ServerSessionsApi {
     }
 
     /**
-     * Closes a session: emits shutdown, flushes pending events, releases the in-use lock, and disposes the active session.
+     * Session ID to close.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -217,7 +217,7 @@ public final class ServerSessionsApi {
     }
 
     /**
-     * Closes, deactivates, and deletes a set of sessions, returning the bytes freed per session.
+     * Session IDs to close, deactivate, and delete from disk.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -228,7 +228,7 @@ public final class ServerSessionsApi {
     }
 
     /**
-     * Deletes one local session from disk after running the same lifecycle hooks as the session manager.
+     * Session ID to delete from disk.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -239,7 +239,7 @@ public final class ServerSessionsApi {
     }
 
     /**
-     * Deletes sessions older than the given threshold, with optional dry-run and exclusion list.
+     * Age threshold and optional flags controlling which old sessions are pruned (or simulated when dryRun is true).
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -250,7 +250,7 @@ public final class ServerSessionsApi {
     }
 
     /**
-     * Flushes a session's pending events to disk.
+     * Session ID whose pending events should be flushed to disk.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -261,7 +261,7 @@ public final class ServerSessionsApi {
     }
 
     /**
-     * Releases the in-use lock held by this process for a session.
+     * Session ID whose in-use lock should be released.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -272,7 +272,7 @@ public final class ServerSessionsApi {
     }
 
     /**
-     * Backfills missing summary and context fields on the supplied session metadata records.
+     * Session metadata records to enrich with summary and context information.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -283,40 +283,7 @@ public final class ServerSessionsApi {
     }
 
     /**
-     * Creates the workspace record for a session that has not been opened yet. A host that hands a session off to another application — writing the record and then launching that application against the session ID — needs the record on disk before any session exists to carry it, which the session-scoped workspace methods cannot do. Replaces any existing record and resets the checkpoint index. When writing to the local filesystem, a stored `fork_count` survives on disk. Returns the record it built, so a surviving stored `fork_count` can differ from the answer.
-     *
-     * @apiNote This method is experimental and may change in a future version.
-     * @since 1.0.0
-     */
-    @CopilotExperimental
-    CompletableFuture<SessionsCreateWorkspaceResult> createWorkspace(SessionsCreateWorkspaceParams params) {
-        return caller.invoke("sessions.createWorkspace", params, SessionsCreateWorkspaceResult.class);
-    }
-
-    /**
-     * Reads a session's workspace record straight from disk, without opening the session. Resuming by session ID has to know where the session lives before it can connect, so the lookup cannot come from the session-scoped workspace methods, which resolve their location from a live session's context. Returns no record when the file is absent.
-     *
-     * @apiNote This method is experimental and may change in a future version.
-     * @since 1.0.0
-     */
-    @CopilotExperimental
-    CompletableFuture<SessionsLoadWorkspaceResult> loadWorkspace(SessionsLoadWorkspaceParams params) {
-        return caller.invoke("sessions.loadWorkspace", params, SessionsLoadWorkspaceResult.class);
-    }
-
-    /**
-     * Merges fields into a session's workspace record on disk, creating the record when it is absent. The counterpart to `sessions.loadWorkspace`, for the same before-the-session-exists case. It preserves stored workspace-schema fields the request does not supply, does not preserve stored keys outside the workspace schema, and never replaces a stored `fork_count`.
-     *
-     * @apiNote This method is experimental and may change in a future version.
-     * @since 1.0.0
-     */
-    @CopilotExperimental
-    CompletableFuture<Void> updateWorkspaceFields(SessionsUpdateWorkspaceFieldsParams params) {
-        return caller.invoke("sessions.updateWorkspaceFields", params, Void.class);
-    }
-
-    /**
-     * Reloads user, plugin, and (optionally) repo hooks on the active session.
+     * Active session ID and an optional flag for deferring repo-level hooks until folder trust.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -327,7 +294,7 @@ public final class ServerSessionsApi {
     }
 
     /**
-     * Loads previously-deferred repo-level hooks on the active session, returning queued startup prompts.
+     * Active session ID whose deferred repo-level hooks should be loaded.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -338,7 +305,7 @@ public final class ServerSessionsApi {
     }
 
     /**
-     * Replaces the manager-wide additional plugins registered with the session manager.
+     * Manager-wide additional plugins to register; replaces any previously-configured set.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -349,7 +316,7 @@ public final class ServerSessionsApi {
     }
 
     /**
-     * Gets the dynamic-context board entry count associated with a session, when available. Internal: this exists solely so CLI telemetry events (`rem_spawn_gate`, `rem_consolidation_complete`) can pair START / END board counts around the detached rem-agent spawn. "Dynamic context board" is a runtime-internal concept that is not part of the public SDK contract; the long-term plan is to relocate the telemetry emission into the runtime so this method can be deleted entirely.
+     * Session ID whose board entry count should be returned.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -360,7 +327,7 @@ public final class ServerSessionsApi {
     }
 
     /**
-     * Attaches the runtime-managed remote-control singleton to a session, awaiting initial setup. If remote control is already attached to a different session, the singleton is transferred (preserving the underlying Mission Control connection). Returns the final status.
+     * Parameters for attaching the remote-control singleton to a session.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -371,7 +338,7 @@ public final class ServerSessionsApi {
     }
 
     /**
-     * Atomically rebinds the remote-control singleton to a different session, preserving the underlying Mission Control connection. When `expectedFromSessionId` is provided and does not match the singleton's current `attachedSessionId`, the transfer is rejected with `transferred: false` and the current status is returned unchanged.
+     * Parameters for atomically rebinding the remote-control singleton.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -382,7 +349,7 @@ public final class ServerSessionsApi {
     }
 
     /**
-     * Patches the steering state of the active remote-control singleton. When remote control is off, this is a no-op and the off status is returned. Today only `enabled: true` is actionable on the underlying exporter; passing `false` is reserved for future use.
+     * Patch for the singleton's steering state.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -393,7 +360,7 @@ public final class ServerSessionsApi {
     }
 
     /**
-     * Stops the remote-control singleton. When `expectedSessionId` is provided and does not match the singleton's current `attachedSessionId`, the stop is rejected with `stopped: false` and the current status is returned unchanged (unless `force` is set, in which case the singleton is unconditionally torn down).
+     * Parameters for stopping the remote-control singleton.
      * <p>
      * Invokes the method with no params, applying the runtime defaults.
      *
@@ -406,7 +373,7 @@ public final class ServerSessionsApi {
     }
 
     /**
-     * Stops the remote-control singleton. When `expectedSessionId` is provided and does not match the singleton's current `attachedSessionId`, the stop is rejected with `stopped: false` and the current status is returned unchanged (unless `force` is set, in which case the singleton is unconditionally torn down).
+     * Parameters for stopping the remote-control singleton.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -417,7 +384,7 @@ public final class ServerSessionsApi {
     }
 
     /**
-     * Returns the current state of the remote-control singleton, including the attached session id and frontend URL when active.
+     * Wrapper for the singleton's current status.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -428,7 +395,7 @@ public final class ServerSessionsApi {
     }
 
     /**
-     * Attaches (or detaches) an in-process ExtensionController delegate for the given session in a local host adapter. Pass `controller: undefined` to detach. Internal because the controller cannot cross the JSON-RPC boundary; the runtime manages its own session extension service.
+     * Params to attach or detach an in-process ExtensionController delegate.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0

@@ -42,7 +42,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
-	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
@@ -60,12 +59,6 @@ import (
 // defaultBearerTokenProviderName is the implicit provider name for the singular,
 // whole-session [ProviderConfig]. Named providers are keyed by their own Name.
 const defaultBearerTokenProviderName = "default"
-
-type cloudSkillProviderError struct{}
-
-func (cloudSkillProviderError) Error() string {
-	return "Skill providers are not supported for cloud sessions."
-}
 
 // collectBearerTokenProviders gathers the per-provider [BearerTokenProvider] callbacks
 // from the singular provider and any named providers, keyed by provider name. The
@@ -754,7 +747,6 @@ func (c *Client) ForceStop() {
 	c.sessions = make(map[string]*Session)
 	c.sessionsMux.Unlock()
 	for _, session := range sessions {
-		session.clearSkillProvider()
 		session.cancelPendingExternalTools()
 	}
 	c.clearGitHubTokenProviders()
@@ -884,9 +876,6 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	if config == nil {
 		config = &SessionConfig{}
 	}
-	if config.Cloud != nil && config.SkillProvider != nil {
-		return nil, cloudSkillProviderError{}
-	}
 	if config.GitHubToken != "" && config.GitHubTokenProvider != nil {
 		return nil, fmt.Errorf("GitHubToken and GitHubTokenProvider cannot be used together")
 	}
@@ -924,9 +913,6 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	req.EnableHostGitOperations = config.EnableHostGitOperations
 	req.EnableSessionStore = config.EnableSessionStore
 	req.EnableSkills = config.EnableSkills
-	if config.SkillProvider != nil {
-		req.HasSkillProvider = Bool(true)
-	}
 	req.Tools = config.Tools
 	systemMessage := c.systemMessageForMode(config.SystemMessage)
 	wireSystemMessage, transformCallbacks := extractTransformCallbacks(systemMessage)
@@ -1125,9 +1111,6 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 		}
 		if config.CanvasHandler != nil {
 			s.registerCanvasHandler(config.CanvasHandler)
-		}
-		if config.SkillProvider != nil {
-			s.registerSkillProvider(config.SkillProvider)
 		}
 		if bearerTokenProviders := collectBearerTokenProviders(config.Provider, config.Providers); bearerTokenProviders != nil {
 			s.registerBearerTokenProviders(bearerTokenProviders)
@@ -1428,9 +1411,6 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	req.EnableHostGitOperations = config.EnableHostGitOperations
 	req.EnableSessionStore = config.EnableSessionStore
 	req.EnableSkills = config.EnableSkills
-	if config.SkillProvider != nil {
-		req.HasSkillProvider = Bool(true)
-	}
 	if config.SuppressResumeEvent {
 		req.DisableResume = Bool(true)
 	}
@@ -1539,9 +1519,6 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	}
 	if config.CanvasHandler != nil {
 		session.registerCanvasHandler(config.CanvasHandler)
-	}
-	if config.SkillProvider != nil {
-		session.registerSkillProvider(config.SkillProvider)
 	}
 	if bearerTokenProviders := collectBearerTokenProviders(config.Provider, config.Providers); bearerTokenProviders != nil {
 		session.registerBearerTokenProviders(bearerTokenProviders)
@@ -1766,7 +1743,6 @@ func (c *Client) DeleteSession(ctx context.Context, sessionID string) error {
 	delete(c.sessions, sessionID)
 	c.sessionsMux.Unlock()
 	if session != nil {
-		session.clearSkillProvider()
 		session.releaseGitHubTokenProviderRegistration()
 	}
 
@@ -2614,8 +2590,6 @@ func (c *Client) setupNotificationHandler() {
 	c.client.SetRequestHandler("exitPlanMode.request", jsonrpc2.RequestHandlerFor(c.handleExitPlanModeRequest))
 	c.client.SetRequestHandler("autoModeSwitch.request", jsonrpc2.RequestHandlerFor(c.handleAutoModeSwitchRequest))
 	c.client.SetRequestHandler("systemMessage.transform", jsonrpc2.RequestHandlerFor(c.handleSystemMessageTransform))
-	c.client.SetRequestContextHandler("skillProvider.list", c.handleSkillProviderList)
-	c.client.SetRequestContextHandler("skillProvider.read", c.handleSkillProviderRead)
 	rpc.RegisterClientSessionAPIHandlers(c.client, func(sessionID string) *rpc.ClientSessionAPIHandlers {
 		c.sessionsMux.Lock()
 		defer c.sessionsMux.Unlock()
@@ -2710,7 +2684,6 @@ func (c *Client) handleConnectionClose() {
 	}
 	c.sessionsMux.Unlock()
 	for _, session := range sessions {
-		session.clearSkillProvider()
 		session.cancelPendingExternalTools()
 	}
 	// Avoid deadlocking with Stop/ForceStop, which hold startStopMux while
@@ -2826,102 +2799,6 @@ func (c *Client) handleSessionEvent(req sessionEventRequest) {
 	if ok {
 		session.dispatchEvent(req.Event)
 	}
-}
-
-func (c *Client) handleSkillProviderList(ctx context.Context, params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
-	var req rpc.SkillProviderListRequest
-	if err := json.Unmarshal(params, &req); err != nil || req.SessionID == "" {
-		return nil, &jsonrpc2.Error{Code: -32602, Message: "invalid skill provider list payload"}
-	}
-
-	provider, rpcErr := c.resolveSkillProvider(req.SessionID)
-	if rpcErr != nil {
-		return nil, rpcErr
-	}
-
-	skills, err := callSkillProvider(ctx, req.SessionID, "listSkills", func() ([]rpc.SkillProviderDescriptor, error) {
-		return provider.ListSkills(ctx)
-	})
-	if err != nil {
-		return nil, &jsonrpc2.Error{Code: -32603, Message: "Skill provider listSkills failed"}
-	}
-	if skills == nil {
-		skills = []rpc.SkillProviderDescriptor{}
-	}
-
-	raw, err := json.Marshal(rpc.SkillProviderListResult{Skills: skills})
-	if err != nil {
-		return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("Failed to marshal response: %v", err)}
-	}
-	return raw, nil
-}
-
-func (c *Client) handleSkillProviderRead(ctx context.Context, params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
-	var req rpc.SkillProviderReadRequest
-	if err := json.Unmarshal(params, &req); err != nil || req.SessionID == "" || req.Name == "" {
-		return nil, &jsonrpc2.Error{Code: -32602, Message: "invalid skill provider read payload"}
-	}
-
-	provider, rpcErr := c.resolveSkillProvider(req.SessionID)
-	if rpcErr != nil {
-		return nil, rpcErr
-	}
-
-	// Classify not-found inside the guarded call: errors.Is runs provider
-	// Is/Unwrap methods, which may panic.
-	markdown, err := callSkillProvider(ctx, req.SessionID, "readSkill", func() (*string, error) {
-		markdown, err := provider.ReadSkill(ctx, req.Name)
-		if errors.Is(err, ErrSkillNotFound) {
-			return nil, nil
-		}
-		if err != nil {
-			return nil, err
-		}
-		return &markdown, nil
-	})
-	if err != nil {
-		return nil, &jsonrpc2.Error{Code: -32603, Message: "Skill provider readSkill failed"}
-	}
-
-	raw, err := json.Marshal(rpc.SkillProviderReadResult{Markdown: markdown})
-	if err != nil {
-		return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("Failed to marshal response: %v", err)}
-	}
-	return raw, nil
-}
-
-func (c *Client) resolveSkillProvider(sessionID string) (SkillProvider, *jsonrpc2.Error) {
-	c.sessionsMux.Lock()
-	session := c.sessions[sessionID]
-	c.sessionsMux.Unlock()
-	if session == nil {
-		return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No skill provider for session: %s", sessionID)}
-	}
-	provider := session.getSkillProvider()
-	if provider == nil {
-		return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No skill provider for session: %s", sessionID)}
-	}
-	return provider, nil
-}
-
-var errSkillProviderPanic = errors.New("skill provider panicked")
-
-// callSkillProvider logs provider failures locally and converts panics into
-// an error, so the runtime only ever receives a generic failure.
-func callSkillProvider[T any](ctx context.Context, sessionID, operation string, call func() (T, error)) (result T, err error) {
-	defer func() {
-		if failure := recover(); failure != nil {
-			log.Printf("skill provider %s panicked: session_id=%s panic=%v\n%s", operation, sessionID, failure, debug.Stack())
-			var zero T
-			result, err = zero, errSkillProviderPanic
-		}
-	}()
-	result, err = call()
-	// A call the runtime cancelled is expected to fail; it isn't a provider failure.
-	if err != nil && ctx.Err() == nil {
-		log.Printf("skill provider %s failed: session_id=%s error=%v", operation, sessionID, err)
-	}
-	return result, err
 }
 
 // handleUserInputRequest handles a user input request from the CLI server.

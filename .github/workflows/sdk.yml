@@ -27,150 +27,8 @@ permissions:
   contents: read
 
 jobs:
-  detect-sdk-changes:
-    name: "Detect SDK-impacting changes"
-    runs-on: ubuntu-slim
-    outputs:
-      has_sdk_changes: ${{ steps.full-coverage.outputs.has_sdk_changes || steps.classify.outputs.has_sdk_changes || steps.recover.outputs.has_sdk_changes }}
-    steps:
-      - name: Require full coverage outside pull requests
-        id: full-coverage
-        if: github.event_name != 'pull_request'
-        run: echo "has_sdk_changes=true" >> "$GITHUB_OUTPUT"
-
-      - uses: actions/checkout@v7
-        id: checkout
-        if: github.event_name == 'pull_request'
-        continue-on-error: true
-        timeout-minutes: 4
-        with:
-          # Include the synthetic merge commit's base parent without fetching
-          # repository history.
-          fetch-depth: 2
-          persist-credentials: false
-
-      - name: Detect repository layout
-        id: repository-layout
-        if: steps.checkout.outcome == 'success'
-        continue-on-error: true
-        run: |
-          trusted_revision="$(git rev-parse "$GITHUB_SHA^1")"
-          echo "base-sha=$trusted_revision" >> "$GITHUB_OUTPUT"
-          if git cat-file -e "${trusted_revision}:src/sdk/package.json" 2>/dev/null &&
-             git cat-file -e "${trusted_revision}:script/sea-build.ts" 2>/dev/null; then
-            echo "layout=runtime" >> "$GITHUB_OUTPUT"
-          elif git cat-file -e "${trusted_revision}:package.json" 2>/dev/null &&
-               git cat-file -e "${trusted_revision}:nodejs/package.json" 2>/dev/null; then
-            echo "layout=standalone" >> "$GITHUB_OUTPUT"
-          else
-            echo "::warning::Unable to identify the SDK repository layout; requiring full coverage."
-            exit 1
-          fi
-
-      - name: Find SDK-impacting paths
-        id: filter
-        if: steps.repository-layout.outcome == 'success'
-        continue-on-error: true
-        uses: tj-actions/changed-files@9426d40962ed5378910ee2e21d5f8c6fcbf2dd96 # v47.0.6
-        with:
-          base_sha: ${{ steps.repository-layout.outputs.base-sha }}
-          sha: ${{ github.sha }}
-          skip_initial_fetch: true
-          fail_on_initial_diff_error: true
-          quotepath: false
-          files_yaml: |
-            runtime:
-              - .github/actions/**
-              - .github/workflows/sdk*.yml
-              - .github/workflows/sdk*.yaml
-              - .github/workflows/shared-cli-build.yml
-              - .github/workflows/publish.yml
-              - .editorconfig
-              - .gitattributes
-              - .nvmrc
-              - package.json
-              - package-lock.json
-              - pnpm-lock.yaml
-              - sdk-protocol-version.json
-              - assets/**
-              - BUILD.bazel
-              - src/**
-              - generated/**
-              - schema/**
-              - files/**
-              - third_party/**
-              - patches/**
-              - tools/bazel/**
-              - .cargo/**
-              - bazel/**
-              - script/**
-              - .bazelignore
-              - .bazelrc
-              - .bazelversion
-              - Cargo.lock
-              - Cargo.toml
-              - MODULE.bazel
-              - MODULE.bazel.lock
-              - pnpm-workspace.yaml
-              - rust-toolchain.toml
-              - esbuild.ts
-              - tsconfig*.json
-            standalone:
-              - .github/actions/**
-              - .github/workflows/sdk*.yml
-              - .github/workflows/sdk*.yaml
-              - .github/workflows/shared-cli-build.yml
-              - .github/workflows/publish.yml
-              - .editorconfig
-              - .gitattributes
-              - .nvmrc
-              - package.json
-              - package-lock.json
-              - pnpm-lock.yaml
-              - sdk-protocol-version.json
-              - assets/**
-              - BUILD.bazel
-              - nodejs/**
-              - python/**
-              - go/**
-              - dotnet/**
-              - java/**
-              - rust/**
-              - scripts/**
-              - samples/**
-              - test/**
-              - docs/**
-              - README.md
-              - vitest.config.ts
-
-      - name: Select layout-specific result
-        id: classify
-        if: steps.filter.outcome == 'success'
-        env:
-          LAYOUT: ${{ steps.repository-layout.outputs.layout }}
-          RUNTIME_CHANGED: ${{ steps.filter.outputs.runtime_any_modified }}
-          STANDALONE_CHANGED: ${{ steps.filter.outputs.standalone_any_modified }}
-        run: |
-          if [[ "$LAYOUT" == "runtime" ]]; then
-            has_sdk_changes="$RUNTIME_CHANGED"
-          elif [[ "$LAYOUT" == "standalone" ]]; then
-            has_sdk_changes="$STANDALONE_CHANGED"
-          else
-            exit 1
-          fi
-          echo "has_sdk_changes=$has_sdk_changes" >> "$GITHUB_OUTPUT"
-
-      - name: Require full coverage after detection errors
-        id: recover
-        if: github.event_name == 'pull_request' && (steps.checkout.outcome != 'success' || steps.repository-layout.outcome != 'success' || steps.filter.outcome != 'success' || steps.classify.outcome != 'success')
-        run: |
-          echo "::warning::SDK change detection failed; requiring full coverage."
-          echo "has_sdk_changes=true" >> "$GITHUB_OUTPUT"
-
   detect-layout:
     name: "Detect SDK layout"
-    needs: detect-sdk-changes
-    if: ${{ !cancelled() && (needs.detect-sdk-changes.result != 'success' || needs.detect-sdk-changes.outputs.has_sdk_changes == 'true') }}
     runs-on: ubuntu-latest
     outputs:
       runtime-source: ${{ steps.detect.outputs.runtime-source }}
@@ -459,22 +317,40 @@ jobs:
       sdk-home: ${{ needs.detect-layout.outputs.sdk-home }}
     secrets: inherit
 
-  # Only Linux CAPI gates this rollup; the full SDK aggregate still reports all coverage.
+  sdk-docs:
+    name: "Documentation"
+    needs: detect-layout
+    if: github.event_name != 'merge_group'
+    uses: ./.github/workflows/sdk-platform.yml
+    with:
+      platform: docs
+      sdk-home: ${{ needs.detect-layout.outputs.sdk-home }}
+    secrets: inherit
+
   sdk-typescript:
     name: sdk-typescript
     if: always()
-    needs: [sdk-linux-x64]
+    needs: [sdk-linux-x64, sdk-linuxmusl-x64, sdk-darwin-arm64, sdk-win32-x64]
     runs-on: ubuntu-slim
     steps:
-      - name: Check Linux CAPI Node.js SDK result
+      - name: Check Node.js SDK results
         env:
+          EVENT_NAME: ${{ github.event_name }}
           RESULTS: ${{ toJSON(needs) }}
         run: |
-          result=$(jq -r '.["sdk-linux-x64"].outputs["nodejs-capi-result"]' <<< "$RESULTS")
-          if [[ "$result" != "success" ]]; then
-            echo "::error::Linux CAPI Node.js SDK job: expected success, got $result"
-            exit 1
-          fi
+          for job in sdk-linux-x64 sdk-linuxmusl-x64 sdk-darwin-arm64 sdk-win32-x64; do
+            expected=success
+            result=$(jq -r --arg job "$job" '.[$job].outputs["nodejs-result"]' <<< "$RESULTS")
+            # TEMPORARY MERGE QUEUE REDUCTION: only Linux x64 runs in merge groups.
+            if [[ "$EVENT_NAME" == "merge_group" && "$job" != "sdk-linux-x64" ]]; then
+              expected=skipped
+              result=$(jq -r --arg job "$job" '.[$job].result' <<< "$RESULTS")
+            fi
+            if [[ "$result" != "$expected" ]]; then
+              echo "::error::Node.js SDK job $job: expected $expected, got $result"
+              exit 1
+            fi
+          done
 
   check-freshness:
     name: "Check schema and SDK freshness"
@@ -557,7 +433,6 @@ jobs:
     name: "SDK"
     if: always()
     needs:
-      - detect-sdk-changes
       - build-runtime-windows-x64-addons
       - build-runtime-linux-x64
       - build-runtime-linuxmusl-x64
@@ -568,32 +443,16 @@ jobs:
       - sdk-linuxmusl-x64
       - sdk-darwin-arm64
       - sdk-win32-x64
+      - sdk-docs
       - check-freshness
     runs-on: ubuntu-slim
     steps:
       - name: Check SDK results
         env:
-          DETECT_RESULT: ${{ needs.detect-sdk-changes.result }}
           EVENT_NAME: ${{ github.event_name }}
-          HAS_SDK_CHANGES: ${{ needs.detect-sdk-changes.outputs.has_sdk_changes }}
           RESULTS: ${{ toJSON(needs) }}
           RUNTIME_SOURCE: ${{ needs.detect-layout.outputs.runtime-source }}
         run: |
-          if [[ "$EVENT_NAME" == "pull_request" && "$DETECT_RESULT" == "success" && "$HAS_SDK_CHANGES" == "false" ]]; then
-            unexpected=$(jq -r '
-              to_entries[]
-              | select(.key != "detect-sdk-changes" and .value.result != "skipped")
-              | "\(.key): \(.value.result)"
-            ' <<< "$RESULTS")
-            if [[ -n "$unexpected" ]]; then
-              echo "::error::Non-SDK pull request did not skip all SDK jobs:"
-              echo "$unexpected"
-              exit 1
-            fi
-            echo "No SDK-impacting changes; SDK build and test matrix skipped"
-            exit 0
-          fi
-
           # TEMPORARY MERGE QUEUE REDUCTION: keep this branch aligned with the
           # gated jobs above until the full merge-group matrix is restored.
           if [[ "$EVENT_NAME" == "merge_group" ]]; then
@@ -611,6 +470,7 @@ jobs:
               sdk-linuxmusl-x64
               sdk-darwin-arm64
               sdk-win32-x64
+              sdk-docs
             )
             for job in "${required_jobs[@]}"; do
               if [[ "$(jq -r --arg job "$job" '.[$job].result' <<< "$RESULTS")" != "success" ]]; then
@@ -641,7 +501,6 @@ jobs:
           failures=$(jq -r --arg runtime_source "$RUNTIME_SOURCE" '
             to_entries[]
             | select(.value.result != "success")
-            | select(.key != "detect-sdk-changes")
             | select(
                 $runtime_source != "published"
                 or .key != "build-runtime-windows-x64-addons"

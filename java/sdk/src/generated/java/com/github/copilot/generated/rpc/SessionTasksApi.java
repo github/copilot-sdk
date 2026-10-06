@@ -31,7 +31,7 @@ public final class SessionTasksApi {
     }
 
     /**
-     * Starts a background agent task in the session.
+     * Agent type, prompt, name, and optional description and model override for the new task.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -47,7 +47,7 @@ public final class SessionTasksApi {
     }
 
     /**
-     * Lists background tasks tracked by the session.
+     * Identifies the target session.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -58,7 +58,7 @@ public final class SessionTasksApi {
     }
 
     /**
-     * Registers a client-owned task, or reclaims an orphaned task belonging to the same extension principal.
+     * Registers or reclaims a client-owned task.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -74,7 +74,7 @@ public final class SessionTasksApi {
     }
 
     /**
-     * Publishes generic progress or a terminal outcome for a client-owned task.
+     * Updates a client-owned task.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -90,7 +90,7 @@ public final class SessionTasksApi {
     }
 
     /**
-     * Refreshes metadata for any detached background shells the runtime knows about.
+     * Identifies the target session.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -101,7 +101,7 @@ public final class SessionTasksApi {
     }
 
     /**
-     * Waits for all in-flight background tasks and any follow-up turns to settle.
+     * Identifies the target session.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -112,7 +112,7 @@ public final class SessionTasksApi {
     }
 
     /**
-     * Returns progress information for a background task by ID.
+     * Identifier of the background task to fetch progress for.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -128,7 +128,7 @@ public final class SessionTasksApi {
     }
 
     /**
-     * Returns the first sync-waiting task that can currently be promoted to background mode.
+     * Identifies the target session.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -139,7 +139,7 @@ public final class SessionTasksApi {
     }
 
     /**
-     * Promotes an eligible synchronously-waited task so it continues running in the background.
+     * Identifier of the task to promote to background mode.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -155,7 +155,7 @@ public final class SessionTasksApi {
     }
 
     /**
-     * Atomically promotes the first promotable sync-waiting task to background mode and returns it.
+     * Identifies the target session.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -166,7 +166,7 @@ public final class SessionTasksApi {
     }
 
     /**
-     * Cancels a background task.
+     * Identifier of the background task to cancel.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -182,7 +182,7 @@ public final class SessionTasksApi {
     }
 
     /**
-     * Removes a completed or cancelled background task from tracking.
+     * Identifier of the completed or cancelled task to remove from tracking.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -198,7 +198,7 @@ public final class SessionTasksApi {
     }
 
     /**
-     * Sends a message to a background agent task.
+     * Identifier of the target agent task, message content, and optional sender agent ID.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.

@@ -114,23 +114,21 @@ function rewriteExternalRefsForPython(schema: JSONSchema7 & { definitions?: Reco
         if (!schema.definitions) schema.definitions = {};
         for (const placeholder of placeholderNames.keys()) {
             if (!schema.definitions[placeholder]) {
-                schema.definitions[placeholder] = pythonReferencePlaceholder(placeholder);
+                const markerProperty = `__externalRefMarker_${placeholder}`;
+                schema.definitions[placeholder] = {
+                    type: "object",
+                    additionalProperties: false,
+                    title: placeholder,
+                    properties: {
+                        [markerProperty]: { type: "string" },
+                    },
+                    required: [markerProperty],
+                };
             }
         }
     }
 
     return { placeholderNames, imports };
-}
-
-function pythonReferencePlaceholder(placeholder: string): JSONSchema7 {
-    const markerProperty = `__externalRefMarker_${placeholder}`;
-    return {
-        type: "object",
-        additionalProperties: false,
-        title: placeholder,
-        properties: { [markerProperty]: { type: "string" } },
-        required: [markerProperty],
-    };
 }
 
 function placeholderToQuicktypeIdentifier(placeholder: string): string {
@@ -310,27 +308,10 @@ export function pythonAppendLastFieldsPresentIn(
     definitions: Record<string, JSONSchema7Definition>,
     fields: ReadonlyArray<readonly [string, string]> = PY_RPC_APPEND_LAST_FIELDS
 ): ReadonlyArray<readonly [string, string]> {
-    const result = fields.filter(([className, propertyName]) => {
+    return fields.filter(([className, propertyName]) => {
         const definition = definitions[className];
         return typeof definition === "object" && Object.hasOwn(definition.properties ?? {}, propertyName);
     });
-    const seen = new Set(result.map(([className, propertyName]) => `${className}.${propertyName}`));
-
-    for (const [className, definition] of Object.entries(definitions)) {
-        if (typeof definition !== "object") continue;
-        for (const [propertyName, property] of Object.entries(definition.properties ?? {})) {
-            if (
-                typeof property !== "object" ||
-                property["x-copilot-sdk-append-last"] !== true ||
-                seen.has(`${className}.${propertyName}`)
-            ) {
-                continue;
-            }
-            result.push([className, propertyName]);
-        }
-    }
-
-    return result;
 }
 
 function preservePythonRpcStringDateFields(definitions: Record<string, JSONSchema7>): void {
@@ -2279,17 +2260,10 @@ function resolvePyNamedUnion(
     };
 }
 
-/**
- * Enums whose contract defines `unknown` as "outside the supported vocabulary". The runtime
- * contract decodes later values as `unknown` (`#[serde(other)]`); Python does the same instead
- * of failing the whole event.
- */
-const COLLAPSE_UNKNOWN_PYTHON_ENUMS = new Set(["PermissionApprovalEvaluationReasonCode"]);
-
 function getOrCreatePyEnum(
     enumName: string,
     values: string[],
-    ctx: Pick<PyCodegenCtx, "enumsByName" | "enums">,
+    ctx: PyCodegenCtx,
     description?: string,
     enumValueDescriptions?: EnumValueDescriptions,
     deprecated?: boolean,
@@ -2332,12 +2306,6 @@ function getOrCreatePyEnum(
         lines.push(`        member._name_ = "UNKNOWN"`);
         lines.push(`        member._value_ = value`);
         lines.push(`        return cls._value2member_map_.setdefault(value, member)`);
-    } else if (COLLAPSE_UNKNOWN_PYTHON_ENUMS.has(enumName)) {
-        if (!values.includes("unknown")) throw new Error(`${enumName} has no "unknown" value to collapse into`);
-        lines.push(``);
-        lines.push(`    @classmethod`);
-        lines.push(`    def _missing_(cls, value: object) -> "${enumName} | None":`);
-        lines.push(`        return cls.UNKNOWN if isinstance(value, str) else None`);
     }
     ctx.enumsByName.set(enumName, enumName);
     ctx.enums.push(lines.join("\n"));
@@ -3436,30 +3404,6 @@ async function generateRpc(schemaPath?: string, sessionEventsSchema?: JSONSchema
     };
     const externalRefs = rewriteExternalRefsForPython(singleSchema as JSONSchema7 & { definitions?: Record<string, JSONSchema7> });
     const externalEnumNames = collectPythonExternalEnumNames(sessionEventsSchema, externalRefs.placeholderNames);
-    // Discovery and session availability are independently versioned despite identical values.
-    // Hide the discovery enum from quicktype's enum merging, then restore it with our enum emitter.
-    const distinctEnums: Pick<PyCodegenCtx, "enumsByName" | "enums"> = {
-        enumsByName: new Map(),
-        enums: [],
-    };
-    for (const name of ["ConnectorDiscoveryAvailability"]) {
-        const definition = allDefinitions[name];
-        if (!definition) continue;
-        if (!definition.enum?.every((value): value is string => typeof value === "string")) {
-            throw new Error(`Expected a string enum for ${name}`);
-        }
-        getOrCreatePyEnum(
-            name,
-            definition.enum,
-            distinctEnums,
-            definition.description,
-            getEnumValueDescriptions(definition)
-        );
-        const placeholder = `__ExternalRef_${name}`;
-        (singleSchema.definitions as Record<string, JSONSchema7>)[name] = pythonReferencePlaceholder(placeholder);
-        externalRefs.placeholderNames.set(placeholder, name);
-        externalEnumNames.add(name);
-    }
     const externalDiscriminatedUnionNames = collectPythonExternalDiscriminatedUnionNames(
         sessionEventsSchema,
         externalRefs.placeholderNames
@@ -3525,7 +3469,6 @@ async function generateRpc(schemaPath?: string, sessionEventsSchema?: JSONSchema
         externalEnumNames,
         externalDiscriminatedUnionNames
     );
-    typesCode += `\n\n${distinctEnums.enums.join("\n\n")}\n`;
     typesCode = removeShadowedSessionEventEnumsForPython(
         typesCode,
         externalRefs.imports.get(".session_events") ?? new Set<string>(),

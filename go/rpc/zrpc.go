@@ -468,37 +468,6 @@ type AgentReloadResult struct {
 	Agents []AgentInfo `json:"agents"`
 }
 
-// The models a custom agent asks for, and the models actually available.
-// Experimental: AgentsCustomAgentInitialModelDecisionParams is part of an experimental API
-// and may change or be removed.
-// Internal: AgentsCustomAgentInitialModelDecisionParams is an internal SDK API and is not
-// part of the public surface.
-type AgentsCustomAgentInitialModelDecisionParams struct {
-	// The agent's declared `model:` entry, serialized. A single name or an ordered list of
-	// acceptable names.
-	AgentModelsJSON string `json:"agentModelsJson"`
-	// The models available to this session, serialized in the shape the model list carries.
-	AvailableModelsJSON string `json:"availableModelsJson"`
-}
-
-// The model to switch to, and the warning to show when the agent's preference could not be
-// met.
-// Experimental: AgentsCustomAgentInitialModelDecisionResult is part of an experimental API
-// and may change or be removed.
-// Internal: AgentsCustomAgentInitialModelDecisionResult is an internal SDK API and is not
-// part of the public surface.
-type AgentsCustomAgentInitialModelDecisionResult struct {
-	// The reasoning effort attached to the selected model preference. Absent when that
-	// preference does not specify an effort.
-	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
-	// The first available model that matches the agent's preferences. Absent when none of the
-	// requested models is available.
-	TargetModel *string `json:"targetModel,omitempty"`
-	// What to tell the user about an unmet preference. Absent when the preference was met. A
-	// warning with no `targetModel` means the agent's models are all unavailable.
-	Warning *string `json:"warning,omitempty"`
-}
-
 // Optional project paths to include in agent discovery.
 // Experimental: AgentsDiscoverRequest is part of an experimental API and may change or be
 // removed.
@@ -535,101 +504,6 @@ type AgentSetPromptRequest struct {
 	ID string `json:"id"`
 	// Replacement authored prompt. Empty text is valid.
 	Prompt string `json:"prompt"`
-}
-
-// The feature flags to evaluate shipped agents against.
-// Experimental: AgentsGetAvailableBuiltinsRequest is part of an experimental API and may
-// change or be removed.
-// Internal: AgentsGetAvailableBuiltinsRequest is an internal SDK API and is not part of the
-// public surface.
-type AgentsGetAvailableBuiltinsRequest struct {
-	// The surface asking, which gates agents that only apply to one client. Omit or pass null
-	// to apply no client filter.
-	Context *string `json:"context,omitempty"`
-	// Feature flag values keyed by name, evaluated with the runtime's truthiness rules. Omit or
-	// pass null for no flags.
-	FeatureFlags map[string]any `json:"featureFlags,omitzero"`
-	// Flag overrides keyed by name. A null entry uses the corresponding base flag; false
-	// explicitly disables it. Omit or pass null for no overrides.
-	Overrides map[string]any `json:"overrides,omitzero"`
-}
-
-// The shipped agents available under the requested flags.
-// Experimental: AgentsGetAvailableBuiltinsResult is part of an experimental API and may
-// change or be removed.
-// Internal: AgentsGetAvailableBuiltinsResult is an internal SDK API and is not part of the
-// public surface.
-type AgentsGetAvailableBuiltinsResult struct {
-	// Available shipped agents, in the runtime's own order.
-	// Internal: Agents is part of the SDK's internal API surface and is not intended for
-	// external use.
-	Agents []BuiltinAgentSummary `json:"agents"`
-}
-
-// The shipped agent whose definition to load.
-// Experimental: AgentsGetBuiltinDefinitionRequest is part of an experimental API and may
-// change or be removed.
-// Internal: AgentsGetBuiltinDefinitionRequest is an internal SDK API and is not part of the
-// public surface.
-type AgentsGetBuiltinDefinitionRequest struct {
-	// The agent name, which must be one of `getBuiltins`'s `yamlBasedNames`. A name outside
-	// that list is special-cased in code and has no definition, and is reported as an error
-	// rather than as an empty definition.
-	Name string `json:"name"`
-}
-
-// One shipped agent's definition.
-// Experimental: AgentsGetBuiltinDefinitionResult is part of an experimental API and may
-// change or be removed.
-// Internal: AgentsGetBuiltinDefinitionResult is an internal SDK API and is not part of the
-// public surface.
-type AgentsGetBuiltinDefinitionResult struct {
-	// The agent's definition, serialized as JSON. It carries the authored keys plus the
-	// runtime's projected `__nativeCustomAgent` view of the same agent. It is a string rather
-	// than an object because the runtime parses it with the agent schema's tolerant shape,
-	// which accepts keys this contract does not name.
-	DefinitionJSON string `json:"definitionJson"`
-}
-
-// The shipped agent whose listing entry to load.
-// Experimental: AgentsGetBuiltinListingDefinitionRequest is part of an experimental API and
-// may change or be removed.
-// Internal: AgentsGetBuiltinListingDefinitionRequest is an internal SDK API and is not part
-// of the public surface.
-type AgentsGetBuiltinListingDefinitionRequest struct {
-	// The agent name, taken from `getAvailableBuiltins`. Unlike `getBuiltinDefinition`, the
-	// agent that `getBuiltins` reports as special-cased rather than YAML-based is answered here
-	// too, from its in-code definition.
-	Name string `json:"name"`
-}
-
-// One shipped agent, projected for a listing.
-// Experimental: AgentsGetBuiltinListingDefinitionResult is part of an experimental API and
-// may change or be removed.
-// Internal: AgentsGetBuiltinListingDefinitionResult is an internal SDK API and is not part
-// of the public surface.
-type AgentsGetBuiltinListingDefinitionResult struct {
-	// The agent projected as a custom agent, serialized as JSON. It is a string rather than an
-	// object for the same reason as `getBuiltinDefinition`: the runtime parses the underlying
-	// definition with the agent schema's tolerant shape, which accepts keys this contract does
-	// not name.
-	DefinitionJSON string `json:"definitionJson"`
-}
-
-// The agents this runtime ships, named so a consumer can tell them apart from authored ones.
-// Experimental: AgentsGetBuiltinsResult is part of an experimental API and may change or be
-// removed.
-// Internal: AgentsGetBuiltinsResult is an internal SDK API and is not part of the public
-// surface.
-type AgentsGetBuiltinsResult struct {
-	// The subset of `names` a user is allowed to turn off. A shipped agent outside this list is
-	// always active and a client should not offer a toggle for it.
-	DisableableNames []string `json:"disableableNames"`
-	// Every agent name this runtime ships.
-	Names []string `json:"names"`
-	// The subset of `names` defined by a shipped YAML definition. The remainder are
-	// special-cased in code and have no definition to load.
-	YamlBasedNames []string `json:"yamlBasedNames"`
 }
 
 // Optional project paths to include when enumerating agent discovery directories.
@@ -1160,21 +1034,6 @@ func (r RawAuthInfoData) Type() AuthInfoType {
 	return r.Discriminator
 }
 
-// An interactive account whose model provider owns its credentials. It carries no GitHub
-// credential.
-// Experimental: AccountAuthInfo is part of an experimental API and may change or be removed.
-type AccountAuthInfo struct {
-	// Host coordinate owned by the account's model provider.
-	Host string `json:"host"`
-	// Login identifying the provider-owned account.
-	Login string `json:"login"`
-}
-
-func (AccountAuthInfo) authInfo() {}
-func (AccountAuthInfo) Type() AuthInfoType {
-	return AuthInfoTypeAccount
-}
-
 // Authentication-info input variant for API-key authentication to a non-GitHub LLM
 // provider, carrying the secret `apiKey` and host.
 // Experimental: APIKeyAuthInfo is part of an experimental API and may change or be removed.
@@ -1334,20 +1193,6 @@ func (UserAuthInfo) Type() AuthInfoType {
 	return AuthInfoTypeUser
 }
 
-// A credential-free account choice after sign-in.
-// Experimental: AuthLoginAccount is part of an experimental API and may change or be
-// removed.
-type AuthLoginAccount struct {
-	// Host coordinate owned by the selected account's provider.
-	Host string `json:"host"`
-	// Provider kind that owns this account choice.
-	Kind AccountKind `json:"kind"`
-	// Human-readable login for the account choice.
-	Login string `json:"login"`
-	// Opaque identifier supplied to the next login step to select this account.
-	SelectionID string `json:"selectionId"`
-}
-
 // Advance an in-flight login flow, optionally fulfilling an input-required step.
 // Experimental: AuthLoginAdvanceRequest is part of an experimental API and may change or be
 // removed.
@@ -1384,18 +1229,15 @@ type AuthLoginCancelRequest struct {
 	FlowID string `json:"flowId"`
 }
 
-// Result of an interactive login flow. Pending consent or account selection is not terminal.
+// Terminal result of an interactive login flow.
 // Experimental: AuthLoginResultDto is part of an experimental API and may change or be
 // removed.
 type AuthLoginResultDto struct {
-	// Available accounts when sign-in is awaiting account selection, ordered with Microsoft 365
-	// first.
-	Accounts []AuthLoginAccount `json:"accounts,omitzero"`
 	// Host that was signed in, when completed.
 	Host *string `json:"host,omitempty"`
 	// Login that was signed in, when completed.
 	Login *string `json:"login,omitempty"`
-	// Current disposition of the login, including pending user decisions.
+	// Terminal disposition of the login.
 	Status AuthLoginResultStatus `json:"status"`
 }
 
@@ -1429,8 +1271,7 @@ func (AuthLoginStepAwaiting) Kind() AuthLoginStepKind {
 }
 
 type AuthLoginStepCompleted struct {
-	// Login result. When status is needs-plaintext-consent or needs-account-selection, advance
-	// with the user's decision to continue.
+	// The terminal login result.
 	Result AuthLoginResultDto `json:"result"`
 }
 
@@ -1697,18 +1538,6 @@ type AutopilotObjectiveState struct {
 	Status AutopilotObjectiveStatus `json:"status"`
 	// Number of objective turns started.
 	TurnCount int64 `json:"turnCount"`
-}
-
-// A shipped agent, named and described.
-// Experimental: BuiltinAgentSummary is part of an experimental API and may change or be
-// removed.
-// Internal: BuiltinAgentSummary is an internal SDK API and is not part of the public
-// surface.
-type BuiltinAgentSummary struct {
-	// One-line description of what the agent does.
-	Description string `json:"description"`
-	// The agent name, as it appears in `getBuiltins`.
-	Name string `json:"name"`
 }
 
 // The running runtime's complete catalog of well-known built-in model IDs, including
@@ -3408,94 +3237,6 @@ type ConnectorDisconnectResult struct {
 	Status ConnectorStatus `json:"status"`
 }
 
-// Eligible account.
-// Experimental: ConnectorDiscoveryAccount is part of an experimental API and may change or
-// be removed.
-type ConnectorDiscoveryAccount struct {
-	// Opaque account ID.
-	AccountID string `json:"accountId"`
-	// Account metadata.
-	AuthInfo ConnectorDiscoveryAuthInfo `json:"authInfo"`
-}
-
-// Eligible accounts.
-// Experimental: ConnectorDiscoveryAccountList is part of an experimental API and may change
-// or be removed.
-type ConnectorDiscoveryAccountList struct {
-	// Eligible accounts.
-	Accounts []ConnectorDiscoveryAccount `json:"accounts"`
-	// Availability.
-	Availability ConnectorDiscoveryAvailability `json:"availability"`
-}
-
-// Selected account.
-// Experimental: ConnectorDiscoveryAccountRequest is part of an experimental API and may
-// change or be removed.
-type ConnectorDiscoveryAccountRequest struct {
-	// Opaque account ID.
-	AccountID string `json:"accountId"`
-}
-
-// Account metadata.
-// Experimental: ConnectorDiscoveryAuthInfo is part of an experimental API and may change or
-// be removed.
-type ConnectorDiscoveryAuthInfo struct {
-	// Host.
-	Host string `json:"host"`
-	// Login.
-	Login string `json:"login"`
-	// Authentication type.
-	Type AuthInfoType `json:"type"`
-}
-
-// Feature availability.
-// Experimental: ConnectorDiscoveryCapabilities is part of an experimental API and may
-// change or be removed.
-type ConnectorDiscoveryCapabilities struct {
-	// API version.
-	APIVersion int64 `json:"apiVersion"`
-	// Availability.
-	Availability ConnectorDiscoveryAvailability `json:"availability"`
-	// Whether results are cached.
-	ConditionalCache bool `json:"conditionalCache"`
-	// Whether accounts are selected by opaque ID.
-	OpaqueAccountSelection bool `json:"opaqueAccountSelection"`
-}
-
-// Entry.
-// Experimental: ConnectorDiscoveryCatalogEntry is part of an experimental API and may
-// change or be removed.
-type ConnectorDiscoveryCatalogEntry struct {
-	// Description.
-	Description *string `json:"description,omitempty"`
-	// Display name.
-	DisplayName string `json:"displayName"`
-	// Logo.
-	Logo *string `json:"logo,omitempty"`
-	// Name.
-	Name string `json:"name"`
-	// Release tag.
-	ReleaseTag *string `json:"releaseTag,omitempty"`
-	// Status.
-	Status ConnectorCatalogStatus `json:"status"`
-	// Tier.
-	Tier *string `json:"tier,omitempty"`
-}
-
-// Entries for the selected account.
-// Experimental: ConnectorDiscoveryCatalogResult is part of an experimental API and may
-// change or be removed.
-type ConnectorDiscoveryCatalogResult struct {
-	// Opaque account ID.
-	AccountID string `json:"accountId"`
-	// Entries.
-	Connectors []ConnectorDiscoveryCatalogEntry `json:"connectors"`
-	// Refresh time in Unix epoch milliseconds.
-	RefreshedAtMs int64 `json:"refreshedAtMs"`
-	// Revision.
-	Revision int64 `json:"revision"`
-}
-
 // Requests authoritative Connector-to-MCP reconciliation for the pinned account.
 // Experimental: ConnectorReconcileRequest is part of an experimental API and may change or
 // be removed.
@@ -4969,26 +4710,6 @@ type FolderTrustCheckResult struct {
 	Trusted bool `json:"trusted"`
 }
 
-// The remote the checked-out branch tracks.
-// Experimental: GitCurrentBranchRemoteResult is part of an experimental API and may change
-// or be removed.
-// Internal: GitCurrentBranchRemoteResult is an internal SDK API and is not part of the
-// public surface.
-type GitCurrentBranchRemoteResult struct {
-	// Name of the tracked remote. Reports `origin` whenever the working tree has no tracking
-	// configuration to read, including on a detached HEAD, so this is never null and never
-	// empty.
-	Remote string `json:"remote"`
-}
-
-// Working-tree path a git query applies to.
-// Experimental: GitCwdRequest is part of an experimental API and may change or be removed.
-// Internal: GitCwdRequest is an internal SDK API and is not part of the public surface.
-type GitCwdRequest struct {
-	// Absolute path to a directory inside the git working tree to query.
-	Cwd string `json:"cwd"`
-}
-
 // Safe discovery information. Host-side relay bootstrap credentials are never included.
 // Experimental: GitHubEnvironment is part of an experimental API and may change or be
 // removed.
@@ -5015,91 +4736,6 @@ type GitHubEnvironment struct {
 	Status string `json:"status"`
 }
 
-// A GitHub login the authenticated user may act as: their own account, or an organization
-// they belong to.
-// Experimental: GitHubOwnerOption is part of an experimental API and may change or be
-// removed.
-// Internal: GitHubOwnerOption is an internal SDK API and is not part of the public surface.
-type GitHubOwnerOption struct {
-	// The owner's GitHub login.
-	Login string `json:"login"`
-	// Which kind of owner this is. The authenticated user's own account is always reported as
-	// `user`.
-	Type string `json:"type"`
-}
-
-// The owner listing to abandon.
-// Experimental: GitHubOwnersCancelRequest is part of an experimental API and may change or
-// be removed.
-// Internal: GitHubOwnersCancelRequest is an internal SDK API and is not part of the public
-// surface.
-type GitHubOwnersCancelRequest struct {
-	// Request id the listing was started with.
-	RequestID int64 `json:"requestId"`
-}
-
-// Whether the id named a running owner listing.
-// Experimental: GitHubOwnersCancelResult is part of an experimental API and may change or
-// be removed.
-// Internal: GitHubOwnersCancelResult is an internal SDK API and is not part of the public
-// surface.
-type GitHubOwnersCancelResult struct {
-	// True when a listing with the id was running and the cancel stopped it. False when the id
-	// was never registered, was registered but unused, was released after being abandoned, or
-	// its listing had ended. An unused id is released and cannot start a later listing.
-	Canceled bool `json:"canceled"`
-}
-
-// Credential to list owners under, and the request id that makes the listing cancellable.
-// Experimental: GitHubOwnersListRequest is part of an experimental API and may change or be
-// removed.
-// Internal: GitHubOwnersListRequest is an internal SDK API and is not part of the public
-// surface.
-type GitHubOwnersListRequest struct {
-	// The credential the listing runs under, carried opaquely because its shape is the host's
-	// own and the runtime only resolves a token and a GitHub host from it. No credential
-	// travels: this selects one the runtime already holds.
-	AuthInfo any `json:"authInfo"`
-	// Request id from `gitHubOwners.nextRequestId`. An id that was never registered, canceled
-	// before use, released after being abandoned, or already used is refused rather than
-	// silently running uncancellable.
-	RequestID int64 `json:"requestId"`
-}
-
-// Outcome of an owner listing. Exactly one of `owners` and `message` is present, except
-// that `throwError` reports a failure the caller is expected to raise rather than render.
-// Experimental: GitHubOwnersListResult is part of an experimental API and may change or be
-// removed.
-// Internal: GitHubOwnersListResult is an internal SDK API and is not part of the public
-// surface.
-type GitHubOwnersListResult struct {
-	// Why no owners could be listed, phrased for a user. Present when the listing failed in a
-	// way the caller should render rather than raise.
-	Message *string `json:"message,omitempty"`
-	// The owners, on success: the authenticated user first, then the organizations they belong
-	// to.
-	// Internal: Owners is part of the SDK's internal API surface and is not intended for
-	// external use.
-	Owners []GitHubOwnerOption `json:"owners,omitzero"`
-	// A malformed request or an unreadable credential, which the caller raises instead of
-	// rendering. Kept a field rather than a dispatch error so it stays distinct from `message`,
-	// which the caller renders.
-	ThrowError *string `json:"throwError,omitempty"`
-	// A line the caller should log. Present only alongside `message`, and only for failures
-	// worth recording.
-	Warning *string `json:"warning,omitempty"`
-}
-
-// A freshly registered request id. Registering it before the listing starts is what lets a
-// cancel that races the request still find the owner listing slot. The id serves one
-// listing only. Long-abandoned unused ids can be released by later allocations.
-// Experimental: GitHubOwnersRequestIDResult is part of an experimental API and may change
-// or be removed.
-type GitHubOwnersRequestIDResult struct {
-	// Request id to pass to `gitHubOwners.list` and, to abandon it, `gitHubOwners.cancel`.
-	RequestID int64 `json:"requestId"`
-}
-
 // Pointer to a GitHub repository.
 // Experimental: GitHubRepoRef is part of an experimental API and may change or be removed.
 type GitHubRepoRef struct {
@@ -5108,39 +4744,6 @@ type GitHubRepoRef struct {
 	// Repository name (without owner)
 	Name string `json:"name"`
 	// Repository owner login (user or organization)
-	Owner string `json:"owner"`
-}
-
-// Working-tree path whose owning GitHub repository should be resolved.
-// Experimental: GitHubRepositoryAtPathRequest is part of an experimental API and may change
-// or be removed.
-// Internal: GitHubRepositoryAtPathRequest is an internal SDK API and is not part of the
-// public surface.
-type GitHubRepositoryAtPathRequest struct {
-	// Absolute path to a directory inside the git working tree to resolve.
-	Path string `json:"path"`
-}
-
-// The GitHub repository that owns the requested path, when the selected remote (`origin`,
-// else the first) is on a GitHub host.
-// Experimental: GitHubRepositoryAtPathResult is part of an experimental API and may change
-// or be removed.
-// Internal: GitHubRepositoryAtPathResult is an internal SDK API and is not part of the
-// public surface.
-type GitHubRepositoryAtPathResult struct {
-	// Resolved repository identity, or null when the selected remote resolves to no GitHub host.
-	Repository *GitHubRepositoryIdentity `json:"repository,omitempty"`
-}
-
-// Owner, name, and host of a GitHub repository, as resolved from a git remote URL.
-// Experimental: GitHubRepositoryIdentity is part of an experimental API and may change or
-// be removed.
-type GitHubRepositoryIdentity struct {
-	// Host the remote points at, for example `github.com` or a GitHub Enterprise hostname.
-	Host string `json:"host"`
-	// Repository name, without the owner prefix or the `.git` suffix.
-	Name string `json:"name"`
-	// Repository owner login (user or organization).
 	Owner string `json:"owner"`
 }
 
@@ -5278,48 +4881,6 @@ type GitHubTokenAcquireResultToken struct {
 func (GitHubTokenAcquireResultToken) githubTokenAcquireResult() {}
 func (GitHubTokenAcquireResultToken) Kind() GitHubTokenAcquireResultKind {
 	return GitHubTokenAcquireResultKindToken
-}
-
-// A GitHub repository one of a working tree's remotes points at.
-// Experimental: GitRemoteRepository is part of an experimental API and may change or be
-// removed.
-// Internal: GitRemoteRepository is an internal SDK API and is not part of the public
-// surface.
-type GitRemoteRepository struct {
-	// GitHub host serving the repository, which is not `github.com` for a GitHub Enterprise
-	// remote.
-	Host string `json:"host"`
-	// Repository name, without the owner.
-	Name string `json:"name"`
-	// Account or organization owning the repository.
-	Owner string `json:"owner"`
-	// Name of the first remote that produced this distinct repository entry, such as `origin`
-	// or `upstream`.
-	RemoteName string `json:"remoteName"`
-}
-
-// Git working tree whose GitHub remotes should be listed.
-// Experimental: GitReposFromRemotesRequest is part of an experimental API and may change or
-// be removed.
-// Internal: GitReposFromRemotesRequest is an internal SDK API and is not part of the public
-// surface.
-type GitReposFromRemotesRequest struct {
-	// Absolute path to the root of the git working tree.
-	GitRoot string `json:"gitRoot"`
-}
-
-// The GitHub repositories a working tree's remotes point at.
-// Experimental: GitReposFromRemotesResult is part of an experimental API and may change or
-// be removed.
-// Internal: GitReposFromRemotesResult is an internal SDK API and is not part of the public
-// surface.
-type GitReposFromRemotesResult struct {
-	// One entry per distinct GitHub repository, in the order git reports the first remote for
-	// each repository. Empty when no remote points at a GitHub host, which a caller should read
-	// as `not connected to GitHub`. Failing to read the remotes is an error, not an empty list.
-	// Internal: Repositories is part of the SDK's internal API surface and is not intended for
-	// external use.
-	Repositories []GitRemoteRepository `json:"repositories"`
 }
 
 // Pending external tool call request ID, with the tool result or an error describing why it
@@ -7224,48 +6785,6 @@ type MCPConfigUpdateRequest struct {
 // Experimental: MCPConfigUpdateResult is part of an experimental API and may change or be
 // removed.
 type MCPConfigUpdateResult struct {
-}
-
-// Effective MCP configuration entry. Configuration enablement is distinct from the optional
-// live observation.
-// Experimental: MCPConfiguredServer is part of an experimental API and may change or be
-// removed.
-type MCPConfiguredServer struct {
-	// Human-readable display name supplied by configuration.
-	DisplayName *string `json:"displayName,omitempty"`
-	// Whether this configured server is enabled after session configuration and policy
-	// filtering.
-	Enabled bool `json:"enabled"`
-	// Observed state from an already materialized matching server. Omitted when no live graph
-	// has this configured server; it never determines configuration enablement.
-	Live *MCPConfiguredServerState `json:"live,omitempty"`
-	// Server name (config key)
-	Name string `json:"name"`
-	// Configuration provenance: user, workspace, plugin, builtin, or managed.
-	Source *MCPServerSource `json:"source,omitempty"`
-	// Plugin name that provided this server, when source is plugin.
-	SourcePlugin *string `json:"sourcePlugin,omitempty"`
-	// Plugin version that provided this server, when source is plugin.
-	SourcePluginVersion *string `json:"sourcePluginVersion,omitempty"`
-}
-
-// Effective MCP configuration with optional live observations from matching already
-// materialized servers.
-// Experimental: MCPConfiguredServerList is part of an experimental API and may change or be
-// removed.
-type MCPConfiguredServerList struct {
-	// Effective configured MCP servers.
-	Servers []MCPConfiguredServer `json:"servers"`
-}
-
-// Observational state for a matching already materialized MCP server.
-// Experimental: MCPConfiguredServerState is part of an experimental API and may change or
-// be removed.
-type MCPConfiguredServerState struct {
-	// Observed connection error, when the materialized server failed.
-	Error *string `json:"error,omitempty"`
-	// Observed connection status. This is not a configuration or readiness guarantee.
-	Status MCPServerStatus `json:"status"`
 }
 
 // Credential-free authentication identity used to configure GitHub MCP.
@@ -14956,16 +14475,6 @@ type SessionCompletionItem struct {
 	RangeStart *int64 `json:"rangeStart,omitempty"`
 }
 
-// The IDE a host is connected to, as reported to the session.
-// Experimental: SessionConnectedIdeInfo is part of an experimental API and may change or be
-// removed.
-type SessionConnectedIdeInfo struct {
-	// Display name of the connected IDE, for example `VS Code`.
-	IdeName string `json:"ideName"`
-	// Absolute path of the workspace folder the IDE has open.
-	WorkspaceFolder string `json:"workspaceFolder"`
-}
-
 // Pre-resolved working-directory context for session startup.
 // Experimental: SessionContext is part of an experimental API and may change or be removed.
 type SessionContext struct {
@@ -15956,20 +15465,6 @@ type SessionMCPReloadResult struct {
 type SessionMCPRestartServerResult struct {
 }
 
-// Records which IDE the host is connected to, or clears it.
-// Experimental: SessionMCPSetConnectedIdeInfoParams is part of an experimental API and may
-// change or be removed.
-type SessionMCPSetConnectedIdeInfoParams struct {
-	// The connected IDE. Null or omitted clears the recorded IDE, which is how a host reports
-	// that it is disconnected.
-	Ide *SessionConnectedIdeInfo `json:"ide,omitempty"`
-}
-
-// Experimental: SessionMCPSetConnectedIdeInfoResult is part of an experimental API and may
-// change or be removed.
-type SessionMCPSetConnectedIdeInfoResult struct {
-}
-
 // Experimental: SessionMCPStartServerResult is part of an experimental API and may change
 // or be removed.
 type SessionMCPStartServerResult struct {
@@ -16798,35 +16293,6 @@ type SessionsCloseResult struct {
 type SessionsConfigureSessionExtensionsResult struct {
 }
 
-// Identity, state location and starting context for a workspace record.
-// Experimental: SessionsCreateWorkspaceRequest is part of an experimental API and may
-// change or be removed.
-type SessionsCreateWorkspaceRequest struct {
-	// Starting working-directory context. The record keeps `cwd`, `gitRoot`, `repository`,
-	// `hostType`, `branch`, and `clientName`. Other fields, including `repositoryHost`,
-	// `headCommit`, and `baseCommit`, are ignored. `hostType` must be `github` or `ado`.
-	Context *SessionWorkingDirectoryContextWithClient `json:"context,omitempty"`
-	// `windows` (any letter case) selects Windows path rules. Any other value selects POSIX
-	// path rules.
-	Convention string `json:"convention"`
-	// User-supplied display name for the workspace
-	Name *string `json:"name,omitempty"`
-	// Session ID the workspace record belongs to
-	SessionID string `json:"sessionId"`
-	// Directory the session's state is written under when no session filesystem provider is
-	// configured. Ignored when a provider is configured; the provider's session state path is
-	// used instead.
-	SessionStatePath string `json:"sessionStatePath"`
-}
-
-// The workspace record that was written.
-// Experimental: SessionsCreateWorkspaceResult is part of an experimental API and may change
-// or be removed.
-type SessionsCreateWorkspaceResult struct {
-	// The created workspace record, as JSON
-	WorkspaceJSON string `json:"workspaceJson"`
-}
-
 // Session ID to delete from disk.
 // Experimental: SessionsDeleteRequest is part of an experimental API and may change or be
 // removed.
@@ -17263,25 +16729,6 @@ type SessionsLoadDeferredRepoHooksRequest struct {
 	SessionID string `json:"sessionId"`
 }
 
-// Where the session's state lives, as a root directory and the session ID under it.
-// Experimental: SessionsLoadWorkspaceRequest is part of an experimental API and may change
-// or be removed.
-type SessionsLoadWorkspaceRequest struct {
-	// Session ID naming the state directory under the sessions home. Rejected when it is
-	// absolute or contains a parent component, so it cannot escape the sessions home.
-	SessionID string `json:"sessionId"`
-	// Root directory every session's state directory sits under
-	SessionsHome string `json:"sessionsHome"`
-}
-
-// The workspace record on disk, omitted when the session has none.
-// Experimental: SessionsLoadWorkspaceResult is part of an experimental API and may change
-// or be removed.
-type SessionsLoadWorkspaceResult struct {
-	// The workspace record, as JSON. Omitted when the record does not exist.
-	WorkspaceJSON *string `json:"workspaceJson,omitempty"`
-}
-
 // `sessions.open` handoff progress update with step, status, and optional message.
 // Experimental: SessionsOpenProgress is part of an experimental API and may change or be
 // removed.
@@ -17435,30 +16882,6 @@ type SessionsTransferRemoteControlRequest struct {
 	ExpectedFromSessionID *string `json:"expectedFromSessionId,omitempty"`
 	// Local session id to point remote control at.
 	ToSessionID string `json:"toSessionId"`
-}
-
-// Where the session's state lives, plus workspace-schema fields to merge into its workspace
-// record. Stored keys outside the schema are not preserved, and a stored `fork_count` is
-// never replaced.
-// Experimental: SessionsUpdateWorkspaceFieldsRequest is part of an experimental API and may
-// change or be removed.
-type SessionsUpdateWorkspaceFieldsRequest struct {
-	// Workspace-schema fields to merge into the record, as a JSON object. Fields the object
-	// omits keep their stored values, except stored keys outside the schema are not preserved
-	// and a stored `fork_count` is never replaced.
-	FieldsJSON string `json:"fieldsJson"`
-	// Session ID naming the state directory under the sessions home. Rejected when it is
-	// absolute or contains a parent component, so it cannot escape the sessions home.
-	SessionID string `json:"sessionId"`
-	// Root directory every session's state directory sits under
-	SessionsHome string `json:"sessionsHome"`
-}
-
-// The merge completed. The record carries the supplied workspace-schema fields, but a
-// stored `fork_count` stays.
-// Experimental: SessionsUpdateWorkspaceFieldsResult is part of an experimental API and may
-// change or be removed.
-type SessionsUpdateWorkspaceFieldsResult struct {
 }
 
 // Experimental: SessionSuspendResult is part of an experimental API and may change or be
@@ -17685,30 +17108,6 @@ type SessionWorkingDirectoryContext struct {
 	RepositoryHost *string `json:"repositoryHost,omitempty"`
 }
 
-// A working-directory context together with the client that produced it.
-// Experimental: SessionWorkingDirectoryContextWithClient is part of an experimental API and
-// may change or be removed.
-type SessionWorkingDirectoryContextWithClient struct {
-	// Merge-base commit SHA
-	BaseCommit *string `json:"baseCommit,omitempty"`
-	// Current git branch name
-	Branch *string `json:"branch,omitempty"`
-	// Name of the client that created the session
-	ClientName *string `json:"clientName,omitempty"`
-	// Current working directory path
-	Cwd string `json:"cwd"`
-	// Root directory of the git repository
-	GitRoot *string `json:"gitRoot,omitempty"`
-	// Head commit of the current git branch
-	HeadCommit *string `json:"headCommit,omitempty"`
-	// Hosting platform type of the repository
-	HostType *string `json:"hostType,omitempty"`
-	// Repository identifier derived from the git remote URL
-	Repository *string `json:"repository,omitempty"`
-	// Raw host string from the git remote URL
-	RepositoryHost *string `json:"repositoryHost,omitempty"`
-}
-
 // Experimental: SessionWorkspacesCreateDirectoryResult is part of an experimental API and
 // may change or be removed.
 type SessionWorkspacesCreateDirectoryResult struct {
@@ -17746,10 +17145,6 @@ type RawSettableAuthInfoData struct {
 func (RawSettableAuthInfoData) settableAuthInfo() {}
 func (r RawSettableAuthInfoData) settableAuthInfoType() SettableAuthInfoType {
 	return r.Discriminator
-}
-func (AccountAuthInfo) settableAuthInfo() {}
-func (AccountAuthInfo) settableAuthInfoType() SettableAuthInfoType {
-	return SettableAuthInfoTypeAccount
 }
 func (APIKeyAuthInfo) settableAuthInfo() {}
 func (APIKeyAuthInfo) settableAuthInfoType() SettableAuthInfoType {
@@ -18637,8 +18032,8 @@ type SkillPlanUninstallRequest struct {
 	PolicySessionID string `json:"policySessionId"`
 }
 
-// Authoritative catalog metadata for one SDK-provided skill. The skill's SKILL.md text is
-// fetched separately and lazily.
+// Catalog-only metadata for one SDK-provided skill. The complete SKILL.md is fetched
+// separately and lazily.
 // Experimental: SkillProviderDescriptor is part of an experimental API and may change or be
 // removed.
 type SkillProviderDescriptor struct {
@@ -18686,18 +18081,15 @@ type SkillProviderReadRequest struct {
 	SessionID string `json:"sessionId"`
 }
 
-// Text-only SKILL.md content returned by an SDK session's skill provider. YAML frontmatter
-// is optional: fields it omits come from the catalog descriptor, fields it declares must
-// match the descriptor, and `allowed-tools` is read only from frontmatter. Related files
-// and assets are not supported.
+// Complete text-only SKILL.md content returned by an SDK session's skill provider. Related
+// files and assets are not supported.
 // Experimental: SkillProviderReadResult is part of an experimental API and may change or be
 // removed.
 // Internal: SkillProviderReadResult is an internal SDK API and is not part of the public
 // surface.
 type SkillProviderReadResult struct {
-	// SKILL.md text, with or without YAML frontmatter, or null when the provider has no skill
-	// with the requested name. The runtime enforces a 1 MiB UTF-8 byte limit.
-	Markdown *string `json:"markdown"`
+	// Complete SKILL.md text. The runtime enforces a 1 MiB UTF-8 byte limit.
+	Markdown string `json:"markdown"`
 }
 
 // Skill names to mark as disabled in global configuration, replacing any previous list.
@@ -22244,7 +21636,6 @@ const (
 type AuthInfoType string
 
 const (
-	AuthInfoTypeAccount         AuthInfoType = "account"
 	AuthInfoTypeAPIKey          AuthInfoType = "api-key"
 	AuthInfoTypeCopilotAPIToken AuthInfoType = "copilot-api-token"
 	AuthInfoTypeEnv             AuthInfoType = "env"
@@ -22255,19 +21646,16 @@ const (
 	AuthInfoTypeUser            AuthInfoType = "user"
 )
 
-// Disposition of a login attempt, including pending user decisions.
+// Terminal disposition of a login persistence attempt.
 // Experimental: AuthLoginResultStatus is part of an experimental API and may change or be
 // removed.
 type AuthLoginResultStatus string
 
 const (
-	// The credential was persisted and the selected account is signed in.
+	// The credential was persisted and the account is signed in.
 	AuthLoginResultStatusCompleted AuthLoginResultStatus = "completed"
 	// The user declined plaintext persistence.
 	AuthLoginResultStatusDeclined AuthLoginResultStatus = "declined"
-	// Credentials are saved; select an account using a returned selectionId as advance input to
-	// complete sign-in.
-	AuthLoginResultStatusNeedsAccountSelection AuthLoginResultStatus = "needs-account-selection"
 	// Persistence needs explicit consent to store the token in plaintext.
 	AuthLoginResultStatusNeedsPlaintextConsent AuthLoginResultStatus = "needs-plaintext-consent"
 )
@@ -23078,20 +22466,6 @@ const (
 	ConnectorConnectResultKindConnected       ConnectorConnectResultKind = "connected"
 	ConnectorConnectResultKindConsentRequired ConnectorConnectResultKind = "consent_required"
 	ConnectorConnectResultKindPending         ConnectorConnectResultKind = "pending"
-)
-
-// Availability.
-// Experimental: ConnectorDiscoveryAvailability is part of an experimental API and may
-// change or be removed.
-type ConnectorDiscoveryAvailability string
-
-const (
-	// Disabled.
-	ConnectorDiscoveryAvailabilityDisabled ConnectorDiscoveryAvailability = "disabled"
-	// Enabled.
-	ConnectorDiscoveryAvailabilityEnabled ConnectorDiscoveryAvailability = "enabled"
-	// Unavailable.
-	ConnectorDiscoveryAvailabilityUnavailable ConnectorDiscoveryAvailability = "unavailable"
 )
 
 // Live MCP status of one Connector-owned runtime server.
@@ -26198,7 +25572,6 @@ const (
 type SettableAuthInfoType string
 
 const (
-	SettableAuthInfoTypeAccount         SettableAuthInfoType = "account"
 	SettableAuthInfoTypeAPIKey          SettableAuthInfoType = "api-key"
 	SettableAuthInfoTypeCopilotAPIToken SettableAuthInfoType = "copilot-api-token"
 	SettableAuthInfoTypeEnv             SettableAuthInfoType = "env"
@@ -27302,82 +26675,6 @@ func (a *ServerCommandsAPI) List(ctx context.Context) (*CommandList, error) {
 		return nil, err
 	}
 	var result CommandList
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// Experimental: ServerConnectorsAPI contains experimental APIs that may change or be
-// removed.
-type ServerConnectorsAPI serverAPI
-
-// GetAccounts returns eligible accounts.
-//
-// RPC method: connectors.getAccounts.
-//
-// Returns: Eligible accounts.
-func (a *ServerConnectorsAPI) GetAccounts(ctx context.Context) (*ConnectorDiscoveryAccountList, error) {
-	raw, err := a.client.Request(ctx, "connectors.getAccounts", nil)
-	if err != nil {
-		return nil, err
-	}
-	var result ConnectorDiscoveryAccountList
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// GetCapabilities returns feature availability.
-//
-// RPC method: connectors.getCapabilities.
-//
-// Returns: Feature availability.
-func (a *ServerConnectorsAPI) GetCapabilities(ctx context.Context) (*ConnectorDiscoveryCapabilities, error) {
-	raw, err := a.client.Request(ctx, "connectors.getCapabilities", nil)
-	if err != nil {
-		return nil, err
-	}
-	var result ConnectorDiscoveryCapabilities
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// Lists entries for the selected account.
-//
-// RPC method: connectors.list.
-//
-// Parameters: Selected account.
-//
-// Returns: Entries for the selected account.
-func (a *ServerConnectorsAPI) List(ctx context.Context, params *ConnectorDiscoveryAccountRequest) (*ConnectorDiscoveryCatalogResult, error) {
-	raw, err := a.client.Request(ctx, "connectors.list", params)
-	if err != nil {
-		return nil, err
-	}
-	var result ConnectorDiscoveryCatalogResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// Refreshes entries for the selected account.
-//
-// RPC method: connectors.refresh.
-//
-// Parameters: Selected account.
-//
-// Returns: Entries for the selected account.
-func (a *ServerConnectorsAPI) Refresh(ctx context.Context, params *ConnectorDiscoveryAccountRequest) (*ConnectorDiscoveryCatalogResult, error) {
-	raw, err := a.client.Request(ctx, "connectors.refresh", params)
-	if err != nil {
-		return nil, err
-	}
-	var result ConnectorDiscoveryCatalogResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -29702,7 +28999,6 @@ type ServerRPC struct {
 	Agents          *ServerAgentsAPI
 	Catalog         *ServerCatalogAPI
 	Commands        *ServerCommandsAPI
-	Connectors      *ServerConnectorsAPI
 	Environments    *ServerEnvironmentsAPI
 	Extensions      *ServerExtensionsAPI
 	Hooks           *ServerHooksAPI
@@ -29771,7 +29067,6 @@ func NewServerRPC(client *jsonrpc2.Client) *ServerRPC {
 	r.Agents = (*ServerAgentsAPI)(&r.common)
 	r.Catalog = (*ServerCatalogAPI)(&r.common)
 	r.Commands = (*ServerCommandsAPI)(&r.common)
-	r.Connectors = (*ServerConnectorsAPI)(&r.common)
 	r.Environments = (*ServerEnvironmentsAPI)(&r.common)
 	r.Extensions = (*ServerExtensionsAPI)(&r.common)
 	r.Hooks = (*ServerHooksAPI)(&r.common)
@@ -29795,347 +29090,6 @@ func NewServerRPC(client *jsonrpc2.Client) *ServerRPC {
 
 type internalServerAPI struct {
 	client *jsonrpc2.Client
-}
-
-// Experimental: InternalServerAgentsAPI contains experimental APIs that may change or be
-// removed.
-type InternalServerAgentsAPI internalServerAPI
-
-// CustomAgentInitialModelDecision resolves the model a custom agent asks for against the
-// models actually available, and answers both the model to switch to and the warning a user
-// should see when the agent's preference cannot be met. A custom agent may name several
-// acceptable models in preference order, so the decision is a match rather than a lookup,
-// and an agent whose preference is unavailable is a normal outcome that produces a warning
-// rather than an error. A host must call this rather than pick the first available name
-// itself, because the preference order and the wording of the warning are what keep one
-// installation's agent selection the same as another's.
-//
-// RPC method: agents.customAgentInitialModelDecision.
-//
-// Parameters: The models a custom agent asks for, and the models actually available.
-//
-// Returns: The model to switch to, and the warning to show when the agent's preference
-// could not be met.
-// Internal: CustomAgentInitialModelDecision is part of the SDK's internal
-// handshake/plumbing; external callers should not use it.
-func (a *InternalServerAgentsAPI) CustomAgentInitialModelDecision(ctx context.Context, params *AgentsCustomAgentInitialModelDecisionParams) (*AgentsCustomAgentInitialModelDecisionResult, error) {
-	raw, err := a.client.Request(ctx, "agents.customAgentInitialModelDecision", params)
-	if err != nil {
-		return nil, err
-	}
-	var result AgentsCustomAgentInitialModelDecisionResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// GetAvailableBuiltins lists the shipped agents a client should offer right now, filtered
-// by the feature flags it passes. `getBuiltins` names every agent the runtime knows about;
-// some of those are gated, so a client rendering a picker wants this narrower list together
-// with the description to show beside each name.
-//
-// RPC method: agents.getAvailableBuiltins.
-//
-// Parameters: The feature flags to evaluate shipped agents against.
-//
-// Returns: The shipped agents available under the requested flags.
-// Internal: GetAvailableBuiltins is part of the SDK's internal handshake/plumbing; external
-// callers should not use it.
-func (a *InternalServerAgentsAPI) GetAvailableBuiltins(ctx context.Context, params *AgentsGetAvailableBuiltinsRequest) (*AgentsGetAvailableBuiltinsResult, error) {
-	raw, err := a.client.Request(ctx, "agents.getAvailableBuiltins", params)
-	if err != nil {
-		return nil, err
-	}
-	var result AgentsGetAvailableBuiltinsResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// GetBuiltinDefinition loads one shipped agent's YAML definition, for a client that needs
-// what the agent declares rather than only its name. `getBuiltins` reports which names have
-// a definition to load: a name outside its `yamlBasedNames` is special-cased in code and
-// has none. The definition crosses as its own JSON rather than as contract-typed fields,
-// because the runtime parses it with the agent schema's tolerant shape and re-typing it
-// here would drop the keys that shape accepts and this one does not. The projected
-// `__nativeCustomAgent` view the runtime derives is included, so a caller reading the
-// declared model and a caller rendering the agent see the same definition.
-//
-// RPC method: agents.getBuiltinDefinition.
-//
-// Parameters: The shipped agent whose definition to load.
-//
-// Returns: One shipped agent's definition.
-// Internal: GetBuiltinDefinition is part of the SDK's internal handshake/plumbing; external
-// callers should not use it.
-func (a *InternalServerAgentsAPI) GetBuiltinDefinition(ctx context.Context, params *AgentsGetBuiltinDefinitionRequest) (*AgentsGetBuiltinDefinitionResult, error) {
-	raw, err := a.client.Request(ctx, "agents.getBuiltinDefinition", params)
-	if err != nil {
-		return nil, err
-	}
-	var result AgentsGetBuiltinDefinitionResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// GetBuiltinListingDefinition projects one shipped agent the way a picker lists it, reading
-// only the metadata at the head of the definition file and stopping before the prompt body.
-// `getBuiltinDefinition` answers the whole definition instead, so a client listing every
-// shipped agent should prefer this one: the cost of a listing grows with the number of
-// agents, and the prompt body is the part a listing never shows. The two also differ in
-// shape. This returns the projected custom agent on its own, whereas `getBuiltinDefinition`
-// returns the authored definition with that projection nested under `__nativeCustomAgent`.
-//
-// RPC method: agents.getBuiltinListingDefinition.
-//
-// Parameters: The shipped agent whose listing entry to load.
-//
-// Returns: One shipped agent, projected for a listing.
-// Internal: GetBuiltinListingDefinition is part of the SDK's internal handshake/plumbing;
-// external callers should not use it.
-func (a *InternalServerAgentsAPI) GetBuiltinListingDefinition(ctx context.Context, params *AgentsGetBuiltinListingDefinitionRequest) (*AgentsGetBuiltinListingDefinitionResult, error) {
-	raw, err := a.client.Request(ctx, "agents.getBuiltinListingDefinition", params)
-	if err != nil {
-		return nil, err
-	}
-	var result AgentsGetBuiltinListingDefinitionResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// GetBuiltins lists the agents this runtime ships, by name. A consumer separating shipped
-// agents from ones the user or a plugin authored should compare against these names rather
-// than against `AgentInfo.source`: an authored agent may carry the `builtin` source while
-// not being one of these, and the runtime treats the two as separate questions.
-// `disableableNames` is the subset a user may turn off, which a client needs to decide
-// whether to offer a toggle. `yamlBasedNames` is the subset backed by a shipped YAML
-// definition, which a client needs before asking the runtime to load one.
-//
-// RPC method: agents.getBuiltins.
-//
-// Returns: The agents this runtime ships, named so a consumer can tell them apart from
-// authored ones.
-// Internal: GetBuiltins is part of the SDK's internal handshake/plumbing; external callers
-// should not use it.
-func (a *InternalServerAgentsAPI) GetBuiltins(ctx context.Context) (*AgentsGetBuiltinsResult, error) {
-	raw, err := a.client.Request(ctx, "agents.getBuiltins", nil)
-	if err != nil {
-		return nil, err
-	}
-	var result AgentsGetBuiltinsResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// Experimental: InternalServerGitAPI contains experimental APIs that may change or be
-// removed.
-type InternalServerGitAPI internalServerAPI
-
-// CurrentBranchRemote reads the remote that the branch checked out in a working tree
-// tracks, as `branch.<name>.remote` configures it. Reports `origin` rather than failing
-// whenever there is no tracking configuration to read — on a detached HEAD, on a branch
-// with no upstream, or when git itself fails — because a caller asking which remote to talk
-// to needs an answer it can act on, not an error. Marked internal because it exists to
-// carry a CLI call site off the napi boundary onto the SDK contract; it is migration
-// plumbing, not a surface consumers are meant to depend on.
-//
-// RPC method: git.currentBranchRemote.
-//
-// Parameters: Working-tree path a git query applies to.
-//
-// Returns: The remote the checked-out branch tracks.
-// Internal: CurrentBranchRemote is part of the SDK's internal handshake/plumbing; external
-// callers should not use it.
-func (a *InternalServerGitAPI) CurrentBranchRemote(ctx context.Context, params *GitCwdRequest) (*GitCurrentBranchRemoteResult, error) {
-	raw, err := a.client.Request(ctx, "git.currentBranchRemote", params)
-	if err != nil {
-		return nil, err
-	}
-	var result GitCurrentBranchRemoteResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// ReposFromRemotes lists the GitHub repositories a working tree's remotes point at, one
-// entry per distinct repository, so a caller can resolve a base and head repository without
-// parsing remote URLs itself. When several remotes name the same repository, only the first
-// is listed, and the entry keeps that remote name. Remotes pointing at no GitHub host are
-// left out, so an empty list means the tree reaches GitHub through no remote. Failing to
-// read the remotes is reported as an error rather than as an empty list, because the two
-// mean different things to a caller. Marked internal because it exists to carry a CLI call
-// site off the napi boundary onto the SDK contract; it is migration plumbing, not a surface
-// consumers are meant to depend on.
-//
-// RPC method: git.reposFromRemotes.
-//
-// Parameters: Git working tree whose GitHub remotes should be listed.
-//
-// Returns: The GitHub repositories a working tree's remotes point at.
-// Internal: ReposFromRemotes is part of the SDK's internal handshake/plumbing; external
-// callers should not use it.
-func (a *InternalServerGitAPI) ReposFromRemotes(ctx context.Context, params *GitReposFromRemotesRequest) (*GitReposFromRemotesResult, error) {
-	raw, err := a.client.Request(ctx, "git.reposFromRemotes", params)
-	if err != nil {
-		return nil, err
-	}
-	var result GitReposFromRemotesResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// WorkingDirectoryContext collects the repository context of a working directory in one
-// call: working tree root, repository identifier and host, current branch, and the HEAD and
-// base commits. Every repository field is omitted when the path is not inside a git working
-// tree, and the requested path is echoed back as `cwd`. The answer is the same
-// `SessionWorkingDirectoryContext` that `session.metadata.recordContextChange` accepts, so
-// a caller polling for a context change can forward the result unchanged. Marked internal
-// because it exists to carry a CLI call site off the napi boundary onto the SDK contract;
-// it is migration plumbing, not a surface consumers are meant to depend on. It can become
-// public once an SDK consumer needs to derive session context from a directory itself.
-//
-// RPC method: git.workingDirectoryContext.
-//
-// Parameters: Working-tree path a git query applies to.
-//
-// Returns: Updated working directory and git context. Emitted as the new payload of
-// `session.context_changed`.
-// Internal: WorkingDirectoryContext is part of the SDK's internal handshake/plumbing;
-// external callers should not use it.
-func (a *InternalServerGitAPI) WorkingDirectoryContext(ctx context.Context, params *GitCwdRequest) (*SessionWorkingDirectoryContext, error) {
-	raw, err := a.client.Request(ctx, "git.workingDirectoryContext", params)
-	if err != nil {
-		return nil, err
-	}
-	var result SessionWorkingDirectoryContext
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// Experimental: InternalServerGitHubOwnersAPI contains experimental APIs that may change or
-// be removed.
-type InternalServerGitHubOwnersAPI internalServerAPI
-
-// Cancel abandons an owner listing started with the given request id. Answers `canceled:
-// true` while a listing with that id is running. Answers `canceled: false` when the id was
-// never registered, was registered but not used, was released after being abandoned, or its
-// listing has ended. Canceling an unused id releases it, and a later `list` with that id is
-// refused. The cancel acts only on owner listings and never reaches another request of the
-// host.
-//
-// RPC method: gitHubOwners.cancel.
-//
-// Parameters: The owner listing to abandon.
-//
-// Returns: Whether the id named a running owner listing.
-// Internal: Cancel is part of the SDK's internal handshake/plumbing; external callers
-// should not use it.
-func (a *InternalServerGitHubOwnersAPI) Cancel(ctx context.Context, params *GitHubOwnersCancelRequest) (*GitHubOwnersCancelResult, error) {
-	raw, err := a.client.Request(ctx, "gitHubOwners.cancel", params)
-	if err != nil {
-		return nil, err
-	}
-	var result GitHubOwnersCancelResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// Lists the logins the authenticated user may act as — their own account first, then the
-// organizations they belong to — by asking the GitHub API under the supplied credential. No
-// credential travels in the request: `authInfo` selects one the runtime already holds, and
-// the runtime resolves the token and the GitHub host from it. A failure the caller should
-// render arrives as `message`; one it should raise arrives as `throwError`.
-//
-// RPC method: gitHubOwners.list.
-//
-// Parameters: Credential to list owners under, and the request id that makes the listing
-// cancellable.
-//
-// Returns: Outcome of an owner listing. Exactly one of `owners` and `message` is present,
-// except that `throwError` reports a failure the caller is expected to raise rather than
-// render.
-// Internal: List is part of the SDK's internal handshake/plumbing; external callers should
-// not use it.
-func (a *InternalServerGitHubOwnersAPI) List(ctx context.Context, params *GitHubOwnersListRequest) (*GitHubOwnersListResult, error) {
-	raw, err := a.client.Request(ctx, "gitHubOwners.list", params)
-	if err != nil {
-		return nil, err
-	}
-	var result GitHubOwnersListResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// NextRequestId registers a cancellable owner listing and returns its request id. Separate
-// from `gitHubOwners.list` so the id exists before the listing starts: a caller that
-// abandons the listing the moment it begins would otherwise have nothing to name in
-// `gitHubOwners.cancel`. The id serves one listing only. Long-abandoned unused ids can be
-// released by later allocations.
-//
-// RPC method: gitHubOwners.nextRequestId.
-//
-// Returns: A freshly registered request id. Registering it before the listing starts is
-// what lets a cancel that races the request still find the owner listing slot. The id
-// serves one listing only. Long-abandoned unused ids can be released by later allocations.
-// Internal: NextRequestId is part of the SDK's internal handshake/plumbing; external
-// callers should not use it.
-func (a *InternalServerGitHubOwnersAPI) NextRequestId(ctx context.Context) (*GitHubOwnersRequestIDResult, error) {
-	raw, err := a.client.Request(ctx, "gitHubOwners.nextRequestId", nil)
-	if err != nil {
-		return nil, err
-	}
-	var result GitHubOwnersRequestIDResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// Experimental: InternalServerGitHubRepositoryAPI contains experimental APIs that may
-// change or be removed.
-type InternalServerGitHubRepositoryAPI internalServerAPI
-
-// AtPath resolves the GitHub repository that owns a working-tree path by reading the
-// selected git remote configured for it, preferring `origin`. Returns a null `repository`
-// when the path is inside a git working tree but that selected remote does not resolve to a
-// GitHub host. Fails when the path is not inside a git working tree at all, so a caller can
-// tell 'not a repository' apart from 'a repository with no GitHub remote'.
-//
-// RPC method: gitHubRepository.atPath.
-//
-// Parameters: Working-tree path whose owning GitHub repository should be resolved.
-//
-// Returns: The GitHub repository that owns the requested path, when the selected remote
-// (`origin`, else the first) is on a GitHub host.
-// Internal: AtPath is part of the SDK's internal handshake/plumbing; external callers
-// should not use it.
-func (a *InternalServerGitHubRepositoryAPI) AtPath(ctx context.Context, params *GitHubRepositoryAtPathRequest) (*GitHubRepositoryAtPathResult, error) {
-	raw, err := a.client.Request(ctx, "gitHubRepository.atPath", params)
-	if err != nil {
-		return nil, err
-	}
-	var result GitHubRepositoryAtPathResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
 }
 
 // Experimental: InternalServerHostAPI contains experimental APIs that may change or be
@@ -30270,33 +29224,6 @@ func (a *InternalServerSessionsAPI) ConfigureSessionExtensions(ctx context.Conte
 		return nil, err
 	}
 	var result SessionsConfigureSessionExtensionsResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// CreateWorkspace creates the workspace record for a session that has not been opened yet.
-// A host that hands a session off to another application — writing the record and then
-// launching that application against the session ID — needs the record on disk before any
-// session exists to carry it, which the session-scoped workspace methods cannot do.
-// Replaces any existing record and resets the checkpoint index. When writing to the local
-// filesystem, a stored `fork_count` survives on disk. Returns the record it built, so a
-// surviving stored `fork_count` can differ from the answer.
-//
-// RPC method: sessions.createWorkspace.
-//
-// Parameters: Identity, state location and starting context for a workspace record.
-//
-// Returns: The workspace record that was written.
-// Internal: CreateWorkspace is part of the SDK's internal handshake/plumbing; external
-// callers should not use it.
-func (a *InternalServerSessionsAPI) CreateWorkspace(ctx context.Context, params *SessionsCreateWorkspaceRequest) (*SessionsCreateWorkspaceResult, error) {
-	raw, err := a.client.Request(ctx, "sessions.createWorkspace", params)
-	if err != nil {
-		return nil, err
-	}
-	var result SessionsCreateWorkspaceResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -30443,72 +29370,14 @@ func (a *InternalServerSessionsAPI) ListNonEmptySessionIds(ctx context.Context, 
 	return &result, nil
 }
 
-// LoadWorkspace reads a session's workspace record straight from disk, without opening the
-// session. Resuming by session ID has to know where the session lives before it can
-// connect, so the lookup cannot come from the session-scoped workspace methods, which
-// resolve their location from a live session's context. Returns no record when the file is
-// absent.
-//
-// RPC method: sessions.loadWorkspace.
-//
-// Parameters: Where the session's state lives, as a root directory and the session ID under
-// it.
-//
-// Returns: The workspace record on disk, omitted when the session has none.
-// Internal: LoadWorkspace is part of the SDK's internal handshake/plumbing; external
-// callers should not use it.
-func (a *InternalServerSessionsAPI) LoadWorkspace(ctx context.Context, params *SessionsLoadWorkspaceRequest) (*SessionsLoadWorkspaceResult, error) {
-	raw, err := a.client.Request(ctx, "sessions.loadWorkspace", params)
-	if err != nil {
-		return nil, err
-	}
-	var result SessionsLoadWorkspaceResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// UpdateWorkspaceFields merges fields into a session's workspace record on disk, creating
-// the record when it is absent. The counterpart to `sessions.loadWorkspace`, for the same
-// before-the-session-exists case. It preserves stored workspace-schema fields the request
-// does not supply, does not preserve stored keys outside the workspace schema, and never
-// replaces a stored `fork_count`.
-//
-// RPC method: sessions.updateWorkspaceFields.
-//
-// Parameters: Where the session's state lives, plus workspace-schema fields to merge into
-// its workspace record. Stored keys outside the schema are not preserved, and a stored
-// `fork_count` is never replaced.
-//
-// Returns: The merge completed. The record carries the supplied workspace-schema fields,
-// but a stored `fork_count` stays.
-// Internal: UpdateWorkspaceFields is part of the SDK's internal handshake/plumbing;
-// external callers should not use it.
-func (a *InternalServerSessionsAPI) UpdateWorkspaceFields(ctx context.Context, params *SessionsUpdateWorkspaceFieldsRequest) (*SessionsUpdateWorkspaceFieldsResult, error) {
-	raw, err := a.client.Request(ctx, "sessions.updateWorkspaceFields", params)
-	if err != nil {
-		return nil, err
-	}
-	var result SessionsUpdateWorkspaceFieldsResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
 // InternalServerRPC provides internal SDK server-scoped RPC methods (handshake helpers
 // etc.). Not part of the public API.
 type InternalServerRPC struct {
 	// Reuse a single struct instead of allocating one for each service on the heap.
 	common internalServerAPI
 
-	Agents           *InternalServerAgentsAPI
-	Git              *InternalServerGitAPI
-	GitHubOwners     *InternalServerGitHubOwnersAPI
-	GitHubRepository *InternalServerGitHubRepositoryAPI
-	Host             *InternalServerHostAPI
-	Sessions         *InternalServerSessionsAPI
+	Host     *InternalServerHostAPI
+	Sessions *InternalServerSessionsAPI
 }
 
 // Connect performs the SDK server connection handshake and validates the optional
@@ -30543,10 +29412,6 @@ func (a *InternalServerRPC) Connect(ctx context.Context, params *ConnectRequest)
 func NewInternalServerRPC(client *jsonrpc2.Client) *InternalServerRPC {
 	r := &InternalServerRPC{}
 	r.common = internalServerAPI{client: client}
-	r.Agents = (*InternalServerAgentsAPI)(&r.common)
-	r.Git = (*InternalServerGitAPI)(&r.common)
-	r.GitHubOwners = (*InternalServerGitHubOwnersAPI)(&r.common)
-	r.GitHubRepository = (*InternalServerGitHubRepositoryAPI)(&r.common)
 	r.Host = (*InternalServerHostAPI)(&r.common)
 	r.Sessions = (*InternalServerSessionsAPI)(&r.common)
 	return r
@@ -32430,8 +31295,10 @@ func (a *MCPAPI) IsServerRunning(ctx context.Context, params *MCPIsServerRunning
 	return &result, nil
 }
 
-// Lists materialized MCP servers and their connection status. Cache misses may start and
-// wait for MCP servers.
+// Lists MCP servers configured for the session, their connection status, and host-level
+// state. The host-level state (disabled/filtered servers, failed/needs-auth/pending
+// connections, mcp3p policy, full config) is empty/zero when no MCP host has been
+// initialized for the session.
 //
 // RPC method: session.mcp.list.
 //
@@ -32444,27 +31311,6 @@ func (a *MCPAPI) List(ctx context.Context) (*MCPServerList, error) {
 		return nil, err
 	}
 	var result MCPServerList
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// ListConfigured lists effective MCP configuration without starting, restarting,
-// authenticating, or waiting for servers. An optional live observation is from an already
-// materialized matching server; this is not a readiness guarantee.
-//
-// RPC method: session.mcp.listConfigured.
-//
-// Returns: Effective MCP configuration with optional live observations from matching
-// already materialized servers.
-func (a *MCPAPI) ListConfigured(ctx context.Context) (*MCPConfiguredServerList, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request(ctx, "session.mcp.listConfigured", req)
-	if err != nil {
-		return nil, err
-	}
-	var result MCPConfiguredServerList
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -38653,35 +37499,6 @@ func (a *InternalMCPAPI) ReloadWithConfig(ctx context.Context, params *MCPReload
 		return nil, err
 	}
 	var result MCPStartServersResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// SetConnectedIdeInfo records the IDE the host is connected to, so the agent's system
-// prompt can name it and its workspace folder. Null or an omitted `ide` clears the recorded
-// value, which is how a host reports that it is disconnected; there is no separate clear
-// method. Both `ideName` and `workspaceFolder` are required together, because half a state
-// cannot be attributed to a project.
-//
-// RPC method: session.mcp.setConnectedIdeInfo.
-//
-// Parameters: Records which IDE the host is connected to, or clears it.
-// Internal: SetConnectedIdeInfo is part of the SDK's internal handshake/plumbing; external
-// callers should not use it.
-func (a *InternalMCPAPI) SetConnectedIdeInfo(ctx context.Context, params *SessionMCPSetConnectedIdeInfoParams) (*SessionMCPSetConnectedIdeInfoResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	if params != nil {
-		if params.Ide != nil {
-			req["ide"] = *params.Ide
-		}
-	}
-	raw, err := a.client.Request(ctx, "session.mcp.setConnectedIdeInfo", req)
-	if err != nil {
-		return nil, err
-	}
-	var result SessionMCPSetConnectedIdeInfoResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}

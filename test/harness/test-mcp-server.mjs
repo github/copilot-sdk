@@ -13,8 +13,6 @@
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { existsSync } from "node:fs";
-import { setTimeout } from "node:timers/promises";
 import {
     GetPromptRequestSchema,
     ListPromptsRequestSchema,
@@ -32,7 +30,6 @@ function getArgument(name) {
 const startupMarkerPath = getArgument("--startup-marker");
 const diagnosticStderr = getArgument("--diagnostic-stderr");
 const serverName = getArgument("--server-name") ?? "env-echo";
-const toolName = getArgument("--tool-name") ?? "get_env";
 const server = new McpServer({ name: serverName, version: "1.0.0" });
 const fixtures = JSON.parse(await readFile(new URL("./mcp-prompt-fixtures.json", import.meta.url), "utf8"));
 // Fixtures contain SDK extension bags; MCP sends those entries as ordinary object fields.
@@ -97,7 +94,7 @@ server.server.setRequestHandler(GetPromptRequestSchema, async ({ params }) => {
 });
 
 server.tool(
-    toolName,
+    "get_env",
     "Returns the value of the specified environment variable.",
     { name: z.string().describe("Environment variable name") },
     async ({ name }) => ({
@@ -108,13 +105,6 @@ server.tool(
 const transport = new StdioServerTransport();
 if (startupMarkerPath) {
     await appendFile(startupMarkerPath, `${serverName}\n`);
-}
-const startupGate = getArgument("--startup-gate");
-while (startupGate && !existsSync(startupGate)) {
-    await setTimeout(20);
-}
-if (process.argv.includes("--fail-startup")) {
-    throw new Error("MCP startup failed as requested by the test");
 }
 if (diagnosticStderr) {
     console.error(diagnosticStderr);
