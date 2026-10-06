@@ -24,7 +24,7 @@ use github_copilot_sdk::rpc::{
     ConnectorConnectResult, ConnectorContinueRequest, ConnectorDisconnectResult,
     ConnectorMcpStatus, ConnectorReconcileOptions, ConnectorReconcileRequest,
     ConnectorSessionAccount, ConnectorStatus, ModelSetAllowedModelsRequest, OpenCanvasInstance,
-    SendAgentMode, SendMode, SendRequest, SessionRpcConnectors,
+    RemotePolicyInputs, SendAgentMode, SendMode, SendRequest, SessionRpcConnectors,
 };
 use github_copilot_sdk::session_events::{
     ManagedSettingsResolvedSource, McpOauthRequiredData, ReasoningSummary, SessionLimitsConfig,
@@ -7334,6 +7334,154 @@ async fn rpc_namespace_session_connectors_dispatches_all_methods() {
     assert_eq!(targeted.catalog.unwrap().revision, 4);
 
     timeout(TIMEOUT, server_handle).await.unwrap().unwrap();
+}
+
+#[tokio::test]
+async fn remote_policy_inputs_preserves_original_session_and_all_boolean_combinations() {
+    let (session, mut server) =
+        create_session_pair_with_config(|cfg| cfg.with_session_id("original-policy-session")).await;
+    let session = Arc::new(session);
+    assert_eq!(session.id().as_str(), "original-policy-session");
+
+    for bits in 0..16 {
+        let expected = serde_json::json!({
+            "managedRemoteControlSetting": bits & 1 != 0,
+            "managedRemoteControlStaffOverride": bits & 2 != 0,
+            "ownerAdcSandbox": bits & 4 != 0,
+            "ownerCodespaces": bits & 8 != 0,
+        });
+        let handle = tokio::spawn({
+            let session = session.clone();
+            async move { session.rpc().remote().get_policy_inputs().await }
+        });
+        let request = timeout(TIMEOUT, server.read_request()).await.unwrap();
+        assert_eq!(request["method"], "session.remote.getPolicyInputs");
+        assert_eq!(
+            request["params"],
+            serde_json::json!({ "sessionId": "original-policy-session" })
+        );
+        server.respond(&request, expected.clone()).await;
+
+        let result: RemotePolicyInputs = timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap();
+        assert_eq!(result.managed_remote_control_setting, bits & 1 != 0);
+        assert_eq!(result.managed_remote_control_staff_override, bits & 2 != 0);
+        assert_eq!(result.owner_adc_sandbox, bits & 4 != 0);
+        assert_eq!(result.owner_codespaces, bits & 8 != 0);
+        assert_eq!(serde_json::to_value(result).unwrap(), expected);
+    }
+}
+
+#[tokio::test]
+async fn remote_policy_inputs_rejects_missing_and_malformed_required_booleans() {
+    let (session, mut server) = create_session_pair().await;
+    let session = Arc::new(session);
+    let valid = serde_json::json!({
+        "managedRemoteControlSetting": false,
+        "managedRemoteControlStaffOverride": false,
+        "ownerAdcSandbox": false,
+        "ownerCodespaces": false,
+    });
+    let mut malformed = vec![Value::Null, serde_json::json!([]), serde_json::json!({})];
+    for field in [
+        "managedRemoteControlSetting",
+        "managedRemoteControlStaffOverride",
+        "ownerAdcSandbox",
+        "ownerCodespaces",
+    ] {
+        let mut missing = valid.clone();
+        missing.as_object_mut().unwrap().remove(field);
+        malformed.push(missing);
+        for value in [
+            Value::Null,
+            serde_json::json!("false"),
+            serde_json::json!(0),
+            serde_json::json!([]),
+            serde_json::json!({}),
+        ] {
+            let mut response = valid.clone();
+            response[field] = value;
+            malformed.push(response);
+        }
+    }
+
+    for response in malformed {
+        let handle = tokio::spawn({
+            let session = session.clone();
+            async move { session.rpc().remote().get_policy_inputs().await }
+        });
+        let request = timeout(TIMEOUT, server.read_request()).await.unwrap();
+        assert_eq!(request["method"], "session.remote.getPolicyInputs");
+        assert_eq!(
+            request["params"],
+            serde_json::json!({ "sessionId": server.session_id })
+        );
+        server.respond(&request, response.clone()).await;
+
+        let error = timeout(TIMEOUT, handle)
+            .await
+            .unwrap()
+            .unwrap()
+            .expect_err("malformed policy inputs must not default to false");
+        assert_eq!(error.kind(), &ErrorKind::Json, "response: {response}");
+    }
+}
+
+#[tokio::test]
+async fn remote_policy_inputs_propagates_rpc_errors_without_fallback() {
+    let (session, mut server) = create_session_pair().await;
+    let session = Arc::new(session);
+    for (code, message) in [
+        (-32601, "Method not found"),
+        (-32000, "Original session not found"),
+        (-32000, "Original session is not attached"),
+    ] {
+        let handle = tokio::spawn({
+            let session = session.clone();
+            async move { session.rpc().remote().get_policy_inputs().await }
+        });
+        let request = timeout(TIMEOUT, server.read_request()).await.unwrap();
+        assert_eq!(request["method"], "session.remote.getPolicyInputs");
+        assert_eq!(
+            request["params"],
+            serde_json::json!({ "sessionId": server.session_id })
+        );
+        let data = serde_json::json!({ "sessionId": server.session_id });
+        let response = serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": request["id"],
+            "error": { "code": code, "message": message, "data": data },
+        });
+        write_framed(&mut server.write, &serde_json::to_vec(&response).unwrap()).await;
+
+        let error = timeout(TIMEOUT, handle)
+            .await
+            .unwrap()
+            .unwrap()
+            .expect_err("RPC rejection must propagate");
+        assert_eq!(error.kind(), &ErrorKind::Rpc { code });
+        assert_eq!(error.message(), Some(message));
+        assert_eq!(error.rpc_data(), Some(&data));
+    }
+
+    let handle = tokio::spawn(async move { session.rpc().remote().get_policy_inputs().await });
+    let request = timeout(TIMEOUT, server.read_request()).await.unwrap();
+    assert_eq!(request["method"], "session.remote.getPolicyInputs");
+    assert_eq!(
+        request["params"],
+        serde_json::json!({ "sessionId": server.session_id })
+    );
+    server
+        .respond(
+            &request,
+            serde_json::json!({
+                "managedRemoteControlSetting": false,
+                "managedRemoteControlStaffOverride": false,
+                "ownerAdcSandbox": false,
+                "ownerCodespaces": false,
+            }),
+        )
+        .await;
+    timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap();
 }
 
 #[tokio::test]

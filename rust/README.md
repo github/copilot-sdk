@@ -464,6 +464,19 @@ New RPCs land in the namespace immediately as the schema regenerates;
 helpers are added on top only when an ergonomic story is worth the
 maintenance.
 
+The experimental `session.rpc().remote().get_policy_inputs().await?` returns
+`github_copilot_sdk::rpc::RemotePolicyInputs` for that original live session,
+using its existing subscription. Its four required booleans are
+`managed_remote_control_setting`, `managed_remote_control_staff_override`,
+`owner_adc_sandbox`, and `owner_codespaces`. The managed flags include native
+defaults; the environment booleans describe the session's owning runtime
+process (`ADC_SANDBOX_ID` nonempty and `CODESPACES` exactly `"true"`).
+The call does not enable export or steering, apply managed policy, or expose
+raw flags or environment values. Missing or unattached sessions, unsupported
+runtimes, and malformed responses return errors rather than inferred inputs.
+Use a matching runtime and its emitted schemas for this unreleased API; the
+SDK change alone does not add support to an older pinned CLI.
+
 #### Typed MCP installation and removal payloads (breaking change)
 
 Three payloads in the experimental MCP installation and removal workflow are now typed
