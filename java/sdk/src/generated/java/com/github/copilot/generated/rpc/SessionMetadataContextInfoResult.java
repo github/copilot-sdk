@@ -44,13 +44,13 @@ public record SessionMetadataContextInfoResult(
         @JsonProperty("mcpToolsTokens") Long mcpToolsTokens,
         /** Sum of system, conversation and tool-definition tokens */
         @JsonProperty("totalTokens") Long totalTokens,
-        /** Effective input budget: the selected tier's prompt allowance bounded by the combined context ceiling minus the requested output allowance. Uses DEFAULT_TOKEN_LIMIT when limits are unspecified. */
+        /** Maximum prompt tokens allowed by the model (or DEFAULT_TOKEN_LIMIT if unspecified) */
         @JsonProperty("promptTokenLimit") Long promptTokenLimit,
         /** Token count at which background compaction starts (configurable percentage of promptTokenLimit) */
         @JsonProperty("compactionThreshold") Long compactionThreshold,
-        /** Advertised prompt allowance for the selected context tier, without adding output tokens. The denominator for context-usage displays. */
+        /** Prompt token limit plus the model's full output token limit. */
         @JsonProperty("limit") Long limit,
-        /** Output reservation overlapping the displayed prompt allowance plus tokens after the effective input budget's buffer-exhaustion blocking threshold (default 95%). */
+        /** Output reserve plus tokens after the buffer-exhaustion blocking threshold (default 95%) */
         @JsonProperty("bufferTokens") Long bufferTokens
     ) {
     }

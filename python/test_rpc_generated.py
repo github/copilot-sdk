@@ -15,7 +15,6 @@ from copilot.generated.rpc import (
     register_client_global_api_handlers,
 )
 from copilot.rpc import (
-    AuthReadValue,
     BuiltinToolInputSchemaType,
     CommandsApi,
     CommandsInvokeRequest,
@@ -109,25 +108,6 @@ def test_mcp_oauth_scopes_preserve_existing_positional_parameters():
     )
     assert config.oauth_scopes == ["tools:read", "resources:read"]
     assert config.oidc is True
-
-
-def test_auth_read_value_preserves_existing_positional_parameters():
-    assert list(inspect.signature(AuthReadValue).parameters) == [
-        "kind",
-        "account",
-        "status",
-        "errors",
-        "auth_info",
-    ]
-    payload = {
-        "kind": "activeAccount",
-        "authInfo": {"type": "user", "host": "https://github.com", "login": "octocat"},
-    }
-    result = AuthReadValue.from_dict(payload)
-    assert result.auth_info.login == "octocat"
-    assert result.status is None
-    assert result.errors is None
-    assert result.to_dict() == payload
 
 
 @pytest.mark.asyncio

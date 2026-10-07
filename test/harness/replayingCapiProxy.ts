@@ -124,7 +124,6 @@ const defaultModel = "claude-sonnet-5";
 export class ReplayingCapiProxy extends CapturingHttpProxy {
   private state: ReplayingCapiProxyState | null = null;
   private memoryApiStub: MemoryApiStub | undefined;
-  private entraLogin: { subjectToken: string; githubToken: string } | undefined;
   private startPromise: Promise<string> | null = null;
   private defaultToolResultNormalizers: ToolResultNormalizer[] = [
     { toolName: "*", normalizer: normalizeLargeOutputFilepaths },
@@ -301,65 +300,6 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
         ) {
           this.memoryApiStub = JSON.parse(options.body!) as MemoryApiStub;
           options.onResponseStart(200, {});
-          options.onResponseEnd();
-          return;
-        }
-
-        if (
-          options.requestOptions.path === "/entra-login-config" &&
-          options.requestOptions.method === "POST"
-        ) {
-          this.entraLogin = JSON.parse(options.body!) as {
-            subjectToken: string;
-            githubToken: string;
-          };
-          options.onResponseStart(200, {});
-          options.onResponseEnd();
-          return;
-        }
-        if (
-          this.entraLogin &&
-          options.requestOptions.path === "/entra-broker"
-        ) {
-          options.onResponseStart(200, { "content-type": "application/json" });
-          options.onData(
-            Buffer.from(
-              JSON.stringify({
-                accessToken: this.entraLogin.subjectToken,
-                expiresOnTimestamp: Date.now() + 3600000,
-                username: "entra-sdk@example.test",
-                accountId: "entra-sdk-account",
-              }),
-            ),
-          );
-          options.onResponseEnd();
-          return;
-        }
-        if (
-          this.entraLogin &&
-          options.requestOptions.path === "/login/oauth/access_token"
-        ) {
-          const form = new URLSearchParams(options.body ?? "");
-          const valid =
-            form.get("grant_type") ===
-              "urn:ietf:params:oauth:grant-type:token-exchange" &&
-            form.get("subject_token") === this.entraLogin.subjectToken;
-          options.onResponseStart(valid ? 200 : 400, {
-            "content-type": "application/json",
-          });
-          options.onData(
-            Buffer.from(
-              JSON.stringify(
-                valid
-                  ? {
-                      access_token: this.entraLogin.githubToken,
-                      expires_in: 3600,
-                      token_type: "bearer",
-                    }
-                  : { error: "invalid_request" },
-              ),
-            ),
-          );
           options.onResponseEnd();
           return;
         }

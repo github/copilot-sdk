@@ -1797,8 +1797,7 @@ async fn create_and_resume_send_managed_settings_permissions() {
             .with_disable_bypass_permissions_mode(DisableBypassPermissionsModes::ALLOW_AUTO_ONLY)
             .with_deny(vec!["shell(rm*)".to_string()])
             .with_ask(vec!["write".to_string()])
-            .with_allow(vec![])
-            .with_limit_to(vec![]),
+            .with_allow(vec![]),
     );
 
     let create_handle = tokio::spawn({
@@ -1824,7 +1823,6 @@ async fn create_and_resume_send_managed_settings_permissions() {
     assert_eq!(perms["deny"][0], "shell(rm*)");
     assert_eq!(perms["ask"][0], "write");
     assert_eq!(perms["allow"], serde_json::json!([]));
-    assert_eq!(perms["limitTo"], serde_json::json!([]));
 
     let id = request["id"].as_u64().unwrap();
     let session_id = requested_session_id(&request).to_string();

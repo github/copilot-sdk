@@ -28,7 +28,7 @@ public final class ServerAccountApi {
     }
 
     /**
-     * Gets Copilot quota usage for the current or opaquely selected authenticated user.
+     * Optional opaque account selection or compatibility GitHub token used to look up quota.
      * <p>
      * Invokes the method with no params, applying the runtime defaults.
      *
@@ -41,7 +41,7 @@ public final class ServerAccountApi {
     }
 
     /**
-     * Gets Copilot quota usage for the current or opaquely selected authenticated user.
+     * Optional opaque account selection or compatibility GitHub token used to look up quota.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -52,7 +52,7 @@ public final class ServerAccountApi {
     }
 
     /**
-     * Gets the currently active authentication credentials from the global auth manager.
+     * Current authentication state
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -63,7 +63,7 @@ public final class ServerAccountApi {
     }
 
     /**
-     * Gets all authenticated users available for account switching.
+     * List of all authenticated users
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -74,7 +74,7 @@ public final class ServerAccountApi {
     }
 
     /**
-     * Validates and stores authentication credentials. When login is omitted, resolves the authenticated user from the token before persistence.
+     * Credentials to validate and store. Omit login to resolve the authenticated user from the token.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -85,7 +85,7 @@ public final class ServerAccountApi {
     }
 
     /**
-     * Removes user authentication from keychain and persisted state.
+     * User to log out
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0

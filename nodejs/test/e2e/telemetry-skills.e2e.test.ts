@@ -83,34 +83,87 @@ for (const captureContent of [false, true]) {
                 });
                 const root = await createSkill(workDir);
                 await writeFile(join(workDir, "policy.txt"), "OTEL_UNRELATED_POLICY");
+                const permissionKinds: string[] = [];
+                const hookTools: string[] = [];
                 const session = await client.createSession({
                     enableConfigDiscovery: false,
                     skillDirectories: [join(workDir, "skills")],
-                    onPermissionRequest: approveAll,
+                    onPermissionRequest: (request, invocation) => {
+                        permissionKinds.push(request.kind);
+                        return approveAll(request, invocation);
+                    },
+                    hooks: {
+                        onPreToolUse: async (input) => {
+                            hookTools.push(input.toolName);
+                            return {};
+                        },
+                    },
                 });
                 const calls: { id: string; tool: string }[] = [];
+                const completions = new Map<string, boolean>();
+                const sessionErrors: string[] = [];
                 const exits = new Map<string, number>();
+                let startLogs: (() => void) | undefined;
+                const toolsStarted = new Promise<void>((resolve) => {
+                    startLogs = resolve;
+                });
                 session.on("tool.execution_start", (event) => {
                     calls.push({ id: event.data.toolCallId, tool: event.data.toolName });
+                    startLogs?.();
                 });
                 session.on("tool.execution_complete", (event) => {
+                    completions.set(event.data.toolCallId, event.data.success);
                     const exit = event.data.shellExecution?.exitCode;
                     if (exit !== undefined) {
                         exits.set(event.data.toolCallId, exit);
                     }
                 });
-                const response = await session.sendAndWait(
-                    {
-                        prompt:
-                            "Use the skill tool to load review. Then use view to read skills/review/references/policy.txt. " +
-                            "Then use the shell tool in sync mode to run exactly: node './skills/review/scripts/check.cjs'. " +
-                            "Then use view to read policy.txt in the working directory, outside the skill. " +
-                            "Then use view to read skills/review/SKILL.md, and use view to list the skills/review directory. " +
-                            "After all six calls finish, reply with exactly OTEL_SKILL_FLOW_DONE.",
-                    },
-                    90_000
+                session.on("session.error", (event) => {
+                    sessionErrors.push(event.data.message);
+                });
+                // The Rust regression pins the lock interleaving; this covers
+                // native event delivery and permission/hook wiring under traffic.
+                let stopLogs = false;
+                let acknowledgedLogs = 0;
+                const logTraffic = Promise.allSettled(
+                    Array.from({ length: 4 }, async (_, producer) => {
+                        await toolsStarted;
+                        for (let index = 0; index < 64 && !stopLogs; index++) {
+                            await session.rpc.log({
+                                message: `concurrent telemetry event ${producer}:${index}`,
+                                ephemeral: true,
+                            });
+                            acknowledgedLogs++;
+                        }
+                    })
                 );
+                let response: Awaited<ReturnType<typeof session.sendAndWait>>;
+                let logResults: Awaited<typeof logTraffic>;
+                try {
+                    response = await session.sendAndWait(
+                        {
+                            prompt:
+                                "Use the skill tool to load review. Then use view to read skills/review/references/policy.txt. " +
+                                "Then use the shell tool in sync mode to run exactly: node './skills/review/scripts/check.cjs'. " +
+                                "Then use view to read policy.txt in the working directory, outside the skill. " +
+                                "Then use view to read skills/review/SKILL.md, and use view to list the skills/review directory. " +
+                                "After all six calls finish, reply with exactly OTEL_SKILL_FLOW_DONE.",
+                        },
+                        90_000
+                    );
+                } finally {
+                    stopLogs = true;
+                    startLogs?.();
+                    logResults = await logTraffic;
+                }
                 expect(response?.data.content).toContain("OTEL_SKILL_FLOW_DONE");
+                expect(logResults.filter((result) => result.status === "rejected")).toEqual([]);
+                expect(acknowledgedLogs).toBeGreaterThan(0);
+                expect(calls).toHaveLength(6);
+                expect(calls.map((call) => completions.get(call.id))).toEqual(Array(6).fill(true));
+                expect(hookTools.toSorted()).toEqual(calls.map((call) => call.tool).toSorted());
+                expect(permissionKinds.length).toBeGreaterThan(0);
+                expect(sessionErrors).toEqual([]);
                 await session.disconnect();
                 expect(await client.stop()).toEqual([]);
 

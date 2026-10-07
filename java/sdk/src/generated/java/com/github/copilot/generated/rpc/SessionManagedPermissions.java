@@ -29,8 +29,6 @@ public record SessionManagedPermissions(
     /** Permission rules that require explicit human approval. */
     @JsonProperty("ask") List<String> ask,
     /** Permission rules that allow matching operations unless another managed source, deny, or ask rule restricts them. */
-    @JsonProperty("allow") List<String> allow,
-    /** Closed-world host boundary expressed as `Domain(hostname)`, `Domain(IP)`, or `Domain(*.example.com)` rules. Schemes, ports, paths, queries, and fragments are rejected because every network request must be enforceable at host-level egress. Multiple managed sources intersect their lists; an empty list denies all hosts. */
-    @JsonProperty("limitTo") List<String> limitTo
+    @JsonProperty("allow") List<String> allow
 ) {
 }

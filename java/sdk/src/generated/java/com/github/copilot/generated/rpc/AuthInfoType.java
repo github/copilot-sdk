@@ -22,8 +22,6 @@ public enum AuthInfoType {
     ENV("env"),
     /** The {@code user} variant. */
     USER("user"),
-    /** The {@code account} variant. */
-    ACCOUNT("account"),
     /** The {@code gh-cli} variant. */
     GH_CLI("gh-cli"),
     /** The {@code api-key} variant. */

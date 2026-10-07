@@ -149,7 +149,6 @@ export class CapiProxy {
         filePath: string;
         workDir: string;
         backend?: ReplayBackend;
-        replayOnly?: boolean;
         testInfo?: { file: string; line?: number };
         modelNames?: Record<string, string>;
     }): Promise<void> {
@@ -231,15 +230,6 @@ export class CapiProxy {
             method: "POST",
             headers: { "content-type": "application/json" },
             body: JSON.stringify(stub),
-        });
-        expect(response.ok).toBe(true);
-    }
-
-    async setEntraLogin(subjectToken: string, githubToken: string): Promise<void> {
-        const response = await fetch(`${this.proxyUrl}/entra-login-config`, {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({ subjectToken, githubToken }),
         });
         expect(response.ok).toBe(true);
     }

@@ -281,7 +281,7 @@ public class ScenarioTestingProvidersE2ETests(E2ETestFixture fixture, ITestOutpu
                 Prompt = "This selected provider should fail.",
             }));
         Assert.Contains("offline", failure.ToString(), StringComparison.OrdinalIgnoreCase);
-        Assert.Single(handler.InferenceRequests, request => request.Host == "offline.scenario.invalid");
+        Assert.Contains(handler.InferenceRequests, request => request.Host == "offline.scenario.invalid");
     }
 
     private CopilotClient CreateProviderClient(ScenarioProviderRequestHandler handler) =>
@@ -385,8 +385,7 @@ internal sealed class ScenarioProviderRequestHandler(string? failingHost = null)
 
         if (string.Equals(uri.Host, failingHost, StringComparison.Ordinal))
         {
-            // Provider selection is the contract here, not transient-error retry backoff.
-            return new HttpResponseMessage(HttpStatusCode.BadRequest)
+            return new HttpResponseMessage(HttpStatusCode.BadGateway)
             {
                 Content = new StringContent(
                     "{\"error\":{\"message\":\"offline scenario provider\"}}",

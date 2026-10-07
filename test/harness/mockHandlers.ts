@@ -19,9 +19,6 @@ export function createE2eRequestHandler(options: {
     }
 
     if (targetHost === "github.com") {
-      if (req.method === "POST" && req.url === "/login/oauth/access_token") {
-        return forwardToCapiProxy(req, res, options.capiProxyUrl);
-      }
       respondJson(res, 404, { message: "Not Found (e2e mock)" });
       return true;
     }

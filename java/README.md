@@ -76,7 +76,7 @@ implementation 'com.github:copilot-sdk-java:1.0.15-preview.1-SNAPSHOT'
 
 ## In-process mode (experimental)
 
-The SDK supports running the Copilot runtime **in-process** as a native library instead of spawning a separate CLI process. This eliminates process management overhead and simplifies deployment. In-process mode is currently experimental and supported on **linux-x64** (glibc), **linux-arm64** (glibc), **linuxmusl-x64**, **linuxmusl-arm64**, **win32-x64**, **win32-arm64**, **darwin-x64**, and **darwin-arm64**.
+The SDK supports running the Copilot runtime **in-process** as a native library instead of spawning a separate CLI process. This eliminates process management overhead and simplifies deployment. In-process mode is currently experimental and supported on **linux-x64** (glibc), **linux-arm64** (glibc), **linuxmusl-x64**, **win32-x64**, **win32-arm64**, **darwin-x64**, and **darwin-arm64**.
 
 Because in-process mode is experimental, see the [Using experimental APIs](#using-experimental-apis) section for how to opt in.
 
@@ -99,7 +99,7 @@ Add both the SDK and the platform-specific native runtime to your project:
         <version>${copilot.version}</version>
         <classifier>linux-x64</classifier>
     </dependency>
-    <!-- Use linux-arm64, linuxmusl-x64, linuxmusl-arm64, win32-x64, win32-arm64, darwin-x64, or darwin-arm64 on those target platforms -->
+    <!-- Use linux-arm64, linuxmusl-x64, win32-x64, win32-arm64, darwin-x64, or darwin-arm64 on those target platforms -->
     <!-- JNA (required for in-process mode) -->
     <dependency>
         <groupId>net.java.dev.jna</groupId>
@@ -285,51 +285,6 @@ Initial acquisition runs during session creation or resume. Cancellation,
 provider errors, and invalid token responses reject that operation instead of
 falling back to ambient authentication. Idle sessions refresh only before their
 next credential-consuming operation; there is no background refresh timer.
-
-### Skill providers (experimental)
-
-`SessionConfig.setSkillProvider(...)` registers session-scoped skills that the
-runtime can list and read on demand. The API is experimental; see
-[Using experimental APIs](#using-experimental-apis) before compiling code that
-references it.
-
-```java
-import com.github.copilot.SkillProvider;
-import com.github.copilot.SkillProviderDescriptor;
-
-SkillProvider provider = new SkillProvider() {
-    @Override
-    public CompletableFuture<List<SkillProviderDescriptor>> listSkills() {
-        return CompletableFuture.completedFuture(List.of(
-            new SkillProviderDescriptor("team-plan", "Team planning guidance", true, false, null)));
-    }
-
-    @Override
-    public CompletableFuture<String> readSkill(String name) {
-        if (!name.equals("team-plan")) {
-            return CompletableFuture.completedFuture(null); // not found
-        }
-        return CompletableFuture.completedFuture("# Team plan\nWrite a concise monthly team plan.");
-    }
-};
-
-var config = new SessionConfig()
-    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
-    .setEnableSkills(true)
-    .setSkillProvider(provider);
-```
-
-Provider callbacks may be invoked concurrently, so implementations should be
-thread-safe. When the runtime cancels a call, for example after its 30-second
-limit or when the session disconnects, the SDK calls `cancel(true)` on the
-returned future; check `isCancelled()` or attach a completion callback to stop
-early. The provider is not persisted with the session; pass it again via
-`ResumeSessionConfig.setSkillProvider(...)` on every resume. Resuming without a
-provider unbinds any provider the session had. In
-`CopilotClientMode.EMPTY`, explicitly set `setEnableSkills(true)` if the
-assistant should use skills, because empty mode disables skill loading by
-default. Skill providers are local-session only and are rejected for cloud
-sessions.
 
 ### Typed MCP installation and removal payloads (breaking change)
 
@@ -920,7 +875,7 @@ CI enforces both checks. Spotless runs explicitly in CI; `mvn verify` alone does
 
 Run native-runtime Maven commands from the `java` directory. Native packaging requires Node.js in addition to JDK 25 and Maven. In a standalone SDK checkout, `copilot-native/scripts/fetch-native.mjs` retrieves the pinned runtime package from the corresponding GitHub release. When the SDK is nested in `copilot-agent-runtime`, it instead stages the same-checkout artifacts from `dist-cli`; run `pnpm run build:cli` from the runtime repository first.
 
-On a native Linux glibc host, Maven activates `native-linux-x64` or `native-linux-arm64` for the matching architecture when `copilot.native.libc=glibc` is set. On a Linux musl host, Maven activates `native-linuxmusl-x64` or `native-linuxmusl-arm64` for the matching architecture when `copilot.native.libc=musl` is set. On Windows x64, Windows ARM64, Intel macOS, and Apple Silicon macOS, Maven activates `native-win32-x64`, `native-win32-arm64`, `native-darwin-x64`, or `native-darwin-arm64` automatically. The matching profile validates the host, runs the native script tests, stages the platform package during `generate-resources`, packages the classifier JAR during `package`, and verifies its native contents.
+On a native Linux glibc host, Maven activates `native-linux-x64` or `native-linux-arm64` for the matching architecture when `copilot.native.libc=glibc` is set. On a Linux musl x64 host, Maven activates `native-linuxmusl-x64` when `copilot.native.libc=musl` is set. On Windows x64, Windows ARM64, Intel macOS, and Apple Silicon macOS, Maven activates `native-win32-x64`, `native-win32-arm64`, `native-darwin-x64`, or `native-darwin-arm64` automatically. The matching profile validates the host, runs the native script tests, stages the platform package during `generate-resources`, packages the classifier JAR during `package`, and verifies its native contents.
 
 Before opting in, validate that Node.js reports glibc for the build host:
 
@@ -955,14 +910,14 @@ node copilot-native/scripts/validate-native-host.mjs linux-arm64
 mvn -Pinprocess clean verify -Dcopilot.native.libc=glibc
 ```
 
-The same command validates in-process mode on Linux musl x64 or ARM64:
+The same command validates in-process mode on Linux musl x64:
 
 ```bash
-node copilot-native/scripts/validate-native-host.mjs linuxmusl-x64 # Use linuxmusl-arm64 on ARM64
+node copilot-native/scripts/validate-native-host.mjs linuxmusl-x64
 mvn -Pinprocess clean verify -Dcopilot.native.libc=musl
 ```
 
-On unsupported hosts, do not set `copilot.native.libc`. A normal build produces only the OS-neutral primary, sources, and Javadoc JARs; it does not run native script tests, download or stage native files, or produce a platform classifier JAR.
+On Linux musl ARM64 and other unsupported hosts, do not set `copilot.native.libc`. A normal build produces only the OS-neutral primary, sources, and Javadoc JARs; it does not run native script tests, download or stage native files, or produce a platform classifier JAR.
 
 To build only the OS-neutral artifacts on any host, or override the glibc opt-in, disable native download and packaging:
 

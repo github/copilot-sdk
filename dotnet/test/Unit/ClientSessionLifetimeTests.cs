@@ -2503,8 +2503,7 @@ public sealed partial class ClientSessionLifetimeTests
         using var subscription = session.On<SessionIdleEvent>(_ =>
         {
             entered.TrySetResult();
-            release.Wait();
-            handlerFinished = true;
+            handlerFinished = release.Wait(TimeSpan.FromSeconds(5));
         });
         var pending = session.SendAndWaitAsync(new MessageOptions { Prompt = "hello" });
         await WaitForRequestAsync(server, "session.send");
@@ -2614,8 +2613,7 @@ public sealed partial class ClientSessionLifetimeTests
                     DisableBypassPermissionsMode = DisableBypassPermissionsModes.Disable,
                     Deny = ["shell(rm*)"],
                     Ask = ["write"],
-                    Allow = [],
-                    LimitTo = ["Domain(github.com)"]
+                    Allow = []
                 }
             },
             OnPermissionRequest = (_, invocation) =>
@@ -2632,9 +2630,6 @@ public sealed partial class ClientSessionLifetimeTests
         Assert.Equal("shell(rm*)", Assert.Single(permissions.GetProperty("deny").EnumerateArray()).GetString());
         Assert.Equal("write", Assert.Single(permissions.GetProperty("ask").EnumerateArray()).GetString());
         Assert.Empty(permissions.GetProperty("allow").EnumerateArray());
-        Assert.Equal(
-            "Domain(github.com)",
-            Assert.Single(permissions.GetProperty("limitTo").EnumerateArray()).GetString());
 
         DispatchEvent(session, new PermissionRequestedEvent
         {
@@ -3004,7 +2999,7 @@ public sealed partial class ClientSessionLifetimeTests
         return process;
     }
 
-    private sealed partial class FakeCopilotServer : IAsyncDisposable
+    private sealed class FakeCopilotServer : IAsyncDisposable
     {
         private readonly TcpListener _listener;
         private readonly CancellationTokenSource _cts = new();
@@ -3238,9 +3233,8 @@ public sealed partial class ClientSessionLifetimeTests
                 {
                     if (root.TryGetProperty("error", out var error))
                     {
-                        var exception = new InvalidOperationException(error.GetProperty("message").GetString());
-                        exception.Data["error"] = error.Clone();
-                        completion.TrySetException(exception);
+                        completion.TrySetException(new InvalidOperationException(
+                            error.GetProperty("message").GetString()));
                     }
                     else
                     {

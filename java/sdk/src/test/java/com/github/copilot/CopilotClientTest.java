@@ -9,17 +9,11 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import com.github.copilot.generated.ExternalToolRequestedEvent;
-import com.github.copilot.rpc.CloudSessionOptions;
 import com.github.copilot.rpc.CopilotClientOptions;
-import com.github.copilot.rpc.CopilotClientMode;
-import com.github.copilot.rpc.CreateSessionRequest;
-import com.github.copilot.rpc.CreateSessionResponse;
 import com.github.copilot.rpc.DeleteSessionResponse;
 import com.github.copilot.rpc.GitHubTokenProviderResult;
 import com.github.copilot.rpc.PermissionHandler;
 import com.github.copilot.rpc.PingResponse;
-import com.github.copilot.rpc.ResumeSessionConfig;
-import com.github.copilot.rpc.ResumeSessionResponse;
 import com.github.copilot.rpc.SessionConfig;
 import com.github.copilot.rpc.SessionLifecycleEvent;
 import com.github.copilot.rpc.SessionLifecycleEventTypes;
@@ -28,7 +22,6 @@ import com.github.copilot.rpc.ToolDefinition;
 import java.io.OutputStream;
 import java.lang.reflect.Field;
 import java.io.BufferedReader;
-import java.io.FilterOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
@@ -184,137 +177,6 @@ public class CopilotClientTest {
     }
 
     @Test
-    @AllowCopilotExperimental
-    void cloudSessionWithSkillProviderIsRejectedBeforeConnectingOrCallingProvider() throws Exception {
-        var providerCalls = new AtomicInteger();
-        SkillProvider provider = new SkillProvider() {
-            @Override
-            public CompletableFuture<List<SkillProviderDescriptor>> listSkills() {
-                providerCalls.incrementAndGet();
-                return CompletableFuture.completedFuture(List.of());
-            }
-
-            @Override
-            public CompletableFuture<String> readSkill(String name) {
-                providerCalls.incrementAndGet();
-                return CompletableFuture.completedFuture(null);
-            }
-        };
-
-        try (var client = new CopilotClient(new CopilotClientOptions().setAutoStart(false))) {
-            var config = new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
-                    .setCloud(new CloudSessionOptions()).setSkillProvider(provider);
-
-            ExecutionException error = assertThrows(ExecutionException.class, () -> client.createSession(config).get());
-            assertInstanceOf(IllegalArgumentException.class, error.getCause());
-            assertEquals("Skill providers are not supported for cloud sessions.", error.getCause().getMessage());
-            assertEquals(0, providerCalls.get());
-        }
-    }
-
-    @Test
-    @AllowCopilotExperimental
-    void emptyModeCreateWithSkillProviderSendsFlagsAndRegistersBeforeRpc() throws Exception {
-        var client = new CopilotClient(new CopilotClientOptions().setAutoStart(false).setMode(CopilotClientMode.EMPTY)
-                .setCopilotHome(System.getProperty("java.io.tmpdir")));
-        var rpc = mock(JsonRpcClient.class);
-        setConnectionFuture(client, rpc, null);
-        SkillProvider provider = testSkillProvider();
-        var createRequest = new AtomicReference<CreateSessionRequest>();
-
-        when(rpc.invoke(eq("session.create"), any(), eq(CreateSessionResponse.class))).thenAnswer(invocation -> {
-            CreateSessionRequest request = invocation.getArgument(1);
-            createRequest.set(request);
-            assertTrue(request.getHasSkillProvider());
-            assertFalse(request.getEnableSkills());
-            assertSame(provider, registeredSkillProvider(client, "skill-provider-session"));
-            return CompletableFuture
-                    .completedFuture(new CreateSessionResponse("skill-provider-session", null, null, null));
-        });
-        when(rpc.invoke(eq("session.options.update"), any(), eq(Void.class)))
-                .thenReturn(CompletableFuture.completedFuture(null));
-
-        try {
-            var config = new SessionConfig().setSessionId("skill-provider-session")
-                    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setAvailableTools(List.of())
-                    .setSkillProvider(provider);
-
-            CopilotSession session = client.createSession(config).get();
-
-            assertSame(provider, session.getSkillProvider());
-            assertNotNull(createRequest.get());
-            assertTrue(createRequest.get().getHasSkillProvider());
-            assertFalse(createRequest.get().getEnableSkills());
-        } finally {
-            client.forceStop().get();
-        }
-    }
-
-    @Test
-    @AllowCopilotExperimental
-    void emptyModeResumeValidationFailureKeepsResidentSkillProvider() throws Exception {
-        var client = new CopilotClient(new CopilotClientOptions().setAutoStart(false).setMode(CopilotClientMode.EMPTY)
-                .setCopilotHome(System.getProperty("java.io.tmpdir")));
-        var rpc = mock(JsonRpcClient.class);
-        setConnectionFuture(client, rpc, null);
-        SkillProvider resident = testSkillProvider();
-        when(rpc.invoke(eq("session.create"), any(), eq(CreateSessionResponse.class))).thenReturn(
-                CompletableFuture.completedFuture(new CreateSessionResponse("resident-session", null, null, null)));
-        when(rpc.invoke(eq("session.options.update"), any(), eq(Void.class)))
-                .thenReturn(CompletableFuture.completedFuture(null));
-
-        try {
-            client.createSession(new SessionConfig().setSessionId("resident-session")
-                    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setAvailableTools(List.of())
-                    .setSkillProvider(resident)).get();
-
-            var resumeConfig = new ResumeSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
-                    .setSkillProvider(testSkillProvider());
-            var error = assertThrows(ExecutionException.class,
-                    () -> client.resumeSession("resident-session", resumeConfig).get());
-
-            assertInstanceOf(IllegalArgumentException.class, error.getCause());
-            assertSame(resident, registeredSkillProvider(client, "resident-session"));
-            verify(rpc, never()).invoke(eq("session.resume"), any(), any());
-        } finally {
-            client.forceStop().get();
-        }
-    }
-
-    @Test
-    @AllowCopilotExperimental
-    void failedResumeDoesNotEvictAConcurrentResume() throws Exception {
-        var client = new CopilotClient(
-                new CopilotClientOptions().setAutoStart(false).setCopilotHome(System.getProperty("java.io.tmpdir")));
-        var rpc = mock(JsonRpcClient.class);
-        setConnectionFuture(client, rpc, null);
-        when(rpc.invoke(eq("session.create"), any(), eq(CreateSessionResponse.class))).thenReturn(
-                CompletableFuture.completedFuture(new CreateSessionResponse("shared-session", null, null, null)));
-        when(rpc.invoke(eq("session.options.update"), any(), eq(Void.class)))
-                .thenReturn(CompletableFuture.completedFuture(null));
-        var firstResume = new CompletableFuture<ResumeSessionResponse>();
-        when(rpc.invoke(eq("session.resume"), any(), eq(ResumeSessionResponse.class))).thenReturn(firstResume,
-                CompletableFuture.completedFuture(new ResumeSessionResponse("shared-session", null, null, null)));
-
-        try {
-            client.createSession(new SessionConfig().setSessionId("shared-session")
-                    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setSkillProvider(testSkillProvider())).get();
-            var failing = client.resumeSession("shared-session", new ResumeSessionConfig()
-                    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setSkillProvider(testSkillProvider()));
-            SkillProvider winner = testSkillProvider();
-            client.resumeSession("shared-session", new ResumeSessionConfig()
-                    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setSkillProvider(winner)).get();
-
-            firstResume.completeExceptionally(new RuntimeException("resume failed"));
-
-            assertThrows(ExecutionException.class, failing::get);
-            assertSame(winner, registeredSkillProvider(client, "shared-session"));
-        } finally {
-            client.forceStop().get();
-        }
-    }
-
-    @Test
     void testClientConstruction() {
         var client = new CopilotClient();
         assertEquals(ConnectionState.DISCONNECTED, client.getState());
@@ -412,42 +274,21 @@ public class CopilotClientTest {
                         process.exit(1);
                     }
                 });
+                fs.closeSync(0);
                 process.stdout.write('started\\n');
                 """);
         var options = new CopilotClientOptions().setCliPath(script.toString()).setUseStdio(true);
         var manager = spy(new CliServerManager(options));
         var child = new AtomicReference<Process>();
-        var failedOutput = new AtomicReference<OutputStream>();
-        var writeFailure = new IOException("Controlled startup write failure");
-        doAnswer(invocation -> {
-            CliServerManager.ProcessInfo info = (CliServerManager.ProcessInfo) invocation.callRealMethod();
-            child.set(info.process());
-            // Closing fd 0 does not reliably fail the first parent write on Windows.
-            var output = new FilterOutputStream(info.process().getOutputStream()) {
-                @Override
-                public void write(int value) throws IOException {
-                    throw writeFailure;
-                }
-
-                @Override
-                public void write(byte[] bytes, int offset, int length) throws IOException {
-                    throw writeFailure;
-                }
-            };
-            failedOutput.set(output);
-            var transportProcess = mock(Process.class, org.mockito.AdditionalAnswers.delegatesTo(info.process()));
-            doReturn(output).when(transportProcess).getOutputStream();
-            return new CliServerManager.ProcessInfo(transportProcess, info.port());
-        }).when(manager).startCliServer();
         doAnswer(invocation -> {
             Process process = invocation.getArgument(0);
+            child.set(process);
             var reader = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8));
             assertEquals("started", reader.readLine());
             return invocation.callRealMethod();
         }).when(manager).connectToServer(any(Process.class), isNull(), isNull());
         doAnswer(invocation -> {
             // Release stderr only when startup drains it, while the child is still alive.
-            assertTrue(child.get().isAlive(), "Startup must drain stderr before killing the controlled child.");
             Files.createFile(tempDir.resolve("release-stderr"));
             return invocation.callRealMethod();
         }).when(manager).awaitStderrReader();
@@ -466,13 +307,10 @@ public class CopilotClientTest {
             while (original.getCause() != null) {
                 original = original.getCause();
             }
-            assertSame(writeFailure, original, "Startup must preserve the actual failed transport write.");
+            assertInstanceOf(IOException.class, original);
             assertNotSame(cause, original, "The startup error must retain its original transport failure.");
             assertFalse(child.get().isAlive(), "Failed startup retained its child process.");
         } finally {
-            if (failedOutput.get() != null) {
-                failedOutput.get().close();
-            }
             if (child.get() != null && child.get().isAlive()) {
                 child.get().destroyForcibly();
                 assertTrue(child.get().waitFor(10, TimeUnit.SECONDS), "Could not reap the controlled child.");
@@ -958,30 +796,5 @@ public class CopilotClientTest {
         Field field = CopilotClient.class.getDeclaredField("connectionFuture");
         field.setAccessible(true);
         field.set(client, CompletableFuture.completedFuture(connection));
-    }
-
-    @AllowCopilotExperimental
-    private static SkillProvider testSkillProvider() {
-        return new SkillProvider() {
-            @Override
-            public CompletableFuture<List<SkillProviderDescriptor>> listSkills() {
-                return CompletableFuture.completedFuture(List.of());
-            }
-
-            @Override
-            public CompletableFuture<String> readSkill(String name) {
-                return CompletableFuture.completedFuture(null);
-            }
-        };
-    }
-
-    @AllowCopilotExperimental
-    @SuppressWarnings("unchecked")
-    private static SkillProvider registeredSkillProvider(CopilotClient client, String sessionId) throws Exception {
-        Field sessionsField = CopilotClient.class.getDeclaredField("sessions");
-        sessionsField.setAccessible(true);
-        Map<String, CopilotSession> sessions = (Map<String, CopilotSession>) sessionsField.get(client);
-        CopilotSession session = sessions.get(sessionId);
-        return session != null ? session.getSkillProvider() : null;
     }
 }

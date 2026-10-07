@@ -27,7 +27,7 @@ public final class ServerPluginsBuiltinApi {
     }
 
     /**
-     * Replaces this server's trusted built-in plugin directories while no sessions are active.
+     * Trusted built-in plugin directories to use for this runtime process.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0

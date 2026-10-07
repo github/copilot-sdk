@@ -31,7 +31,7 @@ public final class SessionProvidersModelsApi {
     }
 
     /**
-     * Lists models installed or otherwise available from a discovered model-provider instance.
+     * Provider model inventory request parameters.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -47,7 +47,7 @@ public final class SessionProvidersModelsApi {
     }
 
     /**
-     * Translates a discovered model into the provider and model configuration needed to use it, and reports whether each is already registered in this session. Prepares only: it registers nothing, writes nothing, and performs no provider requests.
+     * A discovered instance and one of its models to translate into provider configuration. Pass back the instance and model as returned by `session.providers.discover` and `session.providers.models.list`.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.

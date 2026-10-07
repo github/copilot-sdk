@@ -207,12 +207,6 @@ describe("Structured output", async () => {
             const session = await client.createSession({
                 model,
                 provider,
-                ...(model === "hydrafusion"
-                    ? {
-                          enableExperimentalMode: true,
-                          featureFlags: { HYDRAFUSION: true, HYDRAFUSION_ROLLOUT: true },
-                      }
-                    : {}),
                 onPermissionRequest: approveAll,
                 availableTools: [],
             });

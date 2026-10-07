@@ -35,7 +35,7 @@ public final class SessionAccountsApi {
     }
 
     /**
-     * Enumerate a typed accounts collection: the signed-in accounts, or the providers offered for interactive login.
+     * Enumerate request carrying the typed collection query.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -51,7 +51,7 @@ public final class SessionAccountsApi {
     }
 
     /**
-     * Read one typed accounts datum: the active account, a neutral status summary, or the last authentication errors.
+     * Read request carrying the typed datum query.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -67,7 +67,7 @@ public final class SessionAccountsApi {
     }
 
     /**
-     * Apply one non-interactive accounts mutation: switch the active account, log an account out, or set credentials from a token.
+     * Mutation request carrying the typed write command.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.

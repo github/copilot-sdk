@@ -22,7 +22,6 @@ import {
 export const JAVA_CLASSIFIERS = {
     "linux-arm64": "linux.arm64",
     "linuxmusl-x64": "linuxmusl.x64",
-    "linuxmusl-arm64": "linuxmusl.arm64",
     "win32-x64": "win32",
     "win32-arm64": "win32.arm64",
     "darwin-arm64": "darwin",

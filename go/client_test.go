@@ -5191,7 +5191,6 @@ func TestSessionRequests_ManagedSettings(t *testing.T) {
 			Deny:                         []string{"Shell(git push)"},
 			Ask:                          []string{"Domain(publish.example)"},
 			Allow:                        []string{"Read(**)"},
-			LimitTo:                      []string{"Domain(github.com)"},
 		},
 	}
 
@@ -5200,7 +5199,6 @@ func TestSessionRequests_ManagedSettings(t *testing.T) {
 		"deny":                         []any{"Shell(git push)"},
 		"ask":                          []any{"Domain(publish.example)"},
 		"allow":                        []any{"Read(**)"},
-		"limitTo":                      []any{"Domain(github.com)"},
 	}
 
 	t.Run("direct injection enables managed safeguards", func(t *testing.T) {
@@ -5292,7 +5290,6 @@ func TestSessionRequests_ManagedSettings(t *testing.T) {
 				Deny:                         []string{},
 				Ask:                          []string{},
 				Allow:                        []string{},
-				LimitTo:                      []string{},
 			},
 		}}
 		data, err := json.Marshal(req)
@@ -5305,7 +5302,7 @@ func TestSessionRequests_ManagedSettings(t *testing.T) {
 		if perms["disableBypassPermissionsMode"] != "disable" {
 			t.Errorf("Expected disableBypassPermissionsMode preserved, got %v", perms["disableBypassPermissionsMode"])
 		}
-		for _, key := range []string{"deny", "ask", "allow", "limitTo"} {
+		for _, key := range []string{"deny", "ask", "allow"} {
 			if value, ok := perms[key].([]any); !ok || len(value) != 0 {
 				t.Errorf("Expected %s to be an explicit empty array, got %v", key, perms[key])
 			}

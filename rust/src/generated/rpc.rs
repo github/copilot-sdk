@@ -57,13 +57,6 @@ impl<'a> ClientRpc<'a> {
         }
     }
 
-    /// `connectors.*` sub-namespace.
-    pub fn connectors(&self) -> ClientRpcConnectors<'a> {
-        ClientRpcConnectors {
-            client: self.client,
-        }
-    }
-
     /// `environments.*` sub-namespace.
     pub fn environments(&self) -> ClientRpcEnvironments<'a> {
         ClientRpcEnvironments {
@@ -74,34 +67,6 @@ impl<'a> ClientRpc<'a> {
     /// `extensions.*` sub-namespace.
     pub fn extensions(&self) -> ClientRpcExtensions<'a> {
         ClientRpcExtensions {
-            client: self.client,
-        }
-    }
-
-    /// `git.*` sub-namespace.
-    pub fn git(&self) -> ClientRpcGit<'a> {
-        ClientRpcGit {
-            client: self.client,
-        }
-    }
-
-    /// `gitHubOwners.*` sub-namespace.
-    pub fn git_hub_owners(&self) -> ClientRpcGitHubOwners<'a> {
-        ClientRpcGitHubOwners {
-            client: self.client,
-        }
-    }
-
-    /// `gitHubRepository.*` sub-namespace.
-    pub fn git_hub_repository(&self) -> ClientRpcGitHubRepository<'a> {
-        ClientRpcGitHubRepository {
-            client: self.client,
-        }
-    }
-
-    /// `globalState.*` sub-namespace.
-    pub fn global_state(&self) -> ClientRpcGlobalState<'a> {
-        ClientRpcGlobalState {
             client: self.client,
         }
     }
@@ -569,160 +534,6 @@ impl<'a> ClientRpcAgents<'a> {
             .await?;
         Ok(serde_json::from_value(_value)?)
     }
-
-    /// Lists the agents this runtime ships, by name. A consumer separating shipped agents from ones the user or a plugin authored should compare against these names rather than against `AgentInfo.source`: an authored agent may carry the `builtin` source while not being one of these, and the runtime treats the two as separate questions. `disableableNames` is the subset a user may turn off, which a client needs to decide whether to offer a toggle. `yamlBasedNames` is the subset backed by a shipped YAML definition, which a client needs before asking the runtime to load one.
-    ///
-    /// Wire method: `agents.getBuiltins`.
-    ///
-    /// # Returns
-    ///
-    /// The agents this runtime ships, named so a consumer can tell them apart from authored ones.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This API is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases. Pin both the
-    /// SDK and CLI versions if your code depends on it.
-    ///
-    /// </div>
-    pub(crate) async fn get_builtins(&self) -> Result<AgentsGetBuiltinsResult, Error> {
-        let wire_params = serde_json::json!({});
-        let _value = self
-            .client
-            .call(rpc_methods::AGENTS_GETBUILTINS, Some(wire_params))
-            .await?;
-        Ok(serde_json::from_value(_value)?)
-    }
-
-    /// Lists the shipped agents a client should offer right now, filtered by the feature flags it passes. `getBuiltins` names every agent the runtime knows about; some of those are gated, so a client rendering a picker wants this narrower list together with the description to show beside each name.
-    ///
-    /// Wire method: `agents.getAvailableBuiltins`.
-    ///
-    /// # Parameters
-    ///
-    /// * `params` - The feature flags to evaluate shipped agents against.
-    ///
-    /// # Returns
-    ///
-    /// The shipped agents available under the requested flags.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This API is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases. Pin both the
-    /// SDK and CLI versions if your code depends on it.
-    ///
-    /// </div>
-    pub(crate) async fn get_available_builtins(
-        &self,
-        params: AgentsGetAvailableBuiltinsRequest,
-    ) -> Result<AgentsGetAvailableBuiltinsResult, Error> {
-        let wire_params = serde_json::to_value(params)?;
-        let _value = self
-            .client
-            .call(rpc_methods::AGENTS_GETAVAILABLEBUILTINS, Some(wire_params))
-            .await?;
-        Ok(serde_json::from_value(_value)?)
-    }
-
-    /// Loads one shipped agent's YAML definition, for a client that needs what the agent declares rather than only its name. `getBuiltins` reports which names have a definition to load: a name outside its `yamlBasedNames` is special-cased in code and has none. The definition crosses as its own JSON rather than as contract-typed fields, because the runtime parses it with the agent schema's tolerant shape and re-typing it here would drop the keys that shape accepts and this one does not. The projected `__nativeCustomAgent` view the runtime derives is included, so a caller reading the declared model and a caller rendering the agent see the same definition.
-    ///
-    /// Wire method: `agents.getBuiltinDefinition`.
-    ///
-    /// # Parameters
-    ///
-    /// * `params` - The shipped agent whose definition to load.
-    ///
-    /// # Returns
-    ///
-    /// One shipped agent's definition.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This API is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases. Pin both the
-    /// SDK and CLI versions if your code depends on it.
-    ///
-    /// </div>
-    pub(crate) async fn get_builtin_definition(
-        &self,
-        params: AgentsGetBuiltinDefinitionRequest,
-    ) -> Result<AgentsGetBuiltinDefinitionResult, Error> {
-        let wire_params = serde_json::to_value(params)?;
-        let _value = self
-            .client
-            .call(rpc_methods::AGENTS_GETBUILTINDEFINITION, Some(wire_params))
-            .await?;
-        Ok(serde_json::from_value(_value)?)
-    }
-
-    /// Projects one shipped agent the way a picker lists it, reading only the metadata at the head of the definition file and stopping before the prompt body. `getBuiltinDefinition` answers the whole definition instead, so a client listing every shipped agent should prefer this one: the cost of a listing grows with the number of agents, and the prompt body is the part a listing never shows. The two also differ in shape. This returns the projected custom agent on its own, whereas `getBuiltinDefinition` returns the authored definition with that projection nested under `__nativeCustomAgent`.
-    ///
-    /// Wire method: `agents.getBuiltinListingDefinition`.
-    ///
-    /// # Parameters
-    ///
-    /// * `params` - The shipped agent whose listing entry to load.
-    ///
-    /// # Returns
-    ///
-    /// One shipped agent, projected for a listing.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This API is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases. Pin both the
-    /// SDK and CLI versions if your code depends on it.
-    ///
-    /// </div>
-    pub(crate) async fn get_builtin_listing_definition(
-        &self,
-        params: AgentsGetBuiltinListingDefinitionRequest,
-    ) -> Result<AgentsGetBuiltinListingDefinitionResult, Error> {
-        let wire_params = serde_json::to_value(params)?;
-        let _value = self
-            .client
-            .call(
-                rpc_methods::AGENTS_GETBUILTINLISTINGDEFINITION,
-                Some(wire_params),
-            )
-            .await?;
-        Ok(serde_json::from_value(_value)?)
-    }
-
-    /// Resolves the model a custom agent asks for against the models actually available, and answers both the model to switch to and the warning a user should see when the agent's preference cannot be met. A custom agent may name several acceptable models in preference order, so the decision is a match rather than a lookup, and an agent whose preference is unavailable is a normal outcome that produces a warning rather than an error. A host must call this rather than pick the first available name itself, because the preference order and the wording of the warning are what keep one installation's agent selection the same as another's.
-    ///
-    /// Wire method: `agents.customAgentInitialModelDecision`.
-    ///
-    /// # Parameters
-    ///
-    /// * `params` - The models a custom agent asks for, and the models actually available.
-    ///
-    /// # Returns
-    ///
-    /// The model to switch to, and the warning to show when the agent's preference could not be met.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This API is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases. Pin both the
-    /// SDK and CLI versions if your code depends on it.
-    ///
-    /// </div>
-    pub(crate) async fn custom_agent_initial_model_decision(
-        &self,
-        params: AgentsCustomAgentInitialModelDecisionParams,
-    ) -> Result<AgentsCustomAgentInitialModelDecisionResult, Error> {
-        let wire_params = serde_json::to_value(params)?;
-        let _value = self
-            .client
-            .call(
-                rpc_methods::AGENTS_CUSTOMAGENTINITIALMODELDECISION,
-                Some(wire_params),
-            )
-            .await?;
-        Ok(serde_json::from_value(_value)?)
-    }
 }
 
 /// `catalog.*` RPCs.
@@ -852,124 +663,6 @@ impl<'a> ClientRpcCommands<'a> {
         let _value = self
             .client
             .call(rpc_methods::COMMANDS_LIST, Some(wire_params))
-            .await?;
-        Ok(serde_json::from_value(_value)?)
-    }
-}
-
-/// `connectors.*` RPCs.
-#[derive(Clone, Copy)]
-pub struct ClientRpcConnectors<'a> {
-    pub(crate) client: &'a Client,
-}
-
-impl<'a> ClientRpcConnectors<'a> {
-    /// Returns feature availability.
-    ///
-    /// Wire method: `connectors.getCapabilities`.
-    ///
-    /// # Returns
-    ///
-    /// Feature availability.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This API is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases. Pin both the
-    /// SDK and CLI versions if your code depends on it.
-    ///
-    /// </div>
-    pub async fn get_capabilities(&self) -> Result<ConnectorDiscoveryCapabilities, Error> {
-        let wire_params = serde_json::json!({});
-        let _value = self
-            .client
-            .call(rpc_methods::CONNECTORS_GETCAPABILITIES, Some(wire_params))
-            .await?;
-        Ok(serde_json::from_value(_value)?)
-    }
-
-    /// Returns eligible accounts.
-    ///
-    /// Wire method: `connectors.getAccounts`.
-    ///
-    /// # Returns
-    ///
-    /// Eligible accounts.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This API is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases. Pin both the
-    /// SDK and CLI versions if your code depends on it.
-    ///
-    /// </div>
-    pub async fn get_accounts(&self) -> Result<ConnectorDiscoveryAccountList, Error> {
-        let wire_params = serde_json::json!({});
-        let _value = self
-            .client
-            .call(rpc_methods::CONNECTORS_GETACCOUNTS, Some(wire_params))
-            .await?;
-        Ok(serde_json::from_value(_value)?)
-    }
-
-    /// Lists entries for the selected account.
-    ///
-    /// Wire method: `connectors.list`.
-    ///
-    /// # Parameters
-    ///
-    /// * `params` - Selected account.
-    ///
-    /// # Returns
-    ///
-    /// Entries for the selected account.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This API is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases. Pin both the
-    /// SDK and CLI versions if your code depends on it.
-    ///
-    /// </div>
-    pub async fn list(
-        &self,
-        params: ConnectorDiscoveryAccountRequest,
-    ) -> Result<ConnectorDiscoveryCatalogResult, Error> {
-        let wire_params = serde_json::to_value(params)?;
-        let _value = self
-            .client
-            .call(rpc_methods::CONNECTORS_LIST, Some(wire_params))
-            .await?;
-        Ok(serde_json::from_value(_value)?)
-    }
-
-    /// Refreshes entries for the selected account.
-    ///
-    /// Wire method: `connectors.refresh`.
-    ///
-    /// # Parameters
-    ///
-    /// * `params` - Selected account.
-    ///
-    /// # Returns
-    ///
-    /// Entries for the selected account.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This API is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases. Pin both the
-    /// SDK and CLI versions if your code depends on it.
-    ///
-    /// </div>
-    pub async fn refresh(
-        &self,
-        params: ConnectorDiscoveryAccountRequest,
-    ) -> Result<ConnectorDiscoveryCatalogResult, Error> {
-        let wire_params = serde_json::to_value(params)?;
-        let _value = self
-            .client
-            .call(rpc_methods::CONNECTORS_REFRESH, Some(wire_params))
             .await?;
         Ok(serde_json::from_value(_value)?)
     }
@@ -1151,327 +844,6 @@ impl<'a> ClientRpcExtensions<'a> {
         let _value = self
             .client
             .call(rpc_methods::EXTENSIONS_DISABLE, Some(wire_params))
-            .await?;
-        Ok(())
-    }
-}
-
-/// `git.*` RPCs.
-#[derive(Clone, Copy)]
-pub struct ClientRpcGit<'a> {
-    pub(crate) client: &'a Client,
-}
-
-impl<'a> ClientRpcGit<'a> {
-    /// Reads the remote that the branch checked out in a working tree tracks, as `branch.<name>.remote` configures it. Reports `origin` rather than failing whenever there is no tracking configuration to read — on a detached HEAD, on a branch with no upstream, or when git itself fails — because a caller asking which remote to talk to needs an answer it can act on, not an error. Marked internal because it exists to carry a CLI call site off the napi boundary onto the SDK contract; it is migration plumbing, not a surface consumers are meant to depend on.
-    ///
-    /// Wire method: `git.currentBranchRemote`.
-    ///
-    /// # Parameters
-    ///
-    /// * `params` - Working-tree path a git query applies to.
-    ///
-    /// # Returns
-    ///
-    /// The remote the checked-out branch tracks.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This API is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases. Pin both the
-    /// SDK and CLI versions if your code depends on it.
-    ///
-    /// </div>
-    pub(crate) async fn current_branch_remote(
-        &self,
-        params: GitCwdRequest,
-    ) -> Result<GitCurrentBranchRemoteResult, Error> {
-        let wire_params = serde_json::to_value(params)?;
-        let _value = self
-            .client
-            .call(rpc_methods::GIT_CURRENTBRANCHREMOTE, Some(wire_params))
-            .await?;
-        Ok(serde_json::from_value(_value)?)
-    }
-
-    /// Collects the repository context of a working directory in one call: working tree root, repository identifier and host, current branch, and the HEAD and base commits. Every repository field is omitted when the path is not inside a git working tree, and the requested path is echoed back as `cwd`. The answer is the same `SessionWorkingDirectoryContext` that `session.metadata.recordContextChange` accepts, so a caller polling for a context change can forward the result unchanged. Marked internal because it exists to carry a CLI call site off the napi boundary onto the SDK contract; it is migration plumbing, not a surface consumers are meant to depend on. It can become public once an SDK consumer needs to derive session context from a directory itself.
-    ///
-    /// Wire method: `git.workingDirectoryContext`.
-    ///
-    /// # Parameters
-    ///
-    /// * `params` - Working-tree path a git query applies to.
-    ///
-    /// # Returns
-    ///
-    /// Updated working directory and git context. Emitted as the new payload of `session.context_changed`.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This API is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases. Pin both the
-    /// SDK and CLI versions if your code depends on it.
-    ///
-    /// </div>
-    pub(crate) async fn working_directory_context(
-        &self,
-        params: GitCwdRequest,
-    ) -> Result<SessionWorkingDirectoryContext, Error> {
-        let wire_params = serde_json::to_value(params)?;
-        let _value = self
-            .client
-            .call(rpc_methods::GIT_WORKINGDIRECTORYCONTEXT, Some(wire_params))
-            .await?;
-        Ok(serde_json::from_value(_value)?)
-    }
-
-    /// Lists the GitHub repositories a working tree's remotes point at, one entry per distinct repository, so a caller can resolve a base and head repository without parsing remote URLs itself. When several remotes name the same repository, only the first is listed, and the entry keeps that remote name. Remotes pointing at no GitHub host are left out, so an empty list means the tree reaches GitHub through no remote. Failing to read the remotes is reported as an error rather than as an empty list, because the two mean different things to a caller. Marked internal because it exists to carry a CLI call site off the napi boundary onto the SDK contract; it is migration plumbing, not a surface consumers are meant to depend on.
-    ///
-    /// Wire method: `git.reposFromRemotes`.
-    ///
-    /// # Parameters
-    ///
-    /// * `params` - Git working tree whose GitHub remotes should be listed.
-    ///
-    /// # Returns
-    ///
-    /// The GitHub repositories a working tree's remotes point at.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This API is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases. Pin both the
-    /// SDK and CLI versions if your code depends on it.
-    ///
-    /// </div>
-    pub(crate) async fn repos_from_remotes(
-        &self,
-        params: GitReposFromRemotesRequest,
-    ) -> Result<GitReposFromRemotesResult, Error> {
-        let wire_params = serde_json::to_value(params)?;
-        let _value = self
-            .client
-            .call(rpc_methods::GIT_REPOSFROMREMOTES, Some(wire_params))
-            .await?;
-        Ok(serde_json::from_value(_value)?)
-    }
-}
-
-/// `gitHubOwners.*` RPCs.
-#[derive(Clone, Copy)]
-pub struct ClientRpcGitHubOwners<'a> {
-    pub(crate) client: &'a Client,
-}
-
-impl<'a> ClientRpcGitHubOwners<'a> {
-    /// Registers a cancellable owner listing and returns its request id. Separate from `gitHubOwners.list` so the id exists before the listing starts: a caller that abandons the listing the moment it begins would otherwise have nothing to name in `gitHubOwners.cancel`. The id serves one listing only. Long-abandoned unused ids can be released by later allocations.
-    ///
-    /// Wire method: `gitHubOwners.nextRequestId`.
-    ///
-    /// # Returns
-    ///
-    /// A freshly registered request id. Registering it before the listing starts is what lets a cancel that races the request still find the owner listing slot. The id serves one listing only. Long-abandoned unused ids can be released by later allocations.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This API is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases. Pin both the
-    /// SDK and CLI versions if your code depends on it.
-    ///
-    /// </div>
-    pub(crate) async fn next_request_id(&self) -> Result<GitHubOwnersRequestIdResult, Error> {
-        let wire_params = serde_json::json!({});
-        let _value = self
-            .client
-            .call(rpc_methods::GITHUBOWNERS_NEXTREQUESTID, Some(wire_params))
-            .await?;
-        Ok(serde_json::from_value(_value)?)
-    }
-
-    /// Lists the logins the authenticated user may act as — their own account first, then the organizations they belong to — by asking the GitHub API under the supplied credential. No credential travels in the request: `authInfo` selects one the runtime already holds, and the runtime resolves the token and the GitHub host from it. A failure the caller should render arrives as `message`; one it should raise arrives as `throwError`.
-    ///
-    /// Wire method: `gitHubOwners.list`.
-    ///
-    /// # Parameters
-    ///
-    /// * `params` - Credential to list owners under, and the request id that makes the listing cancellable.
-    ///
-    /// # Returns
-    ///
-    /// Outcome of an owner listing. Exactly one of `owners` and `message` is present, except that `throwError` reports a failure the caller is expected to raise rather than render.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This API is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases. Pin both the
-    /// SDK and CLI versions if your code depends on it.
-    ///
-    /// </div>
-    pub(crate) async fn list(
-        &self,
-        params: GitHubOwnersListRequest,
-    ) -> Result<GitHubOwnersListResult, Error> {
-        let wire_params = serde_json::to_value(params)?;
-        let _value = self
-            .client
-            .call(rpc_methods::GITHUBOWNERS_LIST, Some(wire_params))
-            .await?;
-        Ok(serde_json::from_value(_value)?)
-    }
-
-    /// Abandons an owner listing started with the given request id. Answers `canceled: true` while a listing with that id is running. Answers `canceled: false` when the id was never registered, was registered but not used, was released after being abandoned, or its listing has ended. Canceling an unused id releases it, and a later `list` with that id is refused. The cancel acts only on owner listings and never reaches another request of the host.
-    ///
-    /// Wire method: `gitHubOwners.cancel`.
-    ///
-    /// # Parameters
-    ///
-    /// * `params` - The owner listing to abandon.
-    ///
-    /// # Returns
-    ///
-    /// Whether the id named a running owner listing.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This API is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases. Pin both the
-    /// SDK and CLI versions if your code depends on it.
-    ///
-    /// </div>
-    pub(crate) async fn cancel(
-        &self,
-        params: GitHubOwnersCancelRequest,
-    ) -> Result<GitHubOwnersCancelResult, Error> {
-        let wire_params = serde_json::to_value(params)?;
-        let _value = self
-            .client
-            .call(rpc_methods::GITHUBOWNERS_CANCEL, Some(wire_params))
-            .await?;
-        Ok(serde_json::from_value(_value)?)
-    }
-}
-
-/// `gitHubRepository.*` RPCs.
-#[derive(Clone, Copy)]
-pub struct ClientRpcGitHubRepository<'a> {
-    pub(crate) client: &'a Client,
-}
-
-impl<'a> ClientRpcGitHubRepository<'a> {
-    /// Resolves the GitHub repository that owns a working-tree path by reading the selected git remote configured for it, preferring `origin`. Returns a null `repository` when the path is inside a git working tree but that selected remote does not resolve to a GitHub host. Fails when the path is not inside a git working tree at all, so a caller can tell 'not a repository' apart from 'a repository with no GitHub remote'.
-    ///
-    /// Wire method: `gitHubRepository.atPath`.
-    ///
-    /// # Parameters
-    ///
-    /// * `params` - Working-tree path whose owning GitHub repository should be resolved.
-    ///
-    /// # Returns
-    ///
-    /// The GitHub repository that owns the requested path, when the selected remote (`origin`, else the first) is on a GitHub host.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This API is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases. Pin both the
-    /// SDK and CLI versions if your code depends on it.
-    ///
-    /// </div>
-    pub(crate) async fn at_path(
-        &self,
-        params: GitHubRepositoryAtPathRequest,
-    ) -> Result<GitHubRepositoryAtPathResult, Error> {
-        let wire_params = serde_json::to_value(params)?;
-        let _value = self
-            .client
-            .call(rpc_methods::GITHUBREPOSITORY_ATPATH, Some(wire_params))
-            .await?;
-        Ok(serde_json::from_value(_value)?)
-    }
-}
-
-/// `globalState.*` RPCs.
-#[derive(Clone, Copy)]
-pub struct ClientRpcGlobalState<'a> {
-    pub(crate) client: &'a Client,
-}
-
-impl<'a> ClientRpcGlobalState<'a> {
-    /// Reads the host's machine-wide state: which plugins are installed and the one-off flags and timestamps that record what the user has already been shown or migrated. This is the state that outlives a single session and a single workspace, so a host reads it to decide whether to run a first-launch step, offer an onboarding prompt, or skip one it has already completed. The stored credentials are deliberately not part of this result; a caller that needs an authenticated identity asks the account methods for it instead. Reading is non-destructive and every field is optional, because a fresh install has recorded nothing yet.
-    ///
-    /// Wire method: `globalState.load`.
-    ///
-    /// # Returns
-    ///
-    /// The host's machine-wide state. Every field is optional because a fresh install has recorded nothing yet, so a reader must treat an absent field as `not yet`, never as a negative answer. Stored credentials are deliberately absent from this shape.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This API is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases. Pin both the
-    /// SDK and CLI versions if your code depends on it.
-    ///
-    /// </div>
-    pub(crate) async fn load(&self) -> Result<GlobalStateLoadResult, Error> {
-        let wire_params = serde_json::json!({});
-        let _value = self
-            .client
-            .call(rpc_methods::GLOBALSTATE_LOAD, Some(wire_params))
-            .await?;
-        Ok(serde_json::from_value(_value)?)
-    }
-
-    /// Reads the host's machine-wide state exactly as `globalState.load` does, but from a caller-supplied configuration directory instead of the one the server resolved for itself. Use this when a consumer scopes a session to its own Copilot home — the SDK's per-session `configDir` override — so the state read matches the directory that session actually uses. An absent or empty `configDir` resolves the server's own home, making this identical to `globalState.load`. The stored credentials are omitted here for the same reason they are omitted from `globalState.load`: a caller that needs an authenticated identity asks the account methods instead, so pointing this at another directory cannot be used to read the credentials kept in it.
-    ///
-    /// Wire method: `globalState.loadForConfigDir`.
-    ///
-    /// # Parameters
-    ///
-    /// * `params` - Selects the configuration directory whose machine-wide state to read.
-    ///
-    /// # Returns
-    ///
-    /// The host's machine-wide state. Every field is optional because a fresh install has recorded nothing yet, so a reader must treat an absent field as `not yet`, never as a negative answer. Stored credentials are deliberately absent from this shape.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This API is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases. Pin both the
-    /// SDK and CLI versions if your code depends on it.
-    ///
-    /// </div>
-    pub(crate) async fn load_for_config_dir(
-        &self,
-        params: GlobalStateLoadForConfigDirRequest,
-    ) -> Result<GlobalStateLoadResult, Error> {
-        let wire_params = serde_json::to_value(params)?;
-        let _value = self
-            .client
-            .call(rpc_methods::GLOBALSTATE_LOADFORCONFIGDIR, Some(wire_params))
-            .await?;
-        Ok(serde_json::from_value(_value)?)
-    }
-
-    /// Records one top-level key in the host's machine-wide state, the counterpart to `globalState.load`. A host calls this to remember that it has shown an onboarding step, asked a one-off question, or completed a migration, so the next run can skip it. Only the named key is replaced and the rest of the document is preserved, which lets two writers record different flags without overwriting each other; passing no value removes the key instead. Only the keys a host records itself are writable: `appInstallNudgeResponded`, `appTipShown`, `askedSetupTerminals`, `autoFeedbackLastPromptedAt`, `firstLaunchAt`, `recentModelIds`, `sandboxCredentialProxyCaDeclined` and `sandboxOnboardingShown`. Every other key is refused, including `installedPlugins`, the stored credentials, `trustedFolders`, the staff flags and the signed-in accounts. Plugin enablement must use the plugin APIs, which apply repository and managed-policy checks.
-    ///
-    /// Wire method: `globalState.writeKey`.
-    ///
-    /// # Parameters
-    ///
-    /// * `params` - A single top-level key to record in the host's machine-wide state. The write replaces only that key and leaves the rest of the document untouched, so two writers recording different one-off flags do not overwrite each other. The stored credential keys cannot be written through this method.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This API is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases. Pin both the
-    /// SDK and CLI versions if your code depends on it.
-    ///
-    /// </div>
-    pub(crate) async fn write_key(&self, params: GlobalStateWriteKeyRequest) -> Result<(), Error> {
-        let wire_params = serde_json::to_value(params)?;
-        let _value = self
-            .client
-            .call(rpc_methods::GLOBALSTATE_WRITEKEY, Some(wire_params))
             .await?;
         Ok(())
     }
@@ -4149,102 +3521,6 @@ impl<'a> ClientRpcSessions<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
-    /// Creates the workspace record for a session that has not been opened yet. A host that hands a session off to another application — writing the record and then launching that application against the session ID — needs the record on disk before any session exists to carry it, which the session-scoped workspace methods cannot do. Replaces any existing record and resets the checkpoint index. When writing to the local filesystem, a stored `fork_count` survives on disk. Returns the record it built, so a surviving stored `fork_count` can differ from the answer.
-    ///
-    /// Wire method: `sessions.createWorkspace`.
-    ///
-    /// # Parameters
-    ///
-    /// * `params` - Identity, state location and starting context for a workspace record.
-    ///
-    /// # Returns
-    ///
-    /// The workspace record that was written.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This API is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases. Pin both the
-    /// SDK and CLI versions if your code depends on it.
-    ///
-    /// </div>
-    pub(crate) async fn create_workspace(
-        &self,
-        params: SessionsCreateWorkspaceRequest,
-    ) -> Result<SessionsCreateWorkspaceResult, Error> {
-        let wire_params = serde_json::to_value(params)?;
-        let _value = self
-            .client
-            .call(rpc_methods::SESSIONS_CREATEWORKSPACE, Some(wire_params))
-            .await?;
-        Ok(serde_json::from_value(_value)?)
-    }
-
-    /// Reads a session's workspace record straight from disk, without opening the session. Resuming by session ID has to know where the session lives before it can connect, so the lookup cannot come from the session-scoped workspace methods, which resolve their location from a live session's context. Returns no record when the file is absent.
-    ///
-    /// Wire method: `sessions.loadWorkspace`.
-    ///
-    /// # Parameters
-    ///
-    /// * `params` - Where the session's state lives, as a root directory and the session ID under it.
-    ///
-    /// # Returns
-    ///
-    /// The workspace record on disk, omitted when the session has none.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This API is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases. Pin both the
-    /// SDK and CLI versions if your code depends on it.
-    ///
-    /// </div>
-    pub(crate) async fn load_workspace(
-        &self,
-        params: SessionsLoadWorkspaceRequest,
-    ) -> Result<SessionsLoadWorkspaceResult, Error> {
-        let wire_params = serde_json::to_value(params)?;
-        let _value = self
-            .client
-            .call(rpc_methods::SESSIONS_LOADWORKSPACE, Some(wire_params))
-            .await?;
-        Ok(serde_json::from_value(_value)?)
-    }
-
-    /// Merges fields into a session's workspace record on disk, creating the record when it is absent. The counterpart to `sessions.loadWorkspace`, for the same before-the-session-exists case. It preserves stored workspace-schema fields the request does not supply, does not preserve stored keys outside the workspace schema, and never replaces a stored `fork_count`.
-    ///
-    /// Wire method: `sessions.updateWorkspaceFields`.
-    ///
-    /// # Parameters
-    ///
-    /// * `params` - Where the session's state lives, plus workspace-schema fields to merge into its workspace record. Stored keys outside the schema are not preserved, and a stored `fork_count` is never replaced.
-    ///
-    /// # Returns
-    ///
-    /// The merge completed. The record carries the supplied workspace-schema fields, but a stored `fork_count` stays.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This API is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases. Pin both the
-    /// SDK and CLI versions if your code depends on it.
-    ///
-    /// </div>
-    pub(crate) async fn update_workspace_fields(
-        &self,
-        params: SessionsUpdateWorkspaceFieldsRequest,
-    ) -> Result<SessionsUpdateWorkspaceFieldsResult, Error> {
-        let wire_params = serde_json::to_value(params)?;
-        let _value = self
-            .client
-            .call(
-                rpc_methods::SESSIONS_UPDATEWORKSPACEFIELDS,
-                Some(wire_params),
-            )
-            .await?;
-        Ok(serde_json::from_value(_value)?)
-    }
-
     /// Reloads user, plugin, and (optionally) repo hooks on the active session.
     ///
     /// Wire method: `sessions.reloadPluginHooks`.
@@ -5084,13 +4360,33 @@ pub struct ClientRpcUserSettings<'a> {
 }
 
 impl<'a> ClientRpcUserSettings<'a> {
-    /// Lists every known user setting from settings.json, each with its effective value, its default, and whether it is at the default — so settings the user has never set still appear with their default value. Does not include repository- or enterprise-managed overrides that the runtime layers on top at session time.
+    /// Drops this runtime process's in-memory user settings cache so the next settings read observes disk.
+    ///
+    /// Wire method: `user.settings.reload`.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn reload(&self) -> Result<(), Error> {
+        let wire_params = serde_json::json!({});
+        let _value = self
+            .client
+            .call(rpc_methods::USER_SETTINGS_RELOAD, Some(wire_params))
+            .await?;
+        Ok(())
+    }
+
+    /// Lists every known user setting (settings.json overlaid with the legacy config.json, config.json wins), each with its effective value, its default, and whether it is at the default — so settings the user has never set still appear with their default value. Does not include repository- or enterprise-managed overrides that the runtime layers on top at session time.
     ///
     /// Wire method: `user.settings.get`.
     ///
     /// # Returns
     ///
-    /// Per-key metadata for every known user setting in settings.json, including settings left at their default. Excludes repository- and enterprise-managed overrides.
+    /// Per-key metadata for every known user setting (settings.json overlaid with the legacy config.json, config.json wins), including settings left at their default. Excludes repository- and enterprise-managed overrides.
     ///
     /// <div class="warning">
     ///
@@ -5108,13 +4404,17 @@ impl<'a> ClientRpcUserSettings<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
-    /// Writes one or more user settings to settings.json, replacing each provided top-level key. A key whose value is null is removed.
+    /// Writes one or more user settings to settings.json, replacing each provided top-level key. A key whose value is null is removed. Returns the keys whose new value is shadowed by a legacy config.json entry (config.json wins on read), which the runtime leaves in place — such writes do not take effect until the legacy value is removed.
     ///
     /// Wire method: `user.settings.set`.
     ///
     /// # Parameters
     ///
     /// * `params` - Partial user settings to write to settings.json. Each top-level key is written individually, replacing the existing value; a key whose value is null is removed.
+    ///
+    /// # Returns
+    ///
+    /// Outcome of writing user settings.
     ///
     /// <div class="warning">
     ///
@@ -5123,13 +4423,16 @@ impl<'a> ClientRpcUserSettings<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
-    pub async fn set(&self, params: UserSettingsSetRequest) -> Result<(), Error> {
+    pub async fn set(
+        &self,
+        params: UserSettingsSetRequest,
+    ) -> Result<UserSettingsSetResult, Error> {
         let wire_params = serde_json::to_value(params)?;
         let _value = self
             .client
             .call(rpc_methods::USER_SETTINGS_SET, Some(wire_params))
             .await?;
-        Ok(())
+        Ok(serde_json::from_value(_value)?)
     }
 }
 
@@ -8543,39 +7846,7 @@ impl<'a> SessionRpcMcp<'a> {
         }
     }
 
-    /// Records the IDE the host is connected to, so the agent's system prompt can name it and its workspace folder. Null or an omitted `ide` clears the recorded value, which is how a host reports that it is disconnected; there is no separate clear method. Both `ideName` and `workspaceFolder` are required together, because half a state cannot be attributed to a project.
-    ///
-    /// Wire method: `session.mcp.setConnectedIdeInfo`.
-    ///
-    /// # Parameters
-    ///
-    /// * `params` - Records which IDE the host is connected to, or clears it.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This API is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases. Pin both the
-    /// SDK and CLI versions if your code depends on it.
-    ///
-    /// </div>
-    pub(crate) async fn set_connected_ide_info(
-        &self,
-        params: SessionMcpSetConnectedIdeInfoParams,
-    ) -> Result<(), Error> {
-        let mut wire_params = serde_json::to_value(params)?;
-        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
-        let _value = self
-            .session
-            .client()
-            .call(
-                rpc_methods::SESSION_MCP_SETCONNECTEDIDEINFO,
-                Some(wire_params),
-            )
-            .await?;
-        Ok(())
-    }
-
-    /// Lists materialized MCP servers and their connection status. Cache misses may start and wait for MCP servers.
+    /// Lists MCP servers configured for the session, their connection status, and host-level state. The host-level state (disabled/filtered servers, failed/needs-auth/pending connections, mcp3p policy, full config) is empty/zero when no MCP host has been initialized for the session.
     ///
     /// Wire method: `session.mcp.list`.
     ///
@@ -8596,31 +7867,6 @@ impl<'a> SessionRpcMcp<'a> {
             .session
             .client()
             .call(rpc_methods::SESSION_MCP_LIST, Some(wire_params))
-            .await?;
-        Ok(serde_json::from_value(_value)?)
-    }
-
-    /// Lists effective MCP configuration without starting, restarting, authenticating, or waiting for servers. An optional live observation is from an already materialized matching server; this is not a readiness guarantee.
-    ///
-    /// Wire method: `session.mcp.listConfigured`.
-    ///
-    /// # Returns
-    ///
-    /// Effective MCP configuration with optional live observations from matching already materialized servers.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This API is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases. Pin both the
-    /// SDK and CLI versions if your code depends on it.
-    ///
-    /// </div>
-    pub async fn list_configured(&self) -> Result<McpConfiguredServerList, Error> {
-        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
-        let _value = self
-            .session
-            .client()
-            .call(rpc_methods::SESSION_MCP_LISTCONFIGURED, Some(wire_params))
             .await?;
         Ok(serde_json::from_value(_value)?)
     }

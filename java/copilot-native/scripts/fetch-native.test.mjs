@@ -54,16 +54,7 @@ test('stages verified unstable runtime assets downloaded from the SDK release', 
     `classifier=linux-x64\nversion=${unstableVersion}\n`);
 });
 
-for (const classifier of [
-  'linux-x64',
-  'linux-arm64',
-  'linuxmusl-x64',
-  'linuxmusl-arm64',
-  'win32-x64',
-  'win32-arm64',
-  'darwin-x64',
-  'darwin-arm64',
-]) {
+for (const classifier of ['linux-x64', 'linux-arm64', 'linuxmusl-x64', 'win32-x64', 'win32-arm64', 'darwin-x64', 'darwin-arm64']) {
   test(`${classifier}: complete hostless artifacts use incremental fast path without a CLI`, (t) => {
     const fixture = createFixture(t, classifier);
 

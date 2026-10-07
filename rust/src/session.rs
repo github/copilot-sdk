@@ -30,7 +30,6 @@ use crate::handler::{
 use crate::hooks::SessionHooks;
 use crate::provider_token::BearerTokenProvider;
 use crate::session_fs::SessionFsProvider;
-use crate::skill_provider::SkillProvider;
 use crate::trace_context::inject_trace_context;
 use crate::transforms::SystemMessageTransform;
 use crate::types::{
@@ -93,7 +92,6 @@ pub(crate) struct SessionHandlers {
     pub user_input: Option<Arc<dyn UserInputHandler>>,
     pub exit_plan_mode: Option<Arc<dyn ExitPlanModeHandler>>,
     pub auto_mode_switch: Option<Arc<dyn AutoModeSwitchHandler>>,
-    pub skill_provider: Option<Arc<dyn SkillProvider>>,
     /// Shared with the owning [`Session`], which replaces the map when the
     /// runtime accepts a [`Session::set_tools`] call.
     pub tools: Arc<parking_lot::RwLock<ToolHandlerMap>>,
@@ -264,10 +262,6 @@ struct PendingSessionRegistration {
     shutdown: CancellationToken,
     external_tools_shutdown: CancellationToken,
     startup_tasks: Arc<StartupTasks>,
-    /// The resident session a resume displaced. The runtime keeps that
-    /// session's bindings when the resume fails, so cleanup routes its
-    /// callbacks back to it; success drops it.
-    replaced: Option<crate::router::ReplacedRegistration>,
     disarmed: bool,
 }
 
@@ -301,17 +295,8 @@ impl PendingSessionRegistration {
             shutdown,
             external_tools_shutdown,
             startup_tasks: Arc::new(StartupTasks::default()),
-            replaced: None,
             disarmed: false,
         }
-    }
-
-    fn restoring_on_failure(
-        mut self,
-        replaced: Option<crate::router::ReplacedRegistration>,
-    ) -> Self {
-        self.replaced = replaced;
-        self
     }
 
     /// Guard for a registration whose session ID is assigned by the server.
@@ -327,7 +312,6 @@ impl PendingSessionRegistration {
             shutdown: shutdown.clone(),
             external_tools_shutdown,
             startup_tasks: Arc::new(StartupTasks::default()),
-            replaced: None,
             disarmed: false,
         };
         let callback: crate::jsonrpc::InlineResponseCallback = Box::new(move |response| {
@@ -374,8 +358,7 @@ impl PendingSessionRegistration {
         let _ = event_loop.await;
         if let Some(id) = self.registered_id() {
             if let PendingSessionId::Known(_, token) = self.session_id {
-                self.client
-                    .restore_session_owned(&id, token, self.replaced.take());
+                self.client.unregister_session_owned(&id, token);
             } else if let PendingSessionId::Deferred(stash) = &self.session_id
                 && let Some((id, registration)) = stash.lock().as_ref()
             {
@@ -387,7 +370,6 @@ impl PendingSessionRegistration {
 
     fn disarm(&mut self) {
         self.startup_tasks.disarm();
-        self.replaced = None;
         self.disarmed = true;
     }
 }
@@ -398,8 +380,7 @@ impl Drop for PendingSessionRegistration {
             self.cancel();
             if let Some(id) = self.registered_id() {
                 if let PendingSessionId::Known(_, token) = self.session_id {
-                    self.client
-                        .restore_session_owned(&id, token, self.replaced.take());
+                    self.client.unregister_session_owned(&id, token);
                 } else if let PendingSessionId::Deferred(stash) = &self.session_id
                     && let Some((id, registration)) = stash.lock().as_ref()
                 {
@@ -1677,12 +1658,6 @@ impl Client {
         shutdown: CancellationToken,
     ) -> Result<Session, Error> {
         let total_start = Instant::now();
-        if config.cloud.is_some() && config.skill_provider.is_some() {
-            return Err(Error::with_message(
-                ErrorKind::InvalidConfig,
-                "Skill providers are not supported for cloud sessions.",
-            ));
-        }
         let ahp_creation_config = if self
             .inner
             .ahp_host_sessions
@@ -1791,7 +1766,6 @@ impl Client {
             user_input: runtime.user_input_handler.take(),
             exit_plan_mode: runtime.exit_plan_mode_handler.take(),
             auto_mode_switch: runtime.auto_mode_switch_handler.take(),
-            skill_provider: runtime.skill_provider.take(),
             tools: tool_handlers.clone(),
         };
         let hooks = runtime.hooks_handler.take();
@@ -2137,7 +2111,6 @@ impl Client {
             user_input: runtime.user_input_handler.take(),
             exit_plan_mode: runtime.exit_plan_mode_handler.take(),
             auto_mode_switch: runtime.auto_mode_switch_handler.take(),
-            skill_provider: runtime.skill_provider.take(),
             tools: tool_handlers.clone(),
         };
         let hooks = runtime.hooks_handler.take();
@@ -2189,7 +2162,7 @@ impl Client {
         // Active prepared subscribers retain their existing bounded delivery.
         let resume_bootstrap = (event_tx.receiver_count() == 0)
             .then(|| crate::subscription::ResumeBootstrap::new(&event_tx));
-        let (registration, replaced) = self.replace_session_registration(&session_id);
+        let registration = self.register_session(&session_id);
         let registration_token = registration.token;
         let channels = registration.channels;
         let idle_waiter = Arc::new(ParkingLotMutex::new(None));
@@ -2201,8 +2174,7 @@ impl Client {
             registration_token,
             shutdown.clone(),
             external_tools_shutdown.clone(),
-        )
-        .restoring_on_failure(replaced);
+        );
         let event_loop = spawn_event_loop(
             session_id.clone(),
             Client::from_inner(self.inner.clone()),
@@ -3559,110 +3531,6 @@ struct RequestDispatchContext<'a> {
     bearer_token_providers: &'a HashMap<String, Arc<dyn BearerTokenProvider>>,
 }
 
-/// Serve one `skillProvider.*` callback. Provider failures are reported
-/// generically so their details never reach the runtime or the model.
-///
-/// A `$/cancelRequest` for this request, or the connection closing, drops the
-/// provider future.
-async fn handle_skill_provider_request(
-    client: &Client,
-    session_id: &SessionId,
-    provider: Option<&Arc<dyn SkillProvider>>,
-    request: &crate::JsonRpcRequest,
-) {
-    let Some(pending) = client.inner.rpc.cancellable_requests.claim(request.id) else {
-        // The connection closed before dispatch, so nobody awaits a response.
-        return;
-    };
-    let Some(provider) = provider else {
-        let _ = send_error_response(
-            client,
-            request.id,
-            error_codes::INTERNAL_ERROR,
-            &format!("No skill provider for session: {session_id}"),
-        )
-        .await;
-        return;
-    };
-
-    let read_name = if request.method == rpc_methods::SKILLPROVIDER_READ {
-        let Some(name) = request
-            .params
-            .as_ref()
-            .and_then(|params| params.get("name"))
-            .and_then(Value::as_str)
-        else {
-            let _ = send_error_response(
-                client,
-                request.id,
-                error_codes::INVALID_PARAMS,
-                "missing required field: name",
-            )
-            .await;
-            return;
-        };
-        Some(name)
-    } else {
-        None
-    };
-    let operation = if read_name.is_some() {
-        "readSkill"
-    } else {
-        "listSkills"
-    };
-    let call = async {
-        match read_name {
-            Some(name) => provider
-                .read_skill(name)
-                .await
-                .map(|markdown| serde_json::json!({ "markdown": markdown })),
-            None => provider
-                .list_skills()
-                .await
-                .map(|skills| serde_json::json!({ "skills": skills })),
-        }
-    };
-
-    let connection_closed = client.inner.rpc.connection_closed_token();
-    let result = tokio::select! {
-        biased;
-        _ = connection_closed.cancelled() => return,
-        _ = pending.cancellation().cancelled() => {
-            let _ = send_error_response(
-                client,
-                request.id,
-                error_codes::REQUEST_CANCELLED,
-                &format!("Skill provider {operation} cancelled"),
-            )
-            .await;
-            return;
-        }
-        result = call => result,
-    };
-
-    match result {
-        Ok(result) => {
-            let response = JsonRpcResponse {
-                jsonrpc: "2.0".to_string(),
-                id: request.id,
-                result: Some(result),
-                error: None,
-            };
-            let _ = client.send_response(&response).await;
-        }
-        Err(error) => {
-            warn!(error = %error, operation, "skill provider callback failed");
-            let _ = send_error_response(
-                client,
-                request.id,
-                error_codes::INTERNAL_ERROR,
-                &format!("Skill provider {operation} failed"),
-            )
-            .await;
-        }
-    }
-}
-
 /// Process a JSON-RPC request from the CLI.
 async fn handle_request(
     session_id: &SessionId,
@@ -3690,14 +3558,6 @@ async fn handle_request(
 
     if request.method == crate::generated::api_types::rpc_methods::PROVIDERTOKEN_GETTOKEN {
         crate::provider_token_dispatch::dispatch(client, bearer_token_providers, request).await;
-        return;
-    }
-
-    if request.method == rpc_methods::SKILLPROVIDER_LIST
-        || request.method == rpc_methods::SKILLPROVIDER_READ
-    {
-        handle_skill_provider_request(client, &sid, handlers.skill_provider.as_ref(), &request)
-            .await;
         return;
     }
 

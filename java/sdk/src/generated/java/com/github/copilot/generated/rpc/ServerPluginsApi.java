@@ -34,7 +34,7 @@ public final class ServerPluginsApi {
     }
 
     /**
-     * Lists plugins installed in user/global state.
+     * Plugins installed in user/global state.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -45,7 +45,7 @@ public final class ServerPluginsApi {
     }
 
     /**
-     * Installs a plugin from a marketplace, GitHub repo, URL, or local path.
+     * Plugin source and optional working directory for relative-path resolution.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -56,7 +56,7 @@ public final class ServerPluginsApi {
     }
 
     /**
-     * Uninstalls an installed plugin.
+     * Name (or spec) of the plugin to uninstall.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -67,7 +67,7 @@ public final class ServerPluginsApi {
     }
 
     /**
-     * Updates an installed plugin to its latest published version.
+     * Name (or spec) of the plugin to update.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -78,7 +78,7 @@ public final class ServerPluginsApi {
     }
 
     /**
-     * Updates every installed plugin to its latest published version.
+     * Result of updating all installed plugins.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -89,7 +89,7 @@ public final class ServerPluginsApi {
     }
 
     /**
-     * Enables installed plugins for new sessions.
+     * Plugin names (or specs) to enable, plus the optional working directory the repository-controlled guard is evaluated against.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -100,7 +100,7 @@ public final class ServerPluginsApi {
     }
 
     /**
-     * Disables installed plugins for new sessions.
+     * Plugin names (or specs) to disable, plus the optional working directory the repository-controlled guard is evaluated against.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0

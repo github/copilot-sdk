@@ -5348,7 +5348,6 @@ describe("managedSettings serialization", () => {
                 deny: ["Shell(git push)"],
                 ask: ["Domain(publish.example)"],
                 allow: ["Read(**)"],
-                limitTo: ["Domain(api.github.com)"],
             },
         } satisfies ManagedSettings;
         const params = await captureCreateParams({
@@ -5360,7 +5359,6 @@ describe("managedSettings serialization", () => {
                 deny: ["Shell(git push)"],
                 ask: ["Domain(publish.example)"],
                 allow: ["Read(**)"],
-                limitTo: ["Domain(api.github.com)"],
             },
         });
     });
@@ -5426,11 +5424,9 @@ describe("managedSettings serialization", () => {
 
     it("preserves empty arrays in the permissions object", async () => {
         const params = await captureCreateParams({
-            managedSettings: { permissions: { deny: [], ask: [], allow: [], limitTo: [] } },
+            managedSettings: { permissions: { deny: [], ask: [], allow: [] } },
         });
-        expect(params.managedSettings).toEqual({
-            permissions: { deny: [], ask: [], allow: [], limitTo: [] },
-        });
+        expect(params.managedSettings).toEqual({ permissions: { deny: [], ask: [], allow: [] } });
     });
 
     it("forwards managedSettings on session.resume", async () => {

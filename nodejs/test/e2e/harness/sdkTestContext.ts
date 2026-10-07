@@ -3,8 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import fs, { realpathSync } from "fs";
-import { readdir, rm } from "fs/promises";
-import { createInterface } from "node:readline";
+import { rm } from "fs/promises";
 import os from "os";
 import { basename, dirname, join, resolve } from "path";
 import { rimraf } from "rimraf";
@@ -63,14 +62,12 @@ export async function createSdkTestContext({
     logLevel,
     useStdio,
     copilotClientOptions,
-    replayOnly = process.env.COPILOT_SDK_E2E_REPLAY_ONLY === "true",
     modelNames,
 }: {
     logLevel?: "error" | "none" | "warning" | "info" | "debug" | "all";
     cliPath?: string;
     useStdio?: boolean;
     copilotClientOptions?: CopilotClientOptions;
-    replayOnly?: boolean;
     modelNames?: Record<string, string>;
 } = {}) {
     const homeDir = realpathSync(fs.mkdtempSync(join(os.tmpdir(), "copilot-test-config-")));
@@ -262,31 +259,8 @@ export async function createSdkTestContext({
     // Wire up to Vitest lifecycle
     beforeEach(async (testContext) => {
         // Must be inside beforeEach - vitest requires test context
-        onTestFailed(async () => {
+        onTestFailed(() => {
             anyTestFailed = true;
-            // Preserve only the bounded, metadata-only runtime diagnostics before afterAll removes the home.
-            if (logLevel === "debug") {
-                try {
-                    const logDir = join(copilotHomeDir, "logs");
-                    for (const file of await readdir(logDir)) {
-                        if (!file.endsWith(".log")) continue;
-                        const lines = createInterface({
-                            input: fs.createReadStream(join(logDir, file)),
-                        });
-                        const diagnostics: string[] = [];
-                        for await (const line of lines) {
-                            if (!/^\S+ \[DEBUG\] \[rust:sdk_diagnostics\] /.test(line)) continue;
-                            diagnostics.push(line);
-                            if (diagnostics.length > 200) diagnostics.shift();
-                        }
-                        console.error(
-                            `[SDK runtime diagnostics: ${file}; last ${diagnostics.length} matching lines]\n${diagnostics.join("\n")}`
-                        );
-                    }
-                } catch (error) {
-                    console.error(`Could not read SDK runtime diagnostics: ${formatError(error)}`);
-                }
-            }
         });
         // Finished hooks run in reverse order, so test-owned clients stop before files are removed.
         onTestFinished(async () => {
@@ -319,7 +293,6 @@ export async function createSdkTestContext({
         }
 
         await openAiEndpoint.updateConfig({
-            replayOnly,
             filePath: getTrafficCapturePath(testContext),
             workDir,
             modelNames,

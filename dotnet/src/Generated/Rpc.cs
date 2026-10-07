@@ -879,10 +879,6 @@ public sealed class Model
     [JsonPropertyName("supportedReasoningEfforts")]
     public IList<string>? SupportedReasoningEfforts { get; set; }
 
-    /// <summary>Model vendor as the Copilot API reports it, for example "Anthropic" or "Azure OpenAI". Open vocabulary, passed through unchanged. It can name the vendor that serves the model instead of the one that built it, or a label that is not a vendor, such as "Experimental". Absent when the Copilot API reports no vendor.</summary>
-    [JsonPropertyName("vendor")]
-    public string? Vendor { get; set; }
-
     /// <summary>Warnings the service published for this model, such as a deprecated client version. Present only when the service published at least one warning. The model remains usable; hosts should surface these as advisory rather than blocking.</summary>
     [JsonPropertyName("warningMessages")]
     public IList<ModelMessage>? WarningMessages { get; set; }
@@ -1313,7 +1309,6 @@ internal sealed class AccountGetQuotaRequest
 [JsonDerivedType(typeof(AuthInfoTokenProvider), "token-provider")]
 [JsonDerivedType(typeof(AuthInfoCopilotApiToken), "copilot-api-token")]
 [JsonDerivedType(typeof(AuthInfoUser), "user")]
-[JsonDerivedType(typeof(AuthInfoAccount), "account")]
 [JsonDerivedType(typeof(AuthInfoGhCli), "gh-cli")]
 [JsonDerivedType(typeof(AuthInfoApiKey), "api-key")]
 public partial class AuthInfo
@@ -1806,24 +1801,6 @@ public partial class AuthInfoUser : AuthInfo
     public required string Host { get; set; }
 
     /// <summary>OAuth user login.</summary>
-    [JsonPropertyName("login")]
-    public required string Login { get; set; }
-}
-
-/// <summary>An interactive account whose model provider owns its credentials. It carries no GitHub credential.</summary>
-/// <remarks>The <c>account</c> variant of <see cref="AuthInfo"/>.</remarks>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public partial class AuthInfoAccount : AuthInfo
-{
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override string Type => "account";
-
-    /// <summary>Host coordinate owned by the account's model provider.</summary>
-    [JsonPropertyName("host")]
-    public required string Host { get; set; }
-
-    /// <summary>Login identifying the provider-owned account.</summary>
     [JsonPropertyName("login")]
     public required string Login { get; set; }
 }
@@ -6777,128 +6754,6 @@ internal sealed class AgentsGetDiscoveryPathsRequest
     public IList<string>? ProjectPaths { get; set; }
 }
 
-/// <summary>The agents this runtime ships, named so a consumer can tell them apart from authored ones.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class AgentsGetBuiltinsResult
-{
-    /// <summary>The subset of `names` a user is allowed to turn off. A shipped agent outside this list is always active and a client should not offer a toggle for it.</summary>
-    [JsonPropertyName("disableableNames")]
-    public IList<string> DisableableNames { get => field ??= []; set; }
-
-    /// <summary>Every agent name this runtime ships.</summary>
-    [JsonPropertyName("names")]
-    public IList<string> Names { get => field ??= []; set; }
-
-    /// <summary>The subset of `names` defined by a shipped YAML definition. The remainder are special-cased in code and have no definition to load.</summary>
-    [JsonPropertyName("yamlBasedNames")]
-    public IList<string> YamlBasedNames { get => field ??= []; set; }
-}
-
-/// <summary>A shipped agent, named and described.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class BuiltinAgentSummary
-{
-    /// <summary>One-line description of what the agent does.</summary>
-    [JsonPropertyName("description")]
-    public string Description { get; set; } = string.Empty;
-
-    /// <summary>The agent name, as it appears in `getBuiltins`.</summary>
-    [JsonPropertyName("name")]
-    public string Name { get; set; } = string.Empty;
-}
-
-/// <summary>The shipped agents available under the requested flags.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class AgentsGetAvailableBuiltinsResult
-{
-    /// <summary>Available shipped agents, in the runtime's own order.</summary>
-    [JsonPropertyName("agents")]
-    public IList<BuiltinAgentSummary> Agents { get => field ??= []; set; }
-}
-
-/// <summary>The feature flags to evaluate shipped agents against.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class AgentsGetAvailableBuiltinsRequest
-{
-    /// <summary>The surface asking, which gates agents that only apply to one client. Omit or pass null to apply no client filter.</summary>
-    [JsonPropertyName("context")]
-    public string? Context { get; set; }
-
-    /// <summary>Feature flag values keyed by name, evaluated with the runtime's truthiness rules. Omit or pass null for no flags.</summary>
-    [JsonPropertyName("featureFlags")]
-    public IDictionary<string, JsonElement>? FeatureFlags { get; set; }
-
-    /// <summary>Flag overrides keyed by name. A null entry uses the corresponding base flag; false explicitly disables it. Omit or pass null for no overrides.</summary>
-    [JsonPropertyName("overrides")]
-    public IDictionary<string, JsonElement>? Overrides { get; set; }
-}
-
-/// <summary>One shipped agent's definition.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class AgentsGetBuiltinDefinitionResult
-{
-    /// <summary>The agent's definition, serialized as JSON. It carries the authored keys plus the runtime's projected `__nativeCustomAgent` view of the same agent. It is a string rather than an object because the runtime parses it with the agent schema's tolerant shape, which accepts keys this contract does not name.</summary>
-    [JsonPropertyName("definitionJson")]
-    public string DefinitionJson { get; set; } = string.Empty;
-}
-
-/// <summary>The shipped agent whose definition to load.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class AgentsGetBuiltinDefinitionRequest
-{
-    /// <summary>The agent name, which must be one of `getBuiltins`'s `yamlBasedNames`. A name outside that list is special-cased in code and has no definition, and is reported as an error rather than as an empty definition.</summary>
-    [JsonPropertyName("name")]
-    public string Name { get; set; } = string.Empty;
-}
-
-/// <summary>One shipped agent, projected for a listing.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class AgentsGetBuiltinListingDefinitionResult
-{
-    /// <summary>The agent projected as a custom agent, serialized as JSON. It is a string rather than an object for the same reason as `getBuiltinDefinition`: the runtime parses the underlying definition with the agent schema's tolerant shape, which accepts keys this contract does not name.</summary>
-    [JsonPropertyName("definitionJson")]
-    public string DefinitionJson { get; set; } = string.Empty;
-}
-
-/// <summary>The shipped agent whose listing entry to load.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class AgentsGetBuiltinListingDefinitionRequest
-{
-    /// <summary>The agent name, taken from `getAvailableBuiltins`. Unlike `getBuiltinDefinition`, the agent that `getBuiltins` reports as special-cased rather than YAML-based is answered here too, from its in-code definition.</summary>
-    [JsonPropertyName("name")]
-    public string Name { get; set; } = string.Empty;
-}
-
-/// <summary>The model to switch to, and the warning to show when the agent's preference could not be met.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class AgentsCustomAgentInitialModelDecisionResult
-{
-    /// <summary>The reasoning effort attached to the selected model preference. Absent when that preference does not specify an effort.</summary>
-    [JsonPropertyName("reasoningEffort")]
-    public string? ReasoningEffort { get; set; }
-
-    /// <summary>The first available model that matches the agent's preferences. Absent when none of the requested models is available.</summary>
-    [JsonPropertyName("targetModel")]
-    public string? TargetModel { get; set; }
-
-    /// <summary>What to tell the user about an unmet preference. Absent when the preference was met. A warning with no `targetModel` means the agent's models are all unavailable.</summary>
-    [JsonPropertyName("warning")]
-    public string? Warning { get; set; }
-}
-
-/// <summary>The models a custom agent asks for, and the models actually available.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class AgentsCustomAgentInitialModelDecisionParams
-{
-    /// <summary>The agent's declared `model:` entry, serialized. A single name or an ordered list of acceptable names.</summary>
-    [JsonPropertyName("agentModelsJson")]
-    public string AgentModelsJson { get; set; } = string.Empty;
-
-    /// <summary>The models available to this session, serialized in the shape the model list carries.</summary>
-    [JsonPropertyName("availableModelsJson")]
-    public string AvailableModelsJson { get; set; } = string.Empty;
-}
-
 /// <summary>Loaded instruction source for a session, including path, content, category, location, applicability, and optional description.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public sealed class InstructionSource
@@ -7013,179 +6868,6 @@ internal sealed class InstructionsGetDiscoveryPathsRequest
     public IList<string>? ProjectPaths { get; set; }
 }
 
-/// <summary>Installed plugin record from global state, with marketplace, version, install time, enabled state, cache path, and source.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class InstalledPlugin
-{
-    /// <summary>Path where the plugin is cached locally.</summary>
-    [JsonPropertyName("cache_path")]
-    public string? CachePath { get; set; }
-
-    /// <summary>Whether the plugin is currently enabled.</summary>
-    [JsonPropertyName("enabled")]
-    public bool Enabled { get; set; }
-
-    /// <summary>Installation timestamp.</summary>
-    [JsonPropertyName("installed_at")]
-    public string InstalledAt { get; set; } = string.Empty;
-
-    /// <summary>Absolute path of the marketplace directory a live plugin was resolved from. Present only on live, never-persisted records — those synthesized at session start for a directory/local marketplace, whose cache_path points at the real plugin directory on disk rather than a copy under the installed-plugins cache. Its presence is what marks a record as live, and no record carrying it is ever written to the persisted installedPlugins key.</summary>
-    [JsonPropertyName("installed_from")]
-    public string? InstalledFrom { get; set; }
-
-    /// <summary>Marketplace the plugin came from (empty string for direct repo installs).</summary>
-    [JsonPropertyName("marketplace")]
-    public string Marketplace { get; set; } = string.Empty;
-
-    /// <summary>Plugin name.</summary>
-    [JsonPropertyName("name")]
-    public string Name { get; set; } = string.Empty;
-
-    /// <summary>Source for direct repo installs (when marketplace is empty).</summary>
-    [JsonPropertyName("source")]
-    public JsonElement? Source { get; set; }
-
-    /// <summary>Per-plugin source fingerprint (a SHA-256 hash of the plugin's catalog source spec plus its resolved source subtree — NOT a Git commit SHA) captured at marketplace install/update time. Auto-update compares it against the freshly recomputed fingerprint to detect a content change that does not bump the version. Absent for pre-existing installs and for direct (non-marketplace) installs.</summary>
-    [JsonPropertyName("source_sha")]
-    public string? SourceSha { get; set; }
-
-    /// <summary>Version installed (if available).</summary>
-    [JsonPropertyName("version")]
-    public string? Version { get; set; }
-}
-
-/// <summary>An account the host has signed in to, identified by the server it lives on and the login it uses there. The same person can appear more than once when they use both github.com and an Enterprise server.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class LoggedInUser
-{
-    /// <summary>Source account this account was derived from, when one was recorded.</summary>
-    [JsonPropertyName("derivedFrom")]
-    public string? DerivedFrom { get; set; }
-
-    /// <summary>Host the account belongs to, such as `github.com` or an Enterprise server.</summary>
-    [JsonPropertyName("host")]
-    public string Host { get; set; } = string.Empty;
-
-    /// <summary>Account kind, when the host recorded one. Consumers must tolerate new strings.</summary>
-    [JsonPropertyName("kind")]
-    public string? Kind { get; set; }
-
-    /// <summary>Account login on that host.</summary>
-    [JsonPropertyName("login")]
-    public string Login { get; set; } = string.Empty;
-}
-
-/// <summary>The host's machine-wide state. Every field is optional because a fresh install has recorded nothing yet, so a reader must treat an absent field as `not yet`, never as a negative answer. Stored credentials are deliberately absent from this shape.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class GlobalStateLoadResult
-{
-    /// <summary>Whether the user has answered the prompt suggesting they install the desktop app.</summary>
-    [JsonPropertyName("appInstallNudgeResponded")]
-    public bool? AppInstallNudgeResponded { get; set; }
-
-    /// <summary>Whether the app tip has been shown.</summary>
-    [JsonPropertyName("appTipShown")]
-    public bool? AppTipShown { get; set; }
-
-    /// <summary>Terminals the user has already been asked to set up, so the host does not ask twice.</summary>
-    [JsonPropertyName("askedSetupTerminals")]
-    public IList<string>? AskedSetupTerminals { get; set; }
-
-    /// <summary>When the Auto-feedback hint was last shown, as an ISO 8601 timestamp. It enforces the once-per-day cap for non-staff users across restarts.</summary>
-    [JsonPropertyName("autoFeedbackLastPromptedAt")]
-    public string? AutoFeedbackLastPromptedAt { get; set; }
-
-    /// <summary>When the host first ran on this machine.</summary>
-    [JsonPropertyName("firstLaunchAt")]
-    public string? FirstLaunchAt { get; set; }
-
-    /// <summary>Plugins installed on this machine.</summary>
-    [JsonPropertyName("installedPlugins")]
-    public IList<InstalledPlugin>? InstalledPlugins { get; set; }
-
-    /// <summary>Account used for the most recent sign-in.</summary>
-    [JsonPropertyName("lastLoggedInUser")]
-    public LoggedInUser? LastLoggedInUser { get; set; }
-
-    /// <summary>Every account the host has signed in to on this machine.</summary>
-    [JsonPropertyName("loggedInUsers")]
-    public IList<LoggedInUser>? LoggedInUsers { get; set; }
-
-    /// <summary>Whether the one-off cleanup of stored reasoning summaries has run.</summary>
-    [JsonPropertyName("reasoningSummariesCleanupDone")]
-    public bool? ReasoningSummariesCleanupDone { get; set; }
-
-    /// <summary>Models the user selected recently, most recent first.</summary>
-    [JsonPropertyName("recentModelIds")]
-    public IList<string>? RecentModelIds { get; set; }
-
-    /// <summary>Whether the user declined to trust the sandbox credential proxy CA.</summary>
-    [JsonPropertyName("sandboxCredentialProxyCaDeclined")]
-    public bool? SandboxCredentialProxyCaDeclined { get; set; }
-
-    /// <summary>Whether the sandbox onboarding has been shown.</summary>
-    [JsonPropertyName("sandboxOnboardingShown")]
-    public bool? SandboxOnboardingShown { get; set; }
-
-    /// <summary>Whether the user is a GitHub or Microsoft staff member, which unlocks internal-only behavior.</summary>
-    [JsonPropertyName("staff")]
-    public bool? Staff { get; set; }
-
-    /// <summary>Whether the user was recognized as GitHub staff.</summary>
-    [JsonPropertyName("staffGithub")]
-    public bool? StaffGitHub { get; set; }
-
-    /// <summary>When the staff-only log level migration last ran.</summary>
-    [JsonPropertyName("staffLogLevelMigrationAt")]
-    public string? StaffLogLevelMigrationAt { get; set; }
-
-    /// <summary>Whether the user was recognized as Microsoft staff.</summary>
-    [JsonPropertyName("staffMicrosoft")]
-    public bool? StaffMicrosoft { get; set; }
-
-    /// <summary>When the staff-only model reset last ran.</summary>
-    [JsonPropertyName("staffModelResetAt")]
-    public string? StaffModelResetAt { get; set; }
-
-    /// <summary>When the staff-only update channel migration last ran.</summary>
-    [JsonPropertyName("staffUpdateChannelMigrationAt")]
-    public string? StaffUpdateChannelMigrationAt { get; set; }
-
-    /// <summary>Folders where the user declined the init prompt, so it stays hidden there.</summary>
-    [JsonPropertyName("suppressInitFolders")]
-    public IList<string>? SuppressInitFolders { get; set; }
-
-    /// <summary>Folders the user has marked as trusted.</summary>
-    [JsonPropertyName("trustedFolders")]
-    public IList<string>? TrustedFolders { get; set; }
-}
-
-/// <summary>Selects the configuration directory whose machine-wide state to read.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class GlobalStateLoadForConfigDirRequest
-{
-    /// <summary>Copilot configuration directory to read the state document from, taking precedence over the server's own `COPILOT_HOME` and default home. Omit it, or pass an empty string, to read the directory the server resolved for itself.</summary>
-    [JsonPropertyName("configDir")]
-    public string? ConfigDir { get; set; }
-}
-
-/// <summary>A single top-level key to record in the host's machine-wide state. The write replaces only that key and leaves the rest of the document untouched, so two writers recording different one-off flags do not overwrite each other. The stored credential keys cannot be written through this method.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class GlobalStateWriteKeyRequest
-{
-    /// <summary>Copilot configuration directory to write the state document in, taking precedence over the server's own `COPILOT_HOME` and default home. Omit it, or pass an empty string, to write the directory the server resolved for itself. Mirrors `globalState.loadForConfigDir`, so a caller can read and write the same directory.</summary>
-    [JsonPropertyName("configDir")]
-    public string? ConfigDir { get; set; }
-
-    /// <summary>Top-level key to write, named as it appears in the result of `globalState.load`. It must be one of the writable keys that `globalState.writeKey` lists.</summary>
-    [JsonPropertyName("key")]
-    public string Key { get; set; } = string.Empty;
-
-    /// <summary>Value to store for the key. Omit it, or pass null, to remove the key instead.</summary>
-    [JsonPropertyName("value")]
-    public JsonElement? Value { get; set; }
-}
-
 /// <summary>A literal choice the command input accepts, with a human-facing description.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public sealed class SlashCommandInputChoice
@@ -7287,13 +6969,22 @@ public sealed class UserSettingMetadata
     public JsonElement Value { get; set; }
 }
 
-/// <summary>Per-key metadata for every known user setting in settings.json, including settings left at their default. Excludes repository- and enterprise-managed overrides.</summary>
+/// <summary>Per-key metadata for every known user setting (settings.json overlaid with the legacy config.json, config.json wins), including settings left at their default. Excludes repository- and enterprise-managed overrides.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public sealed class UserSettingsGetResult
 {
     /// <summary>Every known user setting keyed by setting name, each with its effective value, default, and whether it is at the default.</summary>
     [JsonPropertyName("settings")]
     public IDictionary<string, UserSettingMetadata> Settings { get => field ??= new Dictionary<string, UserSettingMetadata>(); set; }
+}
+
+/// <summary>Outcome of writing user settings.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class UserSettingsSetResult
+{
+    /// <summary>Top-level keys whose write landed in settings.json but is shadowed by a value still present in the legacy config.json (config.json wins on read). The write does not take effect until the legacy value is removed.</summary>
+    [JsonPropertyName("shadowedKeys")]
+    public IList<string> ShadowedKeys { get => field ??= []; set; }
 }
 
 /// <summary>Partial user settings to write to settings.json. Each top-level key is written individually, replacing the existing value; a key whose value is null is removed.</summary>
@@ -7303,217 +6994,6 @@ internal sealed class UserSettingsSetRequest
     /// <summary>Partial user settings to write, as a free-form object keyed by setting name.</summary>
     [JsonPropertyName("settings")]
     public JsonElement Settings { get; set; }
-}
-
-/// <summary>Owner, name, and host of a GitHub repository, as resolved from a git remote URL.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class GitHubRepositoryIdentity
-{
-    /// <summary>Host the remote points at, for example `github.com` or a GitHub Enterprise hostname.</summary>
-    [JsonPropertyName("host")]
-    public string Host { get; set; } = string.Empty;
-
-    /// <summary>Repository name, without the owner prefix or the `.git` suffix.</summary>
-    [JsonPropertyName("name")]
-    public string Name { get; set; } = string.Empty;
-
-    /// <summary>Repository owner login (user or organization).</summary>
-    [JsonPropertyName("owner")]
-    public string Owner { get; set; } = string.Empty;
-}
-
-/// <summary>The GitHub repository that owns the requested path, when the selected remote (`origin`, else the first) is on a GitHub host.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class GitHubRepositoryAtPathResult
-{
-    /// <summary>Resolved repository identity, or null when the selected remote resolves to no GitHub host.</summary>
-    [JsonPropertyName("repository")]
-    public GitHubRepositoryIdentity? Repository { get; set; }
-}
-
-/// <summary>Working-tree path whose owning GitHub repository should be resolved.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class GitHubRepositoryAtPathRequest
-{
-    /// <summary>Absolute path to a directory inside the git working tree to resolve.</summary>
-    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
-    [MinLength(1)]
-    [JsonPropertyName("path")]
-    public string Path { get; set; } = string.Empty;
-}
-
-/// <summary>A freshly registered request id. Registering it before the listing starts is what lets a cancel that races the request still find the owner listing slot. The id serves one listing only. Long-abandoned unused ids can be released by later allocations.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class GitHubOwnersRequestIdResult
-{
-    /// <summary>Request id to pass to `gitHubOwners.list` and, to abandon it, `gitHubOwners.cancel`.</summary>
-    [JsonPropertyName("requestId")]
-    public long RequestId { get; set; }
-}
-
-/// <summary>A GitHub login the authenticated user may act as: their own account, or an organization they belong to.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class GitHubOwnerOption
-{
-    /// <summary>The owner's GitHub login.</summary>
-    [JsonPropertyName("login")]
-    public string Login { get; set; } = string.Empty;
-
-    /// <summary>Which kind of owner this is. The authenticated user's own account is always reported as `user`.</summary>
-    [JsonPropertyName("type")]
-    public string Type { get; set; } = string.Empty;
-}
-
-/// <summary>Outcome of an owner listing. Exactly one of `owners` and `message` is present, except that `throwError` reports a failure the caller is expected to raise rather than render.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class GitHubOwnersListResult
-{
-    /// <summary>Why no owners could be listed, phrased for a user. Present when the listing failed in a way the caller should render rather than raise.</summary>
-    [JsonPropertyName("message")]
-    public string? Message { get; set; }
-
-    /// <summary>The owners, on success: the authenticated user first, then the organizations they belong to.</summary>
-    [JsonPropertyName("owners")]
-    public IList<GitHubOwnerOption>? Owners { get; set; }
-
-    /// <summary>A malformed request or an unreadable credential, which the caller raises instead of rendering. Kept a field rather than a dispatch error so it stays distinct from `message`, which the caller renders.</summary>
-    [JsonPropertyName("throwError")]
-    public string? ThrowError { get; set; }
-
-    /// <summary>A line the caller should log. Present only alongside `message`, and only for failures worth recording.</summary>
-    [JsonPropertyName("warning")]
-    public string? Warning { get; set; }
-}
-
-/// <summary>Credential to list owners under, and the request id that makes the listing cancellable.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class GitHubOwnersListRequest
-{
-    /// <summary>The credential the listing runs under, carried opaquely because its shape is the host's own and the runtime only resolves a token and a GitHub host from it. No credential travels: this selects one the runtime already holds.</summary>
-    [JsonPropertyName("authInfo")]
-    public JsonElement AuthInfo { get; set; }
-
-    /// <summary>Request id from `gitHubOwners.nextRequestId`. An id that was never registered, canceled before use, released after being abandoned, or already used is refused rather than silently running uncancellable.</summary>
-    [JsonPropertyName("requestId")]
-    public long RequestId { get; set; }
-}
-
-/// <summary>Whether the id named a running owner listing.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class GitHubOwnersCancelResult
-{
-    /// <summary>True when a listing with the id was running and the cancel stopped it. False when the id was never registered, was registered but unused, was released after being abandoned, or its listing had ended. An unused id is released and cannot start a later listing.</summary>
-    [JsonPropertyName("canceled")]
-    public bool Canceled { get; set; }
-}
-
-/// <summary>The owner listing to abandon.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class GitHubOwnersCancelRequest
-{
-    /// <summary>Request id the listing was started with.</summary>
-    [JsonPropertyName("requestId")]
-    public long RequestId { get; set; }
-}
-
-/// <summary>The remote the checked-out branch tracks.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class GitCurrentBranchRemoteResult
-{
-    /// <summary>Name of the tracked remote. Reports `origin` whenever the working tree has no tracking configuration to read, including on a detached HEAD, so this is never null and never empty.</summary>
-    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
-    [MinLength(1)]
-    [JsonPropertyName("remote")]
-    public string Remote { get; set; } = string.Empty;
-}
-
-/// <summary>Working-tree path a git query applies to.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class GitCwdRequest
-{
-    /// <summary>Absolute path to a directory inside the git working tree to query.</summary>
-    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
-    [MinLength(1)]
-    [JsonPropertyName("cwd")]
-    public string Cwd { get; set; } = string.Empty;
-}
-
-/// <summary>Updated working directory and git context. Emitted as the new payload of `session.context_changed`.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class SessionWorkingDirectoryContext
-{
-    /// <summary>Merge-base commit SHA (fork point from the remote default branch).</summary>
-    [JsonPropertyName("baseCommit")]
-    public string? BaseCommit { get; set; }
-
-    /// <summary>Current git branch name.</summary>
-    [JsonPropertyName("branch")]
-    public string? Branch { get; set; }
-
-    /// <summary>Current working directory path.</summary>
-    [JsonPropertyName("cwd")]
-    public string Cwd { get; set; } = string.Empty;
-
-    /// <summary>Root directory of the git repository, resolved via git rev-parse.</summary>
-    [JsonPropertyName("gitRoot")]
-    public string? GitRoot { get; set; }
-
-    /// <summary>Head commit of the current git branch.</summary>
-    [JsonPropertyName("headCommit")]
-    public string? HeadCommit { get; set; }
-
-    /// <summary>Hosting platform type of the repository.</summary>
-    [JsonPropertyName("hostType")]
-    public SessionWorkingDirectoryContextHostType? HostType { get; set; }
-
-    /// <summary>Repository identifier derived from the git remote URL ("owner/name" for GitHub, "org/project/repo" for Azure DevOps).</summary>
-    [JsonPropertyName("repository")]
-    public string? Repository { get; set; }
-
-    /// <summary>Raw host string from the git remote URL (e.g. "github.com", "dev.azure.com").</summary>
-    [JsonPropertyName("repositoryHost")]
-    public string? RepositoryHost { get; set; }
-}
-
-/// <summary>A GitHub repository one of a working tree's remotes points at.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class GitRemoteRepository
-{
-    /// <summary>GitHub host serving the repository, which is not `github.com` for a GitHub Enterprise remote.</summary>
-    [JsonPropertyName("host")]
-    public string Host { get; set; } = string.Empty;
-
-    /// <summary>Repository name, without the owner.</summary>
-    [JsonPropertyName("name")]
-    public string Name { get; set; } = string.Empty;
-
-    /// <summary>Account or organization owning the repository.</summary>
-    [JsonPropertyName("owner")]
-    public string Owner { get; set; } = string.Empty;
-
-    /// <summary>Name of the first remote that produced this distinct repository entry, such as `origin` or `upstream`.</summary>
-    [JsonPropertyName("remoteName")]
-    public string RemoteName { get; set; } = string.Empty;
-}
-
-/// <summary>The GitHub repositories a working tree's remotes point at.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class GitReposFromRemotesResult
-{
-    /// <summary>One entry per distinct GitHub repository, in the order git reports the first remote for each repository. Empty when no remote points at a GitHub host, which a caller should read as `not connected to GitHub`. Failing to read the remotes is an error, not an empty list.</summary>
-    [JsonPropertyName("repositories")]
-    public IList<GitRemoteRepository> Repositories { get => field ??= []; set; }
-}
-
-/// <summary>Git working tree whose GitHub remotes should be listed.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class GitReposFromRemotesRequest
-{
-    /// <summary>Absolute path to the root of the git working tree.</summary>
-    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
-    [MinLength(1)]
-    [JsonPropertyName("gitRoot")]
-    public string GitRoot { get; set; } = string.Empty;
 }
 
 /// <summary>Validated device-managed settings discovered before a session exists.</summary>
@@ -8828,126 +8308,6 @@ internal sealed class SessionsEnrichMetadataRequest
     public IList<LocalSessionMetadataValue> Sessions { get => field ??= []; set; }
 }
 
-/// <summary>The workspace record that was written.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class SessionsCreateWorkspaceResult
-{
-    /// <summary>The created workspace record, as JSON.</summary>
-    [JsonPropertyName("workspaceJson")]
-    public string WorkspaceJson { get; set; } = string.Empty;
-}
-
-/// <summary>A working-directory context together with the client that produced it.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class SessionWorkingDirectoryContextWithClient
-{
-    /// <summary>Merge-base commit SHA.</summary>
-    [JsonPropertyName("baseCommit")]
-    public string? BaseCommit { get; set; }
-
-    /// <summary>Current git branch name.</summary>
-    [JsonPropertyName("branch")]
-    public string? Branch { get; set; }
-
-    /// <summary>Name of the client that created the session.</summary>
-    [JsonPropertyName("clientName")]
-    public string? ClientName { get; set; }
-
-    /// <summary>Current working directory path.</summary>
-    [JsonPropertyName("cwd")]
-    public string Cwd { get; set; } = string.Empty;
-
-    /// <summary>Root directory of the git repository.</summary>
-    [JsonPropertyName("gitRoot")]
-    public string? GitRoot { get; set; }
-
-    /// <summary>Head commit of the current git branch.</summary>
-    [JsonPropertyName("headCommit")]
-    public string? HeadCommit { get; set; }
-
-    /// <summary>Hosting platform type of the repository.</summary>
-    [JsonPropertyName("hostType")]
-    public string? HostType { get; set; }
-
-    /// <summary>Repository identifier derived from the git remote URL.</summary>
-    [JsonPropertyName("repository")]
-    public string? Repository { get; set; }
-
-    /// <summary>Raw host string from the git remote URL.</summary>
-    [JsonPropertyName("repositoryHost")]
-    public string? RepositoryHost { get; set; }
-}
-
-/// <summary>Identity, state location and starting context for a workspace record.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class SessionsCreateWorkspaceRequest
-{
-    /// <summary>Starting working-directory context. The record keeps `cwd`, `gitRoot`, `repository`, `hostType`, `branch`, and `clientName`. Other fields, including `repositoryHost`, `headCommit`, and `baseCommit`, are ignored. `hostType` must be `github` or `ado`.</summary>
-    [JsonPropertyName("context")]
-    public SessionWorkingDirectoryContextWithClient? Context { get; set; }
-
-    /// <summary>`windows` (any letter case) selects Windows path rules. Any other value selects POSIX path rules.</summary>
-    [JsonPropertyName("convention")]
-    public string Convention { get; set; } = string.Empty;
-
-    /// <summary>User-supplied display name for the workspace.</summary>
-    [JsonPropertyName("name")]
-    public string? Name { get; set; }
-
-    /// <summary>Session ID the workspace record belongs to.</summary>
-    [JsonPropertyName("sessionId")]
-    public string SessionId { get; set; } = string.Empty;
-
-    /// <summary>Directory the session's state is written under when no session filesystem provider is configured. Ignored when a provider is configured; the provider's session state path is used instead.</summary>
-    [JsonPropertyName("sessionStatePath")]
-    public string SessionStatePath { get; set; } = string.Empty;
-}
-
-/// <summary>The workspace record on disk, omitted when the session has none.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class SessionsLoadWorkspaceResult
-{
-    /// <summary>The workspace record, as JSON. Omitted when the record does not exist.</summary>
-    [JsonPropertyName("workspaceJson")]
-    public string? WorkspaceJson { get; set; }
-}
-
-/// <summary>Where the session's state lives, as a root directory and the session ID under it.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class SessionsLoadWorkspaceRequest
-{
-    /// <summary>Session ID naming the state directory under the sessions home. Rejected when it is absolute or contains a parent component, so it cannot escape the sessions home.</summary>
-    [JsonPropertyName("sessionId")]
-    public string SessionId { get; set; } = string.Empty;
-
-    /// <summary>Root directory every session's state directory sits under.</summary>
-    [JsonPropertyName("sessionsHome")]
-    public string SessionsHome { get; set; } = string.Empty;
-}
-
-/// <summary>The merge completed. The record carries the supplied workspace-schema fields, but a stored `fork_count` stays.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class SessionsUpdateWorkspaceFieldsResult
-{
-}
-
-/// <summary>Where the session's state lives, plus workspace-schema fields to merge into its workspace record. Stored keys outside the schema are not preserved, and a stored `fork_count` is never replaced.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class SessionsUpdateWorkspaceFieldsRequest
-{
-    /// <summary>Workspace-schema fields to merge into the record, as a JSON object. Fields the object omits keep their stored values, except stored keys outside the schema are not preserved and a stored `fork_count` is never replaced.</summary>
-    [JsonPropertyName("fieldsJson")]
-    public string FieldsJson { get; set; } = string.Empty;
-
-    /// <summary>Session ID naming the state directory under the sessions home. Rejected when it is absolute or contains a parent component, so it cannot escape the sessions home.</summary>
-    [JsonPropertyName("sessionId")]
-    public string SessionId { get; set; } = string.Empty;
-
-    /// <summary>Root directory every session's state directory sits under.</summary>
-    [JsonPropertyName("sessionsHome")]
-    public string SessionsHome { get; set; } = string.Empty;
-}
-
 /// <summary>Reload all hooks (user, plugin, optionally repo) and apply them to the active session. Call after installing or removing plugins so their hooks take effect immediately. No-op when no active session matches the given sessionId.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public sealed class SessionsReloadPluginHooksResult
@@ -8993,6 +8353,47 @@ internal sealed class SessionsLoadDeferredRepoHooksRequest
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public sealed class SessionsSetAdditionalPluginsResult
 {
+}
+
+/// <summary>Installed plugin record from global state, with marketplace, version, install time, enabled state, cache path, and source.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class InstalledPlugin
+{
+    /// <summary>Path where the plugin is cached locally.</summary>
+    [JsonPropertyName("cache_path")]
+    public string? CachePath { get; set; }
+
+    /// <summary>Whether the plugin is currently enabled.</summary>
+    [JsonPropertyName("enabled")]
+    public bool Enabled { get; set; }
+
+    /// <summary>Installation timestamp.</summary>
+    [JsonPropertyName("installed_at")]
+    public string InstalledAt { get; set; } = string.Empty;
+
+    /// <summary>Absolute path of the marketplace directory a live plugin was resolved from. Present only on live, never-persisted records — those synthesized at session start for a directory/local marketplace, whose cache_path points at the real plugin directory on disk rather than a copy under the installed-plugins cache. Its presence is what marks a record as live, and no record carrying it is ever written to the persisted installedPlugins key.</summary>
+    [JsonPropertyName("installed_from")]
+    public string? InstalledFrom { get; set; }
+
+    /// <summary>Marketplace the plugin came from (empty string for direct repo installs).</summary>
+    [JsonPropertyName("marketplace")]
+    public string Marketplace { get; set; } = string.Empty;
+
+    /// <summary>Plugin name.</summary>
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Source for direct repo installs (when marketplace is empty).</summary>
+    [JsonPropertyName("source")]
+    public JsonElement? Source { get; set; }
+
+    /// <summary>Per-plugin source fingerprint (a SHA-256 hash of the plugin's catalog source spec plus its resolved source subtree — NOT a Git commit SHA) captured at marketplace install/update time. Auto-update compares it against the freshly recomputed fingerprint to detect a content change that does not bump the version. Absent for pre-existing installs and for direct (non-marketplace) installs.</summary>
+    [JsonPropertyName("source_sha")]
+    public string? SourceSha { get; set; }
+
+    /// <summary>Version installed (if available).</summary>
+    [JsonPropertyName("version")]
+    public string? Version { get; set; }
 }
 
 /// <summary>Manager-wide additional plugins to register; replaces any previously-configured set.</summary>
@@ -9480,137 +8881,6 @@ internal sealed class AgentRegistrySpawnRequest
     /// <summary>Permission posture for the new session. 'yolo' requires the controller-local session to currently be in allow-all mode.</summary>
     [JsonPropertyName("permissionMode")]
     public AgentRegistrySpawnPermissionMode? PermissionMode { get; set; }
-}
-
-/// <summary>Feature availability.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class ConnectorDiscoveryCapabilities
-{
-    /// <summary>API version.</summary>
-    [JsonPropertyName("apiVersion")]
-    public long ApiVersion { get; set; }
-
-    /// <summary>Availability.</summary>
-    [JsonPropertyName("availability")]
-    public ConnectorDiscoveryAvailability Availability { get; set; }
-
-    /// <summary>Whether results are cached.</summary>
-    [JsonPropertyName("conditionalCache")]
-    public bool ConditionalCache { get; set; }
-
-    /// <summary>Whether accounts are selected by opaque ID.</summary>
-    [JsonPropertyName("opaqueAccountSelection")]
-    public bool OpaqueAccountSelection { get; set; }
-}
-
-/// <summary>Account metadata.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class ConnectorDiscoveryAuthInfo
-{
-    /// <summary>Host.</summary>
-    [JsonPropertyName("host")]
-    public string Host { get; set; } = string.Empty;
-
-    /// <summary>Login.</summary>
-    [JsonPropertyName("login")]
-    public string Login { get; set; } = string.Empty;
-
-    /// <summary>Authentication type.</summary>
-    [JsonPropertyName("type")]
-    public AuthInfoType Type { get; set; }
-}
-
-/// <summary>Eligible account.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class ConnectorDiscoveryAccount
-{
-    /// <summary>Opaque account ID.</summary>
-    [JsonPropertyName("accountId")]
-    public string AccountId { get; set; } = string.Empty;
-
-    /// <summary>Account metadata.</summary>
-    [JsonPropertyName("authInfo")]
-    public ConnectorDiscoveryAuthInfo AuthInfo { get => field ??= new(); set; }
-}
-
-/// <summary>Eligible accounts.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class ConnectorDiscoveryAccountList
-{
-    /// <summary>Eligible accounts.</summary>
-    [JsonPropertyName("accounts")]
-    public IList<ConnectorDiscoveryAccount> Accounts { get => field ??= []; set; }
-
-    /// <summary>Availability.</summary>
-    [JsonPropertyName("availability")]
-    public ConnectorDiscoveryAvailability Availability { get; set; }
-}
-
-/// <summary>Entry.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class ConnectorDiscoveryCatalogEntry
-{
-    /// <summary>Description.</summary>
-    [JsonPropertyName("description")]
-    public string? Description { get; set; }
-
-    /// <summary>Display name.</summary>
-    [JsonPropertyName("displayName")]
-    public string DisplayName { get; set; } = string.Empty;
-
-    /// <summary>Logo.</summary>
-    [JsonPropertyName("logo")]
-    public string? Logo { get; set; }
-
-    /// <summary>Name.</summary>
-    [JsonPropertyName("name")]
-    public string Name { get; set; } = string.Empty;
-
-    /// <summary>Release tag.</summary>
-    [JsonPropertyName("releaseTag")]
-    public string? ReleaseTag { get; set; }
-
-    /// <summary>Status.</summary>
-    [JsonPropertyName("status")]
-    public ConnectorCatalogStatus Status { get; set; }
-
-    /// <summary>Tier.</summary>
-    [JsonPropertyName("tier")]
-    public string? Tier { get; set; }
-}
-
-/// <summary>Entries for the selected account.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class ConnectorDiscoveryCatalogResult
-{
-    /// <summary>Opaque account ID.</summary>
-    [JsonPropertyName("accountId")]
-    public string AccountId { get; set; } = string.Empty;
-
-    /// <summary>Entries.</summary>
-    [JsonPropertyName("connectors")]
-    public IList<ConnectorDiscoveryCatalogEntry> Connectors { get => field ??= []; set; }
-
-    /// <summary>Refresh time in Unix epoch milliseconds.</summary>
-    [JsonPropertyName("refreshedAtMs")]
-    public long RefreshedAtMs { get; set; }
-
-    /// <summary>Revision.</summary>
-    [JsonPropertyName("revision")]
-    public long Revision { get; set; }
-}
-
-/// <summary>Selected account.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class ConnectorDiscoveryAccountRequest
-{
-    /// <summary>Opaque account ID.</summary>
-    [RegularExpression("^\\S+$")]
-    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
-    [MinLength(1)]
-    [MaxLength(2048)]
-    [JsonPropertyName("accountId")]
-    public string AccountId { get; set; } = string.Empty;
 }
 
 /// <summary>Identifies the target session.</summary>
@@ -11028,7 +10298,6 @@ public sealed class SessionSetCredentialsResult
 [JsonDerivedType(typeof(SettableAuthInfoToken), "token")]
 [JsonDerivedType(typeof(SettableAuthInfoCopilotApiToken), "copilot-api-token")]
 [JsonDerivedType(typeof(SettableAuthInfoUser), "user")]
-[JsonDerivedType(typeof(SettableAuthInfoAccount), "account")]
 [JsonDerivedType(typeof(SettableAuthInfoGhCli), "gh-cli")]
 [JsonDerivedType(typeof(SettableAuthInfoApiKey), "api-key")]
 public partial class SettableAuthInfo
@@ -11155,24 +10424,6 @@ public partial class SettableAuthInfoUser : SettableAuthInfo
     public required string Host { get; set; }
 
     /// <summary>OAuth user login.</summary>
-    [JsonPropertyName("login")]
-    public required string Login { get; set; }
-}
-
-/// <summary>An interactive account whose model provider owns its credentials. It carries no GitHub credential.</summary>
-/// <remarks>The <c>account</c> variant of <see cref="SettableAuthInfo"/>.</remarks>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public partial class SettableAuthInfoAccount : SettableAuthInfo
-{
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override string Type => "account";
-
-    /// <summary>Host coordinate owned by the account's model provider.</summary>
-    [JsonPropertyName("host")]
-    public required string Host { get; set; }
-
-    /// <summary>Login identifying the provider-owned account.</summary>
     [JsonPropertyName("login")]
     public required string Login { get; set; }
 }
@@ -11553,11 +10804,6 @@ public partial class AuthReadValueActiveAccount : AuthReadValue
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("account")]
     public AccountStatus? Account { get; set; }
-
-    /// <summary>Credential-free identity metadata for the active account, including resolved Copilot user information when available.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("authInfo")]
-    public AuthIdentity? AuthInfo { get; set; }
 }
 
 /// <summary>Neutral authentication status summary.</summary>
@@ -11827,35 +11073,10 @@ public partial class AuthLoginStepNeedsInteraction : AuthLoginStep
     public override string Kind => "needs-interaction";
 }
 
-/// <summary>A credential-free account choice after sign-in.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class AuthLoginAccount
-{
-    /// <summary>Host coordinate owned by the selected account's provider.</summary>
-    [JsonPropertyName("host")]
-    public string Host { get; set; } = string.Empty;
-
-    /// <summary>Provider kind that owns this account choice.</summary>
-    [JsonPropertyName("kind")]
-    public AccountKind Kind { get; set; }
-
-    /// <summary>Human-readable login for the account choice.</summary>
-    [JsonPropertyName("login")]
-    public string Login { get; set; } = string.Empty;
-
-    /// <summary>Opaque identifier supplied to the next login step to select this account.</summary>
-    [JsonPropertyName("selectionId")]
-    public string SelectionId { get; set; } = string.Empty;
-}
-
-/// <summary>Result of an interactive login flow. Pending consent or account selection is not terminal.</summary>
+/// <summary>Terminal result of an interactive login flow.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public sealed class AuthLoginResultDto
 {
-    /// <summary>Available accounts when sign-in is awaiting account selection, ordered with Microsoft 365 first.</summary>
-    [JsonPropertyName("accounts")]
-    public IList<AuthLoginAccount>? Accounts { get; set; }
-
     /// <summary>Host that was signed in, when completed.</summary>
     [Url]
     [StringSyntax(StringSyntaxAttribute.Uri)]
@@ -11866,7 +11087,7 @@ public sealed class AuthLoginResultDto
     [JsonPropertyName("login")]
     public string? Login { get; set; }
 
-    /// <summary>Current disposition of the login, including pending user decisions.</summary>
+    /// <summary>Terminal disposition of the login.</summary>
     [JsonPropertyName("status")]
     public AuthLoginResultStatus Status { get; set; }
 }
@@ -11879,7 +11100,7 @@ public partial class AuthLoginStepCompleted : AuthLoginStep
     [JsonIgnore]
     public override string Kind => "completed";
 
-    /// <summary>Login result. When status is needs-plaintext-consent or needs-account-selection, advance with the user's decision to continue.</summary>
+    /// <summary>The terminal login result.</summary>
     [JsonPropertyName("result")]
     public required AuthLoginResultDto Result { get; set; }
 }
@@ -16264,32 +15485,6 @@ internal sealed class SessionSkillsEnsureLoadedRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>The IDE a host is connected to, as reported to the session.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class SessionConnectedIdeInfo
-{
-    /// <summary>Display name of the connected IDE, for example `VS Code`.</summary>
-    [JsonPropertyName("ideName")]
-    public string IdeName { get; set; } = string.Empty;
-
-    /// <summary>Absolute path of the workspace folder the IDE has open.</summary>
-    [JsonPropertyName("workspaceFolder")]
-    public string WorkspaceFolder { get; set; } = string.Empty;
-}
-
-/// <summary>Records which IDE the host is connected to, or clears it.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class SessionMcpSetConnectedIdeInfoParams
-{
-    /// <summary>The connected IDE. Null or omitted clears the recorded IDE, which is how a host reports that it is disconnected.</summary>
-    [JsonPropertyName("ide")]
-    public SessionConnectedIdeInfo? Ide { get; set; }
-
-    /// <summary>Target session identifier.</summary>
-    [JsonPropertyName("sessionId")]
-    public string SessionId { get; set; } = string.Empty;
-}
-
 /// <summary>Recorded MCP server connection failure.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public sealed class McpServerFailureInfo
@@ -16396,10 +15591,6 @@ public sealed class McpServer
     /// <summary>Connection status: connected, failed, needs-auth, pending, disabled, stopped, or not_configured.</summary>
     [JsonPropertyName("status")]
     public McpServerStatus Status { get; set; }
-
-    /// <summary>Configured URL for an HTTP/SSE server, regardless of configuration source. Omitted for local and in-memory servers.</summary>
-    [JsonPropertyName("url")]
-    public string? Url { get; set; }
 }
 
 /// <summary>MCP servers configured for the session, with their connection status and host-level state.</summary>
@@ -16418,73 +15609,6 @@ public sealed class McpServerList
 /// <summary>Identifies the target session.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 internal sealed class SessionMcpListRequest
-{
-    /// <summary>Target session identifier.</summary>
-    [JsonPropertyName("sessionId")]
-    public string SessionId { get; set; } = string.Empty;
-}
-
-/// <summary>Observational state for a matching already materialized MCP server.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class McpConfiguredServerState
-{
-    /// <summary>Observed connection error, when the materialized server failed.</summary>
-    [JsonPropertyName("error")]
-    public string? Error { get; set; }
-
-    /// <summary>Observed connection status. This is not a configuration or readiness guarantee.</summary>
-    [JsonPropertyName("status")]
-    public McpServerStatus Status { get; set; }
-}
-
-/// <summary>Effective MCP configuration entry. Configuration enablement is distinct from the optional live observation.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class McpConfiguredServer
-{
-    /// <summary>Human-readable display name supplied by configuration.</summary>
-    [JsonPropertyName("displayName")]
-    public string? DisplayName { get; set; }
-
-    /// <summary>Whether this configured server is enabled after session configuration and policy filtering.</summary>
-    [JsonPropertyName("enabled")]
-    public bool Enabled { get; set; }
-
-    /// <summary>Observed state from an already materialized matching server. Omitted when no live graph has this configured server; it never determines configuration enablement.</summary>
-    [JsonPropertyName("live")]
-    public McpConfiguredServerState? Live { get; set; }
-
-    /// <summary>Server name (config key).</summary>
-    [RegularExpression("^[^\\x00-\\x1f/\\x7f-\\x9f}]+(?:\\/[^\\x00-\\x1f/\\x7f-\\x9f}]+)*$")]
-    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
-    [MinLength(1)]
-    [JsonPropertyName("name")]
-    public string Name { get; set; } = string.Empty;
-
-    /// <summary>Configuration provenance: user, workspace, plugin, builtin, or managed.</summary>
-    [JsonPropertyName("source")]
-    public McpServerSource? Source { get; set; }
-
-    /// <summary>Plugin name that provided this server, when source is plugin.</summary>
-    [JsonPropertyName("sourcePlugin")]
-    public string? SourcePlugin { get; set; }
-
-    /// <summary>Plugin version that provided this server, when source is plugin.</summary>
-    [JsonPropertyName("sourcePluginVersion")]
-    public string? SourcePluginVersion { get; set; }
-}
-
-/// <summary>Effective MCP configuration with optional live observations from matching already materialized servers.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class McpConfiguredServerList
-{
-    /// <summary>Effective configured MCP servers.</summary>
-    [JsonPropertyName("servers")]
-    public IList<McpConfiguredServer> Servers { get => field ??= []; set; }
-}
-
-/// <summary>Identifies the target session.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class SessionMcpListConfiguredRequest
 {
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -23825,7 +22949,7 @@ internal sealed class SessionMetadataActivityRequest
 /// <summary>Token-usage breakdown for the session's current context window.</summary>
 public sealed class MetadataContextInfoResultContextInfo
 {
-    /// <summary>Output reservation overlapping the displayed prompt allowance plus tokens after the effective input budget's buffer-exhaustion blocking threshold (default 95%).</summary>
+    /// <summary>Output reserve plus tokens after the buffer-exhaustion blocking threshold (default 95%).</summary>
     [JsonPropertyName("bufferTokens")]
     public long BufferTokens { get; set; }
 
@@ -23837,7 +22961,7 @@ public sealed class MetadataContextInfoResultContextInfo
     [JsonPropertyName("conversationTokens")]
     public long ConversationTokens { get; set; }
 
-    /// <summary>Advertised prompt allowance for the selected context tier, without adding output tokens. The denominator for context-usage displays.</summary>
+    /// <summary>Prompt token limit plus the model's full output token limit.</summary>
     [JsonPropertyName("limit")]
     public long Limit { get; set; }
 
@@ -23849,7 +22973,7 @@ public sealed class MetadataContextInfoResultContextInfo
     [JsonPropertyName("modelName")]
     public string ModelName { get; set; } = string.Empty;
 
-    /// <summary>Effective input budget: the selected tier's prompt allowance bounded by the combined context ceiling minus the requested output allowance. Uses DEFAULT_TOKEN_LIMIT when limits are unspecified.</summary>
+    /// <summary>Maximum prompt tokens allowed by the model (or DEFAULT_TOKEN_LIMIT if unspecified).</summary>
     [JsonPropertyName("promptTokenLimit")]
     public long PromptTokenLimit { get; set; }
 
@@ -23879,11 +23003,11 @@ public sealed class MetadataContextInfoResult
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 internal sealed class MetadataContextInfoRequest
 {
-    /// <summary>Requested output allowance to reserve against the combined context ceiling. Pass 0 to resolve the session's request cap, falling back to the model's advertised output limit.</summary>
+    /// <summary>Maximum output tokens allowed by the target model. Pass 0 if unknown.</summary>
     [JsonPropertyName("outputTokenLimit")]
     public long OutputTokenLimit { get; set; }
 
-    /// <summary>Advertised prompt allowance. Pass 0 to resolve the selected model and context tier from the session.</summary>
+    /// <summary>Maximum prompt tokens allowed by the target model. Pass 0 to use the runtime default.</summary>
     [JsonPropertyName("promptTokenLimit")]
     public long PromptTokenLimit { get; set; }
 
@@ -23899,7 +23023,7 @@ internal sealed class MetadataContextInfoRequest
 /// <summary>The six normalized `/context` header buckets, computed from the same tokenization as `entries` so the two never disagree. Convenience rollups: `freeSpace` and `buffer` describe window capacity rather than occupied context, so the values do not sum to `totalTokens`.</summary>
 public sealed class MetadataContextAttributionResultContextAttributionCategories
 {
-    /// <summary>Overlapping output reservation plus post-blocking-threshold buffer.</summary>
+    /// <summary>Output reserve plus post-blocking-threshold buffer.</summary>
     [JsonPropertyName("buffer")]
     public long Buffer { get; set; }
 
@@ -23967,7 +23091,7 @@ public sealed class MetadataContextAttributionResultContextAttributionEntry
 /// <summary>Per-source token attribution snapshot for the current context window. The heaviest individual messages are available separately via `metadata.getContextHeaviestMessages`.</summary>
 public sealed class MetadataContextAttributionResultContextAttribution
 {
-    /// <summary>Output reservation overlapping the displayed prompt allowance plus the tokens past the effective input budget's buffer-exhaustion blocking threshold. Mirrors `SessionContextInfo.bufferTokens`.</summary>
+    /// <summary>Output reserve plus the tokens past the buffer-exhaustion blocking threshold. Mirrors `SessionContextInfo.bufferTokens`.</summary>
     [JsonPropertyName("bufferTokens")]
     public long BufferTokens { get; set; }
 
@@ -23987,7 +23111,7 @@ public sealed class MetadataContextAttributionResultContextAttribution
     [JsonPropertyName("entries")]
     public IList<MetadataContextAttributionResultContextAttributionEntry> Entries { get => field ??= []; set; }
 
-    /// <summary>Advertised prompt allowance for the selected context tier: the denominator for context-usage displays and capacity for `categories.freeSpace` and `categories.buffer`. Mirrors `SessionContextInfo.limit`.</summary>
+    /// <summary>Prompt limit plus the model's output reserve: the full context window `categories.freeSpace` and `categories.buffer` are measured against. Mirrors `SessionContextInfo.limit`.</summary>
     [JsonPropertyName("limit")]
     public long Limit { get; set; }
 
@@ -23999,7 +23123,7 @@ public sealed class MetadataContextAttributionResultContextAttribution
     [JsonPropertyName("modelSource")]
     public string ModelSource { get; set; } = string.Empty;
 
-    /// <summary>Effective input budget after reserving requested output against the combined context ceiling. Mirrors `SessionContextInfo.promptTokenLimit`.</summary>
+    /// <summary>Maximum prompt tokens the resolved model accepts — the denominator for a `##k/###k` context-usage display. Mirrors `SessionContextInfo.promptTokenLimit`.</summary>
     [JsonPropertyName("promptTokenLimit")]
     public long PromptTokenLimit { get; set; }
 
@@ -24077,6 +23201,43 @@ internal sealed class MetadataContextHeaviestMessagesRequest
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public sealed class MetadataRecordContextChangeResult
 {
+}
+
+/// <summary>Updated working directory and git context. Emitted as the new payload of `session.context_changed`.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class SessionWorkingDirectoryContext
+{
+    /// <summary>Merge-base commit SHA (fork point from the remote default branch).</summary>
+    [JsonPropertyName("baseCommit")]
+    public string? BaseCommit { get; set; }
+
+    /// <summary>Current git branch name.</summary>
+    [JsonPropertyName("branch")]
+    public string? Branch { get; set; }
+
+    /// <summary>Current working directory path.</summary>
+    [JsonPropertyName("cwd")]
+    public string Cwd { get; set; } = string.Empty;
+
+    /// <summary>Root directory of the git repository, resolved via git rev-parse.</summary>
+    [JsonPropertyName("gitRoot")]
+    public string? GitRoot { get; set; }
+
+    /// <summary>Head commit of the current git branch.</summary>
+    [JsonPropertyName("headCommit")]
+    public string? HeadCommit { get; set; }
+
+    /// <summary>Hosting platform type of the repository.</summary>
+    [JsonPropertyName("hostType")]
+    public SessionWorkingDirectoryContextHostType? HostType { get; set; }
+
+    /// <summary>Repository identifier derived from the git remote URL ("owner/name" for GitHub, "org/project/repo" for Azure DevOps).</summary>
+    [JsonPropertyName("repository")]
+    public string? Repository { get; set; }
+
+    /// <summary>Raw host string from the git remote URL (e.g. "github.com", "dev.azure.com").</summary>
+    [JsonPropertyName("repositoryHost")]
+    public string? RepositoryHost { get; set; }
 }
 
 /// <summary>Updated working-directory/git context to record on the session.</summary>
@@ -32209,69 +31370,6 @@ public readonly struct SlashCommandKind : IEquatable<SlashCommandKind>
 }
 
 
-/// <summary>Hosting platform type of the repository.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct SessionWorkingDirectoryContextHostType : IEquatable<SessionWorkingDirectoryContextHostType>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="SessionWorkingDirectoryContextHostType"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="SessionWorkingDirectoryContextHostType"/>.</param>
-    [JsonConstructor]
-    public SessionWorkingDirectoryContextHostType(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="SessionWorkingDirectoryContextHostType"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>The working directory repository is hosted on GitHub.</summary>
-    public static SessionWorkingDirectoryContextHostType GitHub { get; } = new("github");
-
-    /// <summary>The working directory repository is hosted on Azure DevOps.</summary>
-    public static SessionWorkingDirectoryContextHostType Ado { get; } = new("ado");
-
-    /// <summary>Returns a value indicating whether two <see cref="SessionWorkingDirectoryContextHostType"/> instances are equivalent.</summary>
-    public static bool operator ==(SessionWorkingDirectoryContextHostType left, SessionWorkingDirectoryContextHostType right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="SessionWorkingDirectoryContextHostType"/> instances are not equivalent.</summary>
-    public static bool operator !=(SessionWorkingDirectoryContextHostType left, SessionWorkingDirectoryContextHostType right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is SessionWorkingDirectoryContextHostType other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(SessionWorkingDirectoryContextHostType other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{SessionWorkingDirectoryContextHostType}"/> for serializing <see cref="SessionWorkingDirectoryContextHostType"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<SessionWorkingDirectoryContextHostType>
-    {
-        /// <inheritdoc />
-        public override SessionWorkingDirectoryContextHostType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, SessionWorkingDirectoryContextHostType value, JsonSerializerOptions options)
-        {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SessionWorkingDirectoryContextHostType));
-        }
-    }
-}
-
-
 /// <summary>Severity of a managed-settings validation finding.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
@@ -33662,228 +32760,6 @@ public readonly struct AgentRegistrySpawnPermissionMode : IEquatable<AgentRegist
         public override void Write(Utf8JsonWriter writer, AgentRegistrySpawnPermissionMode value, JsonSerializerOptions options)
         {
             GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AgentRegistrySpawnPermissionMode));
-        }
-    }
-}
-
-
-/// <summary>Availability.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct ConnectorDiscoveryAvailability : IEquatable<ConnectorDiscoveryAvailability>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="ConnectorDiscoveryAvailability"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="ConnectorDiscoveryAvailability"/>.</param>
-    [JsonConstructor]
-    public ConnectorDiscoveryAvailability(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="ConnectorDiscoveryAvailability"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>Enabled.</summary>
-    public static ConnectorDiscoveryAvailability Enabled { get; } = new("enabled");
-
-    /// <summary>Disabled.</summary>
-    public static ConnectorDiscoveryAvailability Disabled { get; } = new("disabled");
-
-    /// <summary>Unavailable.</summary>
-    public static ConnectorDiscoveryAvailability Unavailable { get; } = new("unavailable");
-
-    /// <summary>Returns a value indicating whether two <see cref="ConnectorDiscoveryAvailability"/> instances are equivalent.</summary>
-    public static bool operator ==(ConnectorDiscoveryAvailability left, ConnectorDiscoveryAvailability right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="ConnectorDiscoveryAvailability"/> instances are not equivalent.</summary>
-    public static bool operator !=(ConnectorDiscoveryAvailability left, ConnectorDiscoveryAvailability right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is ConnectorDiscoveryAvailability other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(ConnectorDiscoveryAvailability other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{ConnectorDiscoveryAvailability}"/> for serializing <see cref="ConnectorDiscoveryAvailability"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<ConnectorDiscoveryAvailability>
-    {
-        /// <inheritdoc />
-        public override ConnectorDiscoveryAvailability Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, ConnectorDiscoveryAvailability value, JsonSerializerOptions options)
-        {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ConnectorDiscoveryAvailability));
-        }
-    }
-}
-
-
-/// <summary>Authentication type.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct AuthInfoType : IEquatable<AuthInfoType>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="AuthInfoType"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="AuthInfoType"/>.</param>
-    [JsonConstructor]
-    public AuthInfoType(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="AuthInfoType"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>Authentication provided by a GitHub App HMAC credential.</summary>
-    public static AuthInfoType Hmac { get; } = new("hmac");
-
-    /// <summary>Authentication resolved from environment-provided credentials.</summary>
-    public static AuthInfoType Env { get; } = new("env");
-
-    /// <summary>Authentication from an interactive user sign-in.</summary>
-    public static AuthInfoType User { get; } = new("user");
-
-    /// <summary>Authentication from a selected provider-owned account, without a GitHub credential.</summary>
-    public static AuthInfoType Account { get; } = new("account");
-
-    /// <summary>Authentication delegated to the GitHub CLI.</summary>
-    public static AuthInfoType GhCli { get; } = new("gh-cli");
-
-    /// <summary>Authentication from an API key credential.</summary>
-    public static AuthInfoType ApiKey { get; } = new("api-key");
-
-    /// <summary>Authentication from a GitHub token.</summary>
-    public static AuthInfoType Token { get; } = new("token");
-
-    /// <summary>Authentication from an SDK GitHub token callback.</summary>
-    public static AuthInfoType TokenProvider { get; } = new("token-provider");
-
-    /// <summary>Authentication from a Copilot API token.</summary>
-    public static AuthInfoType CopilotApiToken { get; } = new("copilot-api-token");
-
-    /// <summary>Returns a value indicating whether two <see cref="AuthInfoType"/> instances are equivalent.</summary>
-    public static bool operator ==(AuthInfoType left, AuthInfoType right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="AuthInfoType"/> instances are not equivalent.</summary>
-    public static bool operator !=(AuthInfoType left, AuthInfoType right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is AuthInfoType other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(AuthInfoType other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{AuthInfoType}"/> for serializing <see cref="AuthInfoType"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<AuthInfoType>
-    {
-        /// <inheritdoc />
-        public override AuthInfoType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, AuthInfoType value, JsonSerializerOptions options)
-        {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AuthInfoType));
-        }
-    }
-}
-
-
-/// <summary>Authoritative service connection state for one Connector.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct ConnectorCatalogStatus : IEquatable<ConnectorCatalogStatus>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="ConnectorCatalogStatus"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="ConnectorCatalogStatus"/>.</param>
-    [JsonConstructor]
-    public ConnectorCatalogStatus(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="ConnectorCatalogStatus"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>The Connector is available but not connected.</summary>
-    public static ConnectorCatalogStatus NotConnected { get; } = new("not_connected");
-
-    /// <summary>The Connector service is still completing connection or consent.</summary>
-    public static ConnectorCatalogStatus Pending { get; } = new("pending");
-
-    /// <summary>The Connector is connected and may contribute MCP servers.</summary>
-    public static ConnectorCatalogStatus Connected { get; } = new("connected");
-
-    /// <summary>The Connector service reports an unusable connection.</summary>
-    public static ConnectorCatalogStatus Error { get; } = new("error");
-
-    /// <summary>The service returned a future or unrecognized state.</summary>
-    public static ConnectorCatalogStatus Unknown { get; } = new("unknown");
-
-    /// <summary>Returns a value indicating whether two <see cref="ConnectorCatalogStatus"/> instances are equivalent.</summary>
-    public static bool operator ==(ConnectorCatalogStatus left, ConnectorCatalogStatus right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="ConnectorCatalogStatus"/> instances are not equivalent.</summary>
-    public static bool operator !=(ConnectorCatalogStatus left, ConnectorCatalogStatus right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is ConnectorCatalogStatus other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(ConnectorCatalogStatus other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{ConnectorCatalogStatus}"/> for serializing <see cref="ConnectorCatalogStatus"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<ConnectorCatalogStatus>
-    {
-        /// <inheritdoc />
-        public override ConnectorCatalogStatus Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, ConnectorCatalogStatus value, JsonSerializerOptions options)
-        {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ConnectorCatalogStatus));
         }
     }
 }
@@ -35341,6 +34217,87 @@ public readonly struct PermissionDecisionSurface : IEquatable<PermissionDecision
 }
 
 
+/// <summary>Authentication type.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct AuthInfoType : IEquatable<AuthInfoType>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="AuthInfoType"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="AuthInfoType"/>.</param>
+    [JsonConstructor]
+    public AuthInfoType(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="AuthInfoType"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Authentication provided by a GitHub App HMAC credential.</summary>
+    public static AuthInfoType Hmac { get; } = new("hmac");
+
+    /// <summary>Authentication resolved from environment-provided credentials.</summary>
+    public static AuthInfoType Env { get; } = new("env");
+
+    /// <summary>Authentication from an interactive user sign-in.</summary>
+    public static AuthInfoType User { get; } = new("user");
+
+    /// <summary>Authentication delegated to the GitHub CLI.</summary>
+    public static AuthInfoType GhCli { get; } = new("gh-cli");
+
+    /// <summary>Authentication from an API key credential.</summary>
+    public static AuthInfoType ApiKey { get; } = new("api-key");
+
+    /// <summary>Authentication from a GitHub token.</summary>
+    public static AuthInfoType Token { get; } = new("token");
+
+    /// <summary>Authentication from an SDK GitHub token callback.</summary>
+    public static AuthInfoType TokenProvider { get; } = new("token-provider");
+
+    /// <summary>Authentication from a Copilot API token.</summary>
+    public static AuthInfoType CopilotApiToken { get; } = new("copilot-api-token");
+
+    /// <summary>Returns a value indicating whether two <see cref="AuthInfoType"/> instances are equivalent.</summary>
+    public static bool operator ==(AuthInfoType left, AuthInfoType right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="AuthInfoType"/> instances are not equivalent.</summary>
+    public static bool operator !=(AuthInfoType left, AuthInfoType right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is AuthInfoType other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(AuthInfoType other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{AuthInfoType}"/> for serializing <see cref="AuthInfoType"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<AuthInfoType>
+    {
+        /// <inheritdoc />
+        public override AuthInfoType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, AuthInfoType value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AuthInfoType));
+        }
+    }
+}
+
+
 /// <summary>The provider kind stamped on a signed-in account.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
@@ -35479,7 +34436,7 @@ public readonly struct LoginProviderKind : IEquatable<LoginProviderKind>
 }
 
 
-/// <summary>Disposition of a login attempt, including pending user decisions.</summary>
+/// <summary>Terminal disposition of a login persistence attempt.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
@@ -35499,14 +34456,11 @@ public readonly struct AuthLoginResultStatus : IEquatable<AuthLoginResultStatus>
     /// <summary>Gets the value associated with this <see cref="AuthLoginResultStatus"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>The credential was persisted and the selected account is signed in.</summary>
+    /// <summary>The credential was persisted and the account is signed in.</summary>
     public static AuthLoginResultStatus Completed { get; } = new("completed");
 
     /// <summary>Persistence needs explicit consent to store the token in plaintext.</summary>
     public static AuthLoginResultStatus NeedsPlaintextConsent { get; } = new("needs-plaintext-consent");
-
-    /// <summary>Credentials are saved; select an account using a returned selectionId as advance input to complete sign-in.</summary>
-    public static AuthLoginResultStatus NeedsAccountSelection { get; } = new("needs-account-selection");
 
     /// <summary>The user declined plaintext persistence.</summary>
     public static AuthLoginResultStatus Declined { get; } = new("declined");
@@ -38857,6 +37811,78 @@ public readonly struct ConnectorAuthorizationScope : IEquatable<ConnectorAuthori
 }
 
 
+/// <summary>Authoritative service connection state for one Connector.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct ConnectorCatalogStatus : IEquatable<ConnectorCatalogStatus>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="ConnectorCatalogStatus"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="ConnectorCatalogStatus"/>.</param>
+    [JsonConstructor]
+    public ConnectorCatalogStatus(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="ConnectorCatalogStatus"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The Connector is available but not connected.</summary>
+    public static ConnectorCatalogStatus NotConnected { get; } = new("not_connected");
+
+    /// <summary>The Connector service is still completing connection or consent.</summary>
+    public static ConnectorCatalogStatus Pending { get; } = new("pending");
+
+    /// <summary>The Connector is connected and may contribute MCP servers.</summary>
+    public static ConnectorCatalogStatus Connected { get; } = new("connected");
+
+    /// <summary>The Connector service reports an unusable connection.</summary>
+    public static ConnectorCatalogStatus Error { get; } = new("error");
+
+    /// <summary>The service returned a future or unrecognized state.</summary>
+    public static ConnectorCatalogStatus Unknown { get; } = new("unknown");
+
+    /// <summary>Returns a value indicating whether two <see cref="ConnectorCatalogStatus"/> instances are equivalent.</summary>
+    public static bool operator ==(ConnectorCatalogStatus left, ConnectorCatalogStatus right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="ConnectorCatalogStatus"/> instances are not equivalent.</summary>
+    public static bool operator !=(ConnectorCatalogStatus left, ConnectorCatalogStatus right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is ConnectorCatalogStatus other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(ConnectorCatalogStatus other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{ConnectorCatalogStatus}"/> for serializing <see cref="ConnectorCatalogStatus"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<ConnectorCatalogStatus>
+    {
+        /// <inheritdoc />
+        public override ConnectorCatalogStatus Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, ConnectorCatalogStatus value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ConnectorCatalogStatus));
+        }
+    }
+}
+
+
 /// <summary>Live MCP status of one Connector-owned runtime server.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
@@ -41242,6 +40268,69 @@ public readonly struct WorkspaceSummaryHostType : IEquatable<WorkspaceSummaryHos
 }
 
 
+/// <summary>Hosting platform type of the repository.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct SessionWorkingDirectoryContextHostType : IEquatable<SessionWorkingDirectoryContextHostType>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="SessionWorkingDirectoryContextHostType"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="SessionWorkingDirectoryContextHostType"/>.</param>
+    [JsonConstructor]
+    public SessionWorkingDirectoryContextHostType(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="SessionWorkingDirectoryContextHostType"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The working directory repository is hosted on GitHub.</summary>
+    public static SessionWorkingDirectoryContextHostType GitHub { get; } = new("github");
+
+    /// <summary>The working directory repository is hosted on Azure DevOps.</summary>
+    public static SessionWorkingDirectoryContextHostType Ado { get; } = new("ado");
+
+    /// <summary>Returns a value indicating whether two <see cref="SessionWorkingDirectoryContextHostType"/> instances are equivalent.</summary>
+    public static bool operator ==(SessionWorkingDirectoryContextHostType left, SessionWorkingDirectoryContextHostType right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="SessionWorkingDirectoryContextHostType"/> instances are not equivalent.</summary>
+    public static bool operator !=(SessionWorkingDirectoryContextHostType left, SessionWorkingDirectoryContextHostType right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is SessionWorkingDirectoryContextHostType other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(SessionWorkingDirectoryContextHostType other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{SessionWorkingDirectoryContextHostType}"/> for serializing <see cref="SessionWorkingDirectoryContextHostType"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<SessionWorkingDirectoryContextHostType>
+    {
+        /// <inheritdoc />
+        public override SessionWorkingDirectoryContextHostType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, SessionWorkingDirectoryContextHostType value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SessionWorkingDirectoryContextHostType));
+        }
+    }
+}
+
+
 /// <summary>Rust-owned settings predicates exposed across the SDK boundary. Raw feature-flag names are intentionally not part of the contract.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
@@ -42991,12 +42080,6 @@ public sealed class ServerRpc
         Interlocked.CompareExchange(ref field, new(_rpc), null) ??
         field;
 
-    /// <summary>GlobalState APIs.</summary>
-    public ServerGlobalStateApi GlobalState =>
-        field ??
-        Interlocked.CompareExchange(ref field, new(_rpc), null) ??
-        field;
-
     /// <summary>Commands APIs.</summary>
     public ServerCommandsApi Commands =>
         field ??
@@ -43005,24 +42088,6 @@ public sealed class ServerRpc
 
     /// <summary>User APIs.</summary>
     public ServerUserApi User =>
-        field ??
-        Interlocked.CompareExchange(ref field, new(_rpc), null) ??
-        field;
-
-    /// <summary>GitHubRepository APIs.</summary>
-    public ServerGitHubRepositoryApi GitHubRepository =>
-        field ??
-        Interlocked.CompareExchange(ref field, new(_rpc), null) ??
-        field;
-
-    /// <summary>GitHubOwners APIs.</summary>
-    public ServerGitHubOwnersApi GitHubOwners =>
-        field ??
-        Interlocked.CompareExchange(ref field, new(_rpc), null) ??
-        field;
-
-    /// <summary>Git APIs.</summary>
-    public ServerGitApi Git =>
         field ??
         Interlocked.CompareExchange(ref field, new(_rpc), null) ??
         field;
@@ -43059,12 +42124,6 @@ public sealed class ServerRpc
 
     /// <summary>AgentRegistry APIs.</summary>
     public ServerAgentRegistryApi AgentRegistry =>
-        field ??
-        Interlocked.CompareExchange(ref field, new(_rpc), null) ??
-        field;
-
-    /// <summary>Connectors APIs.</summary>
-    public ServerConnectorsApi Connectors =>
         field ??
         Interlocked.CompareExchange(ref field, new(_rpc), null) ??
         field;
@@ -44330,64 +43389,6 @@ public sealed class ServerAgentsApi
         var request = new AgentsGetDiscoveryPathsRequest { ProjectPaths = projectPaths, ExcludeHostAgents = excludeHostAgents };
         return await CopilotClient.InvokeRpcAsync<AgentDiscoveryPathList>(_rpc, "agents.getDiscoveryPaths", [request], cancellationToken);
     }
-
-    /// <summary>Lists the agents this runtime ships, by name. A consumer separating shipped agents from ones the user or a plugin authored should compare against these names rather than against `AgentInfo.source`: an authored agent may carry the `builtin` source while not being one of these, and the runtime treats the two as separate questions. `disableableNames` is the subset a user may turn off, which a client needs to decide whether to offer a toggle. `yamlBasedNames` is the subset backed by a shipped YAML definition, which a client needs before asking the runtime to load one.</summary>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>The agents this runtime ships, named so a consumer can tell them apart from authored ones.</returns>
-    internal async Task<AgentsGetBuiltinsResult> GetBuiltinsAsync(CancellationToken cancellationToken = default)
-    {
-        return await CopilotClient.InvokeRpcAsync<AgentsGetBuiltinsResult>(_rpc, "agents.getBuiltins", [], cancellationToken);
-    }
-
-    /// <summary>Lists the shipped agents a client should offer right now, filtered by the feature flags it passes. `getBuiltins` names every agent the runtime knows about; some of those are gated, so a client rendering a picker wants this narrower list together with the description to show beside each name.</summary>
-    /// <param name="featureFlags">Feature flag values keyed by name, evaluated with the runtime's truthiness rules. Omit or pass null for no flags.</param>
-    /// <param name="overrides">Flag overrides keyed by name. A null entry uses the corresponding base flag; false explicitly disables it. Omit or pass null for no overrides.</param>
-    /// <param name="context">The surface asking, which gates agents that only apply to one client. Omit or pass null to apply no client filter.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>The shipped agents available under the requested flags.</returns>
-    internal async Task<AgentsGetAvailableBuiltinsResult> GetAvailableBuiltinsAsync(IDictionary<string, JsonElement>? featureFlags = null, IDictionary<string, JsonElement>? overrides = null, string? context = null, CancellationToken cancellationToken = default)
-    {
-        var request = new AgentsGetAvailableBuiltinsRequest { FeatureFlags = featureFlags, Overrides = overrides, Context = context };
-        return await CopilotClient.InvokeRpcAsync<AgentsGetAvailableBuiltinsResult>(_rpc, "agents.getAvailableBuiltins", [request], cancellationToken);
-    }
-
-    /// <summary>Loads one shipped agent's YAML definition, for a client that needs what the agent declares rather than only its name. `getBuiltins` reports which names have a definition to load: a name outside its `yamlBasedNames` is special-cased in code and has none. The definition crosses as its own JSON rather than as contract-typed fields, because the runtime parses it with the agent schema's tolerant shape and re-typing it here would drop the keys that shape accepts and this one does not. The projected `__nativeCustomAgent` view the runtime derives is included, so a caller reading the declared model and a caller rendering the agent see the same definition.</summary>
-    /// <param name="name">The agent name, which must be one of `getBuiltins`'s `yamlBasedNames`. A name outside that list is special-cased in code and has no definition, and is reported as an error rather than as an empty definition.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>One shipped agent's definition.</returns>
-    internal async Task<AgentsGetBuiltinDefinitionResult> GetBuiltinDefinitionAsync(string name, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(name);
-
-        var request = new AgentsGetBuiltinDefinitionRequest { Name = name };
-        return await CopilotClient.InvokeRpcAsync<AgentsGetBuiltinDefinitionResult>(_rpc, "agents.getBuiltinDefinition", [request], cancellationToken);
-    }
-
-    /// <summary>Projects one shipped agent the way a picker lists it, reading only the metadata at the head of the definition file and stopping before the prompt body. `getBuiltinDefinition` answers the whole definition instead, so a client listing every shipped agent should prefer this one: the cost of a listing grows with the number of agents, and the prompt body is the part a listing never shows. The two also differ in shape. This returns the projected custom agent on its own, whereas `getBuiltinDefinition` returns the authored definition with that projection nested under `__nativeCustomAgent`.</summary>
-    /// <param name="name">The agent name, taken from `getAvailableBuiltins`. Unlike `getBuiltinDefinition`, the agent that `getBuiltins` reports as special-cased rather than YAML-based is answered here too, from its in-code definition.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>One shipped agent, projected for a listing.</returns>
-    internal async Task<AgentsGetBuiltinListingDefinitionResult> GetBuiltinListingDefinitionAsync(string name, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(name);
-
-        var request = new AgentsGetBuiltinListingDefinitionRequest { Name = name };
-        return await CopilotClient.InvokeRpcAsync<AgentsGetBuiltinListingDefinitionResult>(_rpc, "agents.getBuiltinListingDefinition", [request], cancellationToken);
-    }
-
-    /// <summary>Resolves the model a custom agent asks for against the models actually available, and answers both the model to switch to and the warning a user should see when the agent's preference cannot be met. A custom agent may name several acceptable models in preference order, so the decision is a match rather than a lookup, and an agent whose preference is unavailable is a normal outcome that produces a warning rather than an error. A host must call this rather than pick the first available name itself, because the preference order and the wording of the warning are what keep one installation's agent selection the same as another's.</summary>
-    /// <param name="agentModelsJson">The agent's declared `model:` entry, serialized. A single name or an ordered list of acceptable names.</param>
-    /// <param name="availableModelsJson">The models available to this session, serialized in the shape the model list carries.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>The model to switch to, and the warning to show when the agent's preference could not be met.</returns>
-    internal async Task<AgentsCustomAgentInitialModelDecisionResult> CustomAgentInitialModelDecisionAsync(string agentModelsJson, string availableModelsJson, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(agentModelsJson);
-        ArgumentNullException.ThrowIfNull(availableModelsJson);
-
-        var request = new AgentsCustomAgentInitialModelDecisionParams { AgentModelsJson = agentModelsJson, AvailableModelsJson = availableModelsJson };
-        return await CopilotClient.InvokeRpcAsync<AgentsCustomAgentInitialModelDecisionResult>(_rpc, "agents.customAgentInitialModelDecision", [request], cancellationToken);
-    }
 }
 
 /// <summary>Provides server-scoped Instructions APIs.</summary>
@@ -44421,49 +43422,6 @@ public sealed class ServerInstructionsApi
     {
         var request = new InstructionsGetDiscoveryPathsRequest { ProjectPaths = projectPaths, ExcludeHostInstructions = excludeHostInstructions };
         return await CopilotClient.InvokeRpcAsync<InstructionDiscoveryPathList>(_rpc, "instructions.getDiscoveryPaths", [request], cancellationToken);
-    }
-}
-
-/// <summary>Provides server-scoped GlobalState APIs.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class ServerGlobalStateApi
-{
-    private readonly JsonRpc _rpc;
-
-    internal ServerGlobalStateApi(JsonRpc rpc)
-    {
-        _rpc = rpc;
-    }
-
-    /// <summary>Reads the host's machine-wide state: which plugins are installed and the one-off flags and timestamps that record what the user has already been shown or migrated. This is the state that outlives a single session and a single workspace, so a host reads it to decide whether to run a first-launch step, offer an onboarding prompt, or skip one it has already completed. The stored credentials are deliberately not part of this result; a caller that needs an authenticated identity asks the account methods for it instead. Reading is non-destructive and every field is optional, because a fresh install has recorded nothing yet.</summary>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>The host's machine-wide state. Every field is optional because a fresh install has recorded nothing yet, so a reader must treat an absent field as `not yet`, never as a negative answer. Stored credentials are deliberately absent from this shape.</returns>
-    internal async Task<GlobalStateLoadResult> LoadAsync(CancellationToken cancellationToken = default)
-    {
-        return await CopilotClient.InvokeRpcAsync<GlobalStateLoadResult>(_rpc, "globalState.load", [], cancellationToken);
-    }
-
-    /// <summary>Reads the host's machine-wide state exactly as `globalState.load` does, but from a caller-supplied configuration directory instead of the one the server resolved for itself. Use this when a consumer scopes a session to its own Copilot home — the SDK's per-session `configDir` override — so the state read matches the directory that session actually uses. An absent or empty `configDir` resolves the server's own home, making this identical to `globalState.load`. The stored credentials are omitted here for the same reason they are omitted from `globalState.load`: a caller that needs an authenticated identity asks the account methods instead, so pointing this at another directory cannot be used to read the credentials kept in it.</summary>
-    /// <param name="configDir">Copilot configuration directory to read the state document from, taking precedence over the server's own `COPILOT_HOME` and default home. Omit it, or pass an empty string, to read the directory the server resolved for itself.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>The host's machine-wide state. Every field is optional because a fresh install has recorded nothing yet, so a reader must treat an absent field as `not yet`, never as a negative answer. Stored credentials are deliberately absent from this shape.</returns>
-    internal async Task<GlobalStateLoadResult> LoadForConfigDirAsync(string? configDir = null, CancellationToken cancellationToken = default)
-    {
-        var request = new GlobalStateLoadForConfigDirRequest { ConfigDir = configDir };
-        return await CopilotClient.InvokeRpcAsync<GlobalStateLoadResult>(_rpc, "globalState.loadForConfigDir", [request], cancellationToken);
-    }
-
-    /// <summary>Records one top-level key in the host's machine-wide state, the counterpart to `globalState.load`. A host calls this to remember that it has shown an onboarding step, asked a one-off question, or completed a migration, so the next run can skip it. Only the named key is replaced and the rest of the document is preserved, which lets two writers record different flags without overwriting each other; passing no value removes the key instead. Only the keys a host records itself are writable: `appInstallNudgeResponded`, `appTipShown`, `askedSetupTerminals`, `autoFeedbackLastPromptedAt`, `firstLaunchAt`, `recentModelIds`, `sandboxCredentialProxyCaDeclined` and `sandboxOnboardingShown`. Every other key is refused, including `installedPlugins`, the stored credentials, `trustedFolders`, the staff flags and the signed-in accounts. Plugin enablement must use the plugin APIs, which apply repository and managed-policy checks.</summary>
-    /// <param name="key">Top-level key to write, named as it appears in the result of `globalState.load`. It must be one of the writable keys that `globalState.writeKey` lists.</param>
-    /// <param name="configDir">Copilot configuration directory to write the state document in, taking precedence over the server's own `COPILOT_HOME` and default home. Omit it, or pass an empty string, to write the directory the server resolved for itself. Mirrors `globalState.loadForConfigDir`, so a caller can read and write the same directory.</param>
-    /// <param name="value">Value to store for the key. Omit it, or pass null, to remove the key instead.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    internal async Task WriteKeyAsync(string key, string? configDir = null, object? value = null, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(key);
-
-        var request = new GlobalStateWriteKeyRequest { Key = key, ConfigDir = configDir, Value = CopilotClient.ToJsonElementForWire(value) };
-        await CopilotClient.InvokeRpcAsync(_rpc, "globalState.writeKey", [request], cancellationToken);
     }
 }
 
@@ -44516,138 +43474,31 @@ public sealed class ServerUserSettingsApi
         _rpc = rpc;
     }
 
-    /// <summary>Lists every known user setting from settings.json, each with its effective value, its default, and whether it is at the default — so settings the user has never set still appear with their default value. Does not include repository- or enterprise-managed overrides that the runtime layers on top at session time.</summary>
+    /// <summary>Drops this runtime process's in-memory user settings cache so the next settings read observes disk.</summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>Per-key metadata for every known user setting in settings.json, including settings left at their default. Excludes repository- and enterprise-managed overrides.</returns>
+    public async Task ReloadAsync(CancellationToken cancellationToken = default)
+    {
+        await CopilotClient.InvokeRpcAsync(_rpc, "user.settings.reload", [], cancellationToken);
+    }
+
+    /// <summary>Lists every known user setting (settings.json overlaid with the legacy config.json, config.json wins), each with its effective value, its default, and whether it is at the default — so settings the user has never set still appear with their default value. Does not include repository- or enterprise-managed overrides that the runtime layers on top at session time.</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Per-key metadata for every known user setting (settings.json overlaid with the legacy config.json, config.json wins), including settings left at their default. Excludes repository- and enterprise-managed overrides.</returns>
     public async Task<UserSettingsGetResult> GetAsync(CancellationToken cancellationToken = default)
     {
         return await CopilotClient.InvokeRpcAsync<UserSettingsGetResult>(_rpc, "user.settings.get", [], cancellationToken);
     }
 
-    /// <summary>Writes one or more user settings to settings.json, replacing each provided top-level key. A key whose value is null is removed.</summary>
+    /// <summary>Writes one or more user settings to settings.json, replacing each provided top-level key. A key whose value is null is removed. Returns the keys whose new value is shadowed by a legacy config.json entry (config.json wins on read), which the runtime leaves in place — such writes do not take effect until the legacy value is removed.</summary>
     /// <param name="settings">Partial user settings to write, as a free-form object keyed by setting name.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    public async Task SetAsync(object settings, CancellationToken cancellationToken = default)
+    /// <returns>Outcome of writing user settings.</returns>
+    public async Task<UserSettingsSetResult> SetAsync(object settings, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(settings);
 
         var request = new UserSettingsSetRequest { Settings = CopilotClient.ToJsonElementForWire(settings)!.Value };
-        await CopilotClient.InvokeRpcAsync(_rpc, "user.settings.set", [request], cancellationToken);
-    }
-}
-
-/// <summary>Provides server-scoped GitHubRepository APIs.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class ServerGitHubRepositoryApi
-{
-    private readonly JsonRpc _rpc;
-
-    internal ServerGitHubRepositoryApi(JsonRpc rpc)
-    {
-        _rpc = rpc;
-    }
-
-    /// <summary>Resolves the GitHub repository that owns a working-tree path by reading the selected git remote configured for it, preferring `origin`. Returns a null `repository` when the path is inside a git working tree but that selected remote does not resolve to a GitHub host. Fails when the path is not inside a git working tree at all, so a caller can tell 'not a repository' apart from 'a repository with no GitHub remote'.</summary>
-    /// <param name="path">Absolute path to a directory inside the git working tree to resolve.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>The GitHub repository that owns the requested path, when the selected remote (`origin`, else the first) is on a GitHub host.</returns>
-    internal async Task<GitHubRepositoryAtPathResult> AtPathAsync(string path, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(path);
-
-        var request = new GitHubRepositoryAtPathRequest { Path = path };
-        return await CopilotClient.InvokeRpcAsync<GitHubRepositoryAtPathResult>(_rpc, "gitHubRepository.atPath", [request], cancellationToken);
-    }
-}
-
-/// <summary>Provides server-scoped GitHubOwners APIs.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class ServerGitHubOwnersApi
-{
-    private readonly JsonRpc _rpc;
-
-    internal ServerGitHubOwnersApi(JsonRpc rpc)
-    {
-        _rpc = rpc;
-    }
-
-    /// <summary>Registers a cancellable owner listing and returns its request id. Separate from `gitHubOwners.list` so the id exists before the listing starts: a caller that abandons the listing the moment it begins would otherwise have nothing to name in `gitHubOwners.cancel`. The id serves one listing only. Long-abandoned unused ids can be released by later allocations.</summary>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>A freshly registered request id. Registering it before the listing starts is what lets a cancel that races the request still find the owner listing slot. The id serves one listing only. Long-abandoned unused ids can be released by later allocations.</returns>
-    internal async Task<GitHubOwnersRequestIdResult> NextRequestIdAsync(CancellationToken cancellationToken = default)
-    {
-        return await CopilotClient.InvokeRpcAsync<GitHubOwnersRequestIdResult>(_rpc, "gitHubOwners.nextRequestId", [], cancellationToken);
-    }
-
-    /// <summary>Lists the logins the authenticated user may act as — their own account first, then the organizations they belong to — by asking the GitHub API under the supplied credential. No credential travels in the request: `authInfo` selects one the runtime already holds, and the runtime resolves the token and the GitHub host from it. A failure the caller should render arrives as `message`; one it should raise arrives as `throwError`.</summary>
-    /// <param name="requestId">Request id from `gitHubOwners.nextRequestId`. An id that was never registered, canceled before use, released after being abandoned, or already used is refused rather than silently running uncancellable.</param>
-    /// <param name="authInfo">The credential the listing runs under, carried opaquely because its shape is the host's own and the runtime only resolves a token and a GitHub host from it. No credential travels: this selects one the runtime already holds.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>Outcome of an owner listing. Exactly one of `owners` and `message` is present, except that `throwError` reports a failure the caller is expected to raise rather than render.</returns>
-    internal async Task<GitHubOwnersListResult> ListAsync(long requestId, object authInfo, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(authInfo);
-
-        var request = new GitHubOwnersListRequest { RequestId = requestId, AuthInfo = CopilotClient.ToJsonElementForWire(authInfo)!.Value };
-        return await CopilotClient.InvokeRpcAsync<GitHubOwnersListResult>(_rpc, "gitHubOwners.list", [request], cancellationToken);
-    }
-
-    /// <summary>Abandons an owner listing started with the given request id. Answers `canceled: true` while a listing with that id is running. Answers `canceled: false` when the id was never registered, was registered but not used, was released after being abandoned, or its listing has ended. Canceling an unused id releases it, and a later `list` with that id is refused. The cancel acts only on owner listings and never reaches another request of the host.</summary>
-    /// <param name="requestId">Request id the listing was started with.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>Whether the id named a running owner listing.</returns>
-    internal async Task<GitHubOwnersCancelResult> CancelAsync(long requestId, CancellationToken cancellationToken = default)
-    {
-        var request = new GitHubOwnersCancelRequest { RequestId = requestId };
-        return await CopilotClient.InvokeRpcAsync<GitHubOwnersCancelResult>(_rpc, "gitHubOwners.cancel", [request], cancellationToken);
-    }
-}
-
-/// <summary>Provides server-scoped Git APIs.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class ServerGitApi
-{
-    private readonly JsonRpc _rpc;
-
-    internal ServerGitApi(JsonRpc rpc)
-    {
-        _rpc = rpc;
-    }
-
-    /// <summary>Reads the remote that the branch checked out in a working tree tracks, as `branch.&lt;name&gt;.remote` configures it. Reports `origin` rather than failing whenever there is no tracking configuration to read — on a detached HEAD, on a branch with no upstream, or when git itself fails — because a caller asking which remote to talk to needs an answer it can act on, not an error. Marked internal because it exists to carry a CLI call site off the napi boundary onto the SDK contract; it is migration plumbing, not a surface consumers are meant to depend on.</summary>
-    /// <param name="cwd">Absolute path to a directory inside the git working tree to query.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>The remote the checked-out branch tracks.</returns>
-    internal async Task<GitCurrentBranchRemoteResult> CurrentBranchRemoteAsync(string cwd, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(cwd);
-
-        var request = new GitCwdRequest { Cwd = cwd };
-        return await CopilotClient.InvokeRpcAsync<GitCurrentBranchRemoteResult>(_rpc, "git.currentBranchRemote", [request], cancellationToken);
-    }
-
-    /// <summary>Collects the repository context of a working directory in one call: working tree root, repository identifier and host, current branch, and the HEAD and base commits. Every repository field is omitted when the path is not inside a git working tree, and the requested path is echoed back as `cwd`. The answer is the same `SessionWorkingDirectoryContext` that `session.metadata.recordContextChange` accepts, so a caller polling for a context change can forward the result unchanged. Marked internal because it exists to carry a CLI call site off the napi boundary onto the SDK contract; it is migration plumbing, not a surface consumers are meant to depend on. It can become public once an SDK consumer needs to derive session context from a directory itself.</summary>
-    /// <param name="cwd">Absolute path to a directory inside the git working tree to query.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>Updated working directory and git context. Emitted as the new payload of `session.context_changed`.</returns>
-    internal async Task<SessionWorkingDirectoryContext> WorkingDirectoryContextAsync(string cwd, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(cwd);
-
-        var request = new GitCwdRequest { Cwd = cwd };
-        return await CopilotClient.InvokeRpcAsync<SessionWorkingDirectoryContext>(_rpc, "git.workingDirectoryContext", [request], cancellationToken);
-    }
-
-    /// <summary>Lists the GitHub repositories a working tree's remotes point at, one entry per distinct repository, so a caller can resolve a base and head repository without parsing remote URLs itself. When several remotes name the same repository, only the first is listed, and the entry keeps that remote name. Remotes pointing at no GitHub host are left out, so an empty list means the tree reaches GitHub through no remote. Failing to read the remotes is reported as an error rather than as an empty list, because the two mean different things to a caller. Marked internal because it exists to carry a CLI call site off the napi boundary onto the SDK contract; it is migration plumbing, not a surface consumers are meant to depend on.</summary>
-    /// <param name="gitRoot">Absolute path to the root of the git working tree.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>The GitHub repositories a working tree's remotes point at.</returns>
-    internal async Task<GitReposFromRemotesResult> ReposFromRemotesAsync(string gitRoot, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(gitRoot);
-
-        var request = new GitReposFromRemotesRequest { GitRoot = gitRoot };
-        return await CopilotClient.InvokeRpcAsync<GitReposFromRemotesResult>(_rpc, "git.reposFromRemotes", [request], cancellationToken);
+        return await CopilotClient.InvokeRpcAsync<UserSettingsSetResult>(_rpc, "user.settings.set", [request], cancellationToken);
     }
 }
 
@@ -45095,54 +43946,6 @@ public sealed class ServerSessionsApi
         return await CopilotClient.InvokeRpcAsync<SessionEnrichMetadataResult>(_rpc, "sessions.enrichMetadata", [request], cancellationToken);
     }
 
-    /// <summary>Creates the workspace record for a session that has not been opened yet. A host that hands a session off to another application — writing the record and then launching that application against the session ID — needs the record on disk before any session exists to carry it, which the session-scoped workspace methods cannot do. Replaces any existing record and resets the checkpoint index. When writing to the local filesystem, a stored `fork_count` survives on disk. Returns the record it built, so a surviving stored `fork_count` can differ from the answer.</summary>
-    /// <param name="sessionId">Session ID the workspace record belongs to.</param>
-    /// <param name="sessionStatePath">Directory the session's state is written under when no session filesystem provider is configured. Ignored when a provider is configured; the provider's session state path is used instead.</param>
-    /// <param name="convention">`windows` (any letter case) selects Windows path rules. Any other value selects POSIX path rules.</param>
-    /// <param name="context">Starting working-directory context. The record keeps `cwd`, `gitRoot`, `repository`, `hostType`, `branch`, and `clientName`. Other fields, including `repositoryHost`, `headCommit`, and `baseCommit`, are ignored. `hostType` must be `github` or `ado`.</param>
-    /// <param name="name">User-supplied display name for the workspace.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>The workspace record that was written.</returns>
-    internal async Task<SessionsCreateWorkspaceResult> CreateWorkspaceAsync(string sessionId, string sessionStatePath, string convention, SessionWorkingDirectoryContextWithClient? context = null, string? name = null, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(sessionId);
-        ArgumentNullException.ThrowIfNull(sessionStatePath);
-        ArgumentNullException.ThrowIfNull(convention);
-
-        var request = new SessionsCreateWorkspaceRequest { SessionId = sessionId, SessionStatePath = sessionStatePath, Convention = convention, Context = context, Name = name };
-        return await CopilotClient.InvokeRpcAsync<SessionsCreateWorkspaceResult>(_rpc, "sessions.createWorkspace", [request], cancellationToken);
-    }
-
-    /// <summary>Reads a session's workspace record straight from disk, without opening the session. Resuming by session ID has to know where the session lives before it can connect, so the lookup cannot come from the session-scoped workspace methods, which resolve their location from a live session's context. Returns no record when the file is absent.</summary>
-    /// <param name="sessionsHome">Root directory every session's state directory sits under.</param>
-    /// <param name="sessionId">Session ID naming the state directory under the sessions home. Rejected when it is absolute or contains a parent component, so it cannot escape the sessions home.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>The workspace record on disk, omitted when the session has none.</returns>
-    internal async Task<SessionsLoadWorkspaceResult> LoadWorkspaceAsync(string sessionsHome, string sessionId, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(sessionsHome);
-        ArgumentNullException.ThrowIfNull(sessionId);
-
-        var request = new SessionsLoadWorkspaceRequest { SessionsHome = sessionsHome, SessionId = sessionId };
-        return await CopilotClient.InvokeRpcAsync<SessionsLoadWorkspaceResult>(_rpc, "sessions.loadWorkspace", [request], cancellationToken);
-    }
-
-    /// <summary>Merges fields into a session's workspace record on disk, creating the record when it is absent. The counterpart to `sessions.loadWorkspace`, for the same before-the-session-exists case. It preserves stored workspace-schema fields the request does not supply, does not preserve stored keys outside the workspace schema, and never replaces a stored `fork_count`.</summary>
-    /// <param name="sessionsHome">Root directory every session's state directory sits under.</param>
-    /// <param name="sessionId">Session ID naming the state directory under the sessions home. Rejected when it is absolute or contains a parent component, so it cannot escape the sessions home.</param>
-    /// <param name="fieldsJson">Workspace-schema fields to merge into the record, as a JSON object. Fields the object omits keep their stored values, except stored keys outside the schema are not preserved and a stored `fork_count` is never replaced.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>The merge completed. The record carries the supplied workspace-schema fields, but a stored `fork_count` stays.</returns>
-    internal async Task<SessionsUpdateWorkspaceFieldsResult> UpdateWorkspaceFieldsAsync(string sessionsHome, string sessionId, string fieldsJson, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(sessionsHome);
-        ArgumentNullException.ThrowIfNull(sessionId);
-        ArgumentNullException.ThrowIfNull(fieldsJson);
-
-        var request = new SessionsUpdateWorkspaceFieldsRequest { SessionsHome = sessionsHome, SessionId = sessionId, FieldsJson = fieldsJson };
-        return await CopilotClient.InvokeRpcAsync<SessionsUpdateWorkspaceFieldsResult>(_rpc, "sessions.updateWorkspaceFields", [request], cancellationToken);
-    }
-
     /// <summary>Reloads user, plugin, and (optionally) repo hooks on the active session.</summary>
     /// <param name="sessionId">Active session ID to reload hooks for.</param>
     /// <param name="deferRepoHooks">When true, skip repo-level hooks. Use before folder trust is confirmed; loadDeferredRepoHooks loads them post-trust.</param>
@@ -45286,58 +44089,6 @@ public sealed class ServerAgentRegistryApi
 
         var request = new AgentRegistrySpawnRequest { Cwd = cwd, AgentName = agentName, Model = model, Name = name, PermissionMode = permissionMode, InitialPrompt = initialPrompt };
         return await CopilotClient.InvokeRpcAsync<AgentRegistrySpawnResult>(_rpc, "agentRegistry.spawn", [request], cancellationToken);
-    }
-}
-
-/// <summary>Provides server-scoped Connectors APIs.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class ServerConnectorsApi
-{
-    private readonly JsonRpc _rpc;
-
-    internal ServerConnectorsApi(JsonRpc rpc)
-    {
-        _rpc = rpc;
-    }
-
-    /// <summary>Returns feature availability.</summary>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>Feature availability.</returns>
-    public async Task<ConnectorDiscoveryCapabilities> GetCapabilitiesAsync(CancellationToken cancellationToken = default)
-    {
-        return await CopilotClient.InvokeRpcAsync<ConnectorDiscoveryCapabilities>(_rpc, "connectors.getCapabilities", [], cancellationToken);
-    }
-
-    /// <summary>Returns eligible accounts.</summary>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>Eligible accounts.</returns>
-    public async Task<ConnectorDiscoveryAccountList> GetAccountsAsync(CancellationToken cancellationToken = default)
-    {
-        return await CopilotClient.InvokeRpcAsync<ConnectorDiscoveryAccountList>(_rpc, "connectors.getAccounts", [], cancellationToken);
-    }
-
-    /// <summary>Lists entries for the selected account.</summary>
-    /// <param name="accountId">Opaque account ID.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>Entries for the selected account.</returns>
-    public async Task<ConnectorDiscoveryCatalogResult> ListAsync(string accountId, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(accountId);
-
-        var request = new ConnectorDiscoveryAccountRequest { AccountId = accountId };
-        return await CopilotClient.InvokeRpcAsync<ConnectorDiscoveryCatalogResult>(_rpc, "connectors.list", [request], cancellationToken);
-    }
-
-    /// <summary>Refreshes entries for the selected account.</summary>
-    /// <param name="accountId">Opaque account ID.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>Entries for the selected account.</returns>
-    public async Task<ConnectorDiscoveryCatalogResult> RefreshAsync(string accountId, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(accountId);
-
-        var request = new ConnectorDiscoveryAccountRequest { AccountId = accountId };
-        return await CopilotClient.InvokeRpcAsync<ConnectorDiscoveryCatalogResult>(_rpc, "connectors.refresh", [request], cancellationToken);
     }
 }
 
@@ -47651,18 +46402,7 @@ public sealed class McpApi
         _session = session;
     }
 
-    /// <summary>Records the IDE the host is connected to, so the agent's system prompt can name it and its workspace folder. Null or an omitted `ide` clears the recorded value, which is how a host reports that it is disconnected; there is no separate clear method. Both `ideName` and `workspaceFolder` are required together, because half a state cannot be attributed to a project.</summary>
-    /// <param name="ide">The connected IDE. Null or omitted clears the recorded IDE, which is how a host reports that it is disconnected.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    internal async Task SetConnectedIdeInfoAsync(SessionConnectedIdeInfo? ide = null, CancellationToken cancellationToken = default)
-    {
-        _session.ThrowIfDisposed();
-
-        var request = new SessionMcpSetConnectedIdeInfoParams { SessionId = _session.SessionId, Ide = ide };
-        await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.mcp.setConnectedIdeInfo", [request], cancellationToken);
-    }
-
-    /// <summary>Lists materialized MCP servers and their connection status. Cache misses may start and wait for MCP servers.</summary>
+    /// <summary>Lists MCP servers configured for the session, their connection status, and host-level state. The host-level state (disabled/filtered servers, failed/needs-auth/pending connections, mcp3p policy, full config) is empty/zero when no MCP host has been initialized for the session.</summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>MCP servers configured for the session, with their connection status and host-level state.</returns>
     public async Task<McpServerList> ListAsync(CancellationToken cancellationToken = default)
@@ -47671,17 +46411,6 @@ public sealed class McpApi
 
         var request = new SessionMcpListRequest { SessionId = _session.SessionId };
         return await CopilotClient.InvokeRpcAsync<McpServerList>(_session.Rpc, "session.mcp.list", [request], cancellationToken);
-    }
-
-    /// <summary>Lists effective MCP configuration without starting, restarting, authenticating, or waiting for servers. An optional live observation is from an already materialized matching server; this is not a readiness guarantee.</summary>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>Effective MCP configuration with optional live observations from matching already materialized servers.</returns>
-    public async Task<McpConfiguredServerList> ListConfiguredAsync(CancellationToken cancellationToken = default)
-    {
-        _session.ThrowIfDisposed();
-
-        var request = new SessionMcpListConfiguredRequest { SessionId = _session.SessionId };
-        return await CopilotClient.InvokeRpcAsync<McpConfiguredServerList>(_session.Rpc, "session.mcp.listConfigured", [request], cancellationToken);
     }
 
     /// <summary>Lists the tools exposed by a connected MCP server on this session's host. This performs a live `tools/list` request. Tool UI metadata is returned independently of whether MCP Apps rendering is enabled for the session.</summary>
@@ -49929,8 +48658,8 @@ public sealed class MetadataApi
     }
 
     /// <summary>Returns the token breakdown for the session's current context window for a given model.</summary>
-    /// <param name="promptTokenLimit">Advertised prompt allowance. Pass 0 to resolve the selected model and context tier from the session.</param>
-    /// <param name="outputTokenLimit">Requested output allowance to reserve against the combined context ceiling. Pass 0 to resolve the session's request cap, falling back to the model's advertised output limit.</param>
+    /// <param name="promptTokenLimit">Maximum prompt tokens allowed by the target model. Pass 0 to use the runtime default.</param>
+    /// <param name="outputTokenLimit">Maximum output tokens allowed by the target model. Pass 0 if unknown.</param>
     /// <param name="selectedModel">Model identifier used for tokenization. Omit to use the session default. Used both for token counting and to compute display values.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Token breakdown for the session's current context window, or null if uninitialized.</returns>
@@ -51807,23 +50536,13 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(AgentSelectRequest))]
 [JsonSerializable(typeof(AgentSelectResult))]
 [JsonSerializable(typeof(AgentSetPromptRequest))]
-[JsonSerializable(typeof(AgentsCustomAgentInitialModelDecisionParams))]
-[JsonSerializable(typeof(AgentsCustomAgentInitialModelDecisionResult))]
 [JsonSerializable(typeof(AgentsDiscoverRequest))]
-[JsonSerializable(typeof(AgentsGetAvailableBuiltinsRequest))]
-[JsonSerializable(typeof(AgentsGetAvailableBuiltinsResult))]
-[JsonSerializable(typeof(AgentsGetBuiltinDefinitionRequest))]
-[JsonSerializable(typeof(AgentsGetBuiltinDefinitionResult))]
-[JsonSerializable(typeof(AgentsGetBuiltinListingDefinitionRequest))]
-[JsonSerializable(typeof(AgentsGetBuiltinListingDefinitionResult))]
-[JsonSerializable(typeof(AgentsGetBuiltinsResult))]
 [JsonSerializable(typeof(AgentsGetDiscoveryPathsRequest))]
 [JsonSerializable(typeof(AuthEnumerateQuery))]
 [JsonSerializable(typeof(AuthEnumerateValue))]
 [JsonSerializable(typeof(AuthIdentity))]
 [JsonSerializable(typeof(AuthIdentityMetadata))]
 [JsonSerializable(typeof(AuthInfo))]
-[JsonSerializable(typeof(AuthLoginAccount))]
 [JsonSerializable(typeof(AuthLoginAdvanceRequest))]
 [JsonSerializable(typeof(AuthLoginBeginRequest))]
 [JsonSerializable(typeof(AuthLoginBegun))]
@@ -51841,7 +50560,6 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(AutopilotObjectiveState))]
 [JsonSerializable(typeof(BuiltInModelCatalog))]
 [JsonSerializable(typeof(BuiltInModelCatalogEntry))]
-[JsonSerializable(typeof(BuiltinAgentSummary))]
 [JsonSerializable(typeof(BuiltinToolDescriptor))]
 [JsonSerializable(typeof(BuiltinToolFormat))]
 [JsonSerializable(typeof(BuiltinToolInputSchema))]
@@ -51910,13 +50628,6 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(ConnectorConnectResult))]
 [JsonSerializable(typeof(ConnectorContinueRequest))]
 [JsonSerializable(typeof(ConnectorDisconnectResult))]
-[JsonSerializable(typeof(ConnectorDiscoveryAccount))]
-[JsonSerializable(typeof(ConnectorDiscoveryAccountList))]
-[JsonSerializable(typeof(ConnectorDiscoveryAccountRequest))]
-[JsonSerializable(typeof(ConnectorDiscoveryAuthInfo))]
-[JsonSerializable(typeof(ConnectorDiscoveryCapabilities))]
-[JsonSerializable(typeof(ConnectorDiscoveryCatalogEntry))]
-[JsonSerializable(typeof(ConnectorDiscoveryCatalogResult))]
 [JsonSerializable(typeof(ConnectorReconcileRequest))]
 [JsonSerializable(typeof(ConnectorReconcileRequestWithSession))]
 [JsonSerializable(typeof(ConnectorRuntimeStatus))]
@@ -51991,29 +50702,12 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(FolderTrustAddParams))]
 [JsonSerializable(typeof(FolderTrustCheckParams))]
 [JsonSerializable(typeof(FolderTrustCheckResult))]
-[JsonSerializable(typeof(GitCurrentBranchRemoteResult))]
-[JsonSerializable(typeof(GitCwdRequest))]
 [JsonSerializable(typeof(GitHubEnvironment))]
-[JsonSerializable(typeof(GitHubOwnerOption))]
-[JsonSerializable(typeof(GitHubOwnersCancelRequest))]
-[JsonSerializable(typeof(GitHubOwnersCancelResult))]
-[JsonSerializable(typeof(GitHubOwnersListRequest))]
-[JsonSerializable(typeof(GitHubOwnersListResult))]
-[JsonSerializable(typeof(GitHubOwnersRequestIdResult))]
-[JsonSerializable(typeof(GitHubRepositoryAtPathRequest))]
-[JsonSerializable(typeof(GitHubRepositoryAtPathResult))]
-[JsonSerializable(typeof(GitHubRepositoryIdentity))]
 [JsonSerializable(typeof(GitHubTelemetryClientInfo))]
 [JsonSerializable(typeof(GitHubTelemetryEvent))]
 [JsonSerializable(typeof(GitHubTelemetryNotification))]
 [JsonSerializable(typeof(GitHubTokenAcquireRequest))]
 [JsonSerializable(typeof(GitHubTokenAcquireResult))]
-[JsonSerializable(typeof(GitRemoteRepository))]
-[JsonSerializable(typeof(GitReposFromRemotesRequest))]
-[JsonSerializable(typeof(GitReposFromRemotesResult))]
-[JsonSerializable(typeof(GlobalStateLoadForConfigDirRequest))]
-[JsonSerializable(typeof(GlobalStateLoadResult))]
-[JsonSerializable(typeof(GlobalStateWriteKeyRequest))]
 [JsonSerializable(typeof(HandlePendingToolCallRequest))]
 [JsonSerializable(typeof(HandlePendingToolCallResult))]
 [JsonSerializable(typeof(HistoryAbortManualCompactionResult))]
@@ -52087,7 +50781,6 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(LocalSessionMetadataValue))]
 [JsonSerializable(typeof(LogRequest))]
 [JsonSerializable(typeof(LogResult))]
-[JsonSerializable(typeof(LoggedInUser))]
 [JsonSerializable(typeof(LspInitializeRequest))]
 [JsonSerializable(typeof(ManagedSettingMeta))]
 [JsonSerializable(typeof(ManagedSettingsComposeLayer))]
@@ -52139,9 +50832,6 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(McpConfigUpdateRequest))]
 [JsonSerializable(typeof(McpConfigureGitHubRequest))]
 [JsonSerializable(typeof(McpConfigureGitHubResult))]
-[JsonSerializable(typeof(McpConfiguredServer))]
-[JsonSerializable(typeof(McpConfiguredServerList))]
-[JsonSerializable(typeof(McpConfiguredServerState))]
 [JsonSerializable(typeof(McpDiagnosticDetails))]
 [JsonSerializable(typeof(McpDiagnosticSourceConfiguration))]
 [JsonSerializable(typeof(McpDisableRequest))]
@@ -52554,7 +51244,6 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(SessionCommandsListRequestWithSession))]
 [JsonSerializable(typeof(SessionCompletionItem))]
 [JsonSerializable(typeof(SessionCompletionsGetTriggerCharactersRequest))]
-[JsonSerializable(typeof(SessionConnectedIdeInfo))]
 [JsonSerializable(typeof(SessionConnectorsGetAccountRequest))]
 [JsonSerializable(typeof(SessionConnectorsGetCapabilitiesRequest))]
 [JsonSerializable(typeof(SessionConnectorsGetStatusRequest))]
@@ -52623,7 +51312,6 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(SessionLoadDeferredRepoHooksResult))]
 [JsonSerializable(typeof(SessionManagedSettingsGetRequest))]
 [JsonSerializable(typeof(SessionMcpAppsGetHostContextRequest))]
-[JsonSerializable(typeof(SessionMcpListConfiguredRequest))]
 [JsonSerializable(typeof(SessionMcpListRequest))]
 [JsonSerializable(typeof(SessionMcpMoveLoadingToBackgroundRequest))]
 [JsonSerializable(typeof(SessionMcpOauthCancelLoginRequest))]
@@ -52632,7 +51320,6 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(SessionMcpOauthPrepareLoginResult))]
 [JsonSerializable(typeof(SessionMcpReloadRequest))]
 [JsonSerializable(typeof(SessionMcpRemoveGitHubRequest))]
-[JsonSerializable(typeof(SessionMcpSetConnectedIdeInfoParams))]
 [JsonSerializable(typeof(SessionMetadataActivityRequest))]
 [JsonSerializable(typeof(SessionMetadataGetClientMetadataRequest))]
 [JsonSerializable(typeof(SessionMetadataGetContextAttributionRequest))]
@@ -52711,7 +51398,6 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(SessionVisibilityGetRequest))]
 [JsonSerializable(typeof(SessionWorkflowPauseAtCheckpointResult))]
 [JsonSerializable(typeof(SessionWorkingDirectoryContext))]
-[JsonSerializable(typeof(SessionWorkingDirectoryContextWithClient))]
 [JsonSerializable(typeof(SessionWorkspacesAutopilotObjectiveExistsRequest))]
 [JsonSerializable(typeof(SessionWorkspacesDeleteAutopilotObjectiveRequest))]
 [JsonSerializable(typeof(SessionWorkspacesGetWorkspaceRequest))]
@@ -52724,8 +51410,6 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(SessionsClientMetadataEntry))]
 [JsonSerializable(typeof(SessionsCloseRequest))]
 [JsonSerializable(typeof(SessionsCloseResult))]
-[JsonSerializable(typeof(SessionsCreateWorkspaceRequest))]
-[JsonSerializable(typeof(SessionsCreateWorkspaceResult))]
 [JsonSerializable(typeof(SessionsDeleteRequest))]
 [JsonSerializable(typeof(SessionsEnrichMetadataRequest))]
 [JsonSerializable(typeof(SessionsFindByPrefixRequest))]
@@ -52749,8 +51433,6 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(SessionsListNonEmptySessionIdsResult))]
 [JsonSerializable(typeof(SessionsListRequest))]
 [JsonSerializable(typeof(SessionsLoadDeferredRepoHooksRequest))]
-[JsonSerializable(typeof(SessionsLoadWorkspaceRequest))]
-[JsonSerializable(typeof(SessionsLoadWorkspaceResult))]
 [JsonSerializable(typeof(SessionsOpenProgress))]
 [JsonSerializable(typeof(SessionsPruneOldRequest))]
 [JsonSerializable(typeof(SessionsReadPersistedEventsRequest))]
@@ -52766,8 +51448,6 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(SessionsStartRemoteControlRequest))]
 [JsonSerializable(typeof(SessionsStopRemoteControlRequest))]
 [JsonSerializable(typeof(SessionsTransferRemoteControlRequest))]
-[JsonSerializable(typeof(SessionsUpdateWorkspaceFieldsRequest))]
-[JsonSerializable(typeof(SessionsUpdateWorkspaceFieldsResult))]
 [JsonSerializable(typeof(SettableAuthInfo))]
 [JsonSerializable(typeof(ShellCancelUserRequestedRequest))]
 [JsonSerializable(typeof(ShellCredentials))]
@@ -52900,6 +51580,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(UserSettingMetadata))]
 [JsonSerializable(typeof(UserSettingsGetResult))]
 [JsonSerializable(typeof(UserSettingsSetRequest))]
+[JsonSerializable(typeof(UserSettingsSetResult))]
 [JsonSerializable(typeof(VisibilityGetResult))]
 [JsonSerializable(typeof(VisibilitySetRequest))]
 [JsonSerializable(typeof(VisibilitySetResult))]

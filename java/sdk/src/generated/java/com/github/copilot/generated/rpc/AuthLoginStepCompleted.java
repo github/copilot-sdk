@@ -32,7 +32,7 @@ public final class AuthLoginStepCompleted extends AuthLoginStep {
     @Override
     public String getKind() { return kind; }
 
-    /** Login result. When status is needs-plaintext-consent or needs-account-selection, advance with the user's decision to continue. */
+    /** The terminal login result. */
     @JsonProperty("result")
     private AuthLoginResultDto result;
 

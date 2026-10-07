@@ -138,19 +138,6 @@ test("accepts Linux musl x64", () => {
   );
 });
 
-test("accepts Linux musl ARM64", () => {
-  assert.equal(
-    validateNativeHost("linuxmusl-arm64", {
-      platform: "linux",
-      arch: "arm64",
-      glibcVersionRuntime: undefined,
-      elfMachine: 183,
-      elfInterpreter: "/lib/ld-musl-aarch64.so.1",
-    }),
-    "Validated native build host: linuxmusl-arm64 (musl)",
-  );
-});
-
 test("accepts Windows x64 without a libc requirement", () => {
   assert.equal(
     validateNativeHost("win32-x64", {
@@ -411,10 +398,12 @@ test("rejects macOS ARM64 for the macOS x64 classifier", () => {
 test("rejects an unimplemented classifier", () => {
   assert.throws(
     () =>
-      validateNativeHost("linux-riscv64", {
+      validateNativeHost("linuxmusl-arm64", {
         platform: "linux",
-        arch: "riscv64",
+        arch: "arm64",
         glibcVersionRuntime: undefined,
+        elfMachine: 183,
+        elfInterpreter: "/lib/ld-musl-aarch64.so.1",
       }),
     /Unsupported native build classifier/,
   );

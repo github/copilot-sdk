@@ -516,7 +516,6 @@ function createPublicationFixture(
       "linux-x64",
       "linux-arm64",
       "linuxmusl-x64",
-      "linuxmusl-arm64",
       "win32-x64",
       "win32-arm64",
       "darwin-x64",

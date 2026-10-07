@@ -31,7 +31,7 @@ public final class SessionPermissionsUrlsApi {
     }
 
     /**
-     * Toggles the runtime's URL-permission policy between unrestricted and restricted modes.
+     * Whether the URL-permission policy should run in unrestricted mode.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.

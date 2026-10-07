@@ -984,14 +984,7 @@ describe("same-run SDK artifacts", () => {
                 ])
             );
             expect(args.filter((arg) => arg.startsWith("-Dcopilot.native.external."))).toHaveLength(
-                7
-            );
-            expect(args).toEqual(
-                expect.arrayContaining([
-                    expect.stringContaining(
-                        "-Dcopilot.native.external.linuxmusl.arm64.classifier.path="
-                    ),
-                ])
+                6
             );
             expect(env?.COPILOT_CLI_RELEASE_TARBALL).toBe(runtime);
             expect(env?.COPILOT_CLI_RELEASE_SHA256).toBe(sha256(runtime));
@@ -1006,18 +999,14 @@ describe("same-run SDK artifacts", () => {
         expect(commands.filter((command) => command[0] === "bash")).toHaveLength(1);
     });
 
-    it.each(["latest", "prerelease", "unstable"] as const)(
+    it.each(["prerelease", "unstable"] as const)(
         "creates immutable %s source tags and announces only normal releases",
         async (channel) => {
             const release = {
                 ...identity,
                 channel,
                 sdkVersion:
-                    channel === "unstable"
-                        ? "0.4.0-unstable.123.gaaaaaaa"
-                        : channel === "latest"
-                          ? "0.4.0"
-                          : identity.sdkVersion,
+                    channel === "unstable" ? "0.4.0-unstable.123.gaaaaaaa" : identity.sdkVersion,
             };
             const snapshot = "b".repeat(40);
             const requests: string[][] = [];
@@ -1029,29 +1018,17 @@ describe("same-run SDK artifacts", () => {
                 if (args[0] === "api" && args[1].includes("/releases/tags/")) {
                     throw Object.assign(new Error("not found"), { stderr: "(HTTP 404)" });
                 }
-                if (args[1] === "repos/github/copilot-sdk/releases/latest") {
-                    return JSON.stringify({
-                        tag_name: "v0.3.0",
-                        draft: false,
-                        prerelease: false,
-                        published_at: "2026-09-20T00:00:00Z",
-                    });
-                }
-                if (args.includes("--paginate")) {
-                    return [
-                        JSON.stringify({
-                            tag_name: "runtime-1.0.89-unstable.1",
-                            draft: false,
-                            prerelease: true,
-                            published_at: "2026-09-22T00:00:00Z",
-                        }),
-                        JSON.stringify({
-                            tag_name: "v0.3.0",
-                            draft: false,
-                            prerelease: false,
-                            published_at: "2026-09-20T00:00:00Z",
-                        }),
-                    ].join("\n");
+                if (args.includes("--slurp")) {
+                    return JSON.stringify([
+                        [
+                            {
+                                tag_name: "v0.3.0",
+                                draft: false,
+                                prerelease: false,
+                                published_at: "2026-09-20T00:00:00Z",
+                            },
+                        ],
+                    ]);
                 }
                 return "{}";
             };
@@ -1070,20 +1047,7 @@ describe("same-run SDK artifacts", () => {
                     )
                 ).toBe(true);
             } else {
-                expect(requests.at(-2)).toEqual([
-                    "api",
-                    ...(channel === "latest"
-                        ? ["repos/github/copilot-sdk/releases/latest"]
-                        : [
-                              "--paginate",
-                              "--jq",
-                              ".[] | {tag_name, draft, prerelease, published_at}",
-                              "repos/github/copilot-sdk/releases?per_page=100",
-                          ]),
-                ]);
-                expect(requests.at(-1)).toContain(
-                    channel === "latest" ? "--latest" : "--latest=false"
-                );
+                expect(requests.at(-1)).toContain("--latest=false");
                 expect(requests.at(-1)).toEqual(
                     expect.arrayContaining(["--generate-notes", "--notes-start-tag", "v0.3.0"])
                 );

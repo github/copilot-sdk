@@ -31,7 +31,7 @@ public final class SessionAccountsLoginApi {
     }
 
     /**
-     * Begin an interactive login flow for a provider kind (dispatch is kind-only) and return its opaque flow id and first step.
+     * Begin an interactive login flow for a provider kind. Dispatch is kind-only.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -47,7 +47,7 @@ public final class SessionAccountsLoginApi {
     }
 
     /**
-     * Advance an in-flight login flow, optionally fulfilling an input-required step, and return the next step.
+     * Advance an in-flight login flow, optionally fulfilling an input-required step.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -63,7 +63,7 @@ public final class SessionAccountsLoginApi {
     }
 
     /**
-     * Cancel an in-flight login flow and release its resources.
+     * Cancel an in-flight login flow.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.

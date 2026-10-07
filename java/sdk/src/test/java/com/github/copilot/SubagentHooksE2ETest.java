@@ -157,7 +157,8 @@ public class SubagentHooksE2ETest {
                         SubagentStartHookInput start = subagentStarts.element();
                         assertEquals(session.getSessionId(), start.sessionId());
                         assertTrue(start.timestamp() > 0);
-                        assertEquals(ctx.getWorkDir().toRealPath(), Path.of(start.cwd()).toRealPath());
+                        assertEquals(ctx.getWorkDir().toAbsolutePath().normalize(),
+                                Path.of(start.cwd()).toAbsolutePath().normalize());
                         assertNotNull(start.transcriptPath());
                         assertEquals("explore", start.agentName());
                         assertNull(start.agentDisplayName());

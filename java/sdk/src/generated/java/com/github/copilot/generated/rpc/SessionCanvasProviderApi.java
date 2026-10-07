@@ -31,7 +31,7 @@ final class SessionCanvasProviderApi {
     }
 
     /**
-     * Registers an internal canvas provider connection and its contributions.
+     * Internal canvas provider registration parameters.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -47,7 +47,7 @@ final class SessionCanvasProviderApi {
     }
 
     /**
-     * Unregisters an internal canvas provider connection.
+     * Internal canvas provider unregistration parameters.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.

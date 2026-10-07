@@ -24,8 +24,7 @@ class ManagedSettingsTest {
     void forwardsManagedSettingsOnCreateAndResume() throws Exception {
         var permissions = new ManagedSettingsPermissions()
                 .setDisableBypassPermissionsMode(DisableBypassPermissionsModes.DISABLE).setDeny(List.of("Shell(rm *)"))
-                .setAsk(List.of("Domain(publish.example)")).setAllow(List.of("Read(**)"))
-                .setLimitTo(List.of("Domain(github.com)"));
+                .setAsk(List.of("Domain(publish.example)")).setAllow(List.of("Read(**)"));
         var managedSettings = new ManagedSettings().setPermissions(permissions);
 
         var create = SessionRequestBuilder.buildCreateRequest(
@@ -40,7 +39,6 @@ class ManagedSettingsTest {
         assertTrue(json.contains("\"enableManagedSettings\":true"));
         assertTrue(json.contains("\"managedSettings\":{\"permissions\""));
         assertTrue(json.contains("\"disableBypassPermissionsMode\":\"disable\""));
-        assertTrue(json.contains("\"limitTo\":[\"Domain(github.com)\"]"));
     }
 
     @Test
@@ -57,8 +55,7 @@ class ManagedSettingsTest {
         // absent (null) list imposes no such restriction. Jackson NON_NULL must
         // emit an explicit empty array as `[]` and omit null fields, so the two
         // remain distinguishable on the wire.
-        var permissions = new ManagedSettingsPermissions().setDeny(List.of()).setAsk(List.of()).setAllow(List.of())
-                .setLimitTo(List.of());
+        var permissions = new ManagedSettingsPermissions().setDeny(List.of()).setAsk(List.of()).setAllow(List.of());
         var managedSettings = new ManagedSettings().setPermissions(permissions);
         var create = SessionRequestBuilder.buildCreateRequest(new SessionConfig().setManagedSettings(managedSettings),
                 "managed-empty");
@@ -67,7 +64,6 @@ class ManagedSettingsTest {
         assertTrue(json.contains("\"deny\":[]"), json);
         assertTrue(json.contains("\"ask\":[]"), json);
         assertTrue(json.contains("\"allow\":[]"), json);
-        assertTrue(json.contains("\"limitTo\":[]"), json);
     }
 
     @Test

@@ -31,7 +31,7 @@ public final class SessionTelemetryApi {
     }
 
     /**
-     * Gets the telemetry engagement ID currently associated with the session, when available.
+     * Identifies the target session.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -42,7 +42,7 @@ public final class SessionTelemetryApi {
     }
 
     /**
-     * Sets feature override key/value pairs to attach to subsequent telemetry events for the session.
+     * Feature override key/value pairs to attach to subsequent telemetry events from this session.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.

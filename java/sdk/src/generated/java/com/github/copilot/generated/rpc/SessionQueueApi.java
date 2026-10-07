@@ -31,7 +31,7 @@ public final class SessionQueueApi {
     }
 
     /**
-     * Returns the local session's pending user-facing queued items and steering messages.
+     * Identifies the target session.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -42,7 +42,7 @@ public final class SessionQueueApi {
     }
 
     /**
-     * Returns the internal native queue snapshot for in-process session orchestration.
+     * Identifies the target session.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -53,7 +53,7 @@ public final class SessionQueueApi {
     }
 
     /**
-     * Moves an addressable queued item to a public visible position.
+     * Parameters for moving a queued item by stable id.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -69,7 +69,7 @@ public final class SessionQueueApi {
     }
 
     /**
-     * Inserts a new queued message at a public visible position.
+     * Parameters for inserting a queued message at a public visible position.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -85,7 +85,7 @@ public final class SessionQueueApi {
     }
 
     /**
-     * Removes an addressable queued item by its stable id.
+     * Parameters for removing a queued item by stable id.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -101,7 +101,7 @@ public final class SessionQueueApi {
     }
 
     /**
-     * Updates the text of an addressable single-message queue item.
+     * Parameters for editing a single queued message.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -117,7 +117,7 @@ public final class SessionQueueApi {
     }
 
     /**
-     * Atomically withdraws an unchanged user message of a local session: from the queued or steering lane while unconsumed, or from the running turn it started while the model has not answered it and nothing the user sent after it is pending. Withdrawing from the running turn interrupts that turn and removes its events from history. A client retaining the original draft may restore it only when removed is true.
+     * Conditional withdrawal of a single user message, from its queue or from the running turn it started.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -133,7 +133,7 @@ public final class SessionQueueApi {
     }
 
     /**
-     * Atomically appends text and attachments to an unchanged, unconsumed local steering message. Returns updated=false if delivery or withdrawal already claimed the message.
+     * Append to one pending steering message without changing its identity or delivery position.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -149,7 +149,7 @@ public final class SessionQueueApi {
     }
 
     /**
-     * Duplicates an addressable queued item immediately after its source.
+     * Parameters for duplicating a queued item.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -165,7 +165,7 @@ public final class SessionQueueApi {
     }
 
     /**
-     * Acquires or releases the queued-lane drain pause.
+     * Parameters for acquiring or releasing the queued-lane drain pause. Acquisition is exclusive and non-idempotent: `paused: true` against an already-paused session fails with `queue_already_paused`. The pause is never released automatically — it is not tied to the caller's lifetime, so a client that exits without sending `paused: false` leaves the lane frozen. Release is unowned: `paused: false` clears the pause for any caller, including one that never acquired it.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -181,7 +181,7 @@ public final class SessionQueueApi {
     }
 
     /**
-     * Moves an addressable queued message into the live turn's steering lane.
+     * Parameters for steering a queued message into a live turn.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -197,7 +197,7 @@ public final class SessionQueueApi {
     }
 
     /**
-     * Reports whether the local session has native queued work pending.
+     * Identifies the target session.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -208,7 +208,7 @@ public final class SessionQueueApi {
     }
 
     /**
-     * Begins a native deferred-idle drain when background work has quiesced.
+     * Inputs for starting a deferred-idle drain.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -224,7 +224,7 @@ public final class SessionQueueApi {
     }
 
     /**
-     * Finishes a native deferred-idle drain and reports whether to drain queue work or emit idle.
+     * Inputs for completing a deferred-idle drain.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -240,7 +240,7 @@ public final class SessionQueueApi {
     }
 
     /**
-     * Marks session.idle as deferred by native background work state.
+     * Inputs for marking session.idle deferred in native state.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -256,7 +256,7 @@ public final class SessionQueueApi {
     }
 
     /**
-     * Removes the most recently queued user-facing item (LIFO).
+     * Identifies the target session.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -267,7 +267,7 @@ public final class SessionQueueApi {
     }
 
     /**
-     * Clears all pending queued items on the local session.
+     * Identifies the target session.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -278,7 +278,7 @@ public final class SessionQueueApi {
     }
 
     /**
-     * Consumes queued native system notifications matching an internal filter.
+     * Internal filter for consuming queued system notifications.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -294,7 +294,7 @@ public final class SessionQueueApi {
     }
 
     /**
-     * Enqueues the internal resume-pending wake item when orphan handling needs a follow-up turn.
+     * Identifies the target session.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -305,7 +305,7 @@ public final class SessionQueueApi {
     }
 
     /**
-     * Drains the native local-session work queue for in-process session orchestration.
+     * Identifies the target session.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0

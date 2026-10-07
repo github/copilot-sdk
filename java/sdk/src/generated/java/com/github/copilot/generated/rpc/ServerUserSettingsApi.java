@@ -27,7 +27,18 @@ public final class ServerUserSettingsApi {
     }
 
     /**
-     * Lists every known user setting from settings.json, each with its effective value, its default, and whether it is at the default — so settings the user has never set still appear with their default value. Does not include repository- or enterprise-managed overrides that the runtime layers on top at session time.
+     * Invokes {@code user.settings.reload}.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<Void> reload() {
+        return caller.invoke("user.settings.reload", java.util.Map.of(), Void.class);
+    }
+
+    /**
+     * Per-key metadata for every known user setting (settings.json overlaid with the legacy config.json, config.json wins), including settings left at their default. Excludes repository- and enterprise-managed overrides.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -38,14 +49,14 @@ public final class ServerUserSettingsApi {
     }
 
     /**
-     * Writes one or more user settings to settings.json, replacing each provided top-level key. A key whose value is null is removed.
+     * Partial user settings to write to settings.json. Each top-level key is written individually, replacing the existing value; a key whose value is null is removed.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
     @CopilotExperimental
-    public CompletableFuture<Void> set(UserSettingsSetParams params) {
-        return caller.invoke("user.settings.set", params, Void.class);
+    public CompletableFuture<UserSettingsSetResult> set(UserSettingsSetParams params) {
+        return caller.invoke("user.settings.set", params, UserSettingsSetResult.class);
     }
 
 }

@@ -1,6 +1,6 @@
 # Invoked by sdk.yml to run the .NET SDK build/test matrix, documentation,
 # full subprocess CAPI coverage, and focused in-process smoke
-# coverage across standard platforms and x64 musl.
+# coverage on Linux and x64 musl.
 name: "SDK .NET"
 
 env:
@@ -83,13 +83,6 @@ jobs:
           DOTNET_TEST_RESULTS_DIRECTORY: TestResults/inprocess
           DOTNET_TEST_FILTER: "FullyQualifiedName~GitHub.Copilot.Test.E2E.ClientE2ETests.Should_Start_And_Connect_Over_InProcess_Ffi|FullyQualifiedName~GitHub.Copilot.Test.E2E.SessionE2ETests.Should_Receive_Session_Events|FullyQualifiedName~GitHub.Copilot.Test.E2E.ClientOptionsE2ETests.Should_Use_Configured_GitHub_Host_For_Authentication"
         run: ../scripts/ci/run-dotnet-tests.sh
-      - name: Validate documentation examples
-        if: github.event_name != 'merge_group'
-        working-directory: ${{ inputs.sdk-home }}/scripts/docs-validation
-        run: |
-          npm ci
-          npm run extract
-          npm run validate:cs
       - if: failure()
         uses: actions/upload-artifact@v7
         with:
@@ -99,9 +92,9 @@ jobs:
           retention-days: 7
 
   dotnet-darwin-arm64:
-    name: ".NET (macos-26-xlarge, default, CAPI)"
+    name: ".NET (macos-latest, default, CAPI)"
     if: inputs.platform == 'all' || inputs.platform == 'darwin-arm64'
-    runs-on: macos-26-xlarge
+    runs-on: macos-latest
     timeout-minutes: 30
     defaults:
       run:
@@ -109,7 +102,6 @@ jobs:
         working-directory: ${{ inputs.sdk-home }}/dotnet
     env:
       COPILOT_SDK_E2E_BACKEND: capi
-      DOTNET_TEST_RESULTS_DIRECTORY: TestResults/subprocess
     steps:
       - uses: actions/checkout@v7
         timeout-minutes: 4
@@ -131,23 +123,13 @@ jobs:
       - run: dotnet build --no-restore -p:CopilotCliBinaryPath="$COPILOT_RUNTIME_BINARY_PATH" -p:CopilotSkipCliDownload=true
       - run: npm ci --ignore-scripts
         working-directory: ${{ inputs.sdk-home }}/test/harness
-      - name: Test out-of-process
-        id: subprocess
-        env:
+      - env:
           COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
-        run: ../scripts/ci/run-dotnet-tests.sh
-      - name: Test in-process smoke
-        if: ${{ !cancelled() && (steps.subprocess.outcome == 'success' || steps.subprocess.outcome == 'failure') }}
-        env:
-          COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
-          COPILOT_SDK_DEFAULT_CONNECTION: inprocess
-          DOTNET_TEST_RESULTS_DIRECTORY: TestResults/inprocess
-          DOTNET_TEST_FILTER: "FullyQualifiedName~GitHub.Copilot.Test.E2E.ClientE2ETests.Should_Start_And_Connect_Over_InProcess_Ffi|FullyQualifiedName~GitHub.Copilot.Test.E2E.SessionE2ETests.Should_Receive_Session_Events|FullyQualifiedName~GitHub.Copilot.Test.E2E.ClientOptionsE2ETests.Should_Use_Configured_GitHub_Host_For_Authentication"
         run: ../scripts/ci/run-dotnet-tests.sh
       - if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: dotnet-test-diagnostics-macos-26-xlarge-default-capi-${{ github.run_attempt }}
+          name: dotnet-test-diagnostics-macos-latest-default-capi-${{ github.run_attempt }}
           path: ${{ inputs.sdk-home }}/dotnet/TestResults/
           if-no-files-found: warn
           retention-days: 7
@@ -164,7 +146,6 @@ jobs:
     env:
       COPILOT_SDK_E2E_BACKEND: capi
       DOTNET_TEST_RUNTIME: win-x64
-      DOTNET_TEST_RESULTS_DIRECTORY: TestResults/subprocess
     steps:
       - uses: actions/checkout@v7
         timeout-minutes: 4
@@ -187,18 +168,8 @@ jobs:
       - run: npm ci --ignore-scripts
         working-directory: ${{ inputs.sdk-home }}/test/harness
       - run: pwsh.exe -Command "Write-Host 'PowerShell ready'"
-      - name: Test out-of-process
-        id: subprocess
-        env:
+      - env:
           COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
-        run: ../scripts/ci/run-dotnet-tests.sh
-      - name: Test in-process smoke
-        if: ${{ !cancelled() && (steps.subprocess.outcome == 'success' || steps.subprocess.outcome == 'failure') }}
-        env:
-          COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
-          COPILOT_SDK_DEFAULT_CONNECTION: inprocess
-          DOTNET_TEST_RESULTS_DIRECTORY: TestResults/inprocess
-          DOTNET_TEST_FILTER: "FullyQualifiedName~GitHub.Copilot.Test.E2E.ClientE2ETests.Should_Start_And_Connect_Over_InProcess_Ffi|FullyQualifiedName~GitHub.Copilot.Test.E2E.SessionE2ETests.Should_Receive_Session_Events|FullyQualifiedName~GitHub.Copilot.Test.E2E.ClientOptionsE2ETests.Should_Use_Configured_GitHub_Host_For_Authentication"
         run: ../scripts/ci/run-dotnet-tests.sh
       - if: failure()
         uses: actions/upload-artifact@v7
@@ -286,3 +257,25 @@ jobs:
           path: ${{ inputs.sdk-home }}/dotnet/TestResults/
           if-no-files-found: warn
           retention-days: 7
+
+  docs-dotnet:
+    name: "Docs (.NET)"
+    if: inputs.platform == 'all' || inputs.platform == 'docs'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        timeout-minutes: 4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: "10.0.x"
+      - run: npm ci
+        working-directory: ${{ inputs.sdk-home }}/scripts/docs-validation
+      - run: dotnet restore -p:CopilotSkipCliDownload=true
+        working-directory: ${{ inputs.sdk-home }}/dotnet
+      - run: npm run extract && npm run validate:cs
+        working-directory: ${{ inputs.sdk-home }}/scripts/docs-validation

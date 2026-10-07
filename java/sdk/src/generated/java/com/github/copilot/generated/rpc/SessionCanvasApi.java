@@ -38,7 +38,7 @@ public final class SessionCanvasApi {
     }
 
     /**
-     * Lists canvases declared for the session.
+     * Identifies the target session.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -49,7 +49,7 @@ public final class SessionCanvasApi {
     }
 
     /**
-     * Lists currently open canvas instances for the live session.
+     * Identifies the target session.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -60,7 +60,7 @@ public final class SessionCanvasApi {
     }
 
     /**
-     * Opens or focuses a canvas instance.
+     * Canvas open parameters.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -76,7 +76,7 @@ public final class SessionCanvasApi {
     }
 
     /**
-     * Closes an open canvas instance.
+     * Canvas close parameters.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.

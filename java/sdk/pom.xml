@@ -230,27 +230,6 @@
                     </execution>
                 </executions>
             </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-dependency-plugin</artifactId>
-                <version>3.6.1</version>
-                <executions>
-                    <execution>
-                        <id>packaged-consumer-dependencies</id>
-                        <phase>generate-test-resources</phase>
-                        <goals>
-                            <goal>copy-dependencies</goal>
-                        </goals>
-                        <configuration>
-                            <skip>${maven.test.skip}</skip>
-                            <includeScope>runtime</includeScope>
-                            <!-- Default consumers do not receive optional JNA. -->
-                            <excludeArtifactIds>jna</excludeArtifactIds>
-                            <outputDirectory>${project.build.directory}/consumer-dependencies</outputDirectory>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
             <!--
                 Failsafe runs integration tests against the actually packaged
                 JAR (after the package phase). Used to validate multi-release
@@ -738,22 +717,6 @@ did not produce the multi-release output. Re-build on JDK 25+ and verify the
             </activation>
             <properties>
                 <copilot.native.classifier>linuxmusl-x64</copilot.native.classifier>
-            </properties>
-        </profile>
-        <profile>
-            <id>native-linuxmusl-arm64</id>
-            <activation>
-                <os>
-                    <name>Linux</name>
-                    <arch>aarch64</arch>
-                </os>
-                <property>
-                    <name>copilot.native.libc</name>
-                    <value>musl</value>
-                </property>
-            </activation>
-            <properties>
-                <copilot.native.classifier>linuxmusl-arm64</copilot.native.classifier>
             </properties>
         </profile>
         <profile>

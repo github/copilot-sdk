@@ -392,15 +392,6 @@ public partial class StructuredOutputE2ETests(E2ETestFixture fixture, ITestOutpu
         {
             var config = StructuredSessionConfig();
             config.Model = model;
-            config.EnableExperimentalMode = model == "hydrafusion";
-            if (model == "hydrafusion")
-            {
-                config.FeatureFlags = new Dictionary<string, bool>
-                {
-                    ["HYDRAFUSION"] = true,
-                    ["HYDRAFUSION_ROLLOUT"] = true,
-                };
-            }
             config.OnPermissionRequest = PermissionHandler.ApproveAll;
             await using var session = await Ctx.CreateSessionAsync(client, config);
             await Assert.ThrowsAsync<ArgumentException>(() => session.SendAndWaitAsync<CorrectionResult>(

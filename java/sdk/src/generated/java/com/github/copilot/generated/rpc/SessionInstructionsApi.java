@@ -29,7 +29,7 @@ public final class SessionInstructionsApi {
     }
 
     /**
-     * Gets instruction sources loaded for the session.
+     * Identifies the target session.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -40,7 +40,7 @@ public final class SessionInstructionsApi {
     }
 
     /**
-     * For local sessions, invalidates instruction discovery and the model-facing prompt, then returns freshly discovered sources. The updated prompt takes effect on the next turn. Remote sessions must reload on their agent host instead.
+     * Identifies the target session.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0

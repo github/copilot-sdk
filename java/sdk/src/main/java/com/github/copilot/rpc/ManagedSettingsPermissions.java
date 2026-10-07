@@ -25,9 +25,6 @@ public final class ManagedSettingsPermissions {
     @JsonProperty("allow")
     private List<String> allow;
 
-    @JsonProperty("limitTo")
-    private List<String> limitTo;
-
     /** @return the bypass-permissions policy, or {@code null} when unset */
     public String getDisableBypassPermissionsMode() {
         return disableBypassPermissionsMode;
@@ -89,27 +86,6 @@ public final class ManagedSettingsPermissions {
      */
     public ManagedSettingsPermissions setAllow(List<String> rules) {
         this.allow = rules == null ? null : new ArrayList<>(rules);
-        return this;
-    }
-
-    /**
-     * @return the closed-world host boundary, or {@code null} when unset
-     */
-    public List<String> getLimitTo() {
-        return limitTo;
-    }
-
-    /**
-     * Every network request must match this list, and multiple managed layers
-     * intersect their lists. A present empty list denies all hosts.
-     *
-     * @param rules
-     *            host-only {@code Domain(hostname)}, {@code Domain(IP)}, or
-     *            {@code Domain(*.example.com)} boundary rules
-     * @return this policy
-     */
-    public ManagedSettingsPermissions setLimitTo(List<String> rules) {
-        this.limitTo = rules == null ? null : new ArrayList<>(rules);
         return this;
     }
 }

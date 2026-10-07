@@ -21,12 +21,6 @@ func unmarshalAuthInfo(data []byte) (AuthInfo, error) {
 	}
 
 	switch raw.Type {
-	case AuthInfoTypeAccount:
-		var d AccountAuthInfo
-		if err := json.Unmarshal(data, &d); err != nil {
-			return nil, err
-		}
-		return &d, nil
 	case AuthInfoTypeAPIKey:
 		var d APIKeyAuthInfo
 		if err := json.Unmarshal(data, &d); err != nil {
@@ -88,17 +82,6 @@ func (r RawAuthInfoData) MarshalJSON() ([]byte, error) {
 		Type AuthInfoType `json:"type"`
 	}{
 		Type: r.Discriminator,
-	})
-}
-
-func (r AccountAuthInfo) MarshalJSON() ([]byte, error) {
-	type alias AccountAuthInfo
-	return json.Marshal(struct {
-		Type AuthInfoType `json:"type"`
-		alias
-	}{
-		Type:  r.Type(),
-		alias: alias(r),
 	})
 }
 
@@ -3007,58 +2990,6 @@ func (r GitHubTokenAcquireResultToken) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func (r InstalledPluginSource) MarshalJSON() ([]byte, error) {
-	if r.InstalledPluginSourceGitHub != nil {
-		return json.Marshal(r.InstalledPluginSourceGitHub)
-	}
-	if r.InstalledPluginSourceLocal != nil {
-		return json.Marshal(r.InstalledPluginSourceLocal)
-	}
-	if r.InstalledPluginSourceURL != nil {
-		return json.Marshal(r.InstalledPluginSourceURL)
-	}
-	if r.String != nil {
-		return json.Marshal(r.String)
-	}
-	return []byte("null"), nil
-}
-
-func (r *InstalledPluginSource) UnmarshalJSON(data []byte) error {
-	if string(data) == "null" {
-		*r = InstalledPluginSource{}
-		return nil
-	}
-	{
-		var value InstalledPluginSourceGitHub
-		if err := json.Unmarshal(data, &value); err == nil {
-			*r = InstalledPluginSource{InstalledPluginSourceGitHub: &value}
-			return nil
-		}
-	}
-	{
-		var value InstalledPluginSourceLocal
-		if err := json.Unmarshal(data, &value); err == nil {
-			*r = InstalledPluginSource{InstalledPluginSourceLocal: &value}
-			return nil
-		}
-	}
-	{
-		var value InstalledPluginSourceURL
-		if err := json.Unmarshal(data, &value); err == nil {
-			*r = InstalledPluginSource{InstalledPluginSourceURL: &value}
-			return nil
-		}
-	}
-	{
-		var value string
-		if err := json.Unmarshal(data, &value); err == nil {
-			*r = InstalledPluginSource{String: &value}
-			return nil
-		}
-	}
-	return errors.New("data did not match any union variant for InstalledPluginSource")
-}
-
 func (r *HandlePendingToolCallRequest) UnmarshalJSON(data []byte) error {
 	type rawHandlePendingToolCallRequest struct {
 		Error     *string         `json:"error,omitempty"`
@@ -3610,6 +3541,58 @@ func (r *InstallationConfirmationRequest) UnmarshalJSON(data []byte) error {
 	}
 	r.ReviewFingerprint = raw.ReviewFingerprint
 	return nil
+}
+
+func (r InstalledPluginSource) MarshalJSON() ([]byte, error) {
+	if r.InstalledPluginSourceGitHub != nil {
+		return json.Marshal(r.InstalledPluginSourceGitHub)
+	}
+	if r.InstalledPluginSourceLocal != nil {
+		return json.Marshal(r.InstalledPluginSourceLocal)
+	}
+	if r.InstalledPluginSourceURL != nil {
+		return json.Marshal(r.InstalledPluginSourceURL)
+	}
+	if r.String != nil {
+		return json.Marshal(r.String)
+	}
+	return []byte("null"), nil
+}
+
+func (r *InstalledPluginSource) UnmarshalJSON(data []byte) error {
+	if string(data) == "null" {
+		*r = InstalledPluginSource{}
+		return nil
+	}
+	{
+		var value InstalledPluginSourceGitHub
+		if err := json.Unmarshal(data, &value); err == nil {
+			*r = InstalledPluginSource{InstalledPluginSourceGitHub: &value}
+			return nil
+		}
+	}
+	{
+		var value InstalledPluginSourceLocal
+		if err := json.Unmarshal(data, &value); err == nil {
+			*r = InstalledPluginSource{InstalledPluginSourceLocal: &value}
+			return nil
+		}
+	}
+	{
+		var value InstalledPluginSourceURL
+		if err := json.Unmarshal(data, &value); err == nil {
+			*r = InstalledPluginSource{InstalledPluginSourceURL: &value}
+			return nil
+		}
+	}
+	{
+		var value string
+		if err := json.Unmarshal(data, &value); err == nil {
+			*r = InstalledPluginSource{String: &value}
+			return nil
+		}
+	}
+	return errors.New("data did not match any union variant for InstalledPluginSource")
 }
 
 func matchesMCPSerializableServerConfigMCPServerConfigHTTP(data []byte) bool {
@@ -8157,12 +8140,6 @@ func unmarshalSettableAuthInfo(data []byte) (SettableAuthInfo, error) {
 	}
 
 	switch raw.Type {
-	case SettableAuthInfoTypeAccount:
-		var d AccountAuthInfo
-		if err := json.Unmarshal(data, &d); err != nil {
-			return nil, err
-		}
-		return &d, nil
 	case SettableAuthInfoTypeAPIKey:
 		var d APIKeyAuthInfo
 		if err := json.Unmarshal(data, &d); err != nil {

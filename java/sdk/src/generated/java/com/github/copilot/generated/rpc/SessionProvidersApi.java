@@ -35,7 +35,7 @@ public final class SessionProvidersApi {
     }
 
     /**
-     * Returns adapter definitions and supported operations in this session's effective provider catalog, without running discovery. Does not list provider instances or select inference models.
+     * Identifies the target session.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -46,7 +46,7 @@ public final class SessionProvidersApi {
     }
 
     /**
-     * Discovers reachable instances using an adapter from this session's effective provider catalog and provider-specific discovery input.
+     * Provider discovery parameters.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -62,7 +62,7 @@ public final class SessionProvidersApi {
     }
 
     /**
-     * Gets current health and version information for a discovered model-provider instance.
+     * Provider status request parameters.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.

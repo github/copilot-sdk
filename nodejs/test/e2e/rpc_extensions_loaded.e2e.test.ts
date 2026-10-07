@@ -191,6 +191,7 @@ it(
             const active = await client.createSession(config);
             try {
                 await waitForExtension(active, id, "running");
+                await client.rpc.user.settings.reload();
                 expect((await client.rpc.extensions.discover()).extensions).toEqual(
                     expect.arrayContaining([
                         expect.objectContaining({ id, enabled: true, source: "user" }),

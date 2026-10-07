@@ -735,7 +735,6 @@ test("static OAuth config preserves the legacy four-argument constructor", () =>
 test("nullable referenced RPC results retain their object DTO and typed wrapper", async () => {
     const method = {
         rpcMethod: "session.accounts.getCurrent",
-        description: null,
         stability: "experimental",
         params: {
             type: "object",

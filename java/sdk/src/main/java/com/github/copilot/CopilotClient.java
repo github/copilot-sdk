@@ -585,21 +585,9 @@ public final class CopilotClient implements AutoCloseable {
                 installationConfirmationAdapter.registerHandlers(connectedRpc);
             }
             InstallationConfirmationAdapter connectedInstallationConfirmationAdapter = installationConfirmationAdapter;
-            // JsonRpcClient keeps one handler per method, so this one serves every request
-            // that honors cancellation.
-            connectedRpc.registerMethodHandler("$/cancelRequest", (rpcId, params) -> {
-                dispatcher.handleCancelRequest(params);
-                if (connectedInstallationConfirmationAdapter != null) {
-                    connectedInstallationConfirmationAdapter.handleCancel(connectedRpc, params);
-                }
-            });
             connectedRpc.setCloseHandler(() -> {
                 ahpHosts.disconnect(connection.serverRpc().host);
-                sessions.values().forEach(session -> {
-                    session.cancelPendingExternalTools();
-                    session.clearSkillProvider();
-                });
-                dispatcher.cancelSkillProviderCalls();
+                sessions.values().forEach(CopilotSession::cancelPendingExternalTools);
                 if (connectedLlmAdapter != null) {
                     connectedLlmAdapter.cancelPending();
                 }
@@ -815,7 +803,6 @@ public final class CopilotClient implements AutoCloseable {
         var activeSessions = new ArrayList<>(sessions.values());
         sessions.clear();
         activeSessions.forEach(CopilotSession::cancelPendingExternalTools);
-        activeSessions.forEach(CopilotSession::clearSkillProvider);
         gitHubTokenProviders.clear();
         // Dispatch the blocking shutdownOwnedExecutor() on a dedicated thread:
         // cleanupConnection() is chained off async work running on the owned
@@ -974,10 +961,6 @@ public final class CopilotClient implements AutoCloseable {
             return CompletableFuture.failedFuture(
                     new IllegalArgumentException("gitHubToken and gitHubTokenProvider are mutually exclusive"));
         }
-        if (config.getCloud() != null && config.getSkillProvider() != null) {
-            return CompletableFuture.failedFuture(
-                    new IllegalArgumentException("Skill providers are not supported for cloud sessions."));
-        }
         return ensureConnected().thenCompose(connection -> {
             long totalNanos = System.nanoTime();
             // For cloud sessions, let the CLI/server assign the session id
@@ -1046,7 +1029,7 @@ public final class CopilotClient implements AutoCloseable {
             if (options.getMode() == CopilotClientMode.EMPTY) {
                 if (config.getAvailableTools() == null) {
                     if (registeredIdHolder[0] != null) {
-                        sessions.remove(registeredIdHolder[0], preRegisteredSessionHolder[0]);
+                        sessions.remove(registeredIdHolder[0]);
                     }
                     throw new IllegalArgumentException(
                             "CopilotClient is in Mode = EMPTY but the session config did not specify "
@@ -1146,10 +1129,9 @@ public final class CopilotClient implements AutoCloseable {
                     }).exceptionally(ex -> {
                         if (preRegisteredSessionHolder[0] != null) {
                             preRegisteredSessionHolder[0].cancelPendingExternalTools();
-                            preRegisteredSessionHolder[0].clearSkillProvider();
                         }
                         if (registeredIdHolder[0] != null) {
-                            sessions.remove(registeredIdHolder[0], preRegisteredSessionHolder[0]);
+                            sessions.remove(registeredIdHolder[0]);
                         }
                         if (tokenRegistration != null) {
                             tokenRegistration.close();
@@ -1207,14 +1189,6 @@ public final class CopilotClient implements AutoCloseable {
         }
         return ensureConnected().thenCompose(connection -> {
             long totalNanos = System.nanoTime();
-            // Validate before registering so a rejected resume leaves any resident
-            // session and its skill provider in place.
-            if (options.getMode() == CopilotClientMode.EMPTY && config.getAvailableTools() == null) {
-                throw new IllegalArgumentException(
-                        "CopilotClient is in Mode = EMPTY but the resume session config did not specify "
-                                + "availableTools. Empty mode requires every session to explicitly opt into "
-                                + "the tools it wants — e.g. setAvailableTools(new ToolSet().addBuiltIn(BuiltInTools.ISOLATED)).");
-            }
             // Register the session before the RPC call to avoid missing early events.
             long setupNanos = System.nanoTime();
             CopilotSession replacedSession = sessions.get(sessionId);
@@ -1243,8 +1217,15 @@ public final class CopilotClient implements AutoCloseable {
                 request.setEnableGitHubTelemetryForwarding(true);
             }
 
-            // Empty mode: set toolFilterPrecedence and isolation defaults for resume path
+            // Empty mode: validate availableTools and set toolFilterPrecedence for resume
+            // path
             if (options.getMode() == CopilotClientMode.EMPTY) {
+                if (config.getAvailableTools() == null) {
+                    throw new IllegalArgumentException(
+                            "CopilotClient is in Mode = EMPTY but the resume session config did not specify "
+                                    + "availableTools. Empty mode requires every session to explicitly opt into "
+                                    + "the tools it wants — e.g. setAvailableTools(new ToolSet().addBuiltIn(BuiltInTools.ISOLATED)).");
+                }
                 request.setToolFilterPrecedence("excluded");
                 if (request.getSkipEmbeddingRetrieval() == null) {
                     request.setSkipEmbeddingRetrieval(true);
@@ -1309,7 +1290,7 @@ public final class CopilotClient implements AutoCloseable {
                         // re-key.
                         String returnedId = response.sessionId();
                         if (returnedId != null && !returnedId.equals(sessionId)) {
-                            sessions.remove(sessionId, session);
+                            sessions.remove(sessionId);
                             session.setActiveSessionId(returnedId);
                             sessions.put(returnedId, session);
                         }
@@ -1332,11 +1313,15 @@ public final class CopilotClient implements AutoCloseable {
                                 });
                     }).exceptionally(ex -> {
                         session.cancelPendingExternalTools();
-                        session.clearSkillProvider();
-                        // A concurrent resume may own the ID now; undo only this attempt.
-                        sessions.compute(sessionId,
-                                (id, current) -> current == null || current == session ? replacedSession : current);
-                        sessions.remove(session.getSessionId(), session);
+                        sessions.remove(sessionId);
+                        // Also remove the re-keyed entry if the server returned a different ID
+                        String activeId = session.getSessionId();
+                        if (!sessionId.equals(activeId)) {
+                            sessions.remove(activeId);
+                        }
+                        if (replacedSession != null) {
+                            sessions.putIfAbsent(sessionId, replacedSession);
+                        }
                         if (tokenRegistration != null) {
                             tokenRegistration.close();
                         }
@@ -1682,7 +1667,6 @@ public final class CopilotClient implements AutoCloseable {
                     }
                     CopilotSession session = sessions.remove(sessionId);
                     if (session != null) {
-                        session.clearSkillProvider();
                         session.releaseGitHubTokenProviderRegistration();
                     }
                 }));

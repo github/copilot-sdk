@@ -26,9 +26,9 @@ import javax.annotation.processing.Generated;
 public record SessionMetadataContextInfoParams(
     /** Target session identifier */
     @JsonProperty("sessionId") String sessionId,
-    /** Advertised prompt allowance. Pass 0 to resolve the selected model and context tier from the session. */
+    /** Maximum prompt tokens allowed by the target model. Pass 0 to use the runtime default. */
     @JsonProperty("promptTokenLimit") Long promptTokenLimit,
-    /** Requested output allowance to reserve against the combined context ceiling. Pass 0 to resolve the session's request cap, falling back to the model's advertised output limit. */
+    /** Maximum output tokens allowed by the target model. Pass 0 if unknown. */
     @JsonProperty("outputTokenLimit") Long outputTokenLimit,
     /** Model identifier used for tokenization. Omit to use the session default. Used both for token counting and to compute display values. */
     @JsonProperty("selectedModel") String selectedModel

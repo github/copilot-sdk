@@ -725,16 +725,7 @@ describe("Session-scoped RPC", async () => {
     });
 
     it("should compact session history after messages", async () => {
-        const session = await client.createSession({
-            onPermissionRequest: approveAll,
-            modelCapabilities: {
-                limits: {
-                    max_prompt_tokens: 128_000,
-                    max_context_window_tokens: 128_000,
-                    max_output_tokens: 32_000,
-                },
-            },
-        });
+        const session = await client.createSession({ onPermissionRequest: approveAll });
 
         expect((await session.rpc.metadata.isProcessing()).processing).toBe(false);
         await session.sendAndWait({ prompt: "What is 2+2?" });
@@ -748,8 +739,10 @@ describe("Session-scoped RPC", async () => {
         expect(contextInfo.contextInfo).not.toBeNull();
         if (contextInfo.contextInfo) {
             expect(contextInfo.contextInfo.modelName).toBe("claude-sonnet-5");
-            expect(contextInfo.contextInfo.promptTokenLimit).toBe(128_000 - 4_096);
-            expect(contextInfo.contextInfo.limit).toBe(128_000);
+            expect(contextInfo.contextInfo.promptTokenLimit).toBe(128_000);
+            expect(contextInfo.contextInfo.limit).toBeGreaterThanOrEqual(
+                contextInfo.contextInfo.promptTokenLimit
+            );
             expect(contextInfo.contextInfo.totalTokens).toBeGreaterThan(0);
             expect(contextInfo.contextInfo.systemTokens).toBeGreaterThan(0);
             expect(contextInfo.contextInfo.conversationTokens).toBeGreaterThan(0);
@@ -770,18 +763,10 @@ describe("Session-scoped RPC", async () => {
             recomputed.systemTokenCount + recomputed.messagesTokenCount
         );
 
-        const effectiveContext = await session.rpc.metadata.contextInfo({
-            promptTokenLimit: 0,
-            outputTokenLimit: 0,
-        });
-        expect(effectiveContext.contextInfo).not.toBeNull();
         const result = await session.rpc.history.compact();
         expect(result.success).toBe(true);
         expect(result.messagesRemoved).toBeGreaterThanOrEqual(0);
         if (result.contextWindow) {
-            expect(result.contextWindow.tokenLimit).toBe(
-                effectiveContext.contextInfo?.promptTokenLimit
-            );
             expect(result.contextWindow.messagesLength).toBeGreaterThanOrEqual(0);
             expect(result.contextWindow.currentTokens).toBeGreaterThanOrEqual(0);
             if (result.contextWindow.conversationTokens != null) {

@@ -27,7 +27,7 @@ public final class ServerExtensionsApi {
     }
 
     /**
-     * Discovers user and enabled installed-plugin extensions from persisted Copilot home state, including enablement preferences. Launch-scoped additional plugins are not included.
+     * Extensions discovered from persisted Copilot home state and their effective loading mode. Launch-scoped additional plugins are not included.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -38,7 +38,7 @@ public final class ServerExtensionsApi {
     }
 
     /**
-     * Persistently enables extension IDs for future sessions. Active sessions are unchanged; use session.extensions.enable to update them.
+     * Source-qualified extension identifiers to persistently enable for future sessions.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -49,7 +49,7 @@ public final class ServerExtensionsApi {
     }
 
     /**
-     * Persistently disables extension IDs for future sessions. Active sessions are unchanged; use session.extensions.disable to update them.
+     * Source-qualified extension identifiers to persistently disable for future sessions.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0

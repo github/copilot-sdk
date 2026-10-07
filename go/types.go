@@ -3,7 +3,6 @@ package copilot
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"time"
 
 	"github.com/github/copilot-sdk/go/rpc"
@@ -1445,24 +1444,6 @@ const (
 	AskUserVariantElicitation AskUserVariant = "elicitation"
 )
 
-// ErrSkillNotFound is returned by [SkillProvider.ReadSkill] when a listed skill
-// is no longer available. It can be wrapped; the SDK checks it with [errors.Is].
-var ErrSkillNotFound = errors.New("skill not found")
-
-// SkillProvider supplies session-scoped skills from the SDK host.
-//
-// Experimental: this API may change or be removed in future SDK or CLI
-// releases. Implementations must be safe for concurrent calls.
-type SkillProvider interface {
-	// ListSkills returns catalog metadata for skills provided by this session.
-	// Return nil, nil to publish an empty catalog.
-	ListSkills(ctx context.Context) ([]rpc.SkillProviderDescriptor, error)
-	// ReadSkill returns the SKILL.md markdown for name. Return an error wrapping
-	// [ErrSkillNotFound] when the skill no longer exists. The markdown is
-	// ignored whenever a non-nil error is returned.
-	ReadSkill(ctx context.Context, name string) (string, error)
-}
-
 // SessionConfig configures a new session
 type SessionConfig struct {
 	// SessionID is an optional custom session ID
@@ -1662,12 +1643,6 @@ type SessionConfig struct {
 	Agent string
 	// SkillDirectories is a list of directories to load skills from
 	SkillDirectories []string
-	// SkillProvider supplies ephemeral SDK-hosted skills for this session. The
-	// provider is never serialized or persisted; re-supply it when resuming.
-	//
-	// Experimental: this API may change or be removed in future SDK or CLI
-	// releases. Implementations must be safe for concurrent calls.
-	SkillProvider SkillProvider `json:"-"`
 	// PluginDirectories is a list of local filesystem paths to Open Plugins-format
 	// directories (https://open-plugins.com/) to load for this session.
 	// Relative paths resolve against WorkingDirectory (or the runtime cwd if unset).
@@ -1853,11 +1828,6 @@ type ManagedSettingsPermissions struct {
 	// Allow lists operations permitted without prompting. Every declared allow
 	// list across managed layers must admit an operation for it to be allowed.
 	Allow []string `json:"allow,omitzero"`
-	// LimitTo is a closed-world host boundary expressed as Domain(hostname),
-	// Domain(IP), or Domain(*.example.com) rules. Schemes, ports, paths,
-	// queries, and fragments are rejected. Multiple managed layers intersect
-	// their lists. A present empty list denies all hosts.
-	LimitTo []string `json:"limitTo,omitzero"`
 }
 
 // ToolDefer controls whether a tool may be deferred (loaded lazily via tool
@@ -2238,13 +2208,6 @@ type ResumeSessionConfig struct {
 	Agent string
 	// SkillDirectories is a list of directories to load skills from
 	SkillDirectories []string
-	// SkillProvider supplies ephemeral SDK-hosted skills for this resumed
-	// session. Re-supply it on every resume; omitting it unbinds any previous
-	// provider.
-	//
-	// Experimental: this API may change or be removed in future SDK or CLI
-	// releases. Implementations must be safe for concurrent calls.
-	SkillProvider SkillProvider `json:"-"`
 	// PluginDirectories is a list of local filesystem paths to Open Plugins-format
 	// directories (https://open-plugins.com/) to load for this session.
 	// Relative paths resolve against WorkingDirectory (or the runtime cwd if unset).
@@ -2863,7 +2826,6 @@ type createSessionRequest struct {
 	EnableHostGitOperations            *bool                                  `json:"enableHostGitOperations,omitempty"`
 	EnableSessionStore                 *bool                                  `json:"enableSessionStore,omitempty"`
 	EnableSkills                       *bool                                  `json:"enableSkills,omitempty"`
-	HasSkillProvider                   *bool                                  `json:"hasSkillProvider,omitempty"`
 	SkillDirectories                   []string                               `json:"skillDirectories,omitempty"`
 	PluginDirectories                  []string                               `json:"pluginDirectories,omitempty"`
 	InstructionDirectories             []string                               `json:"instructionDirectories,omitempty"`
@@ -2954,7 +2916,6 @@ type resumeSessionRequest struct {
 	EnableHostGitOperations            *bool                                  `json:"enableHostGitOperations,omitempty"`
 	EnableSessionStore                 *bool                                  `json:"enableSessionStore,omitempty"`
 	EnableSkills                       *bool                                  `json:"enableSkills,omitempty"`
-	HasSkillProvider                   *bool                                  `json:"hasSkillProvider,omitempty"`
 	DisableResume                      *bool                                  `json:"disableResume,omitempty"`
 	ContinuePendingWork                *bool                                  `json:"continuePendingWork,omitempty"`
 	AllowTranscriptRecovery            *bool                                  `json:"allowTranscriptRecovery,omitempty"`

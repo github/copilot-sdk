@@ -31,7 +31,7 @@ public final class SessionSkillsApi {
     }
 
     /**
-     * Lists skills available to the session.
+     * Identifies the target session.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -42,7 +42,7 @@ public final class SessionSkillsApi {
     }
 
     /**
-     * Returns the skills that have been invoked during this session.
+     * Identifies the target session.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -53,7 +53,7 @@ public final class SessionSkillsApi {
     }
 
     /**
-     * Enables a skill for the session.
+     * Name of the skill to enable for the session.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -69,7 +69,7 @@ public final class SessionSkillsApi {
     }
 
     /**
-     * Disables a skill for the session.
+     * Name of the skill to disable for the session.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -85,7 +85,7 @@ public final class SessionSkillsApi {
     }
 
     /**
-     * Reloads skill definitions for the session.
+     * Identifies the target session.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -96,7 +96,7 @@ public final class SessionSkillsApi {
     }
 
     /**
-     * Ensures the session's skill definitions have been loaded from disk.
+     * Identifies the target session.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
