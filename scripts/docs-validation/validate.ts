@@ -230,7 +230,7 @@ go 1.21
 
 require github.com/github/copilot-sdk/go v0.0.0
 
-replace github.com/github/copilot-sdk/go => ${path.join(ROOT_DIR, "go")}
+replace github.com/github/copilot-sdk/go => ${JSON.stringify(path.join(ROOT_DIR, "go"))}
 `;
   fs.writeFileSync(path.join(goDir, "go.mod"), goMod);
 

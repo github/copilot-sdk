@@ -95,6 +95,7 @@ jobs:
         working-directory: ${{ inputs.sdk-home }}/scripts/docs-validation
         run: |
           npm ci
+          npm test
           npm run extract
           npm run validate:go
 

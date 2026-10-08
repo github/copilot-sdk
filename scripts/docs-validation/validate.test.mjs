@@ -12,12 +12,12 @@ const require = createRequire(import.meta.url);
 const compilerDirectory = path.dirname(require.resolve("typescript/package.json"));
 const loader = pathToFileURL(require.resolve("tsx")).href;
 
-function validate(context, { source = "export const value: number = 42;", types = true, compiler = true, external = false } = {}) {
+function validate(context, { source = "export const value: number = 42;", types = true, compiler = true, external = false, language = "typescript" } = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "sdk docs validation "));
   context.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const tooling = path.join(root, "scripts/docs-validation");
   const validation = path.join(root, "docs/.validation");
-  const examples = path.join(validation, "typescript");
+  const examples = path.join(validation, language);
   fs.mkdirSync(tooling, { recursive: true });
   fs.mkdirSync(examples, { recursive: true });
   fs.mkdirSync(path.join(root, "nodejs/node_modules"), { recursive: true });
@@ -33,21 +33,23 @@ function validate(context, { source = "export const value: number = 42;", types 
   }
   fs.copyFileSync(path.join(directory, "validate.ts"), path.join(tooling, "validate.ts"));
   fs.writeFileSync(path.join(root, "package.json"), JSON.stringify({ type: "module" }));
-  fs.writeFileSync(path.join(examples, "sample.ts"), source);
+  if (source !== null) {
+    fs.writeFileSync(path.join(examples, "sample.ts"), source);
+  }
   if (external) {
     fs.writeFileSync(path.join(root, "broken.ts"), 'export const value: number = "invalid";');
   }
-  fs.writeFileSync(path.join(validation, "manifest.json"), JSON.stringify({ blocks: [{
+  fs.writeFileSync(path.join(validation, "manifest.json"), JSON.stringify({ blocks: source === null ? [] : [{
     sourceFile: "fixture.md", sourceLine: 7, outputFile: "typescript/sample.ts",
   }] }));
   const environment = { ...process.env };
   delete environment.GITHUB_STEP_SUMMARY;
   const result = spawnSync(process.execPath, [
-    "--import", loader, path.join(tooling, "validate.ts"), "--lang=typescript",
+    "--import", loader, path.join(tooling, "validate.ts"), `--lang=${language}`,
   ], { cwd: root, encoding: "utf8", env: environment, timeout: 60000 });
   assert.ifError(result.error);
   assert.equal(result.signal, null);
-  return { status: result.status, output: result.stdout + result.stderr };
+  return { status: result.status, output: result.stdout + result.stderr, root };
 }
 
 test("valid TypeScript succeeds in a path containing spaces", (context) => {
@@ -84,4 +86,25 @@ test("errors outside extracted examples fail validation", (context) => {
   assert.equal(result.status, 1, result.output);
   assert.match(result.output, /broken\.ts/);
   assert.match(result.output, /TS2322/);
+});
+
+test("generated Go module preserves a checkout path containing spaces", (context) => {
+  const version = spawnSync("go", ["version"], { encoding: "utf8" });
+  if (version.error?.code === "ENOENT") {
+    context.skip("Go is not installed");
+    return;
+  }
+  assert.ifError(version.error);
+  assert.equal(version.status, 0, version.stderr);
+  const result = validate(context, { language: "go", source: null });
+  assert.equal(result.status, 0, result.output);
+  const parsed = spawnSync("go", ["mod", "edit", "-json"], {
+    cwd: path.join(result.root, "docs/.validation/go"), encoding: "utf8",
+  });
+  assert.ifError(parsed.error);
+  assert.equal(parsed.status, 0, parsed.stderr);
+  const replacement = JSON.parse(parsed.stdout).Replace.find(
+    (entry) => entry.Old.Path === "github.com/github/copilot-sdk/go",
+  );
+  assert.equal(replacement.New.Path, path.join(result.root, "go"));
 });
