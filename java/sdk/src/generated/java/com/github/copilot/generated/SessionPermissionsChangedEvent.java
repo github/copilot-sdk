@@ -15,8 +15,11 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "session.permissions_changed". Permission-mode transition details.
+ *
+ * @apiNote This event type is experimental and may change in a future version.
  * @since 1.0.0
  */
+@CopilotExperimental
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
@@ -32,6 +35,7 @@ public final class SessionPermissionsChangedEvent extends SessionEvent {
     public void setData(SessionPermissionsChangedEventData data) { this.data = data; }
 
     /** Data payload for {@link SessionPermissionsChangedEvent}. */
+    @CopilotExperimental
     @JsonIgnoreProperties(ignoreUnknown = true)
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record SessionPermissionsChangedEventData(

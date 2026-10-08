@@ -15,8 +15,11 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "permission.contextualAuthorization". Historical decode-only contextual authorization claim. Current runtimes preserve the payload but do not establish authority from it.
+ *
+ * @apiNote This event type is experimental and may change in a future version.
  * @since 1.0.0
  */
+@CopilotExperimental
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
@@ -32,6 +35,7 @@ public final class PermissionContextualAuthorizationEvent extends SessionEvent {
     public void setData(PermissionContextualAuthorizationEventData data) { this.data = data; }
 
     /** Data payload for {@link PermissionContextualAuthorizationEvent}. */
+    @CopilotExperimental
     @JsonIgnoreProperties(ignoreUnknown = true)
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record PermissionContextualAuthorizationEventData(

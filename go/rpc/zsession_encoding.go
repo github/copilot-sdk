@@ -599,6 +599,12 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
+	case SessionEventTypeSessionManagedPluginProgress:
+		var d SessionManagedPluginProgressData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
 	case SessionEventTypeSessionManagedSettingsEnforced:
 		var d SessionManagedSettingsEnforcedData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {

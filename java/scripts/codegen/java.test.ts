@@ -120,6 +120,35 @@ test("preserves whole-event deprecation through a referenced event envelope", ()
     assert.match(renderEventVariantClass(variants[0], "com.github.copilot.generated"), /@Deprecated/);
 });
 
+test("preserves whole-event experimental stability through a referenced event envelope", () => {
+    const schema: JSONSchema7 = {
+        definitions: {
+            SessionEvent: { anyOf: [{ $ref: "#/definitions/ExperimentalEvent" }] },
+            ExperimentalEvent: {
+                type: "object",
+                stability: "experimental",
+                properties: {
+                    type: { const: "session.experimental" },
+                    data: { $ref: "#/definitions/ExperimentalData" },
+                },
+            } as JSONSchema7,
+            ExperimentalData: { type: "object", properties: { phase: { type: "string" } } },
+        },
+    };
+    const variants = extractEventVariants(schema);
+    assert.equal(variants.length, 1);
+    assert.equal(variants[0].stability, "experimental");
+    const source = renderEventVariantClass(variants[0], "com.github.copilot.generated");
+    assert.match(
+        source,
+        /@CopilotExperimental\n(?:@[^\n]*\n)*public final class SessionExperimentalEvent\b/,
+    );
+    assert.match(
+        source,
+        /    @CopilotExperimental\n(?:    @[^\n]*\n)*    public record SessionExperimentalEventData\b/,
+    );
+});
+
 for (const referencedData of [false, true]) {
     for (const eventDeprecated of [false, true]) {
         for (const dataDeprecated of [false, true]) {

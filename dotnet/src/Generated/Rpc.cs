@@ -52081,6 +52081,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.IndexedSearchIncrementalPhase), TypeInfoPropertyName = "SessionEventsIndexedSearchIncrementalPhase")]
 [JsonSerializable(typeof(GitHub.Copilot.IndexedSearchOutcome), TypeInfoPropertyName = "SessionEventsIndexedSearchOutcome")]
 [JsonSerializable(typeof(GitHub.Copilot.IndexedSearchState), TypeInfoPropertyName = "SessionEventsIndexedSearchState")]
+[JsonSerializable(typeof(GitHub.Copilot.ManagedPluginProgressPhase), TypeInfoPropertyName = "SessionEventsManagedPluginProgressPhase")]
 [JsonSerializable(typeof(GitHub.Copilot.ManagedSettingsEnforcedAction), TypeInfoPropertyName = "SessionEventsManagedSettingsEnforcedAction")]
 [JsonSerializable(typeof(GitHub.Copilot.ManagedSettingsEnforcedEscalation), TypeInfoPropertyName = "SessionEventsManagedSettingsEnforcedEscalation")]
 [JsonSerializable(typeof(GitHub.Copilot.ManagedSettingsResolvedSource), TypeInfoPropertyName = "SessionEventsManagedSettingsResolvedSource")]

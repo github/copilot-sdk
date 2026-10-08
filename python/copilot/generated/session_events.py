@@ -271,6 +271,8 @@ class SessionEventType(Enum):
     # Experimental: this event is part of an experimental API and may change or be removed.
     SESSION_AUTO_MODE_RESOLVED = "session.auto_mode_resolved"
     # Experimental: this event is part of an experimental API and may change or be removed.
+    SESSION_MANAGED_PLUGIN_PROGRESS = "session.managed_plugin_progress"
+    # Experimental: this event is part of an experimental API and may change or be removed.
     SESSION_MANAGED_SETTINGS_RESOLVED = "session.managed_settings_resolved"
     # Experimental: this event is part of an experimental API and may change or be removed.
     SESSION_MANAGED_SETTINGS_ENFORCED = "session.managed_settings_enforced"
@@ -2558,6 +2560,30 @@ class SessionFusionRouteStartedData:
             result["policy"] = from_union([from_none, from_str], self.policy)
         if self.synthetic_model is not None:
             result["syntheticModel"] = from_union([from_none, from_str], self.synthetic_model)
+        return result
+
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class SessionManagedPluginProgressData:
+    "Experimental transient presentation-neutral progress for organization-required plugin preparation. Clients should localize the phase copy and display plugin specs without translating them."
+    phase: ManagedPluginProgressPhase
+    plugin_specs: list[str]
+
+    @staticmethod
+    def from_dict(obj: Any) -> "SessionManagedPluginProgressData":
+        assert isinstance(obj, dict)
+        phase = parse_enum(ManagedPluginProgressPhase, obj.get("phase"))
+        plugin_specs = from_list(from_str, obj.get("pluginSpecs"))
+        return SessionManagedPluginProgressData(
+            phase=phase,
+            plugin_specs=plugin_specs,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["phase"] = to_enum(ManagedPluginProgressPhase, self.phase)
+        result["pluginSpecs"] = from_list(from_str, self.plugin_specs)
         return result
 
 
@@ -14541,6 +14567,19 @@ class FusionTurnKind(Enum):
 
 
 # Experimental: this enum is part of an experimental API and may change or be removed.
+class ManagedPluginProgressPhase(Enum):
+    "Current phase of organization-required plugin preparation."
+    # Managed settings are still resolving before plugin preparation can be planned.
+    INITIALIZING = "initializing"
+    # Required plugin content is being installed.
+    INSTALLING = "installing"
+    # Installed required plugin content is being updated.
+    UPDATING = "updating"
+    # Managed plugin preparation has completed.
+    COMPLETE = "complete"
+
+
+# Experimental: this enum is part of an experimental API and may change or be removed.
 class ModelProviderKind(Enum):
     "The neutral kind of a model provider — the model analog of `AccountKind`. A model provider is the live, entitled source a model came from; central code never branches on this beyond a single dispatch."
     # GitHub Copilot / CAPI models, spawned by a github-resolving account that holds a Copilot seat.
@@ -16075,7 +16114,7 @@ class WorkspaceFileChangedOperation(Enum):
     UPDATE = "update"
 
 
-SessionEventData = SessionStartData | SessionResumeData | SessionRemoteSteerableChangedData | SessionErrorData | SessionIdleData | SessionTitleChangedData | SessionScheduleCreatedData | SessionScheduleCancelledData | SessionScheduleRearmedData | SessionAutopilotObjectiveChangedData | SessionInfoData | SessionIndexedSearchData | SessionWarningData | SessionModelChangeData | SessionModelDeselectedData | SessionAutoTierRecommendationData | SessionAutoTierSwitchFailedData | SessionModeChangedData | SessionModeNoticeDeliveredData | SessionSessionLimitsChangedData | SessionPermissionsChangedData | SessionPlanChangedData | SessionTodosChangedData | SessionWorkspaceFileChangedData | SessionHandoffData | SessionTruncationData | SessionSnapshotRewindData | SessionShutdownData | SessionUsageCheckpointData | SessionQuotaObservationData | SessionContextChangedData | SessionUsageInfoData | SessionContextClearedData | SessionCompactionStartData | SessionCompactionCompleteData | SessionTaskCompleteData | SessionCompletionReceiptData | SessionFusionRouteStartedData | SessionFusionRouteFailedData | SessionFusionResolvedData | SessionFusionCompletedData | SessionPermissionRecoveryData | UserMessageData | PendingMessagesModifiedData | AssistantTurnStartData | AssistantTurnRetryData | AgentInterruptedData | AssistantIntentData | AssistantFusionPhaseStartedData | AssistantFusionPhaseActivityData | AssistantFusionPhaseCompletedData | AssistantFusionPhaseFailedData | AssistantServerToolProgressData | AssistantReasoningData | AssistantReasoningDeltaData | AssistantToolCallDeltaData | AssistantStreamingDeltaData | AssistantMessageData | AssistantMessageStartData | AssistantMessageDeltaData | AssistantTurnEndData | AssistantIdleData | AssistantUsageData | PromptCacheBreakData | ModelCallFailureData | ModelCallFinalResultData | ModelCallFinishedData | ModelCallStartData | AbortData | ToolUserRequestedData | ToolExecutionStartData | ToolExecutionPartialResultData | ToolShellOutputData | ToolExecutionProgressData | ToolExecutionCompleteData | ToolSearchActivatedData | SkillInvokedData | SkillInvokedRefData | SkillContextDeliveredData | SkillContextDeliveredRefData | SandboxDecisionData | SubagentStartedData | SubagentConfiguredData | SubagentCompletedData | SubagentFailedData | SubagentSelectedData | SubagentDeselectedData | HookStartData | HookEndData | HookProgressData | SessionBinaryAssetData | SystemMessageData | SystemNotificationData | PermissionRequestedData | PermissionCompletedData | PermissionCarriedForwardData | PermissionMessageAuthorizationData | PermissionMessageAuthorizationReadData | PermissionMessageAuthorizationDegradedData | PermissionAssentDetectedData | PermissionContextualAuthorizationData | UserInputRequestedData | UserInputCompletedData | ElicitationRequestedData | ElicitationCompletedData | SamplingRequestedData | SamplingCompletedData | McpOauthRequiredData | McpOauthCompletedData | McpHeadersRefreshRequiredData | McpHeadersRefreshCompletedData | SessionCustomNotificationData | UiEphemeralQueryData | ExternalToolRequestedData | ExternalToolCompletedData | CommandQueuedData | CommandExecuteData | CommandCompletedData | AutoModeSwitchRequestedData | AutoModeSwitchCompletedData | SessionLimitsExhaustedRequestedData | SessionLimitsExhaustedCompletedData | SessionAutoModeResolvedData | SessionManagedSettingsResolvedData | SessionManagedSettingsEnforcedData | CommandsChangedData | CapabilitiesChangedData | ExitPlanModeRequestedData | ExitPlanModeCompletedData | HumanResponseRecordedData | SessionToolsUpdatedData | SessionBackgroundTasksChangedData | WorkflowRunUpdatedData | WorkflowRunStartedData | WorkflowRunSettledData | SessionSkillsLoadedData | SessionCustomAgentsUpdatedData | SessionMcpServersLoadedData | SessionMcpServerStatusChangedData | SessionMcpServerRemovedData | SessionMcpServerNeedsReconnectData | McpToolsListChangedData | McpResourcesListChangedData | McpPromptsListChangedData | SessionExtensionsLoadedData | SessionCanvasOpenedData | SessionCanvasRegistryChangedData | SessionCanvasClosedData | SessionCanvasUnavailableData | SessionCanvasRecordedData | SessionCanvasRemovedData | SessionExtensionsAttachmentsPushedData | McpAppToolCallCompleteData | RawSessionEventData | Data
+SessionEventData = SessionStartData | SessionResumeData | SessionRemoteSteerableChangedData | SessionErrorData | SessionIdleData | SessionTitleChangedData | SessionScheduleCreatedData | SessionScheduleCancelledData | SessionScheduleRearmedData | SessionAutopilotObjectiveChangedData | SessionInfoData | SessionIndexedSearchData | SessionWarningData | SessionModelChangeData | SessionModelDeselectedData | SessionAutoTierRecommendationData | SessionAutoTierSwitchFailedData | SessionModeChangedData | SessionModeNoticeDeliveredData | SessionSessionLimitsChangedData | SessionPermissionsChangedData | SessionPlanChangedData | SessionTodosChangedData | SessionWorkspaceFileChangedData | SessionHandoffData | SessionTruncationData | SessionSnapshotRewindData | SessionShutdownData | SessionUsageCheckpointData | SessionQuotaObservationData | SessionContextChangedData | SessionUsageInfoData | SessionContextClearedData | SessionCompactionStartData | SessionCompactionCompleteData | SessionTaskCompleteData | SessionCompletionReceiptData | SessionFusionRouteStartedData | SessionFusionRouteFailedData | SessionFusionResolvedData | SessionFusionCompletedData | SessionPermissionRecoveryData | UserMessageData | PendingMessagesModifiedData | AssistantTurnStartData | AssistantTurnRetryData | AgentInterruptedData | AssistantIntentData | AssistantFusionPhaseStartedData | AssistantFusionPhaseActivityData | AssistantFusionPhaseCompletedData | AssistantFusionPhaseFailedData | AssistantServerToolProgressData | AssistantReasoningData | AssistantReasoningDeltaData | AssistantToolCallDeltaData | AssistantStreamingDeltaData | AssistantMessageData | AssistantMessageStartData | AssistantMessageDeltaData | AssistantTurnEndData | AssistantIdleData | AssistantUsageData | PromptCacheBreakData | ModelCallFailureData | ModelCallFinalResultData | ModelCallFinishedData | ModelCallStartData | AbortData | ToolUserRequestedData | ToolExecutionStartData | ToolExecutionPartialResultData | ToolShellOutputData | ToolExecutionProgressData | ToolExecutionCompleteData | ToolSearchActivatedData | SkillInvokedData | SkillInvokedRefData | SkillContextDeliveredData | SkillContextDeliveredRefData | SandboxDecisionData | SubagentStartedData | SubagentConfiguredData | SubagentCompletedData | SubagentFailedData | SubagentSelectedData | SubagentDeselectedData | HookStartData | HookEndData | HookProgressData | SessionBinaryAssetData | SystemMessageData | SystemNotificationData | PermissionRequestedData | PermissionCompletedData | PermissionCarriedForwardData | PermissionMessageAuthorizationData | PermissionMessageAuthorizationReadData | PermissionMessageAuthorizationDegradedData | PermissionAssentDetectedData | PermissionContextualAuthorizationData | UserInputRequestedData | UserInputCompletedData | ElicitationRequestedData | ElicitationCompletedData | SamplingRequestedData | SamplingCompletedData | McpOauthRequiredData | McpOauthCompletedData | McpHeadersRefreshRequiredData | McpHeadersRefreshCompletedData | SessionCustomNotificationData | UiEphemeralQueryData | ExternalToolRequestedData | ExternalToolCompletedData | CommandQueuedData | CommandExecuteData | CommandCompletedData | AutoModeSwitchRequestedData | AutoModeSwitchCompletedData | SessionLimitsExhaustedRequestedData | SessionLimitsExhaustedCompletedData | SessionAutoModeResolvedData | SessionManagedPluginProgressData | SessionManagedSettingsResolvedData | SessionManagedSettingsEnforcedData | CommandsChangedData | CapabilitiesChangedData | ExitPlanModeRequestedData | ExitPlanModeCompletedData | HumanResponseRecordedData | SessionToolsUpdatedData | SessionBackgroundTasksChangedData | WorkflowRunUpdatedData | WorkflowRunStartedData | WorkflowRunSettledData | SessionSkillsLoadedData | SessionCustomAgentsUpdatedData | SessionMcpServersLoadedData | SessionMcpServerStatusChangedData | SessionMcpServerRemovedData | SessionMcpServerNeedsReconnectData | McpToolsListChangedData | McpResourcesListChangedData | McpPromptsListChangedData | SessionExtensionsLoadedData | SessionCanvasOpenedData | SessionCanvasRegistryChangedData | SessionCanvasClosedData | SessionCanvasUnavailableData | SessionCanvasRecordedData | SessionCanvasRemovedData | SessionExtensionsAttachmentsPushedData | McpAppToolCallCompleteData | RawSessionEventData | Data
 
 
 @dataclass
@@ -16224,6 +16263,7 @@ class SessionEvent:
             case SessionEventType.SESSION_LIMITS_EXHAUSTED_REQUESTED: data = SessionLimitsExhaustedRequestedData.from_dict(data_obj)
             case SessionEventType.SESSION_LIMITS_EXHAUSTED_COMPLETED: data = SessionLimitsExhaustedCompletedData.from_dict(data_obj)
             case SessionEventType.SESSION_AUTO_MODE_RESOLVED: data = SessionAutoModeResolvedData.from_dict(data_obj)
+            case SessionEventType.SESSION_MANAGED_PLUGIN_PROGRESS: data = SessionManagedPluginProgressData.from_dict(data_obj)
             case SessionEventType.SESSION_MANAGED_SETTINGS_RESOLVED: data = SessionManagedSettingsResolvedData.from_dict(data_obj)
             case SessionEventType.SESSION_MANAGED_SETTINGS_ENFORCED: data = SessionManagedSettingsEnforcedData.from_dict(data_obj)
             case SessionEventType.COMMANDS_CHANGED: data = CommandsChangedData.from_dict(data_obj)
@@ -16434,6 +16474,7 @@ __all__ = [
     "IndexedSearchIncrementalPhase",
     "IndexedSearchOutcome",
     "IndexedSearchState",
+    "ManagedPluginProgressPhase",
     "ManagedSettingsEnforcedAction",
     "ManagedSettingsEnforcedEscalation",
     "ManagedSettingsResolvedSource",
@@ -16631,6 +16672,7 @@ __all__ = [
     "SessionLimitsExhaustedRequestedData",
     "SessionLimitsExhaustedResponse",
     "SessionLimitsExhaustedResponseAction",
+    "SessionManagedPluginProgressData",
     "SessionManagedSettingsEnforcedData",
     "SessionManagedSettingsResolvedData",
     "SessionMcpServerNeedsReconnectData",

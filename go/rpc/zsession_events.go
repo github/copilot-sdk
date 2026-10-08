@@ -195,6 +195,9 @@ const (
 	SessionEventTypeSessionInfo                     SessionEventType = "session.info"
 	SessionEventTypeSessionLimitsExhaustedCompleted SessionEventType = "session_limits_exhausted.completed"
 	SessionEventTypeSessionLimitsExhaustedRequested SessionEventType = "session_limits_exhausted.requested"
+	// Experimental: SessionEventTypeSessionManagedPluginProgress identifies an experimental
+	// event that may change or be removed.
+	SessionEventTypeSessionManagedPluginProgress SessionEventType = "session.managed_plugin_progress"
 	// Experimental: SessionEventTypeSessionManagedSettingsEnforced identifies an experimental
 	// event that may change or be removed.
 	SessionEventTypeSessionManagedSettingsEnforced SessionEventType = "session.managed_settings_enforced"
@@ -1348,6 +1351,20 @@ type AssistantFusionPhaseStartedData struct {
 func (*AssistantFusionPhaseStartedData) sessionEventData() {}
 func (*AssistantFusionPhaseStartedData) Type() SessionEventType {
 	return SessionEventTypeAssistantFusionPhaseStarted
+}
+
+// Experimental transient presentation-neutral progress for organization-required plugin preparation. Clients should localize the phase copy and display plugin specs without translating them.
+// Experimental: SessionManagedPluginProgressData is part of an experimental API and may change or be removed.
+type SessionManagedPluginProgressData struct {
+	// Current preparation phase.
+	Phase ManagedPluginProgressPhase `json:"phase"`
+	// Ordered plugin install specs affected by this phase. Empty while managed settings initialize and when preparation completes.
+	PluginSpecs []string `json:"pluginSpecs"`
+}
+
+func (*SessionManagedPluginProgressData) sessionEventData() {}
+func (*SessionManagedPluginProgressData) Type() SessionEventType {
+	return SessionEventTypeSessionManagedPluginProgress
 }
 
 // Experimental transient signal that HydraFusion routing has started for an eligible turn.
@@ -6322,6 +6339,21 @@ const (
 	HumanResponseRecordedResponseResponseKindAskUser      HumanResponseRecordedResponseResponseKind = "ask_user"
 	HumanResponseRecordedResponseResponseKindExitPlanMode HumanResponseRecordedResponseResponseKind = "exit_plan_mode"
 	HumanResponseRecordedResponseResponseKindUserInput    HumanResponseRecordedResponseResponseKind = "user_input"
+)
+
+// Current phase of organization-required plugin preparation.
+// Experimental: ManagedPluginProgressPhase is part of an experimental API and may change or be removed.
+type ManagedPluginProgressPhase string
+
+const (
+	// Managed plugin preparation has completed.
+	ManagedPluginProgressPhaseComplete ManagedPluginProgressPhase = "complete"
+	// Managed settings are still resolving before plugin preparation can be planned.
+	ManagedPluginProgressPhaseInitializing ManagedPluginProgressPhase = "initializing"
+	// Required plugin content is being installed.
+	ManagedPluginProgressPhaseInstalling ManagedPluginProgressPhase = "installing"
+	// Installed required plugin content is being updated.
+	ManagedPluginProgressPhaseUpdating ManagedPluginProgressPhase = "updating"
 )
 
 // The category of runtime action that enterprise managed settings governed (blocked or capped)

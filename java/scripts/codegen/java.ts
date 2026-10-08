@@ -1545,7 +1545,8 @@ export function extractEventVariants(schema: JSONSchema7): EventVariant[] {
                 className: `${baseName}Event`,
                 dataSchema: dataSchema ?? null,
                 description: resolved.description,
-                stability: (variant as unknown as Record<string, unknown>).stability as string | undefined,
+                stability: ((resolved as unknown as Record<string, unknown>).stability
+                    ?? (variant as unknown as Record<string, unknown>).stability) as string | undefined,
                 deprecated: (resolved as unknown as Record<string, unknown>).deprecated === true,
                 dataDeprecated: dataSchema !== undefined && "deprecated" in dataSchema && dataSchema.deprecated === true,
             };
@@ -1917,7 +1918,7 @@ export function renderEventVariantClass(variant: EventVariant, packageName: stri
     }
     if (variant.stability === "experimental") {
         lines.push(` *`);
-        lines.push(` * @apiNote This method is experimental and may change in a future version.`);
+        lines.push(` * @apiNote This event type is experimental and may change in a future version.`);
     }
     lines.push(` * @since 1.0.0`);
     lines.push(` */`);
@@ -1950,6 +1951,10 @@ export function renderEventVariantClass(variant: EventVariant, packageName: stri
             : `    /** Data payload for {@link ${variant.className}}. */`);
         if (variant.dataDeprecated) {
             lines.push(`    @Deprecated`);
+        }
+        if (variant.stability === "experimental" || isSchemaExperimental(variant.dataSchema)) {
+            allImports.add("com.github.copilot.CopilotExperimental");
+            lines.push(`    @CopilotExperimental`);
         }
         lines.push(`    @JsonIgnoreProperties(ignoreUnknown = true)`);
         lines.push(`    @JsonInclude(JsonInclude.Include.NON_NULL)`);

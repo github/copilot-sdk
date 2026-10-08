@@ -434,6 +434,15 @@ pub enum SessionEventType {
     /// and may change or be removed in future SDK or CLI releases.
     ///
     /// </div>
+    #[serde(rename = "session.managed_plugin_progress")]
+    SessionManagedPluginProgress,
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
     #[serde(rename = "session.managed_settings_resolved")]
     SessionManagedSettingsResolved,
     ///
@@ -964,6 +973,15 @@ pub enum SessionEventData {
     /// </div>
     #[serde(rename = "session.auto_mode_resolved")]
     SessionAutoModeResolved(SessionAutoModeResolvedData),
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "session.managed_plugin_progress")]
+    SessionManagedPluginProgress(SessionManagedPluginProgressData),
     ///
     /// <div class="warning">
     ///
@@ -7967,6 +7985,23 @@ pub struct SessionAutoModeResolvedData {
     pub sticky_override: Option<bool>,
 }
 
+/// Session event "session.managed_plugin_progress". Experimental transient presentation-neutral progress for organization-required plugin preparation. Clients should localize the phase copy and display plugin specs without translating them.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionManagedPluginProgressData {
+    /// Current preparation phase.
+    pub phase: ManagedPluginProgressPhase,
+    /// Ordered plugin install specs affected by this phase. Empty while managed settings initialize and when preparation completes.
+    pub plugin_specs: Vec<String>,
+}
+
 /// Session event "session.managed_settings_resolved". Effective enterprise managed settings applied to the session and their contributing channels. Emitted whenever managed policy is applied or reapplied, including session start, resume, and account switch. This ephemeral live snapshot is delivered to subscribers but not persisted to the session event log; initial resolution occurs before session.start.
 ///
 /// <div class="warning">
@@ -12041,6 +12076,34 @@ pub enum AutoModeResolvedReasoningBucket {
     /// The request looks high-reasoning; a stronger model is appropriate.
     #[serde(rename = "high")]
     High,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Current phase of organization-required plugin preparation.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ManagedPluginProgressPhase {
+    /// Managed settings are still resolving before plugin preparation can be planned.
+    #[serde(rename = "initializing")]
+    Initializing,
+    /// Required plugin content is being installed.
+    #[serde(rename = "installing")]
+    Installing,
+    /// Installed required plugin content is being updated.
+    #[serde(rename = "updating")]
+    Updating,
+    /// Managed plugin preparation has completed.
+    #[serde(rename = "complete")]
+    Complete,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]

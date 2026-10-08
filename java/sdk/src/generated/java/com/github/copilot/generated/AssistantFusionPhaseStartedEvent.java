@@ -15,8 +15,11 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "assistant.fusion_phase_started". Experimental transient HydraFusion phase/model/role signal.
+ *
+ * @apiNote This event type is experimental and may change in a future version.
  * @since 1.0.0
  */
+@CopilotExperimental
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
@@ -32,6 +35,7 @@ public final class AssistantFusionPhaseStartedEvent extends SessionEvent {
     public void setData(AssistantFusionPhaseStartedEventData data) { this.data = data; }
 
     /** Data payload for {@link AssistantFusionPhaseStartedEvent}. */
+    @CopilotExperimental
     @JsonIgnoreProperties(ignoreUnknown = true)
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record AssistantFusionPhaseStartedEventData(

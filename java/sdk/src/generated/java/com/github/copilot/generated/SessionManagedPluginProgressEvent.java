@@ -11,10 +11,11 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.github.copilot.CopilotExperimental;
+import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * Session event "workflow.run_updated". Ephemeral invalidation signal for a changed workflow run.
+ * Session event "session.managed_plugin_progress". Experimental transient presentation-neutral progress for organization-required plugin preparation. Clients should localize the phase copy and display plugin specs without translating them.
  *
  * @apiNote This event type is experimental and may change in a future version.
  * @since 1.0.0
@@ -23,26 +24,26 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
-public final class WorkflowRunUpdatedEvent extends SessionEvent {
+public final class SessionManagedPluginProgressEvent extends SessionEvent {
 
     @Override
-    public String getType() { return "workflow.run_updated"; }
+    public String getType() { return "session.managed_plugin_progress"; }
 
     @JsonProperty("data")
-    private WorkflowRunUpdatedEventData data;
+    private SessionManagedPluginProgressEventData data;
 
-    public WorkflowRunUpdatedEventData getData() { return data; }
-    public void setData(WorkflowRunUpdatedEventData data) { this.data = data; }
+    public SessionManagedPluginProgressEventData getData() { return data; }
+    public void setData(SessionManagedPluginProgressEventData data) { this.data = data; }
 
-    /** Data payload for {@link WorkflowRunUpdatedEvent}. */
+    /** Data payload for {@link SessionManagedPluginProgressEvent}. */
     @CopilotExperimental
     @JsonIgnoreProperties(ignoreUnknown = true)
     @JsonInclude(JsonInclude.Include.NON_NULL)
-    public record WorkflowRunUpdatedEventData(
-        /** Workflow run identifier. */
-        @JsonProperty("runId") String runId,
-        /** Monotonic revision now available for the run. */
-        @JsonProperty("revision") Long revision
+    public record SessionManagedPluginProgressEventData(
+        /** Current preparation phase. */
+        @JsonProperty("phase") ManagedPluginProgressPhase phase,
+        /** Ordered plugin install specs affected by this phase. Empty while managed settings initialize and when preparation completes. */
+        @JsonProperty("pluginSpecs") List<String> pluginSpecs
     ) {
     }
 }

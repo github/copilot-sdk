@@ -119,6 +119,7 @@ namespace GitHub.Copilot;
 [JsonDerivedType(typeof(SessionIdleEvent), "session.idle")]
 [JsonDerivedType(typeof(SessionIndexedSearchEvent), "session.indexed_search")]
 [JsonDerivedType(typeof(SessionInfoEvent), "session.info")]
+[JsonDerivedType(typeof(SessionManagedPluginProgressEvent), "session.managed_plugin_progress")]
 [JsonDerivedType(typeof(SessionManagedSettingsEnforcedEvent), "session.managed_settings_enforced")]
 [JsonDerivedType(typeof(SessionManagedSettingsResolvedEvent), "session.managed_settings_resolved")]
 [JsonDerivedType(typeof(SessionMcpServerNeedsReconnectEvent), "session.mcp_server_needs_reconnect")]
@@ -560,6 +561,8 @@ internal sealed partial class SessionEventJsonConverter : JsonConverter<SessionE
                     return SessionEventsJsonContext.Default.SessionAutoTierSwitchFailedEvent;
                 if (type.SequenceEqual("session.canvas.registry_changed"u8))
                     return SessionEventsJsonContext.Default.SessionCanvasRegistryChangedEvent;
+                if (type.SequenceEqual("session.managed_plugin_progress"u8))
+                    return SessionEventsJsonContext.Default.SessionManagedPluginProgressEvent;
                 break;
             case 32:
                 if (type.SequenceEqual("assistant.fusion_phase_completed"u8))
@@ -2362,6 +2365,20 @@ public sealed partial class SessionAutoModeResolvedEvent : SessionEvent
     /// <summary>The <c>session.auto_mode_resolved</c> event payload.</summary>
     [JsonPropertyName("data")]
     public required SessionAutoModeResolvedData Data { get; set; }
+}
+
+/// <summary>Experimental transient presentation-neutral progress for organization-required plugin preparation. Clients should localize the phase copy and display plugin specs without translating them.</summary>
+/// <remarks>Represents the <c>session.managed_plugin_progress</c> event.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed partial class SessionManagedPluginProgressEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "session.managed_plugin_progress";
+
+    /// <summary>The <c>session.managed_plugin_progress</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required SessionManagedPluginProgressData Data { get; set; }
 }
 
 /// <summary>Effective enterprise managed settings and contributing channels. Session events report applied policy; sessionless resolve reports an account/device snapshot, and compose reports a non-applying preview of candidate documents. Device values take precedence over server values, then the policy helper, per ordinary key, while permissions compose restrictively. Session-local SDK-client policy is included only in session results. Marked experimental while the managed-settings surface stabilizes.</summary>
@@ -7259,6 +7276,19 @@ public sealed partial class SessionAutoModeResolvedData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("stickyOverride")]
     public bool? StickyOverride { get; set; }
+}
+
+/// <summary>Experimental transient presentation-neutral progress for organization-required plugin preparation. Clients should localize the phase copy and display plugin specs without translating them.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed partial class SessionManagedPluginProgressData
+{
+    /// <summary>Current preparation phase.</summary>
+    [JsonPropertyName("phase")]
+    public required ManagedPluginProgressPhase Phase { get; set; }
+
+    /// <summary>Ordered plugin install specs affected by this phase. Empty while managed settings initialize and when preparation completes.</summary>
+    [JsonPropertyName("pluginSpecs")]
+    public required string[] PluginSpecs { get; set; }
 }
 
 /// <summary>Effective enterprise managed settings and contributing channels. Session events report applied policy; sessionless resolve reports an account/device snapshot, and compose reports a non-applying preview of candidate documents. Device values take precedence over server values, then the policy helper, per ordinary key, while permissions compose restrictively. Session-local SDK-client policy is included only in session results. Marked experimental while the managed-settings surface stabilizes.</summary>
@@ -22183,6 +22213,74 @@ public readonly struct AutoModeResolvedReasoningBucket : IEquatable<AutoModeReso
     }
 }
 
+/// <summary>Current phase of organization-required plugin preparation.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct ManagedPluginProgressPhase : IEquatable<ManagedPluginProgressPhase>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="ManagedPluginProgressPhase"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="ManagedPluginProgressPhase"/>.</param>
+    [JsonConstructor]
+    public ManagedPluginProgressPhase(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="ManagedPluginProgressPhase"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Managed settings are still resolving before plugin preparation can be planned.</summary>
+    public static ManagedPluginProgressPhase Initializing { get; } = new("initializing");
+
+    /// <summary>Required plugin content is being installed.</summary>
+    public static ManagedPluginProgressPhase Installing { get; } = new("installing");
+
+    /// <summary>Installed required plugin content is being updated.</summary>
+    public static ManagedPluginProgressPhase Updating { get; } = new("updating");
+
+    /// <summary>Managed plugin preparation has completed.</summary>
+    public static ManagedPluginProgressPhase Complete { get; } = new("complete");
+
+    /// <summary>Returns a value indicating whether two <see cref="ManagedPluginProgressPhase"/> instances are equivalent.</summary>
+    public static bool operator ==(ManagedPluginProgressPhase left, ManagedPluginProgressPhase right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="ManagedPluginProgressPhase"/> instances are not equivalent.</summary>
+    public static bool operator !=(ManagedPluginProgressPhase left, ManagedPluginProgressPhase right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is ManagedPluginProgressPhase other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(ManagedPluginProgressPhase other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{ManagedPluginProgressPhase}"/> for serializing <see cref="ManagedPluginProgressPhase"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<ManagedPluginProgressPhase>
+    {
+        /// <inheritdoc />
+        public override ManagedPluginProgressPhase Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, ManagedPluginProgressPhase value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ManagedPluginProgressPhase));
+        }
+    }
+}
+
 /// <summary>Summary of which managed-settings channels contributed to the effective session policy. Use the per-channel booleans for exact provenance.</summary>
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
@@ -23282,6 +23380,8 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(SessionLimitsExhaustedRequestedData))]
 [JsonSerializable(typeof(SessionLimitsExhaustedRequestedEvent))]
 [JsonSerializable(typeof(SessionLimitsExhaustedResponse))]
+[JsonSerializable(typeof(SessionManagedPluginProgressData))]
+[JsonSerializable(typeof(SessionManagedPluginProgressEvent))]
 [JsonSerializable(typeof(SessionManagedSettingsEnforcedData))]
 [JsonSerializable(typeof(SessionManagedSettingsEnforcedEvent))]
 [JsonSerializable(typeof(SessionManagedSettingsResolvedData))]

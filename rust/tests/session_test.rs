@@ -9736,11 +9736,30 @@ async fn tool_invocation_names_the_sub_agent_and_request_behind_the_call() {
     assert_eq!(pending["method"], "session.tools.handlePendingToolCall");
     let root_call = timeout(TIMEOUT, invocations.recv()).await.unwrap().unwrap();
 
+    server
+        .send_event_from_agent(
+            "external_tool.requested",
+            serde_json::json!({
+                "requestId": "req-blank-agent",
+                "sessionId": server.session_id,
+                "toolCallId": "tc-blank-agent",
+                "toolName": "calc",
+                "arguments": {},
+            }),
+            "",
+        )
+        .await;
+    let pending = timeout(TIMEOUT, server.read_request()).await.unwrap();
+    assert_eq!(pending["method"], "session.tools.handlePendingToolCall");
+    let blank_agent_call = timeout(TIMEOUT, invocations.recv()).await.unwrap().unwrap();
+
     assert_eq!(sub_agent_call["agentId"], "task-agent-1");
     assert_eq!(sub_agent_call["requestId"], "req-sub-agent");
     assert_eq!(sub_agent_call["toolCallId"], "tc-sub-agent");
     assert_eq!(root_call.get("agentId"), None);
     assert_eq!(root_call["requestId"], "req-root");
+    assert_eq!(blank_agent_call.get("agentId"), None);
+    assert_eq!(blank_agent_call["requestId"], "req-blank-agent");
 }
 
 #[tokio::test]

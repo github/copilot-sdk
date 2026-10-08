@@ -152,6 +152,7 @@ type (
 	HumanResponseRecordedResponseResponseKind                      = rpc.HumanResponseRecordedResponseResponseKind
 	HumanResponseRecordedResponseUserInput                         = rpc.HumanResponseRecordedResponseUserInput
 	IndexedSearchState                                             = rpc.IndexedSearchState
+	ManagedPluginProgressPhase                                     = rpc.ManagedPluginProgressPhase
 	ManagedSettingsEnforcedAction                                  = rpc.ManagedSettingsEnforcedAction
 	ManagedSettingsEnforcedEscalation                              = rpc.ManagedSettingsEnforcedEscalation
 	ManagedSettingsResolvedData                                    = rpc.ManagedSettingsResolvedData
@@ -349,6 +350,7 @@ type (
 	SessionLimitsExhaustedRequestedData                            = rpc.SessionLimitsExhaustedRequestedData
 	SessionLimitsExhaustedResponse                                 = rpc.SessionLimitsExhaustedResponse
 	SessionLimitsExhaustedResponseAction                           = rpc.SessionLimitsExhaustedResponseAction
+	SessionManagedPluginProgressData                               = rpc.SessionManagedPluginProgressData
 	SessionManagedSettingsEnforcedData                             = rpc.SessionManagedSettingsEnforcedData
 	SessionManagedSettingsResolvedData                             = rpc.SessionManagedSettingsResolvedData
 	SessionMCPServerNeedsReconnectData                             = rpc.SessionMCPServerNeedsReconnectData
@@ -667,6 +669,10 @@ const (
 	IndexedSearchStateFailed                                             = rpc.IndexedSearchStateFailed
 	IndexedSearchStateReady                                              = rpc.IndexedSearchStateReady
 	IndexedSearchStateStarting                                           = rpc.IndexedSearchStateStarting
+	ManagedPluginProgressPhaseComplete                                   = rpc.ManagedPluginProgressPhaseComplete
+	ManagedPluginProgressPhaseInitializing                               = rpc.ManagedPluginProgressPhaseInitializing
+	ManagedPluginProgressPhaseInstalling                                 = rpc.ManagedPluginProgressPhaseInstalling
+	ManagedPluginProgressPhaseUpdating                                   = rpc.ManagedPluginProgressPhaseUpdating
 	ManagedSettingsEnforcedActionBypassPermissionsBlocked                = rpc.ManagedSettingsEnforcedActionBypassPermissionsBlocked
 	ManagedSettingsEnforcedEscalationAllowAll                            = rpc.ManagedSettingsEnforcedEscalationAllowAll
 	ManagedSettingsEnforcedEscalationApproveAll                          = rpc.ManagedSettingsEnforcedEscalationApproveAll
@@ -1021,6 +1027,7 @@ const (
 	SessionEventTypeSessionInfo                                          = rpc.SessionEventTypeSessionInfo
 	SessionEventTypeSessionLimitsExhaustedCompleted                      = rpc.SessionEventTypeSessionLimitsExhaustedCompleted
 	SessionEventTypeSessionLimitsExhaustedRequested                      = rpc.SessionEventTypeSessionLimitsExhaustedRequested
+	SessionEventTypeSessionManagedPluginProgress                         = rpc.SessionEventTypeSessionManagedPluginProgress
 	SessionEventTypeSessionManagedSettingsEnforced                       = rpc.SessionEventTypeSessionManagedSettingsEnforced
 	SessionEventTypeSessionManagedSettingsResolved                       = rpc.SessionEventTypeSessionManagedSettingsResolved
 	SessionEventTypeSessionMCPServerNeedsReconnect                       = rpc.SessionEventTypeSessionMCPServerNeedsReconnect

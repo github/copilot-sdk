@@ -15,8 +15,11 @@ import javax.annotation.processing.Generated;
 
 /**
  * Session event "permission.carriedForward". Historical decode-only receipt from the retired Assisted Permissions authorization extractor. Current runtimes ignore it for permission decisions.
+ *
+ * @apiNote This event type is experimental and may change in a future version.
  * @since 1.0.0
  */
+@CopilotExperimental
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
@@ -32,6 +35,7 @@ public final class PermissionCarriedForwardEvent extends SessionEvent {
     public void setData(PermissionCarriedForwardEventData data) { this.data = data; }
 
     /** Data payload for {@link PermissionCarriedForwardEvent}. */
+    @CopilotExperimental
     @JsonIgnoreProperties(ignoreUnknown = true)
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record PermissionCarriedForwardEventData(

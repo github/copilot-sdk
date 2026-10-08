@@ -124,6 +124,7 @@ export type SessionEvent =
   | SessionLimitsExhaustedRequestedEvent
   | SessionLimitsExhaustedCompletedEvent
   | AutoModeResolvedEvent
+  | ManagedPluginProgressEvent
   | ManagedSettingsResolvedEvent
   | ManagedSettingsEnforcedEvent
   | CommandsChangedEvent
@@ -1533,6 +1534,19 @@ export type AutoModeResolvedReasoningBucket =
   | "medium"
   /** The request looks high-reasoning; a stronger model is appropriate. */
   | "high";
+/**
+ * Current phase of organization-required plugin preparation.
+ */
+/** @experimental */
+export type ManagedPluginProgressPhase =
+  /** Managed settings are still resolving before plugin preparation can be planned. */
+  | "initializing"
+  /** Required plugin content is being installed. */
+  | "installing"
+  /** Installed required plugin content is being updated. */
+  | "updating"
+  /** Managed plugin preparation has completed. */
+  | "complete";
 /**
  * Summary of which managed-settings channels contributed to the effective session policy. Use the per-channel booleans for exact provenance.
  */
@@ -12701,6 +12715,48 @@ export interface AutoModeResolvedData {
    * Whether a sticky model choice overrode the router result
    */
   stickyOverride?: boolean;
+}
+/**
+ * Session event "session.managed_plugin_progress". Experimental transient presentation-neutral progress for organization-required plugin preparation. Clients should localize the phase copy and display plugin specs without translating them.
+ */
+/** @experimental */
+export interface ManagedPluginProgressEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: ManagedPluginProgressData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
+  ephemeral: true;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "session.managed_plugin_progress".
+   */
+  type: "session.managed_plugin_progress";
+}
+/**
+ * Experimental transient presentation-neutral progress for organization-required plugin preparation. Clients should localize the phase copy and display plugin specs without translating them.
+ */
+/** @experimental */
+export interface ManagedPluginProgressData {
+  phase: ManagedPluginProgressPhase;
+  /**
+   * Ordered plugin install specs affected by this phase. Empty while managed settings initialize and when preparation completes.
+   */
+  pluginSpecs: string[];
 }
 /**
  * Session event "session.managed_settings_resolved". Effective enterprise managed settings applied to the session and their contributing channels. Emitted whenever managed policy is applied or reapplied, including session start, resume, and account switch. This ephemeral live snapshot is delivered to subscribers but not persisted to the session event log; initial resolution occurs before session.start.
