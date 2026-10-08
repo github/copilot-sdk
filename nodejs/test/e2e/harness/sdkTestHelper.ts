@@ -3,9 +3,53 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { ChildProcess } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
+import { basename } from "node:path";
 import { AssistantMessageEvent, CopilotSession, SessionEvent } from "../../../src";
 
 const CHILD_SHUTDOWN_TIMEOUT_MS = 1_000;
+
+export async function waitForFileText(
+    filePath: string,
+    expected: string,
+    timeoutMs = 30_000,
+    diagnosticPaths: string[] = []
+): Promise<void> {
+    const deadline = Date.now() + timeoutMs;
+    let lastBusyError: Error | undefined;
+    while (Date.now() < deadline) {
+        if (existsSync(filePath)) {
+            try {
+                const content = readFileSync(filePath, "utf8");
+                lastBusyError = undefined;
+                if (content.includes(expected)) {
+                    return;
+                }
+            } catch (error) {
+                // PowerShell can expose the marker before releasing its Windows file lock.
+                if (!(error instanceof Error) || !("code" in error) || error.code !== "EBUSY") {
+                    throw error;
+                }
+                lastBusyError = error;
+            }
+        }
+        await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    const diagnostics = diagnosticPaths.map((diagnosticPath) => {
+        try {
+            return existsSync(diagnosticPath)
+                ? `${basename(diagnosticPath)}: ${readFileSync(diagnosticPath, "utf8")}`
+                : `${basename(diagnosticPath)}: absent`;
+        } catch (error) {
+            return `${basename(diagnosticPath)}: could not read: ${formatError(error)}`;
+        }
+    });
+    throw new Error(
+        `Timed out waiting for shell command to write '${expected}' to '${filePath}'.` +
+            (diagnostics.length ? `\n${diagnostics.join("\n")}` : ""),
+        { cause: lastBusyError }
+    );
+}
 
 export async function stopChildProcess(child: ChildProcess): Promise<void> {
     if (hasChildExited(child)) {

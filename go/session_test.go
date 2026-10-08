@@ -71,6 +71,68 @@ func TestExternalToolCompletedCancelsBlockedHandler(t *testing.T) {
 	}
 }
 
+func TestToolInvocationNamesTheSubAgentAndRequestBehindTheCall(t *testing.T) {
+	session, cleanup := newTestSession()
+	defer cleanup()
+
+	invocations := make(chan ToolInvocation, 3)
+	session.registerTools([]Tool{{
+		Name: "calc",
+		Handler: func(invocation ToolInvocation) (ToolResult, error) {
+			invocations <- invocation
+			<-invocation.TraceContext.Done()
+			return ToolResult{}, invocation.TraceContext.Err()
+		},
+	}})
+
+	session.dispatchEvent(SessionEvent{
+		AgentID: ptr("task-agent-1"),
+		Data: &ExternalToolRequestedData{
+			RequestID:  "req-sub-agent",
+			SessionID:  "session-1",
+			ToolCallID: "tc-sub-agent",
+			ToolName:   "calc",
+		},
+	})
+	defer session.dispatchEvent(SessionEvent{Data: &ExternalToolCompletedData{RequestID: "req-sub-agent"}})
+	session.dispatchEvent(SessionEvent{Data: &ExternalToolRequestedData{
+		RequestID:  "req-root",
+		SessionID:  "session-1",
+		ToolCallID: "tc-root",
+		ToolName:   "calc",
+	}})
+	defer session.dispatchEvent(SessionEvent{Data: &ExternalToolCompletedData{RequestID: "req-root"}})
+	session.dispatchEvent(SessionEvent{
+		AgentID: ptr(""),
+		Data: &ExternalToolRequestedData{
+			RequestID:  "req-blank-agent",
+			SessionID:  "session-1",
+			ToolCallID: "tc-blank-agent",
+			ToolName:   "calc",
+		},
+	})
+	defer session.dispatchEvent(SessionEvent{Data: &ExternalToolCompletedData{RequestID: "req-blank-agent"}})
+
+	got := make(map[string]ToolInvocation)
+	for range 3 {
+		select {
+		case invocation := <-invocations:
+			got[invocation.ToolCallID] = invocation
+		case <-time.After(time.Second):
+			t.Fatal("tool handler did not start")
+		}
+	}
+	if sub := got["tc-sub-agent"]; sub.AgentID != "task-agent-1" || sub.RequestID != "req-sub-agent" {
+		t.Fatalf("sub-agent call: got AgentID %q RequestID %q", sub.AgentID, sub.RequestID)
+	}
+	if root := got["tc-root"]; root.AgentID != "" || root.RequestID != "req-root" {
+		t.Fatalf("root call: got AgentID %q RequestID %q", root.AgentID, root.RequestID)
+	}
+	if blank := got["tc-blank-agent"]; blank.AgentID != "" || blank.RequestID != "req-blank-agent" {
+		t.Fatalf("blank-agent call: got AgentID %q RequestID %q", blank.AgentID, blank.RequestID)
+	}
+}
+
 func TestDispatchEventReturnsAfterEventProcessingStops(t *testing.T) {
 	session := &Session{
 		eventCh:   make(chan SessionEvent),
@@ -314,7 +376,7 @@ func TestSession_SetToolsRunningCallsFinishOnOriginalHandler(t *testing.T) {
 		SessionID:  "session-1",
 		ToolCallID: "tool-call-1",
 		ToolName:   "lookup",
-	})
+	}, "")
 	select {
 	case <-started:
 	case <-time.After(2 * time.Second):

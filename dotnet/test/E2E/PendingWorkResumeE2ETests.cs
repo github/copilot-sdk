@@ -21,6 +21,7 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
 
     [Fact]
     public async Task Should_Continue_Pending_Permission_Request_After_Resume()
+        => await WithSdkDiagnosticsAsync(async () =>
     {
         var originalPermissionRequest = new TaskCompletionSource<PermissionRequest>(TaskCreationOptions.RunContinuationsAsynchronously);
         var releaseOriginalPermission = new TaskCompletionSource<PermissionDecision>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -86,10 +87,11 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
         [Description("Transforms a value after permission is granted")]
         static string ResumePermissionTool([Description("Value to transform")] string value) =>
             $"ORIGINAL_SHOULD_NOT_RUN_{value}";
-    }
+    });
 
     [Fact]
     public async Task Should_Continue_Pending_External_Tool_Request_After_Resume()
+        => await WithSdkDiagnosticsAsync(async () =>
     {
         var originalToolStarted = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
         var releaseOriginalTool = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -154,7 +156,7 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
             originalToolStarted.TrySetResult(value);
             return await releaseOriginalTool.Task.WaitAsync(Timeout.InfiniteTimeSpan, cancellationToken);
         }
-    }
+    });
 
     [Fact]
     public Task Should_Keep_Pending_External_Tool_Handleable_On_Warm_Resume_When_ContinuePendingWork_Is_False() =>
@@ -174,6 +176,7 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
         bool disconnectOriginalClient,
         bool expectedSessionWasActive,
         bool expectedHandleResult)
+        => await WithSdkDiagnosticsAsync(async () =>
     {
         var originalToolStarted = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
         var releaseOriginalTool = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -307,10 +310,11 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
         [Description("Looks up a value after resumption")]
         string ResumedExternalTool([Description("Value to look up")] string value) =>
             throw new InvalidOperationException("Resumed-session handler should not be invoked");
-    }
+    });
 
     [Fact]
     public async Task Should_Continue_Parallel_Pending_External_Tool_Requests_After_Resume()
+        => await WithSdkDiagnosticsAsync(async () =>
     {
         var originalToolAStarted = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
         var originalToolBStarted = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -441,7 +445,7 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
             originalToolBStarted.TrySetResult(value);
             return await releaseOriginalToolB.Task.WaitAsync(Timeout.InfiniteTimeSpan, cancellationToken);
         }
-    }
+    });
 
     [Fact]
     public async Task Should_Resume_Successfully_When_No_Pending_Work_Exists()

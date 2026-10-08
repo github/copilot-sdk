@@ -587,6 +587,35 @@ async fn failed_and_cancelled_start_remove_factory() {
 }
 
 #[test]
+fn host_create_refresh_custom_instructions_round_trips_without_widening_resume() {
+    for refresh in [None, Some(false), Some(true)] {
+        let mut value = json!({"sessionId": "refresh-instructions"});
+        if let Some(refresh) = refresh {
+            value["refreshCustomInstructions"] = json!(refresh);
+        }
+        let settings = serde_json::from_value(value.clone()).unwrap();
+        let config = config_from_host(&settings).unwrap();
+        assert_eq!(config.refresh_custom_instructions, refresh);
+        assert_eq!(config_for_host(&config).unwrap(), value);
+        if refresh.is_some() {
+            assert!(resume_config_from_host(&settings).is_err());
+        } else {
+            assert!(resume_config_from_host(&settings).is_ok());
+        }
+    }
+}
+
+#[test]
+fn host_create_refresh_custom_instructions_rejects_invalid_and_unknown_settings() {
+    for value in [
+        json!({"sessionId": "id", "refreshCustomInstructions": "true"}),
+        json!({"sessionId": "id", "refreshCustomInstructions": true, "unknown": true}),
+    ] {
+        assert!(config_from_host(&serde_json::from_value(value).unwrap()).is_err());
+    }
+}
+
+#[test]
 fn host_settings_round_trip_without_callbacks_or_losing_constraints() {
     let value = json!({
         "sessionId": "id", "workingDirectory": "/work", "additionalDirectories": ["/extra"],

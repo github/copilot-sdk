@@ -12,15 +12,15 @@ public class E2ETestFixture : IAsyncLifetime
     internal const string SharedTcpConnectionToken = "e2e-shared-token";
 
     public E2ETestContext Ctx { get; private set; } = null!;
-    public CopilotClient Client { get; private set; } = null!;
+    private CopilotClient? _client;
+    public CopilotClient Client => _client ??= Ctx.CreateClient(options: new CopilotClientOptions
+    {
+        Connection = CreateSharedConnection(E2ETestContext.UsesInProcessTransport),
+    }, persistent: true);
 
     public async Task InitializeAsync()
     {
         Ctx = await E2ETestContext.CreateAsync();
-        Client = Ctx.CreateClient(options: new CopilotClientOptions
-        {
-            Connection = CreateSharedConnection(E2ETestContext.UsesInProcessTransport),
-        }, persistent: true);
     }
 
     internal static RuntimeConnection CreateSharedConnection(bool useInProcessTransport) =>

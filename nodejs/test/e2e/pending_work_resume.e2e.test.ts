@@ -140,7 +140,10 @@ function waitForPermissionRequest(session: CopilotSession): Promise<PermissionRe
 }
 
 describe("Pending work resume", async () => {
-    const { env, workDir, openAiEndpoint, createClient } = await createSdkTestContext();
+    const { env, workDir, openAiEndpoint, createClient } = await createSdkTestContext({
+        logLevel: "debug",
+        copilotClientOptions: { env: { RUST_LOG: "error,sdk_diagnostics=debug" } },
+    });
     const SHARED_TOKEN = "pending-work-resume-shared-test-token";
 
     function createTcpServer(): CopilotClient {

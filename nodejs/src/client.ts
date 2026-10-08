@@ -2269,7 +2269,7 @@ export class CopilotClient {
      * This connection owns the host. Disposing it or disconnecting the client
      * stops the listener without deleting sessions. The host uses a separate
      * SDK connection to the same runtime, not another runtime process.
-     * Only one AHP host may own the catalog in an effective Copilot home
+     * Only one AHP host may own a compute-scoped catalog in an effective Copilot home
      * at a time. Other SDK clients and sessions remain usable in that home.
      * Select localServer, githubEnvironment, or both. An empty localServer
      * selects 127.0.0.1 on an available port. `onExit` runs at most once; owner disconnection cannot
@@ -2287,6 +2287,7 @@ export class CopilotClient {
         const rpc = this.rpc;
         const hostId = randomUUID();
         const {
+            computeId,
             localServer,
             githubEnvironment,
             onExit,
@@ -2307,6 +2308,7 @@ export class CopilotClient {
         try {
             const info = await rpc.host.start({
                 hostId,
+                computeId,
                 localServer,
                 githubEnvironment,
                 sessionFactory: createSession ? true : undefined,
@@ -2317,7 +2319,8 @@ export class CopilotClient {
                 async () => {
                     await rpc.host.dispose({ hostId });
                 },
-                (sessionId) => rpc.host.publishSession({ hostId, sessionId })
+                (sessionId) => rpc.host.publishSession({ hostId, sessionId }),
+                () => rpc.host.listSessions({ hostId })
             );
         } catch (error) {
             this.hostExitCallbacks.delete(hostId);

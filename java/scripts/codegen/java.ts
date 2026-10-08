@@ -2454,7 +2454,13 @@ export function generateRpcClass(
                   omittedField: "binary",
                   description: "Creates provider capabilities without binary reads.",
               }
-              : undefined;
+              : className === "HostGitHubEnvironmentOptions"
+                ? {
+                    fieldNames: ["name", "computeId"],
+                    omittedField: "requireConnectionBinding",
+                    description: "Creates environment options using the default connection-binding policy.",
+                }
+                : undefined;
     if (legacyConstructor) {
         const legacyFieldNames = legacyConstructor.fieldNames;
         const legacyFields = legacyFieldNames.map((fieldName) => {

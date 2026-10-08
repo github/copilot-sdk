@@ -5,7 +5,7 @@
         "url": "https://github.com/github/copilot-sdk.git"
     },
     "version": "0.0.0-dev",
-    "copilotCliVersion": "1.0.94-4",
+    "copilotCliVersion": "1.0.94-5",
     "description": "TypeScript SDK for programmatic control of GitHub Copilot CLI via JSON-RPC",
     "main": "./dist/cjs/index.js",
     "types": "./dist/index.d.ts",
@@ -80,6 +80,7 @@
         "esbuild": "^0.28.1",
         "eslint": "^9.0.0",
         "glob": "^13.0.1",
+        "hpke-js": "^1.8.0",
         "json-schema": "^0.4.0",
         "json-schema-to-typescript": "^15.0.4",
         "prettier": "^3.8.1",

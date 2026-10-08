@@ -3,17 +3,22 @@ use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::{Arc, LazyLock, Mutex};
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use ahp::{Client as AhpClient, ClientConfig, SessionSubscription, SubscriptionEvent};
 use ahp_types::version::PROTOCOL_VERSION;
 use ahp_ws::WebSocketTransport;
+use base64::Engine as _;
+use base64::engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD};
 use futures_util::FutureExt;
 use github_copilot_sdk::{
     AhpHost, AhpHostExit, AhpHostOptions, CliProgram, Client, ClientOptions, Transport,
 };
+use hpke::{Deserializable, Serializable};
+use rand_core::{OsRng, RngCore};
 use serde::Deserialize;
 use serde_json::{Value, json};
+use sha2::{Digest, Sha256};
 
 use super::support::{DEFAULT_TEST_TOKEN, E2eContext};
 
@@ -190,6 +195,7 @@ pub fn deadline<T>(future: impl Future<Output = T>) -> impl Future<Output = T> {
 pub struct Ahp {
     pub client: AhpClient,
     pub client_id: String,
+    initialize_meta: Value,
 }
 
 pub async fn connect(host: &AhpHost) -> Ahp {
@@ -226,7 +232,149 @@ pub async fn connect_url_as(url: &str, token: Option<&str>, client_id: String) -
         .await
         .unwrap();
     assert_eq!(initialized.protocol_version, "0.9.0");
-    Ahp { client, client_id }
+    let initialize_meta = serde_json::to_value(initialized).unwrap()["_meta"].clone();
+    Ahp {
+        client,
+        client_id,
+        initialize_meta,
+    }
+}
+
+// Matches protocol_base/ahp/sealing.rs: HPKE base mode, empty info/AAD,
+// enc || ciphertext, and the structured connection-bound auth-token plaintext.
+// The harness owns the direct endpoint; no remote advertisement is trusted.
+fn sealed_auth_token(initialize_meta: &Value, root_meta: &Value, resource: &str) -> String {
+    let required = initialize_meta["copilot.encryptionRequired"]
+        .as_array()
+        .unwrap();
+    assert!(required.iter().any(|purpose| purpose == "auth-token"));
+    let binding = &initialize_meta["copilot.authChallenge"];
+    assert_eq!(binding["required"], true);
+    assert!(binding["responseMaxAgeSeconds"].as_u64().unwrap() > 0);
+    let challenge = binding["challenge"].as_str().unwrap();
+    assert_eq!(challenge.len(), 32);
+    assert!(
+        challenge
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+    );
+    let key = root_meta["copilot.encryptionKeys"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|key| {
+            key["use"] == "auth-token" && key["algorithm"] == "hpke-x25519-hkdf-sha256-aes256gcm"
+        })
+        .expect("host advertises auth-token HPKE key");
+    let public_key = STANDARD.decode(key["publicKey"].as_str().unwrap()).unwrap();
+    assert_eq!(public_key.len(), 32);
+    let key_id = key["keyId"].as_str().unwrap();
+    assert_eq!(
+        key_id,
+        URL_SAFE_NO_PAD.encode(&Sha256::digest(&public_key)[..8])
+    );
+    let mut nonce = [0_u8; 16];
+    OsRng.fill_bytes(&mut nonce);
+    let nonce: String = nonce.iter().map(|byte| format!("{byte:02x}")).collect();
+    let plaintext = serde_json::to_vec(&json!({
+        "cty": "text",
+        "ctx": {
+            "purpose": "auth-token",
+            "resource": resource,
+            "connection": {
+                "challenge": challenge,
+                "nonce": nonce,
+                "issuedAt": SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
+            },
+        },
+        "value": DEFAULT_TEST_TOKEN,
+    }))
+    .unwrap();
+    type Kem = hpke::kem::X25519HkdfSha256;
+    let recipient = <Kem as hpke::Kem>::PublicKey::from_bytes(&public_key).unwrap();
+    let (enc, mut sender) = hpke::setup_sender::<
+        hpke::aead::AesGcm256,
+        hpke::kdf::HkdfSha256,
+        Kem,
+        _,
+    >(&hpke::OpModeS::Base, &recipient, &[], &mut OsRng)
+    .unwrap();
+    let mut ciphertext = enc.to_bytes().to_vec();
+    ciphertext.extend(sender.seal(&plaintext, &[]).unwrap());
+    format!(
+        "copilot-sealed.v1.{key_id}.{}",
+        URL_SAFE_NO_PAD.encode(ciphertext)
+    )
+}
+
+#[test]
+fn fixture_authentication_is_sealed_and_bound_to_the_live_challenge() {
+    type Kem = hpke::kem::X25519HkdfSha256;
+    let (secret, public) = <Kem as hpke::Kem>::gen_keypair(&mut OsRng);
+    let key_id = URL_SAFE_NO_PAD.encode(&Sha256::digest(public.to_bytes())[..8]);
+    let challenge = "00112233445566778899aabbccddeeff";
+    let initialized = json!({
+        "copilot.encryptionRequired": ["auth-token", "mcp-auth-token"],
+        "copilot.authChallenge": {
+            "challenge": challenge, "responseMaxAgeSeconds": 300, "required": true,
+        },
+    });
+    let root = json!({
+        "copilot.encryptionKeys": [{
+            "keyId": key_id, "use": "auth-token",
+            "algorithm": "hpke-x25519-hkdf-sha256-aes256gcm",
+            "publicKey": STANDARD.encode(public.to_bytes()),
+        }],
+    });
+    let mut nonces = std::collections::HashSet::new();
+    for _ in 0..2 {
+        let before = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        let sealed = sealed_auth_token(&initialized, &root, "https://api.github.com");
+        assert!(!sealed.contains(DEFAULT_TEST_TOKEN));
+        let prefix = format!("copilot-sealed.v1.{key_id}.");
+        let bytes = URL_SAFE_NO_PAD
+            .decode(sealed.strip_prefix(&prefix).unwrap())
+            .unwrap();
+        let enc = <Kem as hpke::Kem>::EncappedKey::from_bytes(&bytes[..32]).unwrap();
+        let mut recipient =
+            hpke::setup_receiver::<hpke::aead::AesGcm256, hpke::kdf::HkdfSha256, Kem>(
+                &hpke::OpModeR::Base,
+                &secret,
+                &enc,
+                &[],
+            )
+            .unwrap();
+        let plaintext: Value =
+            serde_json::from_slice(&recipient.open(&bytes[32..], &[]).unwrap()).unwrap();
+        assert_eq!(plaintext["cty"], "text");
+        assert_eq!(plaintext["value"], DEFAULT_TEST_TOKEN);
+        assert_eq!(plaintext["ctx"]["purpose"], "auth-token");
+        assert_eq!(plaintext["ctx"]["resource"], "https://api.github.com");
+        let connection = &plaintext["ctx"]["connection"];
+        assert_eq!(connection["challenge"], challenge);
+        assert!(connection["issuedAt"].as_u64().unwrap() >= before);
+        assert!(
+            connection["issuedAt"].as_u64().unwrap()
+                <= SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs()
+        );
+        let nonce = connection["nonce"].as_str().unwrap();
+        assert_eq!(nonce.len(), 32);
+        assert!(
+            nonce
+                .bytes()
+                .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+        );
+        assert!(
+            nonces.insert(nonce.to_owned()),
+            "each authentication has a fresh nonce"
+        );
+    }
 }
 
 pub async fn authenticate(ahp: &Ahp) {
@@ -244,12 +392,17 @@ pub async fn authenticate(ahp: &Ahp) {
         .find(|resource| resource["resource_name"] == "GitHub API")
         .unwrap()["resource"]
         .clone();
+    let token = sealed_auth_token(
+        &ahp.initialize_meta,
+        &root["snapshot"]["state"]["_meta"],
+        resource.as_str().unwrap(),
+    );
     let _: Value = ahp
         .client
         .request(
             "authenticate",
             json!({
-                "channel": ROOT, "resource": resource, "token": DEFAULT_TEST_TOKEN,
+                "channel": ROOT, "resource": resource, "token": token,
             }),
         )
         .await
@@ -453,9 +606,24 @@ pub async fn resume(ahp: &Ahp, uri: &str, excluded_sdk_id: Option<&str>) {
     );
 }
 
-pub fn topology(host: &AhpHost, owner: &Client, catalog: &Path) {
+pub fn topology(host: &AhpHost, owner: &Client, home: &Path) {
     let runtime = owner.pid().expect("owned out-of-process runtime");
+    let settings: Value =
+        serde_json::from_slice(&std::fs::read(home.join("settings.json")).unwrap()).unwrap();
+    let compute_id = settings["ahpEnvironment"]["computeId"]
+        .as_str()
+        .expect("host must save its default compute identity");
+    uuid::Uuid::parse_str(compute_id).expect("default compute identity must be a UUID");
+    let catalog = home.join("ahp").join(compute_id).join("sessions");
     assert!(catalog.is_dir(), "host must create the resolved catalog");
+    assert_eq!(
+        std::fs::read_to_string(catalog.join(".attached-host.owner"))
+            .expect("catalog ownership metadata")
+            .parse::<u32>()
+            .unwrap(),
+        runtime,
+        "the SDK runtime owns the compute-scoped catalog"
+    );
     let command = std::fs::read_to_string(format!("/proc/{runtime}/cmdline")).unwrap();
     let args: Vec<_> = command.split('\0').collect();
     assert!(!command.contains("copilotd"), "no companion host process");

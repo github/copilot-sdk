@@ -16,6 +16,12 @@
     <JsonSerializerIsReflectionEnabledByDefault Condition="'$(TargetFramework)' == 'net8.0'">false</JsonSerializerIsReflectionEnabledByDefault>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net8.0'">
+    <!-- Restore the RID packs used by the offline MSBuild tool-package fixtures during setup. -->
+    <RuntimeIdentifiers Condition="'$(RuntimeIdentifier)' != ''">$(RuntimeIdentifier)</RuntimeIdentifiers>
+    <RuntimeIdentifiers Condition="'$(RuntimeIdentifier)' == ''">$(NETCoreSdkPortableRuntimeIdentifier)</RuntimeIdentifiers>
+  </PropertyGroup>
+
   <ItemGroup>
     <PackageReference Include="Microsoft.Data.Sqlite" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />

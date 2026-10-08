@@ -6,6 +6,7 @@ using GitHub.Copilot.Rpc;
 using GitHub.Copilot.Test.Harness;
 using Microsoft.Extensions.Logging;
 using System.Data;
+using System.Diagnostics;
 using System.Reflection;
 using Xunit;
 using Xunit.Abstractions;
@@ -18,6 +19,7 @@ public abstract class E2ETestBase : IClassFixture<E2ETestFixture>, IAsyncLifetim
     private readonly string _snapshotCategory;
     private readonly string _testName;
     private readonly bool _replayOnly;
+    private readonly ITestOutputHelper _output;
 
     protected E2ETestContext Ctx => _fixture.Ctx;
     protected CopilotClient Client => _fixture.Client;
@@ -32,10 +34,12 @@ public abstract class E2ETestBase : IClassFixture<E2ETestFixture>, IAsyncLifetim
         _snapshotCategory = snapshotCategory;
         _testName = GetTestName(output);
         _replayOnly = replayOnly;
+        _output = output;
         Logger = new XunitLogger(output);
 
         // Wire logger into the shared context so all clients created via Ctx.CreateClient get it.
         Ctx.Logger = Logger;
+        Ctx.DiagnosticsEnabled = snapshotCategory is "pending_work_resume" or "session";
     }
 
     /// <summary>Logger that forwards warnings and above to xunit test output.</summary>
@@ -73,6 +77,53 @@ public abstract class E2ETestBase : IClassFixture<E2ETestFixture>, IAsyncLifetim
     public Task DisposeAsync()
     {
         return Ctx.CleanupAfterTestAsync();
+    }
+
+    protected async Task WithSdkDiagnosticsAsync(Func<Task> test)
+    {
+        try
+        {
+            await test();
+        }
+        catch
+        {
+            using var process = new Process
+            {
+                StartInfo = new ProcessStartInfo("node")
+                {
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                },
+            };
+            var started = false;
+            try
+            {
+                process.StartInfo.Arguments = string.Join(" ",
+                    new[] { Path.Join(FindTestHarnessDir(), "sdk-diagnostics.mjs"), Ctx.HomeDir }
+                        .Select(argument => "\"" + argument.Replace("\"", "\\\"") + "\""));
+                process.Start();
+                started = true;
+                var text = process.StandardOutput.ReadToEndAsync();
+                var errors = process.StandardError.ReadToEndAsync();
+                await Task.WhenAll(text, errors, process.WaitForExitAsync()).WaitAsync(TimeSpan.FromSeconds(5));
+                _output.WriteLine(process.ExitCode == 0 ? await text : "SDK diagnostics unavailable");
+            }
+            catch
+            {
+                try
+                {
+                    if (started && !process.HasExited) process.Kill(entireProcessTree: true);
+                }
+                catch (Exception error) when (error is InvalidOperationException or System.ComponentModel.Win32Exception)
+                {
+                    _output.WriteLine("SDK diagnostics collector cleanup failed");
+                }
+                _output.WriteLine("SDK diagnostics unavailable");
+            }
+            throw;
+        }
     }
 
     /// <summary>

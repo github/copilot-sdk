@@ -748,6 +748,24 @@ export interface ToolInvocation {
     tracestate?: string;
     /** Aborted when the runtime completes this request or the session disconnects. */
     signal?: AbortSignal;
+    /**
+     * Sub-agent instance that issued this call (the `agentId` of its session
+     * events). `undefined` for a root-agent call, and for every call when the
+     * runtime does not attribute sub-agent tool calls.
+     *
+     * @experimental
+     */
+    agentId?: string;
+    /**
+     * Runtime request id of this call: the key
+     * `session.tools.handlePendingToolCall` and `session.tools.listPendingRequests`
+     * use. A root-agent call stays answerable after the session is resumed with
+     * pending work continued; a sub-agent's call can be answered only while that
+     * sub-agent is still running.
+     *
+     * @experimental
+     */
+    requestId?: string;
 }
 
 export type ToolHandler<TArgs = unknown> = (

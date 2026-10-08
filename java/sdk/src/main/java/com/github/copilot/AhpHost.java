@@ -5,6 +5,8 @@
 package com.github.copilot;
 
 import com.github.copilot.generated.rpc.HostDisposeParams;
+import com.github.copilot.generated.rpc.HostListSessionsParams;
+import com.github.copilot.generated.rpc.HostListSessionsResult;
 import com.github.copilot.generated.rpc.HostPublishSessionParams;
 import com.github.copilot.generated.rpc.HostPublishSessionResult;
 import com.github.copilot.generated.rpc.HostStartResult;
@@ -83,8 +85,8 @@ public final class AhpHost implements AutoCloseable {
     }
 
     /**
-     * Publishes an exact resident session attached to the owning client, without
-     * invoking a factory or transferring session ownership.
+     * Durably advertises an exact attached session in the compute-scoped catalog,
+     * without invoking a factory or transferring session ownership.
      *
      * @param sessionId
      *            resident session identity
@@ -92,6 +94,15 @@ public final class AhpHost implements AutoCloseable {
      */
     public CompletableFuture<HostPublishSessionResult> publishSession(String sessionId) {
         return rpc.publishSession(new HostPublishSessionParams(info.hostId(), sessionId));
+    }
+
+    /**
+     * Lists all live and dormant catalog sessions advertised by this host.
+     *
+     * @return the advertised host sessions
+     */
+    public CompletableFuture<HostListSessionsResult> listSessions() {
+        return rpc.listSessions(new HostListSessionsParams(info.hostId()));
     }
 
     /** Disposes the listener and waits for acknowledged cleanup. */

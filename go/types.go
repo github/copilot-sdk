@@ -1924,6 +1924,22 @@ type ToolInvocation struct {
 	// disconnects, so background work must derive its own lifetime if it should
 	// outlive the invocation.
 	TraceContext context.Context
+
+	// AgentID is the sub-agent instance that issued this call (the AgentID of
+	// its session events). It is empty for a root-agent call, and for every
+	// call when the runtime does not attribute sub-agent tool calls.
+	//
+	// Experimental: this field may change or be removed.
+	AgentID string
+
+	// RequestID is the runtime request id of this call: the key
+	// session.tools.handlePendingToolCall and session.tools.listPendingRequests use.
+	// A root-agent call stays answerable after the session is resumed with
+	// pending work continued; a sub-agent's call can be answered only while that
+	// sub-agent is still running.
+	//
+	// Experimental: this field may change or be removed.
+	RequestID string
 }
 
 // ToolHandler executes a tool invocation.

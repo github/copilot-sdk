@@ -11,7 +11,7 @@ import com.fasterxml.jackson.databind.introspect.JacksonAnnotationIntrospector;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.github.copilot.generated.rpc.HostExitReason;
 import com.github.copilot.generated.rpc.HostExitedNotification;
-import com.github.copilot.generated.rpc.HostStartParams;
+import com.github.copilot.generated.rpc.HostStartRequest;
 import com.github.copilot.generated.rpc.ServerHostApi;
 import com.github.copilot.rpc.ResumeSessionConfig;
 import com.github.copilot.rpc.SessionConfig;
@@ -99,8 +99,10 @@ final class AhpHostManager {
         }
         var snapshot = host.options;
         return rpc
-                .start(new HostStartParams(host.id, snapshot.getLocalServer(), snapshot.getGithubEnvironment(),
-                        snapshot.getCreateSession() != null, snapshot.getResumeSession() != null))
+                .start(new HostStartRequest(host.id).setComputeId(snapshot.getComputeId())
+                        .setLocalServer(snapshot.getLocalServer()).setGitHubEnvironment(snapshot.getGithubEnvironment())
+                        .setSessionFactory(snapshot.getCreateSession() != null)
+                        .setResumeFactory(snapshot.getResumeSession() != null))
                 .thenApply(info -> new AhpHost(info, rpc)).whenComplete((result, error) -> {
                     if (error != null) {
                         endHost(host, null);

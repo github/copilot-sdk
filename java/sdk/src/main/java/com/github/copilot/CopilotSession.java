@@ -1226,7 +1226,9 @@ public final class CopilotSession implements AutoCloseable {
             if (tool == null) {
                 return; // This client doesn't handle this tool; another client will
             }
-            executeToolAndRespondAsync(data.requestId(), data.toolName(), data.toolCallId(), data.arguments(), tool);
+            String agentId = toolEvent.getAgentId();
+            executeToolAndRespondAsync(data.requestId(), data.toolName(), data.toolCallId(), data.arguments(), tool,
+                    agentId == null || agentId.isEmpty() ? null : agentId);
 
         } else if (event instanceof ExternalToolCompletedEvent completedEvent) {
             var data = completedEvent.getData();
@@ -1333,7 +1335,7 @@ public final class CopilotSession implements AutoCloseable {
      * {@code session.tools.handlePendingToolCall}.
      */
     private void executeToolAndRespondAsync(String requestId, String toolName, String toolCallId, Object arguments,
-            ToolDefinition tool) {
+            ToolDefinition tool, String agentId) {
         var pending = new PendingExternalTool();
         synchronized (this) {
             if (isTerminated || externalToolsClosed || pendingExternalTools.putIfAbsent(requestId, pending) != null) {
@@ -1347,6 +1349,7 @@ public final class CopilotSession implements AutoCloseable {
                         : (arguments != null ? MAPPER.valueToTree(arguments) : null);
                 var invocation = new com.github.copilot.rpc.ToolInvocation().setSessionId(sessionId)
                         .setToolCallId(toolCallId).setToolName(toolName).setArguments(argumentsNode);
+                invocation.setAgentId(agentId).setRequestId(requestId);
 
                 if (TOOL_SEARCH_TOOL_NAME.equals(toolName)) {
                     try {

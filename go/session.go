@@ -1559,7 +1559,11 @@ func (s *Session) dispatchEvent(event SessionEvent) {
 	broadcastHandled := false
 	switch data := event.Data.(type) {
 	case *ExternalToolRequestedData:
-		s.startExternalTool(data)
+		var agentID string
+		if event.AgentID != nil {
+			agentID = *event.AgentID
+		}
+		s.startExternalTool(data, agentID)
 		broadcastHandled = true
 	case *ExternalToolCompletedData:
 		s.cancelExternalTool(data.RequestID)
@@ -1789,7 +1793,7 @@ func (s *Session) handleBroadcastEvent(event SessionEvent) {
 	}
 }
 
-func (s *Session) startExternalTool(data *ExternalToolRequestedData) {
+func (s *Session) startExternalTool(data *ExternalToolRequestedData, agentID string) {
 	handler, ok := s.getToolHandler(data.ToolName)
 	if !ok {
 		return
@@ -1823,7 +1827,7 @@ func (s *Session) startExternalTool(data *ExternalToolRequestedData) {
 	s.pendingExternalTools[data.RequestID] = pending
 	s.pendingExternalToolsM.Unlock()
 
-	go s.executeToolAndRespond(data.RequestID, data.ToolName, data.ToolCallID, data.Arguments, handler, pending)
+	go s.executeToolAndRespond(data.RequestID, data.ToolName, data.ToolCallID, agentID, data.Arguments, handler, pending)
 }
 
 func (s *Session) cancelExternalTool(requestID string) {
@@ -1858,7 +1862,7 @@ func (s *Session) claimExternalTool(requestID string, pending *pendingExternalTo
 }
 
 // executeToolAndRespond executes a tool handler and sends the result back via RPC.
-func (s *Session) executeToolAndRespond(requestID, toolName, toolCallID string, arguments any, handler ToolHandler, pending *pendingExternalTool) {
+func (s *Session) executeToolAndRespond(requestID, toolName, toolCallID, agentID string, arguments any, handler ToolHandler, pending *pendingExternalTool) {
 	ctx := pending.ctx
 	defer func() {
 		s.pendingExternalToolsM.Lock()
@@ -1887,6 +1891,8 @@ func (s *Session) executeToolAndRespond(requestID, toolName, toolCallID string, 
 		ToolName:     toolName,
 		Arguments:    arguments,
 		TraceContext: ctx,
+		AgentID:      agentID,
+		RequestID:    requestID,
 	}
 
 	// The built-in tool-search tool receives a snapshot of the session's

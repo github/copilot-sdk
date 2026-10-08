@@ -370,8 +370,8 @@ describe("disabled MCP servers", async () => {
                         .map(({ name, enabled, live }) => ({ name, enabled, live }))
                         .sort((a, b) => a.name.localeCompare(b.name))
                 ).toEqual([
-                    { name: "control", enabled: true, live: undefined },
-                    { name: "disabled", enabled: false, live: undefined },
+                    { name: "control", enabled: true, live: { status: "not_configured" } },
+                    { name: "disabled", enabled: false, live: { status: "not_configured" } },
                 ]);
                 expect(markerCount(controlMarker)).toBe(0);
                 expect(markerCount(disabledMarker)).toBe(0);
@@ -453,9 +453,9 @@ describe("disabled MCP servers", async () => {
             expect(after.servers.find((server) => server.name === serverName)).toMatchObject({
                 enabled: !configDisabled,
             });
-            expect(
-                after.servers.find((server) => server.name === serverName)?.live
-            ).toBeUndefined();
+            expect(after.servers.find((server) => server.name === serverName)?.live).toEqual({
+                status: "not_configured",
+            });
             expect(markerCount(marker)).toBe(0);
 
             // A live-list read is the first operation that may materialize the graph.

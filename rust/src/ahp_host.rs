@@ -18,8 +18,9 @@ pub use crate::generated::api_types::HostExitReason as AhpHostExitReason;
 /// `Exited` means hosting-task failure, not runtime process death; `exit_code` is `None`.
 pub use crate::generated::api_types::HostExitedNotification as AhpHostExit;
 use crate::generated::api_types::{
-    HostDisposeRequest, HostPublishSessionRequest, HostPublishSessionResult,
-    HostSessionCreateCallback, HostSessionReleasedNotification, HostStartRequest, HostStartResult,
+    HostDisposeRequest, HostListSessionsRequest, HostListSessionsResult, HostPublishSessionRequest,
+    HostPublishSessionResult, HostSessionCreateCallback, HostSessionReleasedNotification,
+    HostStartOptions, HostStartResult,
 };
 use crate::session::Session;
 use crate::{
@@ -146,6 +147,9 @@ pub type AhpSessionReleasedCallback = Arc<dyn Fn(Arc<Session>) + Send + Sync>;
 #[derive(Clone, Default)]
 #[non_exhaustive]
 pub struct AhpHostOptions {
+    /// Stable durable catalog identity; defaults are runtime-owned.
+    /// Must agree with `github_environment.compute_id` when both are supplied.
+    pub compute_id: Option<String>,
     /// Experimental local WebSocket listener configuration.
     pub local_server: Option<crate::rpc::HostLocalServerOptions>,
     /// Experimental Mission Control registration; name and compute ID are required.
@@ -171,6 +175,7 @@ pub struct AhpHostOptions {
 impl std::fmt::Debug for AhpHostOptions {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("AhpHostOptions")
+            .field("compute_id", &self.compute_id)
             .field(
                 "local_server",
                 &self.local_server.as_ref().map(|_| "[configured]"),
@@ -188,6 +193,12 @@ impl AhpHostOptions {
     /// Create options with no transports enabled. Select at least one before starting.
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Select the same durable catalog for local and Mission Control hosting.
+    pub fn with_compute_id(mut self, compute_id: impl Into<String>) -> Self {
+        self.compute_id = Some(compute_id.into());
+        self
     }
 
     /// Enable the local WebSocket listener. Experimental; may change or be removed.
@@ -300,7 +311,7 @@ impl std::fmt::Debug for AhpHost {
 }
 
 impl AhpHost {
-    /// Publish a resident session already attached to this client until this listener stops.
+    /// Durably advertise an attached application session in the compute-scoped catalog.
     pub async fn publish_session(
         &self,
         session_id: impl Into<crate::SessionId>,
@@ -314,6 +325,20 @@ impl AhpHost {
             .publish_session(HostPublishSessionRequest {
                 host_id: self.host_id.clone(),
                 session_id: session_id.into(),
+            })
+            .await
+    }
+
+    /// List all live and dormant catalog sessions advertised by this host.
+    pub async fn list_sessions(&self) -> Result<HostListSessionsResult, Error> {
+        let client = Client::from_inner(self.client.upgrade().ok_or_else(|| {
+            Error::from(ErrorKind::Protocol(ProtocolErrorKind::RequestCancelled))
+        })?);
+        client
+            .rpc()
+            .host()
+            .list_sessions(HostListSessionsRequest {
+                host_id: Some(self.host_id.clone()),
             })
             .await
     }
@@ -434,15 +459,25 @@ impl Client {
                 },
             );
         }
+        let mut start_options = HostStartOptions::new(host_id);
+        if let Some(compute_id) = options.compute_id {
+            start_options = start_options.compute_id(compute_id);
+        }
+        if let Some(local_server) = options.local_server {
+            start_options = start_options.local_server(local_server);
+        }
+        if let Some(github_environment) = options.github_environment {
+            start_options = start_options.github_environment(github_environment);
+        }
+        if let Some(session_factory) = session_factory {
+            start_options = start_options.session_factory(session_factory);
+        }
+        if let Some(resume_factory) = resume_factory {
+            start_options = start_options.resume_factory(resume_factory);
+        }
         let request = self.inner.rpc.send_request_with_inline_callback(
             "host.start",
-            Some(serde_json::to_value(HostStartRequest {
-                host_id,
-                local_server: options.local_server,
-                github_environment: options.github_environment,
-                session_factory,
-                resume_factory,
-            })?),
+            Some(serde_json::to_value(start_options)?),
             None,
         );
         pending.start = Some(tokio::spawn(async move {
@@ -917,6 +952,7 @@ fn config_from_host(settings: &HashMap<String, Value>) -> Result<SessionConfig, 
                         for (key, value) in settings {
                             match key.as_str() {
                                 "sessionId" => config.session_id = serde_json::from_value(value.clone())?,
+                                "refreshCustomInstructions" => config.refresh_custom_instructions = serde_json::from_value(value.clone())?,
                                 $($name => config.$field = serde_json::from_value(value.clone())?,)*
                                 _ => return Err(handoff_error("Unsupported AHP session configuration setting")),
                             }
@@ -931,6 +967,9 @@ pub(crate) fn config_for_host(config: &SessionConfig) -> Result<Value, Error> {
     let mut settings = serde_json::Map::new();
     if let Some(id) = &config.session_id {
         settings.insert("sessionId".into(), serde_json::to_value(id)?);
+    }
+    if let Some(refresh) = config.refresh_custom_instructions {
+        settings.insert("refreshCustomInstructions".into(), Value::Bool(refresh));
     }
     macro_rules! encode {
                     ($($name:literal => $field:ident,)*) => {

@@ -6,6 +6,7 @@ import type {
     HostExitedNotification,
     HostStartResult,
     HostPublishSessionResult,
+    HostListSessionsResult,
     HostLocalServerOptions,
     HostGitHubEnvironmentOptions,
 } from "./generated/rpc.js";
@@ -44,6 +45,8 @@ export type AhpHostExit = HostExitedNotification;
  * @experimental
  */
 export interface AhpHostOptions {
+    /** Stable catalog identity; must agree with githubEnvironment.computeId when both are supplied. */
+    computeId?: string;
     /** Enable a local WebSocket listener; an empty object selects loopback defaults. */
     localServer?: HostLocalServerOptions;
     /** Register a Mission Control environment and enable remote WPS connections. */
@@ -57,7 +60,7 @@ export interface AhpHostOptions {
      */
     createSession?: (request: AhpSessionCreateRequest) => Promise<CopilotSession>;
     /**
-     * Resume a durable session previously created by an application factory.
+     * Resume a durable application-owned session, including a previously published session.
      * Return the original object from this client's resumeSession, or an existing
      * attached original without reconfiguring it. Published resident sessions
      * attach directly and never invoke this callback.
@@ -77,7 +80,7 @@ export interface AhpHostOptions {
  * the owning client also stops the host; reconnecting does not reclaim it.
  * Stopping a host does not delete its underlying sessions.
  * Its durable AHP catalog is shared by successive hosts in the runtime's
- * effective Copilot home; a concurrent host for that catalog is rejected.
+ * effective Copilot home and compute identity; a concurrent host for that catalog is rejected.
  *
  * @experimental
  */
@@ -98,7 +101,8 @@ export class AhpHost {
         private readonly disposeHost: () => Promise<void>,
         private readonly publishHostSession: (
             sessionId: string
-        ) => Promise<HostPublishSessionResult>
+        ) => Promise<HostPublishSessionResult>,
+        private readonly listHostSessions: () => Promise<HostListSessionsResult>
     ) {
         this.hostId = info.hostId;
         this.url = info.url;
@@ -112,9 +116,14 @@ export class AhpHost {
         return this.disposeHost();
     }
 
-    /** Publish an existing session attached to this client, until this listener stops. */
+    /** Publish an attached application session into the durable compute-scoped host catalog. */
     publishSession(sessionId: string): Promise<HostPublishSessionResult> {
         return this.publishHostSession(sessionId);
+    }
+
+    /** List all live and dormant catalog sessions advertised by this host. */
+    listSessions(): Promise<HostListSessionsResult> {
+        return this.listHostSessions();
     }
 
     async [Symbol.asyncDispose](): Promise<void> {

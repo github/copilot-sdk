@@ -62,6 +62,8 @@ class Application:
         self.hook_calls: list[str] = []
         self.create_calls = 0
         self.resume_calls = 0
+        self.create_ids: list[str] = []
+        self.resume_ids: list[str] = []
 
         @define_tool("magic_number", description="Returns a magic number")
         def magic_number(params: Seed, invocation: ToolInvocation) -> str:
@@ -88,7 +90,11 @@ class Application:
         self.create_calls += 1
         assert not request.cancellation_event.is_set()
         assert request.config["working_directory"] == self.work_dir
+        requested_id = request.config["session_id"]
+        assert requested_id
+        self.create_ids.append(requested_id)
         session = await self.client.create_session(**self.config(request.config))
+        assert session.session_id == requested_id
         self.sessions.append(session)
         return session
 
@@ -97,9 +103,11 @@ class Application:
         assert not request.cancellation_event.is_set()
         assert request.config["continue_pending_work"] is False
         assert request.config["working_directory"] == self.work_dir
+        self.resume_ids.append(request.session_id)
         session = await self.client.resume_session(
             request.session_id, **self.config(request.config)
         )
+        assert session.session_id == request.session_id
         self.sessions.append(session)
         return session
 
@@ -171,7 +179,9 @@ class TestRuntimeHost:
                     )
                     session_id = created["sessionId"]
                     assert app.create_calls == 1
-                    assert app.sessions[0].session_id == session_id
+                    runtime_id = app.sessions[0].session_id
+                    assert app.create_ids == [runtime_id]
+                    assert runtime_id != session_id
                     response = await ahp.request(
                         {
                             "op": "turn",
@@ -181,7 +191,7 @@ class TestRuntimeHost:
                         }
                     )
                     assert "MAGIC_hello_42" in response["text"]
-                    await assert_tools(ctx, app, session_id)
+                    await assert_tools(ctx, app, runtime_id)
                     await asyncio.gather(host.dispose(), host.dispose())
                     await ahp.request({"op": "stopped", "clientId": client_id, "url": host.url})
                     await asyncio.wait_for(app.release_event.wait(), 10)
@@ -251,6 +261,10 @@ class TestRuntimeHost:
                         }
                     )
                     session_id = created["sessionId"]
+                    runtime_id = app.sessions[0].session_id
+                    assert app.create_calls == 1
+                    assert app.create_ids == [runtime_id]
+                    assert runtime_id != session_id
                     first = await ahp.request(
                         {
                             "op": "turn",
@@ -283,7 +297,8 @@ class TestRuntimeHost:
                     ]
                     assert resumed.create_calls == 0
                     assert resumed.resume_calls == 1
-                    assert resumed.sessions[0].session_id == session_id
+                    assert resumed.resume_ids == [runtime_id]
+                    assert resumed.sessions[0].session_id == runtime_id
                     assert resumed.sessions[0] is not app.sessions[0]
                     response = await ahp.request(
                         {
@@ -297,7 +312,7 @@ class TestRuntimeHost:
                     assert "MAGIC_hello_42" in response["text"]
                     assert "CLIENT_ECHO_ping" in response["text"]
                     assert response["clientToolCalls"] == 1
-                    await assert_tools(ctx, resumed, session_id)
+                    await assert_tools(ctx, resumed, runtime_id)
                     await replacement.dispose()
                     await ahp.request(
                         {"op": "stopped", "clientId": resumed_client_id, "url": replacement.url}

@@ -15,6 +15,8 @@ import {
     ToolCallContributorKind,
     ToolResultContentType,
     TurnState,
+    sessionReducer,
+    type SessionAction,
     type ChatState,
     type SessionState,
 } from "@microsoft/agent-host-protocol-v09";
@@ -31,6 +33,7 @@ import {
     type CopilotSession,
 } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
+import { connectRawAhp } from "./harness/rawAhpClient.js";
 import {
     assertHostStopped as assertHostStoppedWithPid,
     assertProcessStopped,
@@ -153,10 +156,13 @@ describe.skipIf(!enabled)("Runtime-supervised AHP host", async () => {
         const tool = vi.fn(({ seed }: { seed: string }) => `MAGIC_${seed}_42`);
         const released = vi.fn();
         let original: CopilotSession | undefined;
+        let requestedSessionId: string | undefined;
         await using host = await owner.startAhpHost({
             localServer: {},
             createSession: async ({ config, signal }) => {
                 expect(signal.aborted).toBe(false);
+                expect(config.sessionId).toBeTruthy();
+                requestedSessionId = config.sessionId;
                 original = await owner.createSession({
                     ...config,
                     onPermissionRequest: approveAll,
@@ -176,7 +182,8 @@ describe.skipIf(!enabled)("Runtime-supervised AHP host", async () => {
         const ahp = await connectAhp(host);
         try {
             const session = await createAhpSession(ahp, ctx.workDir, ctx.env.GITHUB_TOKEN);
-            expect(original?.sessionId).toBe(session.sessionId);
+            expect(original?.sessionId).toBe(requestedSessionId);
+            expect(original?.sessionId).not.toBe(session.sessionId);
             await assertRuntimeListener(host, runtimeDetails().pid, artifacts);
             const response = await streamedTurn(
                 ahp.client,
@@ -184,8 +191,10 @@ describe.skipIf(!enabled)("Runtime-supervised AHP host", async () => {
                 session.subscription,
                 "Use the magic_number tool with seed 'hello' and tell me the result"
             );
-            expect(tool).toHaveBeenCalledOnce();
-            expect(tool.mock.calls[0]?.[0]).toEqual({ seed: "hello" });
+            expect(tool).toHaveBeenCalledExactlyOnceWith(
+                { seed: "hello" },
+                expect.objectContaining({ sessionId: requestedSessionId, toolName: "magic_number" })
+            );
             // Validate the final assistant response arrived (guards against truncated captures).
             expect(response.text).toContain("MAGIC_hello_42");
             expect(response.deltas).toBeGreaterThan(0);
@@ -229,9 +238,12 @@ describe.skipIf(!enabled)("Runtime-supervised AHP host", async () => {
             ({ country }: { country: string }) => `COUNTRY_${country.toUpperCase()}`
         );
         let original: CopilotSession | undefined;
+        let requestedSessionId: string | undefined;
         await using host = await owner.startAhpHost({
             localServer: {},
             createSession: async ({ config }) => {
+                expect(config.sessionId).toBeTruthy();
+                requestedSessionId = config.sessionId;
                 original = await owner.createSession({
                     ...config,
                     onPermissionRequest: approveAll,
@@ -259,7 +271,8 @@ describe.skipIf(!enabled)("Runtime-supervised AHP host", async () => {
                     },
                 },
             ]);
-            expect(original?.sessionId).toBe(session.sessionId);
+            expect(original?.sessionId).toBe(requestedSessionId);
+            expect(original?.sessionId).not.toBe(session.sessionId);
             const clientCalls = new Set<string>();
             const response = await streamedTurn(
                 ahp.client,
@@ -298,8 +311,10 @@ describe.skipIf(!enabled)("Runtime-supervised AHP host", async () => {
                     }
                 }
             );
-            expect(appTool).toHaveBeenCalledOnce();
-            expect(appTool.mock.calls[0]?.[0]).toEqual({ city: "Paris" });
+            expect(appTool).toHaveBeenCalledExactlyOnceWith(
+                { city: "Paris" },
+                expect.objectContaining({ sessionId: requestedSessionId, toolName: "lookup_city" })
+            );
             expect(clientTool).toHaveBeenCalledExactlyOnceWith({ country: "France" });
             expect(clientCalls.size).toBe(1);
             expect(response.text).toContain("CITY_PARIS");
@@ -445,6 +460,8 @@ describe.skipIf(!enabled)("Runtime-supervised AHP host", async () => {
         let sessionUri = "";
         let sessionId = "";
         const create = vi.fn(async ({ config }: AhpSessionCreateRequest) => {
+            expect(config.sessionId).toBeTruthy();
+            sessionId = config.sessionId!;
             original = await firstOwner.createSession({
                 ...config,
                 onPermissionRequest: approveAll,
@@ -462,9 +479,9 @@ describe.skipIf(!enabled)("Runtime-supervised AHP host", async () => {
                 clientEchoTool,
             ]);
             sessionUri = session.sessionUri;
-            sessionId = session.sessionId;
             expect(create).toHaveBeenCalledOnce();
             expect(original?.sessionId).toBe(sessionId);
+            expect(sessionId).not.toBe(session.sessionId);
             await assertRuntimeListener(first, runtimeDetails(firstOwner).pid, artifacts);
             expect(
                 (
@@ -617,6 +634,8 @@ describe.skipIf(!enabled)("Runtime-supervised AHP host", async () => {
         await using first = await owner.startAhpHost({
             localServer: {},
             createSession: async ({ config }) => {
+                expect(config.sessionId).toBeTruthy();
+                sessionId = config.sessionId!;
                 original = await owner.createSession({
                     ...config,
                     onPermissionRequest: approveAll,
@@ -629,8 +648,8 @@ describe.skipIf(!enabled)("Runtime-supervised AHP host", async () => {
         try {
             const session = await createAhpSession(firstAhp, ctx.workDir, ctx.env.GITHUB_TOKEN);
             sessionUri = session.sessionUri;
-            sessionId = session.sessionId;
             expect(original?.sessionId).toBe(sessionId);
+            expect(sessionId).not.toBe(session.sessionId);
             expect(
                 (
                     await streamedTurn(
@@ -687,7 +706,12 @@ describe.skipIf(!enabled)("Runtime-supervised AHP host", async () => {
             await expect(resumedOriginal!.getEvents()).resolves.toEqual(expect.any(Array));
             await replacement.dispose();
             expect(resumedReleased).toHaveBeenCalledOnce();
-            const retainedResume = vi.fn(async () => resumedOriginal!);
+            const retainedResume = vi.fn(
+                async ({ sessionId: requestedId }: AhpSessionResumeRequest) => {
+                    expect(requestedId).toBe(sessionId);
+                    return resumedOriginal!;
+                }
+            );
             const retainedReleased = vi.fn();
             await using retainedHost = await owner.startAhpHost({
                 localServer: {},
@@ -768,6 +792,469 @@ describe.skipIf(!enabled)("Runtime-supervised AHP host", async () => {
             await expect(original.getEvents()).resolves.toEqual(expect.any(Array));
         } finally {
             await ahp.client.shutdown();
+        }
+    });
+
+    // Catalog-only flow: no model turn or replay capture is required.
+    it("lists saved publications after hosting stops without restarting a listener", async () => {
+        const baseDirectory = join(ctx.env.COPILOT_HOME, "offline-catalog");
+        await mkdir(baseDirectory, { recursive: true });
+        const offlineOwner = ctx.createClient({ baseDirectory });
+        try {
+            await offlineOwner.start();
+            expect((await offlineOwner.rpc.host.listSessions({})).sessions).toEqual([]);
+            await using session = await offlineOwner.createSession({
+                onPermissionRequest: approveAll,
+            });
+            await using host = await offlineOwner.startAhpHost({ localServer: {} });
+            const ahp = await connectAhp(host);
+            const runtimePid = runtimeDetails(offlineOwner).pid;
+            try {
+                const publication = await host.publishSession(session.sessionId);
+                const live = (await host.listSessions()).sessions;
+                expect(live).toHaveLength(1);
+                expect(live[0]?.resource).toBe(publication.sessionUri);
+                await expect(offlineOwner.rpc.host.listSessions({})).rejects.toThrow(
+                    /catalog.*in use/i
+                );
+                await host.dispose();
+                await assertHostStopped(host, ahp, runtimePid);
+                const saved = (await offlineOwner.rpc.host.listSessions({})).sessions;
+                expect(saved).toHaveLength(1);
+                expect(saved[0]).toMatchObject({
+                    resource: live[0]!.resource,
+                    title: live[0]!.title,
+                    createdAt: live[0]!.createdAt,
+                    modifiedAt: live[0]!.modifiedAt,
+                });
+                await assertHostStopped(host, ahp, runtimePid);
+                expect((await offlineOwner.rpc.host.listSessions({})).sessions).toEqual(saved);
+            } finally {
+                await host.dispose();
+                await ahp.client.shutdown();
+            }
+        } finally {
+            await offlineOwner.stop();
+        }
+    });
+
+    it("projects publication creation and metadata deltas to simultaneous 0.9 and 1.0 observers", async () => {
+        if (process.env.GITHUB_ACTIONS !== "true") {
+            throw new Error("Set GITHUB_ACTIONS=true to use fixture-only authentication");
+        }
+        await using session = await owner.createSession({
+            onPermissionRequest: approveAll,
+        });
+        const initialTitle = `publication wire ${randomUUID()}`;
+        await session.rpc.name.set({ name: initialTitle });
+        await using host = await owner.startAhpHost({ localServer: {}, computeId: randomUUID() });
+        await using legacy = await connectRawAhp(host, "0.9.0", ctx.env.GITHUB_TOKEN);
+        await using native = await connectRawAhp(host, "1.0.0", ctx.env.GITHUB_TOKEN);
+        const publication = await host.publishSession(session.sessionId);
+        type Summary = {
+            resource: string;
+            title: string;
+            createdAt: string;
+            modifiedAt: string;
+            chats?: { resource: string; title: string }[];
+            defaultChat?: string;
+        };
+        function checkTopology(summary: Partial<Summary>, version: string) {
+            if (version === "1.0.0") {
+                expect(summary.defaultChat).toEqual(expect.any(String));
+                expect(summary.chats).toHaveLength(1);
+                expect(summary.chats![0]).toMatchObject({
+                    resource: summary.defaultChat,
+                    title: summary.title,
+                });
+            } else {
+                expect(summary).not.toHaveProperty("chats");
+                expect(summary).not.toHaveProperty("defaultChat");
+            }
+        }
+        const observers = [
+            { version: "0.9.0", client: legacy },
+            { version: "1.0.0", client: native },
+        ];
+        const created = new Map<string, Summary>();
+        for (const { version, client } of observers) {
+            const added = await client.notification(
+                "root/sessionAdded",
+                (params) => (params.summary as Summary).resource === publication.sessionUri
+            );
+            const summary = added.summary as Summary;
+            expect(summary).toMatchObject({
+                resource: publication.sessionUri,
+                title: initialTitle,
+            });
+            checkTopology(summary, version);
+            const listed = await client.request("listSessions", { channel: "ahp-root://" });
+            expect(
+                (listed.items as Summary[]).find((entry) => entry.resource === summary.resource)
+            ).toEqual(summary);
+            created.set(version, summary);
+        }
+        const renamed = `publication updated ${randomUUID()}`;
+        await session.rpc.name.set({ name: renamed });
+        for (const { version, client } of observers) {
+            const changed = await client.notification(
+                "root/sessionSummaryChanged",
+                (params) =>
+                    params.session === publication.sessionUri &&
+                    (params.changes as Partial<Summary>).title === renamed
+            );
+            const changes = changed.changes as Partial<Summary>;
+            expect(changes).not.toHaveProperty("createdAt");
+            checkTopology(changes, version);
+            const listed = await client.request("listSessions", { channel: "ahp-root://" });
+            const summary = (listed.items as Summary[]).find(
+                (entry) => entry.resource === publication.sessionUri
+            );
+            expect(summary).toMatchObject({
+                ...created.get(version),
+                ...changes,
+                title: renamed,
+            });
+            checkTopology(summary!, version);
+        }
+        const [canonical] = (await host.listSessions()).sessions;
+        expect(canonical).toMatchObject({
+            resource: publication.sessionUri,
+            title: renamed,
+        });
+        // Publication/list/root observation must not cold-resume the session or
+        // manufacture an inference turn just to produce the metadata delta.
+        expect((await session.getEvents()).some((event) => event.type === "user.message")).toBe(
+            false
+        );
+    });
+
+    it("lists published session metadata without subscribing or stopping the host", async () => {
+        await configureReplay();
+        const title = `host catalog ${randomUUID()}`;
+        const createdBefore = Date.now();
+        await using session = await owner.createSession({
+            model: "claude-sonnet-5",
+            onPermissionRequest: approveAll,
+        });
+        const host = await owner.startAhpHost({ localServer: {}, computeId: randomUUID() });
+        const otherOwner = new CopilotClient({
+            connection: RuntimeConnection.forUri(`localhost:${runtimeDetails().port}`, {
+                connectionToken,
+            }),
+        });
+        const changedTitles: string[] = [];
+        const removeTitleListener = session.on("session.title_changed", (event) => {
+            changedTitles.push(event.data.title);
+        });
+        try {
+            const publication = await host.publishSession(session.sessionId);
+            const initial = (await host.listSessions()).sessions.find(
+                (entry) => entry.resource === publication.sessionUri
+            );
+            expect(initial).toBeDefined();
+            expect(initial!.title.length).toBeGreaterThan(0);
+            expect((await session.getEvents()).some((event) => event.type === "user.message")).toBe(
+                false
+            );
+            expect((await session.sendAndWait({ prompt: "What is 2+2?" }))?.data.content).toContain(
+                "4"
+            );
+            await vi.waitFor(
+                async () => {
+                    const { name } = await session.rpc.name.get();
+                    expect(name).toBeTruthy();
+                    expect(name).not.toBe(initial!.title);
+                    expect(name).not.toBe(session.sessionId);
+                    const events = await session.getEvents();
+                    expect(events).toEqual(
+                        expect.arrayContaining([
+                            expect.objectContaining({
+                                type: "user.message",
+                                data: expect.objectContaining({ content: "What is 2+2?" }),
+                            }),
+                        ])
+                    );
+                    expect(changedTitles).toContain(name);
+                    const updated = (await host.listSessions()).sessions.find(
+                        (entry) => entry.resource === publication.sessionUri
+                    );
+                    expect(updated).toMatchObject({ title: name, createdAt: initial!.createdAt });
+                    expect(Date.parse(updated!.modifiedAt)).toBeGreaterThan(
+                        Date.parse(initial!.modifiedAt)
+                    );
+                },
+                { timeout: 15_000 }
+            );
+
+            await session.rpc.name.set({ name: title });
+            await expect(session.rpc.name.get()).resolves.toMatchObject({ name: title });
+            const listed = await host.listSessions();
+            const summary = listed.sessions.find(
+                (entry) => entry.resource === publication.sessionUri
+            );
+            expect(summary).toBeDefined();
+            expect(summary).toMatchObject({
+                resource: publication.sessionUri,
+                title,
+                createdAt: initial!.createdAt,
+            });
+            expect(Date.parse(summary!.modifiedAt)).toBeGreaterThanOrEqual(
+                Date.parse(initial!.modifiedAt)
+            );
+            await expect(
+                session.rpc.name.setAuto({ summary: "Ignored automatic rename" })
+            ).resolves.toEqual({ applied: false });
+            await expect(host.listSessions()).resolves.toMatchObject({
+                sessions: expect.arrayContaining([
+                    expect.objectContaining({ resource: publication.sessionUri, title }),
+                ]),
+            });
+            expect(Number.isSafeInteger(summary!.status)).toBe(true);
+            expect(summary!.status).toBeGreaterThanOrEqual(0);
+            for (const timestamp of [summary!.createdAt, summary!.modifiedAt]) {
+                expect(Number.isFinite(Date.parse(timestamp))).toBe(true);
+                expect(timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+                expect(Date.parse(timestamp)).toBeGreaterThanOrEqual(createdBefore - 60_000);
+                expect(Date.parse(timestamp)).toBeLessThanOrEqual(Date.now() + 60_000);
+            }
+            if (summary!.activity !== undefined) {
+                expect(typeof summary!.activity).toBe("string");
+            }
+
+            await otherOwner.start();
+            await expect(
+                otherOwner.rpc.host.listSessions({ hostId: host.hostId })
+            ).rejects.toThrow();
+            await otherOwner.stop();
+
+            // Listing must leave both the published session and its listener usable.
+            await expect(session.getEvents()).resolves.toEqual(expect.any(Array));
+            await expect(host.listSessions()).resolves.toMatchObject({
+                sessions: expect.arrayContaining([
+                    expect.objectContaining({ resource: publication.sessionUri }),
+                ]),
+            });
+            await assertRuntimeListener(host, runtimeDetails().pid, artifacts);
+
+            await host.dispose();
+            await expect(host.listSessions()).rejects.toThrow();
+            await expect(session.getEvents()).resolves.toEqual(expect.any(Array));
+        } finally {
+            removeTitleListener();
+            await host.dispose();
+            await otherOwner.stop();
+        }
+    });
+
+    it("retains a compute-scoped catalog across process restart and restores application tools", async () => {
+        if (process.env.GITHUB_ACTIONS !== "true") {
+            throw new Error("Set GITHUB_ACTIONS=true to use fixture-only authentication");
+        }
+        const computeId = randomUUID();
+        const title = `durable catalog ${randomUUID()}`;
+        const home = join(ctx.workDir, "durable-catalog-home");
+        await mkdir(home);
+        const clientOptions = {
+            connection: RuntimeConnection.forTcp({
+                path: artifacts.runtimePath,
+                connectionToken,
+            }),
+            workingDirectory: ctx.workDir,
+            gitHubToken: ctx.env.GITHUB_TOKEN,
+            env: { ...ctx.env, ...artifacts.env, COPILOT_HOME: home },
+        };
+        const first = new CopilotClient(clientOptions);
+        try {
+            const record = await (async () => {
+                await using session = await first.createSession({
+                    model: "claude-sonnet-5",
+                    onPermissionRequest: approveAll,
+                });
+                await using host = await first.startAhpHost({ computeId, localServer: {} });
+                const publication = await host.publishSession(session.sessionId);
+                await session.rpc.name.set({ name: title });
+                const summary = (await host.listSessions()).sessions.find(
+                    (entry) => entry.resource === publication.sessionUri
+                );
+                expect(summary).toMatchObject({ resource: publication.sessionUri, title });
+                await host.dispose();
+                await expect(host.listSessions()).rejects.toThrow();
+                await expect(session.getEvents()).resolves.toEqual(expect.any(Array));
+
+                await using replacement = await first.startAhpHost({ computeId, localServer: {} });
+                expect((await replacement.listSessions()).sessions).toContainEqual(summary);
+                await session.disconnect();
+                const saved = (await replacement.listSessions()).sessions.find(
+                    (entry) => entry.resource === publication.sessionUri
+                );
+                expect(saved).toMatchObject({
+                    resource: publication.sessionUri,
+                    title,
+                    createdAt: summary!.createdAt,
+                });
+                expect(Date.parse(saved!.modifiedAt)).toBeGreaterThanOrEqual(
+                    Date.parse(summary!.modifiedAt)
+                );
+                await using isolated = await first.startAhpHost({
+                    computeId: randomUUID(),
+                    localServer: {},
+                });
+                expect((await isolated.listSessions()).sessions).toEqual([]);
+                return { sessionId: session.sessionId, summary: saved! };
+            })();
+            const firstPid = runtimeDetails(first).pid;
+            expect(await first.stop()).toEqual([]);
+            await assertProcessStopped(firstPid, "Original catalog runtime");
+
+            const restarted = new CopilotClient(clientOptions);
+            let restored: CopilotSession | undefined;
+            try {
+                const toolHandler = vi.fn(({ value }: { value: string }) => `RESTORED_${value}`);
+                const resume = vi.fn(async ({ sessionId, config }: AhpSessionResumeRequest) => {
+                    expect(sessionId).toBe(record.sessionId);
+                    expect(config.continuePendingWork).toBe(false);
+                    restored = await restarted.resumeSession(sessionId, {
+                        ...config,
+                        model: "claude-sonnet-5",
+                        onPermissionRequest: approveAll,
+                        tools: [
+                            defineTool("durable_catalog_marker", {
+                                description: "Proves the application restored its tool handler",
+                                parameters: z.object({ value: z.string() }),
+                                handler: toolHandler,
+                            }),
+                        ],
+                    });
+                    await restored.rpc.tools.initializeAndValidate();
+                    return restored;
+                });
+                await using host = await restarted.startAhpHost({
+                    computeId,
+                    localServer: {},
+                    resumeSession: resume,
+                });
+                expect(runtimeDetails(restarted).pid).not.toBe(firstPid);
+                expect((await host.listSessions()).sessions).toContainEqual(record.summary);
+                expect(resume).not.toHaveBeenCalled();
+                await using isolated = await restarted.startAhpHost({
+                    computeId: randomUUID(),
+                    localServer: {},
+                });
+                expect((await isolated.listSessions()).sessions).toEqual([]);
+                const isolatedAhp = await connectAhp(isolated);
+                try {
+                    await authenticateAhp(isolatedAhp, ctx.env.GITHUB_TOKEN);
+                    const catalog = await isolatedAhp.client.request("listSessions", {
+                        channel: "ahp-root://",
+                    });
+                    expect(catalog.items.map((item) => item.resource)).not.toContain(
+                        record.summary.resource
+                    );
+                } finally {
+                    await isolatedAhp.client.shutdown();
+                }
+
+                const ahp = await connectAhp(host);
+                try {
+                    await authenticateAhp(ahp, ctx.env.GITHUB_TOKEN);
+                    const catalog = await ahp.client.request("listSessions", {
+                        channel: "ahp-root://",
+                    });
+                    expect(catalog.items).toEqual(
+                        expect.arrayContaining([
+                            expect.objectContaining({ resource: record.summary.resource, title }),
+                        ])
+                    );
+                    expect(resume).not.toHaveBeenCalled();
+                    const { result, subscription } = await ahp.client
+                        .subscribe(record.summary.resource)
+                        .catch(async (error: unknown) => {
+                            for (const call of resume.mock.results) {
+                                if (call.type === "return") await call.value;
+                            }
+                            throw error;
+                        });
+                    const state = result.snapshot?.state as SessionState | undefined;
+                    expect(state?.lifecycle).toBe("ready");
+                    if (!result.snapshot)
+                        throw new Error("AHP resume returned no session snapshot");
+                    let initialized = state!;
+                    const actions: string[] = [];
+                    const hasMarker = () =>
+                        initialized.serverTools?.some(
+                            (tool) => tool.name === "durable_catalog_marker"
+                        );
+                    try {
+                        await withDeadline(
+                            (async () => {
+                                if (hasMarker()) return;
+                                for await (const event of subscription) {
+                                    if (event.type !== "action") continue;
+                                    actions.push(event.params.action.type);
+                                    if (event.params.rejectionReason)
+                                        throw new Error(event.params.rejectionReason);
+                                    initialized = sessionReducer(
+                                        initialized,
+                                        event.params.action as SessionAction
+                                    );
+                                    if (hasMarker()) return;
+                                }
+                                throw new Error(
+                                    "AHP session stream closed before marker tools arrived"
+                                );
+                            })(),
+                            "AHP serverTools projection",
+                            10_000
+                        );
+                    } catch (error) {
+                        throw new Error(
+                            `AHP marker tools missing; actions=${JSON.stringify(actions)}, serverTools=${JSON.stringify(initialized.serverTools)}, lifecycle=${initialized.lifecycle}`,
+                            { cause: error }
+                        );
+                    } finally {
+                        await subscription.return();
+                    }
+                    expect(initialized.serverTools).toEqual(
+                        expect.arrayContaining([
+                            expect.objectContaining({ name: "durable_catalog_marker" }),
+                        ])
+                    );
+                    expect(resume).toHaveBeenCalledOnce();
+                    if (!restored)
+                        throw new Error("AHP subscribe did not invoke the resume factory");
+                    expect(restored.sessionId).toBe(record.sessionId);
+                    const metadata = await restored.rpc.tools.getCurrentMetadata();
+                    expect(metadata.tools?.map((tool) => tool.name)).toContain(
+                        "durable_catalog_marker"
+                    );
+                    // Exercise the restored handler directly, without starting a model turn.
+                    const executed = await restored.rpc.tools.execute({
+                        name: "durable_catalog_marker",
+                        arguments: { value: "fixture" },
+                    });
+                    expect(
+                        typeof executed === "string" ? executed : executed.textResultForLlm
+                    ).toBe("RESTORED_fixture");
+                    if (typeof executed !== "string") {
+                        expect(executed.resultType).toBe("success");
+                    }
+                    expect(toolHandler).toHaveBeenCalledOnce();
+                    expect(toolHandler.mock.calls[0]?.[0]).toEqual({ value: "fixture" });
+                    expect(await ctx.openAiEndpoint.getExchanges()).toEqual([]);
+                    await host.dispose();
+                    await assertHostStopped(host, ahp, runtimeDetails(restarted).pid);
+                    await expect(restored.getEvents()).resolves.toEqual(expect.any(Array));
+                } finally {
+                    await host.dispose();
+                    await ahp.client.shutdown();
+                }
+            } finally {
+                await restored?.disconnect();
+                expect(await restarted.stop()).toEqual([]);
+            }
+        } finally {
+            expect(await first.stop()).toEqual([]);
         }
     });
 
@@ -1117,6 +1604,9 @@ describe.skipIf(!enabled)("Runtime-supervised AHP host", async () => {
             onPermissionRequest: approveAll,
             streaming: true,
         });
+        const previousRuntimeIds = new Set(
+            (await owner.listSessions()).map((item) => item.sessionId)
+        );
         await using host = await owner.startAhpHost({ localServer: {} });
         const ahp = await connectAhp(host);
         try {
@@ -1130,12 +1620,28 @@ describe.skipIf(!enabled)("Runtime-supervised AHP host", async () => {
             expect(response.deltas).toBeGreaterThan(0);
             expect(sdkResponse?.data.content).toContain("4");
 
-            const runtimeSessions = (await owner.listSessions()).map((item) => item.sessionId);
+            const runtimeSessions = await vi.waitFor(
+                async () => {
+                    const ids = (await owner.listSessions()).map((item) => item.sessionId);
+                    expect(ids).toContain(sdkSession.sessionId);
+                    expect(
+                        ids.filter(
+                            (id) => id !== sdkSession.sessionId && !previousRuntimeIds.has(id)
+                        )
+                    ).toHaveLength(1);
+                    return ids;
+                },
+                { timeout: 10_000 }
+            );
             expect(runtimeSessions).toContain(sdkSession.sessionId);
-            expect(runtimeSessions).toContain(session.sessionId);
-            await using observer = await owner.resumeSession(session.sessionId, {
+            const [ahpRuntimeSessionId] = runtimeSessions.filter(
+                (id) => id !== sdkSession.sessionId && !previousRuntimeIds.has(id)
+            );
+            expect(ahpRuntimeSessionId).not.toBe(session.sessionId);
+            await using observer = await owner.resumeSession(ahpRuntimeSessionId, {
                 onPermissionRequest: approveAll,
             });
+            expect(observer.sessionId).toBe(ahpRuntimeSessionId);
             expect(
                 (await observer.getEvents()).some(
                     (event) =>

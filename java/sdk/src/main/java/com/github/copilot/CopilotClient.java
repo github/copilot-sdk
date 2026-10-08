@@ -1499,12 +1499,13 @@ public final class CopilotClient implements AutoCloseable {
      * @see ConnectionState
      */
     public ConnectionState getState() {
-        if (connectionFuture == null)
+        CompletableFuture<Connection> future = connectionFuture;
+        if (future == null)
             return ConnectionState.DISCONNECTED;
-        if (connectionFuture.isCompletedExceptionally())
-            return ConnectionState.ERROR;
-        if (!connectionFuture.isDone())
+        if (!future.isDone())
             return ConnectionState.CONNECTING;
+        if (future.isCompletedExceptionally())
+            return ConnectionState.ERROR;
         return ConnectionState.CONNECTED;
     }
 

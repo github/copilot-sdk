@@ -29,6 +29,9 @@ record HostCreateSessionParams(
     @JsonProperty("handoffId") String handoffId,
     /** Resume an app-owned durable session instead of creating a new session. */
     @JsonProperty("resume") Boolean resume,
+    /** For an explicit publication, borrow an existing owning-connection resident
+instead of invoking the resume factory. Cold sessions still use the factory. */
+    @JsonProperty("preferResident") Boolean preferResident,
     /** Host-selected SDK creation or resume settings, without executable callbacks or tools. */
     @JsonProperty("config") Map<String, Object> config
 ) {

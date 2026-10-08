@@ -8,6 +8,7 @@
 package com.github.copilot.generated.rpc;
 
 import com.github.copilot.CopilotExperimental;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.processing.Generated;
 
@@ -35,6 +36,17 @@ public final class ServerHostApi {
     @CopilotExperimental
     public CompletableFuture<HostPublishSessionResult> publishSession(HostPublishSessionParams params) {
         return caller.invoke("host.publishSession", params, HostPublishSessionResult.class);
+    }
+
+    /**
+     * Reads the complete advertised live and dormant session catalog of an existing host owned by this connection. Does not start hosting, subscribe to sessions, or guarantee resumability.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<HostListSessionsResult> listSessions(HostListSessionsParams params) {
+        return caller.invoke("host.listSessions", params, HostListSessionsResult.class);
     }
 
     /**
@@ -68,6 +80,19 @@ public final class ServerHostApi {
     @CopilotExperimental
     public CompletableFuture<HostStartResult> start(HostStartParams params) {
         return caller.invoke("host.start", params, HostStartResult.class);
+    }
+
+    /**
+     * Starts a connection-owned AHP host with explicit localServer and/or githubEnvironment transports as a supervised SDK participant.
+     * <p>
+     * Accepts the extensible request, including inputs added after the params record.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<HostStartResult> start(HostStartRequest request) {
+        return caller.invoke("host.start", Objects.requireNonNull(request, "request"), HostStartResult.class);
     }
 
     /**

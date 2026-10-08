@@ -60,7 +60,9 @@ describe("Telemetry export", async () => {
         createClient,
         workDir,
     } = await createSdkTestContext({
+        logLevel: "debug",
         copilotClientOptions: {
+            env: { RUST_LOG: "error,sdk_diagnostics=debug" },
             gitHubToken: DEFAULT_GITHUB_TOKEN,
             // Telemetry is lowered to environment variables the native runtime reads, which
             // the in-process transport cannot carry per-client (the runtime runs in the shared

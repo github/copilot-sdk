@@ -11,7 +11,7 @@ import { z } from "zod";
 import { approveAll, defineTool } from "../../src/index.js";
 import type { CopilotSession, SessionEvent } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
-import { formatError, waitForCondition } from "./harness/sdkTestHelper.js";
+import { waitForCondition, waitForFileText } from "./harness/sdkTestHelper.js";
 
 describe("Shell and fleet RPC", async () => {
     const { copilotClient: client, workDir } = await createSdkTestContext();
@@ -21,37 +21,6 @@ describe("Shell and fleet RPC", async () => {
             return `echo ${marker}>"${markerPath}"`;
         }
         return `sh -c "printf '%s' '${marker}' > '${markerPath}'"`;
-    }
-
-    async function waitForFileText(
-        filePath: string,
-        expected: string,
-        timeoutMs = 30_000,
-        diagnosticPaths: string[] = []
-    ): Promise<void> {
-        const deadline = Date.now() + timeoutMs;
-        while (Date.now() < deadline) {
-            if (fs.existsSync(filePath)) {
-                const content = fs.readFileSync(filePath, "utf8");
-                if (content.includes(expected)) {
-                    return;
-                }
-            }
-            await new Promise((resolve) => setTimeout(resolve, 100));
-        }
-        const diagnostics = diagnosticPaths.map((diagnosticPath) => {
-            try {
-                return fs.existsSync(diagnosticPath)
-                    ? `${path.basename(diagnosticPath)}: ${fs.readFileSync(diagnosticPath, "utf8")}`
-                    : `${path.basename(diagnosticPath)}: absent`;
-            } catch (error) {
-                return `${path.basename(diagnosticPath)}: could not read: ${formatError(error)}`;
-            }
-        });
-        throw new Error(
-            `Timed out waiting for shell command to write '${expected}' to '${filePath}'.` +
-                (diagnostics.length ? `\n${diagnostics.join("\n")}` : "")
-        );
     }
 
     async function waitForMessages(

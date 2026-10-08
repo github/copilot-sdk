@@ -79,6 +79,12 @@ Select `local_server=HostLocalServerOptions()` for a local listener,
 for Mission Control/WPS, or both. Import the transport types from `copilot.rpc`.
 At least one transport is required. GitHub-only hosts have no `url` or `token`;
 `host.environment_id` exposes their Mission Control identity.
+Call `await host.list_sessions()` to read the complete advertised catalog of live
+and dormant sessions.
+Set top-level `compute_id` to reuse the durable catalog across local and Mission
+Control hosting; it must agree with `github_environment.compute_id` when both are
+supplied. The runtime persists an omitted local-only identity. Publication
+survives host shutdown; dormant application sessions require your resume callback.
 See [runtime-supervised AHP hosting](../docs/runtime-supervised-host.md) for creation
 and resume callbacks, resident-session publication, ownership, and shared-snapshot E2Es.
 

@@ -74,7 +74,7 @@ public sealed partial class ClientSessionLifetimeTests
             }
         };
         var local = new HostLocalServerOptions { Hostname = "127.0.0.1", Port = 0, Token = "original", RequireConnectionToken = true };
-        var github = new HostGitHubEnvironmentOptions { Name = "original", ComputeId = "compute" };
+        var github = new HostGitHubEnvironmentOptions { Name = "original", ComputeId = "compute", RequireConnectionBinding = false };
         var pending = client.StartAhpHostAsync(new() { LocalServer = local, GitHubEnvironment = github });
         await connecting.Task.WaitAsync(TimeSpan.FromSeconds(10));
         try
@@ -85,6 +85,7 @@ public sealed partial class ClientSessionLifetimeTests
             local.RequireConnectionToken = false;
             github.Name = "";
             github.ComputeId = "";
+            github.RequireConnectionBinding = true;
         }
         finally
         {
@@ -100,6 +101,7 @@ public sealed partial class ClientSessionLifetimeTests
         var githubSettings = request.GetProperty("githubEnvironment");
         Assert.Equal("original", githubSettings.GetProperty("name").GetString());
         Assert.Equal("compute", githubSettings.GetProperty("computeId").GetString());
+        Assert.False(githubSettings.GetProperty("requireConnectionBinding").GetBoolean());
     }
 
     [Theory]
@@ -112,10 +114,12 @@ public sealed partial class ClientSessionLifetimeTests
         await using var client = new CopilotClient(new() { Connection = RuntimeConnection.ForUri(server.Url) });
         await using var host = await client.StartAhpHostAsync(new()
         {
+            ComputeId = "compute",
             LocalServer = local ? new() { Hostname = "127.0.0.1", Port = 0, Token = "test-token", RequireConnectionToken = true } : null,
             GitHubEnvironment = github ? new() { Name = "test host", ComputeId = "compute" } : null
         });
         var request = Assert.Single(server.Requests, request => request.Method == "host.start").Params;
+        Assert.Equal("compute", request.GetProperty("computeId").GetString());
         Assert.Equal(local, request.TryGetProperty("localServer", out var localSettings) && localSettings.ValueKind == JsonValueKind.Object);
         Assert.Equal(github, request.TryGetProperty("githubEnvironment", out var githubSettings) && githubSettings.ValueKind == JsonValueKind.Object);
         foreach (var oldField in new[] { "hostname", "port", "token", "requireConnectionToken" })
@@ -134,6 +138,60 @@ public sealed partial class ClientSessionLifetimeTests
         Assert.Equal(local ? "test-token" : null, host.Token);
         Assert.Equal(github ? "environment-123" : null, host.EnvironmentId);
         Assert.Null(host.Pid);
+    }
+
+    [Fact]
+    public async Task Ahp_Legacy_Positional_Start_And_Additive_Request_Overloads()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new() { Connection = RuntimeConnection.ForUri(server.Url) });
+        await client.StartAsync();
+        var local = new HostLocalServerOptions { Port = 12345 };
+        var github = new HostGitHubEnvironmentOptions { Name = "host", ComputeId = "compute" };
+
+        await client.Rpc.Host.StartAsync("legacy", local, github, true, false, CancellationToken.None);
+        await client.Rpc.Host.StartAsync("defaults");
+        await client.Rpc.Host.StartAsync(new HostStartRequest
+        {
+            HostId = "request",
+            ComputeId = "compute",
+            LocalServer = local,
+            GitHubEnvironment = github,
+            SessionFactory = true,
+            ResumeFactory = false
+        }, CancellationToken.None);
+
+        var requests = server.Requests.Where(request => request.Method == "host.start").ToArray();
+        Assert.Equal(3, requests.Length);
+        var legacy = requests[0].Params;
+        Assert.Equal("legacy", legacy.GetProperty("hostId").GetString());
+        Assert.False(legacy.TryGetProperty("computeId", out _));
+        Assert.Equal("defaults", requests[1].Params.GetProperty("hostId").GetString());
+        Assert.False(requests[1].Params.TryGetProperty("localServer", out _));
+        var additive = requests[2].Params;
+        Assert.Equal("request", additive.GetProperty("hostId").GetString());
+        Assert.Equal("compute", additive.GetProperty("computeId").GetString());
+        foreach (var parameters in new[] { legacy, additive })
+        {
+            Assert.Equal(12345, parameters.GetProperty("localServer").GetProperty("port").GetInt32());
+            Assert.Equal("compute", parameters.GetProperty("githubEnvironment").GetProperty("computeId").GetString());
+            Assert.True(parameters.GetProperty("sessionFactory").GetBoolean());
+            Assert.False(parameters.GetProperty("resumeFactory").GetBoolean());
+        }
+    }
+
+    [Fact]
+    public async Task Ahp_List_Sessions_Uses_Owning_Host()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new() { Connection = RuntimeConnection.ForUri(server.Url) });
+        await using var host = await client.StartAhpHostAsync(new() { LocalServer = new() });
+
+        var result = await host.ListSessionsAsync();
+
+        Assert.Empty(result.Sessions);
+        var request = Assert.Single(server.Requests, request => request.Method == "host.listSessions").Params;
+        Assert.Equal(host.HostId, request.GetProperty("hostId").GetString());
     }
 
     [Theory]

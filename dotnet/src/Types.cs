@@ -958,6 +958,21 @@ public sealed class ToolInvocation
     /// issuing its own RPC. <c>null</c> for every other tool invocation.
     /// </summary>
     public IList<CurrentToolMetadata>? AvailableTools { get; set; }
+    /// <summary>
+    /// Sub-agent instance that issued this call (the <see cref="SessionEvent.AgentId"/>
+    /// of its session events). <c>null</c> for a root-agent call, and for every call
+    /// when the runtime does not attribute sub-agent tool calls.
+    /// </summary>
+    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+    public string? AgentId { get; set; }
+    /// <summary>
+    /// Runtime request id of this call: the key <c>session.tools.handlePendingToolCall</c>
+    /// and <c>session.tools.listPendingRequests</c> use. A root-agent call stays answerable
+    /// after the session is resumed with pending work continued; a sub-agent's call can
+    /// be answered only while that sub-agent is still running.
+    /// </summary>
+    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+    public string? RequestId { get; set; }
 }
 
 /// <summary>

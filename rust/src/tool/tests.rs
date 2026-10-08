@@ -247,6 +247,8 @@ async fn tool_handler_call_returns_result() {
         available_tools: None,
         traceparent: None,
         tracestate: None,
+        agent_id: None,
+        request_id: None,
     };
 
     let result = tool.call(inv).await.unwrap();
@@ -286,6 +288,8 @@ async fn define_tool_builds_schema_and_dispatches() {
         available_tools: None,
         traceparent: None,
         tracestate: None,
+        agent_id: None,
+        request_id: None,
     };
     match handler.call(inv).await.unwrap() {
         ToolResult::Text(s) => assert_eq!(s, "sunny in Seattle"),
@@ -369,6 +373,8 @@ mod derive_tests {
             available_tools: None,
             traceparent: None,
             tracestate: None,
+            agent_id: None,
+            request_id: None,
         };
 
         let result = tool.call(inv).await.unwrap();
@@ -389,6 +395,8 @@ mod derive_tests {
             available_tools: None,
             traceparent: None,
             tracestate: None,
+            agent_id: None,
+            request_id: None,
         };
 
         let err = tool.call(inv).await.unwrap_err();
@@ -411,6 +419,8 @@ mod derive_tests {
                 available_tools: None,
                 traceparent: None,
                 tracestate: None,
+                agent_id: None,
+                request_id: None,
             })
             .await
             .expect("ToolHandler::call should succeed for matching args");

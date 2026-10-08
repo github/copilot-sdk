@@ -476,6 +476,7 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
 
     [Fact]
     public async Task Send_Returns_Immediately_While_Events_Stream_In_Background()
+        => await WithSdkDiagnosticsAsync(async () =>
     {
         var session = await CreateSessionAsync(new SessionConfig
         {
@@ -506,7 +507,7 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
         Assert.Contains("done", message?.Data.Content ?? string.Empty);
         Assert.Contains("session.idle", events);
         Assert.Contains("assistant.message", events);
-    }
+    });
 
     [Fact]
     public async Task SendAndWait_Blocks_Until_Session_Idle_And_Returns_Final_Assistant_Message()

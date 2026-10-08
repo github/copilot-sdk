@@ -1231,7 +1231,8 @@ export class CopilotSession {
                     args,
                     handler,
                     traceparent,
-                    tracestate
+                    tracestate,
+                    event.agentId || undefined
                 );
             }
         } else if (event.type === "external_tool.completed") {
@@ -1350,7 +1351,8 @@ export class CopilotSession {
         args: unknown,
         handler: ToolHandler,
         traceparent?: string,
-        tracestate?: string
+        tracestate?: string,
+        agentId?: string
     ): Promise<void> {
         const controller = new AbortController();
         if (this.disconnected || this.pendingExternalTools.has(requestId)) {
@@ -1396,6 +1398,8 @@ export class CopilotSession {
                 traceparent,
                 tracestate,
                 signal: controller.signal,
+                agentId,
+                requestId,
             });
             let result: ToolResult;
             if (rawResult == null) {

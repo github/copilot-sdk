@@ -450,6 +450,11 @@ public class MSBuildTargetsTests
                 </Project>
                 """;
             File.WriteAllText(Path.Combine(dir, "App.csproj"), csproj);
+            File.WriteAllText(Path.Combine(dir, "NuGet.Config"),
+                "<configuration><packageSources><clear /></packageSources></configuration>");
+            // Match the SDK used by setup restore, which provisioned the offline framework packs.
+            File.Copy(Path.Combine(Path.GetDirectoryName(TargetsFilePath)!, "..", "..", "global.json"),
+                Path.Combine(dir, "global.json"));
             File.WriteAllText(
                 Path.Combine(dir, "Stub.cs"),
                 packAsTool

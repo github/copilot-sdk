@@ -214,6 +214,7 @@ jobs:
             eclipse-temurin:25-jdk-alpine \
             sh -c 'set -eux
               apk add --no-cache bash git java-cacerts maven nodejs npm
+              bash --noprofile --norc -c "exit 0"
               git config --global --add safe.directory /workspace
               export JAVA_TOOL_OPTIONS=-Djavax.net.ssl.trustStore=/etc/ssl/certs/java/cacerts
               export GITHUB_ENV=/tmp/copilot-sdk-runtime.env

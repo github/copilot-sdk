@@ -6,10 +6,10 @@ package com.github.copilot;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.AfterAll;
@@ -75,7 +75,7 @@ public class ToolResultsTest {
             CopilotSession session = client.createSession(new SessionConfig().setTools(List.of(deployTool))
                     .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
-            List<SessionEvent> events = new ArrayList<>();
+            List<SessionEvent> events = new CopyOnWriteArrayList<>();
             session.on(events::add);
 
             session.sendAndWait(new MessageOptions().setPrompt(
@@ -123,7 +123,7 @@ public class ToolResultsTest {
             CopilotSession session = client.createSession(new SessionConfig().setTools(List.of(accessTool))
                     .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
-            List<SessionEvent> events = new ArrayList<>();
+            List<SessionEvent> events = new CopyOnWriteArrayList<>();
             session.on(events::add);
 
             session.sendAndWait(new MessageOptions().setPrompt(

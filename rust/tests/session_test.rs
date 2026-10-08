@@ -9673,6 +9673,77 @@ async fn tool_invocation_carries_trace_context_from_event() {
 }
 
 #[tokio::test]
+async fn tool_invocation_names_the_sub_agent_and_request_behind_the_call() {
+    struct CapturingTool {
+        captured: tokio::sync::mpsc::UnboundedSender<Value>,
+    }
+
+    #[async_trait]
+    impl tool::ToolHandler for CapturingTool {
+        async fn call(
+            &self,
+            invocation: ToolInvocation,
+        ) -> Result<ToolResult, github_copilot_sdk::Error> {
+            self.captured
+                .send(serde_json::to_value(&invocation).unwrap())
+                .unwrap();
+            Ok(ToolResult::Text("ok".into()))
+        }
+    }
+
+    let (captured, mut invocations) = tokio::sync::mpsc::unbounded_channel();
+    let handler = Arc::new(CapturingTool { captured });
+    let (_session, mut server) = create_session_pair_with_config(move |cfg| {
+        cfg.with_tools(vec![
+            Tool::new("calc")
+                .with_description("calc")
+                .with_parameters(serde_json::json!({"type":"object"}))
+                .with_handler(handler.clone()),
+        ])
+    })
+    .await;
+
+    server
+        .send_event_from_agent(
+            "external_tool.requested",
+            serde_json::json!({
+                "requestId": "req-sub-agent",
+                "sessionId": server.session_id,
+                "toolCallId": "tc-sub-agent",
+                "toolName": "calc",
+                "arguments": {},
+            }),
+            "task-agent-1",
+        )
+        .await;
+    let pending = timeout(TIMEOUT, server.read_request()).await.unwrap();
+    assert_eq!(pending["method"], "session.tools.handlePendingToolCall");
+    let sub_agent_call = timeout(TIMEOUT, invocations.recv()).await.unwrap().unwrap();
+
+    server
+        .send_event(
+            "external_tool.requested",
+            serde_json::json!({
+                "requestId": "req-root",
+                "sessionId": server.session_id,
+                "toolCallId": "tc-root",
+                "toolName": "calc",
+                "arguments": {},
+            }),
+        )
+        .await;
+    let pending = timeout(TIMEOUT, server.read_request()).await.unwrap();
+    assert_eq!(pending["method"], "session.tools.handlePendingToolCall");
+    let root_call = timeout(TIMEOUT, invocations.recv()).await.unwrap().unwrap();
+
+    assert_eq!(sub_agent_call["agentId"], "task-agent-1");
+    assert_eq!(sub_agent_call["requestId"], "req-sub-agent");
+    assert_eq!(sub_agent_call["toolCallId"], "tc-sub-agent");
+    assert_eq!(root_call.get("agentId"), None);
+    assert_eq!(root_call["requestId"], "req-root");
+}
+
+#[tokio::test]
 async fn wire_omits_trace_fields_when_unset() {
     let (session, mut server) = create_session_pair().await;
     let session = Arc::new(session);

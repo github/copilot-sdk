@@ -44,6 +44,12 @@ For GitHub Mission Control, set
 instead, or configure both transports. GitHub environment name and compute ID are
 required; there is no implicit local listener. The host's `Url`, `Token`, and `Pid`
 are nullable; `EnvironmentId` contains the GitHub environment ID when configured.
+Call `host.ListSessionsAsync()` to read the complete advertised catalog of live
+and dormant sessions.
+Set top-level `ComputeId` to reuse the durable catalog across local and Mission
+Control hosting; it must agree with `GitHubEnvironment.ComputeId` when both are
+supplied. The runtime persists an omitted local-only identity. Publication
+survives host shutdown; dormant application sessions require your resume callback.
 Environment list/get/delete operations are available only through the generated RPC API.
 See [runtime-supervised AHP hosting](../docs/runtime-supervised-host.md) for creation
 and resume callbacks, resident-session publication, ownership, and shared-snapshot E2Es.

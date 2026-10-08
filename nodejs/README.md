@@ -74,6 +74,9 @@ without deleting underlying sessions. Reconnecting does not reclaim a host.
 The optional `onExit` callback reports exits at most once. If the owner connection
 is lost, it reports that loss rather than claiming that listener cleanup was
 acknowledged.
+Call `const { sessions } = await host.listSessions()` to read the complete catalog
+of live and dormant sessions advertised by the host. The method returns a
+`HostListSessionsResult` containing `sessions`, not a session array directly.
 
 `host.pid` is absent for in-process listeners. The optional field is retained
 for separate host process IDs returned by legacy runtimes, never the runtime PID.
@@ -104,6 +107,10 @@ The listener follows the owning client's lifetime. Call `await host.dispose()`
 only when you want to stop it earlier; `await using host` also supports a shorter
 scope. Each disposal call forwards to the runtime, which owns idempotent cleanup.
 The AHP transport remains owned by the host.
+Set top-level `computeId` to reuse the same durable catalog for local and Mission
+Control hosting; it must agree with `githubEnvironment.computeId` when both are
+supplied. Omitted local-only identities are persisted by the runtime, not generated
+by the SDK. Published sessions remain discoverable after hosting stops.
 
 ### Application-owned sessions
 
@@ -165,8 +172,9 @@ still matches the requested identity and workspace.
 Only catalog entries marked as application-owned invoke this callback.
 If the callback is missing, restoring such an entry fails instead of falling
 back to host-owned creation.
-Published resident sessions attach directly, without invoking it or replacing
-their current registrations. Resumed sessions follow the same original-object
+Currently resident published sessions attach directly, without invoking it or replacing
+their current registrations. Dormant published application sessions require this
+resume callback to restore their tools and handlers. Resumed sessions follow the same original-object
 retention, cancellation, late-result release, and `onSessionReleased` rules.
 
 The `copilotd-hosting` library runs inside the runtime provider.

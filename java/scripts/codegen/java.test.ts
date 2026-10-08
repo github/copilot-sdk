@@ -45,6 +45,23 @@ test("wrapper Javadoc preserves the operation contract ahead of parameter docume
     assert.doesNotMatch(source, /Identifies the target session/);
 });
 
+test("host environment options preserve the legacy two-argument constructor", () => {
+    const source = generateRpcClass("HostGitHubEnvironmentOptions", {
+        type: "object",
+        properties: {
+            name: { type: "string" },
+            computeId: { type: "string" },
+            requireConnectionBinding: { type: ["boolean", "null"] },
+        },
+        required: ["name", "computeId"],
+    }).code;
+    assert.match(source, /@JsonProperty\("requireConnectionBinding"\) Boolean requireConnectionBinding/);
+    assert.match(
+        source,
+        /public HostGitHubEnvironmentOptions\(\s*String name,\s*String computeId\s*\) \{\s*this\(name, computeId, null\);/s,
+    );
+});
+
 test("arbitrary handoff maps accept scalar and structured JSON values", () => {
     const result = schemaTypeToJava(
         { type: "object", additionalProperties: true },
@@ -52,6 +69,34 @@ test("arbitrary handoff maps accept scalar and structured JSON values", () => {
     );
     assert.equal(result.javaType, "Map<String, Object>");
     assert.ok(result.imports.has("java.util.Map"));
+});
+
+test("host session summaries retain their experimental schema designation", async () => {
+    const summary: JSONSchema7 & { stability: string } = {
+        type: "object",
+        stability: "experimental",
+        properties: { resource: { type: "string" } },
+        required: ["resource"],
+    };
+    const files = await renderRpcTypes({
+        definitions: { HostSessionSummary: summary },
+        server: {
+            listSessions: {
+                rpcMethod: "host.listSessions",
+                stability: "experimental",
+                params: null,
+                result: {
+                    type: "object",
+                    properties: { sessions: { type: "array", items: { $ref: "#/definitions/HostSessionSummary" } } },
+                },
+            },
+        },
+    }, {});
+    const source = [...files].find(([file]) => file.endsWith("/HostSessionSummary.java"))?.[1];
+    assert.ok(source, "missing HostSessionSummary.java");
+    assert.match(source, /import com\.github\.copilot\.CopilotExperimental;/);
+    assert.match(source, /@apiNote This type is experimental and may change in a future version\./);
+    assert.match(source, /@CopilotExperimental/);
 });
 
 test("preserves whole-event deprecation through a referenced event envelope", () => {

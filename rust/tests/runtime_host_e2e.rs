@@ -34,10 +34,17 @@ async fn streams_real_ahp_turn_beside_sdk_session_on_same_runtime() {
                 )
                 .await
                 .unwrap();
+            let previous_ids: Vec<_> = owner
+                .list_sessions(None)
+                .await
+                .unwrap()
+                .into_iter()
+                .map(|session| session.session_id)
+                .collect();
             let host = owner.start_ahp_host(local_options()).await.unwrap();
             let ahp = connect(&host).await;
             let (uri, chat, subscription) = create(&ahp, ctx).await;
-            topology(&host, &owner, &home(ctx).join("ahp/sessions"));
+            topology(&host, &owner, &home(ctx));
             let (_, response) =
                 tokio::join!(turn(&ahp, &chat, subscription), sdk.send_and_wait(PROMPT));
             assert!(
@@ -46,18 +53,17 @@ async fn streams_real_ahp_turn_beside_sdk_session_on_same_runtime() {
                     .unwrap()
                     .contains('4')
             );
-            let id = uri.strip_prefix("ahp-session:/").unwrap();
             // Turn completion is not a persistence acknowledgement: event writes
             // are debounced, and list_sessions lists persisted sessions.
             let sessions = tokio::time::timeout(Duration::from_secs(10), async {
                 loop {
                     let sessions = owner.list_sessions(None).await.unwrap();
-                    if sessions
+                    if sessions.iter().any(|session| {
+                        session.session_id != sdk.id()
+                            && !previous_ids.contains(&session.session_id)
+                    }) && sessions
                         .iter()
-                        .any(|session| session.session_id.as_str() == id)
-                        && sessions
-                            .iter()
-                            .any(|session| session.session_id == sdk.id())
+                        .any(|session| session.session_id == sdk.id())
                     {
                         return sessions;
                     }
@@ -66,11 +72,19 @@ async fn streams_real_ahp_turn_beside_sdk_session_on_same_runtime() {
             })
             .await
             .expect("persisted session list must include both completed AHP and SDK sessions");
-            assert!(
-                sessions
-                    .iter()
-                    .any(|session| session.session_id.as_str() == id)
+            let ahp_sessions: Vec<_> = sessions
+                .iter()
+                .filter(|session| {
+                    session.session_id != sdk.id() && !previous_ids.contains(&session.session_id)
+                })
+                .collect();
+            assert_eq!(
+                ahp_sessions.len(),
+                1,
+                "exactly one new private AHP runtime session"
             );
+            let id = ahp_sessions[0].session_id.clone();
+            assert_ne!(id.as_str(), uri.strip_prefix("ahp-session:/").unwrap());
             assert!(
                 sessions
                     .iter()
@@ -78,12 +92,13 @@ async fn streams_real_ahp_turn_beside_sdk_session_on_same_runtime() {
             );
             let observer = owner
                 .resume_session(
-                    ResumeSessionConfig::new(SessionId::from(id)).with_permission_handler(
+                    ResumeSessionConfig::new(id.clone()).with_permission_handler(
                         std::sync::Arc::new(github_copilot_sdk::handler::ApproveAllHandler),
                     ),
                 )
                 .await
                 .unwrap();
+            assert_eq!(observer.id(), id);
             assert!(observer.get_events().await.unwrap().iter().any(|event| {
                 event.event_type == "assistant.message"
                     && event.data["content"]
@@ -155,7 +170,7 @@ async fn explicit_base_directory_survives_runtime_restart_and_excludes_other_wri
                 .unwrap();
             let host = first.start_ahp_host(local_options()).await.unwrap();
             let ahp = connect(&host).await;
-            topology(&host, &first, &base.join("ahp/sessions"));
+            topology(&host, &first, &base);
             let (uri, chat, subscription) = create(&ahp, ctx).await;
             turn(&ahp, &chat, subscription).await;
             let sdk = second
@@ -231,7 +246,7 @@ async fn same_catalog_and_other_owner_rejected_disconnect_cleans_up_without_stop
             let ahp = connect(&host).await;
             let (uri, chat, subscription) = create(&ahp, ctx).await;
             turn(&ahp, &chat, subscription).await;
-            topology(&host, &owner, &home(ctx).join("ahp/sessions"));
+            topology(&host, &owner, &home(ctx));
             let error = owner.start_ahp_host(local_options()).await.err().unwrap();
             assert!(
                 error.to_string().contains("catalog")
@@ -320,7 +335,7 @@ async fn listener_startup_failure_recovers_and_preserves_owner_session() {
                 .await
                 .unwrap();
             let ahp = connect(&host).await;
-            topology(&host, &owner, &home(ctx).join("ahp/sessions"));
+            topology(&host, &owner, &home(ctx));
             host.dispose().await.unwrap();
             let observed = exit(&exits).await;
             assert_eq!(observed.host_id, host.host_id);
@@ -445,7 +460,7 @@ async fn listener_defaults_explicit_ports_tokens_and_invalid_combinations() {
                 );
                 let ahp = connect_url(url.as_str(), host.token.as_deref()).await;
                 ahp.client.ping().await.unwrap();
-                topology(&host, &owner, &home(ctx).join("ahp/sessions"));
+                topology(&host, &owner, &home(ctx));
                 host.dispose().await.unwrap();
                 stopped(&host, &ahp, &owner).await;
                 ahp.client.shutdown().await;
@@ -549,7 +564,7 @@ async fn graceful_runtime_shutdown_closes_attached_ahp_session_and_reaps_runtime
             let ahp = connect(&host).await;
             create(&ahp, ctx).await;
             let runtime_pid = owner.pid().unwrap();
-            topology(&host, &owner, &home(ctx).join("ahp/sessions"));
+            topology(&host, &owner, &home(ctx));
             deadline(owner.rpc().runtime().shutdown()).await.unwrap();
             let observed = exit(&exits).await;
             assert_eq!(observed.reason, HostExitReason::RuntimeShutdown);

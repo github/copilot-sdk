@@ -6006,8 +6006,8 @@ impl SessionEvent {
 
 /// A request from the CLI to invoke a client-defined tool.
 ///
-/// Received as a JSON-RPC request on the `tool.call` method. The client
-/// must respond with a [`ToolResultResponse`].
+/// Built from an `external_tool.requested` session event. The SDK sends the
+/// handler's result back with `session.tools.handlePendingToolCall`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
@@ -6039,6 +6039,18 @@ pub struct ToolInvocation {
     /// [`traceparent`](Self::traceparent).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tracestate: Option<String>,
+    /// **Experimental.** Sub-agent instance that issued this call (the
+    /// `agentId` of its session events). `None` for a root-agent call, and for
+    /// every call when the runtime does not attribute sub-agent tool calls.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent_id: Option<String>,
+    /// **Experimental.** Runtime request id of this call: the key
+    /// `session.tools.handlePendingToolCall` and `session.tools.listPendingRequests`
+    /// use. A root-agent call stays answerable after the session is resumed with
+    /// pending work continued; a sub-agent's call can be answered only while that
+    /// sub-agent is still running.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub request_id: Option<RequestId>,
 }
 
 impl ToolInvocation {

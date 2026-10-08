@@ -131,7 +131,12 @@ instead, or configure both transports. GitHub environment name and compute ID ar
 required; there is no implicit local listener. The host's `getUrl()`, `getToken()`,
 and `getPid()` may return `null`; `getEnvironmentId()` returns the GitHub environment
 ID when configured. Environment list/get/delete operations are available only
-through the generated RPC API.
+through the generated RPC API. Call `host.listSessions()` to read the complete
+advertised catalog of live and dormant sessions.
+Use `AhpHostOptions.setComputeId(...)` to reuse the durable catalog across local
+and Mission Control hosting; it must agree with the GitHub environment's compute
+ID when both are supplied. The runtime persists an omitted local-only identity.
+Publication survives host shutdown; dormant application sessions require your resume callback.
 See [runtime-supervised AHP hosting](../docs/runtime-supervised-host.md) for creation
 and resume callbacks, resident-session publication, ownership, and shared-snapshot E2Es.
 
@@ -216,6 +221,7 @@ Register `setOnSubagentStart` and `setOnSubagentStop` on `SessionHooks` to inspe
 the parent session and subagent metadata around each child run:
 
 ```java
+import com.github.copilot.rpc.PermissionHandler;
 import com.github.copilot.rpc.SessionConfig;
 import com.github.copilot.rpc.SessionHooks;
 import com.github.copilot.rpc.SubagentStartHookOutput;
@@ -229,7 +235,7 @@ var hooks = new SessionHooks()
     .setOnSubagentStop((input, invocation) ->
         CompletableFuture.completedFuture(
             new SubagentStopHookOutput(null, null, input.response())));
-var config = new SessionConfig().setHooks(hooks);
+var config = new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setHooks(hooks);
 ```
 
 `SubagentStartHookInput` includes the parent `sessionId`, `timestamp`, `cwd`,

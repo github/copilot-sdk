@@ -751,6 +751,38 @@ public class CopilotClientTest {
     // ===== getState() coverage =====
 
     @Test
+    void testGetStateDoesNotReportConnectedWhenStartFailsDuringStateRead() throws Exception {
+        var failure = new IOException("Startup failed");
+        // Complete after the first status observation, whichever status getState reads
+        // first.
+        var future = new CompletableFuture<Object>() {
+            @Override
+            public boolean isDone() {
+                boolean done = super.isDone();
+                completeExceptionally(failure);
+                return done;
+            }
+
+            @Override
+            public boolean isCompletedExceptionally() {
+                boolean failed = super.isCompletedExceptionally();
+                completeExceptionally(failure);
+                return failed;
+            }
+        };
+
+        try (var client = new CopilotClient(new CopilotClientOptions().setAutoStart(false))) {
+            setConnectionFuture(client, future);
+
+            ConnectionState state = client.getState();
+            assertTrue(state == ConnectionState.CONNECTING || state == ConnectionState.ERROR,
+                    "Failed startup must not report CONNECTED, was: " + state);
+            assertTrue(future.isCompletedExceptionally());
+            assertEquals(ConnectionState.ERROR, client.getState());
+        }
+    }
+
+    @Test
     void testGetStateErrorAfterFailedStart() throws Exception {
         // Use a non-existent CLI path to trigger a startup failure
         var options = new CopilotClientOptions().setCliPath("/nonexistent/path/to/cli").setAutoStart(false);
@@ -964,9 +996,13 @@ public class CopilotClientTest {
         constructor.setAccessible(true);
         var connection = constructor.newInstance(rpc, process, null, null);
 
+        setConnectionFuture(client, CompletableFuture.completedFuture(connection));
+    }
+
+    private static void setConnectionFuture(CopilotClient client, CompletableFuture<?> future) throws Exception {
         Field field = CopilotClient.class.getDeclaredField("connectionFuture");
         field.setAccessible(true);
-        field.set(client, CompletableFuture.completedFuture(connection));
+        field.set(client, future);
     }
 
     @AllowCopilotExperimental

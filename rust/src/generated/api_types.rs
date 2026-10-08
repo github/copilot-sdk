@@ -30,6 +30,8 @@ pub mod rpc_methods {
     pub const ENVIRONMENTS_DELETE: &str = "environments.delete";
     /// `host.publishSession`
     pub const HOST_PUBLISHSESSION: &str = "host.publishSession";
+    /// `host.listSessions`
+    pub const HOST_LISTSESSIONS: &str = "host.listSessions";
     /// `host.createSession`
     pub const HOST_CREATESESSION: &str = "host.createSession";
     /// `host.releaseSession`
@@ -9311,6 +9313,9 @@ pub struct HostGitHubEnvironmentOptions {
     pub compute_id: String,
     /// Human-readable environment display name.
     pub name: String,
+    /// Require sealed, connection-bound authentication (default true), independent of listener address. False permits unsealed direct credentials and unbound sealed relay credentials; use only when the caller fully controls and trusts the direct transport. Relay token encryption remains mandatory.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub require_connection_binding: Option<bool>,
 }
 
 /// Normalized local WebSocket listener settings.
@@ -9407,6 +9412,13 @@ pub struct HostEnvironmentCredentials {
 }
 
 /// Reports a supervised listener's hosting-task termination and cleanup outcome.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HostExitedNotification {
@@ -9420,6 +9432,64 @@ pub struct HostExitedNotification {
     pub host_id: String,
     /// Cause of termination.
     pub reason: HostExitReason,
+}
+
+/// Reads a running host's catalog or the runtime's saved default catalog.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HostListSessionsRequest {
+    /// Listener UUID returned by host.start; the caller must own it. Omit to read
+    /// the saved default compute-identity catalog without starting a listener.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub host_id: Option<String>,
+}
+
+/// Metadata advertised by the AHP host, not a guarantee that history can be resumed.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HostSessionSummary {
+    /// Optional activity description advertised by the host.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub activity: Option<String>,
+    /// Session creation time as an ISO 8601 timestamp.
+    pub created_at: String,
+    /// Last modification time as an ISO 8601 timestamp.
+    pub modified_at: String,
+    /// Stable AHP resource URI identifying the session on this host.
+    pub resource: String,
+    /// Unsigned 32-bit AHP session status bitset (0..=4294967295); unknown bits must be preserved.
+    pub status: i64,
+    /// Authoritative title advertised by the host.
+    pub title: String,
+}
+
+/// The complete live and dormant advertised catalog, without subscribing to sessions.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HostListSessionsResult {
+    /// Complete advertised session summaries, in the host's catalog order.
+    pub sessions: Vec<HostSessionSummary>,
 }
 
 /// Local WebSocket transport options.
@@ -9504,6 +9574,13 @@ pub struct HostReadyRequest {
 }
 
 /// Listener-scoped registration, not a copy or durable adoption of a session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HostRegisterSessionRequest {
@@ -9526,6 +9603,13 @@ pub struct HostRegisterSessionRequest {
 }
 
 /// Application callback routed over its existing SDK connection.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HostSessionCreateCallback {
@@ -9555,6 +9639,10 @@ pub struct HostSessionCreateRequest {
     pub config: HashMap<String, serde_json::Value>,
     /// Unique identity for this participation, independent of the session lifetime.
     pub handoff_id: String,
+    /// For an explicit publication, borrow an existing owning-connection resident
+    /// instead of invoking the resume factory. Cold sessions still use the factory.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prefer_resident: Option<bool>,
     /// Resume an app-owned durable session instead of creating a new session.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub resume: Option<bool>,
@@ -9576,6 +9664,13 @@ pub struct HostSessionCreateResult {
 }
 
 /// Releases the original application session object retained for one handoff.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HostSessionReleasedNotification {
@@ -9625,6 +9720,72 @@ pub struct HostStartRequest {
     /// Ask the owning SDK application to materialize AHP sessions.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_factory: Option<bool>,
+}
+
+/// Extensible [`HostStartRequest`], including inputs added after it was published.
+///
+/// Required inputs are [`HostStartOptions::new`] arguments; optional inputs have fluent setters.
+/// Input-only: it serialises to the flat wire request and is not deserialisable.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HostStartOptions {
+    #[serde(flatten)]
+    legacy: HostStartRequest,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    compute_id: Option<String>,
+}
+
+impl HostStartOptions {
+    /// Creates options with the required inputs.
+    pub fn new(host_id: impl Into<String>) -> Self {
+        Self {
+            legacy: HostStartRequest {
+                host_id: host_id.into(),
+                local_server: None,
+                github_environment: None,
+                session_factory: None,
+                resume_factory: None,
+            },
+            compute_id: None,
+        }
+    }
+
+    /// Enables a local WebSocket listener.
+    pub fn local_server(mut self, value: HostLocalServerOptions) -> Self {
+        self.legacy.local_server = Some(value);
+        self
+    }
+
+    /// Registers a GitHub Mission Control environment and enables its relay transport.
+    pub fn github_environment(mut self, value: HostGitHubEnvironmentOptions) -> Self {
+        self.legacy.github_environment = Some(value);
+        self
+    }
+
+    /// Ask the owning SDK application to materialize AHP sessions.
+    pub fn session_factory(mut self, value: bool) -> Self {
+        self.legacy.session_factory = Some(value);
+        self
+    }
+
+    /// Ask the owning application to resume its durable AHP sessions.
+    pub fn resume_factory(mut self, value: bool) -> Self {
+        self.legacy.resume_factory = Some(value);
+        self
+    }
+
+    /// Stable application identity selecting its durable host catalog. Defaults to the persisted runtime compute GUID; must agree with githubEnvironment.computeId when both are supplied.
+    pub fn compute_id(mut self, value: impl Into<String>) -> Self {
+        self.compute_id = Some(value.into());
+        self
+    }
 }
 
 /// Listener readiness, returned only after binding and the supervised participant's SDK handshake.
@@ -11922,8 +12083,7 @@ pub struct McpConfiguredServer {
     /// Whether this configured server is enabled after session configuration and policy filtering.
     pub enabled: bool,
     /// Observed state from an already materialized matching server. Omitted when no live graph has this configured server; it never determines configuration enablement.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub live: Option<McpConfiguredServerState>,
+    pub live: McpConfiguredServerState,
     /// Server name (config key)
     pub name: String,
     /// Configuration provenance: user, workspace, plugin, builtin, or managed.
@@ -41672,6 +41832,13 @@ pub enum HistoryRewindOutcome {
     Unknown,
 }
 
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum HostExitReason {
     /// The owner requested disposal.

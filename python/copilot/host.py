@@ -18,6 +18,7 @@ from weakref import WeakKeyDictionary
 from .generated.rpc import (
     HostExitedNotification,
     HostGitHubEnvironmentOptions,
+    HostListSessionsResult,
     HostLocalServerOptions,
     HostPublishSessionResult,
     HostStartResult,
@@ -76,11 +77,16 @@ class AhpHost:
         await self._rpc.request("host.dispose", {"hostId": self.host_id})
 
     async def publish_session(self, session_id: str) -> HostPublishSessionResult:
-        """Publish a resident session attached to the owning client."""
+        """Publish an attached session into the durable compute-scoped catalog."""
         result = await self._rpc.request(
             "host.publishSession", {"hostId": self.host_id, "sessionId": session_id}
         )
         return HostPublishSessionResult.from_dict(result)
+
+    async def list_sessions(self) -> HostListSessionsResult:
+        """List all live and dormant catalog sessions advertised by this host."""
+        result = await self._rpc.request("host.listSessions", {"hostId": self.host_id})
+        return HostListSessionsResult.from_dict(result)
 
     async def __aenter__(self) -> AhpHost:
         return self
@@ -98,6 +104,9 @@ class AhpHostOptions:
     Factories must return the exact requested session from the owning client.
     Release callbacks receive that same object once per handoff, including late
     results. The SDK never disconnects or destroys it on the application's behalf.
+    ``compute_id`` selects a durable catalog across transports; omitted local-only
+    identities are persisted by the runtime. It must agree with the GitHub
+    environment's compute identity when both are supplied.
     """
 
     local_server: HostLocalServerOptions | None = None
@@ -106,6 +115,7 @@ class AhpHostOptions:
     resume_session: Callable[[AhpSessionResumeRequest], Awaitable[CopilotSession]] | None = None
     on_session_released: Callable[[CopilotSession], Awaitable[None] | None] | None = None
     on_exit: Callable[[AhpHostExit], Awaitable[None] | None] | None = None
+    compute_id: str | None = None
 
 
 @dataclass
@@ -211,6 +221,7 @@ class _AhpHostManager:
         self._hosts[host_id] = options
         params = {
             "hostId": host_id,
+            "computeId": options.compute_id,
             "localServer": (
                 options.local_server.to_dict() if options.local_server is not None else None
             ),

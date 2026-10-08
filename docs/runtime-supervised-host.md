@@ -106,14 +106,23 @@ Startup fails if a requested transport cannot become ready, rather than silently
 downgrading to local-only hosting. Select transports at startup; dispose and
 recreate the host to change them.
 
+`githubEnvironment.requireConnectionBinding` defaults to `true`: sealed
+authentication must bind the current handshake challenge, a fresh nonce and
+timestamp. Explicit `false` selects compatibility with clients sending unbound
+encrypted tokens. Relay encryption and resource authorization stay mandatory,
+but an unbound sealed token is replayable. This is the same transitional policy
+supported by `copilotd`, not a switch to plaintext authentication.
+
 GitHub-only hosting does not open a local listener. Its host handle has an
 environment ID but no local URL or connection token. `environmentId` is absent
 for local-only hosting. Disposal ends transport and registration activity without
 deleting the saved MC environment record or application-owned sessions.
 
 Registering an environment does not publish every application session. Use
-`publishSession` for existing resident sessions; factory callbacks and durable
-catalog behavior are unchanged. Environment management is independent of a
+`publishSession` for an existing resident session, and `listSessions` to read
+the host's complete advertised catalog of live and dormant sessions. Listing
+does not start a host, publish a session, or paginate results. Factory callbacks
+and durable catalog behavior are unchanged. Environment management is independent of a
 running host and available only through generated `rpc.environments.list`,
 `rpc.environments.get`, and `rpc.environments.delete` operations, using each
 language's naming conventions.
@@ -378,7 +387,8 @@ configuration before calling these methods, just as in the creation examples.
 Python and .NET handles support asynchronous context management; Java handles
 support try-with-resources. Go callers explicitly invoke `Dispose(ctx)`.
 
-Only durable catalog entries marked as application-owned invoke the resume
+Durable catalog entries marked as application-owned, including published
+application sessions, invoke the resume
 factory. If its resume callback is missing, restoration fails rather than silently
 falling back to host-owned creation. Published resident sessions attach directly and do not invoke either
 factory. This callback does not provide arbitrary adoption or reconfiguration
@@ -398,11 +408,33 @@ and `sessionUri`. Publication does not call the factory, copy history, replace
 the native session, or transfer ownership. Its metadata and workspace come
 from the resident session, not from an application-supplied configuration.
 
-Published sessions are discoverable only for this listener's lifetime. They
-are not imported into its durable catalog. Stopping the listener detaches its
-participation without deleting the original session or transcript. A missing
-or replaced resident session cannot be silently restored from disk by the
-listener.
+Publication records the session in the durable, compute-scoped host catalog.
+Stopping the listener detaches its participation without deleting the catalog
+entry, original session, or transcript. A later host using the same compute
+identity can discover it as a dormant session. Restoring an application-owned
+session requires the owning application's `resumeSession` callback to configure
+its tools, hooks, and handlers; the host does not silently substitute host-owned
+session construction. A currently attached resident session still attaches
+directly without invoking a factory. The SDK does not expose an unpublish operation.
+
+### Listing host sessions
+
+Call the owner-bound host handle to read every live or dormant session currently
+advertised by its host. The runtime returns the complete catalog in one response;
+the method does not start a host or publish sessions. The host ID is supplied
+by the handle, so the call stays on the original owning connection.
+Each method returns a `HostListSessionsResult` with a `sessions` collection,
+not the collection directly. In Node.js, use
+`const { sessions } = await host.listSessions()`.
+
+| SDK | Method |
+| --- | --- |
+| Node.js | `host.listSessions()` |
+| Python | `await host.list_sessions()` |
+| Go | `host.ListSessions(ctx)` |
+| .NET | `host.ListSessionsAsync(cancellationToken)` |
+| Java | `host.listSessions()` |
+| Rust | `host.list_sessions().await` |
 
 ### CLI hosting commands
 
@@ -417,14 +449,11 @@ Sharing also shows the session URI. Use an AHP 0.9 client with the connection
 token and ordinary GitHub resource authentication; the connection token alone
 does not bypass resource authorization.
 
-`/ahp status` shows connection information. `/ahp stop` stops the **entire
-listener and all its shares**. `/remote unshare` removes the foreground session.
-The pinned host has no per-session unregister operation, so unsharing drains
-and restarts the listener at the same endpoint with the same connection token
-before republishing other shares. Other clients must reconnect; local sessions
-and their identities remain unchanged. Exiting the owning CLI stops the
-listener as well. There is one listener per CLI/effective catalog, not one
-listener per shared session.
+`/ahp status` shows connection information. `/ahp stop` stops the entire
+listener and its active participation, not its durable catalog. Other clients
+must reconnect after hosting restarts; local sessions and their identities
+remain unchanged. Exiting the owning CLI stops the listener as well. Hosting
+lifetime is separate from durable publication.
 
 `--ahp-host [--listen host:port] [--workspace directory]` serves this same backend
 in the CLI process, using normal SDK session construction, managed policy,
@@ -440,19 +469,36 @@ Outbound relay, host-picker and explicitly configured external-daemon controls r
 
 ## Durable catalog and single host owner
 
-The runtime passes its actual resolved data directory to the host library; the single AHP
-catalog lives at `<effective Copilot home>/ahp/sessions`. It follows the same
+The runtime passes its actual resolved data directory and compute identity to
+the host library. Durable catalogs are scoped to both the effective Copilot
+home and compute identity. The effective home follows the same
 default `~/.copilot`, `COPILOT_HOME`, and SDK `baseDirectory` resolution as that
-runtime. The catalog contains sessions previously created through AHP, not all
-SDK/CLI sessions. Listener disposal, owner disconnect, and restart retain it.
+runtime. Each catalog contains sessions previously created through AHP and
+explicitly published resident sessions, not all SDK/CLI sessions.
+Listener disposal, owner disconnect, and restart retain it.
 A replacement listener can list and resume these sessions after authenticating.
 
+Supply top-level `AhpHostOptions.computeId` to keep the same catalog when switching
+between local and Mission Control hosting. If omitted for a local-only start,
+the runtime persists a stable identity in its settings; the SDK never generates
+one. Mission Control's `githubEnvironment.computeId` remains required. When both
+compute IDs are supplied, they must agree or startup fails.
+
+| SDK | Top-level compute identity |
+| --- | --- |
+| Node.js | `computeId` |
+| Python | `compute_id` |
+| Go | `ComputeID` |
+| .NET | `ComputeId` |
+| Java | `setComputeId(...)` |
+| Rust | `with_compute_id(...)` |
+
 Only one AHP server may own a catalog at a time. A second start for the
-same location fails, including from another runtime. Ordinary runtimes, SDK
+same home and compute identity fails, including from another runtime. Ordinary runtimes, SDK
 clients, and sessions do not acquire this lock and remain usable. The lock is
 kernel-managed, non-blocking, held until shutdown writes finish, and released
-even after forced process termination. Different effective homes have separate
-catalogs. This does not change standalone `copilotd` defaults or concurrency
+even after forced process termination. Different effective homes or compute
+identities have separate catalogs. This does not change standalone `copilotd` defaults or concurrency
 behavior, and does not add standalone/in-process shared-writer support.
 
 ## Current GHES shell limitation

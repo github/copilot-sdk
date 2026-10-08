@@ -72,7 +72,7 @@ class AhpHostTest {
     @CsvSource({"true,false", "false,true", "true,true"})
     void forwardsExplicitTransportsAndOptionalReadiness(boolean local, boolean github) throws Exception {
         try (var server = new FakeRuntime(); var client = server.client()) {
-            var options = new AhpHostOptions();
+            var options = new AhpHostOptions().setComputeId("compute");
             if (local) {
                 options.setLocalServer(new HostLocalServerOptions("127.0.0.1", 0L, "test-token", true));
             }
@@ -81,6 +81,7 @@ class AhpHostTest {
             }
             try (var host = await(client.startAhpHost(options))) {
                 var request = await(server.startRequest);
+                assertEquals("compute", request.path("computeId").asText());
                 assertEquals(local, request.hasNonNull("localServer"));
                 assertEquals(github, request.hasNonNull("githubEnvironment"));
                 for (String oldField : List.of("hostname", "port", "token", "requireConnectionToken")) {
@@ -106,20 +107,45 @@ class AhpHostTest {
     void snapshotsOptionsBeforeConnecting() throws Exception {
         try (var server = new FakeRuntime(); var client = server.client()) {
             server.finishConnect = new CompletableFuture<>();
-            var options = localOptions().setGithubEnvironment(new HostGitHubEnvironmentOptions("original", "compute"));
+            var options = localOptions().setComputeId("compute")
+                    .setGithubEnvironment(new HostGitHubEnvironmentOptions("original", "compute"));
             var pending = client.startAhpHost(options);
             await(server.connectEntered);
             try {
-                options.setLocalServer(null).setGithubEnvironment(new HostGitHubEnvironmentOptions("", ""));
+                options.setComputeId("changed").setLocalServer(null)
+                        .setGithubEnvironment(new HostGitHubEnvironmentOptions("", ""));
             } finally {
                 server.finishConnect.complete(null);
             }
             try (var host = await(pending)) {
                 var request = await(server.startRequest);
                 assertTrue(request.hasNonNull("localServer"));
+                assertEquals("compute", request.path("computeId").asText());
                 assertEquals("original", request.path("githubEnvironment").path("name").asText());
                 assertEquals("compute", request.path("githubEnvironment").path("computeId").asText());
             }
+        }
+    }
+
+    @Test
+    void legacyEnvironmentOptionsOmitConnectionBinding() throws Exception {
+        try (var server = new FakeRuntime();
+                var client = server.client();
+                var host = await(client.startAhpHost(new AhpHostOptions()
+                        .setGithubEnvironment(new HostGitHubEnvironmentOptions("test host", "compute"))))) {
+            assertFalse(await(server.startRequest).path("githubEnvironment").has("requireConnectionBinding"));
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void forwardsExplicitConnectionBinding(boolean required) throws Exception {
+        try (var server = new FakeRuntime();
+                var client = server.client();
+                var host = await(client.startAhpHost(new AhpHostOptions()
+                        .setGithubEnvironment(new HostGitHubEnvironmentOptions("test host", "compute", required))))) {
+            assertEquals(required,
+                    await(server.startRequest).path("githubEnvironment").path("requireConnectionBinding").asBoolean());
         }
     }
 
@@ -128,7 +154,7 @@ class AhpHostTest {
         var methods = Arrays.stream(ServerHostApi.class.getMethods())
                 .filter(method -> method.getDeclaringClass() == ServerHostApi.class).map(method -> method.getName())
                 .collect(Collectors.toSet());
-        assertEquals(Set.of("start", "dispose", "publishSession"), methods);
+        assertEquals(Set.of("start", "dispose", "publishSession", "listSessions"), methods);
     }
 
     @Test
@@ -330,6 +356,8 @@ class AhpHostTest {
             })));
             assertNull(host.getPid());
             assertEquals("ahp-session:/resident", await(host.publishSession("resident")).sessionUri());
+            assertTrue(await(host.listSessions()).sessions().isEmpty());
+            assertEquals(host.getHostId(), await(server.listSessionsRequest).path("hostId").asText());
             await(CompletableFuture.allOf(host.dispose(), host.dispose()));
             await(exited);
             assertEquals(2, server.disposals.get());
@@ -347,6 +375,7 @@ class AhpHostTest {
         final AtomicInteger disposals = new AtomicInteger();
         final CompletableFuture<String> startEntered = new CompletableFuture<>();
         final CompletableFuture<JsonNode> startRequest = new CompletableFuture<>();
+        final CompletableFuture<JsonNode> listSessionsRequest = new CompletableFuture<>();
         final CompletableFuture<String> disposedHost = new CompletableFuture<>();
         final CompletableFuture<Void> connectEntered = new CompletableFuture<>();
         volatile CompletableFuture<Void> finishConnect = CompletableFuture.completedFuture(null);
@@ -390,6 +419,10 @@ class AhpHostTest {
                                 (id, params) -> respond(transport, id,
                                         Map.of("sessionId", params.get("sessionId").asText(), "sessionUri",
                                                 "ahp-session:/" + params.get("sessionId").asText())));
+                        transport.registerMethodHandler("host.listSessions", (id, params) -> {
+                            listSessionsRequest.complete(params);
+                            respond(transport, id, Map.of("sessions", List.of()));
+                        });
                         transport.registerMethodHandler("host.dispose", (id, params) -> {
                             disposals.incrementAndGet();
                             try {

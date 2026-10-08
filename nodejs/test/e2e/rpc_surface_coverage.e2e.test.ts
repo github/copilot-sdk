@@ -327,7 +327,10 @@ describe("Generated RPC surface coverage", () => {
             ...collectRuntimeFunctions(session.rpc, "session"),
         ]);
 
-        expect(inventory).toHaveLength(403);
+        expect(inventory).toHaveLength(404);
+        expect(inventory.filter((method) => method.wireMethod === "host.listSessions")).toEqual([
+            expect.objectContaining({ scope: "server", path: "host.listSessions" }),
+        ]);
         expect(inventory.some((method) => method.wireMethod === "user.settings.reload")).toBe(
             false
         );

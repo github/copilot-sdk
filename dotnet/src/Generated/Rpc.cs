@@ -254,6 +254,56 @@ internal sealed class HostPublishSessionRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
+/// <summary>Metadata advertised by the AHP host, not a guarantee that history can be resumed.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class HostSessionSummary
+{
+    /// <summary>Optional activity description advertised by the host.</summary>
+    [JsonPropertyName("activity")]
+    public string? Activity { get; set; }
+
+    /// <summary>Session creation time as an ISO 8601 timestamp.</summary>
+    [JsonPropertyName("createdAt")]
+    public string CreatedAt { get; set; } = string.Empty;
+
+    /// <summary>Last modification time as an ISO 8601 timestamp.</summary>
+    [JsonPropertyName("modifiedAt")]
+    public string ModifiedAt { get; set; } = string.Empty;
+
+    /// <summary>Stable AHP resource URI identifying the session on this host.</summary>
+    [JsonPropertyName("resource")]
+    public string Resource { get; set; } = string.Empty;
+
+    /// <summary>Unsigned 32-bit AHP session status bitset (0..=4294967295); unknown bits must be preserved.</summary>
+    [JsonPropertyName("status")]
+    public long Status { get; set; }
+
+    /// <summary>Authoritative title advertised by the host.</summary>
+    [JsonPropertyName("title")]
+    public string Title { get; set; } = string.Empty;
+}
+
+/// <summary>The complete live and dormant advertised catalog, without subscribing to sessions.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class HostListSessionsResult
+{
+    /// <summary>Complete advertised session summaries, in the host's catalog order.</summary>
+    [JsonPropertyName("sessions")]
+    public IList<HostSessionSummary> Sessions { get => field ??= []; set; }
+}
+
+/// <summary>Reads a running host's catalog or the runtime's saved default catalog.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class HostListSessionsRequest
+{
+    /// <summary>
+    /// Listener UUID returned by host.start; the caller must own it. Omit to read
+    /// the saved default compute-identity catalog without starting a listener.
+    /// </summary>
+    [JsonPropertyName("hostId")]
+    public string? HostId { get; set; }
+}
+
 /// <summary>The resident session the application has materialized on its own connection.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 internal sealed class HostCreateSessionResult
@@ -274,6 +324,13 @@ internal sealed class HostCreateSessionRequest
     /// <summary>Unique identity for this participation, independent of the session lifetime.</summary>
     [JsonPropertyName("handoffId")]
     public string HandoffId { get; set; } = string.Empty;
+
+    /// <summary>
+    /// For an explicit publication, borrow an existing owning-connection resident
+    /// instead of invoking the resume factory. Cold sessions still use the factory.
+    /// </summary>
+    [JsonPropertyName("preferResident")]
+    public bool? PreferResident { get; set; }
 
     /// <summary>Resume an app-owned durable session instead of creating a new session.</summary>
     [JsonPropertyName("resume")]
@@ -331,6 +388,10 @@ public sealed class HostGitHubEnvironmentOptions
     /// <summary>Human-readable environment display name.</summary>
     [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
+
+    /// <summary>Require sealed, connection-bound authentication (default true), independent of listener address. False permits unsealed direct credentials and unbound sealed relay credentials; use only when the caller fully controls and trusts the direct transport. Relay token encryption remains mandatory.</summary>
+    [JsonPropertyName("requireConnectionBinding")]
+    public bool? RequireConnectionBinding { get; set; }
 }
 
 /// <summary>Local WebSocket transport options.</summary>
@@ -356,15 +417,19 @@ public sealed class HostLocalServerOptions
 
 /// <summary>Starts a supervised AHP host with at least one explicitly selected transport.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class HostStartRequest
+public sealed class HostStartRequest
 {
+    /// <summary>Stable application identity selecting its durable host catalog. Defaults to the persisted runtime compute GUID; must agree with githubEnvironment.computeId when both are supplied.</summary>
+    [JsonPropertyName("computeId")]
+    public string? ComputeId { get; set; }
+
     /// <summary>Registers a GitHub Mission Control environment and enables its relay transport.</summary>
     [JsonPropertyName("githubEnvironment")]
     public HostGitHubEnvironmentOptions? GitHubEnvironment { get; set; }
 
     /// <summary>Caller-generated UUID identifying this connection-owned listener.</summary>
     [JsonPropertyName("hostId")]
-    public string HostId { get; set; } = string.Empty;
+    public required string HostId { get; set; }
 
     /// <summary>Enables a local WebSocket listener.</summary>
     [JsonPropertyName("localServer")]
@@ -16674,7 +16739,7 @@ public sealed class McpConfiguredServer
 
     /// <summary>Observed state from an already materialized matching server. Omitted when no live graph has this configured server; it never determines configuration enablement.</summary>
     [JsonPropertyName("live")]
-    public McpConfiguredServerState? Live { get; set; }
+    public McpConfiguredServerState Live { get => field ??= new(); set; }
 
     /// <summary>Server name (config key).</summary>
     [RegularExpression("^[^\\x00-\\x1f/\\x7f-\\x9f}]+(?:\\/[^\\x00-\\x1f/\\x7f-\\x9f}]+)*$")]
@@ -27270,6 +27335,7 @@ public sealed class CanvasProviderInvokeActionRequest
 }
 
 /// <summary>Reports a supervised listener's hosting-task termination and cleanup outcome.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public sealed class HostExitedRequest
 {
     /// <summary>Explicit startup or teardown failure, when present.</summary>
@@ -43514,18 +43580,35 @@ public sealed class ServerHostApi
         return await CopilotClient.InvokeRpcAsync<HostPublishSessionResult>(_rpc, "host.publishSession", [request], cancellationToken);
     }
 
+    /// <summary>Reads the complete advertised live and dormant session catalog of an existing host owned by this connection. Does not start hosting, subscribe to sessions, or guarantee resumability.</summary>
+    /// <param name="hostId">
+    /// Listener UUID returned by host.start; the caller must own it. Omit to read
+    /// the saved default compute-identity catalog without starting a listener.
+    /// </param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>The complete live and dormant advertised catalog, without subscribing to sessions.</returns>
+    public async Task<HostListSessionsResult> ListSessionsAsync(string? hostId = null, CancellationToken cancellationToken = default)
+    {
+        var request = new HostListSessionsRequest { HostId = hostId };
+        return await CopilotClient.InvokeRpcAsync<HostListSessionsResult>(_rpc, "host.listSessions", [request], cancellationToken);
+    }
+
     /// <summary>Requests app-owned materialization over the owning SDK participant.</summary>
     /// <param name="handoffId">Unique identity for this participation, independent of the session lifetime.</param>
     /// <param name="config">Host-selected SDK creation or resume settings, without executable callbacks or tools.</param>
     /// <param name="resume">Resume an app-owned durable session instead of creating a new session.</param>
+    /// <param name="preferResident">
+    /// For an explicit publication, borrow an existing owning-connection resident
+    /// instead of invoking the resume factory. Cold sessions still use the factory.
+    /// </param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>The resident session the application has materialized on its own connection.</returns>
-    internal async Task<HostCreateSessionResult> CreateSessionAsync(string handoffId, IDictionary<string, JsonElement> config, bool? resume = null, CancellationToken cancellationToken = default)
+    internal async Task<HostCreateSessionResult> CreateSessionAsync(string handoffId, IDictionary<string, JsonElement> config, bool? resume = null, bool? preferResident = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(handoffId);
         ArgumentNullException.ThrowIfNull(config);
 
-        var request = new HostCreateSessionRequest { HandoffId = handoffId, Config = config, Resume = resume };
+        var request = new HostCreateSessionRequest { HandoffId = handoffId, Config = config, Resume = resume, PreferResident = preferResident };
         return await CopilotClient.InvokeRpcAsync<HostCreateSessionResult>(_rpc, "host.createSession", [request], cancellationToken);
     }
 
@@ -43554,6 +43637,17 @@ public sealed class ServerHostApi
         ArgumentNullException.ThrowIfNull(hostId);
 
         var request = new HostStartRequest { HostId = hostId, LocalServer = localServer, GitHubEnvironment = githubEnvironment, SessionFactory = sessionFactory, ResumeFactory = resumeFactory };
+        return await CopilotClient.InvokeRpcAsync<HostStartResult>(_rpc, "host.start", [request], cancellationToken);
+    }
+
+    /// <summary>Starts a connection-owned AHP host with explicit localServer and/or githubEnvironment transports as a supervised SDK participant.</summary>
+    /// <param name="request">Starts a supervised AHP host with at least one explicitly selected transport.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Listener readiness, returned only after binding and the supervised participant's SDK handshake.</returns>
+    public async Task<HostStartResult> StartAsync(HostStartRequest request, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(request.HostId);
         return await CopilotClient.InvokeRpcAsync<HostStartResult>(_rpc, "host.start", [request], cancellationToken);
     }
 
@@ -52574,6 +52668,8 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(HostGetConfigurationResult))]
 [JsonSerializable(typeof(HostGetEnvironmentCredentialsResult))]
 [JsonSerializable(typeof(HostGitHubEnvironmentOptions))]
+[JsonSerializable(typeof(HostListSessionsRequest))]
+[JsonSerializable(typeof(HostListSessionsResult))]
 [JsonSerializable(typeof(HostLocalServerConfiguration))]
 [JsonSerializable(typeof(HostLocalServerOptions))]
 [JsonSerializable(typeof(HostPublishSessionRequest))]
@@ -52582,6 +52678,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(HostReadyResult))]
 [JsonSerializable(typeof(HostReleaseSessionRequest))]
 [JsonSerializable(typeof(HostReleaseSessionResult))]
+[JsonSerializable(typeof(HostSessionSummary))]
 [JsonSerializable(typeof(HostStartRequest))]
 [JsonSerializable(typeof(HostStartResult))]
 [JsonSerializable(typeof(IDictionary<string, JsonElement>))]

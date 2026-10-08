@@ -46,4 +46,40 @@ describe("session MCP wire contracts", () => {
             output.destroy();
         }
     });
+
+    it("returns required runtime lifecycle independently of configuration enablement", async () => {
+        const input = new PassThrough();
+        const output = new PassThrough();
+        const connection = createMessageConnection(input, output);
+        const servers = [
+            { name: "cold", enabled: true, live: { status: "not_configured" } },
+            { name: "old-connection", enabled: false, live: { status: "connected" } },
+            { name: "auth", enabled: true, live: { status: "needs-auth" } },
+            { name: "stopped", enabled: true, live: { status: "stopped" } },
+            {
+                name: "failed",
+                enabled: true,
+                live: { status: "failed", error: "connection failed" },
+            },
+        ];
+        vi.spyOn(connection, "sendRequest").mockResolvedValue({ servers });
+        try {
+            const result = await createSessionRpc(
+                connection,
+                "wrapper-session"
+            ).mcp.listConfigured();
+            expect(result.servers).toEqual(servers);
+            expect(result.servers.map((server) => server.live.status)).toEqual([
+                "not_configured",
+                "connected",
+                "needs-auth",
+                "stopped",
+                "failed",
+            ]);
+        } finally {
+            connection.dispose();
+            input.destroy();
+            output.destroy();
+        }
+    });
 });

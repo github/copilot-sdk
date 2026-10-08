@@ -2496,6 +2496,86 @@ public sealed partial class ClientSessionLifetimeTests
         }
     }
 
+    [Fact]
+    public async Task ExternalTool_Invocation_Names_The_Sub_Agent_And_Request_Behind_The_Call()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        var invocations = new ConcurrentQueue<ToolInvocation>();
+        var tool = CopilotTool.DefineTool(
+            (ToolInvocation invocation) =>
+            {
+                invocations.Enqueue(invocation);
+                return "ok";
+            },
+            factoryOptions: new AIFunctionFactoryOptions { Name = "calc" });
+        await using var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            Tools = [tool],
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+        server.ClearRequests();
+
+        DispatchEvent(session, new ExternalToolRequestedEvent
+        {
+            AgentId = "task-agent-1",
+            Data = new ExternalToolRequestedData
+            {
+                RequestId = "req-sub-agent",
+                SessionId = session.SessionId,
+                ToolCallId = "tc-sub-agent",
+                ToolName = "calc"
+            }
+        });
+        await WaitForRequestAsync(server, "session.tools.handlePendingToolCall");
+        server.ClearRequests();
+        DispatchEvent(session, new ExternalToolRequestedEvent
+        {
+            Data = new ExternalToolRequestedData
+            {
+                RequestId = "req-root",
+                SessionId = session.SessionId,
+                ToolCallId = "tc-root",
+                ToolName = "calc"
+            }
+        });
+        await WaitForRequestAsync(server, "session.tools.handlePendingToolCall");
+        server.ClearRequests();
+        DispatchEvent(session, new ExternalToolRequestedEvent
+        {
+            AgentId = "",
+            Data = new ExternalToolRequestedData
+            {
+                RequestId = "req-blank-agent",
+                SessionId = session.SessionId,
+                ToolCallId = "tc-blank-agent",
+                ToolName = "calc"
+            }
+        });
+        await WaitForRequestAsync(server, "session.tools.handlePendingToolCall");
+
+        Assert.Collection(
+            invocations,
+            subAgentCall =>
+            {
+                Assert.Equal("tc-sub-agent", subAgentCall.ToolCallId);
+                Assert.Equal("task-agent-1", subAgentCall.AgentId);
+                Assert.Equal("req-sub-agent", subAgentCall.RequestId);
+            },
+            rootCall =>
+            {
+                Assert.Equal("tc-root", rootCall.ToolCallId);
+                Assert.Null(rootCall.AgentId);
+                Assert.Equal("req-root", rootCall.RequestId);
+            },
+            blankAgentCall =>
+            {
+                Assert.Equal("tc-blank-agent", blankAgentCall.ToolCallId);
+                Assert.Null(blankAgentCall.AgentId);
+                Assert.Equal("req-blank-agent", blankAgentCall.RequestId);
+            });
+    }
+
     private static ExternalToolRequestedEvent ExternalToolRequested(string requestId, string toolName = "blocked_tool") =>
         new()
         {
@@ -3974,6 +4054,10 @@ public sealed partial class ClientSessionLifetimeTests
                 {
                     ["sessionId"] = paramsElement.GetProperty("sessionId").GetString(),
                     ["sessionUri"] = "ahp-session:/" + paramsElement.GetProperty("sessionId").GetString()
+                },
+                "host.listSessions" => new Dictionary<string, object?>
+                {
+                    ["sessions"] = Array.Empty<object>()
                 },
                 "session.eventLog.registerInterest" => new Dictionary<string, object?>
                 {

@@ -6,8 +6,8 @@ package com.github.copilot;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.AfterAll;
@@ -60,7 +60,7 @@ public class EventFidelityTest {
             CopilotSession session = client
                     .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
-            List<SessionEvent> events = new ArrayList<>();
+            List<SessionEvent> events = new CopyOnWriteArrayList<>();
             session.on(events::add);
 
             session.sendAndWait(new MessageOptions().setPrompt("What is 5+5? Reply with just the number.")).get(60,
@@ -94,7 +94,7 @@ public class EventFidelityTest {
             CopilotSession session = client
                     .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
-            List<SessionEvent> events = new ArrayList<>();
+            List<SessionEvent> events = new CopyOnWriteArrayList<>();
             session.on(events::add);
 
             session.sendAndWait(new MessageOptions().setPrompt("What is 5+5? Reply with just the number.")).get(60,

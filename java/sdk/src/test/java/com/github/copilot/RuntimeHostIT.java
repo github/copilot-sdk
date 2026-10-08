@@ -46,6 +46,8 @@ class RuntimeHostIT {
         final E2ETestContext context;
         final CopilotClient client;
         volatile CopilotSession session;
+        volatile String createSessionId;
+        volatile String resumeSessionId;
         final AtomicInteger creates = new AtomicInteger();
         final AtomicInteger resumes = new AtomicInteger();
         final AtomicInteger toolCalls = new AtomicInteger();
@@ -99,14 +101,24 @@ class RuntimeHostIT {
                         creates.incrementAndGet();
                         assertFalse(request.cancellation().toCompletableFuture().isDone());
                         assertEquals(context.getWorkDir().toString(), request.config().getWorkingDirectory());
-                        return client.createSession(configure(request.config())).thenApply(value -> session = value);
+                        createSessionId = request.config().getSessionId();
+                        assertNotNull(createSessionId);
+                        assertFalse(createSessionId.isEmpty());
+                        return client.createSession(configure(request.config())).thenApply(value -> {
+                            assertEquals(createSessionId, value.getSessionId());
+                            return session = value;
+                        });
                     }).setResumeSession(request -> {
                         resumes.incrementAndGet();
                         assertFalse(request.cancellation().toCompletableFuture().isDone());
                         assertEquals(false, request.config().getContinuePendingWork().orElseThrow());
                         assertEquals(context.getWorkDir().toString(), request.config().getWorkingDirectory());
+                        resumeSessionId = request.sessionId();
                         return client.resumeSession(request.sessionId(), configure(request.config()))
-                                .thenApply(value -> session = value);
+                                .thenApply(value -> {
+                                    assertEquals(resumeSessionId, value.getSessionId());
+                                    return session = value;
+                                });
                     }).setOnSessionReleased(value -> {
                         releases.add(value);
                         released.complete(null);
@@ -174,13 +186,14 @@ class RuntimeHostIT {
                     } else {
                         sessionId = ahp.request(Map.of("op", "create", "clientId", clientId, "workDir",
                                 context.getWorkDir().toString())).get("sessionId").asText();
-                        assertEquals(sessionId, app.session.getSessionId());
+                        assertEquals(app.createSessionId, app.session.getSessionId());
+                        assertNotEquals(sessionId, app.session.getSessionId());
                         assertEquals(1, app.creates.get());
                     }
                     var response = ahp.request(
                             Map.of("op", "turn", "clientId", clientId, "sessionId", sessionId, "prompt", TOOL_PROMPT));
                     assertTrue(response.get("text").asText().contains("MAGIC_hello_42"));
-                    app.assertCallbacks(sessionId);
+                    app.assertCallbacks(app.session.getSessionId());
                     await(CompletableFuture.allOf(host.dispose(), host.dispose()));
                     stopped(ahp, host, clientId);
                     if (publish) {
@@ -213,6 +226,9 @@ class RuntimeHostIT {
                     sessionId = ahp.request(Map.of("op", "create", "clientId", clientId, "workDir",
                             context.getWorkDir().toString(), "clientTools", true)).get("sessionId").asText();
                     original = app.session;
+                    assertEquals(1, app.creates.get());
+                    assertEquals(app.createSessionId, original.getSessionId());
+                    assertNotEquals(sessionId, original.getSessionId());
                     assertTrue(ahp.request(Map.of("op", "turn", "clientId", clientId, "sessionId", sessionId, "prompt",
                             "What is 2+2?")).get("text").asText().contains("4"));
                     await(host.dispose());
@@ -232,14 +248,15 @@ class RuntimeHostIT {
                     assertEquals("What is 2+2?", attached.get("history").get(0).get("message").get("text").asText());
                     assertEquals(0, app.creates.get());
                     assertEquals(1, app.resumes.get());
-                    assertEquals(sessionId, app.session.getSessionId());
+                    assertEquals(original.getSessionId(), app.resumeSessionId);
+                    assertEquals(original.getSessionId(), app.session.getSessionId());
                     assertNotSame(original, app.session);
                     var response = ahp.request(Map.of("op", "turn", "clientId", clientId, "sessionId", sessionId,
                             "prompt", COMPOSED_PROMPT, "clientTools", true));
                     assertTrue(response.get("text").asText().contains("MAGIC_hello_42"));
                     assertTrue(response.get("text").asText().contains("CLIENT_ECHO_ping"));
                     assertEquals(1, response.get("clientToolCalls").asInt());
-                    app.assertCallbacks(sessionId);
+                    app.assertCallbacks(original.getSessionId());
                     await(host.dispose());
                     stopped(ahp, host, clientId);
                     app.assertReleased();

@@ -26,6 +26,44 @@ The SDK supports two types of MCP servers:
 
 ## Configuration
 
+### Inspect configuration and lifecycle
+
+`session.rpc.mcp.listConfigured()` is a parameterless, passive inventory read.
+It does not start or restart servers, authenticate, apply sandbox policy, or
+wait for server startup. Configuration discovery and policy filtering determine
+which servers appear and their `enabled` values.
+
+This experimental RPC requires an aligned SDK/runtime release. Its earlier
+prerelease response allowed `live` to be omitted; SDKs using the required
+lifecycle contract do not support that older response shape. When supplying
+an external runtime, update it alongside the SDK. The overall protocol version
+is unchanged and does not identify this experimental contract revision.
+
+Every entry includes `live.status`. A configured server with no materialized
+runtime server reports the existing `not_configured` status, even when
+`enabled` is `true`. A runtime server that was explicitly stopped reports
+`stopped`. Materialized servers report their actual lifecycle, including
+`pending`, `connected`, `needs-auth`, and `failed`; failures include `live.error`
+when available.
+
+Configuration and lifecycle describe different facts. If a server's URL,
+authentication, or configuration source changes while an old connection remains
+alive, inventory still reports that connection's actual lifecycle. A
+`connected` status does not mean the latest configuration has been applied.
+The runtime owns this observation; clients must not substitute cached state
+based only on the server name.
+
+Inventory retries concurrent graph replacement a bounded number of times and
+returns an error if it cannot obtain a consistent snapshot. It never omits
+`live` to hide a graph race.
+
+An explicit `startServer` or `restartServer` resolves and initializes only the
+requested server after a cold session resume without first calling `list`.
+This includes user and plugin configurations and the built-in GitHub server
+configured through `githubMcpToolConfig`. It does not start other configured
+servers or override disabled state, authentication requirements, sandbox policy,
+or configuration-source precedence.
+
 ### Node.js / TypeScript
 
 ```typescript

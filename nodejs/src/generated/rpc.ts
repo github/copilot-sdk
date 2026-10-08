@@ -13183,6 +13183,10 @@ export interface HostGitHubEnvironmentOptions {
    * Stable application installation identity, reused across host restarts.
    */
   computeId: string;
+  /**
+   * Require sealed, connection-bound authentication (default true), independent of listener address. False permits unsealed direct credentials and unbound sealed relay credentials; use only when the caller fully controls and trusts the direct transport. Relay token encryption remains mandatory.
+   */
+  requireConnectionBinding?: boolean;
 }
 /**
  * Stops a connection-owned listener and joins its teardown.
@@ -13251,6 +13255,66 @@ export interface HostExitedNotification {
    * Explicit startup or teardown failure, when present.
    */
   error?: string | null;
+}
+/**
+ * Reads a running host's catalog or the runtime's saved default catalog.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "HostListSessionsRequest".
+ */
+/** @experimental */
+export interface HostListSessionsRequest {
+  /**
+   * Listener UUID returned by host.start; the caller must own it. Omit to read
+   * the saved default compute-identity catalog without starting a listener.
+   */
+  hostId?: string;
+}
+/**
+ * The complete live and dormant advertised catalog, without subscribing to sessions.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "HostListSessionsResult".
+ */
+/** @experimental */
+export interface HostListSessionsResult {
+  /**
+   * Complete advertised session summaries, in the host's catalog order.
+   */
+  sessions: HostSessionSummary[];
+}
+/**
+ * Metadata advertised by the AHP host, not a guarantee that history can be resumed.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "HostSessionSummary".
+ */
+/** @experimental */
+export interface HostSessionSummary {
+  /**
+   * Stable AHP resource URI identifying the session on this host.
+   */
+  resource: string;
+  /**
+   * Authoritative title advertised by the host.
+   */
+  title: string;
+  /**
+   * Session creation time as an ISO 8601 timestamp.
+   */
+  createdAt: string;
+  /**
+   * Last modification time as an ISO 8601 timestamp.
+   */
+  modifiedAt: string;
+  /**
+   * Unsigned 32-bit AHP session status bitset (0..=4294967295); unknown bits must be preserved.
+   */
+  status: number;
+  /**
+   * Optional activity description advertised by the host.
+   */
+  activity?: string;
 }
 /**
  * Local WebSocket transport options.
@@ -13409,6 +13473,11 @@ export interface HostSessionCreateRequest {
    */
   resume?: boolean;
   /**
+   * For an explicit publication, borrow an existing owning-connection resident
+   * instead of invoking the resume factory. Cold sessions still use the factory.
+   */
+  preferResident?: boolean;
+  /**
    * Host-selected SDK creation or resume settings, without executable callbacks or tools.
    */
   config: {
@@ -13470,6 +13539,10 @@ export interface HostStartRequest {
    * Caller-generated UUID identifying this connection-owned listener.
    */
   hostId: string;
+  /**
+   * Stable application identity selecting its durable host catalog. Defaults to the persisted runtime compute GUID; must agree with githubEnvironment.computeId when both are supplied.
+   */
+  computeId?: string;
   localServer?: HostLocalServerOptions;
   githubEnvironment?: HostGitHubEnvironmentOptions;
   /**
@@ -15696,7 +15769,7 @@ export interface McpConfiguredServer {
    * Human-readable display name supplied by configuration.
    */
   displayName?: string;
-  live?: McpConfiguredServerState;
+  live: McpConfiguredServerState;
 }
 /**
  * Observational state for a matching already materialized MCP server.
@@ -31238,6 +31311,11 @@ export interface HostCreateSessionRequest {
    */
   resume?: boolean;
   /**
+   * For an explicit publication, borrow an existing owning-connection resident
+   * instead of invoking the resume factory. Cold sessions still use the factory.
+   */
+  preferResident?: boolean;
+  /**
    * Host-selected SDK creation or resume settings, without executable callbacks or tools.
    */
   config: {
@@ -31893,6 +31971,15 @@ export function createServerRpc(connection: MessageConnection) {
              */
             publishSession: async (params: HostPublishSessionRequest): Promise<HostPublishSessionResult> =>
                 connection.sendRequest("host.publishSession", params),
+            /**
+             * Reads the complete advertised live and dormant session catalog of an existing host owned by this connection. Does not start hosting, subscribe to sessions, or guarantee resumability.
+             *
+             * @param params Reads a running host's catalog or the runtime's saved default catalog.
+             *
+             * @returns The complete live and dormant advertised catalog, without subscribing to sessions.
+             */
+            listSessions: async (params: HostListSessionsRequest): Promise<HostListSessionsResult> =>
+                connection.sendRequest("host.listSessions", params),
             /**
              * Starts a connection-owned AHP host with explicit localServer and/or githubEnvironment transports as a supervised SDK participant.
              *

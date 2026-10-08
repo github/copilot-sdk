@@ -49,6 +49,7 @@ import com.github.copilot.generated.rpc.SessionConnectorsReconcileResult;
 import com.github.copilot.generated.rpc.SessionConnectorsReconnectParams;
 import com.github.copilot.generated.rpc.SessionConnectorsRefreshParams;
 import com.github.copilot.generated.rpc.SessionConnectorsRefreshResult;
+import com.github.copilot.generated.rpc.SessionMcpListConfiguredResult;
 import com.github.copilot.generated.rpc.SessionModelSwitchToParams;
 import com.github.copilot.generated.rpc.SessionModelSwitchToRequest;
 import com.github.copilot.generated.rpc.SessionRpc;
@@ -188,6 +189,33 @@ class RpcWrappersTest {
     }
 
     // ── SessionRpc tests ──────────────────────────────────────────────────────
+
+    @Test
+    @AllowCopilotExperimental
+    void sessionRpc_mcp_listConfigured_preserves_runtime_lifecycle() throws Exception {
+        var stub = new StubCaller();
+        stub.nextResult = new ObjectMapper().readValue("""
+                {
+                  "servers": [
+                    {"name":"cold","enabled":true,"live":{"status":"not_configured"}},
+                    {"name":"old-connection","enabled":false,"live":{"status":"connected"}},
+                    {"name":"auth","enabled":true,"live":{"status":"needs-auth"}},
+                    {"name":"stopped","enabled":true,"live":{"status":"stopped"}},
+                    {"name":"failed","enabled":true,"live":{"status":"failed","error":"connection failed"}}
+                  ]
+                }
+                """, SessionMcpListConfiguredResult.class);
+        var session = new SessionRpc(stub, "session-mcp");
+
+        var inventory = session.mcp.listConfigured().get();
+
+        assertEquals(List.of("not_configured", "connected", "needs-auth", "stopped", "failed"),
+                inventory.servers().stream().map(server -> server.live().status().getValue()).toList());
+        assertFalse(inventory.servers().get(1).enabled());
+        assertEquals("connection failed", inventory.servers().get(4).live().error());
+        assertEquals(List.of(new StubCaller.Call("session.mcp.listConfigured", Map.of("sessionId", "session-mcp"),
+                SessionMcpListConfiguredResult.class)), stub.calls);
+    }
 
     @Test
     void sessionRpc_instantiates_with_all_namespace_fields() {

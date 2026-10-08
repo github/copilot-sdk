@@ -5905,6 +5905,28 @@ type HostGitHubEnvironmentOptions struct {
 	ComputeID string `json:"computeId"`
 	// Human-readable environment display name.
 	Name string `json:"name"`
+	// Require sealed, connection-bound authentication (default true), independent of listener
+	// address. False permits unsealed direct credentials and unbound sealed relay credentials;
+	// use only when the caller fully controls and trusts the direct transport. Relay token
+	// encryption remains mandatory.
+	RequireConnectionBinding *bool `json:"requireConnectionBinding,omitempty"`
+}
+
+// Reads a running host's catalog or the runtime's saved default catalog.
+// Experimental: HostListSessionsRequest is part of an experimental API and may change or be
+// removed.
+type HostListSessionsRequest struct {
+	// Listener UUID returned by host.start; the caller must own it. Omit to read
+	// the saved default compute-identity catalog without starting a listener.
+	HostID *string `json:"hostId,omitempty"`
+}
+
+// The complete live and dormant advertised catalog, without subscribing to sessions.
+// Experimental: HostListSessionsResult is part of an experimental API and may change or be
+// removed.
+type HostListSessionsResult struct {
+	// Complete advertised session summaries, in the host's catalog order.
+	Sessions []HostSessionSummary `json:"sessions"`
 }
 
 // Normalized local WebSocket listener settings.
@@ -5999,6 +6021,8 @@ type HostRegisterSessionRequest struct {
 }
 
 // The existing runtime identity and its resource on the listener.
+// Experimental: HostRegisterSessionResult is part of an experimental API and may change or
+// be removed.
 type HostRegisterSessionResult struct {
 	// Canonical runtime ID of the published session.
 	SessionID string `json:"sessionId"`
@@ -6034,6 +6058,9 @@ type HostSessionCreateRequest struct {
 	Config map[string]any `json:"config"`
 	// Unique identity for this participation, independent of the session lifetime.
 	HandoffID string `json:"handoffId"`
+	// For an explicit publication, borrow an existing owning-connection resident
+	// instead of invoking the resume factory. Cold sessions still use the factory.
+	PreferResident *bool `json:"preferResident,omitempty"`
 	// Resume an app-owned durable session instead of creating a new session.
 	Resume *bool `json:"resume,omitempty"`
 }
@@ -6069,6 +6096,25 @@ type HostSessionReleaseRequest struct {
 	HandoffID string `json:"handoffId"`
 }
 
+// Metadata advertised by the AHP host, not a guarantee that history can be resumed.
+// Experimental: HostSessionSummary is part of an experimental API and may change or be
+// removed.
+type HostSessionSummary struct {
+	// Optional activity description advertised by the host.
+	Activity *string `json:"activity,omitempty"`
+	// Session creation time as an ISO 8601 timestamp.
+	CreatedAt string `json:"createdAt"`
+	// Last modification time as an ISO 8601 timestamp.
+	ModifiedAt string `json:"modifiedAt"`
+	// Stable AHP resource URI identifying the session on this host.
+	Resource string `json:"resource"`
+	// Unsigned 32-bit AHP session status bitset (0..=4294967295); unknown bits must be
+	// preserved.
+	Status int64 `json:"status"`
+	// Authoritative title advertised by the host.
+	Title string `json:"title"`
+}
+
 // Empty acknowledgement for a completed host lifecycle operation.
 // Experimental: HostShutdownResult is part of an experimental API and may change or be
 // removed.
@@ -6079,6 +6125,9 @@ type HostShutdownResult struct {
 // Experimental: HostStartRequest is part of an experimental API and may change or be
 // removed.
 type HostStartRequest struct {
+	// Stable application identity selecting its durable host catalog. Defaults to the persisted
+	// runtime compute GUID; must agree with githubEnvironment.computeId when both are supplied.
+	ComputeID *string `json:"computeId,omitempty"`
 	// Registers a GitHub Mission Control environment and enables its relay transport.
 	GitHubEnvironment *HostGitHubEnvironmentOptions `json:"githubEnvironment,omitempty"`
 	// Caller-generated UUID identifying this connection-owned listener.
@@ -7411,7 +7460,7 @@ type MCPConfiguredServer struct {
 	Enabled bool `json:"enabled"`
 	// Observed state from an already materialized matching server. Omitted when no live graph
 	// has this configured server; it never determines configuration enablement.
-	Live *MCPConfiguredServerState `json:"live,omitempty"`
+	Live MCPConfiguredServerState `json:"live"`
 	// Server name (config key)
 	Name string `json:"name"`
 	// Configuration provenance: user, workspace, plugin, builtin, or managed.
@@ -28314,6 +28363,28 @@ func (a *ServerHostAPI) Dispose(ctx context.Context, params *HostDisposeRequest)
 		return nil, err
 	}
 	var result HostDisposeResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// ListSessions reads the complete advertised live and dormant session catalog of an
+// existing host owned by this connection. Does not start hosting, subscribe to sessions, or
+// guarantee resumability.
+//
+// RPC method: host.listSessions.
+//
+// Parameters: Reads a running host's catalog or the runtime's saved default catalog.
+//
+// Returns: The complete live and dormant advertised catalog, without subscribing to
+// sessions.
+func (a *ServerHostAPI) ListSessions(ctx context.Context, params *HostListSessionsRequest) (*HostListSessionsResult, error) {
+	raw, err := a.client.Request(ctx, "host.listSessions", params)
+	if err != nil {
+		return nil, err
+	}
+	var result HostListSessionsResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}

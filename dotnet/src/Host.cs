@@ -39,6 +39,8 @@ public sealed record AhpSessionResumeRequest(string SessionId, ResumeSessionConf
 [Experimental(Diagnostics.Experimental)]
 public sealed class AhpHostOptions
 {
+    /// <summary>Stable durable catalog identity; must agree with GitHubEnvironment.ComputeId when both are supplied.</summary>
+    public string? ComputeId { get; init; }
     /// <summary>Local WebSocket transport settings; absent disables the local listener.</summary>
     public HostLocalServerOptions? LocalServer { get; init; }
     /// <summary>GitHub Mission Control transport settings, with required Name and ComputeId; absent disables it.</summary>
@@ -84,9 +86,13 @@ public sealed class AhpHost : IAsyncDisposable
     /// <summary>The GitHub Mission Control environment ID, absent without a GitHub environment.</summary>
     public string? EnvironmentId { get; }
 
-    /// <summary>Publishes a resident session without invoking factories or transferring ownership.</summary>
+    /// <summary>Durably advertises an attached session without invoking factories or transferring ownership.</summary>
     public Task<HostPublishSessionResult> PublishSessionAsync(string sessionId, CancellationToken cancellationToken = default)
         => _rpc.PublishSessionAsync(HostId, sessionId, cancellationToken);
+
+    /// <summary>Lists all live and dormant catalog sessions advertised by this host.</summary>
+    public Task<HostListSessionsResult> ListSessionsAsync(CancellationToken cancellationToken = default)
+        => _rpc.ListSessionsAsync(HostId, cancellationToken);
 
     /// <summary>Stops and joins listener cleanup without deleting application sessions.</summary>
     public ValueTask DisposeAsync() => new(DisposeAsync(CancellationToken.None));
@@ -121,7 +127,8 @@ public sealed partial class CopilotClient
         var githubEnvironment = options.GitHubEnvironment is { } github ? new HostGitHubEnvironmentOptions
         {
             Name = github.Name,
-            ComputeId = github.ComputeId
+            ComputeId = github.ComputeId,
+            RequireConnectionBinding = github.RequireConnectionBinding
         } : null;
         if (localServer is null && githubEnvironment is null)
             throw new ArgumentException("At least one AHP transport must be configured", nameof(options));
@@ -130,9 +137,15 @@ public sealed partial class CopilotClient
         var hostId = Guid.NewGuid().ToString();
         lock (_ahpGate) _ahpHosts.Add(hostId, options);
         var rpc = connection.Server.Host;
-        var startup = rpc.StartAsync(hostId, localServer, githubEnvironment,
-            options.CreateSession is not null ? true : null,
-            options.ResumeSession is not null ? true : null, CancellationToken.None);
+        var startup = rpc.StartAsync(new HostStartRequest
+        {
+            HostId = hostId,
+            ComputeId = options.ComputeId,
+            LocalServer = localServer,
+            GitHubEnvironment = githubEnvironment,
+            SessionFactory = options.CreateSession is not null ? true : null,
+            ResumeFactory = options.ResumeSession is not null ? true : null
+        }, CancellationToken.None);
         try
         {
             var info = await startup.WaitAsync(Timeout.InfiniteTimeSpan, cancellationToken).ConfigureAwait(false);

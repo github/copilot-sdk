@@ -945,6 +945,52 @@ async def test_external_tool_completed_cancels_blocked_handler():
 
 
 @pytest.mark.asyncio
+async def test_tool_invocation_names_the_sub_agent_and_request_behind_the_call():
+    client = Mock()
+    client.request = AsyncMock()
+    session = CopilotSession("session-1", client)
+    invocations = []
+
+    def calc(invocation):
+        invocations.append(invocation)
+        return ToolResult(text_result_for_llm="ok")
+
+    session._register_tools([Tool("calc", "Calculates", calc)])
+    session._dispatch_event(
+        SessionEvent(
+            data=ExternalToolRequestedData(
+                request_id="req-sub-agent",
+                session_id="session-1",
+                tool_call_id="tc-sub-agent",
+                tool_name="calc",
+                arguments={},
+            ),
+            id=uuid4(),
+            timestamp=datetime.now(UTC),
+            type=SessionEventType.EXTERNAL_TOOL_REQUESTED,
+            agent_id="task-agent-1",
+        )
+    )
+    session._dispatch_event(_external_tool_request("calc", "req-root"))
+    blank_agent_request = _external_tool_request("calc", "req-blank-agent")
+    blank_agent_request.agent_id = ""
+    session._dispatch_event(blank_agent_request)
+    await _wait_for_tool_result(client, "req-sub-agent")
+    await _wait_for_tool_result(client, "req-root")
+    await _wait_for_tool_result(client, "req-blank-agent")
+
+    identities = sorted(
+        (invocation.tool_call_id, invocation.agent_id, invocation.request_id)
+        for invocation in invocations
+    )
+    assert identities == [
+        ("req-blank-agent-tool-call", None, "req-blank-agent"),
+        ("req-root-tool-call", None, "req-root"),
+        ("tc-sub-agent", "task-agent-1", "req-sub-agent"),
+    ]
+
+
+@pytest.mark.asyncio
 async def test_disconnect_from_tool_task_does_not_cancel_detach_request():
     client = Mock()
     client.request = AsyncMock(return_value={"success": True})

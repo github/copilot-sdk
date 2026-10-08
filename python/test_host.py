@@ -22,6 +22,8 @@ def client_fixture():
                 "sessionId": params["sessionId"],
                 "sessionUri": f"copilot:/{params['sessionId']}",
             }
+        if method == "host.listSessions":
+            return {"sessions": []}
         if method in ("session.create", "session.resume"):
             return {"sessionId": params["sessionId"]}
         return {}
@@ -72,6 +74,7 @@ async def test_github_hosting_with_optional_local_transport(local):
     rpc.request.side_effect = start
     host = await client.start_ahp_host(
         AhpHostOptions(
+            compute_id="stable-installation-id",
             github_environment=HostGitHubEnvironmentOptions(
                 name="Application", compute_id="stable-installation-id"
             ),
@@ -80,6 +83,7 @@ async def test_github_hosting_with_optional_local_transport(local):
     )
     assert rpc.request.call_args.args[1] == {
         "hostId": host.host_id,
+        "computeId": "stable-installation-id",
         "githubEnvironment": {"name": "Application", "computeId": "stable-installation-id"},
         **({"localServer": {}} if local else {}),
     }
@@ -87,6 +91,19 @@ async def test_github_hosting_with_optional_local_transport(local):
     assert host.url == ("ws://127.0.0.1:12345" if local else None)
     assert host.token == ("local-token" if local else None)
     assert host.pid is None
+
+
+@pytest.mark.parametrize("compute_id", [None, "", "stable-local-compute"])
+async def test_local_compute_identity_is_forwarded_without_sdk_defaults(compute_id):
+    client, rpc = client_fixture()
+    host = await client.start_ahp_host(
+        AhpHostOptions(local_server=HostLocalServerOptions(), compute_id=compute_id)
+    )
+    assert rpc.request.call_args.args[1] == {
+        "hostId": host.host_id,
+        "localServer": {},
+        **({"computeId": compute_id} if compute_id is not None else {}),
+    }
 
 
 async def test_handle_uses_original_transport_and_forwards_every_disposal():
@@ -108,6 +125,12 @@ async def test_handle_uses_original_transport_and_forwards_every_disposal():
     client._client = replacement
     published = await host.publish_session("resident")
     assert published.session_id == "resident"
+    sessions = await host.list_sessions()
+    assert sessions.sessions == []
+    assert rpc.request.call_args_list[-1].args[:2] == (
+        "host.listSessions",
+        {"hostId": host.host_id},
+    )
     assert await asyncio.gather(host.dispose(), host.dispose()) == [None, None]
     assert await host.dispose() is None
     assert sum(call.args[0] == "host.dispose" for call in rpc.request.call_args_list) == 3

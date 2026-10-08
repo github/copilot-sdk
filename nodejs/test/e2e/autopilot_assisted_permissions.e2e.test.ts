@@ -2,8 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import { existsSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it, onTestFailed } from "vitest";
 import {
@@ -23,6 +24,7 @@ class AssistedPermissionRequestHandler extends CopilotRequestHandler {
     judgeCalls = 0;
     requiresApproval = false;
     directoryName = "";
+    viewPaths: string[] = [];
 
     protected override async sendRequest(
         request: Request,
@@ -88,6 +90,16 @@ class AssistedPermissionRequestHandler extends CopilotRequestHandler {
                     },
                 ],
             };
+        } else if (this.viewPaths.length > 0) {
+            message = {
+                role: "assistant",
+                content: "",
+                tool_calls: this.viewPaths.map((path, index) => ({
+                    id: `assisted-view-${index}`,
+                    type: "function",
+                    function: { name: "view", arguments: JSON.stringify({ path }) },
+                })),
+            };
         } else {
             const shell = body.tools?.find((tool) =>
                 ["bash", "powershell"].includes(tool.function.name)
@@ -151,7 +163,78 @@ describe.skipIf(isByokBackend)("Autopilot Assisted SDK permissions", async () =>
         handler.judgeCalls = 0;
         handler.requiresApproval = false;
         handler.directoryName = `assisted-result-${randomUUID()}`;
+        handler.viewPaths = [];
     });
+
+    it("settles a parallel batch of judged reads", async () => {
+        const outsideDirectory = mkdtempSync(join(tmpdir(), "assisted-parallel-views-"));
+        handler.viewPaths = Array.from({ length: 4 }, (_, index) => {
+            const path = join(outsideDirectory, `file-${index}.txt`);
+            writeFileSync(path, `PARALLEL_VIEW_CONTENT_${index}\n`);
+            return path;
+        });
+        const requests: PermissionRequest[] = [];
+        const events: SessionEvent[] = [];
+        onTestFailed(() =>
+            console.error(
+                JSON.stringify(
+                    {
+                        judgeCalls: handler.judgeCalls,
+                        requests,
+                        events: events
+                            .filter((event) =>
+                                [
+                                    "permission.requested",
+                                    "permission.completed",
+                                    "tool.execution_start",
+                                    "tool.execution_complete",
+                                    "session.permission_recovery",
+                                    "session.error",
+                                ].includes(event.type)
+                            )
+                            .map((event) => ({ type: event.type, data: event.data })),
+                    },
+                    null,
+                    2
+                )
+            )
+        );
+        const session = await client.createSession({
+            model: MODEL,
+            workingDirectory: workDir,
+            featureFlags: { AUTO_APPROVAL: true },
+            onPermissionRequest: (request: PermissionRequest) => {
+                requests.push(request);
+                return { kind: "approve-once" };
+            },
+        });
+        try {
+            await session.rpc.mode.set({ mode: "autopilot" });
+            await session.rpc.permissions.setMode({
+                mode: "assisted",
+                assistedApprovalModel: MODEL,
+                source: "rpc",
+            });
+            session.on((event) => events.push(event));
+            const completion = getNextEventOfType(session, "session.task_complete");
+            await Promise.all([session.send({ prompt: "Read the requested files." }), completion]);
+            const viewCompletions = events.filter(
+                (event) =>
+                    event.type === "tool.execution_complete" &&
+                    event.data.toolCallId.startsWith("assisted-view-")
+            );
+            expect(viewCompletions.map((event) => event.data.success)).toEqual(
+                handler.viewPaths.map(() => true)
+            );
+            expect(requests.filter((request) => request.kind === "read")).toHaveLength(
+                handler.viewPaths.length
+            );
+            expect(handler.judgeCalls).toBe(handler.viewPaths.length);
+        } finally {
+            await session.disconnect();
+            rmSync(outsideDirectory, { recursive: true, force: true });
+        }
+    }, 90_000);
 
     it.each([
         [false, "approve-once"],

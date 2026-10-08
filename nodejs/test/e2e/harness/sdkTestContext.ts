@@ -3,8 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import fs, { realpathSync } from "fs";
-import { readdir, rm } from "fs/promises";
-import { createInterface } from "node:readline";
+import { rm } from "fs/promises";
 import os from "os";
 import { basename, dirname, join, resolve } from "path";
 import { rimraf } from "rimraf";
@@ -16,6 +15,7 @@ import { CapiProxy } from "./CapiProxy";
 import { formatError, retry } from "./sdkTestHelper";
 import { resolvePreparedRuntimePath } from "../../../scripts/prepare-runtime.js";
 import { testBackend, withTestBackend } from "./testBackend";
+import { readDiagnosticTail } from "../../../../test/harness/sdk-diagnostics.mjs";
 
 export const isCI = process.env.GITHUB_ACTIONS === "true";
 export const DEFAULT_GITHUB_TOKEN = "fake-token-for-e2e-tests";
@@ -104,6 +104,8 @@ export async function createSdkTestContext({
         // CI runners and makes MCP servers time out before reaching connected.
         COPILOT_DEBUG_GITHUB_API_URL: proxyUrl,
         COPILOT_HOME: copilotHomeDir,
+        // Proxy ports can be reused by later fixtures with different account metadata.
+        COPILOT_CACHE_HOME: join(copilotHomeDir, "cache"),
         COPILOT_SDK_AUTH_TOKEN: "",
         GH_CONFIG_DIR: homeDir,
         // Use the proxy-recognized token rather than blanking these. Tests that spin up
@@ -267,24 +269,12 @@ export async function createSdkTestContext({
             // Preserve only the bounded, metadata-only runtime diagnostics before afterAll removes the home.
             if (logLevel === "debug") {
                 try {
-                    const logDir = join(copilotHomeDir, "logs");
-                    for (const file of await readdir(logDir)) {
-                        if (!file.endsWith(".log")) continue;
-                        const lines = createInterface({
-                            input: fs.createReadStream(join(logDir, file)),
-                        });
-                        const diagnostics: string[] = [];
-                        for await (const line of lines) {
-                            if (!/^\S+ \[DEBUG\] \[rust:sdk_diagnostics\] /.test(line)) continue;
-                            diagnostics.push(line);
-                            if (diagnostics.length > 200) diagnostics.shift();
-                        }
-                        console.error(
-                            `[SDK runtime diagnostics: ${file}; last ${diagnostics.length} matching lines]\n${diagnostics.join("\n")}`
-                        );
-                    }
-                } catch (error) {
-                    console.error(`Could not read SDK runtime diagnostics: ${formatError(error)}`);
+                    const diagnostics = await readDiagnosticTail(copilotHomeDir);
+                    console.error(
+                        `[SDK diagnostics: last ${diagnostics.length} audited records]\n${diagnostics.join("\n")}`
+                    );
+                } catch {
+                    console.error("SDK diagnostics unavailable");
                 }
             }
         });

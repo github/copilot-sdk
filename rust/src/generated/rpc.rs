@@ -1554,6 +1554,37 @@ impl<'a> ClientRpcHost<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
+    /// Reads the complete advertised live and dormant session catalog of an existing host owned by this connection. Does not start hosting, subscribe to sessions, or guarantee resumability.
+    ///
+    /// Wire method: `host.listSessions`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Reads a running host's catalog or the runtime's saved default catalog.
+    ///
+    /// # Returns
+    ///
+    /// The complete live and dormant advertised catalog, without subscribing to sessions.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn list_sessions(
+        &self,
+        params: HostListSessionsRequest,
+    ) -> Result<HostListSessionsResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::HOST_LISTSESSIONS, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
     /// Requests app-owned materialization over the owning SDK participant.
     ///
     /// Wire method: `host.createSession`.
@@ -1636,6 +1667,39 @@ impl<'a> ClientRpcHost<'a> {
     ///
     /// </div>
     pub async fn start(&self, params: HostStartRequest) -> Result<HostStartResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::HOST_START, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Starts a connection-owned AHP host with explicit localServer and/or githubEnvironment transports as a supervised SDK participant.
+    ///
+    /// Wire method: `host.start`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Starts a supervised AHP host with at least one explicitly selected transport.
+    ///
+    /// # Returns
+    ///
+    /// Listener readiness, returned only after binding and the supervised participant's SDK handshake.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    ///
+    /// Accepts [`HostStartOptions`], including inputs added after [`HostStartRequest`].
+    pub async fn start_with_options(
+        &self,
+        params: HostStartOptions,
+    ) -> Result<HostStartResult, Error> {
         let wire_params = serde_json::to_value(params)?;
         let _value = self
             .client

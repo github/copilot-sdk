@@ -12,6 +12,7 @@ import com.fasterxml.jackson.annotation.JsonSetter;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.copilot.CopilotExperimental;
 import com.github.copilot.generated.rpc.CurrentToolMetadata;
 
 /**
@@ -43,6 +44,8 @@ public final class ToolInvocation {
     private String toolName;
     private JsonNode argumentsNode;
     private List<CurrentToolMetadata> availableTools;
+    private String agentId;
+    private String requestId;
 
     /**
      * Gets the session ID where the tool was invoked.
@@ -206,6 +209,73 @@ public final class ToolInvocation {
      */
     public ToolInvocation setAvailableTools(List<CurrentToolMetadata> availableTools) {
         this.availableTools = availableTools;
+        return this;
+    }
+
+    /**
+     * Gets the sub-agent instance that issued this call.
+     * <p>
+     * <strong>Experimental.</strong> This is the {@code agentId} of the sub-agent's
+     * session events. It is {@code null} for a root-agent call, for every call when
+     * the runtime does not attribute sub-agent tool calls, and for a call that did
+     * not arrive as an external tool request.
+     *
+     * @return the sub-agent instance id, or {@code null} when no sub-agent is named
+     * @since 1.0.15-preview.1
+     */
+    @CopilotExperimental
+    public String getAgentId() {
+        return agentId;
+    }
+
+    /**
+     * Sets the sub-agent instance that issued this call.
+     * <p>
+     * <strong>Note:</strong> This method is intended for internal SDK use. Users
+     * typically do not need to call this method directly.
+     *
+     * @param agentId
+     *            the sub-agent instance id, or {@code null} when no sub-agent is
+     *            named
+     * @return this invocation for method chaining
+     */
+    @CopilotExperimental
+    public ToolInvocation setAgentId(String agentId) {
+        this.agentId = agentId;
+        return this;
+    }
+
+    /**
+     * Gets the runtime request id of this call.
+     * <p>
+     * <strong>Experimental.</strong> This is the key
+     * {@code session.tools.handlePendingToolCall} and
+     * {@code session.tools.listPendingRequests} use. A root-agent call stays
+     * answerable after the session is resumed with pending work continued; a
+     * sub-agent's call can be answered only while that sub-agent is still running.
+     *
+     * @return the request id, or {@code null} if the call did not arrive as an
+     *         external tool request
+     * @since 1.0.15-preview.1
+     */
+    @CopilotExperimental
+    public String getRequestId() {
+        return requestId;
+    }
+
+    /**
+     * Sets the runtime request id of this call.
+     * <p>
+     * <strong>Note:</strong> This method is intended for internal SDK use. Users
+     * typically do not need to call this method directly.
+     *
+     * @param requestId
+     *            the request id
+     * @return this invocation for method chaining
+     */
+    @CopilotExperimental
+    public ToolInvocation setRequestId(String requestId) {
+        this.requestId = requestId;
         return this;
     }
 }

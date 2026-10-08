@@ -43,6 +43,12 @@ registers a Mission Control environment. Both can be enabled. Import `rpc` from
 Local hostname, port, token, and authentication settings belong inside `LocalServer`.
 The returned handle's `URL`, `Token`, `PID`, and `EnvironmentID` are optional pointers;
 Mission Control-only hosting has no local URL. These APIs are experimental.
+Call `host.ListSessions(ctx)` to read the complete advertised catalog of live and
+dormant sessions.
+Set top-level `ComputeID` to reuse the durable catalog across local and Mission
+Control hosting; it must agree with `GitHubEnvironment.ComputeID` when both are
+supplied. The runtime persists an omitted local-only identity. Publication
+survives host shutdown; dormant application sessions require your resume callback.
 Use the generated `client.RPC.Environments` namespace for environment list/get/delete operations.
 See [runtime-supervised AHP hosting](../docs/runtime-supervised-host.md) for creation
 and resume callbacks, resident-session publication, ownership, and shared-snapshot E2Es.

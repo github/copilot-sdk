@@ -33,13 +33,18 @@ describe("SDK test context cleanup", async () => {
     const context = await createSdkTestContext();
     workDir = context.workDir;
 
+    it("isolates persistent account metadata from other proxy fixtures", () => {
+        expect(context.env.COPILOT_CACHE_HOME).toBe(join(context.env.COPILOT_HOME, "cache"));
+    });
+
     it("keeps working files available until test-owned client cleanup finishes", async () => {
+        const cleanupCount = vi.mocked(rimraf).mock.calls.length;
         const client = context.createClient();
         const logsDir = join(workDir, "logs");
         const logPath = join(logsDir, "client.log");
         onTestFinished(async () => {
             try {
-                expect(rimraf).not.toHaveBeenCalled();
+                expect(rimraf).toHaveBeenCalledTimes(cleanupCount);
                 expect(await readFile(logPath, "utf8")).toBe("client is running");
                 await writeFile(logPath, "client is stopped");
             } finally {

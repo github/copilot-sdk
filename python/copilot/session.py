@@ -2492,7 +2492,14 @@ class CopilotSession:
                 ts = getattr(data, "tracestate", None)
                 task = asyncio.create_task(
                     self._execute_tool_and_respond(
-                        request_id, tool_name, tool_call_id, arguments, handler, tp, ts
+                        request_id,
+                        tool_name,
+                        tool_call_id,
+                        arguments,
+                        handler,
+                        tp,
+                        ts,
+                        event.agent_id or None,
                     )
                 )
                 if request_id in self._pending_external_tools:
@@ -2663,6 +2670,7 @@ class CopilotSession:
         handler: ToolHandler,
         traceparent: str | None = None,
         tracestate: str | None = None,
+        agent_id: str | None = None,
     ) -> None:
         """Execute a tool handler and send the result back via HandlePendingToolCall RPC."""
         try:
@@ -2685,6 +2693,8 @@ class CopilotSession:
                 tool_name=tool_name,
                 arguments=arguments,
                 available_tools=available_tools,
+                agent_id=agent_id,
+                request_id=request_id,
             )
 
             with trace_context(traceparent, tracestate):

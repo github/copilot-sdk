@@ -952,7 +952,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
                             return; // This client doesn't handle this tool; another client will.
 
                         using (TelemetryHelpers.RestoreTraceContext(data.Traceparent, data.Tracestate))
-                            await ExecuteToolAndRespondAsync(data.RequestId, data.ToolName, data.ToolCallId, data.Arguments, tool);
+                            await ExecuteToolAndRespondAsync(data.RequestId, data.ToolName, data.ToolCallId, data.Arguments, tool, toolEvent.AgentId);
                         break;
                     }
 
@@ -1177,7 +1177,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// <summary>
     /// Executes a tool handler and sends the result back via the HandlePendingToolCall RPC.
     /// </summary>
-    private async Task ExecuteToolAndRespondAsync(string requestId, string toolName, string toolCallId, JsonElement? arguments, AIFunction tool)
+    private async Task ExecuteToolAndRespondAsync(string requestId, string toolName, string toolCallId, JsonElement? arguments, AIFunction tool, string? agentId)
     {
         if (_externalToolLifetime.IsCancellationRequested)
         {
@@ -1202,7 +1202,9 @@ public sealed partial class CopilotSession : IAsyncDisposable
                 SessionId = SessionId,
                 ToolCallId = toolCallId,
                 ToolName = toolName,
-                Arguments = arguments
+                Arguments = arguments,
+                AgentId = string.IsNullOrEmpty(agentId) ? null : agentId,
+                RequestId = requestId
             };
 
             // The built-in tool-search tool receives a snapshot of the session's

@@ -18,6 +18,7 @@ import java.util.function.Function;
  */
 @CopilotExperimental
 public final class AhpHostOptions {
+    private String computeId;
     private HostLocalServerOptions localServer;
     private HostGitHubEnvironmentOptions githubEnvironment;
     private Function<AhpSessionCreateRequest, CompletableFuture<CopilotSession>> createSession;
@@ -33,12 +34,35 @@ public final class AhpHostOptions {
     }
 
     AhpHostOptions(AhpHostOptions options) {
+        computeId = options.computeId;
         localServer = options.localServer;
         githubEnvironment = options.githubEnvironment;
         createSession = options.createSession;
         resumeSession = options.resumeSession;
         onSessionReleased = options.onSessionReleased;
         onExit = options.onExit;
+    }
+
+    /**
+     * Gets the durable catalog's compute identity.
+     *
+     * @return the stable compute identity, or {@code null} for the runtime default
+     */
+    public String getComputeId() {
+        return computeId;
+    }
+
+    /**
+     * Selects the same durable catalog for local and Mission Control hosting. Must
+     * agree with the GitHub environment's compute identity when both are supplied.
+     *
+     * @param computeId
+     *            stable identity, or {@code null} for the runtime default
+     * @return these options
+     */
+    public AhpHostOptions setComputeId(String computeId) {
+        this.computeId = computeId;
+        return this;
     }
 
     /**

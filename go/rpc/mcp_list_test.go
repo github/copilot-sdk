@@ -36,7 +36,13 @@ func TestMCPListUsesParameterlessWireContract(t *testing.T) {
 			return nil, &jsonrpc2.Error{Code: -32602, Message: err.Error()}
 		}
 		requests <- request
-		return json.RawMessage(`{"servers":[]}`), nil
+		return json.RawMessage(`{"servers":[
+			{"name":"cold","enabled":true,"live":{"status":"not_configured"}},
+			{"name":"old-connection","enabled":false,"live":{"status":"connected"}},
+			{"name":"auth","enabled":true,"live":{"status":"needs-auth"}},
+			{"name":"stopped","enabled":true,"live":{"status":"stopped"}},
+			{"name":"failed","enabled":true,"live":{"status":"failed","error":"connection failed"}}
+		]}`), nil
 	})
 	client.Start()
 	server.Start()
@@ -53,8 +59,23 @@ func TestMCPListUsesParameterlessWireContract(t *testing.T) {
 	if _, err := mcp.List(t.Context()); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := mcp.ListConfigured(t.Context()); err != nil {
+	configured, err := mcp.ListConfigured(t.Context())
+	if err != nil {
 		t.Fatal(err)
+	}
+	want := []MCPServerStatus{"not_configured", "connected", "needs-auth", "stopped", "failed"}
+	if len(configured.Servers) != len(want) {
+		t.Fatalf("configured servers = %#v, want %d entries", configured.Servers, len(want))
+	}
+	for i, status := range want {
+		live := configured.Servers[i].Live
+		if live.Status != status {
+			t.Fatalf("live status = %q, want %q", live.Status, status)
+		}
+	}
+	if configured.Servers[1].Enabled || configured.Servers[4].Live.Error == nil ||
+		*configured.Servers[4].Live.Error != "connection failed" {
+		t.Fatalf("configuration enablement and runtime error were not preserved: %#v", configured.Servers)
 	}
 	got := make([]map[string]any, 2)
 	for i := range got {

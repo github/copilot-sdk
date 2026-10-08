@@ -3194,6 +3194,11 @@ async fn handle_notification(
             let Some(tool_handler) = tool_handler else {
                 return;
             };
+            let agent_id = notification
+                .event
+                .agent_id
+                .clone()
+                .filter(|agent_id| !agent_id.is_empty());
             let cancellation = Arc::new(external_tools_shutdown.child_token());
             {
                 let mut pending = pending_external_tools.lock();
@@ -3288,6 +3293,8 @@ async fn handle_notification(
                         available_tools,
                         traceparent: data.traceparent,
                         tracestate: data.tracestate,
+                        agent_id,
+                        request_id: Some(request_id.clone()),
                     };
                     let handler_start = Instant::now();
                     let tool_result = tokio::select! {

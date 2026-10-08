@@ -47,8 +47,8 @@ func TestAhpHostTransportsAndOptionalResults(t *testing.T) {
 	for _, transport := range []string{"local", "github", "both"} {
 		t.Run(transport, func(t *testing.T) {
 			client, server, _ := ahpFixture(t)
-			options := &AhpHostOptions{}
-			want := map[string]any{}
+			options := &AhpHostOptions{ComputeID: String("compute")}
+			want := map[string]any{"computeId": "compute"}
 			if transport != "github" {
 				port := int32(0)
 				options.LocalServer = &rpc.HostLocalServerOptions{
@@ -108,6 +108,27 @@ func TestAhpHostTransportsAndOptionalResults(t *testing.T) {
 				t.Fatalf("incorrect environment ID: %v", host.EnvironmentID)
 			}
 		})
+	}
+}
+
+func TestAhpHostListSessionsUsesOwningHost(t *testing.T) {
+	client, server, _ := ahpFixture(t)
+	host, err := client.StartAhpHost(t.Context(), &AhpHostOptions{LocalServer: &rpc.HostLocalServerOptions{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	server.SetRequestHandler("host.listSessions", jsonrpc2.RequestHandlerFor(func(params *rpc.HostListSessionsRequest) (*rpc.HostListSessionsResult, *jsonrpc2.Error) {
+		if params.HostID == nil || *params.HostID != host.HostID {
+			t.Errorf("hostId = %v, want %q", params.HostID, host.HostID)
+		}
+		return &rpc.HostListSessionsResult{Sessions: []rpc.HostSessionSummary{}}, nil
+	}))
+	result, err := host.ListSessions(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Sessions == nil || len(result.Sessions) != 0 {
+		t.Fatalf("sessions = %#v, want an empty catalog", result.Sessions)
 	}
 }
 

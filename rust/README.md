@@ -177,7 +177,14 @@ The `on_exit` callback remains local-only. All hosting APIs are experimental.
 The returned `AhpHost` exposes `host_id` and optional `url`, `pid`, `token`, and
 `environment_id`. Mission Control-only hosting has no local URL; `environment_id`
 identifies its registration. Environment list/get/delete operations are available
-only through the generated `client.rpc().environments()` namespace.
+only through the generated `client.rpc().environments()` namespace. Call
+`host.list_sessions().await` to read the complete advertised catalog of live and
+dormant sessions.
+Use `AhpHostOptions::with_compute_id(...)` to reuse the durable catalog across
+local and Mission Control hosting; it must agree with the GitHub environment's
+`compute_id` when both are supplied. The runtime persists an omitted local-only
+identity. Publication survives host shutdown; dormant application sessions
+require your resume callback.
 `pid` is `None` for in-process listeners; `Some(pid)` preserves a separate host
 process ID returned by a legacy runtime, never the runtime PID. Stop the
 in-process listener with `dispose()`. There is no
@@ -264,8 +271,9 @@ owning client, subject to the same session identity and workspace checks.
 
 Only durable catalog entries marked as application-owned use this resume
 factory. Restoration fails if the callback is missing; it does not fall back
-to host-owned creation. Published resident sessions attach directly without invoking it or
-reconfiguring their current registrations. The SDK retains the exact returned
+to host-owned creation. Currently resident published sessions attach directly without invoking it or
+reconfiguring their current registrations. Dormant published application sessions
+require this callback to restore their tools and handlers. The SDK retains the exact returned
 `Arc` and applies the same cancellation, late completion, and release rules as
 fresh handoffs; it never automatically disconnects or destroys the result.
 

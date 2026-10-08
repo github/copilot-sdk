@@ -127,10 +127,12 @@ async fn requires_an_explicit_transport() {
 async fn github_and_combined_transports_preserve_optional_results() {
     for local in [false, true] {
         let (client, mut peer) = fixture();
-        let mut options =
-            AhpHostOptions::new().with_github_environment(HostGitHubEnvironmentOptions {
+        let mut options = AhpHostOptions::new()
+            .with_compute_id("compute")
+            .with_github_environment(HostGitHubEnvironmentOptions {
                 name: "SDK host".into(),
                 compute_id: "compute".into(),
+                require_connection_binding: Some(local),
             });
         if local {
             options = options.with_local_server(Default::default());
@@ -139,7 +141,8 @@ async fn github_and_combined_transports_preserve_optional_results() {
         let request = peer.request().await;
         let mut expected = json!({
             "hostId": request["params"]["hostId"],
-            "githubEnvironment": {"name": "SDK host", "computeId": "compute"}
+            "computeId": "compute",
+            "githubEnvironment": {"name": "SDK host", "computeId": "compute", "requireConnectionBinding": local}
         });
         let mut result = json!({
             "hostId": request["params"]["hostId"],
@@ -157,6 +160,16 @@ async fn github_and_combined_transports_preserve_optional_results() {
         assert_eq!(host.token, None);
         assert_eq!(host.pid, None);
     }
+}
+
+#[tokio::test]
+async fn explicit_local_compute_identity_is_forwarded() {
+    let (client, mut peer) = fixture();
+    let pending = start(&client, local_options().with_compute_id("local-compute"));
+    let request = peer.request().await;
+    assert_eq!(request["params"]["computeId"], "local-compute");
+    peer.started(&request, None).await;
+    assert!(pending.await.unwrap().is_ok());
 }
 
 #[tokio::test]
@@ -264,6 +277,23 @@ async fn publication_forwards_existing_identity_to_the_owning_listener() {
     let result = publication.await.unwrap().unwrap();
     assert_eq!(result.session_id, "resident");
     assert_eq!(result.session_uri, "copilot:/resident");
+}
+
+#[tokio::test]
+async fn list_sessions_forwards_the_owning_host_and_returns_the_catalog() {
+    let (client, mut peer) = fixture();
+    let pending = start(&client, local_options());
+    let request = peer.request().await;
+    peer.started(&request, None).await;
+    let host = pending.await.unwrap().unwrap();
+    let host_id = host.host_id.clone();
+    let listing = tokio::spawn(async move { host.list_sessions().await });
+    let request = peer.request().await;
+    assert_eq!(request["method"], "host.listSessions");
+    assert_eq!(request["params"], json!({"hostId": host_id}));
+    peer.respond(&request, json!({"sessions": []})).await;
+    let result = listing.await.unwrap().unwrap();
+    assert!(result.sessions.is_empty());
 }
 
 #[tokio::test]

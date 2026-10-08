@@ -73,6 +73,18 @@ class ToolInvocation:
     rank/filter the live catalog -- including MCP tools configured in settings --
     without issuing its own RPC. ``None`` for every other tool invocation.
     """
+    agent_id: str | None = None
+    """**Experimental.** Sub-agent instance that issued this call (the ``agent_id``
+    of its session events). ``None`` for a root-agent call, and for every call
+    when the runtime does not attribute sub-agent tool calls.
+    """
+    request_id: str | None = None
+    """**Experimental.** Runtime request id of this call: the key
+    ``session.tools.handlePendingToolCall`` and ``session.tools.listPendingRequests``
+    use. A root-agent call stays answerable after the session is resumed with
+    pending work continued; a sub-agent's call can be answered only while that
+    sub-agent is still running.
+    """
 
 
 ToolHandler = Callable[[ToolInvocation], ToolResult | Awaitable[ToolResult]]
