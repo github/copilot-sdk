@@ -11,7 +11,7 @@
 #![allow(dead_code)]
 
 use super::api_types::{rpc_methods, *};
-use super::session_events::SessionMode;
+use super::session_events::{SessionMode, UsageGetMetricsResult};
 use crate::session::Session;
 use crate::{Client, Error};
 
@@ -5364,6 +5364,13 @@ impl<'a> SessionRpc<'a> {
         }
     }
 
+    /// `session.quota.*` sub-namespace.
+    pub fn quota(&self) -> SessionRpcQuota<'a> {
+        SessionRpcQuota {
+            session: self.session,
+        }
+    }
+
     /// `session.remote.*` sub-namespace.
     pub fn remote(&self) -> SessionRpcRemote<'a> {
         SessionRpcRemote {
@@ -10549,6 +10556,41 @@ impl<'a> SessionRpcModel<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
+    /// Switches the session to a model and optional reasoning configuration.
+    ///
+    /// Wire method: `session.model.switchTo`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Target model identifier and optional reasoning effort, summary, capability overrides, and context tier.
+    ///
+    /// # Returns
+    ///
+    /// The model identifier active on the session after the switch.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    ///
+    /// Accepts [`ModelSwitchToOptions`], including inputs added after [`ModelSwitchToRequest`].
+    pub async fn switch_to_with_options(
+        &self,
+        params: ModelSwitchToOptions,
+    ) -> Result<ModelSwitchToResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_MODEL_SWITCHTO, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
     /// Requests an Auto preference change without changing the session's selected model. The latest unclaimed request wins; the runtime commits it only after a later prompt using the `auto` model mints a usable model and token pair. A `pending` response confirms that the request was accepted, not that it committed. Observe eventual success through `session.model_change`, failure through the ephemeral `session.auto_tier_switch_failed` event, or current unclaimed state through `session.model.getCurrent`.
     ///
     /// Wire method: `session.model.switchAutoTier`.
@@ -10612,6 +10654,34 @@ impl<'a> SessionRpcModel<'a> {
             .client()
             .call(
                 rpc_methods::SESSION_MODEL_APPLYSTARTUPOVERLAY,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Clears an unchanged startup model/provider seed before default-model resolution. Never clears a resumed or user-selected model.
+    ///
+    /// Wire method: `session.model.clearStartupSeed`.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn clear_startup_seed(
+        &self,
+        params: SessionModelClearStartupSeedParams,
+    ) -> Result<ModelClearStartupSeedResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_MODEL_CLEARSTARTUPSEED,
                 Some(wire_params),
             )
             .await?;
@@ -13202,6 +13272,89 @@ impl<'a> SessionRpcQueue<'a> {
     }
 }
 
+/// `session.quota.*` RPCs.
+#[derive(Clone, Copy)]
+pub struct SessionRpcQuota<'a> {
+    pub(crate) session: &'a Session,
+}
+
+impl<'a> SessionRpcQuota<'a> {
+    /// Gets the session's current quota and account projection without making a network request.
+    ///
+    /// Wire method: `session.quota.get`.
+    ///
+    /// # Returns
+    ///
+    /// The incumbent session-owned quota and account projection.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn get(&self) -> Result<SessionQuotaProjection, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_QUOTA_GET, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Refreshes the session's provider model catalog bypassing its cache, folds quota snapshots into session state, and returns the updated projection. Failures leave the last known quota intact.
+    ///
+    /// Wire method: `session.quota.refresh`.
+    ///
+    /// # Returns
+    ///
+    /// The incumbent session-owned quota and account projection.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn refresh(&self) -> Result<SessionQuotaProjection, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_QUOTA_REFRESH, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Returns and clears the session's pending quota warnings. Reading or refreshing quota does not drain warnings.
+    ///
+    /// Wire method: `session.quota.takeWarnings`.
+    ///
+    /// # Returns
+    ///
+    /// Pending warnings returned and cleared by session.quota.takeWarnings.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn take_warnings(&self) -> Result<QuotaTakeWarningsResult, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_QUOTA_TAKEWARNINGS, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+}
+
 /// `session.remote.*` RPCs.
 #[derive(Clone, Copy)]
 pub struct SessionRpcRemote<'a> {
@@ -14662,6 +14815,34 @@ impl<'a> SessionRpcTools<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
+    /// Lists the external tool calls of the session and its sub-agents that are still waiting for session.tools.handlePendingToolCall.
+    ///
+    /// Wire method: `session.tools.listPendingRequests`.
+    ///
+    /// # Returns
+    ///
+    /// External tool calls still waiting for a result.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn list_pending_requests(&self) -> Result<PendingExternalToolRequestList, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_TOOLS_LISTPENDINGREQUESTS,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
     /// Resolves, builds, and validates the runtime tool list for the session.
     ///
     /// Wire method: `session.tools.initializeAndValidate`.
@@ -15279,6 +15460,35 @@ impl<'a> SessionRpcUsage<'a> {
             .call(rpc_methods::SESSION_USAGE_GETMETRICS, Some(wire_params))
             .await?;
         Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Internal host-only replacement of absolute code-change totals reported by a relay host.
+    ///
+    /// Wire method: `session.usage.setCodeChanges`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Internal absolute code-change totals reported by the owning host.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn set_code_changes(
+        &self,
+        params: SessionUsageSetCodeChangesParams,
+    ) -> Result<(), Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_USAGE_SETCODECHANGES, Some(wire_params))
+            .await?;
+        Ok(())
     }
 }
 

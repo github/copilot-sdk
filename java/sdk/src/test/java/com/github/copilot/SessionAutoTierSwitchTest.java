@@ -46,6 +46,33 @@ class SessionAutoTierSwitchTest {
     }
 
     @Test
+    void legacy_model_switch_preserves_reasoning_and_omits_provider() throws Exception {
+        try (var sockets = new SocketPair()) {
+            var session = new CopilotSession("sess-legacy", sockets.client());
+            session.setModel("gpt-5", "high");
+            var params = sockets.stubServer().readOneMessage().get("params");
+            assertEquals("gpt-5", params.get("modelId").asText());
+            assertEquals("high", params.get("reasoningEffort").asText());
+            assertFalse(params.has("providerId"));
+            assertFalse(params.has("autoTier"));
+        }
+    }
+
+    @Test
+    void model_switch_with_summary_preserves_its_wire_fields() throws Exception {
+        try (var sockets = new SocketPair()) {
+            var session = new CopilotSession("sess-summary", sockets.client());
+            session.setModel("gpt-5", "high", "concise", null);
+            var params = sockets.stubServer().readOneMessage().get("params");
+            assertEquals("gpt-5", params.get("modelId").asText());
+            assertEquals("high", params.get("reasoningEffort").asText());
+            assertEquals("concise", params.get("reasoningSummary").asText());
+            assertFalse(params.has("providerId"));
+            assertFalse(params.has("autoTier"));
+        }
+    }
+
+    @Test
     void setModel_omits_autoTier_when_no_preference_is_requested() throws Exception {
         try (var sockets = new SocketPair()) {
             var session = new CopilotSession("sess-1", sockets.client());

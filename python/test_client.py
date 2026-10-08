@@ -29,6 +29,7 @@ from copilot import (
     StdioRuntimeConnection,
     define_tool,
 )
+from copilot._jsonrpc import JsonRpcClient
 from copilot.client import (
     CloudSessionOptions,
     CloudSessionRepository,
@@ -152,6 +153,109 @@ class TestBuiltinPluginDirectories:
 
 
 class TestClientShutdown:
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("shutdown", ["stop", "force_stop"])
+    @pytest.mark.parametrize("restart", [False, True])
+    async def test_shutdown_rejects_cloud_publication_after_session_snapshot(
+        self, shutdown, restart
+    ):
+        client = CopilotClient(
+            connection=RuntimeConnection.for_uri("localhost:1234"),
+            session_fs={
+                "initial_working_directory": "/",
+                "session_state_path": "/session-state",
+                "conventions": "posix",
+            },
+        )
+        loop = asyncio.get_running_loop()
+        rpc = JsonRpcClient(Mock())
+        rpc._loop = loop
+        request_sent = asyncio.Event()
+        provider_started = asyncio.Event()
+        transport_stop_started = asyncio.Event()
+        release_provider = threading.Event()
+        release_transport_stop = asyncio.Event()
+        retained_sessions = []
+        messages = []
+
+        async def send_message(message):
+            messages.append(message)
+            request_sent.set()
+
+        async def stop_transport():
+            transport_stop_started.set()
+            await release_transport_stop.wait()
+
+        def create_provider(session):
+            retained_sessions.append(session)
+            loop.call_soon_threadsafe(provider_started.set)
+            release_provider.wait()
+            return Mock(spec=SessionFsProvider)
+
+        rpc._send_message = AsyncMock(side_effect=send_message)
+        rpc.stop = stop_transport
+        client._client = rpc
+        client._state = "connected"
+        creation = asyncio.create_task(
+            client.create_session(
+                cloud=CloudSessionOptions(
+                    repository=CloudSessionRepository(
+                        owner="github", name="copilot-sdk", branch="main"
+                    )
+                ),
+                create_session_fs_handler=create_provider,
+            )
+        )
+        response = None
+        stopping = None
+        try:
+            await asyncio.wait_for(request_sent.wait(), timeout=5)
+            response = asyncio.create_task(
+                asyncio.to_thread(
+                    rpc._handle_message,
+                    {
+                        "id": messages[0]["id"],
+                        "result": {"sessionId": "server-assigned-session"},
+                    },
+                )
+            )
+            await asyncio.wait_for(provider_started.wait(), timeout=5)
+            stopping = asyncio.create_task(getattr(client, shutdown)())
+            await asyncio.wait_for(transport_stop_started.wait(), timeout=5)
+            if restart:
+                release_transport_stop.set()
+                await asyncio.wait_for(stopping, timeout=5)
+                next_rpc = Mock(request=AsyncMock())
+
+                async def connect():
+                    client._client = next_rpc
+
+                client._connect_to_server = AsyncMock(side_effect=connect)
+                client._verify_protocol_version = AsyncMock()
+                client._set_session_fs_provider = AsyncMock()
+                await client.start()
+                assert client._state == "connected"
+            release_provider.set()
+            await asyncio.wait_for(response, timeout=5)
+            with pytest.raises(RuntimeError, match="not connected"):
+                await asyncio.wait_for(creation, timeout=5)
+            assert client._sessions == {}
+            with pytest.raises(RuntimeError, match="disconnected"):
+                retained_sessions[0].on(lambda _: None)
+            assert retained_sessions[0]._client_session_apis.session_fs is None
+            assert [message["method"] for message in messages] == ["session.create"]
+            assert rpc.pending_requests == {}
+        finally:
+            release_provider.set()
+            release_transport_stop.set()
+            if response is not None:
+                await asyncio.wait_for(response, timeout=5)
+            if stopping is not None:
+                await asyncio.wait_for(stopping, timeout=5)
+            if not creation.done():
+                creation.cancel()
+                await asyncio.gather(creation, return_exceptions=True)
+
     @pytest.mark.asyncio
     async def test_stop_requests_runtime_shutdown_for_owned_process(self):
         calls: list[str] = []
@@ -847,8 +951,12 @@ class TestCreateSessionConfig:
             assert "Failed to delete cloud session" in caplog.text
 
     @pytest.mark.asyncio
-    @pytest.mark.parametrize("valid_provider", [False, True])
-    async def test_cloud_create_cancellation_waits_for_provider_validation(self, valid_provider):
+    @pytest.mark.parametrize(
+        "valid_provider,replace_session", [(False, False), (True, False), (True, True)]
+    )
+    async def test_cloud_create_cancellation_waits_for_provider_validation(
+        self, valid_provider, replace_session
+    ):
         client = CopilotClient(
             connection=RuntimeConnection.for_uri("localhost:1234"),
             session_fs={
@@ -864,6 +972,7 @@ class TestCreateSessionConfig:
         delete_called = asyncio.Event()
         release_provider = threading.Event()
         requests = []
+        retained_sessions = []
 
         async def mock_request(method, params, **kwargs):
             requests.append((method, params))
@@ -883,7 +992,8 @@ class TestCreateSessionConfig:
                 return {"success": True}
             return {}
 
-        def create_provider(_):
+        def create_provider(session):
+            retained_sessions.append(session)
             loop.call_soon_threadsafe(provider_started.set)
             release_provider.wait()
             provider = Mock(spec=SessionFsProvider)
@@ -910,6 +1020,15 @@ class TestCreateSessionConfig:
                 await asyncio.wait_for(creation, timeout=5)
             assert not delete_called.is_set()
 
+            successor = None
+            if replace_session:
+                provider = Mock(spec=SessionFsProvider)
+                provider.read_file_bytes = AsyncMock(return_value=b"image")
+                provider.write_file_bytes = AsyncMock()
+                successor = await client.resume_session(
+                    "server-assigned-session", create_session_fs_handler=lambda _: provider
+                )
+
             release_provider.set()
             await asyncio.wait_for(callback_finished.wait(), timeout=5)
             if valid_provider:
@@ -920,12 +1039,120 @@ class TestCreateSessionConfig:
                     "session.delete",
                     {"sessionId": "server-assigned-session"},
                 )
-            assert "server-assigned-session" not in client._sessions
+            assert client._sessions == (
+                {"server-assigned-session": successor} if successor is not None else {}
+            )
+            if successor is not None:
+                successor.on(lambda _: None)()
+            with pytest.raises(RuntimeError, match="disconnected"):
+                retained_sessions[0].on(lambda _: None)
+            assert retained_sessions[0]._client_session_apis.session_fs is None
         finally:
             release_provider.set()
             if not creation.done():
                 creation.cancel()
                 await asyncio.gather(creation, return_exceptions=True)
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("operation", ["create", "resume"])
+    async def test_failed_provider_setup_retires_retained_factory_session(self, operation):
+        client = CopilotClient(
+            connection=RuntimeConnection.for_uri("localhost:1234"),
+            session_fs={
+                "initial_working_directory": "/",
+                "session_state_path": "/session-state",
+                "conventions": "posix",
+                "capabilities": {"binary": True},
+            },
+        )
+        client._client = Mock(request=AsyncMock())
+        original = CopilotSession("session-1", client._client)
+        retained_sessions = []
+
+        def create_provider(session):
+            retained_sessions.append(session)
+            return Mock(spec=SessionFsProvider)
+
+        if operation == "resume":
+            client._sessions["session-1"] = original
+        with pytest.raises(ValueError, match="does not implement SessionFsBinaryProvider"):
+            if operation == "resume":
+                await client.resume_session("session-1", create_session_fs_handler=create_provider)
+            else:
+                await client.create_session(
+                    session_id="session-1", create_session_fs_handler=create_provider
+                )
+
+        client._client.request.assert_not_awaited()
+        assert client._sessions == ({"session-1": original} if operation == "resume" else {})
+        original.on(lambda _: None)()
+        with pytest.raises(RuntimeError, match="disconnected"):
+            retained_sessions[0].on(lambda _: None)
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("operation", ["create", "resume"])
+    @pytest.mark.parametrize("cancelled", [False, True])
+    async def test_failed_session_admission_retires_retained_factory_session(
+        self, operation, cancelled
+    ):
+        client = CopilotClient(
+            connection=RuntimeConnection.for_uri("localhost:1234"),
+            session_fs={
+                "initial_working_directory": "/",
+                "session_state_path": "/session-state",
+                "conventions": "posix",
+            },
+        )
+        request_started = asyncio.Event()
+        release_request = asyncio.Event()
+        retained_sessions = []
+        requests = []
+
+        async def mock_request(method, params, **kwargs):
+            requests.append((method, params))
+            request_started.set()
+            await release_request.wait()
+            raise RuntimeError("admission rejected")
+
+        def create_provider(session):
+            retained_sessions.append(session)
+            return Mock(spec=SessionFsProvider)
+
+        client._client = Mock(request=mock_request)
+        original = CopilotSession("session-1", client._client)
+        if operation == "resume":
+            client._sessions["session-1"] = original
+            admission = asyncio.create_task(
+                client.resume_session("session-1", create_session_fs_handler=create_provider)
+            )
+        else:
+            admission = asyncio.create_task(
+                client.create_session(
+                    session_id="session-1", create_session_fs_handler=create_provider
+                )
+            )
+        try:
+            await asyncio.wait_for(request_started.wait(), timeout=5)
+            if cancelled:
+                admission.cancel()
+                with pytest.raises(asyncio.CancelledError):
+                    await asyncio.wait_for(admission, timeout=5)
+            else:
+                release_request.set()
+                with pytest.raises(RuntimeError, match="admission rejected"):
+                    await asyncio.wait_for(admission, timeout=5)
+
+            assert [method for method, _ in requests] == [f"session.{operation}"]
+            assert client._sessions == ({"session-1": original} if operation == "resume" else {})
+            original.on(lambda _: None)()
+            with pytest.raises(RuntimeError, match="disconnected"):
+                retained_sessions[0].on(lambda _: None)
+            assert retained_sessions[0]._client_session_apis.session_fs is None
+        finally:
+            release_request.set()
+            if not admission.done():
+                admission.cancel()
+                await asyncio.gather(admission, return_exceptions=True)
 
     @pytest.mark.asyncio
     async def test_cloud_create_preserves_session_when_interest_registration_fails(self):

@@ -1140,13 +1140,17 @@ while let Ok(event) = events.recv().await {
 
 When streaming is off (the default), only the final `assistant.message` and `assistant.reasoning` events fire. Delta events arrive in order; concatenating their `delta` text payloads reproduces the final message.
 
+After session shutdown or owner connection loss, `session.subscribe()` returns an immediately closed subscription: `recv()` reports `RecvErrorKind::Closed`, and stream iteration ends. Ordinary shutdown lets existing subscriptions drain already-published events. `Client::force_stop()` instead closes live and prepared subscriptions immediately and discards unread live and resume-bootstrap events, without waiting for producer shutdown. Retaining the `Session` does not retain the event producer or prevent its event loop from terminating.
+
+When the event loop retires, it also releases registered tool-handler captures, even if the application retains the `Session`. Tool replacements reject local admission and late acknowledgments after retirement. An already-admitted tool call retains its selected handler for its existing completion or cancellation path.
+
 #### Subscribing before the session starts
 
 `session.subscribe()` can only be called once the session exists. On create, events dispatched before a subscriber is installed are not delivered. Ephemeral events such as `session.idle` are not written to the session log either, so `get_messages` can't recover them afterwards.
 
 On resume with no active prepared subscriber, the SDK instead retains all routed startup events, durable and ephemeral, in an ordered bootstrap queue. The first `session.subscribe()` call claims that queue synchronously, even before the subscription is polled. It receives the complete prefix and any events dispatched while catching up, then atomically switches to bounded live delivery. Later subscribers receive newly dispatched live events immediately, even while the owner is draining.
 
-**The resume bootstrap is unbounded until its owner catches up.** Subscribe and drain promptly: a caller that never subscribes or cannot catch up can retain arbitrarily many events. Dropping the owner discards its unread backlog without transferring it to another subscriber. Stopping the session event loop releases an unclaimed backlog; a claimed backlog can still drain after shutdown without keeping the sender alive. This guarantee covers events routed to the session, not overflow in the bounded client-global notification router.
+**The resume bootstrap is unbounded until its owner catches up.** Subscribe and drain promptly: a caller that never subscribes or cannot catch up can retain arbitrarily many events. Dropping the owner discards its unread backlog without transferring it to another subscriber. Stopping the session event loop releases an unclaimed backlog; a claimed backlog can still drain after ordinary shutdown without keeping the sender alive. Client force-stop discards the backlog even after it has been claimed. This guarantee covers events routed to the session, not overflow in the bounded client-global notification router.
 
 For create and resume calls with a client-known session ID, the SDK starts its event loop before sending the RPC so it can answer session-scoped requests issued during startup. Cloud creates with a server-assigned ID register the loop after the response identifies the session.
 

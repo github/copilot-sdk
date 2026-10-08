@@ -36,6 +36,8 @@ public record SessionModeSetParams(
     @JsonProperty("planModelConfigured") Boolean planModelConfigured,
     /** Dedicated model to use in plan mode, when configured. */
     @JsonProperty("planModel") String planModel,
+    /** Provider owning planModel. Omit for legacy bare-model selection. */
+    @JsonProperty("planModelProviderId") String planModelProviderId,
     /** Reasoning effort to use with the dedicated plan model. */
     @JsonProperty("planReasoningEffort") String planReasoningEffort,
     /** Context tier to use with the dedicated plan model. */

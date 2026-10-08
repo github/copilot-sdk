@@ -34,6 +34,10 @@ public record SessionMetadataContextInfoResult(
     public record SessionMetadataContextInfoResultContextInfo(
         /** The model used for token counting */
         @JsonProperty("modelName") String modelName,
+        /** Provider whose catalog supplies this context window. Omitted when provider identity is unavailable. */
+        @JsonProperty("provider") ModelProviderRef provider,
+        /** Provider-owned model display label, or the Auto routing label. Presentation only; modelName remains the tokenization identity. */
+        @JsonProperty("displayModelName") String displayModelName,
         /** Tokens consumed by the system prompt */
         @JsonProperty("systemTokens") Long systemTokens,
         /** Tokens consumed by user/assistant/tool messages */

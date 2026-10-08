@@ -8,6 +8,7 @@
 package com.github.copilot.generated.rpc;
 
 import com.github.copilot.CopilotExperimental;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.processing.Generated;
 
@@ -58,6 +59,21 @@ public final class SessionModelApi {
     }
 
     /**
+     * Switches the session to a model and optional reasoning configuration.
+     * <p>
+     * Accepts the extensible request, including inputs added after the params record.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionModelSwitchToResult> switchTo(SessionModelSwitchToRequest request) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(Objects.requireNonNull(request, "request"));
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.model.switchTo", _p, SessionModelSwitchToResult.class);
+    }
+
+    /**
      * Requests an Auto preference change without changing the session's selected model. The latest unclaimed request wins; the runtime commits it only after a later prompt using the `auto` model mints a usable model and token pair. A `pending` response confirms that the request was accepted, not that it committed. Observe eventual success through `session.model_change`, failure through the ephemeral `session.auto_tier_switch_failed` event, or current unclaimed state through `session.model.getCurrent`.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
@@ -87,6 +103,22 @@ public final class SessionModelApi {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
         return caller.invoke("session.model.applyStartupOverlay", _p, ModelSwitchToResult.class);
+    }
+
+    /**
+     * Clears an unchanged startup model/provider seed before default-model resolution. Never clears a resumed or user-selected model.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    CompletableFuture<ModelClearStartupSeedResult> clearStartupSeed(SessionModelClearStartupSeedParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.model.clearStartupSeed", _p, ModelClearStartupSeedResult.class);
     }
 
     /**

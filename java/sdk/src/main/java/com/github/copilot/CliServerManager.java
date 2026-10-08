@@ -14,7 +14,12 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Matcher;
@@ -34,6 +39,7 @@ final class CliServerManager {
 
     private static final Logger LOG = Logger.getLogger(CliServerManager.class.getName());
     private static final int STDERR_READER_JOIN_TIMEOUT_MS = 5000;
+    static final int FORCE_KILL_TIMEOUT_SECONDS = 10;
 
     private final CopilotClientOptions options;
     private final StringBuilder stderrBuffer = new StringBuilder();
@@ -132,12 +138,20 @@ final class CliServerManager {
         // Forward stderr to logger in background
         startStderrReader(process);
 
-        Integer detectedPort = null;
-        if (!options.isUseStdio()) {
-            detectedPort = waitForPortAnnouncement(process);
+        try {
+            Integer detectedPort = null;
+            if (!options.isUseStdio()) {
+                detectedPort = waitForPortAnnouncement(process);
+            }
+            return new ProcessInfo(process, detectedPort);
+        } catch (IOException | RuntimeException error) {
+            try {
+                cleanupCliProcess(process, captureDescendants(process), true);
+            } catch (RuntimeException cleanupError) {
+                error.addSuppressed(cleanupError);
+            }
+            throw error;
         }
-
-        return new ProcessInfo(process, detectedPort);
     }
 
     /**
@@ -206,8 +220,95 @@ final class CliServerManager {
                 }
             }
 
-            process.destroyForcibly();
             throw new IOException("Timeout waiting for CLI to announce port");
+        }
+    }
+
+    static void cleanupCliProcess(Process process, List<ProcessHandle> descendants, boolean forceImmediately) {
+        if (!process.isAlive() && descendants.stream().noneMatch(ProcessHandle::isAlive)) {
+            return;
+        }
+        try {
+            if (terminateProcessTree(process, descendants, forceImmediately)) {
+                return;
+            }
+            if (!forceImmediately) {
+                if (terminateProcessTree(process, descendants, true)) {
+                    return;
+                }
+            }
+            throw new IllegalStateException("CLI process tree did not terminate after shutdown: " + process.pid());
+        } catch (InterruptedException error) {
+            Thread.currentThread().interrupt();
+            throw new CompletionException("Interrupted while terminating the CLI process tree", error);
+        } catch (ExecutionException error) {
+            throw new CompletionException("Failed to await CLI process tree termination", error.getCause());
+        }
+    }
+
+    static List<ProcessHandle> captureDescendants(Process process) {
+        return process.descendants().sorted(Comparator.comparingInt(CliServerManager::processDepth).reversed())
+                .toList();
+    }
+
+    private static int processDepth(ProcessHandle process) {
+        int depth = 0;
+        var parent = process.parent();
+        while (parent.isPresent()) {
+            depth++;
+            parent = parent.get().parent();
+        }
+        return depth;
+    }
+
+    private static boolean terminateProcessTree(Process process, List<ProcessHandle> descendants, boolean force)
+            throws InterruptedException, ExecutionException {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(FORCE_KILL_TIMEOUT_SECONDS);
+        // Reap deepest children while their parents can still collect their exit.
+        // Killing the launcher first can orphan zombies in containers without an init.
+        for (var child : descendants) {
+            if (child.isAlive()) {
+                if (force) {
+                    child.destroyForcibly();
+                } else {
+                    child.destroy();
+                }
+                waitForProcessExit(child, deadline);
+            }
+        }
+        if (process.isAlive()) {
+            if (force) {
+                process.destroyForcibly();
+            } else {
+                process.destroy();
+            }
+        }
+        return waitForProcessTreeExit(process, descendants, deadline);
+    }
+
+    private static boolean waitForProcessTreeExit(Process process, List<ProcessHandle> descendants, long deadline)
+            throws InterruptedException, ExecutionException {
+        if (!process.waitFor(Math.max(0, deadline - System.nanoTime()), TimeUnit.NANOSECONDS)) {
+            return false;
+        }
+        for (var child : descendants) {
+            if (!waitForProcessExit(child, deadline)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean waitForProcessExit(ProcessHandle process, long deadline)
+            throws InterruptedException, ExecutionException {
+        if (!process.isAlive()) {
+            return true;
+        }
+        try {
+            process.onExit().get(Math.max(0, deadline - System.nanoTime()), TimeUnit.NANOSECONDS);
+            return true;
+        } catch (TimeoutException error) {
+            return false;
         }
     }
 

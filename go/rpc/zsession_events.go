@@ -212,8 +212,11 @@ const (
 	SessionEventTypeSessionPermissionRecovery      SessionEventType = "session.permission_recovery"
 	// Experimental: SessionEventTypeSessionPermissionsChanged identifies an experimental event
 	// that may change or be removed.
-	SessionEventTypeSessionPermissionsChanged     SessionEventType = "session.permissions_changed"
-	SessionEventTypeSessionPlanChanged            SessionEventType = "session.plan_changed"
+	SessionEventTypeSessionPermissionsChanged SessionEventType = "session.permissions_changed"
+	SessionEventTypeSessionPlanChanged        SessionEventType = "session.plan_changed"
+	// Experimental: SessionEventTypeSessionQuotaObservation identifies an experimental event
+	// that may change or be removed.
+	SessionEventTypeSessionQuotaObservation       SessionEventType = "session.quota_observation"
 	SessionEventTypeSessionRemoteSteerableChanged SessionEventType = "session.remote_steerable_changed"
 	SessionEventTypeSessionResume                 SessionEventType = "session.resume"
 	SessionEventTypeSessionScheduleCancelled      SessionEventType = "session.schedule_cancelled"
@@ -349,6 +352,18 @@ type PromptCacheBreakData struct {
 func (*PromptCacheBreakData) sessionEventData()      {}
 func (*PromptCacheBreakData) Type() SessionEventType { return SessionEventTypePromptCacheBreak }
 
+// A provider-owned quota observation, distinct from per-call usage and charge accounting.
+// Experimental: SessionQuotaObservationData is part of an experimental API and may change or be removed.
+type SessionQuotaObservationData struct {
+	// The admitted provider's state observation. Admission observations never contain quantities or reset/percentage semantics.
+	Observation ProviderQuotaState `json:"observation"`
+}
+
+func (*SessionQuotaObservationData) sessionEventData() {}
+func (*SessionQuotaObservationData) Type() SessionEventType {
+	return SessionEventTypeSessionQuotaObservation
+}
+
 // A transient Auto preference failure emitted when the runtime cannot mint or accept a usable model and token pair. The previously effective preference remains active, so SDK clients can surface a non-blocking failure without changing their committed-tier state. This event is ephemeral and is not persisted or replayed on resume.
 type SessionAutoTierSwitchFailedData struct {
 	// Auto preference that remains effective after the failed request.
@@ -432,6 +447,8 @@ type AssistantMessageData struct {
 	ParentToolCallID *string `json:"parentToolCallId,omitempty"`
 	// Generation phase for phased-output models (e.g., thinking vs. response phases)
 	Phase *string `json:"phase,omitempty"`
+	// Opaque origin provider identity captured at dispatch. Only an exact match with the target provider permits replay of reasoningOpaque, encryptedContent, reasoningBlocks, serverTools, and provider response/item identifiers. Matching model ids or wire protocols is insufficient. Omitted for legacy or unattributed messages; the runtime excludes unproven opaque state when projecting to a known provider. Text content and client tool requests/results remain portable semantic history.
+	ProviderID *string `json:"providerId,omitempty"`
 	// Neutral provider-tagged reasoning content blocks preserved verbatim for round-tripping. `reasoningText` and `reasoningOpaque` are a lossy derived view of these blocks, retained for display.
 	ReasoningBlocks *AssistantMessageReasoningBlocks `json:"reasoningBlocks,omitempty"`
 	// Opaque/encrypted extended thinking data from Anthropic models. Session-bound and stripped on resume.
@@ -830,17 +847,24 @@ func (*HumanResponseRecordedData) Type() SessionEventType {
 
 // Durable session usage checkpoint for reconstructing aggregate accounting on resume
 type SessionUsageCheckpointData struct {
+	// Complete accounting state captured atomically with the receipt watermarks.
+	// Internal: AccountingSnapshot is part of the SDK's internal API surface and is not intended for external use.
+	AccountingSnapshot *UsageGetMetricsResult `json:"accountingSnapshot,omitempty"`
 	// Internal per-model prompt-cache state used to restore expiration tracking on resume
 	// Internal: ModelCacheState is part of the SDK's internal API surface and is not intended for external use.
 	ModelCacheState []UsageCheckpointModelCacheState `json:"modelCacheState,omitzero"`
 	// Internal per-conversation prompt-cache-break detector baselines restored on resume
 	// Internal: PromptCacheBreakState is part of the SDK's internal API surface and is not intended for external use.
 	PromptCacheBreakState []any `json:"promptCacheBreakState,omitzero"`
+	// Provider/model accounting snapshot that subsumes preceding usage receipts.
+	ProviderModelMetrics []UsageMetricsProviderModelMetric `json:"providerModelMetrics,omitzero"`
 	// Session-wide accumulated nano-AI units cost at checkpoint time
 	TotalNanoAiu float64 `json:"totalNanoAiu"`
 	// Total number of premium API requests used at checkpoint time
 	// Internal: TotalPremiumRequests is part of the SDK's internal API surface and is not intended for external use.
 	TotalPremiumRequests *float64 `json:"totalPremiumRequests,omitempty"`
+	// Highest accounted sequence per source session; no per-call deduplication history is retained.
+	UsageAccountingWatermarks map[string]int64 `json:"usageAccountingWatermarks,omitzero"`
 }
 
 func (*SessionUsageCheckpointData) sessionEventData() {}
@@ -1724,6 +1748,10 @@ func (*ModelCallFinalResultData) Type() SessionEventType { return SessionEventTy
 type AssistantUsageData struct {
 	// Number of accepted speculative prediction tokens
 	AcceptedPredictionTokens *int64 `json:"acceptedPredictionTokens,omitempty"`
+	// Runtime-owned identity shared with the durable accounting receipt.
+	Accounting *UsageAccountingIdentity `json:"accounting,omitempty"`
+	// Availability of this call's reported AI-credit amount. Missing billing is unavailable, not a zero charge.
+	AiCreditsStatus *AiCreditsStatus `json:"aiCreditsStatus,omitempty"`
 	// Completion ID from the model provider (e.g., chatcmpl-abc123)
 	APICallID *string `json:"apiCallId,omitempty"`
 	// API endpoint used for this model call, matching CAPI supported_endpoints vocabulary
@@ -1780,6 +1808,8 @@ type AssistantUsageData struct {
 	MaxPromptTokens *int64 `json:"maxPromptTokens,omitempty"`
 	// Model identifier used for this API call
 	Model string `json:"model"`
+	// Model display name captured for this call, not derived from the current selection.
+	ModelDisplayName *string `json:"modelDisplayName,omitempty"`
 	// Fixed-set provider family serving the bring-your-own-key model (for example "openai", "anthropic", "azure_openai", "ollama", "llama_cpp", or "other"). Never the caller-supplied provider name. Absent for Copilot-served models.
 	ModelProvider *string `json:"modelProvider,omitempty"`
 	// Number of tool calls returned by the model
@@ -1792,6 +1822,8 @@ type AssistantUsageData struct {
 	// Parent tool call ID when this usage originates from a sub-agent
 	// Deprecated: ParentToolCallID is deprecated.
 	ParentToolCallID *string `json:"parentToolCallId,omitempty"`
+	// Provider identity and product label captured by the actual call's dispatch path.
+	Provider *ModelProviderRef `json:"provider,omitempty"`
 	// GitHub request tracing ID (x-github-request-id header) for server-side log correlation
 	ProviderCallID *string `json:"providerCallId,omitempty"`
 	// Per-quota resource usage snapshots, keyed by quota identifier
@@ -2010,12 +2042,16 @@ type SessionModelChangeData struct {
 	PreviousAutoTier *AutoTier `json:"previousAutoTier,omitempty"`
 	// Model that was previously selected, if any
 	PreviousModel *string `json:"previousModel,omitempty"`
+	// Provider of previousModel, when known. A provider-only change is a model selection change even when the model identifiers are equal.
+	PreviousProviderID *string `json:"previousProviderId,omitempty"`
 	// Reasoning effort level before the model change, if applicable
 	PreviousReasoningEffort *string `json:"previousReasoningEffort,omitempty"`
 	// Reasoning summary mode before the model change, if applicable
 	PreviousReasoningSummary *ReasoningSummary `json:"previousReasoningSummary,omitempty"`
 	// Output verbosity level before the model change, if applicable
 	PreviousVerbosity *Verbosity `json:"previousVerbosity,omitempty"`
+	// Provider selected for newModel. Omitted for legacy or unattributed selections; never inferred from a later selection.
+	ProviderID *string `json:"providerId,omitempty"`
 	// Reasoning effort level after the model change, if applicable
 	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
 	// True when the reasoning effort is a managed-policy default bound to reasoningEffortModel. Omitted for agent-authored, user-authored, independent, and legacy effort.
@@ -2699,6 +2735,8 @@ type SessionStartData struct {
 	GitHubMCPToolConfig *GitHubMCPToolConfig `json:"githubMcpToolConfig,omitempty"`
 	// Identifier of the software producing the events (e.g., "copilot-agent")
 	Producer string `json:"producer"`
+	// Provider of selectedModel at creation time, when explicitly selected.
+	ProviderID *string `json:"providerId,omitempty"`
 	// Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh", "max")
 	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
 	// True when the reasoning effort is a managed-policy default bound to reasoningEffortModel. Omitted for agent-authored, user-authored, independent, and legacy effort.
@@ -2785,6 +2823,8 @@ type SessionResumeData struct {
 	EventCount int64 `json:"eventCount"`
 	// On-disk byte size of the session's persisted events.jsonl file at resume time; omitted when the file does not exist or cannot be stat'd
 	EventsFileSizeBytes *int64 `json:"eventsFileSizeBytes,omitempty"`
+	// Provider of selectedModel at resume time, when explicitly selected.
+	ProviderID *string `json:"providerId,omitempty"`
 	// Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh", "max")
 	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
 	// True when the reasoning effort is a managed-policy default bound to reasoningEffortModel. Omitted for agent-authored, user-authored, independent, and legacy effort.
@@ -2827,6 +2867,9 @@ func (*SessionSnapshotRewindData) Type() SessionEventType {
 
 // Session termination metrics including usage statistics, code changes, and shutdown reason
 type SessionShutdownData struct {
+	// Complete accounting state captured atomically with receipt watermarks.
+	// Internal: AccountingSnapshot is part of the SDK's internal API surface and is not intended for external use.
+	AccountingSnapshot *UsageGetMetricsResult `json:"accountingSnapshot,omitempty"`
 	// Per-agent usage breakdown, keyed by agent instance identifier. The main conversation uses the stable key `main`.
 	AgentMetrics map[string]ShutdownAgentMetric `json:"agentMetrics,omitzero"`
 	// Aggregate code change metrics for the session
@@ -2843,6 +2886,8 @@ type SessionShutdownData struct {
 	EventsFileSizeBytes *int64 `json:"eventsFileSizeBytes,omitempty"`
 	// Per-model usage breakdown, keyed by model identifier
 	ModelMetrics map[string]ShutdownModelMetric `json:"modelMetrics"`
+	// Provider/model accounting preserved for replay without consulting current provider selection.
+	ProviderModelMetrics []UsageMetricsProviderModelMetric `json:"providerModelMetrics,omitzero"`
 	// Unix timestamp (milliseconds) when the session started
 	SessionStartTime int64 `json:"sessionStartTime"`
 	// Whether the session ended normally ("routine") or due to a crash/fatal error ("error")
@@ -2861,6 +2906,8 @@ type SessionShutdownData struct {
 	// Total number of premium API requests used during the session
 	// Internal: TotalPremiumRequests is part of the SDK's internal API surface and is not intended for external use.
 	TotalPremiumRequests *float64 `json:"totalPremiumRequests,omitempty"`
+	// Per-source accounting sequence watermarks subsuming preceding usage receipts.
+	UsageAccountingWatermarks map[string]int64 `json:"usageAccountingWatermarks,omitzero"`
 }
 
 func (*SessionShutdownData) sessionEventData()      {}
@@ -3711,6 +3758,8 @@ type CommandsChangedCommand struct {
 
 // Token usage breakdown for the compaction LLM call (aligned with assistant.usage format)
 type CompactionCompleteCompactionTokensUsed struct {
+	// Whether the compaction's credit amount was reported for all, some, or none of its calls.
+	AiCreditsStatus *AiCreditsStatus `json:"aiCreditsStatus,omitempty"`
 	// Cached input tokens reused in the compaction LLM call
 	CacheReadTokens *int64 `json:"cacheReadTokens,omitempty"`
 	// Tokens written to prompt cache in the compaction LLM call
@@ -3724,8 +3773,12 @@ type CompactionCompleteCompactionTokensUsed struct {
 	InputTokens *int64 `json:"inputTokens,omitempty"`
 	// Model identifier used for the compaction LLM call
 	Model *string `json:"model,omitempty"`
+	// Model display name captured for the compaction call.
+	ModelDisplayName *string `json:"modelDisplayName,omitempty"`
 	// Output tokens produced by the compaction LLM call
 	OutputTokens *int64 `json:"outputTokens,omitempty"`
+	// Provider captured for the compaction call; absent when attribution is unknown.
+	Provider *ModelProviderRef `json:"provider,omitempty"`
 }
 
 // Per-request cost and usage data from the CAPI copilot_usage response field
@@ -5761,6 +5814,16 @@ type ToolExecutionStartToolDescriptionMetaUI struct {
 	ResourceURI *string `json:"resourceUri,omitempty"`
 	// Who can access this tool
 	Visibility []ToolExecutionStartToolDescriptionMetaUIVisibility `json:"visibility,omitzero"`
+}
+
+// Ordered accounting identity assigned under the source session's emission lock.
+type UsageAccountingIdentity struct {
+	// Monotonically increasing sequence within the source session.
+	Sequence int64 `json:"sequence"`
+	// Session that assigned this accounting sequence.
+	SourceSessionID string `json:"sourceSessionId"`
+	// Existing API call identifier, or a runtime-generated identity when none was supplied.
+	UsageID string `json:"usageId"`
 }
 
 // Internal prompt-cache expiration state for one model

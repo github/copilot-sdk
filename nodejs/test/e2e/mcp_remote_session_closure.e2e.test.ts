@@ -28,6 +28,7 @@ interface McpServerStats {
     expiredRequests: number;
     expiredRequestLog: { method: string; elapsedMs: number }[];
     protocolVersions: string[];
+    expiredSessionProbes: number;
 }
 
 describe("MCP remote session closure", async () => {
@@ -66,9 +67,22 @@ describe("MCP remote session closure", async () => {
             expect((await remoteServer.stats()).initializations).toBe(1);
 
             // The server drops the session the way an idle Streamable HTTP endpoint
-            // expires one: every later request for it answers 404.
+            // expires one: every later request for it answers 404. Await an answered
+            // probe or reinitialization before budgeting recovery, not the idle delay.
             await remoteServer.expireSessions();
 
+            await waitForCondition(
+                async () => {
+                    const stats = await remoteServer.stats();
+                    return stats.expiredSessionProbes >= 1 || stats.initializations >= 2;
+                },
+                {
+                    timeoutMs: 120_000,
+                    intervalMs: 250,
+                    timeoutMessage:
+                        "remote MCP session expiry was neither probed nor re-initialized",
+                }
+            );
             let lastStats: McpServerStats | undefined;
             try {
                 await waitForCondition(

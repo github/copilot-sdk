@@ -12,11 +12,11 @@ use serde::{Deserialize, Serialize};
 pub use super::session_events::{
     AbortReason, AgentModelPolicy, AutoTier, ContextTier, IndexedSearchState,
     ManagedSettingsResolvedSource, McpOauthHttpResponse, McpOauthWWWAuthenticateParams,
-    McpServerMetadata, McpServerSource, McpServerStatus, ModelChangeSource,
-    OmittedBinaryOmittedReason, PermissionDecisionSource, PermissionMode, PermissionPromptRequest,
-    PermissionRule, ReasoningSummary, RemediationAction, SessionLimitsConfig, SessionMode,
-    ShutdownType, SkillSource, TaskBlocker, TaskCompletionOutcome, UserToolSessionApproval,
-    Verbosity,
+    McpServerMetadata, McpServerSource, McpServerStatus, ModelChangeSource, ModelProviderKind,
+    ModelProviderRef, OmittedBinaryOmittedReason, PermissionDecisionSource, PermissionMode,
+    PermissionPromptRequest, PermissionRule, ProviderQuotaState, ReasoningSummary,
+    RemediationAction, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskBlocker,
+    TaskCompletionOutcome, UsageGetMetricsResult, UserToolSessionApproval, Verbosity,
 };
 use crate::types::{RequestId, SessionEvent, SessionId};
 
@@ -445,6 +445,8 @@ pub mod rpc_methods {
     pub const SESSION_MODEL_SWITCHAUTOTIER: &str = "session.model.switchAutoTier";
     /// `session.model.applyStartupOverlay`
     pub const SESSION_MODEL_APPLYSTARTUPOVERLAY: &str = "session.model.applyStartupOverlay";
+    /// `session.model.clearStartupSeed`
+    pub const SESSION_MODEL_CLEARSTARTUPSEED: &str = "session.model.clearStartupSeed";
     /// `session.model.setAllowedModels`
     pub const SESSION_MODEL_SETALLOWEDMODELS: &str = "session.model.setAllowedModels";
     /// `session.model.setReasoningEffort`
@@ -753,6 +755,8 @@ pub mod rpc_methods {
     pub const SESSION_TOOLS_TASKCOMPLETEEVENTDATA: &str = "session.tools.taskCompleteEventData";
     /// `session.tools.handlePendingToolCall`
     pub const SESSION_TOOLS_HANDLEPENDINGTOOLCALL: &str = "session.tools.handlePendingToolCall";
+    /// `session.tools.listPendingRequests`
+    pub const SESSION_TOOLS_LISTPENDINGREQUESTS: &str = "session.tools.listPendingRequests";
     /// `session.tools.initializeAndValidate`
     pub const SESSION_TOOLS_INITIALIZEANDVALIDATE: &str = "session.tools.initializeAndValidate";
     /// `session.tools.getCurrentMetadata`
@@ -973,6 +977,14 @@ pub mod rpc_methods {
     pub const SESSION_EVENTLOG_RELEASEINTEREST: &str = "session.eventLog.releaseInterest";
     /// `session.usage.getMetrics`
     pub const SESSION_USAGE_GETMETRICS: &str = "session.usage.getMetrics";
+    /// `session.usage.setCodeChanges`
+    pub const SESSION_USAGE_SETCODECHANGES: &str = "session.usage.setCodeChanges";
+    /// `session.quota.get`
+    pub const SESSION_QUOTA_GET: &str = "session.quota.get";
+    /// `session.quota.refresh`
+    pub const SESSION_QUOTA_REFRESH: &str = "session.quota.refresh";
+    /// `session.quota.takeWarnings`
+    pub const SESSION_QUOTA_TAKEWARNINGS: &str = "session.quota.takeWarnings";
     /// `session.limitPrediction.predict`
     pub const SESSION_LIMITPREDICTION_PREDICT: &str = "session.limitPrediction.predict";
     /// `session.remote.enable`
@@ -6614,6 +6626,12 @@ pub struct CurrentModel {
     /// Captured base model to restore when leaving plan mode. Omitted outside plan mode or when no plan override has captured a base model. Persistent agent model requirements apply to this model rather than the temporary plan model.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub plan_base_model_id: Option<String>,
+    /// Provider of planBaseModelId, when that saved selection is provider-qualified.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub plan_base_provider_id: Option<String>,
+    /// Provider selected for this model. Together with modelId, identifies a catalog entry even when providers serve the same model. Omitted for unattributed legacy selections.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provider_id: Option<String>,
     /// Reasoning effort level currently applied to the active model, when one is set. Reads `Session.getReasoningEffort()` synchronously after `getSelectedModel()` resolves so the two values are reported as a snapshot.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_effort: Option<String>,
@@ -14887,6 +14905,9 @@ pub struct MetadataContextInfoRequest {
     pub output_token_limit: i64,
     /// Advertised prompt allowance. Pass 0 to resolve the selected model and context tier from the session.
     pub prompt_token_limit: i64,
+    /// Provider owning selectedModel. Omit to use the current provider for the current model, or deterministic legacy lookup for a different model.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provider_id: Option<String>,
     /// Model identifier used for tokenization. Omit to use the session default. Used both for token counting and to compute display values.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub selected_model: Option<String>,
@@ -14902,6 +14923,9 @@ pub struct MetadataContextInfoResultContextInfo {
     pub compaction_threshold: i64,
     /// Tokens consumed by user/assistant/tool messages
     pub conversation_tokens: i64,
+    /// Provider-owned model display label, or the Auto routing label. Presentation only; modelName remains the tokenization identity.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub display_model_name: Option<String>,
     /// Advertised prompt allowance for the selected context tier, without adding output tokens. The denominator for context-usage displays.
     pub limit: i64,
     /// Tokens consumed by MCP tool definitions (subset of toolDefinitionsTokens, excludes deferred tools)
@@ -14910,6 +14934,9 @@ pub struct MetadataContextInfoResultContextInfo {
     pub model_name: String,
     /// Effective input budget: the selected tier's prompt allowance bounded by the combined context ceiling minus the requested output allowance. Uses DEFAULT_TOKEN_LIMIT when limits are unspecified.
     pub prompt_token_limit: i64,
+    /// Provider whose catalog supplies this context window. Omitted when provider identity is unavailable.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provider: Option<ModelProviderRef>,
     /// Tokens consumed by the system prompt
     pub system_tokens: i64,
     /// Tokens consumed by tool definitions sent to the model (excludes deferred tools)
@@ -15316,25 +15343,6 @@ pub struct ModelPolicy {
     pub terms: Option<String>,
 }
 
-/// A neutral reference to the model provider that produced a model: an opaque id, a human-readable label, and the provider kind. Carried on each enumerated Model so consumers can group by provider without reaching into a provider-shaped internal type.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ModelProviderRef {
-    /// Opaque, stable id of the provider that produced this model. Matches the enumerated `ModelProviderDescriptor.id`.
-    pub id: String,
-    /// The provider kind.
-    pub kind: ModelProviderKind,
-    /// Human-readable provider label, owned by the runtime so every consumer renders identical text.
-    pub label: String,
-}
-
 /// Service-published warning text that hosts should display when presenting a model.
 ///
 /// <div class="warning">
@@ -15450,6 +15458,9 @@ pub struct ModelApplyStartupOverlayRequest {
     /// Model selected by repository settings, when configured.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub repo_model: Option<String>,
+    /// Provider owning the repository-selected model. Omitted repository provider identity retains legacy bare-model behavior.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub repo_model_provider_id: Option<String>,
     /// Reasoning effort selected by repository settings, when configured.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub repo_reasoning_effort: Option<String>,
@@ -15556,6 +15567,35 @@ pub struct ModelCapabilitiesOverride {
     /// Feature flags indicating what the model supports
     #[serde(skip_serializing_if = "Option::is_none")]
     pub supports: Option<ModelCapabilitiesOverrideSupports>,
+}
+
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ModelClearStartupSeedRequest {
+    pub expected_model: String,
+    /// Provider captured with the startup seed; omission matches only an unqualified seed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expected_provider_id: Option<String>,
+}
+
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ModelClearStartupSeedResult {
+    pub cleared: bool,
 }
 
 /// List of Copilot models available to the resolved user, including capabilities and billing metadata.
@@ -16217,7 +16257,7 @@ pub struct ModelSwitchToRequest {
     /// Settings scope used when persisting the selected model.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model_change_scope: Option<String>,
-    /// Model selection id to switch to, as returned by `list`. A bare id (e.g. `claude-sonnet-4.6`) names a Copilot (CAPI) model; a provider-qualified id (`provider/id`, e.g. `acme/claude-sonnet`) targets a registry BYOK model.
+    /// Model id to switch to, as returned by `list`. Include providerId to select an exact catalog entry when providers share the id. Without providerId, a bare id retains incumbent selection behavior; a registry-qualified id (`provider/id`, e.g. `acme/claude-sonnet`) targets a BYOK model.
     pub model_id: String,
     /// Optional settings context and explicit-override flags used to persist a picker selection.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -16243,6 +16283,142 @@ pub struct ModelSwitchToRequest {
     /// Output verbosity level to request for supported models
     #[serde(skip_serializing_if = "Option::is_none")]
     pub verbosity: Option<Verbosity>,
+}
+
+/// Extensible [`ModelSwitchToRequest`], including inputs added after it was published.
+///
+/// Required inputs are [`ModelSwitchToOptions::new`] arguments; optional inputs have fluent setters.
+/// Input-only: it serialises to the flat wire request and is not deserialisable.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelSwitchToOptions {
+    #[serde(flatten)]
+    legacy: ModelSwitchToRequest,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    provider_id: Option<String>,
+}
+
+impl ModelSwitchToOptions {
+    /// Creates options with the required inputs.
+    pub fn new(model_id: impl Into<String>) -> Self {
+        Self {
+            legacy: ModelSwitchToRequest {
+                model_id: model_id.into(),
+                auto_tier: None,
+                reasoning_effort: None,
+                reasoning_summary: None,
+                verbosity: None,
+                model_capabilities: None,
+                context_tier: None,
+                source: None,
+                defer_if_model_change_queued: None,
+                compaction_decision: None,
+                run_compaction_preflight: None,
+                repo_scope: None,
+                model_change_scope: None,
+                require_available: None,
+                picker_persistence: None,
+            },
+            provider_id: None,
+        }
+    }
+
+    /// Optional Auto routing preference to stage atomically with selecting `auto`. Pass null to return to provider-default Auto routing. This field is rejected when `modelId` is not `auto`.
+    pub fn auto_tier(mut self, value: AutoTier) -> Self {
+        self.legacy.auto_tier = Some(value);
+        self
+    }
+
+    /// Reasoning effort level to use for the model. CAPI values are model-defined and validated against the selected model; BYOK providers may define additional values. "none" disables reasoning. Pass null to clear any session effort override and fall back to the model's default. When omitted, the session's current effort is kept.
+    pub fn reasoning_effort(mut self, value: impl Into<String>) -> Self {
+        self.legacy.reasoning_effort = Some(value.into());
+        self
+    }
+
+    /// Reasoning summary mode to request for supported model clients
+    pub fn reasoning_summary(mut self, value: ReasoningSummary) -> Self {
+        self.legacy.reasoning_summary = Some(value);
+        self
+    }
+
+    /// Output verbosity level to request for supported models
+    pub fn verbosity(mut self, value: Verbosity) -> Self {
+        self.legacy.verbosity = Some(value);
+        self
+    }
+
+    /// Override individual model capabilities resolved by the runtime
+    pub fn model_capabilities(mut self, value: ModelCapabilitiesOverride) -> Self {
+        self.legacy.model_capabilities = Some(value);
+        self
+    }
+
+    /// Explicit context tier for the selected model. `"default"` / `"long_context"` apply the requested tier; omit this field to use normal model behavior with no explicit tier.
+    pub fn context_tier(mut self, value: ContextTier) -> Self {
+        self.legacy.context_tier = Some(value);
+        self
+    }
+
+    /// Origin to record on the effective `session.model_change` event for trusted in-process calls. Transport SDK calls are always recorded as `sdk`, regardless of this value.
+    pub fn source(mut self, value: ModelChangeSource) -> Self {
+        self.legacy.source = Some(value);
+        self
+    }
+
+    /// When true, defer this switch (enqueue it) if another model change is already queued, even when no turn is active — so it drains last (FIFO) and wins over the already-queued change. Intended for genuine user-initiated model selections; internal restore/reapply switches omit it and apply immediately when no turn is active. When no other model change is queued this has no effect (a switch still applies immediately unless a turn is active).
+    pub fn defer_if_model_change_queued(mut self, value: bool) -> Self {
+        self.legacy.defer_if_model_change_queued = Some(value);
+        self
+    }
+
+    /// Explicit response to a model-switch compaction preflight. Omit to request a confirmation projection when compaction is necessary.
+    pub fn compaction_decision(mut self, value: impl Into<String>) -> Self {
+        self.legacy.compaction_decision = Some(value.into());
+        self
+    }
+
+    /// When true, evaluate context-window compaction policy before applying the switch.
+    pub fn run_compaction_preflight(mut self, value: bool) -> Self {
+        self.legacy.run_compaction_preflight = Some(value);
+        self
+    }
+
+    /// Optional repository settings scope to persist after the switch commits.
+    pub fn repo_scope(mut self, value: impl Into<String>) -> Self {
+        self.legacy.repo_scope = Some(value.into());
+        self
+    }
+
+    /// Settings scope used when persisting the selected model.
+    pub fn model_change_scope(mut self, value: impl Into<String>) -> Self {
+        self.legacy.model_change_scope = Some(value.into());
+        self
+    }
+
+    /// Require the target to be currently available and enabled before applying the switch.
+    pub fn require_available(mut self, value: bool) -> Self {
+        self.legacy.require_available = Some(value);
+        self
+    }
+
+    /// Optional settings context and explicit-override flags used to persist a picker selection.
+    pub fn picker_persistence(mut self, value: ModelPickerPersistenceRequest) -> Self {
+        self.legacy.picker_persistence = Some(value);
+        self
+    }
+
+    /// Provider id from the selected list entry's provider reference. Selects this exact provider/model pair; an unavailable pair fails rather than using another provider. Omit for deterministic legacy bare-model selection.
+    pub fn provider_id(mut self, value: impl Into<String>) -> Self {
+        self.provider_id = Some(value.into());
+        self
+    }
 }
 
 /// The model identifier active on the session after the switch.
@@ -16328,6 +16504,9 @@ pub struct ModeSetRequest {
     /// Whether a dedicated plan model is configured.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub plan_model_configured: Option<bool>,
+    /// Provider owning planModel. Omit for legacy bare-model selection.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub plan_model_provider_id: Option<String>,
     /// Reasoning effort to use with the dedicated plan model.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub plan_reasoning_effort: Option<String>,
@@ -16507,6 +16686,49 @@ pub struct OptionsUpdateAdditionalContentExclusionPolicy {
     pub rules: Vec<OptionsUpdateAdditionalContentExclusionPolicyRule>,
     /// Allowed values for the `OptionsUpdateAdditionalContentExclusionPolicyScope` enumeration.
     pub scope: OptionsUpdateAdditionalContentExclusionPolicyScope,
+}
+
+/// External tool call of the session or one of its sub-agents that is still waiting for session.tools.handlePendingToolCall.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PendingExternalToolRequest {
+    /// Sub-agent instance identifier (the envelope agentId of its events) of the agent that issued the call; absent for calls issued by the root agent
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub agent_id: Option<String>,
+    /// Arguments to pass to the external tool
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub arguments: Option<serde_json::Value>,
+    /// Stable identity of the provider that offered the tool, for hosts that route extension-owned tools by provider
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provider_id: Option<String>,
+    /// Request ID to pass to session.tools.handlePendingToolCall
+    pub request_id: RequestId,
+    /// Tool call ID assigned to this external tool invocation
+    pub tool_call_id: String,
+    /// Name of the external tool to invoke
+    pub tool_name: String,
+}
+
+/// External tool calls still waiting for a result.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PendingExternalToolRequestList {
+    /// External tool calls of the session and its sub-agents that session.tools.handlePendingToolCall would still accept, in the order they were requested. Includes calls that were pending when the session was last suspended and resumed with pending work continued, so a host that did not observe the original external_tool.requested event can answer them.
+    pub items: Vec<PendingExternalToolRequest>,
 }
 
 /// Pending permission prompt reconstructed from event history, with request ID and user-facing prompt details.
@@ -20071,6 +20293,26 @@ pub struct QueueWithdrawMessageResult {
     pub removed: bool,
 }
 
+/// A pending session quota warning, consumed once by takeWarnings.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct QuotaWarningProjection {
+    /// User-facing warning text.
+    pub message: String,
+    /// Related account or upgrade link.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+    /// Existing warning category.
+    pub warning_type: String,
+}
+
 /// Event type to register consumer interest for, used by runtime gating logic.
 ///
 /// <div class="warning">
@@ -21685,6 +21927,9 @@ pub struct SessionContextInfo {
     pub compaction_threshold: i64,
     /// Tokens consumed by user/assistant/tool messages
     pub conversation_tokens: i64,
+    /// Provider-owned model display label, or the Auto routing label. Presentation only; modelName remains the tokenization identity.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub display_model_name: Option<String>,
     /// Advertised prompt allowance for the selected context tier, without adding output tokens. The denominator for context-usage displays.
     pub limit: i64,
     /// Tokens consumed by MCP tool definitions (subset of toolDefinitionsTokens, excludes deferred tools)
@@ -21693,6 +21938,9 @@ pub struct SessionContextInfo {
     pub model_name: String,
     /// Effective input budget: the selected tier's prompt allowance bounded by the combined context ceiling minus the requested output allowance. Uses DEFAULT_TOKEN_LIMIT when limits are unspecified.
     pub prompt_token_limit: i64,
+    /// Provider whose catalog supplies this context window. Omitted when provider identity is unavailable.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provider: Option<ModelProviderRef>,
     /// Tokens consumed by the system prompt
     pub system_tokens: i64,
     /// Tokens consumed by tool definitions sent to the model (excludes deferred tools)
@@ -23497,6 +23745,107 @@ pub struct SessionPruneResult {
     pub freed_bytes: i64,
     /// Session IDs that were skipped (e.g., named sessions)
     pub skipped: Vec<String>,
+}
+
+/// Existing delegation guidance for an account without delegation access.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionQuotaDelegateWarning {
+    /// User-facing guidance.
+    pub text: String,
+    /// Link to upgrade the account.
+    pub url: String,
+}
+
+/// Session quota snapshot, preserving the incumbent numeric units and reset metadata.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionQuotaSnapshot {
+    /// Entitled quantity in this quota's units.
+    pub entitlement_requests: f64,
+    /// Whether the provider reports available quota.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub has_quota: Option<bool>,
+    /// Whether the entitlement is unlimited.
+    pub is_unlimited_entitlement: bool,
+    /// Additional usage in this quota's units.
+    pub overage: f64,
+    /// Whether additional usage is allowed after quota exhaustion.
+    pub overage_allowed_with_exhausted_quota: bool,
+    /// Additional-usage budget cap, when provided.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub overage_entitlement: Option<f64>,
+    /// Percentage of the entitlement remaining.
+    pub remaining_percentage: f64,
+    /// Quota reset time in milliseconds since the Unix epoch, when known.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reset_date_epoch_ms: Option<f64>,
+    /// Whether the reset time is estimated.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reset_date_estimated: Option<bool>,
+    /// Whether this quota uses token-based billing.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub token_based_billing: Option<bool>,
+    /// Whether usage is allowed after quota exhaustion.
+    pub usage_allowed_with_exhausted_quota: bool,
+    /// Consumed quantity in this quota's units.
+    pub used_requests: f64,
+}
+
+/// The incumbent session-owned quota and account projection.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionQuotaProjection {
+    /// Whether the account can sign up for Copilot Free.
+    pub can_signup_for_copilot_free: bool,
+    /// Whether the account can delegate tasks to GitHub.
+    pub delegate_available: bool,
+    /// Existing delegation warning for a free account.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub delegate_warning: Option<SessionQuotaDelegateWarning>,
+    /// Whether dynamic workflows are enabled for the active account.
+    pub dynamic_workflows_enabled: bool,
+    /// Whether dynamic workflows are visible under the session's feature flags.
+    pub dynamic_workflows_ui_visible: bool,
+    /// Whether the account uses the free limited Copilot plan.
+    pub is_free_user: bool,
+    /// Whether the account uses token-based billing.
+    pub is_tbb_user: bool,
+    /// Whether model cost columns should be shown.
+    pub model_cost_column_visible: bool,
+    /// Resolved Copilot plan tier.
+    pub plan_tier: SessionQuotaPlanTier,
+    /// Whether premium-request costs are billable.
+    pub premium_requests_billable: bool,
+    /// Provider-owned account quota state, including snapshots without numeric balances.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provider_quotas: Option<Vec<ProviderQuotaState>>,
+    /// Known quota snapshots, keyed by the provider's quota type.
+    pub snapshots: HashMap<String, SessionQuotaSnapshot>,
+    /// Upgrade link for a free account.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub upgrade_url: Option<String>,
 }
 
 /// Session IDs to close, deactivate, and delete from disk.
@@ -27172,6 +27521,18 @@ pub struct ToolsGetCurrentMetadataResult {
 #[serde(rename_all = "camelCase")]
 pub struct ToolsInitializeAndValidateResult {}
 
+/// No parameters; returns the external tool calls of the session and its sub-agents that are still waiting for a result.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolsListPendingRequestsRequest {}
+
 /// Optional model identifier whose tool overrides should be applied to the listing.
 ///
 /// <div class="warning">
@@ -27909,7 +28270,7 @@ pub struct UpdateSubagentSettingsRequest {
     pub subagents: Option<UpdateSubagentSettingsRequestSubagents>,
 }
 
-/// Request count and cost metrics for this model
+/// Internal absolute code-change totals reported by the owning host.
 ///
 /// <div class="warning">
 ///
@@ -27919,178 +28280,14 @@ pub struct UpdateSubagentSettingsRequest {
 /// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct UsageMetricsModelMetricRequests {
-    /// User-initiated premium request cost (with multiplier applied)
-    pub cost: f64,
-    /// Number of API requests made with this model
-    pub count: i64,
-}
-
-/// Per-model token-detail entry containing the accumulated token count for one token type.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct UsageMetricsModelMetricTokenDetail {
-    /// Accumulated token count for this token type
-    pub token_count: i64,
-}
-
-/// Token usage metrics for this model
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct UsageMetricsModelMetricUsage {
-    /// Total tokens read from prompt cache
-    pub cache_read_tokens: i64,
-    /// Total tokens written to prompt cache
-    pub cache_write_tokens: i64,
-    /// Total input tokens consumed
-    pub input_tokens: i64,
-    /// Total output tokens produced
-    pub output_tokens: i64,
-    /// Total output tokens used for reasoning
+pub(crate) struct UsageSetCodeChangesRequest {
+    /// Absolute changed-file count; omission preserves the previous count.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub reasoning_tokens: Option<i64>,
-}
-
-/// Per-model usage metrics, including request counts/costs, token usage, nano-AI units, and per-token-type details.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct UsageMetricsModelMetric {
-    /// Latest known prompt-cache expiration for this model. A timestamp in the past indicates that the observed cache has expired.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub cache_expires_at: Option<String>,
-    /// Request count and cost metrics for this model
-    pub requests: UsageMetricsModelMetricRequests,
-    /// Token count details per type
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub token_details: Option<HashMap<String, UsageMetricsModelMetricTokenDetail>>,
-    /// Accumulated nano-AI units cost for this model
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub total_nano_aiu: Option<f64>,
-    /// Token usage metrics for this model
-    pub usage: UsageMetricsModelMetricUsage,
-}
-
-/// Usage attributed to one agent instance, including its identity, API duration, AI units, and per-model breakdown.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct UsageMetricsAgentMetric {
-    /// Human-readable label for this subagent invocation, copied from the originating `subagent.started` event. For task-tool subagents this is the invocation's task description rather than the agent's configured display name, so group by `agentName` for stable per-agent labels.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub agent_display_name: Option<String>,
-    /// Configured agent name, when this is a subagent
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub agent_name: Option<String>,
-    /// Per-model usage for this agent, keyed by model identifier
-    pub model_metrics: HashMap<String, UsageMetricsModelMetric>,
-    /// Time spent in model API calls by this agent, in milliseconds
-    pub total_api_duration_ms: i64,
-    /// Accumulated nano-AI units cost for this agent
-    pub total_nano_aiu: f64,
-}
-
-/// Aggregated code change metrics
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct UsageMetricsCodeChanges {
-    /// Distinct file paths modified during the session
-    pub files_modified: Vec<String>,
-    /// Number of distinct files modified
-    pub files_modified_count: i64,
-    /// Total lines of code added
-    pub lines_added: i64,
-    /// Total lines of code removed
-    pub lines_removed: i64,
-}
-
-/// Session-wide token-detail entry containing the accumulated token count for one token type.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct UsageMetricsTokenDetail {
-    /// Accumulated token count for this token type
-    pub token_count: i64,
-}
-
-/// Accumulated session usage metrics, including premium request cost, token counts, model breakdown, and code-change totals.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct UsageGetMetricsResult {
-    /// Per-agent usage metrics, keyed by agent instance identifier. The main conversation uses the stable key `main`.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub agent_metrics: Option<HashMap<String, UsageMetricsAgentMetric>>,
-    /// Aggregated code change metrics
-    pub code_changes: UsageMetricsCodeChanges,
-    /// Currently active model identifier
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub current_model: Option<String>,
-    /// Input tokens from the most recent main-agent API call
-    pub last_call_input_tokens: i64,
-    /// Output tokens from the most recent main-agent API call
-    pub last_call_output_tokens: i64,
-    /// Per-model token and request metrics, keyed by model identifier
-    pub model_metrics: HashMap<String, UsageMetricsModelMetric>,
-    /// ISO 8601 timestamp when the session started
-    pub session_start_time: String,
-    /// Session-wide per-token-type accumulated token counts
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub token_details: Option<HashMap<String, UsageMetricsTokenDetail>>,
-    /// Total time spent in model API calls (milliseconds)
-    pub total_api_duration_ms: i64,
-    /// Session-wide accumulated nano-AI units cost
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub total_nano_aiu: Option<f64>,
-    /// Total user-initiated premium request cost across all models (may be fractional due to multipliers)
-    pub total_premium_request_cost: f64,
-    /// Raw count of user-initiated API requests
-    pub total_user_requests: i64,
+    pub files_count: Option<f64>,
+    /// Absolute added-line total, replacing the previous reading.
+    pub lines_added: f64,
+    /// Absolute removed-line total, replacing the previous reading.
+    pub lines_removed: f64,
 }
 
 /// Result of a user-requested shell command.
@@ -31879,6 +32076,12 @@ pub struct SessionModelGetCurrentResult {
     /// Captured base model to restore when leaving plan mode. Omitted outside plan mode or when no plan override has captured a base model. Persistent agent model requirements apply to this model rather than the temporary plan model.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub plan_base_model_id: Option<String>,
+    /// Provider of planBaseModelId, when that saved selection is provider-qualified.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub plan_base_provider_id: Option<String>,
+    /// Provider selected for this model. Together with modelId, identifies a catalog entry even when providers serve the same model. Omitted for unattributed legacy selections.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provider_id: Option<String>,
     /// Reasoning effort level currently applied to the active model, when one is set. Reads `Session.getReasoningEffort()` synchronously after `getSelectedModel()` resolves so the two values are reported as a snapshot.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_effort: Option<String>,
@@ -31995,6 +32198,35 @@ pub struct SessionModelApplyStartupOverlayResult {
     /// User-facing warning produced while applying the model switch.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub warning: Option<String>,
+}
+
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct SessionModelClearStartupSeedParams {
+    pub expected_model: String,
+    /// Provider captured with the startup seed; omission matches only an unqualified seed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expected_provider_id: Option<String>,
+}
+
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct SessionModelClearStartupSeedResult {
+    pub cleared: bool,
 }
 
 /// The applied host allowlist and effective session model policy after intersection.
@@ -34893,6 +35125,21 @@ pub struct SessionToolsHandlePendingToolCallResult {
     pub success: bool,
 }
 
+/// External tool calls still waiting for a result.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionToolsListPendingRequestsResult {
+    /// External tool calls of the session and its sub-agents that session.tools.handlePendingToolCall would still accept, in the order they were requested. Includes calls that were pending when the session was last suspended and resumed with pending work continued, so a host that did not observe the original external_tool.requested event can answer them.
+    pub items: Vec<PendingExternalToolRequest>,
+}
+
 /// Identifies the target session.
 ///
 /// <div class="warning">
@@ -35837,6 +36084,9 @@ pub struct SessionMetadataContextInfoResultContextInfo {
     pub compaction_threshold: i64,
     /// Tokens consumed by user/assistant/tool messages
     pub conversation_tokens: i64,
+    /// Provider-owned model display label, or the Auto routing label. Presentation only; modelName remains the tokenization identity.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub display_model_name: Option<String>,
     /// Advertised prompt allowance for the selected context tier, without adding output tokens. The denominator for context-usage displays.
     pub limit: i64,
     /// Tokens consumed by MCP tool definitions (subset of toolDefinitionsTokens, excludes deferred tools)
@@ -35845,6 +36095,9 @@ pub struct SessionMetadataContextInfoResultContextInfo {
     pub model_name: String,
     /// Effective input budget: the selected tier's prompt allowance bounded by the combined context ceiling minus the requested output allowance. Uses DEFAULT_TOKEN_LIMIT when limits are unspecified.
     pub prompt_token_limit: i64,
+    /// Provider whose catalog supplies this context window. Omitted when provider identity is unavailable.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provider: Option<ModelProviderRef>,
     /// Tokens consumed by the system prompt
     pub system_tokens: i64,
     /// Tokens consumed by tool definitions sent to the model (excludes deferred tools)
@@ -36868,7 +37121,7 @@ pub struct SessionUsageGetMetricsParams {
     pub session_id: SessionId,
 }
 
-/// Accumulated session usage metrics, including premium request cost, token counts, model breakdown, and code-change totals.
+/// Internal absolute code-change totals reported by the owning host.
 ///
 /// <div class="warning">
 ///
@@ -36878,35 +37131,143 @@ pub struct SessionUsageGetMetricsParams {
 /// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SessionUsageGetMetricsResult {
-    /// Per-agent usage metrics, keyed by agent instance identifier. The main conversation uses the stable key `main`.
+pub(crate) struct SessionUsageSetCodeChangesParams {
+    /// Absolute added-line total, replacing the previous reading.
+    pub lines_added: f64,
+    /// Absolute removed-line total, replacing the previous reading.
+    pub lines_removed: f64,
+    /// Absolute changed-file count; omission preserves the previous count.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub agent_metrics: Option<HashMap<String, UsageMetricsAgentMetric>>,
-    /// Aggregated code change metrics
-    pub code_changes: UsageMetricsCodeChanges,
-    /// Currently active model identifier
+    pub files_count: Option<f64>,
+}
+
+/// Identifies the target session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionQuotaGetParams {
+    /// Target session identifier
+    pub session_id: SessionId,
+}
+
+/// The incumbent session-owned quota and account projection.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionQuotaGetResult {
+    /// Whether the account can sign up for Copilot Free.
+    pub can_signup_for_copilot_free: bool,
+    /// Whether the account can delegate tasks to GitHub.
+    pub delegate_available: bool,
+    /// Existing delegation warning for a free account.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub current_model: Option<String>,
-    /// Input tokens from the most recent main-agent API call
-    pub last_call_input_tokens: i64,
-    /// Output tokens from the most recent main-agent API call
-    pub last_call_output_tokens: i64,
-    /// Per-model token and request metrics, keyed by model identifier
-    pub model_metrics: HashMap<String, UsageMetricsModelMetric>,
-    /// ISO 8601 timestamp when the session started
-    pub session_start_time: String,
-    /// Session-wide per-token-type accumulated token counts
+    pub delegate_warning: Option<SessionQuotaDelegateWarning>,
+    /// Whether dynamic workflows are enabled for the active account.
+    pub dynamic_workflows_enabled: bool,
+    /// Whether dynamic workflows are visible under the session's feature flags.
+    pub dynamic_workflows_ui_visible: bool,
+    /// Whether the account uses the free limited Copilot plan.
+    pub is_free_user: bool,
+    /// Whether the account uses token-based billing.
+    pub is_tbb_user: bool,
+    /// Whether model cost columns should be shown.
+    pub model_cost_column_visible: bool,
+    /// Resolved Copilot plan tier.
+    pub plan_tier: SessionQuotaPlanTier,
+    /// Whether premium-request costs are billable.
+    pub premium_requests_billable: bool,
+    /// Provider-owned account quota state, including snapshots without numeric balances.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub token_details: Option<HashMap<String, UsageMetricsTokenDetail>>,
-    /// Total time spent in model API calls (milliseconds)
-    pub total_api_duration_ms: i64,
-    /// Session-wide accumulated nano-AI units cost
+    pub provider_quotas: Option<Vec<ProviderQuotaState>>,
+    /// Known quota snapshots, keyed by the provider's quota type.
+    pub snapshots: HashMap<String, SessionQuotaSnapshot>,
+    /// Upgrade link for a free account.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub total_nano_aiu: Option<f64>,
-    /// Total user-initiated premium request cost across all models (may be fractional due to multipliers)
-    pub total_premium_request_cost: f64,
-    /// Raw count of user-initiated API requests
-    pub total_user_requests: i64,
+    pub upgrade_url: Option<String>,
+}
+
+/// Identifies the target session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionQuotaRefreshParams {
+    /// Target session identifier
+    pub session_id: SessionId,
+}
+
+/// The incumbent session-owned quota and account projection.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionQuotaRefreshResult {
+    /// Whether the account can sign up for Copilot Free.
+    pub can_signup_for_copilot_free: bool,
+    /// Whether the account can delegate tasks to GitHub.
+    pub delegate_available: bool,
+    /// Existing delegation warning for a free account.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub delegate_warning: Option<SessionQuotaDelegateWarning>,
+    /// Whether dynamic workflows are enabled for the active account.
+    pub dynamic_workflows_enabled: bool,
+    /// Whether dynamic workflows are visible under the session's feature flags.
+    pub dynamic_workflows_ui_visible: bool,
+    /// Whether the account uses the free limited Copilot plan.
+    pub is_free_user: bool,
+    /// Whether the account uses token-based billing.
+    pub is_tbb_user: bool,
+    /// Whether model cost columns should be shown.
+    pub model_cost_column_visible: bool,
+    /// Resolved Copilot plan tier.
+    pub plan_tier: SessionQuotaPlanTier,
+    /// Whether premium-request costs are billable.
+    pub premium_requests_billable: bool,
+    /// Provider-owned account quota state, including snapshots without numeric balances.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provider_quotas: Option<Vec<ProviderQuotaState>>,
+    /// Known quota snapshots, keyed by the provider's quota type.
+    pub snapshots: HashMap<String, SessionQuotaSnapshot>,
+    /// Upgrade link for a free account.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub upgrade_url: Option<String>,
+}
+
+/// Identifies the target session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionQuotaTakeWarningsParams {
+    /// Target session identifier
+    pub session_id: SessionId,
 }
 
 /// GitHub URL for the session and a flag indicating whether remote steering is enabled.
@@ -37376,6 +37737,16 @@ pub type McpExecuteSamplingResult = HashMap<String, serde_json::Value>;
 /// </div>
 pub type McpPlanSecretReference = String;
 
+/// Pending warnings returned and cleared by session.quota.takeWarnings.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+pub type QuotaTakeWarningsResult = Vec<QuotaWarningProjection>;
+
 /// Extensible identifier of a sandbox policy feature whose availability varies between hosts. A plain string, so an older client decodes a name added by a newer runtime; ignore names you do not recognize. Known values: `network` — sandboxed commands can reach the network (`network.allowOutbound`, on by default); on Linux this needs the tooling for Bubblewrap's private network namespace, such as slirp4netns. `network_filtering` — host rules and the sandbox proxy (`network.allowedHosts`, `network.blockedHosts`, `network.proxy`); on Linux this needs the same tooling as `network`; on Windows it needs Process Security Environment 1.1 host-loopback support or MXC's PSEC 1.0-only proxy-loopback compatibility capability, and a policy that uses it must also set `network.allowLocalNetwork`, because Windows reaches the local proxy only together with private-network access. Compatibility applies only to an explicit identity-less runtime proxy, not general host-loopback access, and other policy restrictions still apply. `denied_paths` — native enforcement of `filesystem.deniedPaths`; on Windows this needs a version whose sandbox contract reports denied-path support. `shell` — shell commands inside the sandbox: bash on macOS and Linux, PowerShell on Windows. `filesystem_enumeration` — enumerate-only filesystem grants, which PowerShell's drive roots use on Windows; this needs a version with Process Security Environment 1.1 filesystem enumeration support. Without it, sandboxed PowerShell still runs, but `Get-Location` may report the drive root, `Set-Location` may fail, and relative paths may resolve against the drive root; the session also receives a `session.warning` with `warningType` `sandbox`. Other platforms always report it.
 ///
 /// <div class="warning">
@@ -37505,6 +37876,16 @@ pub type SessionMetadataGetClientMetadataResult = HashMap<String, String>;
 ///
 /// </div>
 pub type SessionMetadataUpdateClientMetadataResult = HashMap<String, String>;
+
+/// Pending warnings returned and cleared by session.quota.takeWarnings.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+pub type SessionQuotaTakeWarningsResult = Vec<QuotaWarningProjection>;
 
 /// Indicates whether the command was accepted into the local execution queue.
 ///
@@ -43314,28 +43695,6 @@ pub enum ModelPolicyState {
     Unknown,
 }
 
-/// The neutral kind of a model provider — the model analog of `AccountKind`. A model provider is the live, entitled source a model came from; central code never branches on this beyond a single dispatch.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ModelProviderKind {
-    /// GitHub Copilot / CAPI models, spawned by a github-resolving account that holds a Copilot seat.
-    #[serde(rename = "copilot")]
-    Copilot,
-    /// Microsoft 365 Copilot (Loki) inference models, spawned by a resolvable Entra-derived Loki account.
-    #[serde(rename = "loki")]
-    Loki,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
 /// When the runtime may run an adapter without an explicit user action.
 ///
 /// <div class="warning">
@@ -45603,6 +45962,46 @@ pub enum SessionsOpenStatus {
     /// Remote session was handed off to a new local session.
     #[serde(rename = "handed_off")]
     HandedOff,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Copilot plan tier used by the session quota projection.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SessionQuotaPlanTier {
+    /// Copilot Free.
+    #[serde(rename = "free")]
+    Free,
+    /// Copilot education entitlement.
+    #[serde(rename = "edu")]
+    Edu,
+    /// Copilot Pro.
+    #[serde(rename = "pro")]
+    Pro,
+    /// Copilot Pro+.
+    #[serde(rename = "pro_plus")]
+    ProPlus,
+    /// Copilot Business.
+    #[serde(rename = "business")]
+    Business,
+    /// Copilot Enterprise.
+    #[serde(rename = "enterprise")]
+    Enterprise,
+    /// Copilot Max.
+    #[serde(rename = "max")]
+    Max,
+    /// The account's plan tier is not known.
+    #[serde(rename = "unknown")]
+    UnknownValue,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]

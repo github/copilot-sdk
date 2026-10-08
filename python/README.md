@@ -155,6 +155,9 @@ shutdown, close stdin, and wait up to 10 seconds for the process to finish host
 cleanup, including telemetry flushing. A process that does not exit is terminated,
 then killed if necessary, with bounded waits. `force_stop()` skips graceful cleanup;
 externally managed runtimes are not shut down.
+It disconnects retained sessions locally, releases their registered callbacks, and
+fails pending `send_and_wait()` calls without waiting for idle or their response timeout.
+Disconnected sessions reject new event subscriptions.
 
 ```python
 import asyncio

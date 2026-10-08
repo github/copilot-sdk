@@ -173,6 +173,32 @@ class SetToolsTest {
         assertNull(session.getTool("queued"));
     }
 
+    @Test
+    void closeRejectsLateAcknowledgementsAndQueuedReplacements() throws Exception {
+        var accepted = new CompletableFuture<Void>();
+        var requests = captureSetToolsRequests(accepted);
+        when(rpc.invoke(eq("session.detach"), any(), eq(CopilotSession.SessionDetachResponse.class)))
+                .thenReturn(CompletableFuture.completedFuture(new CopilotSession.SessionDetachResponse(true, null)));
+
+        var pending = session.setTools(List.of(tool("pending", "Pending", "first", new CopyOnWriteArrayList<>())));
+        var queued = session.setTools(List.of(tool("queued", "Queued", "second", new CopyOnWriteArrayList<>())));
+        assertEquals(1, requests.size(), "Only the admitted replacement may reach the RPC boundary");
+        assertFalse(pending.isDone());
+        assertFalse(queued.isDone());
+
+        session.close();
+        assertTrue(accepted.complete(null), "Acknowledge the admitted replacement only after retirement");
+
+        var pendingError = assertThrows(ExecutionException.class, () -> pending.get(1, TimeUnit.SECONDS));
+        var queuedError = assertThrows(ExecutionException.class, () -> queued.get(1, TimeUnit.SECONDS));
+        assertInstanceOf(IllegalStateException.class, pendingError.getCause());
+        assertInstanceOf(IllegalStateException.class, queuedError.getCause());
+        assertEquals("Session is closed", pendingError.getCause().getMessage());
+        assertEquals("Session is closed", queuedError.getCause().getMessage());
+        assertEquals(1, requests.size(), "A replacement queued before retirement must not start afterwards");
+        assertThrows(IllegalStateException.class, () -> session.setTools(List.of()));
+    }
+
     private List<ObjectNode> captureSetToolsRequests(CompletableFuture<Void> result) {
         var requests = new ArrayList<ObjectNode>();
         when(rpc.invoke(eq("session.tools.set"), any(), eq(Void.class))).thenAnswer(invocation -> {

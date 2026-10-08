@@ -307,7 +307,8 @@ Implemented with pure-Go FFI (via [purego](https://github.com/ebitengine/purego)
 - `NewClient(options *ClientOptions) *Client` - Create a new client
 - `Start(ctx context.Context) error` - Start the CLI server
 - `Stop() error` - Gracefully stop the CLI server. For an owned stdio process, requests runtime shutdown, closes stdin, and waits up to 10 seconds for host cleanup (including telemetry) and natural exit before falling back to a forced termination.
-- `ForceStop()` - Forcefully stop without graceful cleanup
+- `ForceStop()` - Forcefully stop without graceful RPC cleanup. Retires local event subscriptions and session callbacks, including entries held by dispatch snapshots or unsubscribe handles. Pending response waits fail without waiting for idle or their context deadlines; already-dispatched handlers are not joined. Late event registration is logged and returns a no-op unsubscribe, and a late tool-replacement acknowledgment cannot restore retired handlers.
+- A plain `SendAndWait` that has already received its terminal idle or error preserves that result when local session retirement races the wait. An earlier event handler may also call `Disconnect` on the terminal event without losing that result. Without retirement, the wait still lets earlier synchronous handlers finish; a forced stop does not join those handlers or complete waits whose terminal dispatch they are still blocking.
 - `CreateSession(ctx context.Context, config *SessionConfig) (*Session, error)` - Create a new session
 - `ResumeSession(ctx context.Context, sessionID string, config *ResumeSessionConfig) (*Session, error)` - Resume an existing session
 - `ResumeSessionWithOptions(ctx context.Context, sessionID string, config *ResumeSessionConfig) (*Session, error)` - Resume with additional configuration

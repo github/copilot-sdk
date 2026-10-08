@@ -2,6 +2,7 @@
 
 import inspect
 import json
+from datetime import timedelta
 from unittest.mock import AsyncMock, Mock
 
 import pytest
@@ -12,6 +13,7 @@ from copilot.generated.rpc import (
     CustomizationReloadOutcome,
     CustomizationReloadStatus,
     CustomizationReloadSubsystem,
+    UsageGetMetricsResult,
     register_client_global_api_handlers,
 )
 from copilot.rpc import (
@@ -26,6 +28,7 @@ from copilot.rpc import (
     MCPServerConfigHTTP,
     QueuedCommandHandled,
     QueuedCommandNotHandled,
+    QuotaWarningProjection,
     RemoteControlStatusOff,
     RemoteControlStatusResult,
     RemoteSessionMetadataValue,
@@ -33,10 +36,69 @@ from copilot.rpc import (
     ServerRpc,
     SessionList,
     SessionModelList,
+    SessionRpc,
     SlashCommandTextResult,
     TaskAgentInfo,
     UIElicitationSchemaType,
 )
+
+
+async def test_session_usage_get_metrics_deserializes_shared_event_type():
+    payload = {
+        "codeChanges": {
+            "filesModified": ["example.py"],
+            "filesModifiedCount": 1,
+            "linesAdded": 4,
+            "linesRemoved": 2,
+        },
+        "lastCallInputTokens": 12,
+        "lastCallOutputTokens": 7,
+        "modelMetrics": {},
+        "sessionStartTime": "2026-10-07T00:00:00Z",
+        "totalApiDurationMs": 125,
+        "totalPremiumRequestCost": 1.5,
+        "totalUserRequests": 2,
+        "aiCreditsStatus": "partial",
+    }
+    client = Mock(request=AsyncMock(return_value=payload))
+
+    result = await SessionRpc(client, "usage-session").usage.get_metrics(timeout=2.5)
+
+    assert isinstance(result, UsageGetMetricsResult)
+    assert result.code_changes.lines_added == 4
+    assert result.last_call_input_tokens == 12
+    assert result.total_user_requests == 2
+    assert result.session_start_time.isoformat() == "2026-10-07T00:00:00+00:00"
+    assert result.total_api_duration == timedelta(milliseconds=125)
+    assert result.ai_credits_status.value == "partial"
+    client.request.assert_awaited_once_with(
+        "session.usage.getMetrics", {"sessionId": "usage-session"}, timeout=2.5
+    )
+
+
+async def test_quota_warnings_deserialize_records_and_empty_lists():
+    payload = [
+        {
+            "warningType": "quota",
+            "message": "Usage is almost exhausted",
+            "url": "https://example.test",
+        },
+        {"warningType": "limit", "message": "A limit was reached"},
+    ]
+    client = Mock(request=AsyncMock(side_effect=[payload, []]))
+    api = SessionRpc(client, "quota-session").quota
+
+    warnings = await api.take_warnings()
+
+    assert all(isinstance(warning, QuotaWarningProjection) for warning in warnings)
+    assert [warning.warning_type for warning in warnings] == ["quota", "limit"]
+    assert warnings[0].message == payload[0]["message"]
+    assert warnings[0].url == payload[0]["url"]
+    assert warnings[1].url is None
+    assert [warning.to_dict() for warning in warnings] == payload
+    assert await api.take_warnings() == []
+    assert client.request.await_count == 2
+    client.request.assert_awaited_with("session.quota.takeWarnings", {"sessionId": "quota-session"})
 
 
 def test_customization_reload_outcome_preserves_future_enum_values():

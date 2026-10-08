@@ -19,6 +19,8 @@ import javax.annotation.processing.Generated;
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 public final class SessionUsageApi {
 
+    private static final com.fasterxml.jackson.databind.ObjectMapper MAPPER = RpcMapper.INSTANCE;
+
     private final RpcCaller caller;
     private final String sessionId;
 
@@ -37,6 +39,22 @@ public final class SessionUsageApi {
     @CopilotExperimental
     public CompletableFuture<SessionUsageGetMetricsResult> getMetrics() {
         return caller.invoke("session.usage.getMetrics", java.util.Map.of("sessionId", this.sessionId), SessionUsageGetMetricsResult.class);
+    }
+
+    /**
+     * Internal host-only replacement of absolute code-change totals reported by a relay host.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    CompletableFuture<Void> setCodeChanges(SessionUsageSetCodeChangesParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.usage.setCodeChanges", _p, Void.class);
     }
 
 }

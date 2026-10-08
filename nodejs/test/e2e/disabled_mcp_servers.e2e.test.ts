@@ -411,6 +411,62 @@ describe("disabled MCP servers", async () => {
         }
     );
 
+    it.each([false, true])(
+        "restores cold default inheritance for disabled default %s without starting MCP",
+        async (configDisabled) => {
+            const configDirectory = join(workDir, `cold-file-mcp-${randomUUID()}`);
+            mkdirSync(configDirectory, { recursive: true });
+            const marker = join(configDirectory, "server-started.log");
+            const serverName = "cold-file-server";
+            await using session = await client.createSession({
+                onPermissionRequest: approveAll,
+                configDirectory,
+                enableConfigDiscovery: true,
+                requestExtensions: false,
+            });
+            await drainPostCreateRpc(session);
+
+            // These names are entirely unconfigured; every call must remain inert.
+            for (let i = 0; i < 2; i++) {
+                await session.rpc.mcp.enable({ serverName });
+                await session.rpc.mcp.enable({ serverName });
+                await session.rpc.mcp.disable({ serverName });
+                await session.rpc.mcp.disable({ serverName });
+            }
+            await session.rpc.mcp.enable({ serverName });
+
+            writeFileSync(
+                join(configDirectory, "mcp-config.json"),
+                JSON.stringify({
+                    mcpServers: {
+                        [serverName]: {
+                            type: "stdio",
+                            command: process.execPath,
+                            args: [TEST_MCP_SERVER, "--startup-marker", marker],
+                            tools: ["*"],
+                            disabled: configDisabled,
+                        },
+                    },
+                })
+            );
+            const after = await session.rpc.mcp.listConfigured();
+            expect(after.servers.find((server) => server.name === serverName)).toMatchObject({
+                enabled: !configDisabled,
+            });
+            expect(
+                after.servers.find((server) => server.name === serverName)?.live
+            ).toBeUndefined();
+            expect(markerCount(marker)).toBe(0);
+
+            // A live-list read is the first operation that may materialize the graph.
+            const loaded = await session.rpc.mcp.list();
+            expect(loaded.servers.find((server) => server.name === serverName)?.status).toBe(
+                configDisabled ? "disabled" : "connected"
+            );
+            expect(markerCount(marker)).toBe(configDisabled ? 0 : 1);
+        }
+    );
+
     // SDK runners provide a sandbox backend only on macOS (no bwrap/BaseContainer elsewhere).
     it.skipIf(process.platform !== "darwin").each([
         ["create", "connected"],

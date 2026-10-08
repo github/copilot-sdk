@@ -16,8 +16,8 @@ import type {
     SubagentStopHookInput,
 } from "../../src/index.js";
 import { approveAll, CopilotRequestHandler } from "../../src/index.js";
-import { responsesApiRequestToChatCompletion } from "../../../test/harness/responsesApiAdapter.js";
 import { createSdkTestContext, isCI } from "./harness/sdkTestContext.js";
+import { childUserPrompts } from "./harness/childUserPrompts.js";
 
 const CHILD_CONTEXT = "Subagent start hook verified: read the requested file.";
 const CHILD_CONTEXT_PREFIX = `${CHILD_CONTEXT}\n\n`;
@@ -47,45 +47,15 @@ class RecordingRequestHandler extends CopilotRequestHandler {
             interactionType: ctx.interactionType,
         });
         if (isInferenceUrl(request.url)) {
-            const rawBody = await request.clone().text();
-            const body = JSON.parse(
-                request.url.endsWith("/responses")
-                    ? responsesApiRequestToChatCompletion(rawBody)
-                    : rawBody
-            ) as {
-                messages?: { role: string; content?: unknown }[];
-                input?: { role?: string; content?: unknown }[];
-            };
+            const body = await request.clone().text();
             if (ctx.parentAgentId) {
-                // Responses uses input/input_text instead of messages/text.
-                for (const message of body.messages ?? body.input ?? []) {
-                    if (
-                        message.role === "user" &&
-                        (typeof message.content === "string" || Array.isArray(message.content))
-                    ) {
-                        const parts =
-                            typeof message.content === "string"
-                                ? [message.content]
-                                : message.content
-                                      .filter(
-                                          (
-                                              part
-                                          ): part is {
-                                              type: "text" | "input_text";
-                                              text: string;
-                                          } =>
-                                              (part?.type === "text" ||
-                                                  part?.type === "input_text") &&
-                                              typeof part.text === "string"
-                                      )
-                                      .map((part) => part.text);
-                        this.childPromptsWithHookContext.push(
-                            ...parts.filter((part) => part.includes(CHILD_CONTEXT_PREFIX))
-                        );
-                    }
-                }
-            } else if (JSON.stringify(body).includes(STOP_RESPONSE_PREFIX)) {
-                this.parentRequestsWithModifiedResponse.push(JSON.stringify(body));
+                this.childPromptsWithHookContext.push(
+                    ...childUserPrompts(request.url, body, ctx).filter((part) =>
+                        part.includes(CHILD_CONTEXT_PREFIX)
+                    )
+                );
+            } else if (body.includes(STOP_RESPONSE_PREFIX)) {
+                this.parentRequestsWithModifiedResponse.push(body);
             }
         }
         return super.sendRequest(request, ctx);

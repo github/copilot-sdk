@@ -178,6 +178,9 @@ Start the CLI server and establish connection.
 ##### `StopAsync(): Task`
 
 Stop the server and close all sessions. Throws if errors are encountered during cleanup.
+Closing a session stops subscribed event delivery, drops queued events, and releases
+subscriptions without waiting for handlers already admitted for dispatch. Pending `SendAndWaitAsync`
+operations fail with `IOException` if the session closes before their final response arrives.
 For an owned stdio runtime, graceful shutdown closes stdin and waits up to 10 seconds
 for host cleanup, including telemetry export. This cleanup is best-effort: if the wait
 times out, the process is terminated and that timeout alone is not reported as a cleanup
@@ -186,6 +189,20 @@ error. A successful return does not guarantee that all telemetry was exported.
 ##### `ForceStopAsync(): Task`
 
 Force stop the CLI server without graceful cleanup. Use when `StopAsync()` takes too long.
+Stops session event dispatch and releases queued events and subscriptions. A handler already
+admitted for dispatch may finish; shutdown does not wait for it. Pending `SendAndWaitAsync` operations fail
+with `IOException` if the session closes before their final response arrives.
+The SDK releases its references to later handlers' captured objects even if an admitted handler remains blocked.
+Local retirement also releases tool, command, hook, auth/input, provider, canvas,
+and transform registrations, without changing caller-owned configuration or joining
+callbacks already admitted. Registration and callback lookup share a retirement fence;
+late accepted tool replacements cannot restore handlers. Ordinary disposal retains
+hook callbacks through the detach response and performs local retirement in `finally`.
+Both stop methods close session admission before taking the session snapshot. Concurrent
+create/resume setup on that connection is rejected and retired locally; restarting the
+client opens admission only for the new connection.
+Cleanup of a rejected cloud creation stays on its original connection and cannot
+restart the client during shutdown.
 
 ##### `CreateSessionAsync(SessionConfig? config = null): Task<CopilotSession>`
 
@@ -599,6 +616,24 @@ await session2.DisposeAsync();
 ```
 
 ---
+
+## Provider-qualified model selection
+
+Use the experimental request-object overload to select the `modelId` and `providerId` from a model catalog entry:
+
+```csharp
+using GitHub.Copilot.Rpc;
+
+#pragma warning disable GHCP001 // Provider-qualified model selection is experimental.
+await session.Rpc.Model.SwitchToAsync(new ModelSwitchToRequest
+{
+    ModelId = modelId,
+    ProviderId = providerId,
+});
+#pragma warning restore GHCP001
+```
+
+The SDK supplies the session ID. Existing positional calls, including `session.Rpc.Model.SwitchToAsync("auto", AutoTier.Balance)`, retain their original parameter order and defaults.
 
 ## Auto routing tiers
 

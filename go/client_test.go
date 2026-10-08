@@ -545,9 +545,33 @@ func TestClient_ForceStopAndExternalStopDoNotRequestRuntimeShutdown(t *testing.T
 	externalServer.Stop()
 }
 
+func TestClient_ForceStopStopsRegisteredSessionEventProcessing(t *testing.T) {
+	rpcClient, server, shutdownCalled := newRuntimeShutdownRpcPair(t)
+	t.Cleanup(server.Stop)
+	sessions := make(map[string]*Session)
+	for _, id := range []string{"session-1", "session-2"} {
+		session := newSession(id, rpcClient, "", false)
+		t.Cleanup(session.stopEventProcessing)
+		sessions[id] = session
+	}
+	client := &Client{
+		client:   rpcClient,
+		RPC:      rpc.NewServerRPC(rpcClient),
+		sessions: sessions,
+	}
+
+	client.ForceStop()
+	for _, session := range sessions {
+		assertSessionEventChannelClosed(t, session)
+	}
+	client.ForceStop()
+	assertRuntimeShutdownNotCalled(t, shutdownCalled)
+}
+
 func TestClient_ForceStopCancelsPendingExternalTools(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	session := &Session{
+		eventDone: make(chan struct{}),
 		pendingExternalTools: map[string]*pendingExternalTool{
 			"request-1": {ctx: ctx, cancel: cancel},
 		},
@@ -564,6 +588,89 @@ func TestClient_ForceStopCancelsPendingExternalTools(t *testing.T) {
 	case <-ctx.Done():
 	case <-time.After(time.Second):
 		t.Fatal("ForceStop did not cancel the pending external tool")
+	}
+}
+
+func TestClient_ForceStopDropsRemainingEventHandlers(t *testing.T) {
+	for _, fromHandler := range []bool{false, true} {
+		name := "while handler is blocked"
+		if fromHandler {
+			name = "from event handler"
+		}
+		t.Run(name, func(t *testing.T) {
+			session := &Session{
+				eventCh:   make(chan SessionEvent, 1),
+				eventDone: make(chan struct{}),
+			}
+			client := &Client{sessions: map[string]*Session{"session-1": session}}
+			entered := make(chan struct{})
+			release := make(chan struct{})
+			releaseHandler := sync.OnceFunc(func() { close(release) })
+			forceStopped := make(chan struct{})
+			consumerExited := make(chan struct{})
+			unexpected := make(chan string, 3)
+			t.Cleanup(func() {
+				session.stopEventProcessing()
+				releaseHandler()
+				select {
+				case <-consumerExited:
+				case <-time.After(2 * time.Second):
+					t.Error("event consumer did not exit during cleanup")
+				}
+			})
+			session.On(func(event SessionEvent) {
+				if _, ok := event.Data.(*SessionIdleData); !ok {
+					unexpected <- "queued event"
+					return
+				}
+				close(entered)
+				<-release
+				if fromHandler {
+					client.ForceStop()
+					close(forceStopped)
+				}
+			})
+			session.On(func(SessionEvent) { unexpected <- "remaining handler" })
+			go func() {
+				defer close(consumerExited)
+				session.processEvents()
+			}()
+
+			session.eventCh <- newTestEvent()
+			select {
+			case <-entered:
+			case <-time.After(2 * time.Second):
+				t.Fatal("event handler did not enter its barrier")
+			}
+			session.eventCh <- SessionEvent{Data: &AssistantMessageData{
+				Content:   "queued",
+				MessageID: "queued",
+			}}
+			if fromHandler {
+				releaseHandler()
+			} else {
+				go func() {
+					client.ForceStop()
+					close(forceStopped)
+				}()
+			}
+			select {
+			case <-forceStopped:
+			case <-time.After(2 * time.Second):
+				t.Fatal("ForceStop waited for the in-flight event handler")
+			}
+			releaseHandler()
+			select {
+			case <-consumerExited:
+			case <-time.After(2 * time.Second):
+				t.Fatal("event consumer did not exit after the handler returned")
+			}
+			select {
+			case callback := <-unexpected:
+				t.Fatalf("ForceStop dispatched %s after cancellation", callback)
+			default:
+			}
+		})
 	}
 }
 

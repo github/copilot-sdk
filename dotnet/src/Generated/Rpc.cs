@@ -797,23 +797,6 @@ public sealed class ModelPolicy
     public string? Terms { get; set; }
 }
 
-/// <summary>A neutral reference to the model provider that produced a model: an opaque id, a human-readable label, and the provider kind. Carried on each enumerated Model so consumers can group by provider without reaching into a provider-shaped internal type.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class ModelProviderRef
-{
-    /// <summary>Opaque, stable id of the provider that produced this model. Matches the enumerated `ModelProviderDescriptor.id`.</summary>
-    [JsonPropertyName("id")]
-    public string Id { get; set; } = string.Empty;
-
-    /// <summary>The provider kind.</summary>
-    [JsonPropertyName("kind")]
-    public ModelProviderKind Kind { get; set; }
-
-    /// <summary>Human-readable provider label, owned by the runtime so every consumer renders identical text.</summary>
-    [JsonPropertyName("label")]
-    public string Label { get; set; } = string.Empty;
-}
-
 /// <summary>Service-published warning text that hosts should display when presenting a model.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public sealed class ModelWarningText
@@ -13519,6 +13502,14 @@ public sealed class CurrentModel
     [JsonPropertyName("planBaseModelId")]
     public string? PlanBaseModelId { get; set; }
 
+    /// <summary>Provider of planBaseModelId, when that saved selection is provider-qualified.</summary>
+    [JsonPropertyName("planBaseProviderId")]
+    public string? PlanBaseProviderId { get; set; }
+
+    /// <summary>Provider selected for this model. Together with modelId, identifies a catalog entry even when providers serve the same model. Omitted for unattributed legacy selections.</summary>
+    [JsonPropertyName("providerId")]
+    public string? ProviderId { get; set; }
+
     /// <summary>Reasoning effort level currently applied to the active model, when one is set. Reads `Session.getReasoningEffort()` synchronously after `getSelectedModel()` resolves so the two values are reported as a snapshot.</summary>
     [JsonPropertyName("reasoningEffort")]
     public string? ReasoningEffort { get; set; }
@@ -13636,7 +13627,7 @@ public sealed class ModelPickerPersistenceRequest
 
 /// <summary>Target model identifier and optional reasoning effort, summary, capability overrides, and context tier.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class ModelSwitchToRequest
+public sealed class ModelSwitchToRequest
 {
     /// <summary>Optional Auto routing preference to stage atomically with selecting `auto`. Pass null to return to provider-default Auto routing. This field is rejected when `modelId` is not `auto`.</summary>
     [JsonPropertyName("autoTier")]
@@ -13662,13 +13653,86 @@ internal sealed class ModelSwitchToRequest
     [JsonPropertyName("modelChangeScope")]
     public string? ModelChangeScope { get; set; }
 
-    /// <summary>Model selection id to switch to, as returned by `list`. A bare id (e.g. `claude-sonnet-4.6`) names a Copilot (CAPI) model; a provider-qualified id (`provider/id`, e.g. `acme/claude-sonnet`) targets a registry BYOK model.</summary>
+    /// <summary>Model id to switch to, as returned by `list`. Include providerId to select an exact catalog entry when providers share the id. Without providerId, a bare id retains incumbent selection behavior; a registry-qualified id (`provider/id`, e.g. `acme/claude-sonnet`) targets a BYOK model.</summary>
+    [JsonPropertyName("modelId")]
+    public required string ModelId { get; set; }
+
+    /// <summary>Optional settings context and explicit-override flags used to persist a picker selection.</summary>
+    [JsonPropertyName("pickerPersistence")]
+    public ModelPickerPersistenceRequest? PickerPersistence { get; set; }
+
+    /// <summary>Provider id from the selected list entry's provider reference. Selects this exact provider/model pair; an unavailable pair fails rather than using another provider. Omit for deterministic legacy bare-model selection.</summary>
+    [JsonPropertyName("providerId")]
+    public string? ProviderId { get; set; }
+
+    /// <summary>Reasoning effort level to use for the model. CAPI values are model-defined and validated against the selected model; BYOK providers may define additional values. "none" disables reasoning. Pass null to clear any session effort override and fall back to the model's default. When omitted, the session's current effort is kept.</summary>
+    [JsonPropertyName("reasoningEffort")]
+    public string? ReasoningEffort { get; set; }
+
+    /// <summary>Reasoning summary mode to request for supported model clients.</summary>
+    [JsonPropertyName("reasoningSummary")]
+    public ReasoningSummary? ReasoningSummary { get; set; }
+
+    /// <summary>Optional repository settings scope to persist after the switch commits.</summary>
+    [JsonPropertyName("repoScope")]
+    public string? RepoScope { get; set; }
+
+    /// <summary>Require the target to be currently available and enabled before applying the switch.</summary>
+    [JsonPropertyName("requireAvailable")]
+    public bool? RequireAvailable { get; set; }
+
+    /// <summary>When true, evaluate context-window compaction policy before applying the switch.</summary>
+    [JsonPropertyName("runCompactionPreflight")]
+    public bool? RunCompactionPreflight { get; set; }
+
+    /// <summary>Origin to record on the effective `session.model_change` event for trusted in-process calls. Transport SDK calls are always recorded as `sdk`, regardless of this value.</summary>
+    [JsonPropertyName("source")]
+    public ModelChangeSource? Source { get; set; }
+
+    /// <summary>Output verbosity level to request for supported models.</summary>
+    [JsonPropertyName("verbosity")]
+    public Verbosity? Verbosity { get; set; }
+}
+
+/// <summary>Target model identifier and optional reasoning effort, summary, capability overrides, and context tier.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class ModelSwitchToRequestWithSession
+{
+    /// <summary>Optional Auto routing preference to stage atomically with selecting `auto`. Pass null to return to provider-default Auto routing. This field is rejected when `modelId` is not `auto`.</summary>
+    [JsonPropertyName("autoTier")]
+    public AutoTier? AutoTier { get; set; }
+
+    /// <summary>Explicit response to a model-switch compaction preflight. Omit to request a confirmation projection when compaction is necessary.</summary>
+    [JsonPropertyName("compactionDecision")]
+    public string? CompactionDecision { get; set; }
+
+    /// <summary>Explicit context tier for the selected model. `"default"` / `"long_context"` apply the requested tier; omit this field to use normal model behavior with no explicit tier.</summary>
+    [JsonPropertyName("contextTier")]
+    public ContextTier? ContextTier { get; set; }
+
+    /// <summary>When true, defer this switch (enqueue it) if another model change is already queued, even when no turn is active — so it drains last (FIFO) and wins over the already-queued change. Intended for genuine user-initiated model selections; internal restore/reapply switches omit it and apply immediately when no turn is active. When no other model change is queued this has no effect (a switch still applies immediately unless a turn is active).</summary>
+    [JsonPropertyName("deferIfModelChangeQueued")]
+    public bool? DeferIfModelChangeQueued { get; set; }
+
+    /// <summary>Override individual model capabilities resolved by the runtime.</summary>
+    [JsonPropertyName("modelCapabilities")]
+    public ModelCapabilitiesOverride? ModelCapabilities { get; set; }
+
+    /// <summary>Settings scope used when persisting the selected model.</summary>
+    [JsonPropertyName("modelChangeScope")]
+    public string? ModelChangeScope { get; set; }
+
+    /// <summary>Model id to switch to, as returned by `list`. Include providerId to select an exact catalog entry when providers share the id. Without providerId, a bare id retains incumbent selection behavior; a registry-qualified id (`provider/id`, e.g. `acme/claude-sonnet`) targets a BYOK model.</summary>
     [JsonPropertyName("modelId")]
     public string ModelId { get; set; } = string.Empty;
 
     /// <summary>Optional settings context and explicit-override flags used to persist a picker selection.</summary>
     [JsonPropertyName("pickerPersistence")]
     public ModelPickerPersistenceRequest? PickerPersistence { get; set; }
+
+    /// <summary>Provider id from the selected list entry's provider reference. Selects this exact provider/model pair; an unavailable pair fails rather than using another provider. Omit for deterministic legacy bare-model selection.</summary>
+    [JsonPropertyName("providerId")]
+    public string? ProviderId { get; set; }
 
     /// <summary>Reasoning effort level to use for the model. CAPI values are model-defined and validated against the selected model; BYOK providers may define additional values. "none" disables reasoning. Pass null to clear any session effort override and fall back to the model's default. When omitted, the session's current effort is kept.</summary>
     [JsonPropertyName("reasoningEffort")]
@@ -13790,6 +13854,10 @@ internal sealed class ModelApplyStartupOverlayRequest
     [JsonPropertyName("repoModel")]
     public string? RepoModel { get; set; }
 
+    /// <summary>Provider owning the repository-selected model. Omitted repository provider identity retains legacy bare-model behavior.</summary>
+    [JsonPropertyName("repoModelProviderId")]
+    public string? RepoModelProviderId { get; set; }
+
     /// <summary>Reasoning effort selected by repository settings, when configured.</summary>
     [JsonPropertyName("repoReasoningEffort")]
     public string? RepoReasoningEffort { get; set; }
@@ -13797,6 +13865,32 @@ internal sealed class ModelApplyStartupOverlayRequest
     /// <summary>Model required by server-managed policy, when configured.</summary>
     [JsonPropertyName("serverManagedModel")]
     public string? ServerManagedModel { get; set; }
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>RPC data type for SessionModelClearStartupSeed operations.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class SessionModelClearStartupSeedResult
+{
+    /// <summary>Gets or sets the <c>cleared</c> value.</summary>
+    [JsonPropertyName("cleared")]
+    public bool Cleared { get; set; }
+}
+
+/// <summary>RPC data type for SessionModelClearStartupSeed operations.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class SessionModelClearStartupSeedRequest
+{
+    /// <summary>Gets or sets the <c>expectedModel</c> value.</summary>
+    [JsonPropertyName("expectedModel")]
+    public string ExpectedModel { get; set; } = string.Empty;
+
+    /// <summary>Provider captured with the startup seed; omission matches only an unqualified seed.</summary>
+    [JsonPropertyName("expectedProviderId")]
+    public string? ExpectedProviderId { get; set; }
 
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -14092,6 +14186,10 @@ internal sealed class ModeSetRequest
     /// <summary>Whether a dedicated plan model is configured.</summary>
     [JsonPropertyName("planModelConfigured")]
     public bool? PlanModelConfigured { get; set; }
+
+    /// <summary>Provider owning planModel. Omit for legacy bare-model selection.</summary>
+    [JsonPropertyName("planModelProviderId")]
+    public string? PlanModelProviderId { get; set; }
 
     /// <summary>Reasoning effort to use with the dedicated plan model.</summary>
     [JsonPropertyName("planReasoningEffort")]
@@ -21189,6 +21287,53 @@ internal sealed class HandlePendingToolCallRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
+/// <summary>External tool call of the session or one of its sub-agents that is still waiting for session.tools.handlePendingToolCall.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class PendingExternalToolRequest
+{
+    /// <summary>Sub-agent instance identifier (the envelope agentId of its events) of the agent that issued the call; absent for calls issued by the root agent.</summary>
+    [JsonPropertyName("agentId")]
+    public string? AgentId { get; set; }
+
+    /// <summary>Arguments to pass to the external tool.</summary>
+    [JsonPropertyName("arguments")]
+    public JsonElement? Arguments { get; set; }
+
+    /// <summary>Stable identity of the provider that offered the tool, for hosts that route extension-owned tools by provider.</summary>
+    [JsonPropertyName("providerId")]
+    public string? ProviderId { get; set; }
+
+    /// <summary>Request ID to pass to session.tools.handlePendingToolCall.</summary>
+    [JsonPropertyName("requestId")]
+    public string RequestId { get; set; } = string.Empty;
+
+    /// <summary>Tool call ID assigned to this external tool invocation.</summary>
+    [JsonPropertyName("toolCallId")]
+    public string ToolCallId { get; set; } = string.Empty;
+
+    /// <summary>Name of the external tool to invoke.</summary>
+    [JsonPropertyName("toolName")]
+    public string ToolName { get; set; } = string.Empty;
+}
+
+/// <summary>External tool calls still waiting for a result.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class PendingExternalToolRequestList
+{
+    /// <summary>External tool calls of the session and its sub-agents that session.tools.handlePendingToolCall would still accept, in the order they were requested. Includes calls that were pending when the session was last suspended and resumed with pending work continued, so a host that did not observe the original external_tool.requested event can answer them.</summary>
+    [JsonPropertyName("items")]
+    public IList<PendingExternalToolRequest> Items { get => field ??= []; set; }
+}
+
+/// <summary>No parameters; returns the external tool calls of the session and its sub-agents that are still waiting for a result.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class ToolsListPendingRequestsRequest
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
 /// <summary>Resolve, build, and validate the runtime tool list for this session. Subagent sessions and consumer flows that need an initialized tool set before `send` invoke this. Default base-class implementation is a no-op for sessions that don't support tool validation.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public sealed class ToolsInitializeAndValidateResult
@@ -23971,6 +24116,10 @@ public sealed class MetadataContextInfoResultContextInfo
     [JsonPropertyName("conversationTokens")]
     public long ConversationTokens { get; set; }
 
+    /// <summary>Provider-owned model display label, or the Auto routing label. Presentation only; modelName remains the tokenization identity.</summary>
+    [JsonPropertyName("displayModelName")]
+    public string? DisplayModelName { get; set; }
+
     /// <summary>Advertised prompt allowance for the selected context tier, without adding output tokens. The denominator for context-usage displays.</summary>
     [JsonPropertyName("limit")]
     public long Limit { get; set; }
@@ -23986,6 +24135,10 @@ public sealed class MetadataContextInfoResultContextInfo
     /// <summary>Effective input budget: the selected tier's prompt allowance bounded by the combined context ceiling minus the requested output allowance. Uses DEFAULT_TOKEN_LIMIT when limits are unspecified.</summary>
     [JsonPropertyName("promptTokenLimit")]
     public long PromptTokenLimit { get; set; }
+
+    /// <summary>Provider whose catalog supplies this context window. Omitted when provider identity is unavailable.</summary>
+    [JsonPropertyName("provider")]
+    public ModelProviderRef? Provider { get; set; }
 
     /// <summary>Tokens consumed by the system prompt.</summary>
     [JsonPropertyName("systemTokens")]
@@ -24020,6 +24173,10 @@ internal sealed class MetadataContextInfoRequest
     /// <summary>Advertised prompt allowance. Pass 0 to resolve the selected model and context tier from the session.</summary>
     [JsonPropertyName("promptTokenLimit")]
     public long PromptTokenLimit { get; set; }
+
+    /// <summary>Provider owning selectedModel. Omit to use the current provider for the current model, or deterministic legacy lookup for a different model.</summary>
+    [JsonPropertyName("providerId")]
+    public string? ProviderId { get; set; }
 
     /// <summary>Model identifier used for tokenization. Omit to use the session default. Used both for token counting and to compute display values.</summary>
     [JsonPropertyName("selectedModel")]
@@ -25675,191 +25832,254 @@ internal sealed class ReleaseEventInterestParams
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>Request count and cost metrics for this model.</summary>
+/// <summary>Identifies the target session.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class UsageMetricsModelMetricRequests
+internal sealed class SessionUsageGetMetricsRequest
 {
-    /// <summary>User-initiated premium request cost (with multiplier applied).</summary>
-    [JsonPropertyName("cost")]
-    public double Cost { get; set; }
-
-    /// <summary>Number of API requests made with this model.</summary>
-    [JsonPropertyName("count")]
-    public long Count { get; set; }
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>Per-model token-detail entry containing the accumulated token count for one token type.</summary>
+/// <summary>Internal absolute code-change totals reported by the owning host.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class UsageMetricsModelMetricTokenDetail
+internal sealed class SessionUsageSetCodeChangesRequest
 {
-    /// <summary>Accumulated token count for this token type.</summary>
-    [JsonPropertyName("tokenCount")]
-    public long TokenCount { get; set; }
-}
+    /// <summary>Absolute changed-file count; omission preserves the previous count.</summary>
+    [JsonPropertyName("filesCount")]
+    public double? FilesCount { get; set; }
 
-/// <summary>Token usage metrics for this model.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class UsageMetricsModelMetricUsage
-{
-    /// <summary>Total tokens read from prompt cache.</summary>
-    [JsonPropertyName("cacheReadTokens")]
-    public long CacheReadTokens { get; set; }
-
-    /// <summary>Total tokens written to prompt cache.</summary>
-    [JsonPropertyName("cacheWriteTokens")]
-    public long CacheWriteTokens { get; set; }
-
-    /// <summary>Total input tokens consumed.</summary>
-    [JsonPropertyName("inputTokens")]
-    public long InputTokens { get; set; }
-
-    /// <summary>Total output tokens produced.</summary>
-    [JsonPropertyName("outputTokens")]
-    public long OutputTokens { get; set; }
-
-    /// <summary>Total output tokens used for reasoning.</summary>
-    [JsonPropertyName("reasoningTokens")]
-    public long? ReasoningTokens { get; set; }
-}
-
-/// <summary>Per-model usage metrics, including request counts/costs, token usage, nano-AI units, and per-token-type details.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class UsageMetricsModelMetric
-{
-    /// <summary>Latest known prompt-cache expiration for this model. A timestamp in the past indicates that the observed cache has expired.</summary>
-    [JsonPropertyName("cacheExpiresAt")]
-    public DateTimeOffset? CacheExpiresAt { get; set; }
-
-    /// <summary>Request count and cost metrics for this model.</summary>
-    [JsonPropertyName("requests")]
-    public UsageMetricsModelMetricRequests Requests { get => field ??= new(); set; }
-
-    /// <summary>Token count details per type.</summary>
-    [JsonPropertyName("tokenDetails")]
-    public IDictionary<string, UsageMetricsModelMetricTokenDetail>? TokenDetails { get; set; }
-
-    /// <summary>Accumulated nano-AI units cost for this model.</summary>
-    [JsonPropertyName("totalNanoAiu")]
-    public double? TotalNanoAiu { get; set; }
-
-    /// <summary>Token usage metrics for this model.</summary>
-    [JsonPropertyName("usage")]
-    public UsageMetricsModelMetricUsage Usage { get => field ??= new(); set; }
-}
-
-/// <summary>Usage attributed to one agent instance, including its identity, API duration, AI units, and per-model breakdown.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class UsageMetricsAgentMetric
-{
-    /// <summary>Human-readable label for this subagent invocation, copied from the originating `subagent.started` event. For task-tool subagents this is the invocation's task description rather than the agent's configured display name, so group by `agentName` for stable per-agent labels.</summary>
-    [JsonPropertyName("agentDisplayName")]
-    public string? AgentDisplayName { get; set; }
-
-    /// <summary>Configured agent name, when this is a subagent.</summary>
-    [JsonPropertyName("agentName")]
-    public string? AgentName { get; set; }
-
-    /// <summary>Per-model usage for this agent, keyed by model identifier.</summary>
-    [JsonPropertyName("modelMetrics")]
-    public IDictionary<string, UsageMetricsModelMetric> ModelMetrics { get => field ??= new Dictionary<string, UsageMetricsModelMetric>(); set; }
-
-    /// <summary>Time spent in model API calls by this agent, in milliseconds.</summary>
-    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]
-    [JsonPropertyName("totalApiDurationMs")]
-    public TimeSpan TotalApiDuration { get; set; }
-
-    /// <summary>Accumulated nano-AI units cost for this agent.</summary>
-    [JsonPropertyName("totalNanoAiu")]
-    public double TotalNanoAiu { get; set; }
-}
-
-/// <summary>Aggregated code change metrics.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class UsageMetricsCodeChanges
-{
-    /// <summary>Distinct file paths modified during the session.</summary>
-    [JsonPropertyName("filesModified")]
-    public IList<string> FilesModified { get => field ??= []; set; }
-
-    /// <summary>Number of distinct files modified.</summary>
-    [JsonPropertyName("filesModifiedCount")]
-    public long FilesModifiedCount { get; set; }
-
-    /// <summary>Total lines of code added.</summary>
+    /// <summary>Absolute added-line total, replacing the previous reading.</summary>
     [JsonPropertyName("linesAdded")]
-    public long LinesAdded { get; set; }
+    public double LinesAdded { get; set; }
 
-    /// <summary>Total lines of code removed.</summary>
+    /// <summary>Absolute removed-line total, replacing the previous reading.</summary>
     [JsonPropertyName("linesRemoved")]
-    public long LinesRemoved { get; set; }
+    public double LinesRemoved { get; set; }
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>Session-wide token-detail entry containing the accumulated token count for one token type.</summary>
+/// <summary>Existing delegation guidance for an account without delegation access.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class UsageMetricsTokenDetail
+public sealed class SessionQuotaDelegateWarning
 {
-    /// <summary>Accumulated token count for this token type.</summary>
-    [JsonPropertyName("tokenCount")]
-    public long TokenCount { get; set; }
+    /// <summary>User-facing guidance.</summary>
+    [JsonPropertyName("text")]
+    public string Text { get; set; } = string.Empty;
+
+    /// <summary>Link to upgrade the account.</summary>
+    [JsonPropertyName("url")]
+    public string Url { get; set; } = string.Empty;
 }
 
-/// <summary>Accumulated session usage metrics, including premium request cost, token counts, model breakdown, and code-change totals.</summary>
+/// <summary>Session quota snapshot, preserving the incumbent numeric units and reset metadata.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class UsageGetMetricsResult
+public sealed class SessionQuotaSnapshot
 {
-    /// <summary>Per-agent usage metrics, keyed by agent instance identifier. The main conversation uses the stable key `main`.</summary>
-    [JsonPropertyName("agentMetrics")]
-    public IDictionary<string, UsageMetricsAgentMetric>? AgentMetrics { get; set; }
+    /// <summary>Entitled quantity in this quota's units.</summary>
+    [JsonPropertyName("entitlementRequests")]
+    public double EntitlementRequests { get; set; }
 
-    /// <summary>Aggregated code change metrics.</summary>
-    [JsonPropertyName("codeChanges")]
-    public UsageMetricsCodeChanges CodeChanges { get => field ??= new(); set; }
+    /// <summary>Whether the provider reports available quota.</summary>
+    [JsonPropertyName("hasQuota")]
+    public bool? HasQuota { get; set; }
 
-    /// <summary>Currently active model identifier.</summary>
-    [JsonPropertyName("currentModel")]
-    public string? CurrentModel { get; set; }
+    /// <summary>Whether the entitlement is unlimited.</summary>
+    [JsonPropertyName("isUnlimitedEntitlement")]
+    public bool IsUnlimitedEntitlement { get; set; }
 
-    /// <summary>Input tokens from the most recent main-agent API call.</summary>
-    [JsonPropertyName("lastCallInputTokens")]
-    public long LastCallInputTokens { get; set; }
+    /// <summary>Additional usage in this quota's units.</summary>
+    [JsonPropertyName("overage")]
+    public double Overage { get; set; }
 
-    /// <summary>Output tokens from the most recent main-agent API call.</summary>
-    [JsonPropertyName("lastCallOutputTokens")]
-    public long LastCallOutputTokens { get; set; }
+    /// <summary>Whether additional usage is allowed after quota exhaustion.</summary>
+    [JsonPropertyName("overageAllowedWithExhaustedQuota")]
+    public bool OverageAllowedWithExhaustedQuota { get; set; }
 
-    /// <summary>Per-model token and request metrics, keyed by model identifier.</summary>
-    [JsonPropertyName("modelMetrics")]
-    public IDictionary<string, UsageMetricsModelMetric> ModelMetrics { get => field ??= new Dictionary<string, UsageMetricsModelMetric>(); set; }
+    /// <summary>Additional-usage budget cap, when provided.</summary>
+    [JsonPropertyName("overageEntitlement")]
+    public double? OverageEntitlement { get; set; }
 
-    /// <summary>ISO 8601 timestamp when the session started.</summary>
-    [JsonPropertyName("sessionStartTime")]
-    public DateTimeOffset SessionStartTime { get; set; }
+    /// <summary>Percentage of the entitlement remaining.</summary>
+    [JsonPropertyName("remainingPercentage")]
+    public double RemainingPercentage { get; set; }
 
-    /// <summary>Session-wide per-token-type accumulated token counts.</summary>
-    [JsonPropertyName("tokenDetails")]
-    public IDictionary<string, UsageMetricsTokenDetail>? TokenDetails { get; set; }
+    /// <summary>Quota reset time in milliseconds since the Unix epoch, when known.</summary>
+    [JsonPropertyName("resetDateEpochMs")]
+    public double? ResetDateEpochMs { get; set; }
 
-    /// <summary>Total time spent in model API calls (milliseconds).</summary>
-    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]
-    [JsonPropertyName("totalApiDurationMs")]
-    public TimeSpan TotalApiDuration { get; set; }
+    /// <summary>Whether the reset time is estimated.</summary>
+    [JsonPropertyName("resetDateEstimated")]
+    public bool? ResetDateEstimated { get; set; }
 
-    /// <summary>Session-wide accumulated nano-AI units cost.</summary>
-    [JsonPropertyName("totalNanoAiu")]
-    public double? TotalNanoAiu { get; set; }
+    /// <summary>Whether this quota uses token-based billing.</summary>
+    [JsonPropertyName("tokenBasedBilling")]
+    public bool? TokenBasedBilling { get; set; }
 
-    /// <summary>Total user-initiated premium request cost across all models (may be fractional due to multipliers).</summary>
-    [JsonPropertyName("totalPremiumRequestCost")]
-    public double TotalPremiumRequestCost { get; set; }
+    /// <summary>Whether usage is allowed after quota exhaustion.</summary>
+    [JsonPropertyName("usageAllowedWithExhaustedQuota")]
+    public bool UsageAllowedWithExhaustedQuota { get; set; }
 
-    /// <summary>Raw count of user-initiated API requests.</summary>
-    [JsonPropertyName("totalUserRequests")]
-    public long TotalUserRequests { get; set; }
+    /// <summary>Consumed quantity in this quota's units.</summary>
+    [JsonPropertyName("usedRequests")]
+    public double UsedRequests { get; set; }
+}
+
+/// <summary>The incumbent session-owned quota and account projection.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class SessionQuotaGetResult
+{
+    /// <summary>Whether the account can sign up for Copilot Free.</summary>
+    [JsonPropertyName("canSignupForCopilotFree")]
+    public bool CanSignupForCopilotFree { get; set; }
+
+    /// <summary>Whether the account can delegate tasks to GitHub.</summary>
+    [JsonPropertyName("delegateAvailable")]
+    public bool DelegateAvailable { get; set; }
+
+    /// <summary>Existing delegation warning for a free account.</summary>
+    [JsonPropertyName("delegateWarning")]
+    public SessionQuotaDelegateWarning? DelegateWarning { get; set; }
+
+    /// <summary>Whether dynamic workflows are enabled for the active account.</summary>
+    [JsonPropertyName("dynamicWorkflowsEnabled")]
+    public bool DynamicWorkflowsEnabled { get; set; }
+
+    /// <summary>Whether dynamic workflows are visible under the session's feature flags.</summary>
+    [JsonPropertyName("dynamicWorkflowsUiVisible")]
+    public bool DynamicWorkflowsUiVisible { get; set; }
+
+    /// <summary>Whether the account uses the free limited Copilot plan.</summary>
+    [JsonPropertyName("isFreeUser")]
+    public bool IsFreeUser { get; set; }
+
+    /// <summary>Whether the account uses token-based billing.</summary>
+    [JsonPropertyName("isTbbUser")]
+    public bool IsTbbUser { get; set; }
+
+    /// <summary>Whether model cost columns should be shown.</summary>
+    [JsonPropertyName("modelCostColumnVisible")]
+    public bool ModelCostColumnVisible { get; set; }
+
+    /// <summary>Resolved Copilot plan tier.</summary>
+    [JsonPropertyName("planTier")]
+    public SessionQuotaPlanTier PlanTier { get; set; }
+
+    /// <summary>Whether premium-request costs are billable.</summary>
+    [JsonPropertyName("premiumRequestsBillable")]
+    public bool PremiumRequestsBillable { get; set; }
+
+    /// <summary>Provider-owned account quota state, including snapshots without numeric balances.</summary>
+    [JsonPropertyName("providerQuotas")]
+    public IList<ProviderQuotaState>? ProviderQuotas { get; set; }
+
+    /// <summary>Known quota snapshots, keyed by the provider's quota type.</summary>
+    [JsonPropertyName("snapshots")]
+    public IDictionary<string, SessionQuotaSnapshot> Snapshots { get => field ??= new Dictionary<string, SessionQuotaSnapshot>(); set; }
+
+    /// <summary>Upgrade link for a free account.</summary>
+    [JsonPropertyName("upgradeUrl")]
+    public string? UpgradeUrl { get; set; }
 }
 
 /// <summary>Identifies the target session.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class SessionUsageGetMetricsRequest
+internal sealed class SessionQuotaGetRequest
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>The incumbent session-owned quota and account projection.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class SessionQuotaRefreshResult
+{
+    /// <summary>Whether the account can sign up for Copilot Free.</summary>
+    [JsonPropertyName("canSignupForCopilotFree")]
+    public bool CanSignupForCopilotFree { get; set; }
+
+    /// <summary>Whether the account can delegate tasks to GitHub.</summary>
+    [JsonPropertyName("delegateAvailable")]
+    public bool DelegateAvailable { get; set; }
+
+    /// <summary>Existing delegation warning for a free account.</summary>
+    [JsonPropertyName("delegateWarning")]
+    public SessionQuotaDelegateWarning? DelegateWarning { get; set; }
+
+    /// <summary>Whether dynamic workflows are enabled for the active account.</summary>
+    [JsonPropertyName("dynamicWorkflowsEnabled")]
+    public bool DynamicWorkflowsEnabled { get; set; }
+
+    /// <summary>Whether dynamic workflows are visible under the session's feature flags.</summary>
+    [JsonPropertyName("dynamicWorkflowsUiVisible")]
+    public bool DynamicWorkflowsUiVisible { get; set; }
+
+    /// <summary>Whether the account uses the free limited Copilot plan.</summary>
+    [JsonPropertyName("isFreeUser")]
+    public bool IsFreeUser { get; set; }
+
+    /// <summary>Whether the account uses token-based billing.</summary>
+    [JsonPropertyName("isTbbUser")]
+    public bool IsTbbUser { get; set; }
+
+    /// <summary>Whether model cost columns should be shown.</summary>
+    [JsonPropertyName("modelCostColumnVisible")]
+    public bool ModelCostColumnVisible { get; set; }
+
+    /// <summary>Resolved Copilot plan tier.</summary>
+    [JsonPropertyName("planTier")]
+    public SessionQuotaPlanTier PlanTier { get; set; }
+
+    /// <summary>Whether premium-request costs are billable.</summary>
+    [JsonPropertyName("premiumRequestsBillable")]
+    public bool PremiumRequestsBillable { get; set; }
+
+    /// <summary>Provider-owned account quota state, including snapshots without numeric balances.</summary>
+    [JsonPropertyName("providerQuotas")]
+    public IList<ProviderQuotaState>? ProviderQuotas { get; set; }
+
+    /// <summary>Known quota snapshots, keyed by the provider's quota type.</summary>
+    [JsonPropertyName("snapshots")]
+    public IDictionary<string, SessionQuotaSnapshot> Snapshots { get => field ??= new Dictionary<string, SessionQuotaSnapshot>(); set; }
+
+    /// <summary>Upgrade link for a free account.</summary>
+    [JsonPropertyName("upgradeUrl")]
+    public string? UpgradeUrl { get; set; }
+}
+
+/// <summary>Identifies the target session.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class SessionQuotaRefreshRequest
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>A pending session quota warning, consumed once by takeWarnings.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class QuotaWarningProjection
+{
+    /// <summary>User-facing warning text.</summary>
+    [JsonPropertyName("message")]
+    public string Message { get; set; } = string.Empty;
+
+    /// <summary>Related account or upgrade link.</summary>
+    [JsonPropertyName("url")]
+    public string? Url { get; set; }
+
+    /// <summary>Existing warning category.</summary>
+    [JsonPropertyName("warningType")]
+    public string WarningType { get; set; } = string.Empty;
+}
+
+/// <summary>Identifies the target session.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class SessionQuotaTakeWarningsRequest
 {
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -28210,69 +28430,6 @@ public readonly struct ModelPolicyState : IEquatable<ModelPolicyState>
         public override void Write(Utf8JsonWriter writer, ModelPolicyState value, JsonSerializerOptions options)
         {
             GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ModelPolicyState));
-        }
-    }
-}
-
-
-/// <summary>The neutral kind of a model provider — the model analog of `AccountKind`. A model provider is the live, entitled source a model came from; central code never branches on this beyond a single dispatch.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct ModelProviderKind : IEquatable<ModelProviderKind>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="ModelProviderKind"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="ModelProviderKind"/>.</param>
-    [JsonConstructor]
-    public ModelProviderKind(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="ModelProviderKind"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>GitHub Copilot / CAPI models, spawned by a github-resolving account that holds a Copilot seat.</summary>
-    public static ModelProviderKind Copilot { get; } = new("copilot");
-
-    /// <summary>Microsoft 365 Copilot (Loki) inference models, spawned by a resolvable Entra-derived Loki account.</summary>
-    public static ModelProviderKind Loki { get; } = new("loki");
-
-    /// <summary>Returns a value indicating whether two <see cref="ModelProviderKind"/> instances are equivalent.</summary>
-    public static bool operator ==(ModelProviderKind left, ModelProviderKind right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="ModelProviderKind"/> instances are not equivalent.</summary>
-    public static bool operator !=(ModelProviderKind left, ModelProviderKind right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is ModelProviderKind other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(ModelProviderKind other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{ModelProviderKind}"/> for serializing <see cref="ModelProviderKind"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<ModelProviderKind>
-    {
-        /// <inheritdoc />
-        public override ModelProviderKind Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, ModelProviderKind value, JsonSerializerOptions options)
-        {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ModelProviderKind));
         }
     }
 }
@@ -42020,6 +42177,87 @@ public readonly struct EventsAgentScope : IEquatable<EventsAgentScope>
 }
 
 
+/// <summary>Copilot plan tier used by the session quota projection.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct SessionQuotaPlanTier : IEquatable<SessionQuotaPlanTier>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="SessionQuotaPlanTier"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="SessionQuotaPlanTier"/>.</param>
+    [JsonConstructor]
+    public SessionQuotaPlanTier(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="SessionQuotaPlanTier"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Copilot Free.</summary>
+    public static SessionQuotaPlanTier Free { get; } = new("free");
+
+    /// <summary>Copilot education entitlement.</summary>
+    public static SessionQuotaPlanTier Edu { get; } = new("edu");
+
+    /// <summary>Copilot Pro.</summary>
+    public static SessionQuotaPlanTier Pro { get; } = new("pro");
+
+    /// <summary>Copilot Pro+.</summary>
+    public static SessionQuotaPlanTier ProPlus { get; } = new("pro_plus");
+
+    /// <summary>Copilot Business.</summary>
+    public static SessionQuotaPlanTier Business { get; } = new("business");
+
+    /// <summary>Copilot Enterprise.</summary>
+    public static SessionQuotaPlanTier Enterprise { get; } = new("enterprise");
+
+    /// <summary>Copilot Max.</summary>
+    public static SessionQuotaPlanTier Max { get; } = new("max");
+
+    /// <summary>The account's plan tier is not known.</summary>
+    public static SessionQuotaPlanTier Unknown { get; } = new("unknown");
+
+    /// <summary>Returns a value indicating whether two <see cref="SessionQuotaPlanTier"/> instances are equivalent.</summary>
+    public static bool operator ==(SessionQuotaPlanTier left, SessionQuotaPlanTier right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="SessionQuotaPlanTier"/> instances are not equivalent.</summary>
+    public static bool operator !=(SessionQuotaPlanTier left, SessionQuotaPlanTier right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is SessionQuotaPlanTier other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(SessionQuotaPlanTier other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{SessionQuotaPlanTier}"/> for serializing <see cref="SessionQuotaPlanTier"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<SessionQuotaPlanTier>
+    {
+        /// <inheritdoc />
+        public override SessionQuotaPlanTier Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, SessionQuotaPlanTier value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SessionQuotaPlanTier));
+        }
+    }
+}
+
+
 /// <summary>Client population used for the prediction baseline.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
@@ -45744,6 +45982,12 @@ public sealed class SessionRpc
         Interlocked.CompareExchange(ref field, new(_session), null) ??
         field;
 
+    /// <summary>Quota APIs.</summary>
+    public QuotaApi Quota =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_session), null) ??
+        field;
+
     /// <summary>LimitPrediction APIs.</summary>
     public LimitPredictionApi LimitPrediction =>
         field ??
@@ -46761,7 +47005,7 @@ public sealed class ModelApi
     }
 
     /// <summary>Switches the session to a model and optional reasoning configuration.</summary>
-    /// <param name="modelId">Model selection id to switch to, as returned by `list`. A bare id (e.g. `claude-sonnet-4.6`) names a Copilot (CAPI) model; a provider-qualified id (`provider/id`, e.g. `acme/claude-sonnet`) targets a registry BYOK model.</param>
+    /// <param name="modelId">Model id to switch to, as returned by `list`. Include providerId to select an exact catalog entry when providers share the id. Without providerId, a bare id retains incumbent selection behavior; a registry-qualified id (`provider/id`, e.g. `acme/claude-sonnet`) targets a BYOK model.</param>
     /// <param name="autoTier">Optional Auto routing preference to stage atomically with selecting `auto`. Pass null to return to provider-default Auto routing. This field is rejected when `modelId` is not `auto`.</param>
     /// <param name="reasoningEffort">Reasoning effort level to use for the model. CAPI values are model-defined and validated against the selected model; BYOK providers may define additional values. "none" disables reasoning. Pass null to clear any session effort override and fall back to the model's default. When omitted, the session's current effort is kept.</param>
     /// <param name="reasoningSummary">Reasoning summary mode to request for supported model clients.</param>
@@ -46783,8 +47027,21 @@ public sealed class ModelApi
         ArgumentNullException.ThrowIfNull(modelId);
         _session.ThrowIfDisposed();
 
-        var request = new ModelSwitchToRequest { SessionId = _session.SessionId, ModelId = modelId, AutoTier = autoTier, ReasoningEffort = reasoningEffort, ReasoningSummary = reasoningSummary, Verbosity = verbosity, ModelCapabilities = modelCapabilities, ContextTier = contextTier, Source = source, DeferIfModelChangeQueued = deferIfModelChangeQueued, CompactionDecision = compactionDecision, RunCompactionPreflight = runCompactionPreflight, RepoScope = repoScope, ModelChangeScope = modelChangeScope, RequireAvailable = requireAvailable, PickerPersistence = pickerPersistence };
+        var request = new ModelSwitchToRequestWithSession { SessionId = _session.SessionId, ModelId = modelId, AutoTier = autoTier, ReasoningEffort = reasoningEffort, ReasoningSummary = reasoningSummary, Verbosity = verbosity, ModelCapabilities = modelCapabilities, ContextTier = contextTier, Source = source, DeferIfModelChangeQueued = deferIfModelChangeQueued, CompactionDecision = compactionDecision, RunCompactionPreflight = runCompactionPreflight, RepoScope = repoScope, ModelChangeScope = modelChangeScope, RequireAvailable = requireAvailable, PickerPersistence = pickerPersistence };
         return await CopilotClient.InvokeRpcAsync<ModelSwitchToResult>(_session.Rpc, "session.model.switchTo", [request], cancellationToken);
+    }
+
+    /// <summary>Switches the session to a model and optional reasoning configuration.</summary>
+    /// <param name="request">Target model identifier and optional reasoning effort, summary, capability overrides, and context tier.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>The model identifier active on the session after the switch.</returns>
+    public async Task<ModelSwitchToResult> SwitchToAsync(ModelSwitchToRequest request, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(request.ModelId);
+        _session.ThrowIfDisposed();
+        var wireRequest = new ModelSwitchToRequestWithSession { SessionId = _session.SessionId, ModelId = request.ModelId, ProviderId = request.ProviderId, AutoTier = request.AutoTier, ReasoningEffort = request.ReasoningEffort, ReasoningSummary = request.ReasoningSummary, Verbosity = request.Verbosity, ModelCapabilities = request.ModelCapabilities, ContextTier = request.ContextTier, Source = request.Source, DeferIfModelChangeQueued = request.DeferIfModelChangeQueued, CompactionDecision = request.CompactionDecision, RunCompactionPreflight = request.RunCompactionPreflight, RepoScope = request.RepoScope, ModelChangeScope = request.ModelChangeScope, RequireAvailable = request.RequireAvailable, PickerPersistence = request.PickerPersistence };
+        return await CopilotClient.InvokeRpcAsync<ModelSwitchToResult>(_session.Rpc, "session.model.switchTo", [wireRequest], cancellationToken);
     }
 
     /// <summary>Requests an Auto preference change without changing the session's selected model. The latest unclaimed request wins; the runtime commits it only after a later prompt using the `auto` model mints a usable model and token pair. A `pending` response confirms that the request was accepted, not that it committed. Observe eventual success through `session.model_change`, failure through the ephemeral `session.auto_tier_switch_failed` event, or current unclaimed state through `session.model.getCurrent`.</summary>
@@ -46806,6 +47063,7 @@ public sealed class ModelApi
     /// <param name="policyHelperModel">Startup default model from the enterprise policy helper, when configured. Weakest of the managed sources: it applies only when neither device nor server policy names a model, and an explicit user selection still wins.</param>
     /// <param name="autoTier">Effective default Auto routing preference from user and managed settings. Applies only to fresh sessions and never replaces a per-session selection.</param>
     /// <param name="repoModel">Model selected by repository settings, when configured.</param>
+    /// <param name="repoModelProviderId">Provider owning the repository-selected model. Omitted repository provider identity retains legacy bare-model behavior.</param>
     /// <param name="repoReasoningEffort">Reasoning effort selected by repository settings, when configured.</param>
     /// <param name="repoContextTier">Context tier selected by repository settings, when configured.</param>
     /// <param name="repoAutoTier">Auto routing preference selected by repository settings, when configured. Applied only when the overlay selects the Auto model; beside a concrete model it stays dormant.</param>
@@ -46815,12 +47073,25 @@ public sealed class ModelApi
     /// <param name="managedContextTier">Context tier paired with the effective organization-managed model. Applies only when that concrete managed model is selected; it is ignored for Auto and for CLI, resume, or user overrides.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>The model identifier active on the session after the switch.</returns>
-    internal async Task<ModelSwitchToResult> ApplyStartupOverlayAsync(string? deviceManagedModel = null, string? serverManagedModel = null, string? policyHelperModel = null, AutoTier? autoTier = null, string? repoModel = null, string? repoReasoningEffort = null, string? repoContextTier = null, string? repoAutoTier = null, string? cliModel = null, bool? deferredResume = null, string? managedReasoningEffort = null, string? managedContextTier = null, CancellationToken cancellationToken = default)
+    internal async Task<ModelSwitchToResult> ApplyStartupOverlayAsync(string? deviceManagedModel = null, string? serverManagedModel = null, string? policyHelperModel = null, AutoTier? autoTier = null, string? repoModel = null, string? repoModelProviderId = null, string? repoReasoningEffort = null, string? repoContextTier = null, string? repoAutoTier = null, string? cliModel = null, bool? deferredResume = null, string? managedReasoningEffort = null, string? managedContextTier = null, CancellationToken cancellationToken = default)
     {
         _session.ThrowIfDisposed();
 
-        var request = new ModelApplyStartupOverlayRequest { SessionId = _session.SessionId, DeviceManagedModel = deviceManagedModel, ServerManagedModel = serverManagedModel, PolicyHelperModel = policyHelperModel, AutoTier = autoTier, RepoModel = repoModel, RepoReasoningEffort = repoReasoningEffort, RepoContextTier = repoContextTier, RepoAutoTier = repoAutoTier, CliModel = cliModel, DeferredResume = deferredResume, ManagedReasoningEffort = managedReasoningEffort, ManagedContextTier = managedContextTier };
+        var request = new ModelApplyStartupOverlayRequest { SessionId = _session.SessionId, DeviceManagedModel = deviceManagedModel, ServerManagedModel = serverManagedModel, PolicyHelperModel = policyHelperModel, AutoTier = autoTier, RepoModel = repoModel, RepoModelProviderId = repoModelProviderId, RepoReasoningEffort = repoReasoningEffort, RepoContextTier = repoContextTier, RepoAutoTier = repoAutoTier, CliModel = cliModel, DeferredResume = deferredResume, ManagedReasoningEffort = managedReasoningEffort, ManagedContextTier = managedContextTier };
         return await CopilotClient.InvokeRpcAsync<ModelSwitchToResult>(_session.Rpc, "session.model.applyStartupOverlay", [request], cancellationToken);
+    }
+
+    /// <summary>Clears an unchanged startup model/provider seed before default-model resolution. Never clears a resumed or user-selected model.</summary>
+    /// <param name="expectedModel">The expectedModel parameter.</param>
+    /// <param name="expectedProviderId">Provider captured with the startup seed; omission matches only an unqualified seed.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    internal async Task<SessionModelClearStartupSeedResult> ClearStartupSeedAsync(string expectedModel, string? expectedProviderId = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(expectedModel);
+        _session.ThrowIfDisposed();
+
+        var request = new SessionModelClearStartupSeedRequest { SessionId = _session.SessionId, ExpectedModel = expectedModel, ExpectedProviderId = expectedProviderId };
+        return await CopilotClient.InvokeRpcAsync<SessionModelClearStartupSeedResult>(_session.Rpc, "session.model.clearStartupSeed", [request], cancellationToken);
     }
 
     /// <summary>Replaces or clears the host-supplied model allowlist for a running session.</summary>
@@ -46889,6 +47160,7 @@ public sealed class ModeApi
     /// <param name="inheritPlanBaseFromSessionId">Session whose plan-mode base state should be inherited.</param>
     /// <param name="planModelConfigured">Whether a dedicated plan model is configured.</param>
     /// <param name="planModel">Dedicated model to use in plan mode, when configured.</param>
+    /// <param name="planModelProviderId">Provider owning planModel. Omit for legacy bare-model selection.</param>
     /// <param name="planReasoningEffort">Reasoning effort to use with the dedicated plan model.</param>
     /// <param name="planContextTier">Context tier to use with the dedicated plan model.</param>
     /// <param name="compactionDecision">Explicit response to a model-switch compaction preflight.</param>
@@ -46898,11 +47170,11 @@ public sealed class ModeApi
     /// <param name="planExitAction">Action to perform when leaving plan mode.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Outcome of a session mode change, including any model switch it triggered and follow-up the host must perform.</returns>
-    public async Task<ModeSetResult> SetAsync(SessionMode mode, SessionMode? expectedMode = null, string? inheritPlanBaseFromSessionId = null, bool? planModelConfigured = null, string? planModel = null, string? planReasoningEffort = null, string? planContextTier = null, string? compactionDecision = null, bool? restorePlanModel = null, bool? persistPlanSelection = null, ModelPickerSettingsContext? pickerSettingsContext = null, string? planExitAction = null, CancellationToken cancellationToken = default)
+    public async Task<ModeSetResult> SetAsync(SessionMode mode, SessionMode? expectedMode = null, string? inheritPlanBaseFromSessionId = null, bool? planModelConfigured = null, string? planModel = null, string? planModelProviderId = null, string? planReasoningEffort = null, string? planContextTier = null, string? compactionDecision = null, bool? restorePlanModel = null, bool? persistPlanSelection = null, ModelPickerSettingsContext? pickerSettingsContext = null, string? planExitAction = null, CancellationToken cancellationToken = default)
     {
         _session.ThrowIfDisposed();
 
-        var request = new ModeSetRequest { SessionId = _session.SessionId, Mode = mode, ExpectedMode = expectedMode, InheritPlanBaseFromSessionId = inheritPlanBaseFromSessionId, PlanModelConfigured = planModelConfigured, PlanModel = planModel, PlanReasoningEffort = planReasoningEffort, PlanContextTier = planContextTier, CompactionDecision = compactionDecision, RestorePlanModel = restorePlanModel, PersistPlanSelection = persistPlanSelection, PickerSettingsContext = pickerSettingsContext, PlanExitAction = planExitAction };
+        var request = new ModeSetRequest { SessionId = _session.SessionId, Mode = mode, ExpectedMode = expectedMode, InheritPlanBaseFromSessionId = inheritPlanBaseFromSessionId, PlanModelConfigured = planModelConfigured, PlanModel = planModel, PlanModelProviderId = planModelProviderId, PlanReasoningEffort = planReasoningEffort, PlanContextTier = planContextTier, CompactionDecision = compactionDecision, RestorePlanModel = restorePlanModel, PersistPlanSelection = persistPlanSelection, PickerSettingsContext = pickerSettingsContext, PlanExitAction = planExitAction };
         return await CopilotClient.InvokeRpcAsync<ModeSetResult>(_session.Rpc, "session.mode.set", [request], cancellationToken);
     }
 }
@@ -49267,6 +49539,17 @@ public sealed class ToolsApi
         return await CopilotClient.InvokeRpcAsync<HandlePendingToolCallResult>(_session.Rpc, "session.tools.handlePendingToolCall", [request], cancellationToken);
     }
 
+    /// <summary>Lists the external tool calls of the session and its sub-agents that are still waiting for session.tools.handlePendingToolCall.</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>External tool calls still waiting for a result.</returns>
+    public async Task<PendingExternalToolRequestList> ListPendingRequestsAsync(CancellationToken cancellationToken = default)
+    {
+        _session.ThrowIfDisposed();
+
+        var request = new ToolsListPendingRequestsRequest { SessionId = _session.SessionId };
+        return await CopilotClient.InvokeRpcAsync<PendingExternalToolRequestList>(_session.Rpc, "session.tools.listPendingRequests", [request], cancellationToken);
+    }
+
     /// <summary>Resolves, builds, and validates the runtime tool list for the session.</summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Resolve, build, and validate the runtime tool list for this session. Subagent sessions and consumer flows that need an initialized tool set before `send` invoke this. Default base-class implementation is a no-op for sessions that don't support tool validation.</returns>
@@ -50094,13 +50377,14 @@ public sealed class MetadataApi
     /// <param name="promptTokenLimit">Advertised prompt allowance. Pass 0 to resolve the selected model and context tier from the session.</param>
     /// <param name="outputTokenLimit">Requested output allowance to reserve against the combined context ceiling. Pass 0 to resolve the session's request cap, falling back to the model's advertised output limit.</param>
     /// <param name="selectedModel">Model identifier used for tokenization. Omit to use the session default. Used both for token counting and to compute display values.</param>
+    /// <param name="providerId">Provider owning selectedModel. Omit to use the current provider for the current model, or deterministic legacy lookup for a different model.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Token breakdown for the session's current context window, or null if uninitialized.</returns>
-    public async Task<MetadataContextInfoResult> ContextInfoAsync(long promptTokenLimit, long outputTokenLimit, string? selectedModel = null, CancellationToken cancellationToken = default)
+    public async Task<MetadataContextInfoResult> ContextInfoAsync(long promptTokenLimit, long outputTokenLimit, string? selectedModel = null, string? providerId = null, CancellationToken cancellationToken = default)
     {
         _session.ThrowIfDisposed();
 
-        var request = new MetadataContextInfoRequest { SessionId = _session.SessionId, PromptTokenLimit = promptTokenLimit, OutputTokenLimit = outputTokenLimit, SelectedModel = selectedModel };
+        var request = new MetadataContextInfoRequest { SessionId = _session.SessionId, PromptTokenLimit = promptTokenLimit, OutputTokenLimit = outputTokenLimit, SelectedModel = selectedModel, ProviderId = providerId };
         return await CopilotClient.InvokeRpcAsync<MetadataContextInfoResult>(_session.Rpc, "session.metadata.contextInfo", [request], cancellationToken);
     }
 
@@ -50773,6 +51057,64 @@ public sealed class UsageApi
 
         var request = new SessionUsageGetMetricsRequest { SessionId = _session.SessionId };
         return await CopilotClient.InvokeRpcAsync<UsageGetMetricsResult>(_session.Rpc, "session.usage.getMetrics", [request], cancellationToken);
+    }
+
+    /// <summary>Internal host-only replacement of absolute code-change totals reported by a relay host.</summary>
+    /// <param name="linesAdded">Absolute added-line total, replacing the previous reading.</param>
+    /// <param name="linesRemoved">Absolute removed-line total, replacing the previous reading.</param>
+    /// <param name="filesCount">Absolute changed-file count; omission preserves the previous count.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    internal async Task SetCodeChangesAsync(double linesAdded, double linesRemoved, double? filesCount = null, CancellationToken cancellationToken = default)
+    {
+        _session.ThrowIfDisposed();
+
+        var request = new SessionUsageSetCodeChangesRequest { SessionId = _session.SessionId, LinesAdded = linesAdded, LinesRemoved = linesRemoved, FilesCount = filesCount };
+        await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.usage.setCodeChanges", [request], cancellationToken);
+    }
+}
+
+/// <summary>Provides session-scoped Quota APIs.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class QuotaApi
+{
+    private readonly CopilotSession _session;
+
+    internal QuotaApi(CopilotSession session)
+    {
+        _session = session;
+    }
+
+    /// <summary>Gets the session's current quota and account projection without making a network request.</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>The incumbent session-owned quota and account projection.</returns>
+    public async Task<SessionQuotaGetResult> GetAsync(CancellationToken cancellationToken = default)
+    {
+        _session.ThrowIfDisposed();
+
+        var request = new SessionQuotaGetRequest { SessionId = _session.SessionId };
+        return await CopilotClient.InvokeRpcAsync<SessionQuotaGetResult>(_session.Rpc, "session.quota.get", [request], cancellationToken);
+    }
+
+    /// <summary>Refreshes the session's provider model catalog bypassing its cache, folds quota snapshots into session state, and returns the updated projection. Failures leave the last known quota intact.</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>The incumbent session-owned quota and account projection.</returns>
+    public async Task<SessionQuotaRefreshResult> RefreshAsync(CancellationToken cancellationToken = default)
+    {
+        _session.ThrowIfDisposed();
+
+        var request = new SessionQuotaRefreshRequest { SessionId = _session.SessionId };
+        return await CopilotClient.InvokeRpcAsync<SessionQuotaRefreshResult>(_session.Rpc, "session.quota.refresh", [request], cancellationToken);
+    }
+
+    /// <summary>Returns and clears the session's pending quota warnings. Reading or refreshing quota does not drain warnings.</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Pending warnings returned and cleared by session.quota.takeWarnings.</returns>
+    public async Task<IList<QuotaWarningProjection>> TakeWarningsAsync(CancellationToken cancellationToken = default)
+    {
+        _session.ThrowIfDisposed();
+
+        var request = new SessionQuotaTakeWarningsRequest { SessionId = _session.SessionId };
+        return await CopilotClient.InvokeRpcAsync<IList<QuotaWarningProjection>>(_session.Rpc, "session.quota.takeWarnings", [request], cancellationToken);
     }
 }
 
@@ -51475,6 +51817,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.AgentInterruptedData), TypeInfoPropertyName = "SessionEventsAgentInterruptedData")]
 [JsonSerializable(typeof(GitHub.Copilot.AgentInterruptedEvent), TypeInfoPropertyName = "SessionEventsAgentInterruptedEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.AgentModelPolicy), TypeInfoPropertyName = "SessionEventsAgentModelPolicy")]
+[JsonSerializable(typeof(GitHub.Copilot.AiCreditsStatus), TypeInfoPropertyName = "SessionEventsAiCreditsStatus")]
 [JsonSerializable(typeof(GitHub.Copilot.AssistantFusionPhaseActivityEvent), TypeInfoPropertyName = "SessionEventsAssistantFusionPhaseActivityEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.AssistantFusionPhaseCompletedEvent), TypeInfoPropertyName = "SessionEventsAssistantFusionPhaseCompletedEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.AssistantFusionPhaseFailedEvent), TypeInfoPropertyName = "SessionEventsAssistantFusionPhaseFailedEvent")]
@@ -51693,6 +52036,8 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.ModelCallWebSocketFallbackReason), TypeInfoPropertyName = "SessionEventsModelCallWebSocketFallbackReason")]
 [JsonSerializable(typeof(GitHub.Copilot.ModelChangeSource), TypeInfoPropertyName = "SessionEventsModelChangeSource")]
 [JsonSerializable(typeof(GitHub.Copilot.ModelDeselectedReason), TypeInfoPropertyName = "SessionEventsModelDeselectedReason")]
+[JsonSerializable(typeof(GitHub.Copilot.ModelProviderKind), TypeInfoPropertyName = "SessionEventsModelProviderKind")]
+[JsonSerializable(typeof(GitHub.Copilot.ModelProviderRef), TypeInfoPropertyName = "SessionEventsModelProviderRef")]
 [JsonSerializable(typeof(GitHub.Copilot.OmittedBinaryOmittedReason), TypeInfoPropertyName = "SessionEventsOmittedBinaryOmittedReason")]
 [JsonSerializable(typeof(GitHub.Copilot.OmittedBinaryResult), TypeInfoPropertyName = "SessionEventsOmittedBinaryResult")]
 [JsonSerializable(typeof(GitHub.Copilot.OmittedBinaryType), TypeInfoPropertyName = "SessionEventsOmittedBinaryType")]
@@ -51774,6 +52119,14 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.PlanChangedOperation), TypeInfoPropertyName = "SessionEventsPlanChangedOperation")]
 [JsonSerializable(typeof(GitHub.Copilot.PromptCacheBreakData), TypeInfoPropertyName = "SessionEventsPromptCacheBreakData")]
 [JsonSerializable(typeof(GitHub.Copilot.PromptCacheBreakEvent), TypeInfoPropertyName = "SessionEventsPromptCacheBreakEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.ProviderQuotaAccessState), TypeInfoPropertyName = "SessionEventsProviderQuotaAccessState")]
+[JsonSerializable(typeof(GitHub.Copilot.ProviderQuotaAcquisitionStatus), TypeInfoPropertyName = "SessionEventsProviderQuotaAcquisitionStatus")]
+[JsonSerializable(typeof(GitHub.Copilot.ProviderQuotaBudgetMetadata), TypeInfoPropertyName = "SessionEventsProviderQuotaBudgetMetadata")]
+[JsonSerializable(typeof(GitHub.Copilot.ProviderQuotaCapacityState), TypeInfoPropertyName = "SessionEventsProviderQuotaCapacityState")]
+[JsonSerializable(typeof(GitHub.Copilot.ProviderQuotaObservationKind), TypeInfoPropertyName = "SessionEventsProviderQuotaObservationKind")]
+[JsonSerializable(typeof(GitHub.Copilot.ProviderQuotaQuantityKind), TypeInfoPropertyName = "SessionEventsProviderQuotaQuantityKind")]
+[JsonSerializable(typeof(GitHub.Copilot.ProviderQuotaState), TypeInfoPropertyName = "SessionEventsProviderQuotaState")]
+[JsonSerializable(typeof(GitHub.Copilot.ProviderQuotaUnit), TypeInfoPropertyName = "SessionEventsProviderQuotaUnit")]
 [JsonSerializable(typeof(GitHub.Copilot.ReasoningSummary), TypeInfoPropertyName = "SessionEventsReasoningSummary")]
 [JsonSerializable(typeof(GitHub.Copilot.RecommendedAutoTier), TypeInfoPropertyName = "SessionEventsRecommendedAutoTier")]
 [JsonSerializable(typeof(GitHub.Copilot.RemediationAction), TypeInfoPropertyName = "SessionEventsRemediationAction")]
@@ -51912,6 +52265,16 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.ToolUserRequestedData), TypeInfoPropertyName = "SessionEventsToolUserRequestedData")]
 [JsonSerializable(typeof(GitHub.Copilot.ToolUserRequestedEvent), TypeInfoPropertyName = "SessionEventsToolUserRequestedEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.UIEphemeralQueryPhase), TypeInfoPropertyName = "SessionEventsUIEphemeralQueryPhase")]
+[JsonSerializable(typeof(GitHub.Copilot.UsageAccountingIdentity), TypeInfoPropertyName = "SessionEventsUsageAccountingIdentity")]
+[JsonSerializable(typeof(GitHub.Copilot.UsageGetMetricsResult), TypeInfoPropertyName = "SessionEventsUsageGetMetricsResult")]
+[JsonSerializable(typeof(GitHub.Copilot.UsageMetricsAgentMetric), TypeInfoPropertyName = "SessionEventsUsageMetricsAgentMetric")]
+[JsonSerializable(typeof(GitHub.Copilot.UsageMetricsCodeChanges), TypeInfoPropertyName = "SessionEventsUsageMetricsCodeChanges")]
+[JsonSerializable(typeof(GitHub.Copilot.UsageMetricsModelMetric), TypeInfoPropertyName = "SessionEventsUsageMetricsModelMetric")]
+[JsonSerializable(typeof(GitHub.Copilot.UsageMetricsModelMetricRequests), TypeInfoPropertyName = "SessionEventsUsageMetricsModelMetricRequests")]
+[JsonSerializable(typeof(GitHub.Copilot.UsageMetricsModelMetricTokenDetail), TypeInfoPropertyName = "SessionEventsUsageMetricsModelMetricTokenDetail")]
+[JsonSerializable(typeof(GitHub.Copilot.UsageMetricsModelMetricUsage), TypeInfoPropertyName = "SessionEventsUsageMetricsModelMetricUsage")]
+[JsonSerializable(typeof(GitHub.Copilot.UsageMetricsProviderModelMetric), TypeInfoPropertyName = "SessionEventsUsageMetricsProviderModelMetric")]
+[JsonSerializable(typeof(GitHub.Copilot.UsageMetricsTokenDetail), TypeInfoPropertyName = "SessionEventsUsageMetricsTokenDetail")]
 [JsonSerializable(typeof(GitHub.Copilot.UserInputCompletedData), TypeInfoPropertyName = "SessionEventsUserInputCompletedData")]
 [JsonSerializable(typeof(GitHub.Copilot.UserInputCompletedEvent), TypeInfoPropertyName = "SessionEventsUserInputCompletedEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.UserInputRequestedData), TypeInfoPropertyName = "SessionEventsUserInputRequestedData")]
@@ -52225,6 +52588,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(IDictionary<string, string>))]
 [JsonSerializable(typeof(IList<AccountAllUsers>))]
 [JsonSerializable(typeof(IList<AuthValidationError>))]
+[JsonSerializable(typeof(IList<QuotaWarningProjection>))]
 [JsonSerializable(typeof(IList<SessionAuthStatus>))]
 [JsonSerializable(typeof(IList<SessionsClientMetadataEntry>))]
 [JsonSerializable(typeof(InstallationCatalogueIdentity))]
@@ -52476,7 +52840,6 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(ModelProviderOperationOutcome))]
 [JsonSerializable(typeof(ModelProviderPrepareConfigurationRequest))]
 [JsonSerializable(typeof(ModelProviderProvenance))]
-[JsonSerializable(typeof(ModelProviderRef))]
 [JsonSerializable(typeof(ModelProviderStatus))]
 [JsonSerializable(typeof(ModelProviderWarning))]
 [JsonSerializable(typeof(ModelSetAllowedModelsRequest))]
@@ -52487,6 +52850,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(ModelSwitchAutoTierResult))]
 [JsonSerializable(typeof(ModelSwitchConfirmation))]
 [JsonSerializable(typeof(ModelSwitchToRequest))]
+[JsonSerializable(typeof(ModelSwitchToRequestWithSession))]
 [JsonSerializable(typeof(ModelSwitchToResult))]
 [JsonSerializable(typeof(ModelWarningText))]
 [JsonSerializable(typeof(ModelsListRequest))]
@@ -52500,6 +52864,8 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(OptionsUpdateAdditionalContentExclusionPolicy))]
 [JsonSerializable(typeof(OptionsUpdateAdditionalContentExclusionPolicyRule))]
 [JsonSerializable(typeof(OptionsUpdateAdditionalContentExclusionPolicyRuleSource))]
+[JsonSerializable(typeof(PendingExternalToolRequest))]
+[JsonSerializable(typeof(PendingExternalToolRequestList))]
 [JsonSerializable(typeof(PendingPermissionRequest))]
 [JsonSerializable(typeof(PendingPermissionRequestList))]
 [JsonSerializable(typeof(PermissionDecision))]
@@ -52641,6 +53007,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(QueueWithdrawMessageRequest))]
 [JsonSerializable(typeof(QueueWithdrawMessageResult))]
 [JsonSerializable(typeof(QueuedCommandResult))]
+[JsonSerializable(typeof(QuotaWarningProjection))]
 [JsonSerializable(typeof(RegisterEventInterestParams))]
 [JsonSerializable(typeof(RegisterEventInterestResult))]
 [JsonSerializable(typeof(ReleaseEventInterestParams))]
@@ -52810,6 +53177,8 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(SessionMetadataSnapshotRequest))]
 [JsonSerializable(typeof(SessionMetadataSnapshotWorkspace))]
 [JsonSerializable(typeof(SessionModeGetRequest))]
+[JsonSerializable(typeof(SessionModelClearStartupSeedRequest))]
+[JsonSerializable(typeof(SessionModelClearStartupSeedResult))]
 [JsonSerializable(typeof(SessionModelGetCurrentRequest))]
 [JsonSerializable(typeof(SessionModelList))]
 [JsonSerializable(typeof(SessionModelListRequest))]
@@ -52841,6 +53210,13 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(SessionQueueProcessRequest))]
 [JsonSerializable(typeof(SessionQueueRemoveMostRecentRequest))]
 [JsonSerializable(typeof(SessionQueueSnapshotRequest))]
+[JsonSerializable(typeof(SessionQuotaDelegateWarning))]
+[JsonSerializable(typeof(SessionQuotaGetRequest))]
+[JsonSerializable(typeof(SessionQuotaGetResult))]
+[JsonSerializable(typeof(SessionQuotaRefreshRequest))]
+[JsonSerializable(typeof(SessionQuotaRefreshResult))]
+[JsonSerializable(typeof(SessionQuotaSnapshot))]
+[JsonSerializable(typeof(SessionQuotaTakeWarningsRequest))]
 [JsonSerializable(typeof(SessionRemoteDisableRequest))]
 [JsonSerializable(typeof(SessionSandboxGetEnforcementStatusRequest))]
 [JsonSerializable(typeof(SessionScheduleHasSelfPacedRequest))]
@@ -52877,6 +53253,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(SessionUpdateOptionsParams))]
 [JsonSerializable(typeof(SessionUpdateOptionsResult))]
 [JsonSerializable(typeof(SessionUsageGetMetricsRequest))]
+[JsonSerializable(typeof(SessionUsageSetCodeChangesRequest))]
 [JsonSerializable(typeof(SessionVisibilityGetRequest))]
 [JsonSerializable(typeof(SessionWorkflowPauseAtCheckpointResult))]
 [JsonSerializable(typeof(SessionWorkingDirectoryContext))]
@@ -53029,6 +53406,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(ToolsGetBuiltinDescriptorsResult))]
 [JsonSerializable(typeof(ToolsGetCurrentMetadataResult))]
 [JsonSerializable(typeof(ToolsInitializeAndValidateResult))]
+[JsonSerializable(typeof(ToolsListPendingRequestsRequest))]
 [JsonSerializable(typeof(ToolsListRequest))]
 [JsonSerializable(typeof(ToolsSetRequest))]
 [JsonSerializable(typeof(ToolsSetResult))]
@@ -53057,14 +53435,6 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(UIUserInputResponse))]
 [JsonSerializable(typeof(UpdateSubagentSettingsRequest))]
 [JsonSerializable(typeof(UpdateSubagentSettingsRequestSubagents))]
-[JsonSerializable(typeof(UsageGetMetricsResult))]
-[JsonSerializable(typeof(UsageMetricsAgentMetric))]
-[JsonSerializable(typeof(UsageMetricsCodeChanges))]
-[JsonSerializable(typeof(UsageMetricsModelMetric))]
-[JsonSerializable(typeof(UsageMetricsModelMetricRequests))]
-[JsonSerializable(typeof(UsageMetricsModelMetricTokenDetail))]
-[JsonSerializable(typeof(UsageMetricsModelMetricUsage))]
-[JsonSerializable(typeof(UsageMetricsTokenDetail))]
 [JsonSerializable(typeof(UserRequestedShellCommandResult))]
 [JsonSerializable(typeof(UserSettingMetadata))]
 [JsonSerializable(typeof(UserSettingsGetResult))]

@@ -42,6 +42,8 @@ public final class AssistantMessageEvent extends SessionEvent {
         @JsonProperty("originatingMessageId") String originatingMessageId,
         /** Model that produced this assistant message, if known */
         @JsonProperty("model") String model,
+        /** Opaque origin provider identity captured at dispatch. Only an exact match with the target provider permits replay of reasoningOpaque, encryptedContent, reasoningBlocks, serverTools, and provider response/item identifiers. Matching model ids or wire protocols is insufficient. Omitted for legacy or unattributed messages; the runtime excludes unproven opaque state when projecting to a known provider. Text content and client tool requests/results remain portable semantic history. */
+        @JsonProperty("providerId") String providerId,
         /** The assistant's text response content */
         @JsonProperty("content") String content,
         /** Tool invocations requested by the assistant in this message */

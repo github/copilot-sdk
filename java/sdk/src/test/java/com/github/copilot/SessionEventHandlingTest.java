@@ -404,9 +404,7 @@ public class SessionEventHandlingTest {
             capturedSessionId.set(start.getData().sessionId());
         });
 
-        SessionStartEvent startEvent = createSessionStartEvent();
-        startEvent.setData(new SessionStartEvent.SessionStartEventData("my-session-123", null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null, null, null, null));
+        SessionStartEvent startEvent = createSessionStartEvent("my-session-123");
         dispatchEvent(startEvent);
 
         AssistantMessageEvent msgEvent = createAssistantMessageEvent("Test content");
@@ -1101,9 +1099,9 @@ public class SessionEventHandlingTest {
 
     private AssistantMessageEvent createAssistantMessageEvent(String content) {
         var event = new AssistantMessageEvent();
-        var data = new AssistantMessageEvent.AssistantMessageEventData(null, null, null, content, null, null, null,
+        var data = new AssistantMessageEvent.AssistantMessageEventData(null, null, null, null, content, null, null,
                 null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
-                null);
+                null, null);
         event.setData(data);
         return event;
     }

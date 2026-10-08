@@ -11,7 +11,7 @@ import { z } from "zod";
 import { approveAll, defineTool } from "../../src/index.js";
 import type { CopilotSession, SessionEvent } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
-import { waitForCondition } from "./harness/sdkTestHelper.js";
+import { formatError, waitForCondition } from "./harness/sdkTestHelper.js";
 
 describe("Shell and fleet RPC", async () => {
     const { copilotClient: client, workDir } = await createSdkTestContext();
@@ -26,7 +26,8 @@ describe("Shell and fleet RPC", async () => {
     async function waitForFileText(
         filePath: string,
         expected: string,
-        timeoutMs = 30_000
+        timeoutMs = 30_000,
+        diagnosticPaths: string[] = []
     ): Promise<void> {
         const deadline = Date.now() + timeoutMs;
         while (Date.now() < deadline) {
@@ -38,8 +39,18 @@ describe("Shell and fleet RPC", async () => {
             }
             await new Promise((resolve) => setTimeout(resolve, 100));
         }
+        const diagnostics = diagnosticPaths.map((diagnosticPath) => {
+            try {
+                return fs.existsSync(diagnosticPath)
+                    ? `${path.basename(diagnosticPath)}: ${fs.readFileSync(diagnosticPath, "utf8")}`
+                    : `${path.basename(diagnosticPath)}: absent`;
+            } catch (error) {
+                return `${path.basename(diagnosticPath)}: could not read: ${formatError(error)}`;
+            }
+        });
         throw new Error(
-            `Timed out waiting for shell command to write '${expected}' to '${filePath}'.`
+            `Timed out waiting for shell command to write '${expected}' to '${filePath}'.` +
+                (diagnostics.length ? `\n${diagnostics.join("\n")}` : "")
         );
     }
 
@@ -207,18 +218,33 @@ describe("Shell and fleet RPC", async () => {
         async (outputKind) => {
             const session = await client.createSession({ onPermissionRequest: approveAll });
             const marker = path.join(workDir, `shell-${outputKind}-${randomUUID()}.txt`);
+            const phase = `${marker}.phase`;
+            const recordPhase = (value: string) =>
+                `[IO.File]::WriteAllText('${phase}', '${value}')`;
+            // Publish only after Set-Content has closed its exclusive Windows writer.
+            const publishMarker =
+                `${recordPhase("output-written")}; ` +
+                `Set-Content -LiteralPath '${marker}.pending' -Value done; ` +
+                `${recordPhase("marker-written")}; ` +
+                `Move-Item -LiteralPath '${marker}.pending' -Destination '${marker}'; ` +
+                recordPhase("marker-published");
             const command =
                 outputKind === "stderr"
                     ? os.platform() === "win32"
-                        ? `powershell -NoLogo -NoProfile -Command "[Console]::Error.WriteLine('boom'); Set-Content -LiteralPath '${marker}' -Value done; exit 2"`
+                        ? `powershell -NoLogo -NoProfile -Command "${recordPhase("started")}; [Console]::Error.WriteLine('boom'); ${publishMarker}; exit 2"`
                         : `echo boom 1>&2; printf done > '${marker}'; exit 2`
                     : os.platform() === "win32"
-                      ? `powershell -NoLogo -NoProfile -Command "Write-Host ('x' * 71680); Set-Content -LiteralPath '${marker}' -Value done"`
+                      ? `powershell -NoLogo -NoProfile -Command "${recordPhase("started")}; Write-Host ('x' * 71680); ${publishMarker}"`
                       : `printf '%71680s' '' | tr ' ' '='; printf done > '${marker}'`;
             try {
                 const result = await session.rpc.shell.exec({ command, cwd: workDir });
                 expect(result.processId).toBeTruthy();
-                await waitForFileText(marker, "done");
+                await waitForFileText(
+                    marker,
+                    "done",
+                    30_000,
+                    os.platform() === "win32" ? [phase, `${marker}.pending`] : []
+                );
                 // The process map is updated after the output stream closes.
                 await new Promise((resolve) => setTimeout(resolve, 2_000));
                 expect((await session.rpc.shell.kill({ processId: result.processId })).killed).toBe(

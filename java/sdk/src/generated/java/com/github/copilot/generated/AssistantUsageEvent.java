@@ -38,8 +38,16 @@ public final class AssistantUsageEvent extends SessionEvent {
     @JsonIgnoreProperties(ignoreUnknown = true)
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record AssistantUsageEventData(
+        /** Availability of this call's reported AI-credit amount. Missing billing is unavailable, not a zero charge. */
+        @JsonProperty("aiCreditsStatus") AiCreditsStatus aiCreditsStatus,
         /** Model identifier used for this API call */
         @JsonProperty("model") String model,
+        /** Provider identity and product label captured by the actual call's dispatch path. */
+        @JsonProperty("provider") ModelProviderRef provider,
+        /** Model display name captured for this call, not derived from the current selection. */
+        @JsonProperty("modelDisplayName") String modelDisplayName,
+        /** Runtime-owned identity shared with the durable accounting receipt. */
+        @JsonProperty("accounting") UsageAccountingIdentity accounting,
         /** Number of input tokens consumed */
         @JsonProperty("inputTokens") Long inputTokens,
         /** Number of output tokens produced */

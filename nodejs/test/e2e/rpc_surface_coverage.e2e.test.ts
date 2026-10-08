@@ -327,7 +327,7 @@ describe("Generated RPC surface coverage", () => {
             ...collectRuntimeFunctions(session.rpc, "session"),
         ]);
 
-        expect(inventory).toHaveLength(399);
+        expect(inventory).toHaveLength(403);
         expect(inventory.some((method) => method.wireMethod === "user.settings.reload")).toBe(
             false
         );
@@ -346,6 +346,13 @@ describe("Generated RPC surface coverage", () => {
             "providers.models.prepareConfiguration",
         ];
         for (const path of sessionProviderMethods) {
+            const wireMethod = `session.${path}`;
+            expect(
+                inventory.filter((method) => method.wireMethod === wireMethod),
+                `Missing generated session RPC ${wireMethod}`
+            ).toEqual([expect.objectContaining({ scope: "session", path })]);
+        }
+        for (const path of ["quota.get", "quota.refresh", "quota.takeWarnings"]) {
             const wireMethod = `session.${path}`;
             expect(
                 inventory.filter((method) => method.wireMethod === wireMethod),

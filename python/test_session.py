@@ -621,6 +621,109 @@ async def test_set_tools_keeps_previous_handlers_while_rpc_is_pending_then_swaps
 
 
 @pytest.mark.asyncio
+async def test_set_tools_rejects_a_disconnected_session_without_sending():
+    client = Mock()
+    client.request = AsyncMock(return_value={})
+    session = CopilotSession("session-1", client)
+    session._mark_disconnected()
+
+    async def handler(_invocation):
+        return ToolResult(text_result_for_llm="new result")
+
+    with pytest.raises(RuntimeError, match="Session is disconnected"):
+        await session.set_tools([Tool("new_tool", "New", handler)])
+
+    client.request.assert_not_awaited()
+    assert session._tool_handlers == {}
+    assert not session._set_tools_lock.locked()
+
+
+@pytest.mark.asyncio
+async def test_set_tools_rejects_an_acknowledgement_after_disconnection():
+    rpc_started = asyncio.Event()
+    release_rpc = asyncio.Event()
+    client = Mock()
+
+    async def request(method, params):
+        assert method == "session.tools.set"
+        rpc_started.set()
+        await release_rpc.wait()
+        return {}
+
+    client.request = AsyncMock(side_effect=request)
+    session = CopilotSession("session-1", client)
+
+    async def handler(_invocation):
+        return ToolResult(text_result_for_llm="new result")
+
+    replacement = asyncio.create_task(session.set_tools([Tool("new_tool", "New", handler)]))
+    try:
+        await asyncio.wait_for(rpc_started.wait(), timeout=1)
+        session._mark_disconnected()
+        assert session._tool_handlers == {}
+        release_rpc.set()
+
+        with pytest.raises(RuntimeError, match="Session is disconnected"):
+            await asyncio.wait_for(replacement, timeout=1)
+
+        assert client.request.await_count == 1
+        assert session._tool_handlers == {}
+        assert not session._set_tools_lock.locked()
+    finally:
+        release_rpc.set()
+        replacement.cancel()
+        await asyncio.gather(replacement, return_exceptions=True)
+
+
+@pytest.mark.asyncio
+async def test_set_tools_rejects_a_queued_replacement_after_disconnection():
+    rpc_started = asyncio.Event()
+    release_rpc = asyncio.Event()
+    queued_started = asyncio.Event()
+    client = Mock()
+
+    async def request(method, params):
+        assert method == "session.tools.set"
+        rpc_started.set()
+        await release_rpc.wait()
+        return {}
+
+    client.request = AsyncMock(side_effect=request)
+    session = CopilotSession("session-1", client)
+
+    async def handler(_invocation):
+        return ToolResult(text_result_for_llm="new result")
+
+    async def replace_queued():
+        queued_started.set()
+        await session.set_tools([Tool("queued_tool", "Queued", handler)])
+
+    first = asyncio.create_task(session.set_tools([Tool("first_tool", "First", handler)]))
+    queued = None
+    try:
+        await asyncio.wait_for(rpc_started.wait(), timeout=1)
+        queued = asyncio.create_task(replace_queued())
+        await asyncio.wait_for(queued_started.wait(), timeout=1)
+        session._mark_disconnected()
+        release_rpc.set()
+        results = await asyncio.wait_for(
+            asyncio.gather(first, queued, return_exceptions=True), timeout=1
+        )
+
+        assert all(isinstance(result, RuntimeError) for result in results)
+        assert [str(result) for result in results] == ["Session is disconnected"] * 2
+        assert client.request.await_count == 1
+        assert session._tool_handlers == {}
+        assert not session._set_tools_lock.locked()
+    finally:
+        release_rpc.set()
+        pending = [first, queued] if queued is not None else [first]
+        for task in pending:
+            task.cancel()
+        await asyncio.gather(*pending, return_exceptions=True)
+
+
+@pytest.mark.asyncio
 async def test_set_tools_rejection_leaves_handlers_unchanged():
     client = Mock()
     client.request = AsyncMock(side_effect=JsonRpcError(-32602, "invalid params"))

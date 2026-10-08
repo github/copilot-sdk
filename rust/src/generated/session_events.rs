@@ -83,6 +83,15 @@ pub enum SessionEventType {
     SessionShutdown,
     #[serde(rename = "session.usage_checkpoint")]
     SessionUsageCheckpoint,
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "session.quota_observation")]
+    SessionQuotaObservation,
     #[serde(rename = "session.context_changed")]
     SessionContextChanged,
     #[serde(rename = "session.usage_info")]
@@ -639,6 +648,15 @@ pub enum SessionEventData {
     SessionShutdown(SessionShutdownData),
     #[serde(rename = "session.usage_checkpoint")]
     SessionUsageCheckpoint(SessionUsageCheckpointData),
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "session.quota_observation")]
+    SessionQuotaObservation(SessionQuotaObservationData),
     #[serde(rename = "session.context_changed")]
     SessionContextChanged(SessionContextChangedData),
     #[serde(rename = "session.usage_info")]
@@ -1203,6 +1221,9 @@ pub struct SessionStartData {
     pub github_mcp_tool_config: Option<GitHubMcpToolConfig>,
     /// Identifier of the software producing the events (e.g., "copilot-agent")
     pub producer: String,
+    /// Provider of selectedModel at creation time, when explicitly selected.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provider_id: Option<String>,
     /// Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh", "max")
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_effort: Option<String>,
@@ -1265,6 +1286,9 @@ pub struct SessionResumeData {
     /// On-disk byte size of the session's persisted events.jsonl file at resume time; omitted when the file does not exist or cannot be stat'd
     #[serde(skip_serializing_if = "Option::is_none")]
     pub events_file_size_bytes: Option<i64>,
+    /// Provider of selectedModel at resume time, when explicitly selected.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provider_id: Option<String>,
     /// Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh", "max")
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_effort: Option<String>,
@@ -1564,6 +1588,9 @@ pub struct SessionModelChangeData {
     /// Model that was previously selected, if any
     #[serde(skip_serializing_if = "Option::is_none")]
     pub previous_model: Option<String>,
+    /// Provider of previousModel, when known. A provider-only change is a model selection change even when the model identifiers are equal.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub previous_provider_id: Option<String>,
     /// Reasoning effort level before the model change, if applicable
     #[serde(skip_serializing_if = "Option::is_none")]
     pub previous_reasoning_effort: Option<String>,
@@ -1573,6 +1600,9 @@ pub struct SessionModelChangeData {
     /// Output verbosity level before the model change, if applicable
     #[serde(skip_serializing_if = "Option::is_none")]
     pub previous_verbosity: Option<Verbosity>,
+    /// Provider selected for newModel. Omitted for legacy or unattributed selections; never inferred from a later selection.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provider_id: Option<String>,
     /// Reasoning effort level after the model change, if applicable
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_effort: Option<String>,
@@ -1799,6 +1829,178 @@ pub struct SessionSnapshotRewindData {
     pub up_to_event_id: String,
 }
 
+/// Request count and cost metrics for this model
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UsageMetricsModelMetricRequests {
+    /// User-initiated premium request cost (with multiplier applied)
+    pub cost: f64,
+    /// Number of API requests made with this model
+    pub count: i64,
+}
+
+/// Per-model token-detail entry containing the accumulated token count for one token type.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UsageMetricsModelMetricTokenDetail {
+    /// Accumulated token count for this token type
+    pub token_count: i64,
+}
+
+/// Token usage metrics for this model
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UsageMetricsModelMetricUsage {
+    /// Total tokens read from prompt cache
+    pub cache_read_tokens: i64,
+    /// Total tokens written to prompt cache
+    pub cache_write_tokens: i64,
+    /// Total input tokens consumed
+    pub input_tokens: i64,
+    /// Total output tokens produced
+    pub output_tokens: i64,
+    /// Total output tokens used for reasoning
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning_tokens: Option<i64>,
+}
+
+/// Per-model usage metrics, including request counts/costs, token usage, nano-AI units, and per-token-type details.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UsageMetricsModelMetric {
+    /// Completeness of this model's reported AI-credit subtotal. Explicitly reported zero is complete, not unavailable.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ai_credits_status: Option<AiCreditsStatus>,
+    /// Latest known prompt-cache expiration for this model. A timestamp in the past indicates that the observed cache has expired.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cache_expires_at: Option<String>,
+    /// Request count and cost metrics for this model
+    pub requests: UsageMetricsModelMetricRequests,
+    /// Token count details per type
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub token_details: Option<HashMap<String, UsageMetricsModelMetricTokenDetail>>,
+    /// Accumulated nano-AI units cost for this model
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub total_nano_aiu: Option<f64>,
+    /// Token usage metrics for this model
+    pub usage: UsageMetricsModelMetricUsage,
+}
+
+/// Usage attributed to one agent instance, including its identity, API duration, AI units, and per-model breakdown.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UsageMetricsAgentMetric {
+    /// Human-readable label for this subagent invocation, copied from the originating `subagent.started` event. For task-tool subagents this is the invocation's task description rather than the agent's configured display name, so group by `agentName` for stable per-agent labels.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub agent_display_name: Option<String>,
+    /// Configured agent name, when this is a subagent
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub agent_name: Option<String>,
+    /// Per-model usage for this agent, keyed by model identifier
+    pub model_metrics: HashMap<String, UsageMetricsModelMetric>,
+    /// Time spent in model API calls by this agent, in milliseconds
+    pub total_api_duration_ms: i64,
+    /// Accumulated nano-AI units cost for this agent
+    pub total_nano_aiu: f64,
+}
+
+/// Aggregated code change metrics
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UsageMetricsCodeChanges {
+    /// Distinct file paths modified during the session
+    pub files_modified: Vec<String>,
+    /// Number of distinct files modified
+    pub files_modified_count: i64,
+    /// Total lines of code added
+    pub lines_added: i64,
+    /// Total lines of code removed
+    pub lines_removed: i64,
+}
+
+/// A neutral reference to the model provider that produced a model: an opaque id, a human-readable label, and the provider kind. Carried on each enumerated Model so consumers can group by provider without reaching into a provider-shaped internal type.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelProviderRef {
+    /// Opaque, stable id of the provider that produced this model. Matches the enumerated `ModelProviderDescriptor.id`.
+    pub id: String,
+    /// The provider kind.
+    pub kind: ModelProviderKind,
+    /// Human-readable provider label, owned by the runtime so every consumer renders identical text.
+    pub label: String,
+}
+
+/// Usage for one recorded provider and model, without merging identical model IDs across providers.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UsageMetricsProviderModelMetric {
+    /// Request, token, and cost totals for this provider/model.
+    pub metrics: UsageMetricsModelMetric,
+    /// Model display name captured at call time, when known.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model_display_name: Option<String>,
+    /// Model identity, or null for legacy aggregate-only usage.
+    pub model_id: Option<String>,
+    /// Provider identity and product label captured when the call was dispatched; null when unknown.
+    pub provider: Option<ModelProviderRef>,
+}
+
+/// Session-wide token-detail entry containing the accumulated token count for one token type.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UsageMetricsTokenDetail {
+    /// Accumulated token count for this token type
+    pub token_count: i64,
+}
+
+/// Accumulated session usage metrics, including premium request cost, token counts, model breakdown, and code-change totals.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UsageGetMetricsResult {
+    /// Per-agent usage metrics, keyed by agent instance identifier. The main conversation uses the stable key `main`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub agent_metrics: Option<HashMap<String, UsageMetricsAgentMetric>>,
+    /// Completeness of totalNanoAiu. Numeric totals remain the reported subtotal; zero is not a claim of free usage when unavailable.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ai_credits_status: Option<AiCreditsStatus>,
+    /// Aggregated code change metrics
+    pub code_changes: UsageMetricsCodeChanges,
+    /// Currently active model identifier
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub current_model: Option<String>,
+    /// Input tokens from the most recent main-agent API call
+    pub last_call_input_tokens: i64,
+    /// Output tokens from the most recent main-agent API call
+    pub last_call_output_tokens: i64,
+    /// Per-model token and request metrics, keyed by model identifier
+    pub model_metrics: HashMap<String, UsageMetricsModelMetric>,
+    /// Provider-attributed model metrics, ordered by first observed provider and model.
+    /// Null attribution preserves historical usage whose provider or model was not recorded.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provider_model_metrics: Option<Vec<UsageMetricsProviderModelMetric>>,
+    /// ISO 8601 timestamp when the session started
+    pub session_start_time: String,
+    /// Session-wide per-token-type accumulated token counts
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub token_details: Option<HashMap<String, UsageMetricsTokenDetail>>,
+    /// Total time spent in model API calls (milliseconds)
+    pub total_api_duration_ms: i64,
+    /// Session-wide accumulated nano-AI units cost
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub total_nano_aiu: Option<f64>,
+    /// Total user-initiated premium request cost across all models (may be fractional due to multipliers)
+    pub total_premium_request_cost: f64,
+    /// Raw count of user-initiated API requests
+    pub total_user_requests: i64,
+}
+
 /// Request count and cost metrics
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -1915,6 +2117,10 @@ pub struct ShutdownTokenDetail {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionShutdownData {
+    /// Complete accounting state captured atomically with receipt watermarks.
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) accounting_snapshot: Option<UsageGetMetricsResult>,
     /// Per-agent usage breakdown, keyed by agent instance identifier. The main conversation uses the stable key `main`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub agent_metrics: Option<HashMap<String, ShutdownAgentMetric>>,
@@ -1937,6 +2143,9 @@ pub struct SessionShutdownData {
     pub events_file_size_bytes: Option<i64>,
     /// Per-model usage breakdown, keyed by model identifier
     pub model_metrics: HashMap<String, ShutdownModelMetric>,
+    /// Provider/model accounting preserved for replay without consulting current provider selection.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provider_model_metrics: Option<Vec<UsageMetricsProviderModelMetric>>,
     /// Unix timestamp (milliseconds) when the session started
     pub session_start_time: i64,
     /// Whether the session ended normally ("routine") or due to a crash/fatal error ("error")
@@ -1966,6 +2175,9 @@ pub struct SessionShutdownData {
     #[doc(hidden)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) total_premium_requests: Option<f64>,
+    /// Per-source accounting sequence watermarks subsuming preceding usage receipts.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub usage_accounting_watermarks: Option<HashMap<String, i64>>,
 }
 
 /// Internal prompt-cache expiration state for one model
@@ -1985,6 +2197,10 @@ pub(crate) struct UsageCheckpointModelCacheState {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionUsageCheckpointData {
+    /// Complete accounting state captured atomically with the receipt watermarks.
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) accounting_snapshot: Option<UsageGetMetricsResult>,
     /// Internal per-model prompt-cache state used to restore expiration tracking on resume
     #[doc(hidden)]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1993,12 +2209,130 @@ pub struct SessionUsageCheckpointData {
     #[doc(hidden)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) prompt_cache_break_state: Option<Vec<serde_json::Value>>,
+    /// Provider/model accounting snapshot that subsumes preceding usage receipts.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provider_model_metrics: Option<Vec<UsageMetricsProviderModelMetric>>,
     /// Session-wide accumulated nano-AI units cost at checkpoint time
     pub total_nano_aiu: f64,
     /// Total number of premium API requests used at checkpoint time
     #[doc(hidden)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) total_premium_requests: Option<f64>,
+    /// Highest accounted sequence per source session; no per-call deduplication history is retained.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub usage_accounting_watermarks: Option<HashMap<String, i64>>,
+}
+
+/// Authoritative budget measurements and policy metadata, independent of provider.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderQuotaBudgetMetadata {
+    /// Exact measured consumption in the budget's unit.
+    pub consumed: f64,
+    /// Exact budget entitlement, retaining incumbent fractional-unit compatibility.
+    pub entitlement: f64,
+    /// Usage beyond entitlement, in the budget's unit.
+    pub overage: f64,
+    /// Whether additional usage is allowed when the budget is exhausted.
+    pub overage_allowed_when_exhausted: bool,
+    /// Optional additional-usage budget cap.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub overage_limit: Option<f64>,
+    /// Service-reported remaining percentage for authoritative budget presentation.
+    pub remaining_percentage: f64,
+    /// Reset instant in epoch milliseconds when this budget actually defines a window.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reset_at_epoch_ms: Option<f64>,
+    /// Whether the reset instant is an estimate.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reset_estimated: Option<bool>,
+    /// Whether this budget uses token-based billing.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub token_based_billing: Option<bool>,
+    /// Whether the budget has unlimited entitlement.
+    pub unlimited: bool,
+    /// Whether service policy allows continued usage after exhaustion.
+    pub usage_allowed_when_exhausted: bool,
+}
+
+/// An account quota reading. Absence of a quantity is unknown, never zero.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderQuotaState {
+    /// Whether the service permits access, independently of balance.
+    pub access_state: ProviderQuotaAccessState,
+    /// Service error code or client acquisition category, separate from the business-state reason.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub acquisition_error: Option<String>,
+    /// Acquisition outcome. Unavailable/failed readings have no service verdict; access/capacity unavailable are compatibility placeholders only.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub acquisition_status: Option<ProviderQuotaAcquisitionStatus>,
+    /// Independently reported signed 64-bit available quantity. Zero does not override the service access/capacity verdict; omission and null are preserved.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub available_quantity: Option<i64>,
+    /// Optional metadata for an authoritative budget. Advisory balances and admission-only observations do not populate this.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub budget_metadata: Option<ProviderQuotaBudgetMetadata>,
+    /// Service capacity state; missing quantities do not imply exhaustion.
+    pub capacity_state: ProviderQuotaCapacityState,
+    /// Key for the backwards-compatible snapshots projection, when the authoritative budget supports that contract.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub compatibility_key: Option<String>,
+    /// Independently reported signed 64-bit entitlement. -1 is an unlimited sentinel, not a capacity-state rewrite; omission and null are preserved.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub entitled_quantity: Option<i64>,
+    /// Explicit service admission flag, when reported.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub has_quota: Option<bool>,
+    /// HTTP status from acquisition, when available.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub http_status: Option<i64>,
+    /// Whether this is a GET account reading or a pre-response admission observation. Observations are never merged across kinds.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub observation_kind: Option<ProviderQuotaObservationKind>,
+    /// When the runtime observed this reading, not a charge timestamp or guarantee that consumption has settled.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub observed_at: Option<String>,
+    /// Provider/account whose service reported this state.
+    pub provider: ModelProviderRef,
+    /// Whether quantities are authoritative budget measurements, advisory balances, or absent. Only authoritative budgets support percentage presentation.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub quantity_kind: Option<ProviderQuotaQuantityKind>,
+    /// Service-owned quota identifier within this provider.
+    pub quota_id: String,
+    /// Service-reported explanation for the state.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+    /// Service name owning this reading.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub service: Option<String>,
+    /// Service-reported quota source.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source: Option<String>,
+    /// Unit of entitledQuantity and availableQuantity.
+    pub unit: ProviderQuotaUnit,
+}
+
+/// Session event "session.quota_observation". A provider-owned quota observation, distinct from per-call usage and charge accounting.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionQuotaObservationData {
+    /// The admitted provider's state observation. Admission observations never contain quantities or reset/percentage semantics.
+    pub observation: ProviderQuotaState,
 }
 
 /// Session event "session.context_changed". Updated working directory and git context after the change
@@ -2133,6 +2467,9 @@ pub(crate) struct CompactionCompleteCompactionTokensUsedCopilotUsage {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CompactionCompleteCompactionTokensUsed {
+    /// Whether the compaction's credit amount was reported for all, some, or none of its calls.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ai_credits_status: Option<AiCreditsStatus>,
     /// Cached input tokens reused in the compaction LLM call
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cache_read_tokens: Option<i64>,
@@ -2152,9 +2489,15 @@ pub struct CompactionCompleteCompactionTokensUsed {
     /// Model identifier used for the compaction LLM call
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
+    /// Model display name captured for the compaction call.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model_display_name: Option<String>,
     /// Output tokens produced by the compaction LLM call
     #[serde(skip_serializing_if = "Option::is_none")]
     pub output_tokens: Option<i64>,
+    /// Provider captured for the compaction call; absent when attribution is unknown.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provider: Option<ModelProviderRef>,
 }
 
 /// Original request-level and effective conversation reasoning effort for a provider history boundary; the historical type name is retained for compatibility
@@ -3416,6 +3759,9 @@ pub struct AssistantMessageData {
     /// Generation phase for phased-output models (e.g., thinking vs. response phases)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub phase: Option<String>,
+    /// Opaque origin provider identity captured at dispatch. Only an exact match with the target provider permits replay of reasoningOpaque, encryptedContent, reasoningBlocks, serverTools, and provider response/item identifiers. Matching model ids or wire protocols is insufficient. Omitted for legacy or unattributed messages; the runtime excludes unproven opaque state when projecting to a known provider. Text content and client tool requests/results remain portable semantic history.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provider_id: Option<String>,
     /// Neutral provider-tagged reasoning content blocks preserved verbatim for round-tripping. `reasoningText` and `reasoningOpaque` are a lossy derived view of these blocks, retained for display.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_blocks: Option<AssistantMessageReasoningBlocks>,
@@ -3495,6 +3841,18 @@ pub struct AssistantIdleData {
     /// True when the preceding agentic loop was cancelled via abort signal
     #[serde(skip_serializing_if = "Option::is_none")]
     pub aborted: Option<bool>,
+}
+
+/// Ordered accounting identity assigned under the source session's emission lock.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UsageAccountingIdentity {
+    /// Monotonically increasing sequence within the source session.
+    pub sequence: i64,
+    /// Session that assigned this accounting sequence.
+    pub source_session_id: String,
+    /// Existing API call identifier, or a runtime-generated identity when none was supplied.
+    pub usage_id: String,
 }
 
 /// Token usage detail for a single billing category
@@ -3579,6 +3937,12 @@ pub struct AssistantUsageData {
     /// Number of accepted speculative prediction tokens
     #[serde(skip_serializing_if = "Option::is_none")]
     pub accepted_prediction_tokens: Option<i64>,
+    /// Runtime-owned identity shared with the durable accounting receipt.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub accounting: Option<UsageAccountingIdentity>,
+    /// Availability of this call's reported AI-credit amount. Missing billing is unavailable, not a zero charge.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ai_credits_status: Option<AiCreditsStatus>,
     /// Completion ID from the model provider (e.g., chatcmpl-abc123)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub api_call_id: Option<String>,
@@ -3671,6 +4035,9 @@ pub struct AssistantUsageData {
     pub max_prompt_tokens: Option<i64>,
     /// Model identifier used for this API call
     pub model: String,
+    /// Model display name captured for this call, not derived from the current selection.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model_display_name: Option<String>,
     /// Fixed-set provider family serving the bring-your-own-key model (for example "openai", "anthropic", "azure_openai", "ollama", "llama_cpp", or "other"). Never the caller-supplied provider name. Absent for Copilot-served models.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model_provider: Option<String>,
@@ -3689,6 +4056,9 @@ pub struct AssistantUsageData {
     #[deprecated]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parent_tool_call_id: Option<String>,
+    /// Provider identity and product label captured by the actual call's dispatch path.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provider: Option<ModelProviderRef>,
     /// GitHub request tracing ID (x-github-request-id header) for server-side log correlation
     #[serde(skip_serializing_if = "Option::is_none")]
     pub provider_call_id: Option<String>,
@@ -8920,6 +9290,46 @@ pub enum HandoffSourceType {
     Unknown,
 }
 
+/// Whether the accumulated numeric AI-credit subtotal covers the observed calls.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AiCreditsStatus {
+    /// Every observed call supplied an AI-credit amount, including an explicit zero.
+    #[serde(rename = "complete")]
+    Complete,
+    /// Some calls supplied amounts and some did not; the numeric value is only a reported subtotal.
+    #[serde(rename = "partial")]
+    Partial,
+    /// No AI-credit amount was reported for the observed calls. Numeric zero is not a zero-cost claim.
+    #[serde(rename = "unavailable")]
+    Unavailable,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// The neutral kind of a model provider — the model analog of `AccountKind`. A model provider is the live, entitled source a model came from; central code never branches on this beyond a single dispatch.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ModelProviderKind {
+    /// GitHub Copilot / CAPI models, spawned by a github-resolving account that holds a Copilot seat.
+    #[serde(rename = "copilot")]
+    Copilot,
+    /// Microsoft 365 Copilot (Loki) inference models, spawned by a resolvable Entra-derived Loki account.
+    #[serde(rename = "loki")]
+    Loki,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
 /// Whether the session ended normally ("routine") or due to a crash/fatal error ("error")
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ShutdownType {
@@ -8929,6 +9339,132 @@ pub enum ShutdownType {
     /// The session ended because of a crash or fatal error.
     #[serde(rename = "error")]
     Error,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Access policy reported by the quota service.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ProviderQuotaAccessState {
+    /// Access is allowed.
+    #[serde(rename = "allowed")]
+    Allowed,
+    /// Access is denied.
+    #[serde(rename = "denied")]
+    Denied,
+    /// Quota is not required for this access.
+    #[serde(rename = "not_required")]
+    NotRequired,
+    /// The service did not supply a recognized access state.
+    #[serde(rename = "unknown")]
+    UnknownValue,
+    /// Client-only compatibility placeholder when acquisitionStatus is unavailable or failed; not an observed service verdict.
+    #[serde(rename = "unavailable")]
+    Unavailable,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Acquisition state, independent of the service's business access/capacity verdict.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ProviderQuotaAcquisitionStatus {
+    /// A service quota observation was received.
+    #[serde(rename = "succeeded")]
+    Succeeded,
+    /// No service snapshot is available for this caller or surface.
+    #[serde(rename = "unavailable")]
+    Unavailable,
+    /// Acquisition failed; inspect httpStatus/acquisitionError without inferring a business verdict.
+    #[serde(rename = "failed")]
+    Failed,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Capacity is independent of whether a numeric balance was supplied.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ProviderQuotaCapacityState {
+    /// Capacity is available.
+    #[serde(rename = "available")]
+    Available,
+    /// The service explicitly reports exhaustion.
+    #[serde(rename = "exhausted")]
+    Exhausted,
+    /// The reported entitlement is unlimited.
+    #[serde(rename = "unlimited")]
+    Unlimited,
+    /// No billable quota is required.
+    #[serde(rename = "not_required")]
+    NotRequired,
+    /// The service reports that capacity is not applicable.
+    #[serde(rename = "not_applicable")]
+    NotApplicable,
+    /// No recognized capacity state was supplied.
+    #[serde(rename = "unknown")]
+    UnknownValue,
+    /// Client-only compatibility placeholder when acquisitionStatus is unavailable or failed; not an observed service verdict.
+    #[serde(rename = "unavailable")]
+    Unavailable,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Timing and purpose of a provider quota observation.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ProviderQuotaObservationKind {
+    /// An explicit account read; consumption may still be subject to service aggregation delay.
+    #[serde(rename = "account_snapshot")]
+    AccountSnapshot,
+    /// A verdict attached before an inference response. May be cached; never a post-charge balance.
+    #[serde(rename = "admission_state")]
+    AdmissionState,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Interpretation permitted for independently reported quantities.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ProviderQuotaQuantityKind {
+    /// Quantities form an authoritative available-of-entitled budget suitable for percentage presentation.
+    #[serde(rename = "authoritative_budget")]
+    AuthoritativeBudget,
+    /// Raw advisory quantities; do not infer permission, usage percentage, reset cadence, or post-charge balance.
+    #[serde(rename = "advisory_balance")]
+    AdvisoryBalance,
+    /// No quantity measurement, as with admission-only response headers.
+    #[serde(rename = "none")]
+    None,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Units explicitly reported by a quota provider.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ProviderQuotaUnit {
+    /// AI credits, not tokens or currency.
+    #[serde(rename = "ai_credits")]
+    AiCredits,
+    /// Requests charged against an entitlement.
+    #[serde(rename = "requests")]
+    Requests,
+    /// Model tokens.
+    #[serde(rename = "tokens")]
+    Tokens,
+    /// The observation does not establish a quantity unit.
+    #[serde(rename = "unknown")]
+    UnknownValue,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]

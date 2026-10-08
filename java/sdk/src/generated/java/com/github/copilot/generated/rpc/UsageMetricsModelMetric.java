@@ -23,6 +23,8 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record UsageMetricsModelMetric(
+    /** Completeness of this model's reported AI-credit subtotal. Explicitly reported zero is complete, not unavailable. */
+    @JsonProperty("aiCreditsStatus") AiCreditsStatus aiCreditsStatus,
     /** Request count and cost metrics for this model */
     @JsonProperty("requests") UsageMetricsModelMetricRequests requests,
     /** Token usage metrics for this model */

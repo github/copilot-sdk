@@ -39,6 +39,7 @@ export type SessionEvent =
   | SnapshotRewindEvent
   | ShutdownEvent
   | UsageCheckpointEvent
+  | ProviderQuotaObservationEvent
   | ContextChangedEvent
   | UsageInfoEvent
   | ContextClearedEvent
@@ -516,6 +517,25 @@ export type HandoffSourceType =
   /** The handoff originated from a local session. */
   | "local";
 /**
+ * Whether the accumulated numeric AI-credit subtotal covers the observed calls.
+ */
+export type AiCreditsStatus =
+  /** Every observed call supplied an AI-credit amount, including an explicit zero. */
+  | "complete"
+  /** Some calls supplied amounts and some did not; the numeric value is only a reported subtotal. */
+  | "partial"
+  /** No AI-credit amount was reported for the observed calls. Numeric zero is not a zero-cost claim. */
+  | "unavailable";
+/**
+ * The neutral kind of a model provider — the model analog of `AccountKind`. A model provider is the live, entitled source a model came from; central code never branches on this beyond a single dispatch.
+ */
+/** @experimental */
+export type ModelProviderKind =
+  /** GitHub Copilot / CAPI models, spawned by a github-resolving account that holds a Copilot seat. */
+  | "copilot"
+  /** Microsoft 365 Copilot (Loki) inference models, spawned by a resolvable Entra-derived Loki account. */
+  | "loki";
+/**
  * Whether the session ended normally ("routine") or due to a crash/fatal error ("error")
  */
 export type ShutdownType =
@@ -523,6 +543,78 @@ export type ShutdownType =
   | "routine"
   /** The session ended because of a crash or fatal error. */
   | "error";
+/**
+ * Access policy reported by the quota service.
+ */
+export type ProviderQuotaAccessState =
+  /** Access is allowed. */
+  | "allowed"
+  /** Access is denied. */
+  | "denied"
+  /** Quota is not required for this access. */
+  | "not_required"
+  /** The service did not supply a recognized access state. */
+  | "unknown"
+  /** Client-only compatibility placeholder when acquisitionStatus is unavailable or failed; not an observed service verdict. */
+  | "unavailable";
+/**
+ * Acquisition state, independent of the service's business access/capacity verdict.
+ */
+export type ProviderQuotaAcquisitionStatus =
+  /** A service quota observation was received. */
+  | "succeeded"
+  /** No service snapshot is available for this caller or surface. */
+  | "unavailable"
+  /** Acquisition failed; inspect httpStatus/acquisitionError without inferring a business verdict. */
+  | "failed";
+/**
+ * Capacity is independent of whether a numeric balance was supplied.
+ */
+export type ProviderQuotaCapacityState =
+  /** Capacity is available. */
+  | "available"
+  /** The service explicitly reports exhaustion. */
+  | "exhausted"
+  /** The reported entitlement is unlimited. */
+  | "unlimited"
+  /** No billable quota is required. */
+  | "not_required"
+  /** The service reports that capacity is not applicable. */
+  | "not_applicable"
+  /** No recognized capacity state was supplied. */
+  | "unknown"
+  /** Client-only compatibility placeholder when acquisitionStatus is unavailable or failed; not an observed service verdict. */
+  | "unavailable";
+/**
+ * Timing and purpose of a provider quota observation.
+ */
+export type ProviderQuotaObservationKind =
+  /** An explicit account read; consumption may still be subject to service aggregation delay. */
+  | "account_snapshot"
+  /** A verdict attached before an inference response. May be cached; never a post-charge balance. */
+  | "admission_state";
+/**
+ * Interpretation permitted for independently reported quantities.
+ */
+export type ProviderQuotaQuantityKind =
+  /** Quantities form an authoritative available-of-entitled budget suitable for percentage presentation. */
+  | "authoritative_budget"
+  /** Raw advisory quantities; do not infer permission, usage percentage, reset cadence, or post-charge balance. */
+  | "advisory_balance"
+  /** No quantity measurement, as with admission-only response headers. */
+  | "none";
+/**
+ * Units explicitly reported by a quota provider.
+ */
+export type ProviderQuotaUnit =
+  /** AI credits, not tokens or currency. */
+  | "ai_credits"
+  /** Requests charged against an entitlement. */
+  | "requests"
+  /** Model tokens. */
+  | "tokens"
+  /** The observation does not establish a quantity unit. */
+  | "unknown";
 /**
  * What initiated a conversation compaction
  */
@@ -1731,6 +1823,10 @@ export interface StartData {
    */
   producer: string;
   /**
+   * Provider of selectedModel at creation time, when explicitly selected.
+   */
+  providerId?: string;
+  /**
    * Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh", "max")
    */
   reasoningEffort?: string;
@@ -1898,6 +1994,10 @@ export interface ResumeData {
    * On-disk byte size of the session's persisted events.jsonl file at resume time; omitted when the file does not exist or cannot be stat'd
    */
   eventsFileSizeBytes?: number;
+  /**
+   * Provider of selectedModel at resume time, when explicitly selected.
+   */
+  providerId?: string;
   /**
    * Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh", "max")
    */
@@ -2511,11 +2611,19 @@ export interface ModelChangeData {
    */
   previousModel?: string;
   /**
+   * Provider of previousModel, when known. A provider-only change is a model selection change even when the model identifiers are equal.
+   */
+  previousProviderId?: string;
+  /**
    * Reasoning effort level before the model change, if applicable
    */
   previousReasoningEffort?: string;
   previousReasoningSummary?: ReasoningSummary;
   previousVerbosity?: Verbosity;
+  /**
+   * Provider selected for newModel. Omitted for legacy or unattributed selections; never inferred from a later selection.
+   */
+  providerId?: string;
   /**
    * Reasoning effort level after the model change, if applicable
    */
@@ -3155,6 +3263,12 @@ export interface ShutdownEvent {
  */
 export interface ShutdownData {
   /**
+   * Complete accounting state captured atomically with receipt watermarks.
+   *
+   * @internal
+   */
+  accountingSnapshot?: UsageGetMetricsResult;
+  /**
    * Per-agent usage breakdown, keyed by agent instance identifier. The main conversation uses the stable key `main`.
    */
   agentMetrics?: {
@@ -3187,6 +3301,10 @@ export interface ShutdownData {
   modelMetrics: {
     [k: string]: ShutdownModelMetric | undefined;
   };
+  /**
+   * Provider/model accounting preserved for replay without consulting current provider selection.
+   */
+  providerModelMetrics?: UsageMetricsProviderModelMetric[];
   /**
    * Unix timestamp (milliseconds) when the session started
    */
@@ -3222,6 +3340,233 @@ export interface ShutdownData {
    * @internal
    */
   totalPremiumRequests?: number;
+  /**
+   * Per-source accounting sequence watermarks subsuming preceding usage receipts.
+   */
+  usageAccountingWatermarks?: {
+    [k: string]: number | undefined;
+  };
+}
+/**
+ * Accumulated session usage metrics, including premium request cost, token counts, model breakdown, and code-change totals.
+ */
+export interface UsageGetMetricsResult {
+  /**
+   * Per-agent usage metrics, keyed by agent instance identifier. The main conversation uses the stable key `main`.
+   */
+  agentMetrics?: {
+    [k: string]: UsageMetricsAgentMetric | undefined;
+  };
+  aiCreditsStatus?: AiCreditsStatus;
+  codeChanges: UsageMetricsCodeChanges;
+  /**
+   * Currently active model identifier
+   */
+  currentModel?: string;
+  /**
+   * Input tokens from the most recent main-agent API call
+   */
+  lastCallInputTokens: number;
+  /**
+   * Output tokens from the most recent main-agent API call
+   */
+  lastCallOutputTokens: number;
+  /**
+   * Per-model token and request metrics, keyed by model identifier
+   */
+  modelMetrics: {
+    [k: string]: UsageMetricsModelMetric | undefined;
+  };
+  /**
+   * Provider-attributed model metrics, ordered by first observed provider and model.
+   * Null attribution preserves historical usage whose provider or model was not recorded.
+   */
+  providerModelMetrics?: UsageMetricsProviderModelMetric[];
+  /**
+   * ISO 8601 timestamp when the session started
+   */
+  sessionStartTime: string;
+  /**
+   * Session-wide per-token-type accumulated token counts
+   */
+  tokenDetails?: {
+    [k: string]: UsageMetricsTokenDetail | undefined;
+  };
+  /**
+   * Total time spent in model API calls (milliseconds)
+   */
+  totalApiDurationMs: number;
+  /**
+   * Session-wide accumulated nano-AI units cost
+   */
+  totalNanoAiu?: number;
+  /**
+   * Total user-initiated premium request cost across all models (may be fractional due to multipliers)
+   */
+  totalPremiumRequestCost: number;
+  /**
+   * Raw count of user-initiated API requests
+   */
+  totalUserRequests: number;
+}
+/**
+ * Usage attributed to one agent instance, including its identity, API duration, AI units, and per-model breakdown.
+ */
+export interface UsageMetricsAgentMetric {
+  /**
+   * Human-readable label for this subagent invocation, copied from the originating `subagent.started` event. For task-tool subagents this is the invocation's task description rather than the agent's configured display name, so group by `agentName` for stable per-agent labels.
+   */
+  agentDisplayName?: string;
+  /**
+   * Configured agent name, when this is a subagent
+   */
+  agentName?: string;
+  /**
+   * Per-model usage for this agent, keyed by model identifier
+   */
+  modelMetrics: {
+    [k: string]: UsageMetricsModelMetric | undefined;
+  };
+  /**
+   * Time spent in model API calls by this agent, in milliseconds
+   */
+  totalApiDurationMs: number;
+  /**
+   * Accumulated nano-AI units cost for this agent
+   */
+  totalNanoAiu: number;
+}
+/**
+ * Per-model usage metrics, including request counts/costs, token usage, nano-AI units, and per-token-type details.
+ */
+export interface UsageMetricsModelMetric {
+  aiCreditsStatus?: AiCreditsStatus;
+  /**
+   * Latest known prompt-cache expiration for this model. A timestamp in the past indicates that the observed cache has expired.
+   */
+  cacheExpiresAt?: string;
+  requests: UsageMetricsModelMetricRequests;
+  /**
+   * Token count details per type
+   */
+  tokenDetails?: {
+    [k: string]: UsageMetricsModelMetricTokenDetail | undefined;
+  };
+  /**
+   * Accumulated nano-AI units cost for this model
+   */
+  totalNanoAiu?: number;
+  usage: UsageMetricsModelMetricUsage;
+}
+/**
+ * Request count and cost metrics for this model
+ */
+export interface UsageMetricsModelMetricRequests {
+  /**
+   * User-initiated premium request cost (with multiplier applied)
+   */
+  cost: number;
+  /**
+   * Number of API requests made with this model
+   */
+  count: number;
+}
+/**
+ * Per-model token-detail entry containing the accumulated token count for one token type.
+ */
+export interface UsageMetricsModelMetricTokenDetail {
+  /**
+   * Accumulated token count for this token type
+   */
+  tokenCount: number;
+}
+/**
+ * Token usage metrics for this model
+ */
+export interface UsageMetricsModelMetricUsage {
+  /**
+   * Total tokens read from prompt cache
+   */
+  cacheReadTokens: number;
+  /**
+   * Total tokens written to prompt cache
+   */
+  cacheWriteTokens: number;
+  /**
+   * Total input tokens consumed
+   */
+  inputTokens: number;
+  /**
+   * Total output tokens produced
+   */
+  outputTokens: number;
+  /**
+   * Total output tokens used for reasoning
+   */
+  reasoningTokens?: number;
+}
+/**
+ * Aggregated code change metrics
+ */
+export interface UsageMetricsCodeChanges {
+  /**
+   * Distinct file paths modified during the session
+   */
+  filesModified: string[];
+  /**
+   * Number of distinct files modified
+   */
+  filesModifiedCount: number;
+  /**
+   * Total lines of code added
+   */
+  linesAdded: number;
+  /**
+   * Total lines of code removed
+   */
+  linesRemoved: number;
+}
+/**
+ * Usage for one recorded provider and model, without merging identical model IDs across providers.
+ */
+export interface UsageMetricsProviderModelMetric {
+  metrics: UsageMetricsModelMetric | undefined;
+  /**
+   * Model display name captured at call time, when known.
+   */
+  modelDisplayName?: string;
+  /**
+   * Model identity, or null for legacy aggregate-only usage.
+   */
+  modelId: string | null;
+  /**
+   * Provider identity and product label captured when the call was dispatched; null when unknown.
+   */
+  provider: ModelProviderRef | null;
+}
+/**
+ * A neutral reference to the model provider that produced a model: an opaque id, a human-readable label, and the provider kind. Carried on each enumerated Model so consumers can group by provider without reaching into a provider-shaped internal type.
+ */
+/** @experimental */
+export interface ModelProviderRef {
+  /**
+   * Opaque, stable id of the provider that produced this model. Matches the enumerated `ModelProviderDescriptor.id`.
+   */
+  id: string;
+  kind: ModelProviderKind;
+  /**
+   * Human-readable provider label, owned by the runtime so every consumer renders identical text.
+   */
+  label: string;
+}
+/**
+ * Session-wide token-detail entry containing the accumulated token count for one token type.
+ */
+export interface UsageMetricsTokenDetail {
+  /**
+   * Accumulated token count for this token type
+   */
+  tokenCount: number;
 }
 /**
  * Usage attributed to one agent instance at session shutdown.
@@ -3381,6 +3726,12 @@ export interface UsageCheckpointEvent {
  */
 export interface UsageCheckpointData {
   /**
+   * Complete accounting state captured atomically with the receipt watermarks.
+   *
+   * @internal
+   */
+  accountingSnapshot?: UsageGetMetricsResult;
+  /**
    * Internal per-model prompt-cache state used to restore expiration tracking on resume
    *
    * @internal
@@ -3393,6 +3744,10 @@ export interface UsageCheckpointData {
    */
   promptCacheBreakState?: JsonValue[];
   /**
+   * Provider/model accounting snapshot that subsumes preceding usage receipts.
+   */
+  providerModelMetrics?: UsageMetricsProviderModelMetric[];
+  /**
    * Session-wide accumulated nano-AI units cost at checkpoint time
    */
   totalNanoAiu: number;
@@ -3402,6 +3757,12 @@ export interface UsageCheckpointData {
    * @internal
    */
   totalPremiumRequests?: number;
+  /**
+   * Highest accounted sequence per source session; no per-call deduplication history is retained.
+   */
+  usageAccountingWatermarks?: {
+    [k: string]: number | undefined;
+  };
 }
 /**
  * Internal prompt-cache expiration state for one model
@@ -3422,6 +3783,151 @@ export interface UsageCheckpointModelCacheState {
    * Model identifier associated with this cache state
    */
   modelId: string;
+}
+/**
+ * Session event "session.quota_observation". A provider-owned quota observation, distinct from per-call usage and charge accounting.
+ */
+/** @experimental */
+export interface ProviderQuotaObservationEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: ProviderQuotaObservationData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
+  ephemeral: true;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "session.quota_observation".
+   */
+  type: "session.quota_observation";
+}
+/**
+ * A provider-owned quota observation, distinct from per-call usage and charge accounting.
+ */
+/** @experimental */
+export interface ProviderQuotaObservationData {
+  observation: ProviderQuotaState;
+}
+/**
+ * An account quota reading. Absence of a quantity is unknown, never zero.
+ */
+/** @experimental */
+export interface ProviderQuotaState {
+  accessState: ProviderQuotaAccessState;
+  /**
+   * Service error code or client acquisition category, separate from the business-state reason.
+   */
+  acquisitionError?: string;
+  acquisitionStatus?: ProviderQuotaAcquisitionStatus;
+  /**
+   * Independently reported signed 64-bit available quantity. Zero does not override the service access/capacity verdict; omission and null are preserved.
+   */
+  availableQuantity?: number | null;
+  budgetMetadata?: ProviderQuotaBudgetMetadata;
+  capacityState: ProviderQuotaCapacityState;
+  /**
+   * Key for the backwards-compatible snapshots projection, when the authoritative budget supports that contract.
+   */
+  compatibilityKey?: string;
+  /**
+   * Independently reported signed 64-bit entitlement. -1 is an unlimited sentinel, not a capacity-state rewrite; omission and null are preserved.
+   */
+  entitledQuantity?: number | null;
+  /**
+   * Explicit service admission flag, when reported.
+   */
+  hasQuota?: boolean | null;
+  /**
+   * HTTP status from acquisition, when available.
+   */
+  httpStatus?: number;
+  observationKind?: ProviderQuotaObservationKind;
+  /**
+   * When the runtime observed this reading, not a charge timestamp or guarantee that consumption has settled.
+   */
+  observedAt?: string;
+  provider: ModelProviderRef;
+  quantityKind?: ProviderQuotaQuantityKind;
+  /**
+   * Service-owned quota identifier within this provider.
+   */
+  quotaId: string;
+  /**
+   * Service-reported explanation for the state.
+   */
+  reason?: string | null;
+  /**
+   * Service name owning this reading.
+   */
+  service?: string | null;
+  /**
+   * Service-reported quota source.
+   */
+  source?: string | null;
+  unit: ProviderQuotaUnit;
+}
+/**
+ * Authoritative budget measurements and policy metadata, independent of provider.
+ */
+export interface ProviderQuotaBudgetMetadata {
+  /**
+   * Exact measured consumption in the budget's unit.
+   */
+  consumed: number;
+  /**
+   * Exact budget entitlement, retaining incumbent fractional-unit compatibility.
+   */
+  entitlement: number;
+  /**
+   * Usage beyond entitlement, in the budget's unit.
+   */
+  overage: number;
+  /**
+   * Whether additional usage is allowed when the budget is exhausted.
+   */
+  overageAllowedWhenExhausted: boolean;
+  /**
+   * Optional additional-usage budget cap.
+   */
+  overageLimit?: number;
+  /**
+   * Service-reported remaining percentage for authoritative budget presentation.
+   */
+  remainingPercentage: number;
+  /**
+   * Reset instant in epoch milliseconds when this budget actually defines a window.
+   */
+  resetAtEpochMs?: number;
+  /**
+   * Whether the reset instant is an estimate.
+   */
+  resetEstimated?: boolean;
+  /**
+   * Whether this budget uses token-based billing.
+   */
+  tokenBasedBilling?: boolean;
+  /**
+   * Whether the budget has unlimited entitlement.
+   */
+  unlimited: boolean;
+  /**
+   * Whether service policy allows continued usage after exhaustion.
+   */
+  usageAllowedWhenExhausted: boolean;
 }
 /**
  * Session event "session.context_changed". Updated working directory and git context after the change
@@ -3749,6 +4255,7 @@ export interface CompactionCompleteData {
  * Token usage breakdown for the compaction LLM call (aligned with assistant.usage format)
  */
 export interface CompactionCompleteCompactionTokensUsed {
+  aiCreditsStatus?: AiCreditsStatus;
   /**
    * Cached input tokens reused in the compaction LLM call
    */
@@ -3776,9 +4283,14 @@ export interface CompactionCompleteCompactionTokensUsed {
    */
   model?: string;
   /**
+   * Model display name captured for the compaction call.
+   */
+  modelDisplayName?: string;
+  /**
    * Output tokens produced by the compaction LLM call
    */
   outputTokens?: number;
+  provider?: ModelProviderRef;
 }
 /**
  * Per-request cost and usage data from the CAPI copilot_usage response field
@@ -5806,6 +6318,10 @@ export interface AssistantMessageData {
    * Generation phase for phased-output models (e.g., thinking vs. response phases)
    */
   phase?: string;
+  /**
+   * Opaque origin provider identity captured at dispatch. Only an exact match with the target provider permits replay of reasoningOpaque, encryptedContent, reasoningBlocks, serverTools, and provider response/item identifiers. Matching model ids or wire protocols is insufficient. Omitted for legacy or unattributed messages; the runtime excludes unproven opaque state when projecting to a known provider. Text content and client tool requests/results remain portable semantic history.
+   */
+  providerId?: string;
   reasoningBlocks?: AssistantMessageReasoningBlocks;
   /**
    * Opaque/encrypted extended thinking data from Anthropic models. Session-bound and stripped on resume.
@@ -6329,6 +6845,8 @@ export interface AssistantUsageData {
    * Number of accepted speculative prediction tokens
    */
   acceptedPredictionTokens?: number;
+  accounting?: UsageAccountingIdentity;
+  aiCreditsStatus?: AiCreditsStatus;
   /**
    * Completion ID from the model provider (e.g., chatcmpl-abc123)
    */
@@ -6436,6 +6954,10 @@ export interface AssistantUsageData {
    */
   model: string;
   /**
+   * Model display name captured for this call, not derived from the current selection.
+   */
+  modelDisplayName?: string;
+  /**
    * Fixed-set provider family serving the bring-your-own-key model (for example "openai", "anthropic", "azure_openai", "ollama", "llama_cpp", or "other"). Never the caller-supplied provider name. Absent for Copilot-served models.
    */
   modelProvider?: string;
@@ -6458,6 +6980,7 @@ export interface AssistantUsageData {
    * Parent tool call ID when this usage originates from a sub-agent
    */
   parentToolCallId?: string;
+  provider?: ModelProviderRef;
   /**
    * GitHub request tracing ID (x-github-request-id header) for server-side log correlation
    */
@@ -6531,6 +7054,23 @@ export interface AssistantUsageData {
    */
   websocketFallbackAfterMs?: number;
   websocketFallbackReason?: ModelCallWebSocketFallbackReason;
+}
+/**
+ * Ordered accounting identity assigned under the source session's emission lock.
+ */
+export interface UsageAccountingIdentity {
+  /**
+   * Monotonically increasing sequence within the source session.
+   */
+  sequence: number;
+  /**
+   * Session that assigned this accounting sequence.
+   */
+  sourceSessionId: string;
+  /**
+   * Existing API call identifier, or a runtime-generated identity when none was supplied.
+   */
+  usageId: string;
 }
 /**
  * Per-request cost and usage data from the CAPI copilot_usage response field

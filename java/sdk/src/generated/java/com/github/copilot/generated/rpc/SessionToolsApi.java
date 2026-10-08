@@ -95,6 +95,17 @@ public final class SessionToolsApi {
     }
 
     /**
+     * Lists the external tool calls of the session and its sub-agents that are still waiting for session.tools.handlePendingToolCall.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionToolsListPendingRequestsResult> listPendingRequests() {
+        return caller.invoke("session.tools.listPendingRequests", java.util.Map.of("sessionId", this.sessionId), SessionToolsListPendingRequestsResult.class);
+    }
+
+    /**
      * Resolves, builds, and validates the runtime tool list for the session.
      *
      * @apiNote This method is experimental and may change in a future version.

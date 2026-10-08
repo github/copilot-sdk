@@ -1848,6 +1848,7 @@ class CopilotSession:
         self._open_canvases_lock = threading.Lock()
         self._rpc: SessionRpc | None = None
         self._destroyed = False
+        self._response_waits: set[Callable[[], None]] = set()
         self._structured_waits: set[asyncio.Future[SessionEvent]] = set()
         self._disconnect_lock = asyncio.Lock()
         self._on_disconnect = on_disconnect
@@ -1871,10 +1872,44 @@ class CopilotSession:
                 task.cancel()
 
     def _mark_disconnected(self) -> None:
-        self._destroyed = True
+        with self._event_handlers_lock:
+            if self._destroyed:
+                return
+            self._destroyed = True
+            self._event_handlers.clear()
+        for fail in tuple(self._response_waits):
+            fail()
+        self._response_waits.clear()
         self._fail_structured_waits()
         self._cancel_pending_external_tools()
+        with self._tool_handlers_lock:
+            self._tool_handlers.clear()
         self._clear_skill_provider()
+        with self._permission_handler_lock:
+            self._permission_handler = None
+        with self._mcp_auth_handler_lock:
+            self._mcp_auth_handler = None
+        with self._user_input_handler_lock:
+            self._user_input_handler = None
+        with self._exit_plan_mode_handler_lock:
+            self._exit_plan_mode_handler = None
+        with self._auto_mode_switch_handler_lock:
+            self._auto_mode_switch_handler = None
+        with self._hooks_lock:
+            self._hooks = None
+        with self._transform_callbacks_lock:
+            self._transform_callbacks = None
+        with self._command_handlers_lock:
+            self._command_handlers.clear()
+        with self._bearer_token_providers_lock:
+            self._bearer_token_providers.clear()
+        with self._elicitation_handler_lock:
+            self._elicitation_handler = None
+        with self._canvas_handler_lock:
+            self._canvas_handler = None
+        with self._open_canvases_lock:
+            self._open_canvases.clear()
+        self._client_session_apis = ClientSessionApiHandlers()
         self._run_disconnect_callback()
 
     def _fail_structured_waits(self) -> None:
@@ -2035,7 +2070,9 @@ class CopilotSession:
         session are applied in order. Cancelling the call while an earlier
         replacement is still in flight sends nothing. Once the request is sent,
         cancelling only stops the wait: an accepted replacement still installs
-        its handlers.
+        its handlers while the session remains connected. Disconnecting the
+        session rejects queued replacements and prevents late acknowledgements
+        from reinstalling handlers.
 
         The agent sees the new tools from its next model request, which can fall
         within a turn in progress. A model request already in flight was made
@@ -2044,6 +2081,8 @@ class CopilotSession:
         turn is aborted. If a running turn might still call a tool you remove,
         replace tools while the session is idle.
         """
+        if self._destroyed:
+            raise RuntimeError("Session is disconnected")
         definitions = _tools_to_wire_definitions(tools)
         handlers = _tool_handlers_for(tools)
         # Cancelling while an earlier call holds the lock sends nothing. Once
@@ -2060,8 +2099,12 @@ class CopilotSession:
         handlers: dict[str, ToolHandler],
     ) -> None:
         try:
+            if self._destroyed:
+                raise RuntimeError("Session is disconnected")
             await self.rpc.tools.set(ToolsSetRequest(tools=definitions))
             with self._tool_handlers_lock:
+                if self._destroyed:
+                    raise RuntimeError("Session is disconnected")
                 self._tool_handlers = handlers
         finally:
             self._set_tools_lock.release()
@@ -2175,7 +2218,14 @@ class CopilotSession:
                     error_event = Exception(f"Session error: {data.message or str(data)}")
                     idle_event.set()
 
+        def fail_disconnected() -> None:
+            nonlocal error_event
+            if not idle_event.is_set():
+                error_event = RuntimeError("Session closed before response completed")
+                idle_event.set()
+
         unsubscribe = self.on(handler)
+        self._response_waits.add(fail_disconnected)
         try:
             await self.send(
                 prompt,
@@ -2219,6 +2269,7 @@ class CopilotSession:
             raise TimeoutError(f"Timeout after {timeout}s waiting for session.idle")
         finally:
             unsubscribe()
+            self._response_waits.discard(fail_disconnected)
 
     async def send_and_wait_typed(
         self,
@@ -2367,6 +2418,8 @@ class CopilotSession:
             >>> unsubscribe()
         """
         with self._event_handlers_lock:
+            if self._destroyed:
+                raise RuntimeError("Session is disconnected")
             self._event_handlers.add(handler)
 
         def unsubscribe():
@@ -2388,6 +2441,9 @@ class CopilotSession:
         Args:
             event: The session event to dispatch to all handlers.
         """
+        with self._event_handlers_lock:
+            if self._destroyed:
+                return
         dispatch_start = time.perf_counter()
         # Handle broadcast request events (protocol v3) before dispatching to user handlers.
         # Fire-and-forget: the response is sent asynchronously via RPC.
@@ -2397,6 +2453,9 @@ class CopilotSession:
             handlers = list(self._event_handlers)
 
         for handler in handlers:
+            with self._event_handlers_lock:
+                if self._destroyed:
+                    break
             try:
                 handler(event)
             except Exception:
@@ -3575,25 +3634,7 @@ class CopilotSession:
                 detail = response.get("error") or "unknown error"
                 raise RuntimeError(f"Failed to detach session {self.session_id}: {detail}")
 
-            self._cancel_pending_external_tools()
-            self._run_disconnect_callback()
-            with self._event_handlers_lock:
-                self._destroyed = True
-                self._fail_structured_waits()
-                self._event_handlers.clear()
-            with self._tool_handlers_lock:
-                self._tool_handlers.clear()
-            self._clear_skill_provider()
-            with self._permission_handler_lock:
-                self._permission_handler = None
-            with self._command_handlers_lock:
-                self._command_handlers.clear()
-            with self._elicitation_handler_lock:
-                self._elicitation_handler = None
-            with self._exit_plan_mode_handler_lock:
-                self._exit_plan_mode_handler = None
-            with self._auto_mode_switch_handler_lock:
-                self._auto_mode_switch_handler = None
+            self._mark_disconnected()
 
     async def __aenter__(self) -> CopilotSession:
         """Enable use as an async context manager."""

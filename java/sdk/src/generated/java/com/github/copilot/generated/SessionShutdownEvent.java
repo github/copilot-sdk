@@ -11,6 +11,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.github.copilot.CopilotExperimental;
+import java.util.List;
 import java.util.Map;
 import javax.annotation.processing.Generated;
 
@@ -36,6 +37,12 @@ public final class SessionShutdownEvent extends SessionEvent {
     @JsonIgnoreProperties(ignoreUnknown = true)
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record SessionShutdownEventData(
+        /** Complete accounting state captured atomically with receipt watermarks. */
+        @JsonProperty("accountingSnapshot") UsageGetMetricsResult accountingSnapshot,
+        /** Provider/model accounting preserved for replay without consulting current provider selection. */
+        @JsonProperty("providerModelMetrics") List<UsageMetricsProviderModelMetric> providerModelMetrics,
+        /** Per-source accounting sequence watermarks subsuming preceding usage receipts. */
+        @JsonProperty("usageAccountingWatermarks") Map<String, Long> usageAccountingWatermarks,
         /** Whether the session ended normally ("routine") or due to a crash/fatal error ("error") */
         @JsonProperty("shutdownType") ShutdownType shutdownType,
         /** Error description when shutdownType is "error" */

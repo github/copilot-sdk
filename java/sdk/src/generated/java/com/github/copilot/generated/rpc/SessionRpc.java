@@ -113,6 +113,8 @@ public final class SessionRpc {
     public final SessionEventLogApi eventLog;
     /** API methods for the {@code usage} namespace. */
     public final SessionUsageApi usage;
+    /** API methods for the {@code quota} namespace. */
+    public final SessionQuotaApi quota;
     /** API methods for the {@code limitPrediction} namespace. */
     public final SessionLimitPredictionApi limitPrediction;
     /** API methods for the {@code remote} namespace. */
@@ -173,6 +175,7 @@ public final class SessionRpc {
         this.queue = new SessionQueueApi(caller, sessionId);
         this.eventLog = new SessionEventLogApi(caller, sessionId);
         this.usage = new SessionUsageApi(caller, sessionId);
+        this.quota = new SessionQuotaApi(caller, sessionId);
         this.limitPrediction = new SessionLimitPredictionApi(caller, sessionId);
         this.remote = new SessionRemoteApi(caller, sessionId);
         this.visibility = new SessionVisibilityApi(caller, sessionId);

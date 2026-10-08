@@ -408,6 +408,12 @@ failed-startup cleanup. Keep those lifecycle expectations aligned when changing
 an SDK transport; test watchdogs must allow all cleanup phases their separate
 budgets, rather than treating the graceful-exit timeout as a total shutdown cap.
 
+Java also exercises the opt-in `shutdown-error` mode. It rejects
+`runtime.shutdown`, writes `<cleanup-marker>.eof` when stdin closes, and holds
+cleanup-marker creation and process exit until the test creates
+`<cleanup-marker>.release`. This handshake verifies that a failed shutdown RPC
+still allows EOF-driven finalization before forced cleanup.
+
 The shared harness records real inference responses under `test/snapshots`.
 Record new captures with `GITHUB_TOKEN` set and `GITHUB_ACTIONS` unset;
 never author model responses by hand. Rerun with `GITHUB_ACTIONS=true` and real

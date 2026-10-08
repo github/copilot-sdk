@@ -14,8 +14,10 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -53,6 +55,8 @@ class JsonRpcClient implements AutoCloseable {
     private final Map<Long, CompletableFuture<JsonNode>> pendingRequests = new ConcurrentHashMap<>();
     private final Map<String, BiConsumer<String, JsonNode>> notificationHandlers = new ConcurrentHashMap<>();
     private final ExecutorService readerExecutor;
+    private final CountDownLatch readerExited = new CountDownLatch(1);
+    private boolean peerEof;
     private final Object closeHandlerLock = new Object();
     private volatile boolean running = true;
     private boolean closeNotified;
@@ -292,6 +296,7 @@ class JsonRpcClient implements AutoCloseable {
                     while (inHeaders) {
                         int b = bis.read();
                         if (b == -1) {
+                            peerEof = true;
                             return;
                         }
 
@@ -327,6 +332,7 @@ class JsonRpcClient implements AutoCloseable {
                     while (read < contentLength) {
                         int result = bis.read(buffer, read, contentLength - read);
                         if (result == -1) {
+                            peerEof = true;
                             return;
                         }
                         read += result;
@@ -342,9 +348,17 @@ class JsonRpcClient implements AutoCloseable {
                     LOG.log(Level.SEVERE, "Error in JSON-RPC reader", e);
                 }
             } finally {
-                notifyClose();
+                try {
+                    notifyClose();
+                } finally {
+                    readerExited.countDown();
+                }
             }
         });
+    }
+
+    boolean awaitPeerEof(long timeout, TimeUnit unit) throws InterruptedException {
+        return readerExited.await(Math.max(0, timeout), unit) && peerEof;
     }
 
     void setCloseHandler(Runnable handler) {

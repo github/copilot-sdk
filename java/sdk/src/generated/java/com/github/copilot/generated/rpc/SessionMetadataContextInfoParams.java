@@ -31,6 +31,8 @@ public record SessionMetadataContextInfoParams(
     /** Requested output allowance to reserve against the combined context ceiling. Pass 0 to resolve the session's request cap, falling back to the model's advertised output limit. */
     @JsonProperty("outputTokenLimit") Long outputTokenLimit,
     /** Model identifier used for tokenization. Omit to use the session default. Used both for token counting and to compute display values. */
-    @JsonProperty("selectedModel") String selectedModel
+    @JsonProperty("selectedModel") String selectedModel,
+    /** Provider owning selectedModel. Omit to use the current provider for the current model, or deterministic legacy lookup for a different model. */
+    @JsonProperty("providerId") String providerId
 ) {
 }

@@ -62,9 +62,10 @@ type Session struct {
 	transcriptRecovery          *TranscriptRecoveryReport
 	client                      *jsonrpc2.Client
 	clientSessionAPIs           *rpc.ClientSessionAPIHandlers
-	handlers                    []sessionHandler
+	handlers                    []*sessionHandler
 	nextHandlerID               uint64
 	handlerMutex                sync.RWMutex
+	gracefulRetirement          bool
 	toolHandlers                map[string]ToolHandler
 	toolHandlersM               sync.RWMutex
 	setToolsOnce                sync.Once
@@ -426,7 +427,7 @@ func newSession(
 		managedSettings:   managedSettings,
 		client:            client,
 		clientSessionAPIs: &rpc.ClientSessionAPIHandlers{},
-		handlers:          make([]sessionHandler, 0),
+		handlers:          make([]*sessionHandler, 0),
 		toolHandlers:      make(map[string]ToolHandler),
 		commandHandlers:   make(map[string]CommandHandler),
 		eventCh:           make(chan SessionEvent, 128),
@@ -513,7 +514,7 @@ func (s *Session) SendPrompt(ctx context.Context, prompt string) (string, error)
 //
 // Events are still delivered to handlers registered via [Session.On] while waiting.
 // Synchronous handlers registered before this call finish processing the completing
-// root session.idle event before it returns successfully.
+// root session.idle event before it returns successfully, unless the session retires.
 // This does not wait for asynchronous work started by a handler.
 // Sub-agent events with a non-empty AgentID do not complete the wait or supply its reply.
 //
@@ -523,7 +524,7 @@ func (s *Session) SendPrompt(ctx context.Context, prompt string) (string, error)
 //     Controls how long to wait; does not abort in-flight agent work.
 //
 // Returns the final assistant message event, or nil if none was received.
-// Returns an error if the timeout is reached or the connection fails.
+// Returns an error if the timeout is reached, the session is closed, or the connection fails.
 //
 // Example:
 //
@@ -548,34 +549,56 @@ func (s *Session) SendAndWait(ctx context.Context, options MessageOptions) (*Ses
 		defer cancel()
 	}
 
-	idleCh := make(chan struct{}, 1)
-	errCh := make(chan error, 1)
+	type outcome struct {
+		event *SessionEvent
+		err   error
+	}
+	terminalCh := make(chan outcome, 1)
+	dispatchedCh := make(chan struct{}, 1)
 	var lastAssistantMessage *SessionEvent
-	var mu sync.Mutex
+	completed := false
+	finish := func(result outcome) {
+		if !completed {
+			completed = true
+			terminalCh <- result
+		}
+	}
 
-	unsubscribe := s.On(func(event SessionEvent) {
-		if event.AgentID != nil && *event.AgentID != "" {
+	// Observe the result before user callbacks can retire the current dispatch.
+	unobserve := s.on(func(event SessionEvent) {
+		if completed || (event.AgentID != nil && *event.AgentID != "") {
 			return
 		}
 		switch d := event.Data.(type) {
 		case *AssistantMessageData:
-			mu.Lock()
 			eventCopy := event
 			lastAssistantMessage = &eventCopy
-			mu.Unlock()
 		case *SessionIdleData:
 			if d.Mode != nil && *d.Mode == SessionModeAutopilot {
 				break
 			}
-			select {
-			case idleCh <- struct{}{}:
-			default:
+			finish(outcome{event: lastAssistantMessage})
+		case *SessionErrorData:
+			finish(outcome{err: fmt.Errorf("session error: %s", d.Message)})
+		}
+	}, true)
+	defer unobserve()
+	unsubscribe := s.On(func(event SessionEvent) {
+		if event.AgentID != nil && *event.AgentID != "" {
+			return
+		}
+		switch data := event.Data.(type) {
+		case *SessionIdleData:
+			if data.Mode != nil && *data.Mode == SessionModeAutopilot {
+				return
 			}
 		case *SessionErrorData:
-			select {
-			case errCh <- fmt.Errorf("session error: %s", d.Message):
-			default:
-			}
+		default:
+			return
+		}
+		select {
+		case dispatchedCh <- struct{}{}:
+		default:
 		}
 	})
 	defer unsubscribe()
@@ -586,15 +609,26 @@ func (s *Session) SendAndWait(ctx context.Context, options MessageOptions) (*Ses
 	}
 
 	select {
-	case <-idleCh:
-		mu.Lock()
-		result := lastAssistantMessage
-		mu.Unlock()
-		return result, nil
-	case err := <-errCh:
-		return nil, err
+	case <-dispatchedCh:
+	case <-s.eventDone:
+		s.handlerMutex.RLock()
+		graceful := s.gracefulRetirement
+		s.handlerMutex.RUnlock()
+		if !graceful {
+			select {
+			case <-dispatchedCh:
+			default:
+				return nil, errors.New("session closed before response completed")
+			}
+		}
 	case <-ctx.Done():
 		return nil, fmt.Errorf("waiting for session.idle: %w", ctx.Err())
+	}
+	select {
+	case result := <-terminalCh:
+		return result.event, result.err
+	default:
+		return nil, errors.New("session closed before response completed")
 	}
 }
 
@@ -615,6 +649,8 @@ func (s *Session) SendPromptAndWait(ctx context.Context, prompt string) (*Sessio
 //
 // The returned function can be called to unsubscribe the handler. It is safe
 // to call the unsubscribe function multiple times.
+// Unsubscribing also removes an entry from dispatch snapshots if it has not started.
+// Registration after the session closes is logged and returns a no-op unsubscribe.
 //
 // Example:
 //
@@ -630,12 +666,28 @@ func (s *Session) SendPromptAndWait(ctx context.Context, prompt string) (*Sessio
 //	// Later, to stop receiving events:
 //	unsubscribe()
 func (s *Session) On(handler SessionEventHandler) func() {
+	return s.on(handler, false)
+}
+
+func (s *Session) on(handler SessionEventHandler, prepend bool) func() {
 	s.handlerMutex.Lock()
 	defer s.handlerMutex.Unlock()
 
+	select {
+	case <-s.eventDone:
+		log.Printf("Cannot register an event handler on closed session %s", s.SessionID)
+		return func() {}
+	default:
+	}
+
 	id := s.nextHandlerID
 	s.nextHandlerID++
-	s.handlers = append(s.handlers, sessionHandler{id: id, fn: handler})
+	entry := &sessionHandler{id: id, fn: handler}
+	if prepend {
+		s.handlers = append([]*sessionHandler{entry}, s.handlers...)
+	} else {
+		s.handlers = append(s.handlers, entry)
+	}
 
 	// Return unsubscribe function
 	return func() {
@@ -644,6 +696,7 @@ func (s *Session) On(handler SessionEventHandler) func() {
 
 		for i, h := range s.handlers {
 			if h.id == id {
+				h.fn = nil
 				s.handlers = append(s.handlers[:i], s.handlers[i+1:]...)
 				break
 			}
@@ -658,7 +711,9 @@ func (s *Session) On(handler SessionEventHandler) func() {
 //
 // This method is internal and typically called when creating a session with tools.
 func (s *Session) registerTools(tools []Tool) {
-	s.replaceToolHandlers(buildToolHandlerMap(tools))
+	if err := s.replaceToolHandlers(buildToolHandlerMap(tools)); err != nil {
+		log.Printf("Cannot register tools on session %s: %v", s.SessionID, err)
+	}
 }
 
 func buildToolHandlerMap(tools []Tool) map[string]ToolHandler {
@@ -672,10 +727,16 @@ func buildToolHandlerMap(tools []Tool) map[string]ToolHandler {
 	return handlers
 }
 
-func (s *Session) replaceToolHandlers(handlers map[string]ToolHandler) {
+func (s *Session) replaceToolHandlers(handlers map[string]ToolHandler) error {
 	s.toolHandlersM.Lock()
 	defer s.toolHandlersM.Unlock()
+	select {
+	case <-s.eventDone:
+		return errors.New("session closed before tool handlers could be installed")
+	default:
+	}
 	s.toolHandlers = handlers
+	return nil
 }
 
 // getToolHandler retrieves a registered tool handler by name.
@@ -747,14 +808,16 @@ func (s *Session) registerExitPlanModeHandler(handler ExitPlanModeRequestHandler
 	s.exitPlanModeHandler = handler
 }
 
-func (s *Session) getExitPlanModeHandler() ExitPlanModeRequestHandler {
-	s.exitPlanModeMu.RLock()
-	defer s.exitPlanModeMu.RUnlock()
-	return s.exitPlanModeHandler
-}
-
 func (s *Session) handleExitPlanModeRequest(request ExitPlanModeRequest) (ExitPlanModeResult, error) {
-	handler := s.getExitPlanModeHandler()
+	s.exitPlanModeMu.RLock()
+	select {
+	case <-s.eventDone:
+		s.exitPlanModeMu.RUnlock()
+		return ExitPlanModeResult{}, errors.New("session closed before exit-plan-mode request")
+	default:
+	}
+	handler := s.exitPlanModeHandler
+	s.exitPlanModeMu.RUnlock()
 	if handler == nil {
 		return ExitPlanModeResult{Approved: true}, nil
 	}
@@ -768,14 +831,16 @@ func (s *Session) registerAutoModeSwitchHandler(handler AutoModeSwitchRequestHan
 	s.autoModeSwitchHandler = handler
 }
 
-func (s *Session) getAutoModeSwitchHandler() AutoModeSwitchRequestHandler {
-	s.autoModeSwitchMu.RLock()
-	defer s.autoModeSwitchMu.RUnlock()
-	return s.autoModeSwitchHandler
-}
-
 func (s *Session) handleAutoModeSwitchRequest(request AutoModeSwitchRequest) (AutoModeSwitchResponse, error) {
-	handler := s.getAutoModeSwitchHandler()
+	s.autoModeSwitchMu.RLock()
+	select {
+	case <-s.eventDone:
+		s.autoModeSwitchMu.RUnlock()
+		return "", errors.New("session closed before auto-mode-switch request")
+	default:
+	}
+	handler := s.autoModeSwitchHandler
+	s.autoModeSwitchMu.RUnlock()
 	if handler == nil {
 		return AutoModeSwitchResponseNo, nil
 	}
@@ -795,17 +860,18 @@ func (s *Session) registerHooks(hooks *SessionHooks) {
 	s.hooks = hooks
 }
 
-// getHooks returns the currently registered hooks, or nil.
-func (s *Session) getHooks() *SessionHooks {
-	s.hooksMux.RLock()
-	defer s.hooksMux.RUnlock()
-	return s.hooks
-}
-
 // handleHooksInvoke handles a hook invocation from the Copilot CLI.
 // This is an internal method called by the SDK when the CLI invokes a hook.
 func (s *Session) handleHooksInvoke(hookType string, rawInput json.RawMessage) (any, error) {
-	hooks := s.getHooks()
+	s.hooksMux.RLock()
+	select {
+	case <-s.eventDone:
+		s.hooksMux.RUnlock()
+		return nil, errors.New("session closed before hook invocation")
+	default:
+	}
+	hooks := s.hooks
+	s.hooksMux.RUnlock()
 
 	if hooks == nil {
 		return nil, nil
@@ -968,6 +1034,12 @@ type systemMessageTransformResponse struct {
 // This is an internal method called by the SDK when the CLI requests section transforms.
 func (s *Session) handleSystemMessageTransform(sections map[string]systemMessageTransformSection) (systemMessageTransformResponse, error) {
 	s.transformMu.Lock()
+	select {
+	case <-s.eventDone:
+		s.transformMu.Unlock()
+		return systemMessageTransformResponse{}, errors.New("session closed before system message transform")
+	default:
+	}
 	callbacks := s.transformCallbacks
 	s.transformMu.Unlock()
 
@@ -1509,6 +1581,12 @@ func (s *Session) dispatchEvent(event SessionEvent) {
 // others from receiving the event.
 func (s *Session) processEvents() {
 	for {
+		select {
+		case <-s.eventDone:
+			return
+		default:
+		}
+
 		var event SessionEvent
 		select {
 		case event = <-s.eventCh:
@@ -1517,13 +1595,23 @@ func (s *Session) processEvents() {
 		}
 
 		s.handlerMutex.RLock()
-		handlers := make([]SessionEventHandler, 0, len(s.handlers))
-		for _, h := range s.handlers {
-			handlers = append(handlers, h.fn)
-		}
+		handlers := append([]*sessionHandler(nil), s.handlers...)
 		s.handlerMutex.RUnlock()
 
-		for _, handler := range handlers {
+		for _, entry := range handlers {
+			s.handlerMutex.RLock()
+			select {
+			case <-s.eventDone:
+				s.handlerMutex.RUnlock()
+				return
+			default:
+			}
+			handler := entry.fn
+			s.handlerMutex.RUnlock()
+			if handler == nil {
+				continue
+			}
+
 			func() {
 				defer func() {
 					if r := recover(); r != nil {
@@ -1536,12 +1624,77 @@ func (s *Session) processEvents() {
 	}
 }
 
-// stopEventProcessing stops the session event consumer without making an RPC.
+// stopEventProcessing signals the consumer to stop without making an RPC or
+// waiting for a user handler that may itself be stopping the client.
+// It releases registered callbacks, including unadmitted event snapshot entries.
 // CreateSession/ResumeSession use this when a locally registered session fails
 // before it can be returned to the caller.
 func (s *Session) stopEventProcessing() {
-	s.clearSkillProvider()
-	s.closeOnce.Do(func() { close(s.eventDone) })
+	s.retireEventProcessing(false)
+}
+
+func (s *Session) retireEventProcessing(graceful bool) {
+	s.closeOnce.Do(func() {
+		s.handlerMutex.Lock()
+		s.gracefulRetirement = graceful
+		close(s.eventDone)
+		for _, handler := range s.handlers {
+			handler.fn = nil
+		}
+		s.handlers = nil
+		s.handlerMutex.Unlock()
+
+		s.clearSkillProvider()
+		s.releaseGitHubTokenProviderRegistration()
+
+		s.toolHandlersM.Lock()
+		s.toolHandlers = nil
+		s.toolHandlersM.Unlock()
+
+		s.permissionMux.Lock()
+		s.permissionHandler = nil
+		s.permissionMux.Unlock()
+
+		s.mcpAuthMu.Lock()
+		s.mcpAuthHandler = nil
+		s.mcpAuthMu.Unlock()
+
+		s.userInputMux.Lock()
+		s.userInputHandler = nil
+		s.userInputMux.Unlock()
+
+		s.exitPlanModeMu.Lock()
+		s.exitPlanModeHandler = nil
+		s.exitPlanModeMu.Unlock()
+
+		s.autoModeSwitchMu.Lock()
+		s.autoModeSwitchHandler = nil
+		s.autoModeSwitchMu.Unlock()
+
+		s.hooksMux.Lock()
+		s.hooks = nil
+		s.hooksMux.Unlock()
+
+		s.transformMu.Lock()
+		s.transformCallbacks = nil
+		s.transformMu.Unlock()
+
+		s.commandHandlersMu.Lock()
+		s.commandHandlers = nil
+		s.commandHandlersMu.Unlock()
+
+		s.elicitationMu.Lock()
+		s.elicitationHandler = nil
+		s.elicitationMu.Unlock()
+
+		s.canvasMu.Lock()
+		s.canvasHandler = nil
+		s.canvasMu.Unlock()
+
+		s.bearerTokenMu.Lock()
+		s.bearerTokenProviders = nil
+		s.bearerTokenMu.Unlock()
+	})
 }
 
 // handleBroadcastEvent handles broadcast request events by executing local handlers
@@ -1934,29 +2087,7 @@ func (s *Session) Disconnect() error {
 	// Local cleanup always runs, even if the detach RPC failed, so callers
 	// don't leak in-memory resources (event goroutines, registered
 	// providers/handlers) just because the runtime couldn't be reached.
-	s.stopEventProcessing()
-	s.releaseGitHubTokenProviderRegistration()
-
-	// Clear handlers
-	s.handlerMutex.Lock()
-	s.handlers = nil
-	s.handlerMutex.Unlock()
-
-	s.toolHandlersM.Lock()
-	s.toolHandlers = nil
-	s.toolHandlersM.Unlock()
-
-	s.permissionMux.Lock()
-	s.permissionHandler = nil
-	s.permissionMux.Unlock()
-
-	s.commandHandlersMu.Lock()
-	s.commandHandlers = nil
-	s.commandHandlersMu.Unlock()
-
-	s.elicitationMu.Lock()
-	s.elicitationHandler = nil
-	s.elicitationMu.Unlock()
+	s.retireEventProcessing(true)
 
 	if err != nil {
 		return fmt.Errorf("failed to disconnect session: %w", err)
@@ -2145,7 +2276,7 @@ func toolDefinitionsForSetTools(tools []Tool) []rpc.ProtocolExternalToolDefiniti
 // not block later calls. If ctx is done before the request is sent, for example
 // while an earlier SetTools call is still in flight, nothing is sent. Once the
 // request is sent, ctx only bounds the wait: an accepted replacement still
-// installs its handlers.
+// installs its handlers unless the session has since closed.
 //
 // The agent sees the new tools from its next model request, which can fall
 // within a turn in progress. A model request already in flight was made with the
@@ -2183,8 +2314,7 @@ func (s *Session) SetTools(ctx context.Context, tools []Tool) error {
 			done <- fmt.Errorf("failed to set tools: %w", err)
 			return
 		}
-		s.replaceToolHandlers(handlers)
-		done <- nil
+		done <- s.replaceToolHandlers(handlers)
 	}()
 
 	select {

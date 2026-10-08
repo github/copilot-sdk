@@ -183,6 +183,24 @@ public class CopilotSDK {
 }
 ```
 
+`client.forceStop()` retires tracked sessions locally without `session.detach`
+RPCs. Retained session objects reject new work and subscriptions, unused handler
+captures are released, and pending plain and structured response waits fail.
+Already-admitted event handlers and response continuations are not joined.
+Forced retirement also drops callbacks when a graceful `session.close()` is
+already awaiting detach. Graceful close fails pending response waits without
+joining their continuations; ordinary callbacks remain active until detach completes.
+Plain response waits preserve terminal results and errors already received before
+retirement, even when a blocked continuation delays forwarding them to the caller.
+Graceful owned-process shutdown over stdio waits for the runtime transport and
+launcher to exit. Over TCP, it closes the connection and terminates the owned
+process after the shutdown acknowledgment, without waiting for peer EOF.
+Both preserve intentionally detached services; failed or forced shutdown retains
+process-tree cleanup.
+For a custom TCP launcher that spawns the runtime as a child, graceful cleanup
+terminates only the launcher. The launcher must supervise and reap its runtime
+child; a shutdown acknowledgment alone does not prove that child exited.
+
 When targeting MCP tools configured through `setMcpServers(...)`, remember the
 runtime tool name is `<server-key>-<tool-name>`. For `setAvailableTools(...)`
 and `setExcludedTools(...)`, prefer the source-qualified filter form

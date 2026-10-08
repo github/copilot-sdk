@@ -4,6 +4,7 @@ import { ParsedHttpExchange } from "../../../test/harness/replayingCapiProxy.js"
 import { CopilotClient, approveAll, defineTool, RuntimeConnection } from "../../src/index.js";
 import { createSdkTestContext, DEFAULT_GITHUB_TOKEN, isCI } from "./harness/sdkTestContext.js";
 import { withFinalAssistantMessage, getNextEventOfType, retry } from "./harness/sdkTestHelper.js";
+import { isByokBackend } from "./harness/testBackend.js";
 
 const {
     copilotClient: client,
@@ -121,9 +122,31 @@ describe("Sessions", () => {
             onPermissionRequest: approveAll,
             model: "claude-sonnet-4.5",
         });
-        await session.sendAndWait({
+        const initialResponse = await session.sendAndWait({
             prompt: `Please remember this exact secret marker for later - ${marker}. Reply with only the single word "Acknowledged".`,
         });
+        // Legacy single-provider SDK configuration has no stable provider reference.
+        const expectedProvider = isByokBackend
+            ? null
+            : { id: "copilot", kind: "copilot", label: "GitHub Copilot" };
+        expect(initialResponse?.data.content).toContain("Acknowledged");
+        expect(initialResponse?.data.providerId).toBe(expectedProvider?.id);
+        const initialEvents = await session.getEvents();
+        const initialMessage = initialEvents
+            .filter((event) => event.type === "assistant.message")
+            .find((event) => event.data.messageId === initialResponse?.data.messageId);
+        expect(initialMessage).toBeDefined();
+        expect(initialMessage?.data.providerId).toBe(expectedProvider?.id);
+        const recordedUsage = await session.rpc.usage.getMetrics();
+        expect(recordedUsage.aiCreditsStatus).toBe("unavailable");
+        const recordedModel = recordedUsage.providerModelMetrics?.find(
+            (row) => row.modelId === "claude-sonnet-4.5"
+        );
+        expect(recordedModel?.provider).toEqual(expectedProvider);
+        expect(recordedModel?.metrics.requests.count).toBeGreaterThan(0);
+        expect((await session.getEvents()).map((event) => event.type)).not.toContain(
+            "session.usage_record"
+        );
         await session.disconnect();
         await firstClient.stop();
 
@@ -144,11 +167,21 @@ describe("Sessions", () => {
             onPermissionRequest: approveAll,
             model: "claude-sonnet-4.5",
         });
+        const restoredUsage = await resumedSession.rpc.usage.getMetrics();
+        expect(restoredUsage.aiCreditsStatus).toBe(recordedUsage.aiCreditsStatus);
+        const resumedMessage = (await resumedSession.getEvents())
+            .filter((event) => event.type === "assistant.message")
+            .find((event) => event.data.messageId === initialResponse?.data.messageId);
+        expect(resumedMessage).toBeDefined();
+        expect(resumedMessage?.data.providerId).toBe(expectedProvider?.id);
+        expect(restoredUsage.providerModelMetrics).toEqual(recordedUsage.providerModelMetrics);
+        expect(restoredUsage.totalNanoAiu).toBe(recordedUsage.totalNanoAiu);
         const response = await resumedSession.sendAndWait({
             prompt: "What was the exact secret marker I asked you to remember earlier? Reply with only that marker value and nothing else.",
         });
 
         expect(response?.data.content).toContain(marker);
+        expect(response?.data.providerId).toBe(expectedProvider?.id);
         await resumedSession.disconnect();
         await secondClient.stop();
     });

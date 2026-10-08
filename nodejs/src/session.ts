@@ -476,6 +476,7 @@ export class CopilotSession {
     private _capabilities: SessionCapabilities = {};
     private openCanvasInstances: OpenCanvasInstance[] = [];
     private disconnected = false;
+    private readonly pendingResponseWaits = new Set<(error: Error) => void>();
     private readonly pendingStructuredWaits = new Set<(error: Error) => void>();
     private disconnecting = false;
     private onDisconnected?: () => void;
@@ -888,6 +889,8 @@ export class CopilotSession {
                 resolveOutcome({ kind: "error", error });
             }
         });
+        const fail = (error: Error) => resolveOutcome({ kind: "error", error });
+        this.pendingResponseWaits.add(fail);
 
         let timeoutId: ReturnType<typeof setTimeout> | undefined;
         try {
@@ -915,6 +918,7 @@ export class CopilotSession {
                 clearTimeout(timeoutId);
             }
             unsubscribe();
+            this.pendingResponseWaits.delete(fail);
         }
     }
 
@@ -1016,12 +1020,22 @@ export class CopilotSession {
         }
     }
 
+    private assertConnected(): void {
+        if (this.disconnected) {
+            throw new Error("Session is disconnected");
+        }
+    }
+
     /** @internal */
     _markDisconnected(): void {
         if (this.disconnected) {
             return;
         }
         this.disconnected = true;
+        for (const fail of this.pendingResponseWaits) {
+            fail(new Error("Session disconnected while waiting for a response"));
+        }
+        this.pendingResponseWaits.clear();
         for (const fail of this.pendingStructuredWaits) {
             fail(new Error("Session disconnected while waiting for a structured response"));
         }
@@ -1030,16 +1044,19 @@ export class CopilotSession {
             controller.abort();
         }
         this.pendingExternalTools.clear();
-        this._runOnDisconnected();
         this.eventHandlers.clear();
         this.typedEventHandlers.clear();
         this.toolHandlers.clear();
         this.permissionHandler = undefined;
+        this.mcpAuthHandler = undefined;
         this.userInputHandler = undefined;
         this.elicitationHandler = undefined;
         this.exitPlanModeHandler = undefined;
         this.autoModeSwitchHandler = undefined;
         this.skillProvider = undefined;
+        this.hooks = undefined;
+        this.traceContextProvider = undefined;
+        this.bearerTokenProviders.clear();
         this.commandHandlers.clear();
         this.canvases.clear();
         this.workflows.clear();
@@ -1049,17 +1066,24 @@ export class CopilotSession {
             }
         }
         this.workflowAbortControllers.clear();
-        this.transformCallbacks?.clear();
+        this.transformCallbacks = undefined;
+        delete this.clientSessionApis.providerToken;
+        delete this.clientSessionApis.canvas;
+        delete this.clientSessionApis.workflow;
+        delete this.clientSessionApis.sessionFs;
+        this._runOnDisconnected();
     }
 
     /** @internal */
     _runOnDisconnected(): void {
-        this.onDisconnected?.();
+        const callback = this.onDisconnected;
         this.onDisconnected = undefined;
+        callback?.();
     }
 
     /** @internal */
     _setOnDisconnected(callback: () => void): void {
+        this.assertConnected();
         this.onDisconnected = callback;
     }
 
@@ -1115,6 +1139,9 @@ export class CopilotSession {
         eventTypeOrHandler: K | SessionEventHandler,
         handler?: TypedSessionEventHandler<K>
     ): () => void {
+        if (this.disconnected) {
+            throw new Error("Session is disconnected");
+        }
         // Overload 1: on(eventType, handler) - typed event subscription
         if (typeof eventTypeOrHandler === "string" && handler) {
             const eventType = eventTypeOrHandler;
@@ -1552,6 +1579,7 @@ export class CopilotSession {
      * @internal This method is typically called internally when creating a session with tools.
      */
     registerTools(tools?: Tool[]): void {
+        this.assertConnected();
         this.toolHandlers.clear();
         if (!tools) {
             return;
@@ -1604,6 +1632,7 @@ export class CopilotSession {
      * @internal Called by the SDK when creating/resuming a session with `canvases`.
      */
     registerCanvases(canvases?: Canvas[]): void {
+        this.assertConnected();
         this.canvases.clear();
         if (!canvases || canvases.length === 0) {
             delete this.clientSessionApis.canvas;
@@ -1661,6 +1690,7 @@ export class CopilotSession {
      * @internal Called by the SDK when an extension joins a session.
      */
     registerWorkflows(workflows?: WorkflowHandle[]): void {
+        this.assertConnected();
         this.workflows.clear();
         if (!workflows || workflows.length === 0) {
             delete this.clientSessionApis.workflow;
@@ -1874,6 +1904,7 @@ export class CopilotSession {
      * @internal This method is called internally when creating/resuming a session.
      */
     registerBearerTokenProviders(providers?: Map<string, BearerTokenProvider>): void {
+        this.assertConnected();
         this.bearerTokenProviders.clear();
         if (!providers || providers.size === 0) {
             delete this.clientSessionApis.providerToken;
@@ -1886,6 +1917,7 @@ export class CopilotSession {
         const self = this;
         this.clientSessionApis.providerToken = {
             async getToken(params) {
+                self.assertConnected();
                 const callback = self.bearerTokenProviders.get(params.providerName);
                 if (!callback) {
                     throw new Error(
@@ -1908,6 +1940,7 @@ export class CopilotSession {
      * @internal This method is typically called internally when creating/resuming a session.
      */
     registerCommands(commands?: { name: string; handler: CommandHandler }[]): void {
+        this.assertConnected();
         this.commandHandlers.clear();
         if (!commands) {
             return;
@@ -1924,6 +1957,7 @@ export class CopilotSession {
      * @internal This method is typically called internally when creating/resuming a session.
      */
     registerElicitationHandler(handler?: ElicitationHandler): void {
+        this.assertConnected();
         this.elicitationHandler = handler;
     }
 
@@ -1934,6 +1968,7 @@ export class CopilotSession {
      * @internal This method is typically called internally when creating/resuming a session.
      */
     registerExitPlanModeHandler(handler?: ExitPlanModeHandler): void {
+        this.assertConnected();
         this.exitPlanModeHandler = handler;
     }
 
@@ -1944,6 +1979,7 @@ export class CopilotSession {
      * @internal This method is typically called internally when creating/resuming a session.
      */
     registerAutoModeSwitchHandler(handler?: AutoModeSwitchHandler): void {
+        this.assertConnected();
         this.autoModeSwitchHandler = handler;
     }
 
@@ -1986,6 +2022,7 @@ export class CopilotSession {
      * @internal
      */
     async _handleExitPlanModeRequest(request: ExitPlanModeRequest): Promise<ExitPlanModeResult> {
+        this.assertConnected();
         if (!this.exitPlanModeHandler) {
             return { approved: true };
         }
@@ -2000,6 +2037,7 @@ export class CopilotSession {
     async _handleAutoModeSwitchRequest(
         request: AutoModeSwitchRequest
     ): Promise<AutoModeSwitchResponse> {
+        this.assertConnected();
         if (!this.autoModeSwitchHandler) {
             return "no";
         }
@@ -2123,6 +2161,7 @@ export class CopilotSession {
      * @internal This method is typically called internally when creating a session.
      */
     registerPermissionHandler(handler?: PermissionHandler): void {
+        this.assertConnected();
         this.permissionHandler = handler;
     }
 
@@ -2136,6 +2175,7 @@ export class CopilotSession {
      * @internal This method is typically called internally when creating a session.
      */
     registerUserInputHandler(handler?: UserInputHandler): void {
+        this.assertConnected();
         this.userInputHandler = handler;
     }
 
@@ -2146,6 +2186,7 @@ export class CopilotSession {
      * @internal This method is typically called internally when creating a session.
      */
     registerSkillProvider(provider?: SkillProvider): void {
+        this.assertConnected();
         this.skillProvider = provider;
     }
 
@@ -2179,6 +2220,7 @@ export class CopilotSession {
     }
 
     private requireSkillProvider(): SkillProvider {
+        this.assertConnected();
         if (!this.skillProvider) {
             throw new Error(`No skill provider for session: ${this.sessionId}`);
         }
@@ -2225,6 +2267,7 @@ export class CopilotSession {
      * @internal This method is typically called internally when creating a session.
      */
     registerHooks(hooks?: SessionHooks): void {
+        this.assertConnected();
         this.hooks = hooks;
     }
 
@@ -2235,6 +2278,7 @@ export class CopilotSession {
      * @internal This method is typically called internally when creating a session.
      */
     registerTransformCallbacks(callbacks?: Map<string, SectionTransformFn>): void {
+        this.assertConnected();
         this.transformCallbacks = callbacks;
     }
 
@@ -2249,6 +2293,7 @@ export class CopilotSession {
     async _handleSystemMessageTransform(
         sections: Record<string, { content: string }>
     ): Promise<{ sections: Record<string, { content: string }> }> {
+        this.assertConnected();
         const result: Record<string, { content: string }> = {};
 
         for (const [sectionId, { content }] of Object.entries(sections)) {
@@ -2278,6 +2323,7 @@ export class CopilotSession {
      * @internal This method is for internal use by the SDK.
      */
     async _handleUserInputRequest(request: unknown): Promise<UserInputResponse> {
+        this.assertConnected();
         if (!this.userInputHandler) {
             // No handler registered, throw error
             throw new Error("User input requested but no handler registered");
@@ -2303,6 +2349,7 @@ export class CopilotSession {
      * @internal This method is for internal use by the SDK.
      */
     async _handleHooksInvoke(hookType: string, input: unknown): Promise<unknown> {
+        this.assertConnected();
         if (!this.hooks) {
             return undefined;
         }
@@ -2553,6 +2600,7 @@ export class CopilotSession {
      * replace tools while the session is idle.
      *
      * @param tools - The complete set of tools this client supplies
+     * @throws Error if the session disconnects before the replacement is applied
      *
      * @experimental Wraps the experimental `session.tools.set` RPC and may change
      * or be removed in a future release.
@@ -2569,8 +2617,10 @@ export class CopilotSession {
      * ```
      */
     async setTools(tools: Tool[]): Promise<void> {
+        this.assertConnected();
         const definitions = tools.map(toToolDefinition);
         const replacement = this.setToolsQueue.then(async () => {
+            this.assertConnected();
             await this.rpc.tools.set({ tools: definitions });
             this.registerTools(tools);
         });

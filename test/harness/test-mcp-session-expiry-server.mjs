@@ -9,10 +9,13 @@
  *
  * The `/mcp` endpoint issues a real `mcp-session-id` per connection and serves
  * enough JSON-RPC MCP methods for the runtime to initialize, list tools and call
- * one tool. `POST /__expire` invalidates every active session so subsequent
- * requests (including the runtime's liveness `ping`) answer `404`, which is how a
+ * one tool. It negotiates its supported stateful protocol version rather than
+ * echoing a newer, stateless client proposal. `POST /__expire` invalidates every
+ * active session so subsequent requests (including the runtime's liveness
+ * `ping`) answer `404`, which is how a
  * server-side idle expiry is observed by a real Streamable HTTP client.
- * `GET /__stats` reports the counters tests assert on.
+ * `GET /__stats` reports the counters tests assert on, including answered
+ * expired-session probes so recovery assertions need not budget the idle delay.
  */
 
 import http from "node:http";
@@ -34,6 +37,7 @@ export async function startSessionExpiryMcpServer({ host = "127.0.0.1", port = 0
     expiredRequests: 0,
     expiredRequestLog: [],
     protocolVersions: [],
+    expiredSessionProbes: 0,
   };
 
   const server = http.createServer(async (req, res) => {
@@ -67,6 +71,17 @@ export async function startSessionExpiryMcpServer({ host = "127.0.0.1", port = 0
           method: req.method ?? "UNKNOWN",
           elapsedMs: Math.round(performance.now() - expiredAt),
         });
+      }
+      let isProbe = false;
+      if (req.method === "POST") {
+        const body = parseJsonBody(await readBody(req));
+        if (body.ok) {
+          const messages = Array.isArray(body.value) ? body.value : [body.value];
+          isProbe = messages.some((message) => message?.method === "ping" && "id" in message);
+        }
+      }
+      if (isProbe) {
+        res.once("finish", () => stats.expiredSessionProbes++);
       }
       respondJson(res, 404, { error: "session_expired" });
       return;

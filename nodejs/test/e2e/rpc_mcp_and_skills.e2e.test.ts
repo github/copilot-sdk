@@ -620,16 +620,12 @@ describe("Session MCP and skills RPC", async () => {
         }
     });
 
-    it("should report error when mcp host is not initialized", async () => {
+    it("should allow cold enablement while rejecting operations that require an MCP host", async () => {
         const session = await client.createSession({ onPermissionRequest: approveAll });
 
-        await expectFailure(
-            () => session.rpc.mcp.enable({ serverName: "missing-server" }),
-            "No MCP host initialized"
-        );
-        await expectFailure(
-            () => session.rpc.mcp.disable({ serverName: "missing-server" }),
-            "No MCP host initialized"
+        await expect(session.rpc.mcp.enable({ serverName: "missing-server" })).resolves.toEqual({});
+        await expect(session.rpc.mcp.disable({ serverName: "missing-server" })).resolves.toEqual(
+            {}
         );
         await expectFailure(() => session.rpc.mcp.reload(), "MCP config reload not available");
         await expectFailure(

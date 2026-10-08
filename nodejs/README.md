@@ -345,6 +345,11 @@ This graceful-exit timeout is separate from the shutdown RPC and post-terminatio
 ##### `forceStop(): Promise<void>`
 
 Force stop the CLI server without graceful cleanup. Use when `stop()` takes too long.
+Retained sessions are disconnected locally, and pending `sendAndWait()` calls reject
+without waiting for `session.idle` or their response timeout.
+Retirement releases session-owned tool, hook, auth/input, provider, workflow, canvas,
+and transform registrations without changing caller-owned configuration. Late
+registration and callback dispatch are rejected; callbacks already admitted may finish.
 
 ##### `createSession(config?: SessionConfig): Promise<CopilotSession>`
 

@@ -42,6 +42,92 @@ fn make_event(id: &str) -> SessionEvent {
 }
 
 #[tokio::test]
+async fn closed_subscription_ends_on_its_first_poll() {
+    let mut events = EventSubscription::closed();
+    assert!(next_ready(&mut events).is_none());
+    assert!(matches!(
+        recv_ready(&mut events).unwrap_err().kind(),
+        RecvErrorKind::Closed
+    ));
+    assert!(next_ready(&mut events).is_none());
+}
+
+#[tokio::test]
+async fn force_stop_discards_buffered_live_events_with_a_retained_producer() {
+    let (tx, rx) = broadcast::channel(8);
+    let force_stop = CancellationToken::new();
+    let mut events = EventSubscription::new(rx).with_force_stop(force_stop.clone());
+    tx.send(make_event("unread")).unwrap();
+    force_stop.cancel();
+
+    assert!(next_ready(&mut events).is_none());
+    assert!(matches!(
+        recv_ready(&mut events).unwrap_err().kind(),
+        RecvErrorKind::Closed
+    ));
+    assert_eq!(tx.receiver_count(), 0);
+}
+
+#[tokio::test]
+async fn force_stop_discards_owned_resume_bootstrap() {
+    let (tx, _) = broadcast::channel(8);
+    let bootstrap = ResumeBootstrap::new(&tx);
+    bootstrap.publish(&tx, make_event("unread"));
+    let force_stop = CancellationToken::new();
+    let mut events = bootstrap.subscribe(&tx).with_force_stop(force_stop.clone());
+    force_stop.cancel();
+
+    assert!(next_ready(&mut events).is_none());
+    assert!(matches!(
+        *bootstrap.state.lock(),
+        ResumeBootstrapState::Disabled
+    ));
+    assert!(matches!(
+        recv_ready(&mut events).unwrap_err().kind(),
+        RecvErrorKind::Closed
+    ));
+}
+
+#[tokio::test]
+async fn force_stop_wakes_a_pending_receive_without_producer_shutdown() {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::task::{Wake, Waker};
+
+    struct WakeFlag(AtomicBool);
+
+    impl Wake for WakeFlag {
+        fn wake(self: Arc<Self>) {
+            self.0.store(true, Ordering::SeqCst);
+        }
+    }
+
+    let (_tx, rx) = broadcast::channel(8);
+    let force_stop = CancellationToken::new();
+    let mut events = EventSubscription::new(rx).with_force_stop(force_stop.clone());
+    let mut receive = Box::pin(events.recv());
+    let woke = Arc::new(WakeFlag(AtomicBool::new(false)));
+    let waker = Waker::from(woke.clone());
+    assert!(
+        receive
+            .as_mut()
+            .poll(&mut Context::from_waker(&waker))
+            .is_pending()
+    );
+    woke.0.store(false, Ordering::SeqCst);
+    force_stop.cancel();
+
+    assert!(
+        woke.0.load(Ordering::SeqCst),
+        "force-stop must notify the pending receiver's registered waker"
+    );
+    let error = receive
+        .now_or_never()
+        .expect("the awakened receiver must close on its first poll")
+        .unwrap_err();
+    assert!(matches!(error.kind(), RecvErrorKind::Closed), "{error:?}");
+}
+
+#[tokio::test]
 async fn recv_yields_then_closes_on_drop_sender() {
     let (tx, rx) = broadcast::channel(8);
     let mut sub = EventSubscription::new(rx);

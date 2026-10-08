@@ -1283,7 +1283,7 @@ public class SerializationTests
         Assert.True(switchAutoTierDocument.RootElement.TryGetProperty("autoTier", out var requiredAutoTier));
         Assert.Equal(JsonValueKind.Null, requiredAutoTier.ValueKind);
 
-        var switchToType = assembly.GetType("GitHub.Copilot.Rpc.ModelSwitchToRequest");
+        var switchToType = assembly.GetType("GitHub.Copilot.Rpc.ModelSwitchToRequestWithSession");
         Assert.NotNull(switchToType);
         var switchToRequest = CreateInternalRequest(
             switchToType!,

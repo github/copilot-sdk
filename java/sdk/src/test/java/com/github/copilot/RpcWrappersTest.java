@@ -50,6 +50,7 @@ import com.github.copilot.generated.rpc.SessionConnectorsReconnectParams;
 import com.github.copilot.generated.rpc.SessionConnectorsRefreshParams;
 import com.github.copilot.generated.rpc.SessionConnectorsRefreshResult;
 import com.github.copilot.generated.rpc.SessionModelSwitchToParams;
+import com.github.copilot.generated.rpc.SessionModelSwitchToRequest;
 import com.github.copilot.generated.rpc.SessionRpc;
 
 /**
@@ -445,8 +446,9 @@ class RpcWrappersTest {
         var switchParams = new SessionModelSwitchToParams(null, "gpt-5", null, null, null, null, null, null, null, null,
                 null, null, null, null, null, null);
         session.model.switchTo(switchParams);
+        session.model.switchTo(new SessionModelSwitchToRequest("gpt-5").setProviderId("catalog-provider"));
 
-        assertEquals(1, stub.calls.size());
+        assertEquals(2, stub.calls.size());
         assertEquals("session.model.switchTo", stub.calls.get(0).method());
 
         // Params should be a JsonNode containing both sessionId and modelId
@@ -454,7 +456,12 @@ class RpcWrappersTest {
         assertInstanceOf(com.fasterxml.jackson.databind.node.ObjectNode.class, params);
         var node = (com.fasterxml.jackson.databind.node.ObjectNode) params;
         assertEquals("sess-xyz", node.get("sessionId").asText());
+        assertFalse(node.has("providerId"));
         assertEquals("gpt-5", node.get("modelId").asText());
+        var providerRequest = (com.fasterxml.jackson.databind.node.ObjectNode) stub.calls.get(1).params();
+        assertEquals("sess-xyz", providerRequest.get("sessionId").asText());
+        assertEquals("catalog-provider", providerRequest.get("providerId").asText());
+        assertEquals("gpt-5", providerRequest.get("modelId").asText());
     }
 
     @Test

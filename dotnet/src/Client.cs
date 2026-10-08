@@ -71,6 +71,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// <see cref="CopilotClient"/> that has not been explicitly disposed or removed.
     /// </remarks>
     internal readonly ConcurrentDictionary<string, CopilotSession> _sessions = new();
+    private readonly object _sessionAdmissionLock = new();
+    private bool _sessionAdmissionClosed;
     private readonly ConcurrentDictionary<string, Func<GitHubTokenProviderArgs, Task<GitHubTokenProviderResult>>> _gitHubTokenProviders = new();
 
     private readonly CopilotClientOptions _options;
@@ -365,7 +367,14 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// </example>
     public Task StartAsync(CancellationToken cancellationToken = default)
     {
-        return _connectionTask ??= StartCoreAsync(cancellationToken);
+        lock (_sessionAdmissionLock)
+        {
+            if (_connectionTask is null)
+            {
+                _sessionAdmissionClosed = false;
+            }
+            return _connectionTask ??= StartCoreAsync(cancellationToken);
+        }
 
         async Task<Connection> StartCoreAsync(CancellationToken ct)
         {
@@ -556,11 +565,12 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// </example>
     public async Task StopAsync()
     {
+        var sessions = CloseSessionAdmission(clearSessions: false);
         DisconnectAhpHosts();
         List<Exception> errors = [];
-        CancelPendingExternalTools();
+        CancelPendingExternalTools(sessions);
 
-        foreach (var session in _sessions.Values.ToArray())
+        foreach (var session in sessions)
         {
             try
             {
@@ -572,7 +582,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             }
         }
 
-        _sessions.Clear();
         ClearGitHubTokenProviders();
 
         await CleanupConnectionAsync(errors, gracefulRuntimeShutdown: true);
@@ -588,6 +597,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// Use this when <see cref="StopAsync"/> fails or takes too long. This method:
     /// <list type="bullet">
     ///     <item>Clears all sessions immediately without destroying them</item>
+    ///     <item>Stops session event delivery without waiting for running handlers</item>
     ///     <item>Force closes the connection</item>
     ///     <item>Kills the CLI process (if spawned by this client)</item>
     /// </list>
@@ -604,14 +614,32 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// </example>
     public async Task ForceStopAsync()
     {
+        var sessions = CloseSessionAdmission(clearSessions: true);
         DisconnectAhpHosts();
-        CancelPendingExternalTools();
-        _sessions.Clear();
+        CancelPendingExternalTools(sessions);
+        foreach (var session in sessions)
+        {
+            session.Retire();
+        }
         ClearGitHubTokenProviders();
 
         var errors = new List<Exception>();
         await CleanupConnectionAsync(errors, gracefulRuntimeShutdown: false);
         ThrowErrors(errors);
+    }
+
+    private CopilotSession[] CloseSessionAdmission(bool clearSessions)
+    {
+        lock (_sessionAdmissionLock)
+        {
+            _sessionAdmissionClosed = true;
+            var sessions = _sessions.Values.ToArray();
+            if (clearSessions)
+            {
+                _sessions.Clear();
+            }
+            return sessions;
+        }
     }
 
     private static void ThrowErrors(List<Exception>? errors)
@@ -632,13 +660,16 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
     private async Task CleanupConnectionAsync(List<Exception>? errors, bool gracefulRuntimeShutdown)
     {
-        var connectionTask = _connectionTask;
+        Task<Connection>? connectionTask;
+        lock (_sessionAdmissionLock)
+        {
+            connectionTask = _connectionTask;
+            _connectionTask = null;
+        }
         if (connectionTask is null)
         {
             return;
         }
-
-        _connectionTask = null;
 
         Connection ctx;
         try
@@ -912,7 +943,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         ConfigureSessionFsHandlers(session, config.CreateSessionFsProvider);
         session.SetCanvasHandler(config.CanvasHandler);
         session.RegisterBearerTokenProviders(BuildBearerTokenCallbacks(config));
-        RegisterSession(session);
+        RegisterSession(session, rpc);
         session.StartProcessingEvents();
         LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
             callerName + " local setup complete. Elapsed={Elapsed}, SessionId={SessionId}, Tools={ToolsCount}, Commands={CommandsCount}, Hooks={HasHooks}",
@@ -1408,7 +1439,13 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 try
                 {
                     using var cleanupTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-                    await DeleteSessionAsync(serverAssignedSessionId, cleanupTimeout.Token).ConfigureAwait(false);
+                    var deletion = await InvokeRpcAsync<DeleteSessionResponse>(
+                        connection.Rpc, "session.delete", [new DeleteSessionRequest(serverAssignedSessionId)],
+                        cleanupTimeout.Token).ConfigureAwait(false);
+                    if (!deletion.Success)
+                    {
+                        throw new InvalidOperationException($"Failed to delete session {serverAssignedSessionId}: {deletion.Error}");
+                    }
                 }
                 catch (Exception cleanupError) when (cleanupError is OperationCanceledException
                     or IOException
@@ -2235,7 +2272,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 "SessionFsConfig declares capabilities.binary but the provider does not implement ISessionFsBinaryProvider.");
         }
 
-        session.ClientSessionApis.SessionFs = provider;
+        session.SetSessionFsHandler(provider);
     }
 
     private async Task VerifyProtocolVersionAsync(Connection connection, CancellationToken cancellationToken)
@@ -2868,13 +2905,13 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         CancelPendingExternalTools();
     }
 
-    private void CancelPendingExternalTools()
+    private void CancelPendingExternalTools(IEnumerable<CopilotSession>? sessions = null)
     {
         if (_clientGlobalApis?.LlmInference is LlmInferenceAdapter llmInferenceAdapter)
         {
             llmInferenceAdapter.CancelPending();
         }
-        foreach (var session in _sessions.Values)
+        foreach (var session in sessions ?? _sessions.Values)
         {
             session.ClearSkillProvider();
             session.CancelPendingExternalTools();
@@ -2924,12 +2961,29 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         return session;
     }
 
-    private void RegisterSession(CopilotSession session)
+    private void RegisterSession(CopilotSession session, JsonRpc rpc)
     {
-        if (!_sessions.TryAdd(session.SessionId, session))
+        Exception error;
+        lock (_sessionAdmissionLock)
         {
-            throw new InvalidOperationException($"Session '{session.SessionId}' is already tracked by this client.");
+            // A restarted connection must not admit setup that began on the stopped transport.
+            if (!_sessionAdmissionClosed
+                && _connectionTask?.Status == System.Threading.Tasks.TaskStatus.RanToCompletion
+                && ReferenceEquals(_connectionTask.Result.Rpc, rpc))
+            {
+                if (_sessions.TryAdd(session.SessionId, session))
+                {
+                    return;
+                }
+                error = new InvalidOperationException($"Session '{session.SessionId}' is already tracked by this client.");
+            }
+            else
+            {
+                error = new IOException("Cannot register a session on a stopped connection.");
+            }
         }
+        session.Retire();
+        throw error;
     }
 
     /// <summary>

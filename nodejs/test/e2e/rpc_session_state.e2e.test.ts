@@ -45,6 +45,7 @@ describe("Session-scoped RPC", async () => {
 
         const result = await session.rpc.model.getCurrent();
         expect(result.modelId).toBeTruthy();
+        expect("clearStartupSeed" in session.rpc.model).toBe(false);
 
         await session.disconnect();
     });
@@ -79,6 +80,13 @@ describe("Session-scoped RPC", async () => {
 
             expect(result.modelId).toBe("gpt-5.4");
             expect(after.modelId).toBe("gpt-5.4");
+            await expect(
+                session.rpc.model.switchTo({
+                    modelId: "gpt-5.4",
+                    providerId: "missing-provider",
+                })
+            ).rejects.toThrow("unavailable from the requested provider");
+            expect(await session.rpc.model.getCurrent()).toEqual(after);
 
             await session.disconnect();
         });
@@ -674,7 +682,30 @@ describe("Session-scoped RPC", async () => {
     it("should call session usage and permission rpcs", async () => {
         const session = await client.createSession({ onPermissionRequest: approveAll });
 
+        const quota = await session.rpc.quota.get();
+        expect(quota).toMatchObject({
+            snapshots: expect.any(Object),
+            isFreeUser: expect.any(Boolean),
+            isTbbUser: expect.any(Boolean),
+            planTier: expect.any(String),
+            dynamicWorkflowsEnabled: expect.any(Boolean),
+        });
+        const refreshedQuota = await session.rpc.quota.refresh();
+        expect(await session.rpc.quota.get()).toEqual(refreshedQuota);
+        const warnings = await session.rpc.quota.takeWarnings();
+        for (const warning of warnings) {
+            expect(warning).toMatchObject({
+                warningType: expect.any(String),
+                message: expect.any(String),
+            });
+        }
+        expect(await session.rpc.quota.takeWarnings()).toEqual([]);
+
         const metrics = await session.rpc.usage.getMetrics();
+        expect(metrics.providerModelMetrics).toEqual([]);
+        expect("setCodeChanges" in session.rpc.usage).toBe(false);
+        expect(metrics).not.toHaveProperty("usageAccountingWatermarks");
+        expect(metrics).not.toHaveProperty("accountingSnapshot");
         expect(Date.parse(metrics.sessionStartTime)).not.toBeNaN();
         if (metrics.totalNanoAiu !== undefined && metrics.totalNanoAiu !== null) {
             expect(metrics.totalNanoAiu).toBeGreaterThanOrEqual(0);
@@ -760,6 +791,14 @@ describe("Session-scoped RPC", async () => {
                     contextInfo.contextInfo.toolDefinitionsTokens
             );
         }
+        await expect(
+            session.rpc.metadata.contextInfo({
+                promptTokenLimit: 0,
+                outputTokenLimit: 0,
+                selectedModel: "claude-sonnet-5",
+                providerId: "unavailable-context-provider",
+            })
+        ).rejects.toThrow(/provider\/model pair is no longer available/);
 
         const recomputed = await session.rpc.metadata.recomputeContextTokens({
             modelId: "claude-sonnet-5",

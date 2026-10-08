@@ -5,7 +5,7 @@
 
 import type { MessageConnection } from "vscode-jsonrpc/node.js";
 
-import type { AbortReason, AgentModelPolicy, Attachment, AutoTier, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, IndexedSearchState, ManagedSettingsResolvedData, McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerMetadata, McpServerSource, McpServerStatus, ModelChangeSource, PermissionDecisionSource, PermissionMode, PermissionPromptRequest, PermissionRule, ReasoningSummary, RemediationAction, SessionEvent, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskCompleteData, TaskCompletionOutcome, UserToolSessionApproval, Verbosity } from "./session-events.js";
+import type { AbortReason, AgentModelPolicy, Attachment, AutoTier, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, IndexedSearchState, ManagedSettingsResolvedData, McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerMetadata, McpServerSource, McpServerStatus, ModelChangeSource, ModelProviderKind, ModelProviderRef, PermissionDecisionSource, PermissionMode, PermissionPromptRequest, PermissionRule, ProviderQuotaState, ReasoningSummary, RemediationAction, SessionEvent, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskCompleteData, TaskCompletionOutcome, UsageGetMetricsResult, UserToolSessionApproval, Verbosity } from "./session-events.js";
 
 /** A value that can be represented losslessly on the SDK JSON wire. */
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
@@ -3670,6 +3670,11 @@ export type SessionContextInfo = {
    * The model used for token counting
    */
   modelName: string;
+  provider?: ModelProviderRef;
+  /**
+   * Provider-owned model display label, or the Auto routing label. Presentation only; modelName remains the tokenization identity.
+   */
+  displayModelName?: string;
   /**
    * Tokens consumed by the system prompt
    */
@@ -3789,18 +3794,6 @@ export type ModelPickerPriceCategory =
   | "high"
   /** Highest relative token cost tier. */
   | "very_high";
-/**
- * The neutral kind of a model provider — the model analog of `AccountKind`. A model provider is the live, entitled source a model came from; central code never branches on this beyond a single dispatch.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "ModelProviderKind".
- */
-/** @experimental */
-export type ModelProviderKind =
-  /** GitHub Copilot / CAPI models, spawned by a github-resolving account that holds a Copilot seat. */
-  | "copilot"
-  /** Microsoft 365 Copilot (Loki) inference models, spawned by a resolvable Entra-derived Loki account. */
-  | "loki";
 /**
  * Optional listing options.
  *
@@ -4431,6 +4424,14 @@ export type QueuePendingItemsKind =
   /** A queued slash command or model-change command. */
   | "command";
 /**
+ * Pending warnings returned and cleared by session.quota.takeWarnings.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "QuotaTakeWarningsResult".
+ */
+/** @experimental */
+export type QuotaTakeWarningsResult = QuotaWarningProjection[];
+/**
  * State of the runtime-managed remote-control singleton.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -4969,6 +4970,30 @@ export type SessionsOpenProgressStatus =
   | "in-progress"
   /** The step has completed successfully. */
   | "complete";
+/**
+ * Copilot plan tier used by the session quota projection.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionQuotaPlanTier".
+ */
+/** @experimental */
+export type SessionQuotaPlanTier =
+  /** Copilot Free. */
+  | "free"
+  /** Copilot education entitlement. */
+  | "edu"
+  /** Copilot Pro. */
+  | "pro"
+  /** Copilot Pro+. */
+  | "pro_plus"
+  /** Copilot Business. */
+  | "business"
+  /** Copilot Enterprise. */
+  | "enterprise"
+  /** Copilot Max. */
+  | "max"
+  /** The account's plan tier is not known. */
+  | "unknown";
 /**
  * Client metadata outcome for one requested local session.
  *
@@ -6198,6 +6223,14 @@ export type SessionGitHubAuthLogoutResult = boolean;
  */
 /** @experimental */
 export type SessionGitHubAuthLogoutUserResult = boolean;
+/**
+ * Pending warnings returned and cleared by session.quota.takeWarnings.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionQuotaTakeWarningsResult".
+ */
+/** @experimental */
+export type SessionQuotaTakeWarningsResult = QuotaWarningProjection[];
 
 /**
  * Parameters for aborting the current turn
@@ -10472,9 +10505,17 @@ export interface CurrentModel {
    */
   modelId?: string;
   /**
+   * Provider selected for this model. Together with modelId, identifies a catalog entry even when providers serve the same model. Omitted for unattributed legacy selections.
+   */
+  providerId?: string;
+  /**
    * Captured base model to restore when leaving plan mode. Omitted outside plan mode or when no plan override has captured a base model. Persistent agent model requirements apply to this model rather than the temporary plan model.
    */
   planBaseModelId?: string;
+  /**
+   * Provider of planBaseModelId, when that saved selection is provider-qualified.
+   */
+  planBaseProviderId?: string;
   /**
    * Reasoning effort level currently applied to the active model, when one is set. Reads `Session.getReasoningEffort()` synchronously after `getSelectedModel()` resolves so the two values are reported as a snapshot.
    */
@@ -17561,6 +17602,10 @@ export interface MetadataContextInfoRequest {
    * Model identifier used for tokenization. Omit to use the session default. Used both for token counting and to compute display values.
    */
   selectedModel?: string;
+  /**
+   * Provider owning selectedModel. Omit to use the current provider for the current model, or deterministic legacy lookup for a different model.
+   */
+  providerId?: string;
 }
 /**
  * Token breakdown for the session's current context window, or null if uninitialized.
@@ -18007,24 +18052,6 @@ export interface ModelMessage {
   message: string;
 }
 /**
- * A neutral reference to the model provider that produced a model: an opaque id, a human-readable label, and the provider kind. Carried on each enumerated Model so consumers can group by provider without reaching into a provider-shaped internal type.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "ModelProviderRef".
- */
-/** @experimental */
-export interface ModelProviderRef {
-  /**
-   * Opaque, stable id of the provider that produced this model. Matches the enumerated `ModelProviderDescriptor.id`.
-   */
-  id: string;
-  /**
-   * Human-readable provider label, owned by the runtime so every consumer renders identical text.
-   */
-  label: string;
-  kind: ModelProviderKind;
-}
-/**
  * Managed, repository, and CLI model overrides to overlay onto the session at startup.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -18049,6 +18076,10 @@ export interface ModelApplyStartupOverlayRequest {
    * Model selected by repository settings, when configured.
    */
   repoModel?: string;
+  /**
+   * Provider owning the repository-selected model. Omitted repository provider identity retains legacy bare-model behavior.
+   */
+  repoModelProviderId?: string;
   /**
    * Reasoning effort selected by repository settings, when configured.
    */
@@ -18153,6 +18184,22 @@ export interface ModelCapabilitiesOverrideLimitsVision {
    * Maximum image size in bytes
    */
   max_prompt_image_size?: number;
+}
+
+/** @experimental */
+/** @internal */
+export interface ModelClearStartupSeedRequest {
+  expectedModel: string;
+  /**
+   * Provider captured with the startup seed; omission matches only an unqualified seed.
+   */
+  expectedProviderId?: string;
+}
+
+/** @experimental */
+/** @internal */
+export interface ModelClearStartupSeedResult {
+  cleared: boolean;
 }
 /**
  * List of Copilot models available to the resolved user, including capabilities and billing metadata.
@@ -18768,9 +18815,13 @@ export interface ModelSwitchConfirmation {
 /** @experimental */
 export interface ModelSwitchToRequest {
   /**
-   * Model selection id to switch to, as returned by `list`. A bare id (e.g. `claude-sonnet-4.6`) names a Copilot (CAPI) model; a provider-qualified id (`provider/id`, e.g. `acme/claude-sonnet`) targets a registry BYOK model.
+   * Model id to switch to, as returned by `list`. Include providerId to select an exact catalog entry when providers share the id. Without providerId, a bare id retains incumbent selection behavior; a registry-qualified id (`provider/id`, e.g. `acme/claude-sonnet`) targets a BYOK model.
    */
   modelId: string;
+  /**
+   * Provider id from the selected list entry's provider reference. Selects this exact provider/model pair; an unavailable pair fails rather than using another provider. Omit for deterministic legacy bare-model selection.
+   */
+  providerId?: string;
   /**
    * Optional Auto routing preference to stage atomically with selecting `auto`. Pass null to return to provider-default Auto routing. This field is rejected when `modelId` is not `auto`.
    */
@@ -18875,6 +18926,10 @@ export interface ModeSetRequest {
    * Dedicated model to use in plan mode, when configured.
    */
   planModel?: string;
+  /**
+   * Provider owning planModel. Omit for legacy bare-model selection.
+   */
+  planModelProviderId?: string;
   /**
    * Reasoning effort to use with the dedicated plan model.
    */
@@ -19064,6 +19119,52 @@ export interface OptionsUpdateAdditionalContentExclusionPolicyRuleSource {
    * Type of the policy source.
    */
   type: string;
+}
+/**
+ * External tool call of the session or one of its sub-agents that is still waiting for session.tools.handlePendingToolCall.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "PendingExternalToolRequest".
+ */
+/** @experimental */
+export interface PendingExternalToolRequest {
+  /**
+   * Request ID to pass to session.tools.handlePendingToolCall
+   */
+  requestId: string;
+  /**
+   * Tool call ID assigned to this external tool invocation
+   */
+  toolCallId: string;
+  /**
+   * Name of the external tool to invoke
+   */
+  toolName: string;
+  /**
+   * Arguments to pass to the external tool
+   */
+  arguments?: JsonValue;
+  /**
+   * Stable identity of the provider that offered the tool, for hosts that route extension-owned tools by provider
+   */
+  providerId?: string;
+  /**
+   * Sub-agent instance identifier (the envelope agentId of its events) of the agent that issued the call; absent for calls issued by the root agent
+   */
+  agentId?: string;
+}
+/**
+ * External tool calls still waiting for a result.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "PendingExternalToolRequestList".
+ */
+/** @experimental */
+export interface PendingExternalToolRequestList {
+  /**
+   * External tool calls of the session and its sub-agents that session.tools.handlePendingToolCall would still accept, in the order they were requested. Includes calls that were pending when the session was last suspended and resumed with pending work continued, so a host that did not observe the original external_tool.requested event can answer them.
+   */
+  items: PendingExternalToolRequest[];
 }
 /**
  * Pending permission prompt reconstructed from event history, with request ID and user-facing prompt details.
@@ -22303,6 +22404,27 @@ export interface QueueWithdrawMessageResult {
   interrupted: boolean;
 }
 /**
+ * A pending session quota warning, consumed once by takeWarnings.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "QuotaWarningProjection".
+ */
+/** @experimental */
+export interface QuotaWarningProjection {
+  /**
+   * Existing warning category.
+   */
+  warningType: string;
+  /**
+   * User-facing warning text.
+   */
+  message: string;
+  /**
+   * Related account or upgrade link.
+   */
+  url?: string;
+}
+/**
  * Event type to register consumer interest for, used by runtime gating logic.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -25400,6 +25522,137 @@ export interface SessionPruneResult {
    * True when no deletions were actually performed
    */
   dryRun: boolean;
+}
+/**
+ * Existing delegation guidance for an account without delegation access.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionQuotaDelegateWarning".
+ */
+/** @experimental */
+export interface SessionQuotaDelegateWarning {
+  /**
+   * User-facing guidance.
+   */
+  text: string;
+  /**
+   * Link to upgrade the account.
+   */
+  url: string;
+}
+/**
+ * The incumbent session-owned quota and account projection.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionQuotaProjection".
+ */
+/** @experimental */
+export interface SessionQuotaProjection {
+  /**
+   * Known quota snapshots, keyed by the provider's quota type.
+   */
+  snapshots: {
+    [k: string]: SessionQuotaSnapshot | undefined;
+  };
+  /**
+   * Provider-owned account quota state, including snapshots without numeric balances.
+   */
+  providerQuotas?: ProviderQuotaState[];
+  /**
+   * Whether the account uses the free limited Copilot plan.
+   */
+  isFreeUser: boolean;
+  /**
+   * Whether the account uses token-based billing.
+   */
+  isTbbUser: boolean;
+  planTier: SessionQuotaPlanTier;
+  /**
+   * Whether premium-request costs are billable.
+   */
+  premiumRequestsBillable: boolean;
+  /**
+   * Whether model cost columns should be shown.
+   */
+  modelCostColumnVisible: boolean;
+  /**
+   * Whether the account can delegate tasks to GitHub.
+   */
+  delegateAvailable: boolean;
+  /**
+   * Whether the account can sign up for Copilot Free.
+   */
+  canSignupForCopilotFree: boolean;
+  /**
+   * Whether dynamic workflows are enabled for the active account.
+   */
+  dynamicWorkflowsEnabled: boolean;
+  /**
+   * Whether dynamic workflows are visible under the session's feature flags.
+   */
+  dynamicWorkflowsUiVisible: boolean;
+  /**
+   * Upgrade link for a free account.
+   */
+  upgradeUrl?: string;
+  delegateWarning?: SessionQuotaDelegateWarning;
+}
+/**
+ * Session quota snapshot, preserving the incumbent numeric units and reset metadata.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionQuotaSnapshot".
+ */
+/** @experimental */
+export interface SessionQuotaSnapshot {
+  /**
+   * Whether the entitlement is unlimited.
+   */
+  isUnlimitedEntitlement: boolean;
+  /**
+   * Entitled quantity in this quota's units.
+   */
+  entitlementRequests: number;
+  /**
+   * Consumed quantity in this quota's units.
+   */
+  usedRequests: number;
+  /**
+   * Whether usage is allowed after quota exhaustion.
+   */
+  usageAllowedWithExhaustedQuota: boolean;
+  /**
+   * Additional usage in this quota's units.
+   */
+  overage: number;
+  /**
+   * Whether additional usage is allowed after quota exhaustion.
+   */
+  overageAllowedWithExhaustedQuota: boolean;
+  /**
+   * Percentage of the entitlement remaining.
+   */
+  remainingPercentage: number;
+  /**
+   * Quota reset time in milliseconds since the Unix epoch, when known.
+   */
+  resetDateEpochMs?: number;
+  /**
+   * Whether the reset time is estimated.
+   */
+  resetDateEstimated?: boolean;
+  /**
+   * Whether the provider reports available quota.
+   */
+  hasQuota?: boolean;
+  /**
+   * Whether this quota uses token-based billing.
+   */
+  tokenBasedBilling?: boolean;
+  /**
+   * Additional-usage budget cap, when provided.
+   */
+  overageEntitlement?: number;
 }
 /**
  * Session IDs to close, deactivate, and delete from disk.
@@ -28534,6 +28787,14 @@ export interface ToolsGetCurrentMetadataResult {
 /** @experimental */
 export interface ToolsInitializeAndValidateResult {}
 /**
+ * No parameters; returns the external tool calls of the session and its sub-agents that are still waiting for a result.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ToolsListPendingRequestsRequest".
+ */
+/** @experimental */
+export interface ToolsListPendingRequestsRequest {}
+/**
  * Optional model identifier whose tool overrides should be applied to the listing.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -29218,217 +29479,26 @@ export interface UpdateSubagentSettingsRequest {
   subagents?: SubagentSettings | null;
 }
 /**
- * Accumulated session usage metrics, including premium request cost, token counts, model breakdown, and code-change totals.
+ * Internal absolute code-change totals reported by the owning host.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "UsageGetMetricsResult".
+ * via the `definition` "UsageSetCodeChangesRequest".
  */
 /** @experimental */
-export interface UsageGetMetricsResult {
+/** @internal */
+export interface UsageSetCodeChangesRequest {
   /**
-   * Total user-initiated premium request cost across all models (may be fractional due to multipliers)
-   */
-  totalPremiumRequestCost: number;
-  /**
-   * Raw count of user-initiated API requests
-   */
-  totalUserRequests: number;
-  /**
-   * Session-wide accumulated nano-AI units cost
-   */
-  totalNanoAiu?: number;
-  /**
-   * Session-wide per-token-type accumulated token counts
-   */
-  tokenDetails?: {
-    [k: string]: UsageMetricsTokenDetail | undefined;
-  };
-  /**
-   * Total time spent in model API calls (milliseconds)
-   */
-  totalApiDurationMs: number;
-  /**
-   * ISO 8601 timestamp when the session started
-   */
-  sessionStartTime: string;
-  codeChanges: UsageMetricsCodeChanges;
-  /**
-   * Per-model token and request metrics, keyed by model identifier
-   */
-  modelMetrics: {
-    [k: string]: UsageMetricsModelMetric | undefined;
-  };
-  /**
-   * Per-agent usage metrics, keyed by agent instance identifier. The main conversation uses the stable key `main`.
-   */
-  agentMetrics?: {
-    [k: string]: UsageMetricsAgentMetric | undefined;
-  };
-  /**
-   * Currently active model identifier
-   */
-  currentModel?: string;
-  /**
-   * Input tokens from the most recent main-agent API call
-   */
-  lastCallInputTokens: number;
-  /**
-   * Output tokens from the most recent main-agent API call
-   */
-  lastCallOutputTokens: number;
-}
-/**
- * Session-wide token-detail entry containing the accumulated token count for one token type.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "UsageMetricsTokenDetail".
- */
-/** @experimental */
-export interface UsageMetricsTokenDetail {
-  /**
-   * Accumulated token count for this token type
-   */
-  tokenCount: number;
-}
-/**
- * Aggregated code change metrics
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "UsageMetricsCodeChanges".
- */
-/** @experimental */
-export interface UsageMetricsCodeChanges {
-  /**
-   * Total lines of code added
+   * Absolute added-line total, replacing the previous reading.
    */
   linesAdded: number;
   /**
-   * Total lines of code removed
+   * Absolute removed-line total, replacing the previous reading.
    */
   linesRemoved: number;
   /**
-   * Number of distinct files modified
+   * Absolute changed-file count; omission preserves the previous count.
    */
-  filesModifiedCount: number;
-  /**
-   * Distinct file paths modified during the session
-   */
-  filesModified: string[];
-}
-/**
- * Per-model usage metrics, including request counts/costs, token usage, nano-AI units, and per-token-type details.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "UsageMetricsModelMetric".
- */
-/** @experimental */
-export interface UsageMetricsModelMetric {
-  requests: UsageMetricsModelMetricRequests;
-  usage: UsageMetricsModelMetricUsage;
-  /**
-   * Latest known prompt-cache expiration for this model. A timestamp in the past indicates that the observed cache has expired.
-   */
-  cacheExpiresAt?: string;
-  /**
-   * Accumulated nano-AI units cost for this model
-   */
-  totalNanoAiu?: number;
-  /**
-   * Token count details per type
-   */
-  tokenDetails?: {
-    [k: string]: UsageMetricsModelMetricTokenDetail | undefined;
-  };
-}
-/**
- * Request count and cost metrics for this model
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "UsageMetricsModelMetricRequests".
- */
-/** @experimental */
-export interface UsageMetricsModelMetricRequests {
-  /**
-   * Number of API requests made with this model
-   */
-  count: number;
-  /**
-   * User-initiated premium request cost (with multiplier applied)
-   */
-  cost: number;
-}
-/**
- * Token usage metrics for this model
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "UsageMetricsModelMetricUsage".
- */
-/** @experimental */
-export interface UsageMetricsModelMetricUsage {
-  /**
-   * Total input tokens consumed
-   */
-  inputTokens: number;
-  /**
-   * Total output tokens produced
-   */
-  outputTokens: number;
-  /**
-   * Total tokens read from prompt cache
-   */
-  cacheReadTokens: number;
-  /**
-   * Total tokens written to prompt cache
-   */
-  cacheWriteTokens: number;
-  /**
-   * Total output tokens used for reasoning
-   */
-  reasoningTokens?: number;
-}
-/**
- * Per-model token-detail entry containing the accumulated token count for one token type.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "UsageMetricsModelMetricTokenDetail".
- */
-/** @experimental */
-export interface UsageMetricsModelMetricTokenDetail {
-  /**
-   * Accumulated token count for this token type
-   */
-  tokenCount: number;
-}
-/**
- * Usage attributed to one agent instance, including its identity, API duration, AI units, and per-model breakdown.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "UsageMetricsAgentMetric".
- */
-/** @experimental */
-export interface UsageMetricsAgentMetric {
-  /**
-   * Configured agent name, when this is a subagent
-   */
-  agentName?: string;
-  /**
-   * Human-readable label for this subagent invocation, copied from the originating `subagent.started` event. For task-tool subagents this is the invocation's task description rather than the agent's configured display name, so group by `agentName` for stable per-agent labels.
-   */
-  agentDisplayName?: string;
-  /**
-   * Time spent in model API calls by this agent, in milliseconds
-   */
-  totalApiDurationMs: number;
-  /**
-   * Accumulated nano-AI units cost for this agent
-   */
-  totalNanoAiu: number;
-  /**
-   * Per-model usage for this agent, keyed by model identifier
-   */
-  modelMetrics: {
-    [k: string]: UsageMetricsModelMetric | undefined;
-  };
+  filesCount?: number;
 }
 /**
  * Result of a user-requested shell command.
@@ -31262,6 +31332,20 @@ export interface SessionWorkflowPauseAtCheckpointResult {
 }
 
 /** @experimental */
+export interface SessionModelClearStartupSeedResult {
+  cleared: boolean;
+}
+
+/** @experimental */
+export interface SessionModelClearStartupSeedRequest {
+  expectedModel: string;
+  /**
+   * Provider captured with the startup seed; omission matches only an unqualified seed.
+   */
+  expectedProviderId?: string;
+}
+
+/** @experimental */
 export interface SessionModelListRequest {
   /**
    * If true, bypasses the per-session model list cache and re-fetches from CAPI.
@@ -31440,6 +31524,141 @@ export interface SessionHistoryCompactRequest {
    * Context window token limit this compaction is targeting, recorded as the `tokenLimit` on the persisted `session.compaction_start` / `session.compaction_complete` events. Set it when the compaction targets a window other than the compacting model's own, e.g. switching to a model with a smaller context window: the compaction still runs on the current model, so the limit that motivated it would otherwise be lost. When absent, the events record the compacting model's own resolved limit. Attribution metadata only - it does not change how much the compaction removes.
    */
   tokenLimit?: number;
+}
+/**
+ * Internal absolute code-change totals reported by the owning host.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionUsageSetCodeChangesRequest".
+ */
+/** @experimental */
+export interface SessionUsageSetCodeChangesRequest {
+  /**
+   * Absolute added-line total, replacing the previous reading.
+   */
+  linesAdded: number;
+  /**
+   * Absolute removed-line total, replacing the previous reading.
+   */
+  linesRemoved: number;
+  /**
+   * Absolute changed-file count; omission preserves the previous count.
+   */
+  filesCount?: number;
+}
+/**
+ * The incumbent session-owned quota and account projection.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionQuotaGetResult".
+ */
+/** @experimental */
+export interface SessionQuotaGetResult {
+  /**
+   * Known quota snapshots, keyed by the provider's quota type.
+   */
+  snapshots: {
+    [k: string]: SessionQuotaSnapshot | undefined;
+  };
+  /**
+   * Provider-owned account quota state, including snapshots without numeric balances.
+   */
+  providerQuotas?: ProviderQuotaState[];
+  /**
+   * Whether the account uses the free limited Copilot plan.
+   */
+  isFreeUser: boolean;
+  /**
+   * Whether the account uses token-based billing.
+   */
+  isTbbUser: boolean;
+  planTier: SessionQuotaPlanTier;
+  /**
+   * Whether premium-request costs are billable.
+   */
+  premiumRequestsBillable: boolean;
+  /**
+   * Whether model cost columns should be shown.
+   */
+  modelCostColumnVisible: boolean;
+  /**
+   * Whether the account can delegate tasks to GitHub.
+   */
+  delegateAvailable: boolean;
+  /**
+   * Whether the account can sign up for Copilot Free.
+   */
+  canSignupForCopilotFree: boolean;
+  /**
+   * Whether dynamic workflows are enabled for the active account.
+   */
+  dynamicWorkflowsEnabled: boolean;
+  /**
+   * Whether dynamic workflows are visible under the session's feature flags.
+   */
+  dynamicWorkflowsUiVisible: boolean;
+  /**
+   * Upgrade link for a free account.
+   */
+  upgradeUrl?: string;
+  delegateWarning?: SessionQuotaDelegateWarning;
+}
+/**
+ * The incumbent session-owned quota and account projection.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionQuotaRefreshResult".
+ */
+/** @experimental */
+export interface SessionQuotaRefreshResult {
+  /**
+   * Known quota snapshots, keyed by the provider's quota type.
+   */
+  snapshots: {
+    [k: string]: SessionQuotaSnapshot | undefined;
+  };
+  /**
+   * Provider-owned account quota state, including snapshots without numeric balances.
+   */
+  providerQuotas?: ProviderQuotaState[];
+  /**
+   * Whether the account uses the free limited Copilot plan.
+   */
+  isFreeUser: boolean;
+  /**
+   * Whether the account uses token-based billing.
+   */
+  isTbbUser: boolean;
+  planTier: SessionQuotaPlanTier;
+  /**
+   * Whether premium-request costs are billable.
+   */
+  premiumRequestsBillable: boolean;
+  /**
+   * Whether model cost columns should be shown.
+   */
+  modelCostColumnVisible: boolean;
+  /**
+   * Whether the account can delegate tasks to GitHub.
+   */
+  delegateAvailable: boolean;
+  /**
+   * Whether the account can sign up for Copilot Free.
+   */
+  canSignupForCopilotFree: boolean;
+  /**
+   * Whether dynamic workflows are enabled for the active account.
+   */
+  dynamicWorkflowsEnabled: boolean;
+  /**
+   * Whether dynamic workflows are visible under the session's feature flags.
+   */
+  dynamicWorkflowsUiVisible: boolean;
+  /**
+   * Upgrade link for a free account.
+   */
+  upgradeUrl?: string;
+  delegateWarning?: SessionQuotaDelegateWarning;
 }
 
 /** @experimental */
@@ -34660,6 +34879,13 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
             handlePendingToolCall: async (params: HandlePendingToolCallRequest): Promise<HandlePendingToolCallResult> =>
                 connection.sendRequest("session.tools.handlePendingToolCall", { ...params, sessionId }),
             /**
+             * Lists the external tool calls of the session and its sub-agents that are still waiting for session.tools.handlePendingToolCall.
+             *
+             * @returns External tool calls still waiting for a result.
+             */
+            listPendingRequests: async (): Promise<PendingExternalToolRequestList> =>
+                connection.sendRequest("session.tools.listPendingRequests", { sessionId }),
+            /**
              * Resolves, builds, and validates the runtime tool list for the session.
              *
              * @returns Resolve, build, and validate the runtime tool list for this session. Subagent sessions and consumer flows that need an initialized tool set before `send` invoke this. Default base-class implementation is a no-op for sessions that don't support tool validation.
@@ -35434,6 +35660,30 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
                 connection.sendRequest("session.usage.getMetrics", { sessionId }),
         },
         /** @experimental */
+        quota: {
+            /**
+             * Gets the session's current quota and account projection without making a network request.
+             *
+             * @returns The incumbent session-owned quota and account projection.
+             */
+            get: async (): Promise<SessionQuotaGetResult> =>
+                connection.sendRequest("session.quota.get", { sessionId }),
+            /**
+             * Refreshes the session's provider model catalog bypassing its cache, folds quota snapshots into session state, and returns the updated projection. Failures leave the last known quota intact.
+             *
+             * @returns The incumbent session-owned quota and account projection.
+             */
+            refresh: async (): Promise<SessionQuotaRefreshResult> =>
+                connection.sendRequest("session.quota.refresh", { sessionId }),
+            /**
+             * Returns and clears the session's pending quota warnings. Reading or refreshing quota does not drain warnings.
+             *
+             * @returns Pending warnings returned and cleared by session.quota.takeWarnings.
+             */
+            takeWarnings: async (): Promise<SessionQuotaTakeWarningsResult> =>
+                connection.sendRequest("session.quota.takeWarnings", { sessionId }),
+        },
+        /** @experimental */
         limitPrediction: {
             /**
              * Predicts an AI-credit session limit for the session's resolved model. Returns an unavailable result instead of falling back when the current model is unresolved auto.
@@ -35650,6 +35900,11 @@ export function createInternalSessionRpc(connection: MessageConnection, sessionI
              */
             applyStartupOverlay: async (params: ModelApplyStartupOverlayRequest): Promise<ModelSwitchToResult> =>
                 connection.sendRequest("session.model.applyStartupOverlay", { ...params, sessionId }),
+            /**
+             * Clears an unchanged startup model/provider seed before default-model resolution. Never clears a resumed or user-selected model.
+             */
+            clearStartupSeed: async (params: SessionModelClearStartupSeedRequest): Promise<SessionModelClearStartupSeedResult> =>
+                connection.sendRequest("session.model.clearStartupSeed", { ...params, sessionId }),
         },
         /** @experimental */
         mcp: {
@@ -35835,6 +36090,16 @@ export function createInternalSessionRpc(connection: MessageConnection, sessionI
              */
             process: async (): Promise<void> =>
                 connection.sendRequest("session.queue.process", { sessionId }),
+        },
+        /** @experimental */
+        usage: {
+            /**
+             * Internal host-only replacement of absolute code-change totals reported by a relay host.
+             *
+             * @param params Internal absolute code-change totals reported by the owning host.
+             */
+            setCodeChanges: async (params: SessionUsageSetCodeChangesRequest): Promise<void> =>
+                connection.sendRequest("session.usage.setCodeChanges", { ...params, sessionId }),
         },
         /** @experimental */
         schedule: {

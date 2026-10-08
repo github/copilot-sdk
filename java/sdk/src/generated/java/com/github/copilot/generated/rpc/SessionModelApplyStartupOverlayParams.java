@@ -36,6 +36,8 @@ record SessionModelApplyStartupOverlayParams(
     @JsonProperty("autoTier") AutoTier autoTier,
     /** Model selected by repository settings, when configured. */
     @JsonProperty("repoModel") String repoModel,
+    /** Provider owning the repository-selected model. Omitted repository provider identity retains legacy bare-model behavior. */
+    @JsonProperty("repoModelProviderId") String repoModelProviderId,
     /** Reasoning effort selected by repository settings, when configured. */
     @JsonProperty("repoReasoningEffort") String repoReasoningEffort,
     /** Context tier selected by repository settings, when configured. */

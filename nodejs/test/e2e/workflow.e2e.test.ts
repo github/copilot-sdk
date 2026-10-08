@@ -26,7 +26,7 @@ const { approveAll, RuntimeConnection } = (await import(
 const cliPath = process.env.COPILOT_CLI_PATH ?? (await getLegacyCliPathForTests());
 const cliDistDirectory = process.env.COPILOT_EXTENSION_SDK_PATH
     ? dirname(process.env.COPILOT_EXTENSION_SDK_PATH)
-    : dirname(cliPath);
+    : dirname(await getLegacyCliPathForTests());
 const workflowTestContext = await createSdkTestContext({
     logLevel: "debug",
     copilotClientOptions: {
@@ -427,43 +427,50 @@ it("pauses a running workflow through the session API", async () => {
     const extensionDir = join(workDir, ".github", "extensions", "workflow-smoke");
     await using session = await setupWorkflowExtension(workDir);
 
-    const execution = session.workflow.run("externally-paused", {
-        notifyOnComplete: false,
+    // Acknowledge admission before owning a cancellable wait; a failed entry
+    // assertion must not leave workflow.run polling a disposed session.
+    const started = await session.rpc.workflow.run({
+        name: "externally-paused",
+        args: {},
+        options: { notifyOnComplete: false },
     });
-    await retry(
-        "wait for the externally paused workflow to enter its body",
-        async () => {
-            expect(existsSync(join(extensionDir, "external-pause-entered"))).toBe(true);
-        },
-        100,
-        100
-    );
+    expect(started).toMatchObject({ status: "running" });
+    const controller = new AbortController();
+    const execution = Promise.allSettled([
+        session.workflow.waitForRun(started.runId, { signal: controller.signal }),
+    ]);
+    try {
+        await retry(
+            "wait for the externally paused workflow to enter its body",
+            async () => {
+                const run = await session.workflow.getRun(started.runId);
+                const state = {
+                    run,
+                    entered: existsSync(join(extensionDir, "external-pause-entered")),
+                };
+                expect(state, `Workflow entry state: ${JSON.stringify(state)}`).toMatchObject({
+                    run: { status: "running" },
+                    entered: true,
+                });
+            },
+            100,
+            100
+        );
 
-    let runId: string | undefined;
-    await retry(
-        "find the running workflow before pausing it",
-        async () => {
-            const running = (await session.workflow.listRuns()).find(
-                (run) => run.workflowName === "externally-paused" && run.status === "running"
-            );
-            expect(running).toBeDefined();
-            runId = running?.runId;
-        },
-        100,
-        100
-    );
-    if (!runId) {
-        throw new Error("Running workflow did not expose a run ID");
+        await expect(session.workflow.pause(started.runId)).resolves.toMatchObject({
+            runId: started.runId,
+            status: "paused",
+        });
+        await expect(execution).resolves.toMatchObject([
+            {
+                status: "fulfilled",
+                value: { runId: started.runId, status: "paused" },
+            },
+        ]);
+    } finally {
+        controller.abort();
+        await execution;
     }
-
-    await expect(session.workflow.pause(runId)).resolves.toMatchObject({
-        runId,
-        status: "paused",
-    });
-    await expect(execution).resolves.toMatchObject({
-        runId,
-        status: "paused",
-    });
 });
 
 it("pauses once at a durable checkpoint and continues after resume", async () => {
@@ -525,39 +532,51 @@ it("allows a module-level extension watcher to start a workflow while another bo
     const extensionDir = join(workDir, ".github", "extensions", "workflow-smoke");
     await using session = await setupWorkflowExtension(workDir);
 
-    const parked = session.workflow.run("parked", { notifyOnComplete: false });
-    await retry(
-        "wait for the parked workflow to enter its body",
-        async () => {
-            expect(existsSync(join(extensionDir, "entered"))).toBe(true);
-        },
-        100,
-        100
-    );
+    const parked = Promise.allSettled([
+        session.workflow.run("parked", { notifyOnComplete: false }),
+    ]);
+    try {
+        await retry(
+            "wait for the parked workflow to enter its body",
+            async () => {
+                expect(existsSync(join(extensionDir, "entered"))).toBe(true);
+            },
+            100,
+            100
+        );
 
-    writeFileSync(join(extensionDir, "start-b"), "start");
-    const bResultFile = join(extensionDir, "b-result");
-    await retry(
-        "wait for the module-level watcher workflow run to succeed",
-        async () => {
-            expect(existsSync(bResultFile)).toBe(true);
-            expect(JSON.parse(readFileSync(bResultFile, "utf8"))).toMatchObject({
-                status: "success",
-                result: {
-                    status: "completed",
-                    result: { source: "module-watcher" },
-                },
-            });
+        writeFileSync(join(extensionDir, "start-b"), "start");
+        const bResultFile = join(extensionDir, "b-result");
+        await retry(
+            "wait for the module-level watcher workflow run to succeed",
+            async () => {
+                expect(existsSync(bResultFile)).toBe(true);
+                expect(JSON.parse(readFileSync(bResultFile, "utf8"))).toMatchObject({
+                    status: "success",
+                    result: {
+                        status: "completed",
+                        result: { source: "module-watcher" },
+                    },
+                });
+            },
+            100,
+            100
+        );
+    } finally {
+        writeFileSync(join(extensionDir, "release"), "release");
+        const [outcome] = await parked;
+        if (outcome.status === "rejected") {
+            console.error("Parked workflow failed during cleanup:", outcome.reason);
+        } else if (outcome.value.status !== "completed") {
+            console.error("Parked workflow did not complete during cleanup:", outcome.value);
+        }
+    }
+    await expect(parked).resolves.toMatchObject([
+        {
+            status: "fulfilled",
+            value: { status: "completed", result: "released" },
         },
-        100,
-        100
-    );
-
-    writeFileSync(join(extensionDir, "release"), "release");
-    await expect(parked).resolves.toMatchObject({
-        status: "completed",
-        result: "released",
-    });
+    ]);
 }, 60_000);
 
 it("returns an array result from an extension-authored workflow", async () => {

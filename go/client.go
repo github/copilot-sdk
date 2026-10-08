@@ -722,6 +722,14 @@ func (c *Client) logDebugTiming(start time.Time, message string) {
 //   - Force closes the connection
 //   - Kills the CLI process (if spawned by this client)
 //
+// Event processing observes the stop signal before dispatching each remaining
+// callback. Callbacks already being dispatched are not awaited and may finish
+// after this method returns; an event handler can itself call ForceStop.
+// Pending response waits fail when the session is retired, without waiting for
+// an idle event or their context deadline.
+// Registered session callbacks are released locally, including unadmitted event
+// handler entries retained by a dispatch snapshot.
+//
 // Example:
 //
 //	// If normal stop hangs, force stop
@@ -756,6 +764,7 @@ func (c *Client) ForceStop() {
 	for _, session := range sessions {
 		session.clearSkillProvider()
 		session.cancelPendingExternalTools()
+		session.stopEventProcessing()
 	}
 	c.clearGitHubTokenProviders()
 	c.closeCopilotRequestAdapter()

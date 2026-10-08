@@ -43,6 +43,8 @@ public final class SessionResumeEvent extends SessionEvent {
         @JsonProperty("eventsFileSizeBytes") Long eventsFileSizeBytes,
         /** Model currently selected at resume time */
         @JsonProperty("selectedModel") String selectedModel,
+        /** Provider of selectedModel at resume time, when explicitly selected. */
+        @JsonProperty("providerId") String providerId,
         /** Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh", "max") */
         @JsonProperty("reasoningEffort") String reasoningEffort,
         /** Model that owns effort embedded in an authored model selection. Omitted for independent reasoning-effort overrides and legacy events. */
@@ -96,7 +98,7 @@ public final class SessionResumeEvent extends SessionEvent {
             Boolean remoteSteerable,
             Boolean continuePendingWork
         ) {
-            this(resumeTime, eventCount, eventsFileSizeBytes, selectedModel, reasoningEffort, reasoningEffortModel, null, reasoningSummary, verbosity, contextTier, null, autoTier, null, sessionLimits, context, alreadyInUse, sessionWasActive, remoteSteerable, continuePendingWork);
+            this(resumeTime, eventCount, eventsFileSizeBytes, selectedModel, null, reasoningEffort, reasoningEffortModel, null, reasoningSummary, verbosity, contextTier, null, autoTier, null, sessionLimits, context, alreadyInUse, sessionWasActive, remoteSteerable, continuePendingWork);
         }
     }
 }

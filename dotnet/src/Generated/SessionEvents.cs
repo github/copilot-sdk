@@ -132,6 +132,7 @@ namespace GitHub.Copilot;
 [JsonDerivedType(typeof(SessionPermissionRecoveryEvent), "session.permission_recovery")]
 [JsonDerivedType(typeof(SessionPermissionsChangedEvent), "session.permissions_changed")]
 [JsonDerivedType(typeof(SessionPlanChangedEvent), "session.plan_changed")]
+[JsonDerivedType(typeof(SessionQuotaObservationEvent), "session.quota_observation")]
 [JsonDerivedType(typeof(SessionRemoteSteerableChangedEvent), "session.remote_steerable_changed")]
 [JsonDerivedType(typeof(SessionResumeEvent), "session.resume")]
 [JsonDerivedType(typeof(SessionScheduleCancelledEvent), "session.schedule_cancelled")]
@@ -483,6 +484,8 @@ internal sealed partial class SessionEventJsonConverter : JsonConverter<SessionE
                     return SessionEventsJsonContext.Default.PermissionCarriedForwardEvent;
                 if (type.SequenceEqual("session.extensions_loaded"u8))
                     return SessionEventsJsonContext.Default.SessionExtensionsLoadedEvent;
+                if (type.SequenceEqual("session.quota_observation"u8))
+                    return SessionEventsJsonContext.Default.SessionQuotaObservationEvent;
                 break;
             case 26:
                 if (type.SequenceEqual("auto_mode_switch.completed"u8))
@@ -1109,6 +1112,20 @@ public sealed partial class SessionUsageCheckpointEvent : SessionEvent
     /// <summary>The <c>session.usage_checkpoint</c> event payload.</summary>
     [JsonPropertyName("data")]
     public required SessionUsageCheckpointData Data { get; set; }
+}
+
+/// <summary>A provider-owned quota observation, distinct from per-call usage and charge accounting.</summary>
+/// <remarks>Represents the <c>session.quota_observation</c> event.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed partial class SessionQuotaObservationEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "session.quota_observation";
+
+    /// <summary>The <c>session.quota_observation</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required SessionQuotaObservationData Data { get; set; }
 }
 
 /// <summary>Working directory and git context at session start.</summary>
@@ -2799,6 +2816,11 @@ public sealed partial class SessionStartData
     [JsonPropertyName("producer")]
     public required string Producer { get; set; }
 
+    /// <summary>Provider of selectedModel at creation time, when explicitly selected.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("providerId")]
+    public string? ProviderId { get; set; }
+
     /// <summary>Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh", "max").</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("reasoningEffort")]
@@ -2898,6 +2920,11 @@ public sealed partial class SessionResumeData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("eventsFileSizeBytes")]
     public long? EventsFileSizeBytes { get; set; }
+
+    /// <summary>Provider of selectedModel at resume time, when explicitly selected.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("providerId")]
+    public string? ProviderId { get; set; }
 
     /// <summary>Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh", "max").</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -3225,6 +3252,11 @@ public sealed partial class SessionModelChangeData
     [JsonPropertyName("previousModel")]
     public string? PreviousModel { get; set; }
 
+    /// <summary>Provider of previousModel, when known. A provider-only change is a model selection change even when the model identifiers are equal.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("previousProviderId")]
+    public string? PreviousProviderId { get; set; }
+
     /// <summary>Reasoning effort level before the model change, if applicable.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("previousReasoningEffort")]
@@ -3239,6 +3271,11 @@ public sealed partial class SessionModelChangeData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("previousVerbosity")]
     public Verbosity? PreviousVerbosity { get; set; }
+
+    /// <summary>Provider selected for newModel. Omitted for legacy or unattributed selections; never inferred from a later selection.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("providerId")]
+    public string? ProviderId { get; set; }
 
     /// <summary>Reasoning effort level after the model change, if applicable.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -3483,6 +3520,12 @@ public sealed partial class SessionSnapshotRewindData
 /// <summary>Session termination metrics including usage statistics, code changes, and shutdown reason.</summary>
 public sealed partial class SessionShutdownData
 {
+    /// <summary>Complete accounting state captured atomically with receipt watermarks.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonInclude]
+    [JsonPropertyName("accountingSnapshot")]
+    internal UsageGetMetricsResult? AccountingSnapshot { get; set; }
+
     /// <summary>Per-agent usage breakdown, keyed by agent instance identifier. The main conversation uses the stable key `main`.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("agentMetrics")]
@@ -3520,6 +3563,11 @@ public sealed partial class SessionShutdownData
     /// <summary>Per-model usage breakdown, keyed by model identifier.</summary>
     [JsonPropertyName("modelMetrics")]
     public required IDictionary<string, ShutdownModelMetric> ModelMetrics { get; set; }
+
+    /// <summary>Provider/model accounting preserved for replay without consulting current provider selection.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("providerModelMetrics")]
+    public UsageMetricsProviderModelMetric[]? ProviderModelMetrics { get; set; }
 
     /// <summary>Unix timestamp (milliseconds) when the session started.</summary>
     [JsonPropertyName("sessionStartTime")]
@@ -3560,11 +3608,22 @@ public sealed partial class SessionShutdownData
     [JsonInclude]
     [JsonPropertyName("totalPremiumRequests")]
     internal double? TotalPremiumRequests { get; set; }
+
+    /// <summary>Per-source accounting sequence watermarks subsuming preceding usage receipts.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("usageAccountingWatermarks")]
+    public IDictionary<string, long>? UsageAccountingWatermarks { get; set; }
 }
 
 /// <summary>Durable session usage checkpoint for reconstructing aggregate accounting on resume.</summary>
 public sealed partial class SessionUsageCheckpointData
 {
+    /// <summary>Complete accounting state captured atomically with the receipt watermarks.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonInclude]
+    [JsonPropertyName("accountingSnapshot")]
+    internal UsageGetMetricsResult? AccountingSnapshot { get; set; }
+
     /// <summary>Internal per-model prompt-cache state used to restore expiration tracking on resume.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonInclude]
@@ -3577,6 +3636,11 @@ public sealed partial class SessionUsageCheckpointData
     [JsonPropertyName("promptCacheBreakState")]
     internal JsonElement[]? PromptCacheBreakState { get; set; }
 
+    /// <summary>Provider/model accounting snapshot that subsumes preceding usage receipts.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("providerModelMetrics")]
+    public UsageMetricsProviderModelMetric[]? ProviderModelMetrics { get; set; }
+
     /// <summary>Session-wide accumulated nano-AI units cost at checkpoint time.</summary>
     [JsonPropertyName("totalNanoAiu")]
     public required double TotalNanoAiu { get; set; }
@@ -3586,6 +3650,20 @@ public sealed partial class SessionUsageCheckpointData
     [JsonInclude]
     [JsonPropertyName("totalPremiumRequests")]
     internal double? TotalPremiumRequests { get; set; }
+
+    /// <summary>Highest accounted sequence per source session; no per-call deduplication history is retained.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("usageAccountingWatermarks")]
+    public IDictionary<string, long>? UsageAccountingWatermarks { get; set; }
+}
+
+/// <summary>A provider-owned quota observation, distinct from per-call usage and charge accounting.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed partial class SessionQuotaObservationData
+{
+    /// <summary>The admitted provider's state observation. Admission observations never contain quantities or reset/percentage semantics.</summary>
+    [JsonPropertyName("observation")]
+    public required ProviderQuotaState Observation { get; set; }
 }
 
 /// <summary>Working directory and git context at session start.</summary>
@@ -4780,6 +4858,11 @@ public sealed partial class AssistantMessageData
     [JsonPropertyName("phase")]
     public string? Phase { get; set; }
 
+    /// <summary>Opaque origin provider identity captured at dispatch. Only an exact match with the target provider permits replay of reasoningOpaque, encryptedContent, reasoningBlocks, serverTools, and provider response/item identifiers. Matching model ids or wire protocols is insufficient. Omitted for legacy or unattributed messages; the runtime excludes unproven opaque state when projecting to a known provider. Text content and client tool requests/results remain portable semantic history.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("providerId")]
+    public string? ProviderId { get; set; }
+
     /// <summary>Neutral provider-tagged reasoning content blocks preserved verbatim for round-tripping. `reasoningText` and `reasoningOpaque` are a lossy derived view of these blocks, retained for display.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("reasoningBlocks")]
@@ -4901,6 +4984,16 @@ public sealed partial class AssistantUsageData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("acceptedPredictionTokens")]
     public long? AcceptedPredictionTokens { get; set; }
+
+    /// <summary>Runtime-owned identity shared with the durable accounting receipt.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("accounting")]
+    public UsageAccountingIdentity? Accounting { get; set; }
+
+    /// <summary>Availability of this call's reported AI-credit amount. Missing billing is unavailable, not a zero charge.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("aiCreditsStatus")]
+    public AiCreditsStatus? AiCreditsStatus { get; set; }
 
     /// <summary>Completion ID from the model provider (e.g., chatcmpl-abc123).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -5034,6 +5127,11 @@ public sealed partial class AssistantUsageData
     [JsonPropertyName("model")]
     public required string Model { get; set; }
 
+    /// <summary>Model display name captured for this call, not derived from the current selection.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("modelDisplayName")]
+    public string? ModelDisplayName { get; set; }
+
     /// <summary>Fixed-set provider family serving the bring-your-own-key model (for example "openai", "anthropic", "azure_openai", "ollama", "llama_cpp", or "other"). Never the caller-supplied provider name. Absent for Copilot-served models.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("modelProvider")]
@@ -5066,6 +5164,11 @@ public sealed partial class AssistantUsageData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("parentToolCallId")]
     public string? ParentToolCallId { get; set; }
+
+    /// <summary>Provider identity and product label captured by the actual call's dispatch path.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("provider")]
+    public ModelProviderRef? Provider { get; set; }
 
     /// <summary>GitHub request tracing ID (x-github-request-id header) for server-side log correlation.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -7905,6 +8008,256 @@ public sealed partial class HandoffRepository
     public required string Owner { get; set; }
 }
 
+/// <summary>Request count and cost metrics for this model.</summary>
+/// <remarks>Nested data type for <c>UsageMetricsModelMetricRequests</c>.</remarks>
+public sealed partial class UsageMetricsModelMetricRequests
+{
+    /// <summary>User-initiated premium request cost (with multiplier applied).</summary>
+    [JsonPropertyName("cost")]
+    public required double Cost { get; set; }
+
+    /// <summary>Number of API requests made with this model.</summary>
+    [JsonPropertyName("count")]
+    public required long Count { get; set; }
+}
+
+/// <summary>Per-model token-detail entry containing the accumulated token count for one token type.</summary>
+/// <remarks>Nested data type for <c>UsageMetricsModelMetricTokenDetail</c>.</remarks>
+public sealed partial class UsageMetricsModelMetricTokenDetail
+{
+    /// <summary>Accumulated token count for this token type.</summary>
+    [JsonPropertyName("tokenCount")]
+    public required long TokenCount { get; set; }
+}
+
+/// <summary>Token usage metrics for this model.</summary>
+/// <remarks>Nested data type for <c>UsageMetricsModelMetricUsage</c>.</remarks>
+public sealed partial class UsageMetricsModelMetricUsage
+{
+    /// <summary>Total tokens read from prompt cache.</summary>
+    [JsonPropertyName("cacheReadTokens")]
+    public required long CacheReadTokens { get; set; }
+
+    /// <summary>Total tokens written to prompt cache.</summary>
+    [JsonPropertyName("cacheWriteTokens")]
+    public required long CacheWriteTokens { get; set; }
+
+    /// <summary>Total input tokens consumed.</summary>
+    [JsonPropertyName("inputTokens")]
+    public required long InputTokens { get; set; }
+
+    /// <summary>Total output tokens produced.</summary>
+    [JsonPropertyName("outputTokens")]
+    public required long OutputTokens { get; set; }
+
+    /// <summary>Total output tokens used for reasoning.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("reasoningTokens")]
+    public long? ReasoningTokens { get; set; }
+}
+
+/// <summary>Per-model usage metrics, including request counts/costs, token usage, nano-AI units, and per-token-type details.</summary>
+/// <remarks>Nested data type for <c>UsageMetricsModelMetric</c>.</remarks>
+public sealed partial class UsageMetricsModelMetric
+{
+    /// <summary>Completeness of this model's reported AI-credit subtotal. Explicitly reported zero is complete, not unavailable.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("aiCreditsStatus")]
+    public AiCreditsStatus? AiCreditsStatus { get; set; }
+
+    /// <summary>Latest known prompt-cache expiration for this model. A timestamp in the past indicates that the observed cache has expired.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("cacheExpiresAt")]
+    public DateTimeOffset? CacheExpiresAt { get; set; }
+
+    /// <summary>Request count and cost metrics for this model.</summary>
+    [JsonPropertyName("requests")]
+    public required UsageMetricsModelMetricRequests Requests { get; set; }
+
+    /// <summary>Token count details per type.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("tokenDetails")]
+    public IDictionary<string, UsageMetricsModelMetricTokenDetail>? TokenDetails { get; set; }
+
+    /// <summary>Accumulated nano-AI units cost for this model.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("totalNanoAiu")]
+    public double? TotalNanoAiu { get; set; }
+
+    /// <summary>Token usage metrics for this model.</summary>
+    [JsonPropertyName("usage")]
+    public required UsageMetricsModelMetricUsage Usage { get; set; }
+}
+
+/// <summary>Usage attributed to one agent instance, including its identity, API duration, AI units, and per-model breakdown.</summary>
+/// <remarks>Nested data type for <c>UsageMetricsAgentMetric</c>.</remarks>
+public sealed partial class UsageMetricsAgentMetric
+{
+    /// <summary>Human-readable label for this subagent invocation, copied from the originating `subagent.started` event. For task-tool subagents this is the invocation's task description rather than the agent's configured display name, so group by `agentName` for stable per-agent labels.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("agentDisplayName")]
+    public string? AgentDisplayName { get; set; }
+
+    /// <summary>Configured agent name, when this is a subagent.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("agentName")]
+    public string? AgentName { get; set; }
+
+    /// <summary>Per-model usage for this agent, keyed by model identifier.</summary>
+    [JsonPropertyName("modelMetrics")]
+    public required IDictionary<string, UsageMetricsModelMetric> ModelMetrics { get; set; }
+
+    /// <summary>Time spent in model API calls by this agent, in milliseconds.</summary>
+    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]
+    [JsonPropertyName("totalApiDurationMs")]
+    public required TimeSpan TotalApiDuration { get; set; }
+
+    /// <summary>Accumulated nano-AI units cost for this agent.</summary>
+    [JsonPropertyName("totalNanoAiu")]
+    public required double TotalNanoAiu { get; set; }
+}
+
+/// <summary>Aggregated code change metrics.</summary>
+/// <remarks>Nested data type for <c>UsageMetricsCodeChanges</c>.</remarks>
+public sealed partial class UsageMetricsCodeChanges
+{
+    /// <summary>Distinct file paths modified during the session.</summary>
+    [JsonPropertyName("filesModified")]
+    public required string[] FilesModified { get; set; }
+
+    /// <summary>Number of distinct files modified.</summary>
+    [JsonPropertyName("filesModifiedCount")]
+    public required long FilesModifiedCount { get; set; }
+
+    /// <summary>Total lines of code added.</summary>
+    [JsonPropertyName("linesAdded")]
+    public required long LinesAdded { get; set; }
+
+    /// <summary>Total lines of code removed.</summary>
+    [JsonPropertyName("linesRemoved")]
+    public required long LinesRemoved { get; set; }
+}
+
+/// <summary>A neutral reference to the model provider that produced a model: an opaque id, a human-readable label, and the provider kind. Carried on each enumerated Model so consumers can group by provider without reaching into a provider-shaped internal type.</summary>
+/// <remarks>Nested data type for <c>ModelProviderRef</c>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed partial class ModelProviderRef
+{
+    /// <summary>Opaque, stable id of the provider that produced this model. Matches the enumerated `ModelProviderDescriptor.id`.</summary>
+    [JsonPropertyName("id")]
+    public required string Id { get; set; }
+
+    /// <summary>The provider kind.</summary>
+    [JsonPropertyName("kind")]
+    public required ModelProviderKind Kind { get; set; }
+
+    /// <summary>Human-readable provider label, owned by the runtime so every consumer renders identical text.</summary>
+    [JsonPropertyName("label")]
+    public required string Label { get; set; }
+}
+
+/// <summary>Usage for one recorded provider and model, without merging identical model IDs across providers.</summary>
+/// <remarks>Nested data type for <c>UsageMetricsProviderModelMetric</c>.</remarks>
+public sealed partial class UsageMetricsProviderModelMetric
+{
+    /// <summary>Request, token, and cost totals for this provider/model.</summary>
+    [JsonPropertyName("metrics")]
+    public required UsageMetricsModelMetric Metrics { get; set; }
+
+    /// <summary>Model display name captured at call time, when known.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("modelDisplayName")]
+    public string? ModelDisplayName { get; set; }
+
+    /// <summary>Model identity, or null for legacy aggregate-only usage.</summary>
+    [JsonPropertyName("modelId")]
+    public string? ModelId { get; set; }
+
+    /// <summary>Provider identity and product label captured when the call was dispatched; null when unknown.</summary>
+    [JsonPropertyName("provider")]
+    public ModelProviderRef? Provider { get; set; }
+}
+
+/// <summary>Session-wide token-detail entry containing the accumulated token count for one token type.</summary>
+/// <remarks>Nested data type for <c>UsageMetricsTokenDetail</c>.</remarks>
+public sealed partial class UsageMetricsTokenDetail
+{
+    /// <summary>Accumulated token count for this token type.</summary>
+    [JsonPropertyName("tokenCount")]
+    public required long TokenCount { get; set; }
+}
+
+/// <summary>Accumulated session usage metrics, including premium request cost, token counts, model breakdown, and code-change totals.</summary>
+/// <remarks>Nested data type for <c>UsageGetMetricsResult</c>.</remarks>
+public sealed partial class UsageGetMetricsResult
+{
+    /// <summary>Per-agent usage metrics, keyed by agent instance identifier. The main conversation uses the stable key `main`.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("agentMetrics")]
+    public IDictionary<string, UsageMetricsAgentMetric>? AgentMetrics { get; set; }
+
+    /// <summary>Completeness of totalNanoAiu. Numeric totals remain the reported subtotal; zero is not a claim of free usage when unavailable.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("aiCreditsStatus")]
+    public AiCreditsStatus? AiCreditsStatus { get; set; }
+
+    /// <summary>Aggregated code change metrics.</summary>
+    [JsonPropertyName("codeChanges")]
+    public required UsageMetricsCodeChanges CodeChanges { get; set; }
+
+    /// <summary>Currently active model identifier.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("currentModel")]
+    public string? CurrentModel { get; set; }
+
+    /// <summary>Input tokens from the most recent main-agent API call.</summary>
+    [JsonPropertyName("lastCallInputTokens")]
+    public required long LastCallInputTokens { get; set; }
+
+    /// <summary>Output tokens from the most recent main-agent API call.</summary>
+    [JsonPropertyName("lastCallOutputTokens")]
+    public required long LastCallOutputTokens { get; set; }
+
+    /// <summary>Per-model token and request metrics, keyed by model identifier.</summary>
+    [JsonPropertyName("modelMetrics")]
+    public required IDictionary<string, UsageMetricsModelMetric> ModelMetrics { get; set; }
+
+    /// <summary>
+    /// Provider-attributed model metrics, ordered by first observed provider and model.
+    /// Null attribution preserves historical usage whose provider or model was not recorded.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("providerModelMetrics")]
+    public UsageMetricsProviderModelMetric[]? ProviderModelMetrics { get; set; }
+
+    /// <summary>ISO 8601 timestamp when the session started.</summary>
+    [JsonPropertyName("sessionStartTime")]
+    public required DateTimeOffset SessionStartTime { get; set; }
+
+    /// <summary>Session-wide per-token-type accumulated token counts.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("tokenDetails")]
+    public IDictionary<string, UsageMetricsTokenDetail>? TokenDetails { get; set; }
+
+    /// <summary>Total time spent in model API calls (milliseconds).</summary>
+    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]
+    [JsonPropertyName("totalApiDurationMs")]
+    public required TimeSpan TotalApiDuration { get; set; }
+
+    /// <summary>Session-wide accumulated nano-AI units cost.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("totalNanoAiu")]
+    public double? TotalNanoAiu { get; set; }
+
+    /// <summary>Total user-initiated premium request cost across all models (may be fractional due to multipliers).</summary>
+    [JsonPropertyName("totalPremiumRequestCost")]
+    public required double TotalPremiumRequestCost { get; set; }
+
+    /// <summary>Raw count of user-initiated API requests.</summary>
+    [JsonPropertyName("totalUserRequests")]
+    public required long TotalUserRequests { get; set; }
+}
+
 /// <summary>Request count and cost metrics.</summary>
 /// <remarks>Nested data type for <c>ShutdownModelMetricRequests</c>.</remarks>
 public sealed partial class ShutdownModelMetricRequests
@@ -8053,6 +8406,155 @@ internal sealed partial class UsageCheckpointModelCacheState
     public required string ModelId { get; set; }
 }
 
+/// <summary>Authoritative budget measurements and policy metadata, independent of provider.</summary>
+/// <remarks>Nested data type for <c>ProviderQuotaBudgetMetadata</c>.</remarks>
+public sealed partial class ProviderQuotaBudgetMetadata
+{
+    /// <summary>Exact measured consumption in the budget's unit.</summary>
+    [JsonPropertyName("consumed")]
+    public required double Consumed { get; set; }
+
+    /// <summary>Exact budget entitlement, retaining incumbent fractional-unit compatibility.</summary>
+    [JsonPropertyName("entitlement")]
+    public required double Entitlement { get; set; }
+
+    /// <summary>Usage beyond entitlement, in the budget's unit.</summary>
+    [JsonPropertyName("overage")]
+    public required double Overage { get; set; }
+
+    /// <summary>Whether additional usage is allowed when the budget is exhausted.</summary>
+    [JsonPropertyName("overageAllowedWhenExhausted")]
+    public required bool OverageAllowedWhenExhausted { get; set; }
+
+    /// <summary>Optional additional-usage budget cap.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("overageLimit")]
+    public double? OverageLimit { get; set; }
+
+    /// <summary>Service-reported remaining percentage for authoritative budget presentation.</summary>
+    [JsonPropertyName("remainingPercentage")]
+    public required double RemainingPercentage { get; set; }
+
+    /// <summary>Reset instant in epoch milliseconds when this budget actually defines a window.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("resetAtEpochMs")]
+    public double? ResetAtEpochMs { get; set; }
+
+    /// <summary>Whether the reset instant is an estimate.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("resetEstimated")]
+    public bool? ResetEstimated { get; set; }
+
+    /// <summary>Whether this budget uses token-based billing.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("tokenBasedBilling")]
+    public bool? TokenBasedBilling { get; set; }
+
+    /// <summary>Whether the budget has unlimited entitlement.</summary>
+    [JsonPropertyName("unlimited")]
+    public required bool Unlimited { get; set; }
+
+    /// <summary>Whether service policy allows continued usage after exhaustion.</summary>
+    [JsonPropertyName("usageAllowedWhenExhausted")]
+    public required bool UsageAllowedWhenExhausted { get; set; }
+}
+
+/// <summary>An account quota reading. Absence of a quantity is unknown, never zero.</summary>
+/// <remarks>Nested data type for <c>ProviderQuotaState</c>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed partial class ProviderQuotaState
+{
+    /// <summary>Whether the service permits access, independently of balance.</summary>
+    [JsonPropertyName("accessState")]
+    public required ProviderQuotaAccessState AccessState { get; set; }
+
+    /// <summary>Service error code or client acquisition category, separate from the business-state reason.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("acquisitionError")]
+    public string? AcquisitionError { get; set; }
+
+    /// <summary>Acquisition outcome. Unavailable/failed readings have no service verdict; access/capacity unavailable are compatibility placeholders only.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("acquisitionStatus")]
+    public ProviderQuotaAcquisitionStatus? AcquisitionStatus { get; set; }
+
+    /// <summary>Independently reported signed 64-bit available quantity. Zero does not override the service access/capacity verdict; omission and null are preserved.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("availableQuantity")]
+    public long? AvailableQuantity { get; set; }
+
+    /// <summary>Optional metadata for an authoritative budget. Advisory balances and admission-only observations do not populate this.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("budgetMetadata")]
+    public ProviderQuotaBudgetMetadata? BudgetMetadata { get; set; }
+
+    /// <summary>Service capacity state; missing quantities do not imply exhaustion.</summary>
+    [JsonPropertyName("capacityState")]
+    public required ProviderQuotaCapacityState CapacityState { get; set; }
+
+    /// <summary>Key for the backwards-compatible snapshots projection, when the authoritative budget supports that contract.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("compatibilityKey")]
+    public string? CompatibilityKey { get; set; }
+
+    /// <summary>Independently reported signed 64-bit entitlement. -1 is an unlimited sentinel, not a capacity-state rewrite; omission and null are preserved.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("entitledQuantity")]
+    public long? EntitledQuantity { get; set; }
+
+    /// <summary>Explicit service admission flag, when reported.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("hasQuota")]
+    public bool? HasQuota { get; set; }
+
+    /// <summary>HTTP status from acquisition, when available.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("httpStatus")]
+    public long? HttpStatus { get; set; }
+
+    /// <summary>Whether this is a GET account reading or a pre-response admission observation. Observations are never merged across kinds.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("observationKind")]
+    public ProviderQuotaObservationKind? ObservationKind { get; set; }
+
+    /// <summary>When the runtime observed this reading, not a charge timestamp or guarantee that consumption has settled.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("observedAt")]
+    public string? ObservedAt { get; set; }
+
+    /// <summary>Provider/account whose service reported this state.</summary>
+    [JsonPropertyName("provider")]
+    public required ModelProviderRef Provider { get; set; }
+
+    /// <summary>Whether quantities are authoritative budget measurements, advisory balances, or absent. Only authoritative budgets support percentage presentation.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("quantityKind")]
+    public ProviderQuotaQuantityKind? QuantityKind { get; set; }
+
+    /// <summary>Service-owned quota identifier within this provider.</summary>
+    [JsonPropertyName("quotaId")]
+    public required string QuotaId { get; set; }
+
+    /// <summary>Service-reported explanation for the state.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("reason")]
+    public string? Reason { get; set; }
+
+    /// <summary>Service name owning this reading.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("service")]
+    public string? Service { get; set; }
+
+    /// <summary>Service-reported quota source.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("source")]
+    public string? Source { get; set; }
+
+    /// <summary>Unit of entitledQuantity and availableQuantity.</summary>
+    [JsonPropertyName("unit")]
+    public required ProviderQuotaUnit Unit { get; set; }
+}
+
 /// <summary>Token usage detail for a single billing category.</summary>
 /// <remarks>Nested data type for <c>CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail</c>.</remarks>
 public sealed partial class CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail
@@ -8104,6 +8606,11 @@ internal sealed partial class CompactionCompleteCompactionTokensUsedCopilotUsage
 /// <remarks>Nested data type for <c>CompactionCompleteCompactionTokensUsed</c>.</remarks>
 public sealed partial class CompactionCompleteCompactionTokensUsed
 {
+    /// <summary>Whether the compaction's credit amount was reported for all, some, or none of its calls.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("aiCreditsStatus")]
+    public AiCreditsStatus? AiCreditsStatus { get; set; }
+
     /// <summary>Cached input tokens reused in the compaction LLM call.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("cacheReadTokens")]
@@ -8136,10 +8643,20 @@ public sealed partial class CompactionCompleteCompactionTokensUsed
     [JsonPropertyName("model")]
     public string? Model { get; set; }
 
+    /// <summary>Model display name captured for the compaction call.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("modelDisplayName")]
+    public string? ModelDisplayName { get; set; }
+
     /// <summary>Output tokens produced by the compaction LLM call.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("outputTokens")]
     public long? OutputTokens { get; set; }
+
+    /// <summary>Provider captured for the compaction call; absent when attribution is unknown.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("provider")]
+    public ModelProviderRef? Provider { get; set; }
 }
 
 /// <summary>Original request-level and effective conversation reasoning effort for a provider history boundary; the historical type name is retained for compatibility.</summary>
@@ -9297,6 +9814,23 @@ public sealed partial class AssistantMessageToolRequest
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("type")]
     public AssistantMessageToolRequestType? Type { get; set; }
+}
+
+/// <summary>Ordered accounting identity assigned under the source session's emission lock.</summary>
+/// <remarks>Nested data type for <c>UsageAccountingIdentity</c>.</remarks>
+public sealed partial class UsageAccountingIdentity
+{
+    /// <summary>Monotonically increasing sequence within the source session.</summary>
+    [JsonPropertyName("sequence")]
+    public required long Sequence { get; set; }
+
+    /// <summary>Session that assigned this accounting sequence.</summary>
+    [JsonPropertyName("sourceSessionId")]
+    public required string SourceSessionId { get; set; }
+
+    /// <summary>Existing API call identifier, or a runtime-generated identity when none was supplied.</summary>
+    [JsonPropertyName("usageId")]
+    public required string UsageId { get; set; }
 }
 
 /// <summary>Token usage detail for a single billing category.</summary>
@@ -14923,6 +15457,132 @@ public readonly struct HandoffSourceType : IEquatable<HandoffSourceType>
     }
 }
 
+/// <summary>Whether the accumulated numeric AI-credit subtotal covers the observed calls.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct AiCreditsStatus : IEquatable<AiCreditsStatus>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="AiCreditsStatus"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="AiCreditsStatus"/>.</param>
+    [JsonConstructor]
+    public AiCreditsStatus(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="AiCreditsStatus"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Every observed call supplied an AI-credit amount, including an explicit zero.</summary>
+    public static AiCreditsStatus Complete { get; } = new("complete");
+
+    /// <summary>Some calls supplied amounts and some did not; the numeric value is only a reported subtotal.</summary>
+    public static AiCreditsStatus Partial { get; } = new("partial");
+
+    /// <summary>No AI-credit amount was reported for the observed calls. Numeric zero is not a zero-cost claim.</summary>
+    public static AiCreditsStatus Unavailable { get; } = new("unavailable");
+
+    /// <summary>Returns a value indicating whether two <see cref="AiCreditsStatus"/> instances are equivalent.</summary>
+    public static bool operator ==(AiCreditsStatus left, AiCreditsStatus right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="AiCreditsStatus"/> instances are not equivalent.</summary>
+    public static bool operator !=(AiCreditsStatus left, AiCreditsStatus right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is AiCreditsStatus other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(AiCreditsStatus other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{AiCreditsStatus}"/> for serializing <see cref="AiCreditsStatus"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<AiCreditsStatus>
+    {
+        /// <inheritdoc />
+        public override AiCreditsStatus Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, AiCreditsStatus value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AiCreditsStatus));
+        }
+    }
+}
+
+/// <summary>The neutral kind of a model provider — the model analog of `AccountKind`. A model provider is the live, entitled source a model came from; central code never branches on this beyond a single dispatch.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct ModelProviderKind : IEquatable<ModelProviderKind>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="ModelProviderKind"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="ModelProviderKind"/>.</param>
+    [JsonConstructor]
+    public ModelProviderKind(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="ModelProviderKind"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>GitHub Copilot / CAPI models, spawned by a github-resolving account that holds a Copilot seat.</summary>
+    public static ModelProviderKind Copilot { get; } = new("copilot");
+
+    /// <summary>Microsoft 365 Copilot (Loki) inference models, spawned by a resolvable Entra-derived Loki account.</summary>
+    public static ModelProviderKind Loki { get; } = new("loki");
+
+    /// <summary>Returns a value indicating whether two <see cref="ModelProviderKind"/> instances are equivalent.</summary>
+    public static bool operator ==(ModelProviderKind left, ModelProviderKind right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="ModelProviderKind"/> instances are not equivalent.</summary>
+    public static bool operator !=(ModelProviderKind left, ModelProviderKind right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is ModelProviderKind other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(ModelProviderKind other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{ModelProviderKind}"/> for serializing <see cref="ModelProviderKind"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<ModelProviderKind>
+    {
+        /// <inheritdoc />
+        public override ModelProviderKind Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, ModelProviderKind value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ModelProviderKind));
+        }
+    }
+}
+
 /// <summary>Whether the session ended normally ("routine") or due to a crash/fatal error ("error").</summary>
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
@@ -14980,6 +15640,408 @@ public readonly struct ShutdownType : IEquatable<ShutdownType>
         public override void Write(Utf8JsonWriter writer, ShutdownType value, JsonSerializerOptions options)
         {
             GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ShutdownType));
+        }
+    }
+}
+
+/// <summary>Access policy reported by the quota service.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct ProviderQuotaAccessState : IEquatable<ProviderQuotaAccessState>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="ProviderQuotaAccessState"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="ProviderQuotaAccessState"/>.</param>
+    [JsonConstructor]
+    public ProviderQuotaAccessState(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="ProviderQuotaAccessState"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Access is allowed.</summary>
+    public static ProviderQuotaAccessState Allowed { get; } = new("allowed");
+
+    /// <summary>Access is denied.</summary>
+    public static ProviderQuotaAccessState Denied { get; } = new("denied");
+
+    /// <summary>Quota is not required for this access.</summary>
+    public static ProviderQuotaAccessState NotRequired { get; } = new("not_required");
+
+    /// <summary>The service did not supply a recognized access state.</summary>
+    public static ProviderQuotaAccessState Unknown { get; } = new("unknown");
+
+    /// <summary>Client-only compatibility placeholder when acquisitionStatus is unavailable or failed; not an observed service verdict.</summary>
+    public static ProviderQuotaAccessState Unavailable { get; } = new("unavailable");
+
+    /// <summary>Returns a value indicating whether two <see cref="ProviderQuotaAccessState"/> instances are equivalent.</summary>
+    public static bool operator ==(ProviderQuotaAccessState left, ProviderQuotaAccessState right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="ProviderQuotaAccessState"/> instances are not equivalent.</summary>
+    public static bool operator !=(ProviderQuotaAccessState left, ProviderQuotaAccessState right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is ProviderQuotaAccessState other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(ProviderQuotaAccessState other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{ProviderQuotaAccessState}"/> for serializing <see cref="ProviderQuotaAccessState"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<ProviderQuotaAccessState>
+    {
+        /// <inheritdoc />
+        public override ProviderQuotaAccessState Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, ProviderQuotaAccessState value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ProviderQuotaAccessState));
+        }
+    }
+}
+
+/// <summary>Acquisition state, independent of the service's business access/capacity verdict.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct ProviderQuotaAcquisitionStatus : IEquatable<ProviderQuotaAcquisitionStatus>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="ProviderQuotaAcquisitionStatus"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="ProviderQuotaAcquisitionStatus"/>.</param>
+    [JsonConstructor]
+    public ProviderQuotaAcquisitionStatus(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="ProviderQuotaAcquisitionStatus"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>A service quota observation was received.</summary>
+    public static ProviderQuotaAcquisitionStatus Succeeded { get; } = new("succeeded");
+
+    /// <summary>No service snapshot is available for this caller or surface.</summary>
+    public static ProviderQuotaAcquisitionStatus Unavailable { get; } = new("unavailable");
+
+    /// <summary>Acquisition failed; inspect httpStatus/acquisitionError without inferring a business verdict.</summary>
+    public static ProviderQuotaAcquisitionStatus Failed { get; } = new("failed");
+
+    /// <summary>Returns a value indicating whether two <see cref="ProviderQuotaAcquisitionStatus"/> instances are equivalent.</summary>
+    public static bool operator ==(ProviderQuotaAcquisitionStatus left, ProviderQuotaAcquisitionStatus right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="ProviderQuotaAcquisitionStatus"/> instances are not equivalent.</summary>
+    public static bool operator !=(ProviderQuotaAcquisitionStatus left, ProviderQuotaAcquisitionStatus right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is ProviderQuotaAcquisitionStatus other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(ProviderQuotaAcquisitionStatus other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{ProviderQuotaAcquisitionStatus}"/> for serializing <see cref="ProviderQuotaAcquisitionStatus"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<ProviderQuotaAcquisitionStatus>
+    {
+        /// <inheritdoc />
+        public override ProviderQuotaAcquisitionStatus Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, ProviderQuotaAcquisitionStatus value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ProviderQuotaAcquisitionStatus));
+        }
+    }
+}
+
+/// <summary>Capacity is independent of whether a numeric balance was supplied.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct ProviderQuotaCapacityState : IEquatable<ProviderQuotaCapacityState>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="ProviderQuotaCapacityState"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="ProviderQuotaCapacityState"/>.</param>
+    [JsonConstructor]
+    public ProviderQuotaCapacityState(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="ProviderQuotaCapacityState"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Capacity is available.</summary>
+    public static ProviderQuotaCapacityState Available { get; } = new("available");
+
+    /// <summary>The service explicitly reports exhaustion.</summary>
+    public static ProviderQuotaCapacityState Exhausted { get; } = new("exhausted");
+
+    /// <summary>The reported entitlement is unlimited.</summary>
+    public static ProviderQuotaCapacityState Unlimited { get; } = new("unlimited");
+
+    /// <summary>No billable quota is required.</summary>
+    public static ProviderQuotaCapacityState NotRequired { get; } = new("not_required");
+
+    /// <summary>The service reports that capacity is not applicable.</summary>
+    public static ProviderQuotaCapacityState NotApplicable { get; } = new("not_applicable");
+
+    /// <summary>No recognized capacity state was supplied.</summary>
+    public static ProviderQuotaCapacityState Unknown { get; } = new("unknown");
+
+    /// <summary>Client-only compatibility placeholder when acquisitionStatus is unavailable or failed; not an observed service verdict.</summary>
+    public static ProviderQuotaCapacityState Unavailable { get; } = new("unavailable");
+
+    /// <summary>Returns a value indicating whether two <see cref="ProviderQuotaCapacityState"/> instances are equivalent.</summary>
+    public static bool operator ==(ProviderQuotaCapacityState left, ProviderQuotaCapacityState right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="ProviderQuotaCapacityState"/> instances are not equivalent.</summary>
+    public static bool operator !=(ProviderQuotaCapacityState left, ProviderQuotaCapacityState right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is ProviderQuotaCapacityState other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(ProviderQuotaCapacityState other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{ProviderQuotaCapacityState}"/> for serializing <see cref="ProviderQuotaCapacityState"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<ProviderQuotaCapacityState>
+    {
+        /// <inheritdoc />
+        public override ProviderQuotaCapacityState Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, ProviderQuotaCapacityState value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ProviderQuotaCapacityState));
+        }
+    }
+}
+
+/// <summary>Timing and purpose of a provider quota observation.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct ProviderQuotaObservationKind : IEquatable<ProviderQuotaObservationKind>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="ProviderQuotaObservationKind"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="ProviderQuotaObservationKind"/>.</param>
+    [JsonConstructor]
+    public ProviderQuotaObservationKind(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="ProviderQuotaObservationKind"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>An explicit account read; consumption may still be subject to service aggregation delay.</summary>
+    public static ProviderQuotaObservationKind AccountSnapshot { get; } = new("account_snapshot");
+
+    /// <summary>A verdict attached before an inference response. May be cached; never a post-charge balance.</summary>
+    public static ProviderQuotaObservationKind AdmissionState { get; } = new("admission_state");
+
+    /// <summary>Returns a value indicating whether two <see cref="ProviderQuotaObservationKind"/> instances are equivalent.</summary>
+    public static bool operator ==(ProviderQuotaObservationKind left, ProviderQuotaObservationKind right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="ProviderQuotaObservationKind"/> instances are not equivalent.</summary>
+    public static bool operator !=(ProviderQuotaObservationKind left, ProviderQuotaObservationKind right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is ProviderQuotaObservationKind other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(ProviderQuotaObservationKind other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{ProviderQuotaObservationKind}"/> for serializing <see cref="ProviderQuotaObservationKind"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<ProviderQuotaObservationKind>
+    {
+        /// <inheritdoc />
+        public override ProviderQuotaObservationKind Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, ProviderQuotaObservationKind value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ProviderQuotaObservationKind));
+        }
+    }
+}
+
+/// <summary>Interpretation permitted for independently reported quantities.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct ProviderQuotaQuantityKind : IEquatable<ProviderQuotaQuantityKind>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="ProviderQuotaQuantityKind"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="ProviderQuotaQuantityKind"/>.</param>
+    [JsonConstructor]
+    public ProviderQuotaQuantityKind(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="ProviderQuotaQuantityKind"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Quantities form an authoritative available-of-entitled budget suitable for percentage presentation.</summary>
+    public static ProviderQuotaQuantityKind AuthoritativeBudget { get; } = new("authoritative_budget");
+
+    /// <summary>Raw advisory quantities; do not infer permission, usage percentage, reset cadence, or post-charge balance.</summary>
+    public static ProviderQuotaQuantityKind AdvisoryBalance { get; } = new("advisory_balance");
+
+    /// <summary>No quantity measurement, as with admission-only response headers.</summary>
+    public static ProviderQuotaQuantityKind None { get; } = new("none");
+
+    /// <summary>Returns a value indicating whether two <see cref="ProviderQuotaQuantityKind"/> instances are equivalent.</summary>
+    public static bool operator ==(ProviderQuotaQuantityKind left, ProviderQuotaQuantityKind right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="ProviderQuotaQuantityKind"/> instances are not equivalent.</summary>
+    public static bool operator !=(ProviderQuotaQuantityKind left, ProviderQuotaQuantityKind right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is ProviderQuotaQuantityKind other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(ProviderQuotaQuantityKind other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{ProviderQuotaQuantityKind}"/> for serializing <see cref="ProviderQuotaQuantityKind"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<ProviderQuotaQuantityKind>
+    {
+        /// <inheritdoc />
+        public override ProviderQuotaQuantityKind Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, ProviderQuotaQuantityKind value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ProviderQuotaQuantityKind));
+        }
+    }
+}
+
+/// <summary>Units explicitly reported by a quota provider.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct ProviderQuotaUnit : IEquatable<ProviderQuotaUnit>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="ProviderQuotaUnit"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="ProviderQuotaUnit"/>.</param>
+    [JsonConstructor]
+    public ProviderQuotaUnit(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="ProviderQuotaUnit"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>AI credits, not tokens or currency.</summary>
+    public static ProviderQuotaUnit AiCredits { get; } = new("ai_credits");
+
+    /// <summary>Requests charged against an entitlement.</summary>
+    public static ProviderQuotaUnit Requests { get; } = new("requests");
+
+    /// <summary>Model tokens.</summary>
+    public static ProviderQuotaUnit Tokens { get; } = new("tokens");
+
+    /// <summary>The observation does not establish a quantity unit.</summary>
+    public static ProviderQuotaUnit Unknown { get; } = new("unknown");
+
+    /// <summary>Returns a value indicating whether two <see cref="ProviderQuotaUnit"/> instances are equivalent.</summary>
+    public static bool operator ==(ProviderQuotaUnit left, ProviderQuotaUnit right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="ProviderQuotaUnit"/> instances are not equivalent.</summary>
+    public static bool operator !=(ProviderQuotaUnit left, ProviderQuotaUnit right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is ProviderQuotaUnit other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(ProviderQuotaUnit other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{ProviderQuotaUnit}"/> for serializing <see cref="ProviderQuotaUnit"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<ProviderQuotaUnit>
+    {
+        /// <inheritdoc />
+        public override ProviderQuotaUnit Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, ProviderQuotaUnit value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ProviderQuotaUnit));
         }
     }
 }
@@ -22057,6 +23119,7 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(ModelCallFinishedEvent))]
 [JsonSerializable(typeof(ModelCallStartData))]
 [JsonSerializable(typeof(ModelCallStartEvent))]
+[JsonSerializable(typeof(ModelProviderRef))]
 [JsonSerializable(typeof(OmittedBinaryResult))]
 [JsonSerializable(typeof(PendingMessagesModifiedData))]
 [JsonSerializable(typeof(PendingMessagesModifiedEvent))]
@@ -22129,6 +23192,8 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(PersistedBinaryResult))]
 [JsonSerializable(typeof(PromptCacheBreakData))]
 [JsonSerializable(typeof(PromptCacheBreakEvent))]
+[JsonSerializable(typeof(ProviderQuotaBudgetMetadata))]
+[JsonSerializable(typeof(ProviderQuotaState))]
 [JsonSerializable(typeof(ResponsesReasoning))]
 [JsonSerializable(typeof(SamplingCompletedData))]
 [JsonSerializable(typeof(SamplingCompletedEvent))]
@@ -22243,6 +23308,8 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(SessionPermissionsChangedEvent))]
 [JsonSerializable(typeof(SessionPlanChangedData))]
 [JsonSerializable(typeof(SessionPlanChangedEvent))]
+[JsonSerializable(typeof(SessionQuotaObservationData))]
+[JsonSerializable(typeof(SessionQuotaObservationEvent))]
 [JsonSerializable(typeof(SessionRemoteSteerableChangedData))]
 [JsonSerializable(typeof(SessionRemoteSteerableChangedEvent))]
 [JsonSerializable(typeof(SessionResumeData))]
@@ -22374,7 +23441,17 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(ToolUserRequestedEvent))]
 [JsonSerializable(typeof(UiEphemeralQueryData))]
 [JsonSerializable(typeof(UiEphemeralQueryEvent))]
+[JsonSerializable(typeof(UsageAccountingIdentity))]
 [JsonSerializable(typeof(UsageCheckpointModelCacheState))]
+[JsonSerializable(typeof(UsageGetMetricsResult))]
+[JsonSerializable(typeof(UsageMetricsAgentMetric))]
+[JsonSerializable(typeof(UsageMetricsCodeChanges))]
+[JsonSerializable(typeof(UsageMetricsModelMetric))]
+[JsonSerializable(typeof(UsageMetricsModelMetricRequests))]
+[JsonSerializable(typeof(UsageMetricsModelMetricTokenDetail))]
+[JsonSerializable(typeof(UsageMetricsModelMetricUsage))]
+[JsonSerializable(typeof(UsageMetricsProviderModelMetric))]
+[JsonSerializable(typeof(UsageMetricsTokenDetail))]
 [JsonSerializable(typeof(UserInputCompletedData))]
 [JsonSerializable(typeof(UserInputCompletedEvent))]
 [JsonSerializable(typeof(UserInputRequestedData))]

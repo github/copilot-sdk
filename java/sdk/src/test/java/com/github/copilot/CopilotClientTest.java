@@ -433,6 +433,12 @@ public class CopilotClientTest {
                 public void write(byte[] bytes, int offset, int length) throws IOException {
                     throw writeFailure;
                 }
+
+                @Override
+                public void close() throws IOException {
+                    // No write succeeds, so there is nothing to flush on this failed transport.
+                    out.close();
+                }
             };
             failedOutput.set(output);
             var transportProcess = mock(Process.class, org.mockito.AdditionalAnswers.delegatesTo(info.process()));
@@ -452,7 +458,18 @@ public class CopilotClientTest {
             return invocation.callRealMethod();
         }).when(manager).awaitStderrReader();
 
-        try (var client = new CopilotClient(options)) {
+        try (AutoCloseable childCleanup = () -> {
+            var process = child.get();
+            if (process != null && process.isAlive()) {
+                process.destroyForcibly();
+                assertTrue(process.waitFor(10, TimeUnit.SECONDS), "Could not reap the controlled child.");
+            }
+        }; var client = new CopilotClient(options); AutoCloseable outputCleanup = () -> {
+            var output = failedOutput.get();
+            if (output != null) {
+                output.close();
+            }
+        }) {
             Field managerField = CopilotClient.class.getDeclaredField("serverManager");
             managerField.setAccessible(true);
             managerField.set(client, manager);
@@ -469,14 +486,6 @@ public class CopilotClientTest {
             assertSame(writeFailure, original, "Startup must preserve the actual failed transport write.");
             assertNotSame(cause, original, "The startup error must retain its original transport failure.");
             assertFalse(child.get().isAlive(), "Failed startup retained its child process.");
-        } finally {
-            if (failedOutput.get() != null) {
-                failedOutput.get().close();
-            }
-            if (child.get() != null && child.get().isAlive()) {
-                child.get().destroyForcibly();
-                assertTrue(child.get().waitFor(10, TimeUnit.SECONDS), "Could not reap the controlled child.");
-            }
         }
     }
 

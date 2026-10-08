@@ -47,6 +47,8 @@ public final class SessionStartEvent extends SessionEvent {
         @JsonProperty("startTime") OffsetDateTime startTime,
         /** Model selected at session creation time, if any */
         @JsonProperty("selectedModel") String selectedModel,
+        /** Provider of selectedModel at creation time, when explicitly selected. */
+        @JsonProperty("providerId") String providerId,
         /** Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh", "max") */
         @JsonProperty("reasoningEffort") String reasoningEffort,
         /** Model that owns effort embedded in an authored model selection. Omitted for independent reasoning-effort overrides and legacy events. */
@@ -102,7 +104,7 @@ public final class SessionStartEvent extends SessionEvent {
             Boolean remoteSteerable,
             String detachedFromSpawningParentSessionId
         ) {
-            this(sessionId, version, producer, copilotVersion, startTime, selectedModel, reasoningEffort, reasoningEffortModel, null, reasoningSummary, verbosity, contextTier, null, autoTier, null, sessionLimits, context, gitHubMcpToolConfig, alreadyInUse, remoteSteerable, detachedFromSpawningParentSessionId);
+            this(sessionId, version, producer, copilotVersion, startTime, selectedModel, null, reasoningEffort, reasoningEffortModel, null, reasoningSummary, verbosity, contextTier, null, autoTier, null, sessionLimits, context, gitHubMcpToolConfig, alreadyInUse, remoteSteerable, detachedFromSpawningParentSessionId);
         }
     }
 }

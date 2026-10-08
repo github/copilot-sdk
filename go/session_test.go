@@ -22,7 +22,7 @@ import (
 // Returns a cleanup function that stops the consumer.
 func newTestSession() (*Session, func()) {
 	s := &Session{
-		handlers:        make([]sessionHandler, 0),
+		handlers:        make([]*sessionHandler, 0),
 		commandHandlers: make(map[string]CommandHandler),
 		eventCh:         make(chan SessionEvent, 128),
 		eventDone:       make(chan struct{}),
@@ -1064,7 +1064,7 @@ func checkSendAndWaitSkipsSubagentAndAutopilotContinuationIdle(t *testing.T, roo
 		SessionID: "session-1",
 		client:    client,
 		RPC:       rpc.NewSessionRPC(client, "session-1"),
-		handlers:  make([]sessionHandler, 0),
+		handlers:  make([]*sessionHandler, 0),
 		eventCh:   make(chan SessionEvent, 8),
 		eventDone: make(chan struct{}),
 	}

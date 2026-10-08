@@ -38,6 +38,10 @@ public final class SessionModelChangeEvent extends SessionEvent {
         @JsonProperty("previousModel") String previousModel,
         /** Newly selected model identifier */
         @JsonProperty("newModel") String newModel,
+        /** Provider selected for newModel. Omitted for legacy or unattributed selections; never inferred from a later selection. */
+        @JsonProperty("providerId") String providerId,
+        /** Provider of previousModel, when known. A provider-only change is a model selection change even when the model identifiers are equal. */
+        @JsonProperty("previousProviderId") String previousProviderId,
         /** Reasoning effort level before the model change, if applicable */
         @JsonProperty("previousReasoningEffort") String previousReasoningEffort,
         /** Reasoning effort level after the model change, if applicable */
@@ -89,7 +93,7 @@ public final class SessionModelChangeEvent extends SessionEvent {
             AutoTier previousAutoTier,
             AutoTier autoTier
         ) {
-            this(previousModel, newModel, previousReasoningEffort, reasoningEffort, reasoningEffortModel, null, previousReasoningSummary, reasoningSummary, previousVerbosity, verbosity, contextTier, null, cause, source, previousAutoTier, autoTier, null);
+            this(previousModel, newModel, null, null, previousReasoningEffort, reasoningEffort, reasoningEffortModel, null, previousReasoningSummary, reasoningSummary, previousVerbosity, verbosity, contextTier, null, cause, source, previousAutoTier, autoTier, null);
         }
     }
 }

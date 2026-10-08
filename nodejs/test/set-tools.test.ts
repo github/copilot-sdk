@@ -46,6 +46,46 @@ async function requestTool(session: CopilotSession, requestId: string, toolName:
 }
 
 describe("CopilotSession.setTools", () => {
+    it("rejects replacements on a retired session without dispatching an RPC", async () => {
+        const { session, sendRequest, toolsSetCalls } = sessionWithPendingToolsSet();
+        sendRequest.mockResolvedValue({});
+        session._markDisconnected();
+
+        await expect(session.setTools([labelTool("new_tool", () => "new")])).rejects.toThrow(
+            "Session is disconnected"
+        );
+
+        expect(toolsSetCalls()).toHaveLength(0);
+        expect(session.getToolHandler("new_tool")).toBeUndefined();
+    });
+
+    it.each(["accepted", "rejected"] as const)(
+        "does not dispatch a queued replacement after retirement when the earlier RPC is %s",
+        async (outcome) => {
+            const { session, sendRequest, pending, toolsSetCalls } = sessionWithPendingToolsSet();
+            const first = session.setTools([labelTool("first_tool", () => "first")]);
+            const second = session.setTools([labelTool("second_tool", () => "second")]);
+            const firstRejected = expect(first).rejects.toThrow(
+                outcome === "accepted" ? "Session is disconnected" : "Replacement rejected"
+            );
+            const secondRejected = expect(second).rejects.toThrow("Session is disconnected");
+            await vi.waitFor(() => expect(pending).toHaveLength(1));
+
+            session._markDisconnected();
+            sendRequest.mockResolvedValue({});
+            if (outcome === "accepted") {
+                pending[0].resolve({});
+            } else {
+                pending[0].reject(new Error("Replacement rejected"));
+            }
+            await Promise.all([firstRejected, secondRejected]);
+
+            expect(toolsSetCalls()).toHaveLength(1);
+            expect(session.getToolHandler("first_tool")).toBeUndefined();
+            expect(session.getToolHandler("second_tool")).toBeUndefined();
+        }
+    );
+
     it("sends the complete tool set and switches handlers once the runtime accepts", async () => {
         const { session, pending, toolsSetCalls } = sessionWithPendingToolsSet();
         const oldHandler = vi.fn(() => "old");

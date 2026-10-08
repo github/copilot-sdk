@@ -154,6 +154,8 @@ class SessionEventType(Enum):
     SESSION_SNAPSHOT_REWIND = "session.snapshot_rewind"
     SESSION_SHUTDOWN = "session.shutdown"
     SESSION_USAGE_CHECKPOINT = "session.usage_checkpoint"
+    # Experimental: this event is part of an experimental API and may change or be removed.
+    SESSION_QUOTA_OBSERVATION = "session.quota_observation"
     SESSION_CONTEXT_CHANGED = "session.context_changed"
     SESSION_USAGE_INFO = "session.usage_info"
     SESSION_CONTEXT_CLEARED = "session.context_cleared"
@@ -1422,6 +1424,34 @@ class _FusionStagedTerminal:
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
+class ModelProviderRef:
+    "A neutral reference to the model provider that produced a model: an opaque id, a human-readable label, and the provider kind. Carried on each enumerated Model so consumers can group by provider without reaching into a provider-shaped internal type."
+    id: str
+    kind: ModelProviderKind
+    label: str
+
+    @staticmethod
+    def from_dict(obj: Any) -> "ModelProviderRef":
+        assert isinstance(obj, dict)
+        id = from_str(obj.get("id"))
+        kind = parse_enum(ModelProviderKind, obj.get("kind"))
+        label = from_str(obj.get("label"))
+        return ModelProviderRef(
+            id=id,
+            kind=kind,
+            label=label,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["id"] = from_str(self.id)
+        result["kind"] = to_enum(ModelProviderKind, self.kind)
+        result["label"] = from_str(self.label)
+        return result
+
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
 class OmittedBinaryResult:
     "A binary result whose data was omitted from persistence due to the inline size limit"
     byte_length: int
@@ -1753,6 +1783,112 @@ class PermissionSandboxPathGrant:
             result["deniedPath"] = from_union([from_none, from_str], self.denied_path)
         if self.removed_readonly_paths is not None:
             result["removedReadonlyPaths"] = from_union([from_none, lambda x: from_list(from_str, x)], self.removed_readonly_paths)
+        return result
+
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class ProviderQuotaState:
+    "An account quota reading. Absence of a quantity is unknown, never zero."
+    access_state: ProviderQuotaAccessState
+    capacity_state: ProviderQuotaCapacityState
+    provider: ModelProviderRef
+    quota_id: str
+    unit: ProviderQuotaUnit
+    acquisition_error: str | None = None
+    acquisition_status: ProviderQuotaAcquisitionStatus | None = None
+    available_quantity: int | None = None
+    budget_metadata: ProviderQuotaBudgetMetadata | None = None
+    compatibility_key: str | None = None
+    entitled_quantity: int | None = None
+    has_quota: bool | None = None
+    http_status: int | None = None
+    observation_kind: ProviderQuotaObservationKind | None = None
+    observed_at: str | None = None
+    quantity_kind: ProviderQuotaQuantityKind | None = None
+    reason: str | None = None
+    service: str | None = None
+    source: str | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "ProviderQuotaState":
+        assert isinstance(obj, dict)
+        access_state = parse_enum(ProviderQuotaAccessState, obj.get("accessState"))
+        capacity_state = parse_enum(ProviderQuotaCapacityState, obj.get("capacityState"))
+        provider = ModelProviderRef.from_dict(obj.get("provider"))
+        quota_id = from_str(obj.get("quotaId"))
+        unit = parse_enum(ProviderQuotaUnit, obj.get("unit"))
+        acquisition_error = from_union([from_none, from_str], obj.get("acquisitionError"))
+        acquisition_status = from_union([from_none, lambda x: parse_enum(ProviderQuotaAcquisitionStatus, x)], obj.get("acquisitionStatus"))
+        available_quantity = from_union([from_none, from_int], obj.get("availableQuantity"))
+        budget_metadata = from_union([from_none, ProviderQuotaBudgetMetadata.from_dict], obj.get("budgetMetadata"))
+        compatibility_key = from_union([from_none, from_str], obj.get("compatibilityKey"))
+        entitled_quantity = from_union([from_none, from_int], obj.get("entitledQuantity"))
+        has_quota = from_union([from_none, from_bool], obj.get("hasQuota"))
+        http_status = from_union([from_none, from_int], obj.get("httpStatus"))
+        observation_kind = from_union([from_none, lambda x: parse_enum(ProviderQuotaObservationKind, x)], obj.get("observationKind"))
+        observed_at = from_union([from_none, from_str], obj.get("observedAt"))
+        quantity_kind = from_union([from_none, lambda x: parse_enum(ProviderQuotaQuantityKind, x)], obj.get("quantityKind"))
+        reason = from_union([from_none, from_str], obj.get("reason"))
+        service = from_union([from_none, from_str], obj.get("service"))
+        source = from_union([from_none, from_str], obj.get("source"))
+        return ProviderQuotaState(
+            access_state=access_state,
+            capacity_state=capacity_state,
+            provider=provider,
+            quota_id=quota_id,
+            unit=unit,
+            acquisition_error=acquisition_error,
+            acquisition_status=acquisition_status,
+            available_quantity=available_quantity,
+            budget_metadata=budget_metadata,
+            compatibility_key=compatibility_key,
+            entitled_quantity=entitled_quantity,
+            has_quota=has_quota,
+            http_status=http_status,
+            observation_kind=observation_kind,
+            observed_at=observed_at,
+            quantity_kind=quantity_kind,
+            reason=reason,
+            service=service,
+            source=source,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["accessState"] = to_enum(ProviderQuotaAccessState, self.access_state)
+        result["capacityState"] = to_enum(ProviderQuotaCapacityState, self.capacity_state)
+        result["provider"] = to_class(ModelProviderRef, self.provider)
+        result["quotaId"] = from_str(self.quota_id)
+        result["unit"] = to_enum(ProviderQuotaUnit, self.unit)
+        if self.acquisition_error is not None:
+            result["acquisitionError"] = from_union([from_none, from_str], self.acquisition_error)
+        if self.acquisition_status is not None:
+            result["acquisitionStatus"] = from_union([from_none, lambda x: to_enum(ProviderQuotaAcquisitionStatus, x)], self.acquisition_status)
+        if self.available_quantity is not None:
+            result["availableQuantity"] = from_union([from_none, to_int], self.available_quantity)
+        if self.budget_metadata is not None:
+            result["budgetMetadata"] = from_union([from_none, lambda x: to_class(ProviderQuotaBudgetMetadata, x)], self.budget_metadata)
+        if self.compatibility_key is not None:
+            result["compatibilityKey"] = from_union([from_none, from_str], self.compatibility_key)
+        if self.entitled_quantity is not None:
+            result["entitledQuantity"] = from_union([from_none, to_int], self.entitled_quantity)
+        if self.has_quota is not None:
+            result["hasQuota"] = from_union([from_none, from_bool], self.has_quota)
+        if self.http_status is not None:
+            result["httpStatus"] = from_union([from_none, to_int], self.http_status)
+        if self.observation_kind is not None:
+            result["observationKind"] = from_union([from_none, lambda x: to_enum(ProviderQuotaObservationKind, x)], self.observation_kind)
+        if self.observed_at is not None:
+            result["observedAt"] = from_union([from_none, from_str], self.observed_at)
+        if self.quantity_kind is not None:
+            result["quantityKind"] = from_union([from_none, lambda x: to_enum(ProviderQuotaQuantityKind, x)], self.quantity_kind)
+        if self.reason is not None:
+            result["reason"] = from_union([from_none, from_str], self.reason)
+        if self.service is not None:
+            result["service"] = from_union([from_none, from_str], self.service)
+        if self.source is not None:
+            result["source"] = from_union([from_none, from_str], self.source)
         return result
 
 
@@ -2563,6 +2699,26 @@ class SessionPermissionsChangedData:
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
+class SessionQuotaObservationData:
+    "A provider-owned quota observation, distinct from per-call usage and charge accounting."
+    observation: ProviderQuotaState
+
+    @staticmethod
+    def from_dict(obj: Any) -> "SessionQuotaObservationData":
+        assert isinstance(obj, dict)
+        observation = ProviderQuotaState.from_dict(obj.get("observation"))
+        return SessionQuotaObservationData(
+            observation=observation,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["observation"] = to_class(ProviderQuotaState, self.observation)
+        return result
+
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
 class TaskBlocker:
     "Structured reason that the task cannot continue without intervention"
     kind: TaskBlockerKind
@@ -2925,6 +3081,7 @@ class AssistantMessageData:
     # Deprecated: this field is deprecated.
     parent_tool_call_id: str | None = None
     phase: str | None = None
+    provider_id: str | None = None
     reasoning_blocks: AssistantMessageReasoningBlocks | None = None
     reasoning_opaque: str | None = None
     reasoning_text: str | None = None
@@ -2954,6 +3111,7 @@ class AssistantMessageData:
         output_tokens = from_union([from_none, from_int], obj.get("outputTokens"))
         parent_tool_call_id = from_union([from_none, from_str], obj.get("parentToolCallId"))
         phase = from_union([from_none, from_str], obj.get("phase"))
+        provider_id = from_union([from_none, from_str], obj.get("providerId"))
         reasoning_blocks = from_union([from_none, AssistantMessageReasoningBlocks.from_dict], obj.get("reasoningBlocks"))
         reasoning_opaque = from_union([from_none, from_str], obj.get("reasoningOpaque"))
         reasoning_text = from_union([from_none, from_str], obj.get("reasoningText"))
@@ -2980,6 +3138,7 @@ class AssistantMessageData:
             output_tokens=output_tokens,
             parent_tool_call_id=parent_tool_call_id,
             phase=phase,
+            provider_id=provider_id,
             reasoning_blocks=reasoning_blocks,
             reasoning_opaque=reasoning_opaque,
             reasoning_text=reasoning_text,
@@ -3022,6 +3181,8 @@ class AssistantMessageData:
             result["parentToolCallId"] = from_union([from_none, from_str], self.parent_tool_call_id)
         if self.phase is not None:
             result["phase"] = from_union([from_none, from_str], self.phase)
+        if self.provider_id is not None:
+            result["providerId"] = from_union([from_none, from_str], self.provider_id)
         if self.reasoning_blocks is not None:
             result["reasoningBlocks"] = from_union([from_none, lambda x: to_class(AssistantMessageReasoningBlocks, x)], self.reasoning_blocks)
         if self.reasoning_opaque is not None:
@@ -3472,6 +3633,8 @@ class AssistantUsageData:
     "LLM API call usage metrics including tokens, costs, quotas, and billing information"
     model: str
     accepted_prediction_tokens: int | None = None
+    accounting: UsageAccountingIdentity | None = None
+    ai_credits_status: AiCreditsStatus | None = None
     api_call_id: str | None = None
     api_endpoint: AssistantUsageApiEndpoint | None = None
     # Internal: this field is an internal SDK API and is not part of the public surface.
@@ -3502,6 +3665,7 @@ class AssistantUsageData:
     is_byok: bool | None = None
     max_output_tokens: int | None = None
     max_prompt_tokens: int | None = None
+    model_display_name: str | None = None
     model_provider: str | None = None
     # Internal: this field is an internal SDK API and is not part of the public surface.
     _num_tool_calls: int | None = None
@@ -3509,6 +3673,7 @@ class AssistantUsageData:
     output_ttft: timedelta | None = None
     # Deprecated: this field is deprecated.
     parent_tool_call_id: str | None = None
+    provider: ModelProviderRef | None = None
     provider_call_id: str | None = None
     # Internal: this field is an internal SDK API and is not part of the public surface.
     _quota_snapshots: dict[str, _AssistantUsageQuotaSnapshot] | None = None
@@ -3537,6 +3702,8 @@ class AssistantUsageData:
         assert isinstance(obj, dict)
         model = from_str(obj.get("model"))
         accepted_prediction_tokens = from_union([from_none, from_int], obj.get("acceptedPredictionTokens"))
+        accounting = from_union([from_none, UsageAccountingIdentity.from_dict], obj.get("accounting"))
+        ai_credits_status = from_union([from_none, lambda x: parse_enum(AiCreditsStatus, x)], obj.get("aiCreditsStatus"))
         api_call_id = from_union([from_none, from_str], obj.get("apiCallId"))
         api_endpoint = from_union([from_none, lambda x: parse_enum(AssistantUsageApiEndpoint, x)], obj.get("apiEndpoint"))
         _available_tool_count = from_union([from_none, from_int], obj.get("availableToolCount"))
@@ -3561,11 +3728,13 @@ class AssistantUsageData:
         is_byok = from_union([from_none, from_bool], obj.get("isByok"))
         max_output_tokens = from_union([from_none, from_int], obj.get("maxOutputTokens"))
         max_prompt_tokens = from_union([from_none, from_int], obj.get("maxPromptTokens"))
+        model_display_name = from_union([from_none, from_str], obj.get("modelDisplayName"))
         model_provider = from_union([from_none, from_str], obj.get("modelProvider"))
         _num_tool_calls = from_union([from_none, from_int], obj.get("numToolCalls"))
         output_tokens = from_union([from_none, from_int], obj.get("outputTokens"))
         output_ttft = from_union([from_none, from_timedelta], obj.get("outputTtftMs"))
         parent_tool_call_id = from_union([from_none, from_str], obj.get("parentToolCallId"))
+        provider = from_union([from_none, ModelProviderRef.from_dict], obj.get("provider"))
         provider_call_id = from_union([from_none, from_str], obj.get("providerCallId"))
         _quota_snapshots = from_union([from_none, lambda x: from_dict(_AssistantUsageQuotaSnapshot.from_dict, x)], obj.get("quotaSnapshots"))
         reasoning_effort = from_union([from_none, from_str], obj.get("reasoningEffort"))
@@ -3586,6 +3755,8 @@ class AssistantUsageData:
         return AssistantUsageData(
             model=model,
             accepted_prediction_tokens=accepted_prediction_tokens,
+            accounting=accounting,
+            ai_credits_status=ai_credits_status,
             api_call_id=api_call_id,
             api_endpoint=api_endpoint,
             _available_tool_count=_available_tool_count,
@@ -3610,11 +3781,13 @@ class AssistantUsageData:
             is_byok=is_byok,
             max_output_tokens=max_output_tokens,
             max_prompt_tokens=max_prompt_tokens,
+            model_display_name=model_display_name,
             model_provider=model_provider,
             _num_tool_calls=_num_tool_calls,
             output_tokens=output_tokens,
             output_ttft=output_ttft,
             parent_tool_call_id=parent_tool_call_id,
+            provider=provider,
             provider_call_id=provider_call_id,
             _quota_snapshots=_quota_snapshots,
             reasoning_effort=reasoning_effort,
@@ -3639,6 +3812,10 @@ class AssistantUsageData:
         result["model"] = from_str(self.model)
         if self.accepted_prediction_tokens is not None:
             result["acceptedPredictionTokens"] = from_union([from_none, to_int], self.accepted_prediction_tokens)
+        if self.accounting is not None:
+            result["accounting"] = from_union([from_none, lambda x: to_class(UsageAccountingIdentity, x)], self.accounting)
+        if self.ai_credits_status is not None:
+            result["aiCreditsStatus"] = from_union([from_none, lambda x: to_enum(AiCreditsStatus, x)], self.ai_credits_status)
         if self.api_call_id is not None:
             result["apiCallId"] = from_union([from_none, from_str], self.api_call_id)
         if self.api_endpoint is not None:
@@ -3687,6 +3864,8 @@ class AssistantUsageData:
             result["maxOutputTokens"] = from_union([from_none, to_int], self.max_output_tokens)
         if self.max_prompt_tokens is not None:
             result["maxPromptTokens"] = from_union([from_none, to_int], self.max_prompt_tokens)
+        if self.model_display_name is not None:
+            result["modelDisplayName"] = from_union([from_none, from_str], self.model_display_name)
         if self.model_provider is not None:
             result["modelProvider"] = from_union([from_none, from_str], self.model_provider)
         if self._num_tool_calls is not None:
@@ -3697,6 +3876,8 @@ class AssistantUsageData:
             result["outputTtftMs"] = from_union([from_none, to_timedelta], self.output_ttft)
         if self.parent_tool_call_id is not None:
             result["parentToolCallId"] = from_union([from_none, from_str], self.parent_tool_call_id)
+        if self.provider is not None:
+            result["provider"] = from_union([from_none, lambda x: to_class(ModelProviderRef, x)], self.provider)
         if self.provider_call_id is not None:
             result["providerCallId"] = from_union([from_none, from_str], self.provider_call_id)
         if self._quota_snapshots is not None:
@@ -4710,6 +4891,7 @@ class CommandsChangedData:
 @dataclass
 class CompactionCompleteCompactionTokensUsed:
     "Token usage breakdown for the compaction LLM call (aligned with assistant.usage format)"
+    ai_credits_status: AiCreditsStatus | None = None
     cache_read_tokens: int | None = None
     cache_write_tokens: int | None = None
     # Internal: this field is an internal SDK API and is not part of the public surface.
@@ -4717,30 +4899,40 @@ class CompactionCompleteCompactionTokensUsed:
     duration: timedelta | None = None
     input_tokens: int | None = None
     model: str | None = None
+    model_display_name: str | None = None
     output_tokens: int | None = None
+    provider: ModelProviderRef | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "CompactionCompleteCompactionTokensUsed":
         assert isinstance(obj, dict)
+        ai_credits_status = from_union([from_none, lambda x: parse_enum(AiCreditsStatus, x)], obj.get("aiCreditsStatus"))
         cache_read_tokens = from_union([from_none, from_int], obj.get("cacheReadTokens"))
         cache_write_tokens = from_union([from_none, from_int], obj.get("cacheWriteTokens"))
         _copilot_usage = from_union([from_none, _CompactionCompleteCompactionTokensUsedCopilotUsage.from_dict], obj.get("copilotUsage"))
         duration = from_union([from_none, from_timedelta], obj.get("duration"))
         input_tokens = from_union([from_none, from_int], obj.get("inputTokens"))
         model = from_union([from_none, from_str], obj.get("model"))
+        model_display_name = from_union([from_none, from_str], obj.get("modelDisplayName"))
         output_tokens = from_union([from_none, from_int], obj.get("outputTokens"))
+        provider = from_union([from_none, ModelProviderRef.from_dict], obj.get("provider"))
         return CompactionCompleteCompactionTokensUsed(
+            ai_credits_status=ai_credits_status,
             cache_read_tokens=cache_read_tokens,
             cache_write_tokens=cache_write_tokens,
             _copilot_usage=_copilot_usage,
             duration=duration,
             input_tokens=input_tokens,
             model=model,
+            model_display_name=model_display_name,
             output_tokens=output_tokens,
+            provider=provider,
         )
 
     def to_dict(self) -> dict:
         result: dict = {}
+        if self.ai_credits_status is not None:
+            result["aiCreditsStatus"] = from_union([from_none, lambda x: to_enum(AiCreditsStatus, x)], self.ai_credits_status)
         if self.cache_read_tokens is not None:
             result["cacheReadTokens"] = from_union([from_none, to_int], self.cache_read_tokens)
         if self.cache_write_tokens is not None:
@@ -4753,8 +4945,12 @@ class CompactionCompleteCompactionTokensUsed:
             result["inputTokens"] = from_union([from_none, to_int], self.input_tokens)
         if self.model is not None:
             result["model"] = from_union([from_none, from_str], self.model)
+        if self.model_display_name is not None:
+            result["modelDisplayName"] = from_union([from_none, from_str], self.model_display_name)
         if self.output_tokens is not None:
             result["outputTokens"] = from_union([from_none, to_int], self.output_tokens)
+        if self.provider is not None:
+            result["provider"] = from_union([from_none, lambda x: to_class(ModelProviderRef, x)], self.provider)
         return result
 
 
@@ -8644,6 +8840,69 @@ class PromptCacheBreakData:
 
 
 @dataclass
+class ProviderQuotaBudgetMetadata:
+    "Authoritative budget measurements and policy metadata, independent of provider."
+    consumed: float
+    entitlement: float
+    overage: float
+    overage_allowed_when_exhausted: bool
+    remaining_percentage: float
+    unlimited: bool
+    usage_allowed_when_exhausted: bool
+    overage_limit: float | None = None
+    reset_at_epoch_ms: float | None = None
+    reset_estimated: bool | None = None
+    token_based_billing: bool | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "ProviderQuotaBudgetMetadata":
+        assert isinstance(obj, dict)
+        consumed = from_float(obj.get("consumed"))
+        entitlement = from_float(obj.get("entitlement"))
+        overage = from_float(obj.get("overage"))
+        overage_allowed_when_exhausted = from_bool(obj.get("overageAllowedWhenExhausted"))
+        remaining_percentage = from_float(obj.get("remainingPercentage"))
+        unlimited = from_bool(obj.get("unlimited"))
+        usage_allowed_when_exhausted = from_bool(obj.get("usageAllowedWhenExhausted"))
+        overage_limit = from_union([from_none, from_float], obj.get("overageLimit"))
+        reset_at_epoch_ms = from_union([from_none, from_float], obj.get("resetAtEpochMs"))
+        reset_estimated = from_union([from_none, from_bool], obj.get("resetEstimated"))
+        token_based_billing = from_union([from_none, from_bool], obj.get("tokenBasedBilling"))
+        return ProviderQuotaBudgetMetadata(
+            consumed=consumed,
+            entitlement=entitlement,
+            overage=overage,
+            overage_allowed_when_exhausted=overage_allowed_when_exhausted,
+            remaining_percentage=remaining_percentage,
+            unlimited=unlimited,
+            usage_allowed_when_exhausted=usage_allowed_when_exhausted,
+            overage_limit=overage_limit,
+            reset_at_epoch_ms=reset_at_epoch_ms,
+            reset_estimated=reset_estimated,
+            token_based_billing=token_based_billing,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["consumed"] = to_float(self.consumed)
+        result["entitlement"] = to_float(self.entitlement)
+        result["overage"] = to_float(self.overage)
+        result["overageAllowedWhenExhausted"] = from_bool(self.overage_allowed_when_exhausted)
+        result["remainingPercentage"] = to_float(self.remaining_percentage)
+        result["unlimited"] = from_bool(self.unlimited)
+        result["usageAllowedWhenExhausted"] = from_bool(self.usage_allowed_when_exhausted)
+        if self.overage_limit is not None:
+            result["overageLimit"] = from_union([from_none, to_float], self.overage_limit)
+        if self.reset_at_epoch_ms is not None:
+            result["resetAtEpochMs"] = from_union([from_none, to_float], self.reset_at_epoch_ms)
+        if self.reset_estimated is not None:
+            result["resetEstimated"] = from_union([from_none, from_bool], self.reset_estimated)
+        if self.token_based_billing is not None:
+            result["tokenBasedBilling"] = from_union([from_none, from_bool], self.token_based_billing)
+        return result
+
+
+@dataclass
 class ResponsesReasoning:
     "Original request-level and effective conversation reasoning effort for a provider history boundary; the historical type name is retained for compatibility"
     effort: str
@@ -9923,9 +10182,11 @@ class SessionModelChangeData:
     context_tier_managed: bool | None = None
     previous_auto_tier: AutoTier | None = None
     previous_model: str | None = None
+    previous_provider_id: str | None = None
     previous_reasoning_effort: str | None = None
     previous_reasoning_summary: ReasoningSummary | None = None
     previous_verbosity: Verbosity | None = None
+    provider_id: str | None = None
     reasoning_effort: str | None = None
     reasoning_effort_managed: bool | None = None
     reasoning_effort_model: str | None = None
@@ -9944,9 +10205,11 @@ class SessionModelChangeData:
         context_tier_managed = from_union([from_none, from_bool], obj.get("contextTierManaged"))
         previous_auto_tier = from_union([from_none, lambda x: parse_enum(AutoTier, x)], obj.get("previousAutoTier"))
         previous_model = from_union([from_none, from_str], obj.get("previousModel"))
+        previous_provider_id = from_union([from_none, from_str], obj.get("previousProviderId"))
         previous_reasoning_effort = from_union([from_none, from_str], obj.get("previousReasoningEffort"))
         previous_reasoning_summary = from_union([from_none, lambda x: parse_enum(ReasoningSummary, x)], obj.get("previousReasoningSummary"))
         previous_verbosity = from_union([from_none, lambda x: parse_enum(Verbosity, x)], obj.get("previousVerbosity"))
+        provider_id = from_union([from_none, from_str], obj.get("providerId"))
         reasoning_effort = from_union([from_none, from_str], obj.get("reasoningEffort"))
         reasoning_effort_managed = from_union([from_none, from_bool], obj.get("reasoningEffortManaged"))
         reasoning_effort_model = from_union([from_none, from_str], obj.get("reasoningEffortModel"))
@@ -9962,9 +10225,11 @@ class SessionModelChangeData:
             context_tier_managed=context_tier_managed,
             previous_auto_tier=previous_auto_tier,
             previous_model=previous_model,
+            previous_provider_id=previous_provider_id,
             previous_reasoning_effort=previous_reasoning_effort,
             previous_reasoning_summary=previous_reasoning_summary,
             previous_verbosity=previous_verbosity,
+            provider_id=provider_id,
             reasoning_effort=reasoning_effort,
             reasoning_effort_managed=reasoning_effort_managed,
             reasoning_effort_model=reasoning_effort_model,
@@ -9990,12 +10255,16 @@ class SessionModelChangeData:
             result["previousAutoTier"] = from_union([from_none, lambda x: to_enum(AutoTier, x)], self.previous_auto_tier)
         if self.previous_model is not None:
             result["previousModel"] = from_union([from_none, from_str], self.previous_model)
+        if self.previous_provider_id is not None:
+            result["previousProviderId"] = from_union([from_none, from_str], self.previous_provider_id)
         if self.previous_reasoning_effort is not None:
             result["previousReasoningEffort"] = from_union([from_none, from_str], self.previous_reasoning_effort)
         if self.previous_reasoning_summary is not None:
             result["previousReasoningSummary"] = from_union([from_none, lambda x: to_enum(ReasoningSummary, x)], self.previous_reasoning_summary)
         if self.previous_verbosity is not None:
             result["previousVerbosity"] = from_union([from_none, lambda x: to_enum(Verbosity, x)], self.previous_verbosity)
+        if self.provider_id is not None:
+            result["providerId"] = from_union([from_none, from_str], self.provider_id)
         if self.reasoning_effort is not None:
             result["reasoningEffort"] = from_union([from_none, from_str], self.reasoning_effort)
         if self.reasoning_effort_managed is not None:
@@ -10124,6 +10393,7 @@ class SessionResumeData:
     context_tier_managed: bool | None = None
     continue_pending_work: bool | None = None
     events_file_size_bytes: int | None = None
+    provider_id: str | None = None
     reasoning_effort: str | None = None
     reasoning_effort_managed: bool | None = None
     reasoning_effort_model: str | None = None
@@ -10147,6 +10417,7 @@ class SessionResumeData:
         context_tier_managed = from_union([from_none, from_bool], obj.get("contextTierManaged"))
         continue_pending_work = from_union([from_none, from_bool], obj.get("continuePendingWork"))
         events_file_size_bytes = from_union([from_none, from_int], obj.get("eventsFileSizeBytes"))
+        provider_id = from_union([from_none, from_str], obj.get("providerId"))
         reasoning_effort = from_union([from_none, from_str], obj.get("reasoningEffort"))
         reasoning_effort_managed = from_union([from_none, from_bool], obj.get("reasoningEffortManaged"))
         reasoning_effort_model = from_union([from_none, from_str], obj.get("reasoningEffortModel"))
@@ -10167,6 +10438,7 @@ class SessionResumeData:
             context_tier_managed=context_tier_managed,
             continue_pending_work=continue_pending_work,
             events_file_size_bytes=events_file_size_bytes,
+            provider_id=provider_id,
             reasoning_effort=reasoning_effort,
             reasoning_effort_managed=reasoning_effort_managed,
             reasoning_effort_model=reasoning_effort_model,
@@ -10198,6 +10470,8 @@ class SessionResumeData:
             result["continuePendingWork"] = from_union([from_none, from_bool], self.continue_pending_work)
         if self.events_file_size_bytes is not None:
             result["eventsFileSizeBytes"] = from_union([from_none, to_int], self.events_file_size_bytes)
+        if self.provider_id is not None:
+            result["providerId"] = from_union([from_none, from_str], self.provider_id)
         if self.reasoning_effort is not None:
             result["reasoningEffort"] = from_union([from_none, from_str], self.reasoning_effort)
         if self.reasoning_effort_managed is not None:
@@ -10351,12 +10625,15 @@ class SessionShutdownData:
     session_start_time: int
     shutdown_type: ShutdownType
     total_api_duration: timedelta
+    # Internal: this field is an internal SDK API and is not part of the public surface.
+    _accounting_snapshot: UsageGetMetricsResult | None = None
     agent_metrics: dict[str, ShutdownAgentMetric] | None = None
     conversation_tokens: int | None = None
     current_model: str | None = None
     current_tokens: int | None = None
     error_reason: str | None = None
     events_file_size_bytes: int | None = None
+    provider_model_metrics: list[UsageMetricsProviderModelMetric] | None = None
     system_tokens: int | None = None
     token_details: dict[str, ShutdownTokenDetail] | None = None
     tool_definitions_tokens: int | None = None
@@ -10364,6 +10641,7 @@ class SessionShutdownData:
     total_nano_aiu: float | None = None
     # Internal: this field is an internal SDK API and is not part of the public surface.
     _total_premium_requests: float | None = None
+    usage_accounting_watermarks: dict[str, int] | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "SessionShutdownData":
@@ -10373,34 +10651,40 @@ class SessionShutdownData:
         session_start_time = from_int(obj.get("sessionStartTime"))
         shutdown_type = parse_enum(ShutdownType, obj.get("shutdownType"))
         total_api_duration = from_timedelta(obj.get("totalApiDurationMs"))
+        _accounting_snapshot = from_union([from_none, UsageGetMetricsResult.from_dict], obj.get("accountingSnapshot"))
         agent_metrics = from_union([from_none, lambda x: from_dict(ShutdownAgentMetric.from_dict, x)], obj.get("agentMetrics"))
         conversation_tokens = from_union([from_none, from_int], obj.get("conversationTokens"))
         current_model = from_union([from_none, from_str], obj.get("currentModel"))
         current_tokens = from_union([from_none, from_int], obj.get("currentTokens"))
         error_reason = from_union([from_none, from_str], obj.get("errorReason"))
         events_file_size_bytes = from_union([from_none, from_int], obj.get("eventsFileSizeBytes"))
+        provider_model_metrics = from_union([from_none, lambda x: from_list(UsageMetricsProviderModelMetric.from_dict, x)], obj.get("providerModelMetrics"))
         system_tokens = from_union([from_none, from_int], obj.get("systemTokens"))
         token_details = from_union([from_none, lambda x: from_dict(ShutdownTokenDetail.from_dict, x)], obj.get("tokenDetails"))
         tool_definitions_tokens = from_union([from_none, from_int], obj.get("toolDefinitionsTokens"))
         total_nano_aiu = from_union([from_none, from_float], obj.get("totalNanoAiu"))
         _total_premium_requests = from_union([from_none, from_float], obj.get("totalPremiumRequests"))
+        usage_accounting_watermarks = from_union([from_none, lambda x: from_dict(from_int, x)], obj.get("usageAccountingWatermarks"))
         return SessionShutdownData(
             code_changes=code_changes,
             model_metrics=model_metrics,
             session_start_time=session_start_time,
             shutdown_type=shutdown_type,
             total_api_duration=total_api_duration,
+            _accounting_snapshot=_accounting_snapshot,
             agent_metrics=agent_metrics,
             conversation_tokens=conversation_tokens,
             current_model=current_model,
             current_tokens=current_tokens,
             error_reason=error_reason,
             events_file_size_bytes=events_file_size_bytes,
+            provider_model_metrics=provider_model_metrics,
             system_tokens=system_tokens,
             token_details=token_details,
             tool_definitions_tokens=tool_definitions_tokens,
             total_nano_aiu=total_nano_aiu,
             _total_premium_requests=_total_premium_requests,
+            usage_accounting_watermarks=usage_accounting_watermarks,
         )
 
     def to_dict(self) -> dict:
@@ -10410,6 +10694,8 @@ class SessionShutdownData:
         result["sessionStartTime"] = to_int(self.session_start_time)
         result["shutdownType"] = to_enum(ShutdownType, self.shutdown_type)
         result["totalApiDurationMs"] = to_timedelta_int(self.total_api_duration)
+        if self._accounting_snapshot is not None:
+            result["accountingSnapshot"] = from_union([from_none, lambda x: to_class(UsageGetMetricsResult, x)], self._accounting_snapshot)
         if self.agent_metrics is not None:
             result["agentMetrics"] = from_union([from_none, lambda x: from_dict(lambda x: to_class(ShutdownAgentMetric, x), x)], self.agent_metrics)
         if self.conversation_tokens is not None:
@@ -10422,6 +10708,8 @@ class SessionShutdownData:
             result["errorReason"] = from_union([from_none, from_str], self.error_reason)
         if self.events_file_size_bytes is not None:
             result["eventsFileSizeBytes"] = from_union([from_none, to_int], self.events_file_size_bytes)
+        if self.provider_model_metrics is not None:
+            result["providerModelMetrics"] = from_union([from_none, lambda x: from_list(lambda x: to_class(UsageMetricsProviderModelMetric, x), x)], self.provider_model_metrics)
         if self.system_tokens is not None:
             result["systemTokens"] = from_union([from_none, to_int], self.system_tokens)
         if self.token_details is not None:
@@ -10432,6 +10720,8 @@ class SessionShutdownData:
             result["totalNanoAiu"] = from_union([from_none, to_float], self.total_nano_aiu)
         if self._total_premium_requests is not None:
             result["totalPremiumRequests"] = from_union([from_none, to_float], self._total_premium_requests)
+        if self.usage_accounting_watermarks is not None:
+            result["usageAccountingWatermarks"] = from_union([from_none, lambda x: from_dict(to_int, x)], self.usage_accounting_watermarks)
         return result
 
 
@@ -10498,6 +10788,7 @@ class SessionStartData:
     context_tier_managed: bool | None = None
     detached_from_spawning_parent_session_id: str | None = None
     github_mcp_tool_config: GitHubMcpToolConfig | None = None
+    provider_id: str | None = None
     reasoning_effort: str | None = None
     reasoning_effort_managed: bool | None = None
     reasoning_effort_model: str | None = None
@@ -10523,6 +10814,7 @@ class SessionStartData:
         context_tier_managed = from_union([from_none, from_bool], obj.get("contextTierManaged"))
         detached_from_spawning_parent_session_id = from_union([from_none, from_str], obj.get("detachedFromSpawningParentSessionId"))
         github_mcp_tool_config = from_union([from_none, GitHubMcpToolConfig.from_dict], obj.get("githubMcpToolConfig"))
+        provider_id = from_union([from_none, from_str], obj.get("providerId"))
         reasoning_effort = from_union([from_none, from_str], obj.get("reasoningEffort"))
         reasoning_effort_managed = from_union([from_none, from_bool], obj.get("reasoningEffortManaged"))
         reasoning_effort_model = from_union([from_none, from_str], obj.get("reasoningEffortModel"))
@@ -10545,6 +10837,7 @@ class SessionStartData:
             context_tier_managed=context_tier_managed,
             detached_from_spawning_parent_session_id=detached_from_spawning_parent_session_id,
             github_mcp_tool_config=github_mcp_tool_config,
+            provider_id=provider_id,
             reasoning_effort=reasoning_effort,
             reasoning_effort_managed=reasoning_effort_managed,
             reasoning_effort_model=reasoning_effort_model,
@@ -10578,6 +10871,8 @@ class SessionStartData:
             result["detachedFromSpawningParentSessionId"] = from_union([from_none, from_str], self.detached_from_spawning_parent_session_id)
         if self.github_mcp_tool_config is not None:
             result["githubMcpToolConfig"] = from_union([from_none, lambda x: to_class(GitHubMcpToolConfig, x)], self.github_mcp_tool_config)
+        if self.provider_id is not None:
+            result["providerId"] = from_union([from_none, from_str], self.provider_id)
         if self.reasoning_effort is not None:
             result["reasoningEffort"] = from_union([from_none, from_str], self.reasoning_effort)
         if self.reasoning_effort_managed is not None:
@@ -10744,35 +11039,51 @@ class SessionUsageCheckpointData:
     "Durable session usage checkpoint for reconstructing aggregate accounting on resume"
     total_nano_aiu: float
     # Internal: this field is an internal SDK API and is not part of the public surface.
+    _accounting_snapshot: UsageGetMetricsResult | None = None
+    # Internal: this field is an internal SDK API and is not part of the public surface.
     _model_cache_state: list[_UsageCheckpointModelCacheState] | None = None
     # Internal: this field is an internal SDK API and is not part of the public surface.
     _prompt_cache_break_state: list[Any] | None = None
+    provider_model_metrics: list[UsageMetricsProviderModelMetric] | None = None
     # Internal: this field is an internal SDK API and is not part of the public surface.
     _total_premium_requests: float | None = None
+    usage_accounting_watermarks: dict[str, int] | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "SessionUsageCheckpointData":
         assert isinstance(obj, dict)
         total_nano_aiu = from_float(obj.get("totalNanoAiu"))
+        _accounting_snapshot = from_union([from_none, UsageGetMetricsResult.from_dict], obj.get("accountingSnapshot"))
         _model_cache_state = from_union([from_none, lambda x: from_list(_UsageCheckpointModelCacheState.from_dict, x)], obj.get("modelCacheState"))
         _prompt_cache_break_state = from_union([from_none, lambda x: from_list(lambda x: x, x)], obj.get("promptCacheBreakState"))
+        provider_model_metrics = from_union([from_none, lambda x: from_list(UsageMetricsProviderModelMetric.from_dict, x)], obj.get("providerModelMetrics"))
         _total_premium_requests = from_union([from_none, from_float], obj.get("totalPremiumRequests"))
+        usage_accounting_watermarks = from_union([from_none, lambda x: from_dict(from_int, x)], obj.get("usageAccountingWatermarks"))
         return SessionUsageCheckpointData(
             total_nano_aiu=total_nano_aiu,
+            _accounting_snapshot=_accounting_snapshot,
             _model_cache_state=_model_cache_state,
             _prompt_cache_break_state=_prompt_cache_break_state,
+            provider_model_metrics=provider_model_metrics,
             _total_premium_requests=_total_premium_requests,
+            usage_accounting_watermarks=usage_accounting_watermarks,
         )
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["totalNanoAiu"] = to_float(self.total_nano_aiu)
+        if self._accounting_snapshot is not None:
+            result["accountingSnapshot"] = from_union([from_none, lambda x: to_class(UsageGetMetricsResult, x)], self._accounting_snapshot)
         if self._model_cache_state is not None:
             result["modelCacheState"] = from_union([from_none, lambda x: from_list(lambda x: to_class(_UsageCheckpointModelCacheState, x), x)], self._model_cache_state)
         if self._prompt_cache_break_state is not None:
             result["promptCacheBreakState"] = from_union([from_none, lambda x: from_list(lambda x: x, x)], self._prompt_cache_break_state)
+        if self.provider_model_metrics is not None:
+            result["providerModelMetrics"] = from_union([from_none, lambda x: from_list(lambda x: to_class(UsageMetricsProviderModelMetric, x), x)], self.provider_model_metrics)
         if self._total_premium_requests is not None:
             result["totalPremiumRequests"] = from_union([from_none, to_float], self._total_premium_requests)
+        if self.usage_accounting_watermarks is not None:
+            result["usageAccountingWatermarks"] = from_union([from_none, lambda x: from_dict(to_int, x)], self.usage_accounting_watermarks)
         return result
 
 
@@ -13113,6 +13424,33 @@ class ToolUserRequestedData:
 
 
 @dataclass
+class UsageAccountingIdentity:
+    "Ordered accounting identity assigned under the source session's emission lock."
+    sequence: int
+    source_session_id: str
+    usage_id: str
+
+    @staticmethod
+    def from_dict(obj: Any) -> "UsageAccountingIdentity":
+        assert isinstance(obj, dict)
+        sequence = from_int(obj.get("sequence"))
+        source_session_id = from_str(obj.get("sourceSessionId"))
+        usage_id = from_str(obj.get("usageId"))
+        return UsageAccountingIdentity(
+            sequence=sequence,
+            source_session_id=source_session_id,
+            usage_id=usage_id,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["sequence"] = to_int(self.sequence)
+        result["sourceSessionId"] = from_str(self.source_session_id)
+        result["usageId"] = from_str(self.usage_id)
+        return result
+
+
+@dataclass
 class _UsageCheckpointModelCacheState:
     "Internal prompt-cache expiration state for one model"
     cache_expires_at: datetime
@@ -13137,6 +13475,323 @@ class _UsageCheckpointModelCacheState:
         result["cacheExpiresAt"] = to_datetime(self.cache_expires_at)
         result["cacheTtlSeconds"] = to_int(self._cache_ttl_seconds)
         result["modelId"] = from_str(self.model_id)
+        return result
+
+
+@dataclass
+class UsageGetMetricsResult:
+    "Accumulated session usage metrics, including premium request cost, token counts, model breakdown, and code-change totals."
+    code_changes: UsageMetricsCodeChanges
+    last_call_input_tokens: int
+    last_call_output_tokens: int
+    model_metrics: dict[str, UsageMetricsModelMetric]
+    session_start_time: datetime
+    total_api_duration: timedelta
+    total_premium_request_cost: float
+    total_user_requests: int
+    agent_metrics: dict[str, UsageMetricsAgentMetric] | None = None
+    ai_credits_status: AiCreditsStatus | None = None
+    current_model: str | None = None
+    provider_model_metrics: list[UsageMetricsProviderModelMetric] | None = None
+    token_details: dict[str, UsageMetricsTokenDetail] | None = None
+    total_nano_aiu: float | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "UsageGetMetricsResult":
+        assert isinstance(obj, dict)
+        code_changes = UsageMetricsCodeChanges.from_dict(obj.get("codeChanges"))
+        last_call_input_tokens = from_int(obj.get("lastCallInputTokens"))
+        last_call_output_tokens = from_int(obj.get("lastCallOutputTokens"))
+        model_metrics = from_dict(UsageMetricsModelMetric.from_dict, obj.get("modelMetrics"))
+        session_start_time = from_datetime(obj.get("sessionStartTime"))
+        total_api_duration = from_timedelta(obj.get("totalApiDurationMs"))
+        total_premium_request_cost = from_float(obj.get("totalPremiumRequestCost"))
+        total_user_requests = from_int(obj.get("totalUserRequests"))
+        agent_metrics = from_union([from_none, lambda x: from_dict(UsageMetricsAgentMetric.from_dict, x)], obj.get("agentMetrics"))
+        ai_credits_status = from_union([from_none, lambda x: parse_enum(AiCreditsStatus, x)], obj.get("aiCreditsStatus"))
+        current_model = from_union([from_none, from_str], obj.get("currentModel"))
+        provider_model_metrics = from_union([from_none, lambda x: from_list(UsageMetricsProviderModelMetric.from_dict, x)], obj.get("providerModelMetrics"))
+        token_details = from_union([from_none, lambda x: from_dict(UsageMetricsTokenDetail.from_dict, x)], obj.get("tokenDetails"))
+        total_nano_aiu = from_union([from_none, from_float], obj.get("totalNanoAiu"))
+        return UsageGetMetricsResult(
+            code_changes=code_changes,
+            last_call_input_tokens=last_call_input_tokens,
+            last_call_output_tokens=last_call_output_tokens,
+            model_metrics=model_metrics,
+            session_start_time=session_start_time,
+            total_api_duration=total_api_duration,
+            total_premium_request_cost=total_premium_request_cost,
+            total_user_requests=total_user_requests,
+            agent_metrics=agent_metrics,
+            ai_credits_status=ai_credits_status,
+            current_model=current_model,
+            provider_model_metrics=provider_model_metrics,
+            token_details=token_details,
+            total_nano_aiu=total_nano_aiu,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["codeChanges"] = to_class(UsageMetricsCodeChanges, self.code_changes)
+        result["lastCallInputTokens"] = to_int(self.last_call_input_tokens)
+        result["lastCallOutputTokens"] = to_int(self.last_call_output_tokens)
+        result["modelMetrics"] = from_dict(lambda x: to_class(UsageMetricsModelMetric, x), self.model_metrics)
+        result["sessionStartTime"] = to_datetime(self.session_start_time)
+        result["totalApiDurationMs"] = to_timedelta_int(self.total_api_duration)
+        result["totalPremiumRequestCost"] = to_float(self.total_premium_request_cost)
+        result["totalUserRequests"] = to_int(self.total_user_requests)
+        if self.agent_metrics is not None:
+            result["agentMetrics"] = from_union([from_none, lambda x: from_dict(lambda x: to_class(UsageMetricsAgentMetric, x), x)], self.agent_metrics)
+        if self.ai_credits_status is not None:
+            result["aiCreditsStatus"] = from_union([from_none, lambda x: to_enum(AiCreditsStatus, x)], self.ai_credits_status)
+        if self.current_model is not None:
+            result["currentModel"] = from_union([from_none, from_str], self.current_model)
+        if self.provider_model_metrics is not None:
+            result["providerModelMetrics"] = from_union([from_none, lambda x: from_list(lambda x: to_class(UsageMetricsProviderModelMetric, x), x)], self.provider_model_metrics)
+        if self.token_details is not None:
+            result["tokenDetails"] = from_union([from_none, lambda x: from_dict(lambda x: to_class(UsageMetricsTokenDetail, x), x)], self.token_details)
+        if self.total_nano_aiu is not None:
+            result["totalNanoAiu"] = from_union([from_none, to_float], self.total_nano_aiu)
+        return result
+
+
+@dataclass
+class UsageMetricsAgentMetric:
+    "Usage attributed to one agent instance, including its identity, API duration, AI units, and per-model breakdown."
+    model_metrics: dict[str, UsageMetricsModelMetric]
+    total_api_duration: timedelta
+    total_nano_aiu: float
+    agent_display_name: str | None = None
+    agent_name: str | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "UsageMetricsAgentMetric":
+        assert isinstance(obj, dict)
+        model_metrics = from_dict(UsageMetricsModelMetric.from_dict, obj.get("modelMetrics"))
+        total_api_duration = from_timedelta(obj.get("totalApiDurationMs"))
+        total_nano_aiu = from_float(obj.get("totalNanoAiu"))
+        agent_display_name = from_union([from_none, from_str], obj.get("agentDisplayName"))
+        agent_name = from_union([from_none, from_str], obj.get("agentName"))
+        return UsageMetricsAgentMetric(
+            model_metrics=model_metrics,
+            total_api_duration=total_api_duration,
+            total_nano_aiu=total_nano_aiu,
+            agent_display_name=agent_display_name,
+            agent_name=agent_name,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["modelMetrics"] = from_dict(lambda x: to_class(UsageMetricsModelMetric, x), self.model_metrics)
+        result["totalApiDurationMs"] = to_timedelta_int(self.total_api_duration)
+        result["totalNanoAiu"] = to_float(self.total_nano_aiu)
+        if self.agent_display_name is not None:
+            result["agentDisplayName"] = from_union([from_none, from_str], self.agent_display_name)
+        if self.agent_name is not None:
+            result["agentName"] = from_union([from_none, from_str], self.agent_name)
+        return result
+
+
+@dataclass
+class UsageMetricsCodeChanges:
+    "Aggregated code change metrics"
+    files_modified: list[str]
+    files_modified_count: int
+    lines_added: int
+    lines_removed: int
+
+    @staticmethod
+    def from_dict(obj: Any) -> "UsageMetricsCodeChanges":
+        assert isinstance(obj, dict)
+        files_modified = from_list(from_str, obj.get("filesModified"))
+        files_modified_count = from_int(obj.get("filesModifiedCount"))
+        lines_added = from_int(obj.get("linesAdded"))
+        lines_removed = from_int(obj.get("linesRemoved"))
+        return UsageMetricsCodeChanges(
+            files_modified=files_modified,
+            files_modified_count=files_modified_count,
+            lines_added=lines_added,
+            lines_removed=lines_removed,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["filesModified"] = from_list(from_str, self.files_modified)
+        result["filesModifiedCount"] = to_int(self.files_modified_count)
+        result["linesAdded"] = to_int(self.lines_added)
+        result["linesRemoved"] = to_int(self.lines_removed)
+        return result
+
+
+@dataclass
+class UsageMetricsModelMetric:
+    "Per-model usage metrics, including request counts/costs, token usage, nano-AI units, and per-token-type details."
+    requests: UsageMetricsModelMetricRequests
+    usage: UsageMetricsModelMetricUsage
+    ai_credits_status: AiCreditsStatus | None = None
+    cache_expires_at: datetime | None = None
+    token_details: dict[str, UsageMetricsModelMetricTokenDetail] | None = None
+    total_nano_aiu: float | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "UsageMetricsModelMetric":
+        assert isinstance(obj, dict)
+        requests = UsageMetricsModelMetricRequests.from_dict(obj.get("requests"))
+        usage = UsageMetricsModelMetricUsage.from_dict(obj.get("usage"))
+        ai_credits_status = from_union([from_none, lambda x: parse_enum(AiCreditsStatus, x)], obj.get("aiCreditsStatus"))
+        cache_expires_at = from_union([from_none, from_datetime], obj.get("cacheExpiresAt"))
+        token_details = from_union([from_none, lambda x: from_dict(UsageMetricsModelMetricTokenDetail.from_dict, x)], obj.get("tokenDetails"))
+        total_nano_aiu = from_union([from_none, from_float], obj.get("totalNanoAiu"))
+        return UsageMetricsModelMetric(
+            requests=requests,
+            usage=usage,
+            ai_credits_status=ai_credits_status,
+            cache_expires_at=cache_expires_at,
+            token_details=token_details,
+            total_nano_aiu=total_nano_aiu,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["requests"] = to_class(UsageMetricsModelMetricRequests, self.requests)
+        result["usage"] = to_class(UsageMetricsModelMetricUsage, self.usage)
+        if self.ai_credits_status is not None:
+            result["aiCreditsStatus"] = from_union([from_none, lambda x: to_enum(AiCreditsStatus, x)], self.ai_credits_status)
+        if self.cache_expires_at is not None:
+            result["cacheExpiresAt"] = from_union([from_none, to_datetime], self.cache_expires_at)
+        if self.token_details is not None:
+            result["tokenDetails"] = from_union([from_none, lambda x: from_dict(lambda x: to_class(UsageMetricsModelMetricTokenDetail, x), x)], self.token_details)
+        if self.total_nano_aiu is not None:
+            result["totalNanoAiu"] = from_union([from_none, to_float], self.total_nano_aiu)
+        return result
+
+
+@dataclass
+class UsageMetricsModelMetricRequests:
+    "Request count and cost metrics for this model"
+    cost: float
+    count: int
+
+    @staticmethod
+    def from_dict(obj: Any) -> "UsageMetricsModelMetricRequests":
+        assert isinstance(obj, dict)
+        cost = from_float(obj.get("cost"))
+        count = from_int(obj.get("count"))
+        return UsageMetricsModelMetricRequests(
+            cost=cost,
+            count=count,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["cost"] = to_float(self.cost)
+        result["count"] = to_int(self.count)
+        return result
+
+
+@dataclass
+class UsageMetricsModelMetricTokenDetail:
+    "Per-model token-detail entry containing the accumulated token count for one token type."
+    token_count: int
+
+    @staticmethod
+    def from_dict(obj: Any) -> "UsageMetricsModelMetricTokenDetail":
+        assert isinstance(obj, dict)
+        token_count = from_int(obj.get("tokenCount"))
+        return UsageMetricsModelMetricTokenDetail(
+            token_count=token_count,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["tokenCount"] = to_int(self.token_count)
+        return result
+
+
+@dataclass
+class UsageMetricsModelMetricUsage:
+    "Token usage metrics for this model"
+    cache_read_tokens: int
+    cache_write_tokens: int
+    input_tokens: int
+    output_tokens: int
+    reasoning_tokens: int | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "UsageMetricsModelMetricUsage":
+        assert isinstance(obj, dict)
+        cache_read_tokens = from_int(obj.get("cacheReadTokens"))
+        cache_write_tokens = from_int(obj.get("cacheWriteTokens"))
+        input_tokens = from_int(obj.get("inputTokens"))
+        output_tokens = from_int(obj.get("outputTokens"))
+        reasoning_tokens = from_union([from_none, from_int], obj.get("reasoningTokens"))
+        return UsageMetricsModelMetricUsage(
+            cache_read_tokens=cache_read_tokens,
+            cache_write_tokens=cache_write_tokens,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            reasoning_tokens=reasoning_tokens,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["cacheReadTokens"] = to_int(self.cache_read_tokens)
+        result["cacheWriteTokens"] = to_int(self.cache_write_tokens)
+        result["inputTokens"] = to_int(self.input_tokens)
+        result["outputTokens"] = to_int(self.output_tokens)
+        if self.reasoning_tokens is not None:
+            result["reasoningTokens"] = from_union([from_none, to_int], self.reasoning_tokens)
+        return result
+
+
+@dataclass
+class UsageMetricsProviderModelMetric:
+    "Usage for one recorded provider and model, without merging identical model IDs across providers."
+    metrics: UsageMetricsModelMetric
+    model_id: str | None
+    provider: ModelProviderRef | None
+    model_display_name: str | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "UsageMetricsProviderModelMetric":
+        assert isinstance(obj, dict)
+        metrics = UsageMetricsModelMetric.from_dict(obj.get("metrics"))
+        model_id = from_union([from_none, from_str], obj.get("modelId"))
+        provider = from_union([from_none, ModelProviderRef.from_dict], obj.get("provider"))
+        model_display_name = from_union([from_none, from_str], obj.get("modelDisplayName"))
+        return UsageMetricsProviderModelMetric(
+            metrics=metrics,
+            model_id=model_id,
+            provider=provider,
+            model_display_name=model_display_name,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["metrics"] = to_class(UsageMetricsModelMetric, self.metrics)
+        result["modelId"] = from_union([from_none, from_str], self.model_id)
+        result["provider"] = from_union([from_none, lambda x: to_class(ModelProviderRef, x)], self.provider)
+        if self.model_display_name is not None:
+            result["modelDisplayName"] = from_union([from_none, from_str], self.model_display_name)
+        return result
+
+
+@dataclass
+class UsageMetricsTokenDetail:
+    "Session-wide token-detail entry containing the accumulated token count for one token type."
+    token_count: int
+
+    @staticmethod
+    def from_dict(obj: Any) -> "UsageMetricsTokenDetail":
+        assert isinstance(obj, dict)
+        token_count = from_int(obj.get("tokenCount"))
+        return UsageMetricsTokenDetail(
+            token_count=token_count,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["tokenCount"] = to_int(self.token_count)
         return result
 
 
@@ -13886,6 +14541,15 @@ class FusionTurnKind(Enum):
 
 
 # Experimental: this enum is part of an experimental API and may change or be removed.
+class ModelProviderKind(Enum):
+    "The neutral kind of a model provider — the model analog of `AccountKind`. A model provider is the live, entitled source a model came from; central code never branches on this beyond a single dispatch."
+    # GitHub Copilot / CAPI models, spawned by a github-resolving account that holds a Copilot seat.
+    COPILOT = "copilot"
+    # Microsoft 365 Copilot (Loki) inference models, spawned by a resolvable Entra-derived Loki account.
+    LOKI = "loki"
+
+
+# Experimental: this enum is part of an experimental API and may change or be removed.
 class PermissionMessageAuthorizationPolarity(Enum):
     "Direction stored in a historical extractor claim. Current runtimes do not apply it."
     # Historical claim recorded as a grant.
@@ -13985,6 +14649,16 @@ class AgentModelPolicy(Enum):
     PREFERRED = "preferred"
     # Require subagent execution to use one of the authored models.
     REQUIRED = "required"
+
+
+class AiCreditsStatus(Enum):
+    "Whether the accumulated numeric AI-credit subtotal covers the observed calls."
+    # Every observed call supplied an AI-credit amount, including an explicit zero.
+    COMPLETE = "complete"
+    # Some calls supplied amounts and some did not; the numeric value is only a reported subtotal.
+    PARTIAL = "partial"
+    # No AI-credit amount was reported for the observed calls. Numeric zero is not a zero-cost claim.
+    UNAVAILABLE = "unavailable"
 
 
 class AssistantMessageToolRequestCallerType(Enum):
@@ -14834,6 +15508,78 @@ class PlanChangedOperation(Enum):
     DELETE = "delete"
 
 
+class ProviderQuotaAccessState(Enum):
+    "Access policy reported by the quota service."
+    # Access is allowed.
+    ALLOWED = "allowed"
+    # Access is denied.
+    DENIED = "denied"
+    # Quota is not required for this access.
+    NOT_REQUIRED = "not_required"
+    # The service did not supply a recognized access state.
+    UNKNOWN = "unknown"
+    # Client-only compatibility placeholder when acquisitionStatus is unavailable or failed; not an observed service verdict.
+    UNAVAILABLE = "unavailable"
+
+
+class ProviderQuotaAcquisitionStatus(Enum):
+    "Acquisition state, independent of the service's business access/capacity verdict."
+    # A service quota observation was received.
+    SUCCEEDED = "succeeded"
+    # No service snapshot is available for this caller or surface.
+    UNAVAILABLE = "unavailable"
+    # Acquisition failed; inspect httpStatus/acquisitionError without inferring a business verdict.
+    FAILED = "failed"
+
+
+class ProviderQuotaCapacityState(Enum):
+    "Capacity is independent of whether a numeric balance was supplied."
+    # Capacity is available.
+    AVAILABLE = "available"
+    # The service explicitly reports exhaustion.
+    EXHAUSTED = "exhausted"
+    # The reported entitlement is unlimited.
+    UNLIMITED = "unlimited"
+    # No billable quota is required.
+    NOT_REQUIRED = "not_required"
+    # The service reports that capacity is not applicable.
+    NOT_APPLICABLE = "not_applicable"
+    # No recognized capacity state was supplied.
+    UNKNOWN = "unknown"
+    # Client-only compatibility placeholder when acquisitionStatus is unavailable or failed; not an observed service verdict.
+    UNAVAILABLE = "unavailable"
+
+
+class ProviderQuotaObservationKind(Enum):
+    "Timing and purpose of a provider quota observation."
+    # An explicit account read; consumption may still be subject to service aggregation delay.
+    ACCOUNT_SNAPSHOT = "account_snapshot"
+    # A verdict attached before an inference response. May be cached; never a post-charge balance.
+    ADMISSION_STATE = "admission_state"
+
+
+class ProviderQuotaQuantityKind(Enum):
+    "Interpretation permitted for independently reported quantities."
+    # Quantities form an authoritative available-of-entitled budget suitable for percentage presentation.
+    AUTHORITATIVE_BUDGET = "authoritative_budget"
+    # Raw advisory quantities; do not infer permission, usage percentage, reset cadence, or post-charge balance.
+    ADVISORY_BALANCE = "advisory_balance"
+    # No quantity measurement, as with admission-only response headers.
+    NONE = "none"
+
+
+class ProviderQuotaUnit(Enum):
+    "Units explicitly reported by a quota provider."
+    # AI credits, not tokens or currency.
+    AI_CREDITS = "ai_credits"
+    # Requests charged against an entitlement.
+    REQUESTS = "requests"
+    # Model tokens.
+    TOKENS = "tokens"
+    # The observation does not establish a quantity unit.
+    UNKNOWN = "unknown"
+
+
 class ReasoningSummary(Enum):
     "Reasoning summary mode used for model calls, if applicable (e.g. \"none\", \"concise\", \"detailed\")"
     # Do not request reasoning summaries from the model.
@@ -15329,7 +16075,7 @@ class WorkspaceFileChangedOperation(Enum):
     UPDATE = "update"
 
 
-SessionEventData = SessionStartData | SessionResumeData | SessionRemoteSteerableChangedData | SessionErrorData | SessionIdleData | SessionTitleChangedData | SessionScheduleCreatedData | SessionScheduleCancelledData | SessionScheduleRearmedData | SessionAutopilotObjectiveChangedData | SessionInfoData | SessionIndexedSearchData | SessionWarningData | SessionModelChangeData | SessionModelDeselectedData | SessionAutoTierRecommendationData | SessionAutoTierSwitchFailedData | SessionModeChangedData | SessionModeNoticeDeliveredData | SessionSessionLimitsChangedData | SessionPermissionsChangedData | SessionPlanChangedData | SessionTodosChangedData | SessionWorkspaceFileChangedData | SessionHandoffData | SessionTruncationData | SessionSnapshotRewindData | SessionShutdownData | SessionUsageCheckpointData | SessionContextChangedData | SessionUsageInfoData | SessionContextClearedData | SessionCompactionStartData | SessionCompactionCompleteData | SessionTaskCompleteData | SessionCompletionReceiptData | SessionFusionRouteStartedData | SessionFusionRouteFailedData | SessionFusionResolvedData | SessionFusionCompletedData | SessionPermissionRecoveryData | UserMessageData | PendingMessagesModifiedData | AssistantTurnStartData | AssistantTurnRetryData | AgentInterruptedData | AssistantIntentData | AssistantFusionPhaseStartedData | AssistantFusionPhaseActivityData | AssistantFusionPhaseCompletedData | AssistantFusionPhaseFailedData | AssistantServerToolProgressData | AssistantReasoningData | AssistantReasoningDeltaData | AssistantToolCallDeltaData | AssistantStreamingDeltaData | AssistantMessageData | AssistantMessageStartData | AssistantMessageDeltaData | AssistantTurnEndData | AssistantIdleData | AssistantUsageData | PromptCacheBreakData | ModelCallFailureData | ModelCallFinalResultData | ModelCallFinishedData | ModelCallStartData | AbortData | ToolUserRequestedData | ToolExecutionStartData | ToolExecutionPartialResultData | ToolShellOutputData | ToolExecutionProgressData | ToolExecutionCompleteData | ToolSearchActivatedData | SkillInvokedData | SkillInvokedRefData | SkillContextDeliveredData | SkillContextDeliveredRefData | SandboxDecisionData | SubagentStartedData | SubagentConfiguredData | SubagentCompletedData | SubagentFailedData | SubagentSelectedData | SubagentDeselectedData | HookStartData | HookEndData | HookProgressData | SessionBinaryAssetData | SystemMessageData | SystemNotificationData | PermissionRequestedData | PermissionCompletedData | PermissionCarriedForwardData | PermissionMessageAuthorizationData | PermissionMessageAuthorizationReadData | PermissionMessageAuthorizationDegradedData | PermissionAssentDetectedData | PermissionContextualAuthorizationData | UserInputRequestedData | UserInputCompletedData | ElicitationRequestedData | ElicitationCompletedData | SamplingRequestedData | SamplingCompletedData | McpOauthRequiredData | McpOauthCompletedData | McpHeadersRefreshRequiredData | McpHeadersRefreshCompletedData | SessionCustomNotificationData | UiEphemeralQueryData | ExternalToolRequestedData | ExternalToolCompletedData | CommandQueuedData | CommandExecuteData | CommandCompletedData | AutoModeSwitchRequestedData | AutoModeSwitchCompletedData | SessionLimitsExhaustedRequestedData | SessionLimitsExhaustedCompletedData | SessionAutoModeResolvedData | SessionManagedSettingsResolvedData | SessionManagedSettingsEnforcedData | CommandsChangedData | CapabilitiesChangedData | ExitPlanModeRequestedData | ExitPlanModeCompletedData | HumanResponseRecordedData | SessionToolsUpdatedData | SessionBackgroundTasksChangedData | WorkflowRunUpdatedData | WorkflowRunStartedData | WorkflowRunSettledData | SessionSkillsLoadedData | SessionCustomAgentsUpdatedData | SessionMcpServersLoadedData | SessionMcpServerStatusChangedData | SessionMcpServerRemovedData | SessionMcpServerNeedsReconnectData | McpToolsListChangedData | McpResourcesListChangedData | McpPromptsListChangedData | SessionExtensionsLoadedData | SessionCanvasOpenedData | SessionCanvasRegistryChangedData | SessionCanvasClosedData | SessionCanvasUnavailableData | SessionCanvasRecordedData | SessionCanvasRemovedData | SessionExtensionsAttachmentsPushedData | McpAppToolCallCompleteData | RawSessionEventData | Data
+SessionEventData = SessionStartData | SessionResumeData | SessionRemoteSteerableChangedData | SessionErrorData | SessionIdleData | SessionTitleChangedData | SessionScheduleCreatedData | SessionScheduleCancelledData | SessionScheduleRearmedData | SessionAutopilotObjectiveChangedData | SessionInfoData | SessionIndexedSearchData | SessionWarningData | SessionModelChangeData | SessionModelDeselectedData | SessionAutoTierRecommendationData | SessionAutoTierSwitchFailedData | SessionModeChangedData | SessionModeNoticeDeliveredData | SessionSessionLimitsChangedData | SessionPermissionsChangedData | SessionPlanChangedData | SessionTodosChangedData | SessionWorkspaceFileChangedData | SessionHandoffData | SessionTruncationData | SessionSnapshotRewindData | SessionShutdownData | SessionUsageCheckpointData | SessionQuotaObservationData | SessionContextChangedData | SessionUsageInfoData | SessionContextClearedData | SessionCompactionStartData | SessionCompactionCompleteData | SessionTaskCompleteData | SessionCompletionReceiptData | SessionFusionRouteStartedData | SessionFusionRouteFailedData | SessionFusionResolvedData | SessionFusionCompletedData | SessionPermissionRecoveryData | UserMessageData | PendingMessagesModifiedData | AssistantTurnStartData | AssistantTurnRetryData | AgentInterruptedData | AssistantIntentData | AssistantFusionPhaseStartedData | AssistantFusionPhaseActivityData | AssistantFusionPhaseCompletedData | AssistantFusionPhaseFailedData | AssistantServerToolProgressData | AssistantReasoningData | AssistantReasoningDeltaData | AssistantToolCallDeltaData | AssistantStreamingDeltaData | AssistantMessageData | AssistantMessageStartData | AssistantMessageDeltaData | AssistantTurnEndData | AssistantIdleData | AssistantUsageData | PromptCacheBreakData | ModelCallFailureData | ModelCallFinalResultData | ModelCallFinishedData | ModelCallStartData | AbortData | ToolUserRequestedData | ToolExecutionStartData | ToolExecutionPartialResultData | ToolShellOutputData | ToolExecutionProgressData | ToolExecutionCompleteData | ToolSearchActivatedData | SkillInvokedData | SkillInvokedRefData | SkillContextDeliveredData | SkillContextDeliveredRefData | SandboxDecisionData | SubagentStartedData | SubagentConfiguredData | SubagentCompletedData | SubagentFailedData | SubagentSelectedData | SubagentDeselectedData | HookStartData | HookEndData | HookProgressData | SessionBinaryAssetData | SystemMessageData | SystemNotificationData | PermissionRequestedData | PermissionCompletedData | PermissionCarriedForwardData | PermissionMessageAuthorizationData | PermissionMessageAuthorizationReadData | PermissionMessageAuthorizationDegradedData | PermissionAssentDetectedData | PermissionContextualAuthorizationData | UserInputRequestedData | UserInputCompletedData | ElicitationRequestedData | ElicitationCompletedData | SamplingRequestedData | SamplingCompletedData | McpOauthRequiredData | McpOauthCompletedData | McpHeadersRefreshRequiredData | McpHeadersRefreshCompletedData | SessionCustomNotificationData | UiEphemeralQueryData | ExternalToolRequestedData | ExternalToolCompletedData | CommandQueuedData | CommandExecuteData | CommandCompletedData | AutoModeSwitchRequestedData | AutoModeSwitchCompletedData | SessionLimitsExhaustedRequestedData | SessionLimitsExhaustedCompletedData | SessionAutoModeResolvedData | SessionManagedSettingsResolvedData | SessionManagedSettingsEnforcedData | CommandsChangedData | CapabilitiesChangedData | ExitPlanModeRequestedData | ExitPlanModeCompletedData | HumanResponseRecordedData | SessionToolsUpdatedData | SessionBackgroundTasksChangedData | WorkflowRunUpdatedData | WorkflowRunStartedData | WorkflowRunSettledData | SessionSkillsLoadedData | SessionCustomAgentsUpdatedData | SessionMcpServersLoadedData | SessionMcpServerStatusChangedData | SessionMcpServerRemovedData | SessionMcpServerNeedsReconnectData | McpToolsListChangedData | McpResourcesListChangedData | McpPromptsListChangedData | SessionExtensionsLoadedData | SessionCanvasOpenedData | SessionCanvasRegistryChangedData | SessionCanvasClosedData | SessionCanvasUnavailableData | SessionCanvasRecordedData | SessionCanvasRemovedData | SessionExtensionsAttachmentsPushedData | McpAppToolCallCompleteData | RawSessionEventData | Data
 
 
 @dataclass
@@ -15384,6 +16130,7 @@ class SessionEvent:
             case SessionEventType.SESSION_SNAPSHOT_REWIND: data = SessionSnapshotRewindData.from_dict(data_obj)
             case SessionEventType.SESSION_SHUTDOWN: data = SessionShutdownData.from_dict(data_obj)
             case SessionEventType.SESSION_USAGE_CHECKPOINT: data = SessionUsageCheckpointData.from_dict(data_obj)
+            case SessionEventType.SESSION_QUOTA_OBSERVATION: data = SessionQuotaObservationData.from_dict(data_obj)
             case SessionEventType.SESSION_CONTEXT_CHANGED: data = SessionContextChangedData.from_dict(data_obj)
             case SessionEventType.SESSION_USAGE_INFO: data = SessionUsageInfoData.from_dict(data_obj)
             case SessionEventType.SESSION_CONTEXT_CLEARED: data = SessionContextClearedData.from_dict(data_obj)
@@ -15547,6 +16294,7 @@ __all__ = [
     "AgentInterruptedCancelPhase",
     "AgentInterruptedData",
     "AgentModelPolicy",
+    "AiCreditsStatus",
     "AssistantFusionPhaseActivityData",
     "AssistantFusionPhaseCompletedData",
     "AssistantFusionPhaseFailedData",
@@ -15726,6 +16474,8 @@ __all__ = [
     "ModelCallWebSocketFallbackReason",
     "ModelChangeSource",
     "ModelDeselectedReason",
+    "ModelProviderKind",
+    "ModelProviderRef",
     "OmittedBinaryOmittedReason",
     "OmittedBinaryResult",
     "OmittedBinaryType",
@@ -15810,6 +16560,14 @@ __all__ = [
     "PersistedBinaryResult",
     "PlanChangedOperation",
     "PromptCacheBreakData",
+    "ProviderQuotaAccessState",
+    "ProviderQuotaAcquisitionStatus",
+    "ProviderQuotaBudgetMetadata",
+    "ProviderQuotaCapacityState",
+    "ProviderQuotaObservationKind",
+    "ProviderQuotaQuantityKind",
+    "ProviderQuotaState",
+    "ProviderQuotaUnit",
     "RawSessionEventData",
     "ReasoningSummary",
     "RecommendedAutoTier",
@@ -15887,6 +16645,7 @@ __all__ = [
     "SessionPermissionRecoveryData",
     "SessionPermissionsChangedData",
     "SessionPlanChangedData",
+    "SessionQuotaObservationData",
     "SessionRemoteSteerableChangedData",
     "SessionResumeData",
     "SessionScheduleCancelledData",
@@ -15994,6 +16753,16 @@ __all__ = [
     "ToolUserRequestedData",
     "UIEphemeralQueryPhase",
     "UiEphemeralQueryData",
+    "UsageAccountingIdentity",
+    "UsageGetMetricsResult",
+    "UsageMetricsAgentMetric",
+    "UsageMetricsCodeChanges",
+    "UsageMetricsModelMetric",
+    "UsageMetricsModelMetricRequests",
+    "UsageMetricsModelMetricTokenDetail",
+    "UsageMetricsModelMetricUsage",
+    "UsageMetricsProviderModelMetric",
+    "UsageMetricsTokenDetail",
     "UserInputCompletedData",
     "UserInputRequestedData",
     "UserMessageAgentMode",

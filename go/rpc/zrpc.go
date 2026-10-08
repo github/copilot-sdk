@@ -3935,6 +3935,11 @@ type CurrentModel struct {
 	// no plan override has captured a base model. Persistent agent model requirements apply to
 	// this model rather than the temporary plan model.
 	PlanBaseModelID *string `json:"planBaseModelId,omitempty"`
+	// Provider of planBaseModelId, when that saved selection is provider-qualified.
+	PlanBaseProviderID *string `json:"planBaseProviderId,omitempty"`
+	// Provider selected for this model. Together with modelId, identifies a catalog entry even
+	// when providers serve the same model. Omitted for unattributed legacy selections.
+	ProviderID *string `json:"providerId,omitempty"`
 	// Reasoning effort level currently applied to the active model, when one is set. Reads
 	// `Session.getReasoningEffort()` synchronously after `getSelectedModel()` resolves so the
 	// two values are reported as a snapshot.
@@ -10004,6 +10009,9 @@ type MetadataContextInfoRequest struct {
 	// Advertised prompt allowance. Pass 0 to resolve the selected model and context tier from
 	// the session.
 	PromptTokenLimit int64 `json:"promptTokenLimit"`
+	// Provider owning selectedModel. Omit to use the current provider for the current model, or
+	// deterministic legacy lookup for a different model.
+	ProviderID *string `json:"providerId,omitempty"`
 	// Model identifier used for tokenization. Omit to use the session default. Used both for
 	// token counting and to compute display values.
 	SelectedModel *string `json:"selectedModel,omitempty"`
@@ -10238,6 +10246,9 @@ type ModelApplyStartupOverlayRequest struct {
 	RepoContextTier *string `json:"repoContextTier,omitempty"`
 	// Model selected by repository settings, when configured.
 	RepoModel *string `json:"repoModel,omitempty"`
+	// Provider owning the repository-selected model. Omitted repository provider identity
+	// retains legacy bare-model behavior.
+	RepoModelProviderID *string `json:"repoModelProviderId,omitempty"`
 	// Reasoning effort selected by repository settings, when configured.
 	RepoReasoningEffort *string `json:"repoReasoningEffort,omitempty"`
 	// Model required by server-managed policy, when configured.
@@ -10466,6 +10477,24 @@ type ModelCapabilitiesSupports struct {
 	ToolCalls *bool `json:"toolCalls,omitempty"`
 	// Whether this model supports vision/image input
 	Vision *bool `json:"vision,omitempty"`
+}
+
+// Experimental: ModelClearStartupSeedRequest is part of an experimental API and may change
+// or be removed.
+// Internal: ModelClearStartupSeedRequest is an internal SDK API and is not part of the
+// public surface.
+type ModelClearStartupSeedRequest struct {
+	ExpectedModel string `json:"expectedModel"`
+	// Provider captured with the startup seed; omission matches only an unqualified seed.
+	ExpectedProviderID *string `json:"expectedProviderId,omitempty"`
+}
+
+// Experimental: ModelClearStartupSeedResult is part of an experimental API and may change
+// or be removed.
+// Internal: ModelClearStartupSeedResult is an internal SDK API and is not part of the
+// public surface.
+type ModelClearStartupSeedResult struct {
+	Cleared bool `json:"cleared"`
 }
 
 // List of Copilot models available to the resolved user, including capabilities and billing
@@ -10929,12 +10958,17 @@ type ModelSwitchToRequest struct {
 	ModelCapabilities *ModelCapabilitiesOverride `json:"modelCapabilities,omitempty"`
 	// Settings scope used when persisting the selected model.
 	ModelChangeScope *string `json:"modelChangeScope,omitempty"`
-	// Model selection id to switch to, as returned by `list`. A bare id (e.g.
-	// `claude-sonnet-4.6`) names a Copilot (CAPI) model; a provider-qualified id
-	// (`provider/id`, e.g. `acme/claude-sonnet`) targets a registry BYOK model.
+	// Model id to switch to, as returned by `list`. Include providerId to select an exact
+	// catalog entry when providers share the id. Without providerId, a bare id retains
+	// incumbent selection behavior; a registry-qualified id (`provider/id`, e.g.
+	// `acme/claude-sonnet`) targets a BYOK model.
 	ModelID string `json:"modelId"`
 	// Optional settings context and explicit-override flags used to persist a picker selection.
 	PickerPersistence *ModelPickerPersistenceRequest `json:"pickerPersistence,omitempty"`
+	// Provider id from the selected list entry's provider reference. Selects this exact
+	// provider/model pair; an unavailable pair fails rather than using another provider. Omit
+	// for deterministic legacy bare-model selection.
+	ProviderID *string `json:"providerId,omitempty"`
 	// Reasoning effort level to use for the model. CAPI values are model-defined and validated
 	// against the selected model; BYOK providers may define additional values. "none" disables
 	// reasoning. Pass null to clear any session effort override and fall back to the model's
@@ -11019,6 +11053,8 @@ type ModeSetRequest struct {
 	PlanModel *string `json:"planModel,omitempty"`
 	// Whether a dedicated plan model is configured.
 	PlanModelConfigured *bool `json:"planModelConfigured,omitempty"`
+	// Provider owning planModel. Omit for legacy bare-model selection.
+	PlanModelProviderID *string `json:"planModelProviderId,omitempty"`
 	// Reasoning effort to use with the dedicated plan model.
 	PlanReasoningEffort *string `json:"planReasoningEffort,omitempty"`
 	// Whether leaving plan mode should restore the session's previous model.
@@ -11186,6 +11222,39 @@ type OptionsUpdateAdditionalContentExclusionPolicyRuleSource struct {
 	Name string `json:"name"`
 	// Type of the policy source.
 	Type string `json:"type"`
+}
+
+// External tool call of the session or one of its sub-agents that is still waiting for
+// session.tools.handlePendingToolCall.
+// Experimental: PendingExternalToolRequest is part of an experimental API and may change or
+// be removed.
+type PendingExternalToolRequest struct {
+	// Sub-agent instance identifier (the envelope agentId of its events) of the agent that
+	// issued the call; absent for calls issued by the root agent
+	AgentID *string `json:"agentId,omitempty"`
+	// Arguments to pass to the external tool
+	Arguments any `json:"arguments,omitempty"`
+	// Stable identity of the provider that offered the tool, for hosts that route
+	// extension-owned tools by provider
+	ProviderID *string `json:"providerId,omitempty"`
+	// Request ID to pass to session.tools.handlePendingToolCall
+	RequestID string `json:"requestId"`
+	// Tool call ID assigned to this external tool invocation
+	ToolCallID string `json:"toolCallId"`
+	// Name of the external tool to invoke
+	ToolName string `json:"toolName"`
+}
+
+// External tool calls still waiting for a result.
+// Experimental: PendingExternalToolRequestList is part of an experimental API and may
+// change or be removed.
+type PendingExternalToolRequestList struct {
+	// External tool calls of the session and its sub-agents that
+	// session.tools.handlePendingToolCall would still accept, in the order they were requested.
+	// Includes calls that were pending when the session was last suspended and resumed with
+	// pending work continued, so a host that did not observe the original
+	// external_tool.requested event can answer them.
+	Items []PendingExternalToolRequest `json:"items"`
 }
 
 // Pending permission prompt reconstructed from event history, with request ID and
@@ -13143,6 +13212,87 @@ type ProviderModelConfig struct {
 	WireModel *string `json:"wireModel,omitempty"`
 }
 
+// Authoritative budget measurements and policy metadata, independent of provider.
+// Experimental: ProviderQuotaBudgetMetadata is part of an experimental API and may change
+// or be removed.
+type ProviderQuotaBudgetMetadata struct {
+	// Exact measured consumption in the budget's unit.
+	Consumed float64 `json:"consumed"`
+	// Exact budget entitlement, retaining incumbent fractional-unit compatibility.
+	Entitlement float64 `json:"entitlement"`
+	// Usage beyond entitlement, in the budget's unit.
+	Overage float64 `json:"overage"`
+	// Whether additional usage is allowed when the budget is exhausted.
+	OverageAllowedWhenExhausted bool `json:"overageAllowedWhenExhausted"`
+	// Optional additional-usage budget cap.
+	OverageLimit *float64 `json:"overageLimit,omitempty"`
+	// Service-reported remaining percentage for authoritative budget presentation.
+	RemainingPercentage float64 `json:"remainingPercentage"`
+	// Reset instant in epoch milliseconds when this budget actually defines a window.
+	ResetAtEpochMs *float64 `json:"resetAtEpochMs,omitempty"`
+	// Whether the reset instant is an estimate.
+	ResetEstimated *bool `json:"resetEstimated,omitempty"`
+	// Whether this budget uses token-based billing.
+	TokenBasedBilling *bool `json:"tokenBasedBilling,omitempty"`
+	// Whether the budget has unlimited entitlement.
+	Unlimited bool `json:"unlimited"`
+	// Whether service policy allows continued usage after exhaustion.
+	UsageAllowedWhenExhausted bool `json:"usageAllowedWhenExhausted"`
+}
+
+// An account quota reading. Absence of a quantity is unknown, never zero.
+// Experimental: ProviderQuotaState is part of an experimental API and may change or be
+// removed.
+type ProviderQuotaState struct {
+	// Whether the service permits access, independently of balance.
+	AccessState ProviderQuotaAccessState `json:"accessState"`
+	// Service error code or client acquisition category, separate from the business-state
+	// reason.
+	AcquisitionError *string `json:"acquisitionError,omitempty"`
+	// Acquisition outcome. Unavailable/failed readings have no service verdict; access/capacity
+	// unavailable are compatibility placeholders only.
+	AcquisitionStatus *ProviderQuotaAcquisitionStatus `json:"acquisitionStatus,omitempty"`
+	// Independently reported signed 64-bit available quantity. Zero does not override the
+	// service access/capacity verdict; omission and null are preserved.
+	AvailableQuantity *int64 `json:"availableQuantity,omitempty"`
+	// Optional metadata for an authoritative budget. Advisory balances and admission-only
+	// observations do not populate this.
+	BudgetMetadata *ProviderQuotaBudgetMetadata `json:"budgetMetadata,omitempty"`
+	// Service capacity state; missing quantities do not imply exhaustion.
+	CapacityState ProviderQuotaCapacityState `json:"capacityState"`
+	// Key for the backwards-compatible snapshots projection, when the authoritative budget
+	// supports that contract.
+	CompatibilityKey *string `json:"compatibilityKey,omitempty"`
+	// Independently reported signed 64-bit entitlement. -1 is an unlimited sentinel, not a
+	// capacity-state rewrite; omission and null are preserved.
+	EntitledQuantity *int64 `json:"entitledQuantity,omitempty"`
+	// Explicit service admission flag, when reported.
+	HasQuota *bool `json:"hasQuota,omitempty"`
+	// HTTP status from acquisition, when available.
+	HTTPStatus *int64 `json:"httpStatus,omitempty"`
+	// Whether this is a GET account reading or a pre-response admission observation.
+	// Observations are never merged across kinds.
+	ObservationKind *ProviderQuotaObservationKind `json:"observationKind,omitempty"`
+	// When the runtime observed this reading, not a charge timestamp or guarantee that
+	// consumption has settled.
+	ObservedAt *string `json:"observedAt,omitempty"`
+	// Provider/account whose service reported this state.
+	Provider ModelProviderRef `json:"provider"`
+	// Whether quantities are authoritative budget measurements, advisory balances, or absent.
+	// Only authoritative budgets support percentage presentation.
+	QuantityKind *ProviderQuotaQuantityKind `json:"quantityKind,omitempty"`
+	// Service-owned quota identifier within this provider.
+	QuotaID string `json:"quotaId"`
+	// Service-reported explanation for the state.
+	Reason *string `json:"reason,omitempty"`
+	// Service name owning this reading.
+	Service *string `json:"service,omitempty"`
+	// Service-reported quota source.
+	Source *string `json:"source,omitempty"`
+	// Unit of entitledQuantity and availableQuantity.
+	Unit ProviderQuotaUnit `json:"unit"`
+}
+
 // Short-lived, rotating credential the caller must send on every request, in addition to
 // `apiKey` if one is present. Omitted when the endpoint does not require one.
 // Experimental: ProviderSessionToken is part of an experimental API and may change or be
@@ -13975,6 +14125,23 @@ type QueueWithdrawMessageResult struct {
 	Interrupted bool `json:"interrupted"`
 	// True when the message left the queue or, for a running turn, history.
 	Removed bool `json:"removed"`
+}
+
+// Pending warnings returned and cleared by session.quota.takeWarnings.
+// Experimental: QuotaTakeWarningsResult is part of an experimental API and may change or be
+// removed.
+type QuotaTakeWarningsResult []QuotaWarningProjection
+
+// A pending session quota warning, consumed once by takeWarnings.
+// Experimental: QuotaWarningProjection is part of an experimental API and may change or be
+// removed.
+type QuotaWarningProjection struct {
+	// User-facing warning text.
+	Message string `json:"message"`
+	// Related account or upgrade link.
+	URL *string `json:"url,omitempty"`
+	// Existing warning category.
+	WarningType string `json:"warningType"`
 }
 
 // Event type to register consumer interest for, used by runtime gating logic.
@@ -15272,6 +15439,9 @@ type SessionContextInfo struct {
 	CompactionThreshold int64 `json:"compactionThreshold"`
 	// Tokens consumed by user/assistant/tool messages
 	ConversationTokens int64 `json:"conversationTokens"`
+	// Provider-owned model display label, or the Auto routing label. Presentation only;
+	// modelName remains the tokenization identity.
+	DisplayModelName *string `json:"displayModelName,omitempty"`
 	// Advertised prompt allowance for the selected context tier, without adding output tokens.
 	// The denominator for context-usage displays.
 	Limit int64 `json:"limit"`
@@ -15284,6 +15454,9 @@ type SessionContextInfo struct {
 	// context ceiling minus the requested output allowance. Uses DEFAULT_TOKEN_LIMIT when
 	// limits are unspecified.
 	PromptTokenLimit int64 `json:"promptTokenLimit"`
+	// Provider whose catalog supplies this context window. Omitted when provider identity is
+	// unavailable.
+	Provider *ModelProviderRef `json:"provider,omitempty"`
 	// Tokens consumed by the system prompt
 	SystemTokens int64 `json:"systemTokens"`
 	// Tokens consumed by tool definitions sent to the model (excludes deferred tools)
@@ -16233,6 +16406,24 @@ type SessionMetadataSnapshot struct {
 	WorkspacePath *string `json:"workspacePath"`
 }
 
+// Experimental: SessionModelClearStartupSeedRequest is part of an experimental API and may
+// change or be removed.
+// Internal: SessionModelClearStartupSeedRequest is an internal SDK API and is not part of
+// the public surface.
+type SessionModelClearStartupSeedRequest struct {
+	ExpectedModel string `json:"expectedModel"`
+	// Provider captured with the startup seed; omission matches only an unqualified seed.
+	ExpectedProviderID *string `json:"expectedProviderId,omitempty"`
+}
+
+// Experimental: SessionModelClearStartupSeedResult is part of an experimental API and may
+// change or be removed.
+// Internal: SessionModelClearStartupSeedResult is an internal SDK API and is not part of
+// the public surface.
+type SessionModelClearStartupSeedResult struct {
+	Cleared bool `json:"cleared"`
+}
+
 // The list of models available to this session.
 // Experimental: SessionModelList is part of an experimental API and may change or be
 // removed.
@@ -16876,6 +17067,147 @@ type SessionQueueProcessResult struct {
 // change or be removed.
 type SessionQueueSetDrainPausedResult struct {
 }
+
+// Existing delegation guidance for an account without delegation access.
+// Experimental: SessionQuotaDelegateWarning is part of an experimental API and may change
+// or be removed.
+type SessionQuotaDelegateWarning struct {
+	// User-facing guidance.
+	Text string `json:"text"`
+	// Link to upgrade the account.
+	URL string `json:"url"`
+}
+
+// The incumbent session-owned quota and account projection.
+// Experimental: SessionQuotaGetResult is part of an experimental API and may change or be
+// removed.
+type SessionQuotaGetResult struct {
+	// Whether the account can sign up for Copilot Free.
+	CanSignupForCopilotFree bool `json:"canSignupForCopilotFree"`
+	// Whether the account can delegate tasks to GitHub.
+	DelegateAvailable bool `json:"delegateAvailable"`
+	// Existing delegation warning for a free account.
+	DelegateWarning *SessionQuotaDelegateWarning `json:"delegateWarning,omitempty"`
+	// Whether dynamic workflows are enabled for the active account.
+	DynamicWorkflowsEnabled bool `json:"dynamicWorkflowsEnabled"`
+	// Whether dynamic workflows are visible under the session's feature flags.
+	DynamicWorkflowsUIVisible bool `json:"dynamicWorkflowsUiVisible"`
+	// Whether the account uses the free limited Copilot plan.
+	IsFreeUser bool `json:"isFreeUser"`
+	// Whether the account uses token-based billing.
+	IsTbbUser bool `json:"isTbbUser"`
+	// Whether model cost columns should be shown.
+	ModelCostColumnVisible bool `json:"modelCostColumnVisible"`
+	// Resolved Copilot plan tier.
+	PlanTier SessionQuotaPlanTier `json:"planTier"`
+	// Whether premium-request costs are billable.
+	PremiumRequestsBillable bool `json:"premiumRequestsBillable"`
+	// Provider-owned account quota state, including snapshots without numeric balances.
+	ProviderQuotas []ProviderQuotaState `json:"providerQuotas,omitzero"`
+	// Known quota snapshots, keyed by the provider's quota type.
+	Snapshots map[string]SessionQuotaSnapshot `json:"snapshots"`
+	// Upgrade link for a free account.
+	UpgradeURL *string `json:"upgradeUrl,omitempty"`
+}
+
+// The incumbent session-owned quota and account projection.
+// Experimental: SessionQuotaProjection is part of an experimental API and may change or be
+// removed.
+type SessionQuotaProjection struct {
+	// Whether the account can sign up for Copilot Free.
+	CanSignupForCopilotFree bool `json:"canSignupForCopilotFree"`
+	// Whether the account can delegate tasks to GitHub.
+	DelegateAvailable bool `json:"delegateAvailable"`
+	// Existing delegation warning for a free account.
+	DelegateWarning *SessionQuotaDelegateWarning `json:"delegateWarning,omitempty"`
+	// Whether dynamic workflows are enabled for the active account.
+	DynamicWorkflowsEnabled bool `json:"dynamicWorkflowsEnabled"`
+	// Whether dynamic workflows are visible under the session's feature flags.
+	DynamicWorkflowsUIVisible bool `json:"dynamicWorkflowsUiVisible"`
+	// Whether the account uses the free limited Copilot plan.
+	IsFreeUser bool `json:"isFreeUser"`
+	// Whether the account uses token-based billing.
+	IsTbbUser bool `json:"isTbbUser"`
+	// Whether model cost columns should be shown.
+	ModelCostColumnVisible bool `json:"modelCostColumnVisible"`
+	// Resolved Copilot plan tier.
+	PlanTier SessionQuotaPlanTier `json:"planTier"`
+	// Whether premium-request costs are billable.
+	PremiumRequestsBillable bool `json:"premiumRequestsBillable"`
+	// Provider-owned account quota state, including snapshots without numeric balances.
+	ProviderQuotas []ProviderQuotaState `json:"providerQuotas,omitzero"`
+	// Known quota snapshots, keyed by the provider's quota type.
+	Snapshots map[string]SessionQuotaSnapshot `json:"snapshots"`
+	// Upgrade link for a free account.
+	UpgradeURL *string `json:"upgradeUrl,omitempty"`
+}
+
+// The incumbent session-owned quota and account projection.
+// Experimental: SessionQuotaRefreshResult is part of an experimental API and may change or
+// be removed.
+type SessionQuotaRefreshResult struct {
+	// Whether the account can sign up for Copilot Free.
+	CanSignupForCopilotFree bool `json:"canSignupForCopilotFree"`
+	// Whether the account can delegate tasks to GitHub.
+	DelegateAvailable bool `json:"delegateAvailable"`
+	// Existing delegation warning for a free account.
+	DelegateWarning *SessionQuotaDelegateWarning `json:"delegateWarning,omitempty"`
+	// Whether dynamic workflows are enabled for the active account.
+	DynamicWorkflowsEnabled bool `json:"dynamicWorkflowsEnabled"`
+	// Whether dynamic workflows are visible under the session's feature flags.
+	DynamicWorkflowsUIVisible bool `json:"dynamicWorkflowsUiVisible"`
+	// Whether the account uses the free limited Copilot plan.
+	IsFreeUser bool `json:"isFreeUser"`
+	// Whether the account uses token-based billing.
+	IsTbbUser bool `json:"isTbbUser"`
+	// Whether model cost columns should be shown.
+	ModelCostColumnVisible bool `json:"modelCostColumnVisible"`
+	// Resolved Copilot plan tier.
+	PlanTier SessionQuotaPlanTier `json:"planTier"`
+	// Whether premium-request costs are billable.
+	PremiumRequestsBillable bool `json:"premiumRequestsBillable"`
+	// Provider-owned account quota state, including snapshots without numeric balances.
+	ProviderQuotas []ProviderQuotaState `json:"providerQuotas,omitzero"`
+	// Known quota snapshots, keyed by the provider's quota type.
+	Snapshots map[string]SessionQuotaSnapshot `json:"snapshots"`
+	// Upgrade link for a free account.
+	UpgradeURL *string `json:"upgradeUrl,omitempty"`
+}
+
+// Session quota snapshot, preserving the incumbent numeric units and reset metadata.
+// Experimental: SessionQuotaSnapshot is part of an experimental API and may change or be
+// removed.
+type SessionQuotaSnapshot struct {
+	// Entitled quantity in this quota's units.
+	EntitlementRequests float64 `json:"entitlementRequests"`
+	// Whether the provider reports available quota.
+	HasQuota *bool `json:"hasQuota,omitempty"`
+	// Whether the entitlement is unlimited.
+	IsUnlimitedEntitlement bool `json:"isUnlimitedEntitlement"`
+	// Additional usage in this quota's units.
+	Overage float64 `json:"overage"`
+	// Whether additional usage is allowed after quota exhaustion.
+	OverageAllowedWithExhaustedQuota bool `json:"overageAllowedWithExhaustedQuota"`
+	// Additional-usage budget cap, when provided.
+	OverageEntitlement *float64 `json:"overageEntitlement,omitempty"`
+	// Percentage of the entitlement remaining.
+	RemainingPercentage float64 `json:"remainingPercentage"`
+	// Quota reset time in milliseconds since the Unix epoch, when known.
+	ResetDateEpochMs *float64 `json:"resetDateEpochMs,omitempty"`
+	// Whether the reset time is estimated.
+	ResetDateEstimated *bool `json:"resetDateEstimated,omitempty"`
+	// Whether this quota uses token-based billing.
+	TokenBasedBilling *bool `json:"tokenBasedBilling,omitempty"`
+	// Whether usage is allowed after quota exhaustion.
+	UsageAllowedWithExhaustedQuota bool `json:"usageAllowedWithExhaustedQuota"`
+	// Consumed quantity in this quota's units.
+	UsedRequests float64 `json:"usedRequests"`
+}
+
+// Pending warnings returned and cleared by session.quota.takeWarnings.
+// Experimental: SessionQuotaTakeWarningsResult is part of an experimental API and may
+// change or be removed.
+type SessionQuotaTakeWarningsResult []QuotaWarningProjection
 
 // Experimental: SessionRemoteDisableResult is part of an experimental API and may change or
 // be removed.
@@ -17862,6 +18194,25 @@ type SessionUpdateOptionsResult struct {
 	PluginHookCount *int64 `json:"pluginHookCount,omitempty"`
 	// Whether the operation succeeded
 	Success bool `json:"success"`
+}
+
+// Internal absolute code-change totals reported by the owning host.
+// Experimental: SessionUsageSetCodeChangesRequest is part of an experimental API and may
+// change or be removed.
+// Internal: SessionUsageSetCodeChangesRequest is an internal SDK API and is not part of the
+// public surface.
+type SessionUsageSetCodeChangesRequest struct {
+	// Absolute changed-file count; omission preserves the previous count.
+	FilesCount *float64 `json:"filesCount,omitempty"`
+	// Absolute added-line total, replacing the previous reading.
+	LinesAdded float64 `json:"linesAdded"`
+	// Absolute removed-line total, replacing the previous reading.
+	LinesRemoved float64 `json:"linesRemoved"`
+}
+
+// Experimental: SessionUsageSetCodeChangesResult is part of an experimental API and may
+// change or be removed.
+type SessionUsageSetCodeChangesResult struct {
 }
 
 // Experimental: SessionWorkflowPauseAtCheckpointResult is part of an experimental API and
@@ -20127,6 +20478,13 @@ type ToolsGetCurrentMetadataResult struct {
 type ToolsInitializeAndValidateResult struct {
 }
 
+// No parameters; returns the external tool calls of the session and its sub-agents that are
+// still waiting for a result.
+// Experimental: ToolsListPendingRequestsRequest is part of an experimental API and may
+// change or be removed.
+type ToolsListPendingRequestsRequest struct {
+}
+
 // Optional model identifier whose tool overrides should be applied to the listing.
 // Experimental: ToolsListRequest is part of an experimental API and may change or be
 // removed.
@@ -20677,6 +21035,9 @@ type UsageGetMetricsResult struct {
 	// Per-agent usage metrics, keyed by agent instance identifier. The main conversation uses
 	// the stable key `main`.
 	AgentMetrics map[string]UsageMetricsAgentMetric `json:"agentMetrics,omitzero"`
+	// Completeness of totalNanoAiu. Numeric totals remain the reported subtotal; zero is not a
+	// claim of free usage when unavailable.
+	AiCreditsStatus *AiCreditsStatus `json:"aiCreditsStatus,omitempty"`
 	// Aggregated code change metrics
 	CodeChanges UsageMetricsCodeChanges `json:"codeChanges"`
 	// Currently active model identifier
@@ -20687,6 +21048,9 @@ type UsageGetMetricsResult struct {
 	LastCallOutputTokens int64 `json:"lastCallOutputTokens"`
 	// Per-model token and request metrics, keyed by model identifier
 	ModelMetrics map[string]UsageMetricsModelMetric `json:"modelMetrics"`
+	// Provider-attributed model metrics, ordered by first observed provider and model.
+	// Null attribution preserves historical usage whose provider or model was not recorded.
+	ProviderModelMetrics []UsageMetricsProviderModelMetric `json:"providerModelMetrics,omitzero"`
 	// ISO 8601 timestamp when the session started
 	SessionStartTime time.Time `json:"sessionStartTime"`
 	// Session-wide per-token-type accumulated token counts
@@ -20741,6 +21105,9 @@ type UsageMetricsCodeChanges struct {
 // Experimental: UsageMetricsModelMetric is part of an experimental API and may change or be
 // removed.
 type UsageMetricsModelMetric struct {
+	// Completeness of this model's reported AI-credit subtotal. Explicitly reported zero is
+	// complete, not unavailable.
+	AiCreditsStatus *AiCreditsStatus `json:"aiCreditsStatus,omitempty"`
 	// Latest known prompt-cache expiration for this model. A timestamp in the past indicates
 	// that the observed cache has expired.
 	CacheExpiresAt *time.Time `json:"cacheExpiresAt,omitempty"`
@@ -20788,12 +21155,42 @@ type UsageMetricsModelMetricUsage struct {
 	ReasoningTokens *int64 `json:"reasoningTokens,omitempty"`
 }
 
+// Usage for one recorded provider and model, without merging identical model IDs across
+// providers.
+// Experimental: UsageMetricsProviderModelMetric is part of an experimental API and may
+// change or be removed.
+type UsageMetricsProviderModelMetric struct {
+	// Request, token, and cost totals for this provider/model.
+	Metrics UsageMetricsModelMetric `json:"metrics"`
+	// Model display name captured at call time, when known.
+	ModelDisplayName *string `json:"modelDisplayName,omitempty"`
+	// Model identity, or null for legacy aggregate-only usage.
+	ModelID *string `json:"modelId"`
+	// Provider identity and product label captured when the call was dispatched; null when
+	// unknown.
+	Provider *ModelProviderRef `json:"provider"`
+}
+
 // Session-wide token-detail entry containing the accumulated token count for one token type.
 // Experimental: UsageMetricsTokenDetail is part of an experimental API and may change or be
 // removed.
 type UsageMetricsTokenDetail struct {
 	// Accumulated token count for this token type
 	TokenCount int64 `json:"tokenCount"`
+}
+
+// Internal absolute code-change totals reported by the owning host.
+// Experimental: UsageSetCodeChangesRequest is part of an experimental API and may change or
+// be removed.
+// Internal: UsageSetCodeChangesRequest is an internal SDK API and is not part of the public
+// surface.
+type UsageSetCodeChangesRequest struct {
+	// Absolute changed-file count; omission preserves the previous count.
+	FilesCount *float64 `json:"filesCount,omitempty"`
+	// Absolute added-line total, replacing the previous reading.
+	LinesAdded float64 `json:"linesAdded"`
+	// Absolute removed-line total, replacing the previous reading.
+	LinesRemoved float64 `json:"linesRemoved"`
 }
 
 // Result of a user-requested shell command.
@@ -22403,6 +22800,21 @@ const (
 	// Caller asked for permissionMode='yolo' but the controller is not currently in allow-all
 	// mode
 	AgentRegistrySpawnValidationErrorReasonYoloNotAllowed AgentRegistrySpawnValidationErrorReason = "yolo-not-allowed"
+)
+
+// Whether the accumulated numeric AI-credit subtotal covers the observed calls.
+// Experimental: AiCreditsStatus is part of an experimental API and may change or be removed.
+type AiCreditsStatus string
+
+const (
+	// Every observed call supplied an AI-credit amount, including an explicit zero.
+	AiCreditsStatusComplete AiCreditsStatus = "complete"
+	// Some calls supplied amounts and some did not; the numeric value is only a reported
+	// subtotal.
+	AiCreditsStatusPartial AiCreditsStatus = "partial"
+	// No AI-credit amount was reported for the observed calls. Numeric zero is not a zero-cost
+	// claim.
+	AiCreditsStatusUnavailable AiCreditsStatus = "unavailable"
 )
 
 // Type of GitHub reference
@@ -25742,6 +26154,108 @@ const (
 	ProviderEndpointWireAPIResponses ProviderEndpointWireAPI = "responses"
 )
 
+// Access policy reported by the quota service.
+// Experimental: ProviderQuotaAccessState is part of an experimental API and may change or
+// be removed.
+type ProviderQuotaAccessState string
+
+const (
+	// Access is allowed.
+	ProviderQuotaAccessStateAllowed ProviderQuotaAccessState = "allowed"
+	// Access is denied.
+	ProviderQuotaAccessStateDenied ProviderQuotaAccessState = "denied"
+	// Quota is not required for this access.
+	ProviderQuotaAccessStateNotRequired ProviderQuotaAccessState = "not_required"
+	// Client-only compatibility placeholder when acquisitionStatus is unavailable or failed;
+	// not an observed service verdict.
+	ProviderQuotaAccessStateUnavailable ProviderQuotaAccessState = "unavailable"
+	// The service did not supply a recognized access state.
+	ProviderQuotaAccessStateUnknown ProviderQuotaAccessState = "unknown"
+)
+
+// Acquisition state, independent of the service's business access/capacity verdict.
+// Experimental: ProviderQuotaAcquisitionStatus is part of an experimental API and may
+// change or be removed.
+type ProviderQuotaAcquisitionStatus string
+
+const (
+	// Acquisition failed; inspect httpStatus/acquisitionError without inferring a business
+	// verdict.
+	ProviderQuotaAcquisitionStatusFailed ProviderQuotaAcquisitionStatus = "failed"
+	// A service quota observation was received.
+	ProviderQuotaAcquisitionStatusSucceeded ProviderQuotaAcquisitionStatus = "succeeded"
+	// No service snapshot is available for this caller or surface.
+	ProviderQuotaAcquisitionStatusUnavailable ProviderQuotaAcquisitionStatus = "unavailable"
+)
+
+// Capacity is independent of whether a numeric balance was supplied.
+// Experimental: ProviderQuotaCapacityState is part of an experimental API and may change or
+// be removed.
+type ProviderQuotaCapacityState string
+
+const (
+	// Capacity is available.
+	ProviderQuotaCapacityStateAvailable ProviderQuotaCapacityState = "available"
+	// The service explicitly reports exhaustion.
+	ProviderQuotaCapacityStateExhausted ProviderQuotaCapacityState = "exhausted"
+	// The service reports that capacity is not applicable.
+	ProviderQuotaCapacityStateNotApplicable ProviderQuotaCapacityState = "not_applicable"
+	// No billable quota is required.
+	ProviderQuotaCapacityStateNotRequired ProviderQuotaCapacityState = "not_required"
+	// Client-only compatibility placeholder when acquisitionStatus is unavailable or failed;
+	// not an observed service verdict.
+	ProviderQuotaCapacityStateUnavailable ProviderQuotaCapacityState = "unavailable"
+	// No recognized capacity state was supplied.
+	ProviderQuotaCapacityStateUnknown ProviderQuotaCapacityState = "unknown"
+	// The reported entitlement is unlimited.
+	ProviderQuotaCapacityStateUnlimited ProviderQuotaCapacityState = "unlimited"
+)
+
+// Timing and purpose of a provider quota observation.
+// Experimental: ProviderQuotaObservationKind is part of an experimental API and may change
+// or be removed.
+type ProviderQuotaObservationKind string
+
+const (
+	// An explicit account read; consumption may still be subject to service aggregation delay.
+	ProviderQuotaObservationKindAccountSnapshot ProviderQuotaObservationKind = "account_snapshot"
+	// A verdict attached before an inference response. May be cached; never a post-charge
+	// balance.
+	ProviderQuotaObservationKindAdmissionState ProviderQuotaObservationKind = "admission_state"
+)
+
+// Interpretation permitted for independently reported quantities.
+// Experimental: ProviderQuotaQuantityKind is part of an experimental API and may change or
+// be removed.
+type ProviderQuotaQuantityKind string
+
+const (
+	// Raw advisory quantities; do not infer permission, usage percentage, reset cadence, or
+	// post-charge balance.
+	ProviderQuotaQuantityKindAdvisoryBalance ProviderQuotaQuantityKind = "advisory_balance"
+	// Quantities form an authoritative available-of-entitled budget suitable for percentage
+	// presentation.
+	ProviderQuotaQuantityKindAuthoritativeBudget ProviderQuotaQuantityKind = "authoritative_budget"
+	// No quantity measurement, as with admission-only response headers.
+	ProviderQuotaQuantityKindNone ProviderQuotaQuantityKind = "none"
+)
+
+// Units explicitly reported by a quota provider.
+// Experimental: ProviderQuotaUnit is part of an experimental API and may change or be
+// removed.
+type ProviderQuotaUnit string
+
+const (
+	// AI credits, not tokens or currency.
+	ProviderQuotaUnitAiCredits ProviderQuotaUnit = "ai_credits"
+	// Requests charged against an entitlement.
+	ProviderQuotaUnitRequests ProviderQuotaUnit = "requests"
+	// Model tokens.
+	ProviderQuotaUnitTokens ProviderQuotaUnit = "tokens"
+	// The observation does not establish a quantity unit.
+	ProviderQuotaUnitUnknown ProviderQuotaUnit = "unknown"
+)
+
 // Type of GitHub reference
 // Experimental: PushAttachmentGitHubReferenceType is part of an experimental API and may
 // change or be removed.
@@ -26256,6 +26770,30 @@ const (
 	SessionOpenParamsKindRemote     SessionOpenParamsKind = "remote"
 	SessionOpenParamsKindResume     SessionOpenParamsKind = "resume"
 	SessionOpenParamsKindResumeLast SessionOpenParamsKind = "resumeLast"
+)
+
+// Copilot plan tier used by the session quota projection.
+// Experimental: SessionQuotaPlanTier is part of an experimental API and may change or be
+// removed.
+type SessionQuotaPlanTier string
+
+const (
+	// Copilot Business.
+	SessionQuotaPlanTierBusiness SessionQuotaPlanTier = "business"
+	// Copilot education entitlement.
+	SessionQuotaPlanTierEdu SessionQuotaPlanTier = "edu"
+	// Copilot Enterprise.
+	SessionQuotaPlanTierEnterprise SessionQuotaPlanTier = "enterprise"
+	// Copilot Free.
+	SessionQuotaPlanTierFree SessionQuotaPlanTier = "free"
+	// Copilot Max.
+	SessionQuotaPlanTierMax SessionQuotaPlanTier = "max"
+	// Copilot Pro.
+	SessionQuotaPlanTierPro SessionQuotaPlanTier = "pro"
+	// Copilot Pro+.
+	SessionQuotaPlanTierProPlus SessionQuotaPlanTier = "pro_plus"
+	// The account's plan tier is not known.
+	SessionQuotaPlanTierUnknown SessionQuotaPlanTier = "unknown"
 )
 
 // Status discriminator for SessionsClientMetadataEntry.
@@ -33636,6 +34174,9 @@ func (a *MetadataAPI) ContextInfo(ctx context.Context, params *MetadataContextIn
 	if params != nil {
 		req["outputTokenLimit"] = params.OutputTokenLimit
 		req["promptTokenLimit"] = params.PromptTokenLimit
+		if params.ProviderID != nil {
+			req["providerId"] = *params.ProviderID
+		}
 		if params.SelectedModel != nil {
 			req["selectedModel"] = *params.SelectedModel
 		}
@@ -33963,6 +34504,9 @@ func (a *ModeAPI) Set(ctx context.Context, params *ModeSetRequest) (*ModeSetResu
 		if params.PlanModelConfigured != nil {
 			req["planModelConfigured"] = *params.PlanModelConfigured
 		}
+		if params.PlanModelProviderID != nil {
+			req["planModelProviderId"] = *params.PlanModelProviderID
+		}
 		if params.PlanReasoningEffort != nil {
 			req["planReasoningEffort"] = *params.PlanReasoningEffort
 		}
@@ -34162,6 +34706,9 @@ func (a *ModelAPI) SwitchTo(ctx context.Context, params *ModelSwitchToRequest) (
 		req["modelId"] = params.ModelID
 		if params.PickerPersistence != nil {
 			req["pickerPersistence"] = *params.PickerPersistence
+		}
+		if params.ProviderID != nil {
+			req["providerId"] = *params.ProviderID
 		}
 		if params.ReasoningEffort != nil {
 			req["reasoningEffort"] = *params.ReasoningEffort
@@ -36016,6 +36563,66 @@ func (a *QueueAPI) WithdrawMessage(ctx context.Context, params *QueueWithdrawMes
 	return &result, nil
 }
 
+// Experimental: QuotaAPI contains experimental APIs that may change or be removed.
+type QuotaAPI sessionAPI
+
+// Gets the session's current quota and account projection without making a network request.
+//
+// RPC method: session.quota.get.
+//
+// Returns: The incumbent session-owned quota and account projection.
+func (a *QuotaAPI) Get(ctx context.Context) (*SessionQuotaGetResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request(ctx, "session.quota.get", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionQuotaGetResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Refreshes the session's provider model catalog bypassing its cache, folds quota snapshots
+// into session state, and returns the updated projection. Failures leave the last known
+// quota intact.
+//
+// RPC method: session.quota.refresh.
+//
+// Returns: The incumbent session-owned quota and account projection.
+func (a *QuotaAPI) Refresh(ctx context.Context) (*SessionQuotaRefreshResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request(ctx, "session.quota.refresh", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionQuotaRefreshResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// TakeWarnings returns and clears the session's pending quota warnings. Reading or
+// refreshing quota does not drain warnings.
+//
+// RPC method: session.quota.takeWarnings.
+//
+// Returns: Pending warnings returned and cleared by session.quota.takeWarnings.
+func (a *QuotaAPI) TakeWarnings(ctx context.Context) (*SessionQuotaTakeWarningsResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request(ctx, "session.quota.takeWarnings", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionQuotaTakeWarningsResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // Experimental: RemoteAPI contains experimental APIs that may change or be removed.
 type RemoteAPI sessionAPI
 
@@ -36954,6 +37561,25 @@ func (a *ToolsAPI) InitializeAndValidate(ctx context.Context) (*ToolsInitializeA
 		return nil, err
 	}
 	var result ToolsInitializeAndValidateResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// ListPendingRequests lists the external tool calls of the session and its sub-agents that
+// are still waiting for session.tools.handlePendingToolCall.
+//
+// RPC method: session.tools.listPendingRequests.
+//
+// Returns: External tool calls still waiting for a result.
+func (a *ToolsAPI) ListPendingRequests(ctx context.Context) (*PendingExternalToolRequestList, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request(ctx, "session.tools.listPendingRequests", req)
+	if err != nil {
+		return nil, err
+	}
+	var result PendingExternalToolRequestList
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -38217,6 +38843,7 @@ type SessionRPC struct {
 	Provider           *ProviderAPI
 	Providers          *ProvidersAPI
 	Queue              *QueueAPI
+	Quota              *QuotaAPI
 	Remote             *RemoteAPI
 	Sandbox            *SandboxAPI
 	Schedule           *ScheduleAPI
@@ -38555,6 +39182,7 @@ func NewSessionRPC(client *jsonrpc2.Client, sessionID string) *SessionRPC {
 	r.Provider = (*ProviderAPI)(&r.common)
 	r.Providers = (*ProvidersAPI)(&r.common)
 	r.Queue = (*QueueAPI)(&r.common)
+	r.Quota = (*QuotaAPI)(&r.common)
 	r.Remote = (*RemoteAPI)(&r.common)
 	r.Sandbox = (*SandboxAPI)(&r.common)
 	r.Schedule = (*ScheduleAPI)(&r.common)
@@ -39100,6 +39728,9 @@ func (a *InternalModelAPI) ApplyStartupOverlay(ctx context.Context, params *Mode
 		if params.RepoModel != nil {
 			req["repoModel"] = *params.RepoModel
 		}
+		if params.RepoModelProviderID != nil {
+			req["repoModelProviderId"] = *params.RepoModelProviderID
+		}
 		if params.RepoReasoningEffort != nil {
 			req["repoReasoningEffort"] = *params.RepoReasoningEffort
 		}
@@ -39112,6 +39743,31 @@ func (a *InternalModelAPI) ApplyStartupOverlay(ctx context.Context, params *Mode
 		return nil, err
 	}
 	var result ModelSwitchToResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// ClearStartupSeed clears an unchanged startup model/provider seed before default-model
+// resolution. Never clears a resumed or user-selected model.
+//
+// RPC method: session.model.clearStartupSeed.
+// Internal: ClearStartupSeed is part of the SDK's internal handshake/plumbing; external
+// callers should not use it.
+func (a *InternalModelAPI) ClearStartupSeed(ctx context.Context, params *SessionModelClearStartupSeedRequest) (*SessionModelClearStartupSeedResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["expectedModel"] = params.ExpectedModel
+		if params.ExpectedProviderID != nil {
+			req["expectedProviderId"] = *params.ExpectedProviderID
+		}
+	}
+	raw, err := a.client.Request(ctx, "session.model.clearStartupSeed", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionModelClearStartupSeedResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -39645,6 +40301,37 @@ func (a *InternalUIAPI) HandleHumanUserInput(ctx context.Context, params *UIHand
 	return &result, nil
 }
 
+// Experimental: InternalUsageAPI contains experimental APIs that may change or be removed.
+type InternalUsageAPI internalSessionAPI
+
+// SetCodeChanges internal host-only replacement of absolute code-change totals reported by
+// a relay host.
+//
+// RPC method: session.usage.setCodeChanges.
+//
+// Parameters: Internal absolute code-change totals reported by the owning host.
+// Internal: SetCodeChanges is part of the SDK's internal handshake/plumbing; external
+// callers should not use it.
+func (a *InternalUsageAPI) SetCodeChanges(ctx context.Context, params *SessionUsageSetCodeChangesRequest) (*SessionUsageSetCodeChangesResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		if params.FilesCount != nil {
+			req["filesCount"] = *params.FilesCount
+		}
+		req["linesAdded"] = params.LinesAdded
+		req["linesRemoved"] = params.LinesRemoved
+	}
+	raw, err := a.client.Request(ctx, "session.usage.setCodeChanges", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionUsageSetCodeChangesResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // Experimental: InternalWorkflowAPI contains experimental APIs that may change or be
 // removed.
 type InternalWorkflowAPI internalSessionAPI
@@ -39754,6 +40441,7 @@ type InternalSessionRPC struct {
 	Schedule   *InternalScheduleAPI
 	Settings   *InternalSettingsAPI
 	UI         *InternalUIAPI
+	Usage      *InternalUsageAPI
 	Workflow   *InternalWorkflowAPI
 }
 
@@ -39802,6 +40490,7 @@ func NewInternalSessionRPC(client *jsonrpc2.Client, sessionID string) *InternalS
 	r.Schedule = (*InternalScheduleAPI)(&r.common)
 	r.Settings = (*InternalSettingsAPI)(&r.common)
 	r.UI = (*InternalUIAPI)(&r.common)
+	r.Usage = (*InternalUsageAPI)(&r.common)
 	r.Workflow = (*InternalWorkflowAPI)(&r.common)
 	return r
 }

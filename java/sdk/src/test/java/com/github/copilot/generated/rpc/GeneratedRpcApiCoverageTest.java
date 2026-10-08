@@ -391,7 +391,7 @@ class GeneratedRpcApiCoverageTest {
         var session = new SessionRpc(stub, "sess-mode-set");
 
         var modeParams = new SessionModeSetParams(null, null, null, null, null, null, null, null, null, null, null,
-                null, null);
+                null, null, null);
         session.mode.set(modeParams);
 
         assertEquals(1, stub.calls.size());

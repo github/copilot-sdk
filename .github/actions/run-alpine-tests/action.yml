@@ -43,7 +43,7 @@ runs:
         printf '%s\n' "$ALPINE_TEST_COMMAND" >> "$script_path"
         chmod +x "$script_path"
 
-        docker run --rm \
+        docker run --rm --init \
           --platform linux/amd64 \
           --volume "$GITHUB_WORKSPACE:/workspace" \
           --volume "$script_path:/tmp/copilot-sdk-alpine-test.sh:ro" \

@@ -215,6 +215,20 @@ impl Drop for NotifyOnDrop {
     }
 }
 
+struct CapturingTool {
+    _on_drop: NotifyOnDrop,
+}
+
+#[async_trait]
+impl tool::ToolHandler for CapturingTool {
+    async fn call(
+        &self,
+        _invocation: ToolInvocation,
+    ) -> Result<ToolResult, github_copilot_sdk::Error> {
+        Ok(ToolResult::Text("captured handler".to_string()))
+    }
+}
+
 #[async_trait]
 impl PermissionHandler for PendingPermissionHandler {
     async fn handle(
@@ -3036,6 +3050,204 @@ fn permission_request_data_extracts_typed_kind() {
 }
 
 #[tokio::test]
+async fn session_retirement_releases_retained_tool_handler_captures() {
+    for action in ["force_stop", "stop_event_loop", "connection_loss"] {
+        let dropped = Arc::new(Notify::new());
+        let handler = Arc::new(CapturingTool {
+            _on_drop: NotifyOnDrop(dropped.clone()),
+        });
+        let retained = Arc::downgrade(&handler);
+        let (session, server) = create_session_pair_with_config(move |cfg| {
+            cfg.with_tools(vec![Tool::new("capture").with_handler(handler)])
+        })
+        .await;
+        assert!(
+            retained.upgrade().is_some(),
+            "{action}: handler not installed"
+        );
+
+        match action {
+            "force_stop" => session.client().force_stop(),
+            "stop_event_loop" => session.stop_event_loop().await,
+            "connection_loss" => drop(server),
+            _ => unreachable!(),
+        }
+        timeout(TIMEOUT, dropped.notified())
+            .await
+            .unwrap_or_else(|_| panic!("{action}: retained session kept tool captures alive"));
+        assert!(
+            retained.upgrade().is_none(),
+            "{action}: handler still retained"
+        );
+        assert!(session.cancellation_token().is_cancelled());
+    }
+}
+
+#[tokio::test]
+async fn force_stop_closes_retained_session_subscriptions() {
+    use futures_util::FutureExt as _;
+    use github_copilot_sdk::subscription::RecvErrorKind;
+    use tokio_stream::StreamExt as _;
+
+    let (session, mut server) = create_session_pair().await;
+    let mut existing = session.subscribe();
+    let mut buffered = session.subscribe();
+    server
+        .send_event("before-force-stop", serde_json::json!({}))
+        .await;
+    assert_eq!(
+        timeout(TIMEOUT, existing.recv())
+            .await
+            .unwrap()
+            .unwrap()
+            .event_type,
+        "before-force-stop"
+    );
+
+    session.client().force_stop();
+    let error = buffered
+        .recv()
+        .now_or_never()
+        .expect(
+            "force-stop must discard the already-published marker without awaiting the producer",
+        )
+        .unwrap_err();
+    assert!(matches!(error.kind(), RecvErrorKind::Closed), "{error:?}");
+    assert!(buffered.next().now_or_never().unwrap().is_none());
+    let mut late = session.subscribe();
+    let error = late
+        .recv()
+        .now_or_never()
+        .expect("late subscription must close without waiting for event-loop scheduling")
+        .unwrap_err();
+    assert!(matches!(error.kind(), RecvErrorKind::Closed), "{error:?}");
+    assert!(late.next().now_or_never().unwrap().is_none());
+
+    let lifetime = session.cancellation_token();
+    timeout(TIMEOUT, lifetime.cancelled())
+        .await
+        .expect("force-stop must terminate the retained session's event loop");
+    let error = timeout(TIMEOUT, existing.recv())
+        .await
+        .unwrap()
+        .unwrap_err();
+    assert!(matches!(error.kind(), RecvErrorKind::Closed), "{error:?}");
+    assert!(existing.next().now_or_never().unwrap().is_none());
+}
+
+#[tokio::test]
+async fn force_stop_closes_unstarted_prepared_subscriptions() {
+    use futures_util::FutureExt as _;
+    use github_copilot_sdk::subscription::RecvErrorKind;
+
+    let (client, _server_read, _server_write) = make_client();
+    let prepared = client.prepare_session(SessionConfig::default()).unwrap();
+    let mut existing = prepared.subscribe();
+    assert!(existing.recv().now_or_never().is_none());
+    client.force_stop();
+
+    for mut events in [prepared.subscribe(), existing] {
+        let error = events
+            .recv()
+            .now_or_never()
+            .expect("force-stop must close observers even before an event loop exists")
+            .unwrap_err();
+        assert!(matches!(error.kind(), RecvErrorKind::Closed), "{error:?}");
+    }
+}
+
+#[tokio::test]
+async fn stopped_event_loop_closes_subscriptions_without_dropping_session() {
+    use futures_util::FutureExt as _;
+    use github_copilot_sdk::subscription::RecvErrorKind;
+
+    let (session, _server) = create_session_pair().await;
+    let existing = session.subscribe();
+    session.stop_event_loop().await;
+
+    for mut events in [session.subscribe(), existing] {
+        let error = events
+            .recv()
+            .now_or_never()
+            .expect("a retained stopped session must not keep its producer alive")
+            .unwrap_err();
+        assert!(matches!(error.kind(), RecvErrorKind::Closed), "{error:?}");
+    }
+}
+
+#[tokio::test]
+async fn owner_connection_loss_retires_retained_session_subscriptions() {
+    use futures_util::FutureExt as _;
+    use github_copilot_sdk::subscription::RecvErrorKind;
+
+    let (session, server) = create_session_pair().await;
+    let existing = session.subscribe();
+    let lifetime = session.cancellation_token();
+    drop(server);
+    timeout(TIMEOUT, lifetime.cancelled())
+        .await
+        .expect("transport EOF must terminate the retained session's event loop");
+
+    for mut events in [session.subscribe(), existing] {
+        let error = timeout(TIMEOUT, events.recv()).await.unwrap().unwrap_err();
+        assert!(matches!(error.kind(), RecvErrorKind::Closed), "{error:?}");
+        assert!(events.recv().now_or_never().unwrap().is_err());
+    }
+}
+
+#[tokio::test]
+async fn replacing_router_registration_retires_only_previous_session() {
+    use futures_util::FutureExt as _;
+    use github_copilot_sdk::subscription::RecvErrorKind;
+
+    let (session, mut server) = create_session_pair().await;
+    let lifetime = session.cancellation_token();
+    let replacement = tokio::spawn({
+        let client = session.client().clone();
+        let session_id = session.id().clone();
+        async move {
+            client
+                .create_session(SessionConfig::default().with_session_id(session_id))
+                .await
+                .unwrap()
+        }
+    });
+    let request = server.read_request().await;
+    assert_eq!(request["method"], "session.create");
+    server
+        .respond(
+            &request,
+            serde_json::json!({ "sessionId": server.session_id }),
+        )
+        .await;
+    let replacement = timeout(TIMEOUT, replacement).await.unwrap().unwrap();
+    timeout(TIMEOUT, lifetime.cancelled())
+        .await
+        .expect("closed routing channels must retire the previous event loop");
+    let error = session
+        .subscribe()
+        .recv()
+        .now_or_never()
+        .unwrap()
+        .unwrap_err();
+    assert!(matches!(error.kind(), RecvErrorKind::Closed), "{error:?}");
+
+    let mut events = replacement.subscribe();
+    server
+        .send_event("replacement-live", serde_json::json!({}))
+        .await;
+    assert_eq!(
+        timeout(TIMEOUT, events.recv())
+            .await
+            .unwrap()
+            .unwrap()
+            .event_type,
+        "replacement-live"
+    );
+    assert!(!replacement.cancellation_token().is_cancelled());
+}
+
+#[tokio::test]
 async fn force_stop_is_idempotent_with_no_child() {
     // Stream-based clients have no child process. force_stop should be a
     // no-op and safe to call multiple times.
@@ -5818,6 +6030,93 @@ async fn read_tool_result(server: &mut FakeServer, request_id: &str) -> Value {
 async fn assert_no_request(server: &mut FakeServer) {
     let request = timeout(Duration::from_millis(150), server.read_request()).await;
     assert!(request.is_err(), "unexpected request: {:?}", request.ok());
+}
+
+#[tokio::test]
+async fn set_tools_rejects_acknowledgment_after_event_loop_retirement() {
+    let (session, mut server) = create_session_pair().await;
+    let session = Arc::new(session);
+    let dropped = Arc::new(Notify::new());
+    let handler = Arc::new(CapturingTool {
+        _on_drop: NotifyOnDrop(dropped.clone()),
+    });
+    let retained = Arc::downgrade(&handler);
+    let replace = tokio::spawn({
+        let session = session.clone();
+        async move {
+            session
+                .set_tools([Tool::new("capture").with_handler(handler)])
+                .await
+        }
+    });
+    let request = timeout(TIMEOUT, server.read_request()).await.unwrap();
+    assert_eq!(request["method"], "session.tools.set");
+
+    session.stop_event_loop().await;
+    server.respond(&request, serde_json::json!({})).await;
+    let error = timeout(TIMEOUT, replace)
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap_err();
+    assert_eq!(error.kind(), &ErrorKind::Rpc { code: -32603 });
+    assert_eq!(
+        error.to_string(),
+        format!(
+            "RPC error -32603: {}",
+            github_copilot_sdk::SessionErrorKind::EventLoopClosed
+        )
+    );
+    timeout(TIMEOUT, dropped.notified()).await.unwrap();
+    assert!(retained.upgrade().is_none());
+}
+
+#[tokio::test]
+async fn set_tools_rejects_queued_and_late_admission_after_retirement() {
+    let (session, mut server) = create_session_pair().await;
+    let session = Arc::new(session);
+    let first = tokio::spawn({
+        let session = session.clone();
+        async move {
+            session
+                .set_tools([label_tool("first", "first handler")])
+                .await
+        }
+    });
+    let request = timeout(TIMEOUT, server.read_request()).await.unwrap();
+    assert_eq!(request["method"], "session.tools.set");
+
+    let queued = session.set_tools([label_tool("queued", "queued handler")]);
+    tokio::pin!(queued);
+    assert!(futures_util::poll!(queued.as_mut()).is_pending());
+
+    session.stop_event_loop().await;
+    server.respond(&request, serde_json::json!({})).await;
+    let error = timeout(TIMEOUT, first).await.unwrap().unwrap().unwrap_err();
+    assert_eq!(error.kind(), &ErrorKind::Rpc { code: -32603 });
+    assert_eq!(
+        error.to_string(),
+        format!(
+            "RPC error -32603: {}",
+            github_copilot_sdk::SessionErrorKind::EventLoopClosed
+        )
+    );
+    for result in [
+        timeout(TIMEOUT, queued).await.unwrap(),
+        session
+            .set_tools([label_tool("late", "late handler")])
+            .await,
+    ] {
+        let error = result.unwrap_err();
+        assert!(
+            matches!(
+                error.kind(),
+                ErrorKind::Session(github_copilot_sdk::SessionErrorKind::EventLoopClosed)
+            ),
+            "{error}"
+        );
+    }
+    assert_no_request(&mut server).await;
 }
 
 #[tokio::test]

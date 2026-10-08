@@ -68,11 +68,14 @@ describe("Scenario permission mode RPC", async () => {
                 })
             ).resolves.toMatchObject({ success: false, mode: "manual" });
             expect((await session.rpc.permissions.getMode()).mode).toBe("manual");
-            expect(enforcement).toMatchObject({
-                escalation: "assisted_approval",
-                setting: "permissions.disableAssistedPermissionsMode",
-                failClosed: false,
-            });
+            // RPC completion does not drain the independently delivered session events.
+            await expect
+                .poll(() => enforcement, { timeout: 30_000 })
+                .toMatchObject({
+                    escalation: "assisted_approval",
+                    setting: "permissions.disableAssistedPermissionsMode",
+                    failClosed: false,
+                });
         } finally {
             await session.disconnect();
         }

@@ -21,6 +21,12 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record CompactionCompleteCompactionTokensUsed(
+    /** Whether the compaction's credit amount was reported for all, some, or none of its calls. */
+    @JsonProperty("aiCreditsStatus") AiCreditsStatus aiCreditsStatus,
+    /** Provider captured for the compaction call; absent when attribution is unknown. */
+    @JsonProperty("provider") ModelProviderRef provider,
+    /** Model display name captured for the compaction call. */
+    @JsonProperty("modelDisplayName") String modelDisplayName,
     /** Input tokens consumed by the compaction LLM call */
     @JsonProperty("inputTokens") Long inputTokens,
     /** Output tokens produced by the compaction LLM call */

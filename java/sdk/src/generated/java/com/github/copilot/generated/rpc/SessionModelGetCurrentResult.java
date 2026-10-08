@@ -26,8 +26,12 @@ import javax.annotation.processing.Generated;
 public record SessionModelGetCurrentResult(
     /** Currently active model identifier */
     @JsonProperty("modelId") String modelId,
+    /** Provider selected for this model. Together with modelId, identifies a catalog entry even when providers serve the same model. Omitted for unattributed legacy selections. */
+    @JsonProperty("providerId") String providerId,
     /** Captured base model to restore when leaving plan mode. Omitted outside plan mode or when no plan override has captured a base model. Persistent agent model requirements apply to this model rather than the temporary plan model. */
     @JsonProperty("planBaseModelId") String planBaseModelId,
+    /** Provider of planBaseModelId, when that saved selection is provider-qualified. */
+    @JsonProperty("planBaseProviderId") String planBaseProviderId,
     /** Reasoning effort level currently applied to the active model, when one is set. Reads `Session.getReasoningEffort()` synchronously after `getSelectedModel()` resolves so the two values are reported as a snapshot. */
     @JsonProperty("reasoningEffort") String reasoningEffort,
     /** Context tier for models that support multiple context-window sizes. */

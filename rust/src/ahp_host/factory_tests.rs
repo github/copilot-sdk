@@ -186,7 +186,10 @@ async fn resume_rejects_superseded_retained_original() {
     assert_eq!(reload["method"], "session.skills.reload");
     peer.respond(&reload, json!({})).await;
     let current = timeout(TIMEOUT, resuming).await.unwrap().unwrap().unwrap();
-    assert!(!original.cancellation_token().is_cancelled());
+    let original_retired = original.cancellation_token();
+    timeout(TIMEOUT, original_retired.cancelled())
+        .await
+        .unwrap();
     let retained = original.clone();
     let (released_tx, mut resumed_released) = mpsc::unbounded_channel();
     let pending = start(
@@ -212,6 +215,13 @@ async fn resume_rejects_superseded_retained_original() {
     let response = peer.request().await;
     assert_eq!(response["id"], 901);
     assert!(response.get("error").is_some());
+    assert!(
+        response["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("AHP callback must return the requested session from this client"),
+        "{response}"
+    );
     assert!(Arc::ptr_eq(
         &original,
         &receive(&mut resumed_released).await

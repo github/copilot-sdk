@@ -294,15 +294,7 @@
                     <forkNode implementation="org.apache.maven.plugin.surefire.extensions.SurefireForkNodeFactory" />
                     <!-- Inject JaCoCo agent + any JDK-version-specific flags -->
                     <argLine>${testExecutionAgentArgs} ${surefire.jvm.args} --add-opens com.github.copilot.java/com.github.copilot.e2e=ALL-UNNAMED</argLine>
-                    <!--
-                        Automatically retry tests that fail on the first attempt.
-                        This handles intermittent failures in E2E tests (e.g.,
-                        CompactionTest) where snapshot matching can be sensitive
-                        to non-deterministic compaction behaviour.
-                        Revisit this once this issue is successfully resolved.
-                        https://github.com/github/copilot-sdk/issues/1227
-                    -->
-                    <rerunFailingTestsCount>2</rerunFailingTestsCount>
+                    <rerunFailingTestsCount>0</rerunFailingTestsCount>
                     <systemPropertyVariables>
                         <copilot.tests.dir>${copilot.tests.dir}</copilot.tests.dir>
                         <copilot.sdk.dir>${copilot.sdk.root}</copilot.sdk.dir>

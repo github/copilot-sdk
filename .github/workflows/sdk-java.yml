@@ -203,7 +203,7 @@ jobs:
         env:
           COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
         run: |
-          docker run --rm \
+          docker run --rm --init \
             --volume "$GITHUB_WORKSPACE:/workspace" \
             --workdir "/workspace/$SDK_HOME/java" \
             --env CI=true \

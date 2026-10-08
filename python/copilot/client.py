@@ -1807,6 +1807,7 @@ class CopilotClient:
         self._start_lock = asyncio.Lock()
         self._sessions: dict[str, CopilotSession] = {}
         self._sessions_lock = threading.Lock()
+        self._session_admission_closed = False
         self._ahp_hosts = _AhpHostManager(
             self._get_session, self.create_session, self.resume_session
         )
@@ -2058,6 +2059,8 @@ class CopilotClient:
             if self._request_handler is not None:
                 await self._set_llm_inference_provider()
 
+            with self._sessions_lock:
+                self._session_admission_closed = False
             self._state = "connected"
             log_timing(
                 logger,
@@ -2132,6 +2135,7 @@ class CopilotClient:
         # Atomically take ownership of all sessions and clear the dict
         # so no other thread can access them
         with self._sessions_lock:
+            self._session_admission_closed = True
             sessions_to_destroy = list(self._sessions.values())
             self._sessions.clear()
 
@@ -2283,6 +2287,7 @@ class CopilotClient:
 
         # Clear sessions immediately without trying to destroy them
         with self._sessions_lock:
+            self._session_admission_closed = True
             sessions = list(self._sessions.values())
             self._sessions.clear()
         for session in sessions:
@@ -2632,6 +2637,11 @@ class CopilotClient:
         Raises:
             ValueError: If ``on_permission_request`` is provided but not callable.
 
+        Note:
+            A session retained by the filesystem factory is retired if initialization
+            or the create RPC fails or is cancelled. Cancelling an accepted cloud
+            creation does not delete its remote session.
+
         Example:
             >>> session = await client.create_session(
             ...     on_permission_request=PermissionHandler.approve_all,
@@ -2935,6 +2945,7 @@ class CopilotClient:
         if not self._client:
             raise RuntimeError("Client not connected")
 
+        rpc_client = self._client
         total_start = time.perf_counter()
         # For cloud sessions, let the CLI/server assign the session id and
         # register the session lazily once the response arrives. For non-cloud
@@ -2959,8 +2970,17 @@ class CopilotClient:
         trace_ctx = get_trace_context()
         payload.update(trace_ctx)
 
+        event_loop = asyncio.get_running_loop()
+        event_loop_thread = threading.get_ident()
+
+        def _retire_unreturned_session(s: CopilotSession) -> None:
+            if threading.get_ident() == event_loop_thread:
+                s._mark_disconnected()
+            else:
+                event_loop.call_soon_threadsafe(s._mark_disconnected)
+
         def _initialize_session(sid: str) -> CopilotSession:
-            """Create the session, wire up handlers, and register it.
+            """Create the session and wire up handlers.
 
             Invoked from the reader thread the instant the session.create
             response arrives (synchronously, before the next message is
@@ -2970,7 +2990,7 @@ class CopilotClient:
             setup_start = time.perf_counter()
             s = CopilotSession(
                 sid,
-                self._client,
+                rpc_client,
                 workspace_path=None,
                 managed_settings_enabled=enable_managed_settings is True
                 or managed_settings is not None,
@@ -2982,55 +3002,59 @@ class CopilotClient:
                     )
                 ),
             )
-            if self._session_fs_config:
-                if create_session_fs_handler is None:
-                    raise ValueError(
-                        "create_session_fs_handler is required in session config when "
-                        "session_fs is enabled in client options."
-                    )
-                fs_provider: SessionFsProvider = create_session_fs_handler(s)
-                caps = self._session_fs_config.get("capabilities")
-                if caps and caps.get("sqlite"):
-                    from .session_fs_provider import SessionFsSqliteProvider
-
-                    if not isinstance(fs_provider, SessionFsSqliteProvider):
+            try:
+                if self._session_fs_config:
+                    if create_session_fs_handler is None:
                         raise ValueError(
-                            "SessionFs capabilities declare SQLite support but the provider "
-                            "does not implement SessionFsSqliteProvider"
+                            "create_session_fs_handler is required in session config when "
+                            "session_fs is enabled in client options."
                         )
-                if caps and caps.get("binary"):
-                    from .session_fs_provider import SessionFsBinaryProvider
+                    fs_provider: SessionFsProvider = create_session_fs_handler(s)
+                    caps = self._session_fs_config.get("capabilities")
+                    if caps and caps.get("sqlite"):
+                        from .session_fs_provider import SessionFsSqliteProvider
 
-                    if not isinstance(fs_provider, SessionFsBinaryProvider):
-                        raise ValueError(
-                            "SessionFs capabilities declare binary support but the provider "
-                            "does not implement SessionFsBinaryProvider"
-                        )
-                s._client_session_apis.session_fs = create_session_fs_adapter(fs_provider)
-            s._register_tools(tools)
-            s._register_commands(commands)
-            s._register_skill_provider(skill_provider)
-            s._register_permission_handler(on_permission_request)
-            s._register_mcp_auth_handler(on_mcp_auth_request)
-            if on_user_input_request:
-                s._register_user_input_handler(on_user_input_request)
-            if on_elicitation_request:
-                s._register_elicitation_handler(on_elicitation_request)
-            if on_exit_plan_mode_request:
-                s._register_exit_plan_mode_handler(on_exit_plan_mode_request)
-            if on_auto_mode_switch_request:
-                s._register_auto_mode_switch_handler(on_auto_mode_switch_request)
-            if canvas_handler is not None:
-                s._register_canvas_handler(canvas_handler)
-            s._register_bearer_token_providers(_collect_bearer_token_callbacks(provider, providers))
-            if hooks:
-                s._register_hooks(hooks)
-            if transform_callbacks:
-                s._register_transform_callbacks(transform_callbacks)
-            if on_event:
-                s.on(on_event)
-            with self._sessions_lock:
-                self._sessions[sid] = s
+                        if not isinstance(fs_provider, SessionFsSqliteProvider):
+                            raise ValueError(
+                                "SessionFs capabilities declare SQLite support but the provider "
+                                "does not implement SessionFsSqliteProvider"
+                            )
+                    if caps and caps.get("binary"):
+                        from .session_fs_provider import SessionFsBinaryProvider
+
+                        if not isinstance(fs_provider, SessionFsBinaryProvider):
+                            raise ValueError(
+                                "SessionFs capabilities declare binary support but the provider "
+                                "does not implement SessionFsBinaryProvider"
+                            )
+                    s._client_session_apis.session_fs = create_session_fs_adapter(fs_provider)
+                s._register_tools(tools)
+                s._register_commands(commands)
+                s._register_skill_provider(skill_provider)
+                s._register_permission_handler(on_permission_request)
+                s._register_mcp_auth_handler(on_mcp_auth_request)
+                if on_user_input_request:
+                    s._register_user_input_handler(on_user_input_request)
+                if on_elicitation_request:
+                    s._register_elicitation_handler(on_elicitation_request)
+                if on_exit_plan_mode_request:
+                    s._register_exit_plan_mode_handler(on_exit_plan_mode_request)
+                if on_auto_mode_switch_request:
+                    s._register_auto_mode_switch_handler(on_auto_mode_switch_request)
+                if canvas_handler is not None:
+                    s._register_canvas_handler(canvas_handler)
+                s._register_bearer_token_providers(
+                    _collect_bearer_token_callbacks(provider, providers)
+                )
+                if hooks:
+                    s._register_hooks(hooks)
+                if transform_callbacks:
+                    s._register_transform_callbacks(transform_callbacks)
+                if on_event:
+                    s.on(on_event)
+            except BaseException:
+                _retire_unreturned_session(s)
+                raise
             log_timing(
                 logger,
                 logging.DEBUG,
@@ -3048,7 +3072,6 @@ class CopilotClient:
         server_assigned_session_id: str | None = None
         inline_state_lock = threading.Lock()
         request_failed = False
-        event_loop = asyncio.get_running_loop()
 
         async def _delete_uninitialized_session(sid: str) -> None:
             try:
@@ -3067,8 +3090,11 @@ class CopilotClient:
         if local_session_id is not None:
             try:
                 session = _initialize_session(local_session_id)
+                self._register_session(session)
                 registered_session_id = local_session_id
             except BaseException:
+                if session is not None:
+                    session._mark_disconnected()
                 self._unregister_github_token_provider(github_token_provider_registration_id)
                 raise
 
@@ -3112,13 +3138,17 @@ class CopilotClient:
                     with inline_state_lock:
                         late_success = request_failed
                         if not late_success:
+                            try:
+                                self._register_session(initialized)
+                            except BaseException:
+                                _retire_unreturned_session(initialized)
+                                raise
                             session = initialized
                             registered_session_id = sid
                     if late_success:
-                        with self._sessions_lock:
-                            self._sessions.pop(sid, None)
+                        _retire_unreturned_session(initialized)
 
-            response = await self._client.request(
+            response = await rpc_client.request(
                 "session.create", payload, on_response_inline=_register_inline
             )
             log_timing(
@@ -3139,7 +3169,7 @@ class CopilotClient:
                 github_token_provider_registration_id, session.session_id
             )
             if on_mcp_auth_request is not None:
-                await self._client.request(
+                await rpc_client.request(
                     "session.eventLog.registerInterest",
                     {"sessionId": session.session_id, "eventType": "mcp.oauth_required"},
                 )
@@ -3153,10 +3183,11 @@ class CopilotClient:
                 orphaned_id = server_assigned_session_id
                 failed_session = session
             if failed_session is not None:
-                failed_session._clear_skill_provider()
+                failed_session._mark_disconnected()
             if registered_id is not None:
                 with self._sessions_lock:
-                    self._sessions.pop(registered_id, None)
+                    if self._sessions.get(registered_id) is failed_session:
+                        del self._sessions[registered_id]
             if orphaned_id is not None:
                 await _delete_uninitialized_session(orphaned_id)
             self._unregister_github_token_provider(github_token_provider_registration_id)
@@ -3485,6 +3516,11 @@ class CopilotClient:
             RuntimeError: If the session does not exist or the client is not connected.
             ValueError: If ``on_permission_request`` is not a valid callable.
 
+        Note:
+            A session retained by the filesystem factory is retired if initialization
+            or the resume RPC fails or is cancelled. A failed resume preserves the
+            previously registered session.
+
         Example:
             >>> session = await client.resume_session(
             ...     "session-123",
@@ -3756,6 +3792,7 @@ class CopilotClient:
         if not self._client:
             raise RuntimeError("Client not connected")
 
+        rpc_client = self._client
         total_start = time.perf_counter()
         # Propagate W3C Trace Context to CLI if OpenTelemetry is active
         trace_ctx = get_trace_context()
@@ -3766,36 +3803,40 @@ class CopilotClient:
         setup_start = time.perf_counter()
         session = CopilotSession(
             session_id,
-            self._client,
+            rpc_client,
             workspace_path=None,
             managed_settings_enabled=enable_managed_settings is True
             or managed_settings is not None,
         )
-        if self._session_fs_config:
-            if create_session_fs_handler is None:
-                raise ValueError(
-                    "create_session_fs_handler is required in session config when "
-                    "session_fs is enabled in client options."
-                )
-            fs_provider: SessionFsProvider = create_session_fs_handler(session)
-            caps = self._session_fs_config.get("capabilities")
-            if caps and caps.get("sqlite"):
-                from .session_fs_provider import SessionFsSqliteProvider
-
-                if not isinstance(fs_provider, SessionFsSqliteProvider):
+        try:
+            if self._session_fs_config:
+                if create_session_fs_handler is None:
                     raise ValueError(
-                        "SessionFs capabilities declare SQLite support but the provider "
-                        "does not implement SessionFsSqliteProvider"
+                        "create_session_fs_handler is required in session config when "
+                        "session_fs is enabled in client options."
                     )
-            if caps and caps.get("binary"):
-                from .session_fs_provider import SessionFsBinaryProvider
+                fs_provider: SessionFsProvider = create_session_fs_handler(session)
+                caps = self._session_fs_config.get("capabilities")
+                if caps and caps.get("sqlite"):
+                    from .session_fs_provider import SessionFsSqliteProvider
 
-                if not isinstance(fs_provider, SessionFsBinaryProvider):
-                    raise ValueError(
-                        "SessionFs capabilities declare binary support but the provider "
-                        "does not implement SessionFsBinaryProvider"
-                    )
-            session._client_session_apis.session_fs = create_session_fs_adapter(fs_provider)
+                    if not isinstance(fs_provider, SessionFsSqliteProvider):
+                        raise ValueError(
+                            "SessionFs capabilities declare SQLite support but the provider "
+                            "does not implement SessionFsSqliteProvider"
+                        )
+                if caps and caps.get("binary"):
+                    from .session_fs_provider import SessionFsBinaryProvider
+
+                    if not isinstance(fs_provider, SessionFsBinaryProvider):
+                        raise ValueError(
+                            "SessionFs capabilities declare binary support but the provider "
+                            "does not implement SessionFsBinaryProvider"
+                        )
+                session._client_session_apis.session_fs = create_session_fs_adapter(fs_provider)
+        except BaseException:
+            session._mark_disconnected()
+            raise
         session._register_tools(tools)
         session._register_commands(commands)
         session._register_skill_provider(skill_provider)
@@ -3820,9 +3861,11 @@ class CopilotClient:
             session._register_transform_callbacks(transform_callbacks)
         if on_event:
             session.on(on_event)
-        with self._sessions_lock:
-            replaced_session = self._sessions.get(session_id)
-            self._sessions[session_id] = session
+        try:
+            replaced_session = self._register_session(session)
+        except BaseException:
+            session._mark_disconnected()
+            raise
         log_timing(
             logger,
             logging.DEBUG,
@@ -3846,7 +3889,7 @@ class CopilotClient:
 
         try:
             rpc_start = time.perf_counter()
-            response = await self._client.request("session.resume", payload)
+            response = await rpc_client.request("session.resume", payload)
             log_timing(
                 logger,
                 logging.DEBUG,
@@ -3870,7 +3913,7 @@ class CopilotClient:
                     [OpenCanvasInstance.from_dict(inst) for inst in open_canvases_raw]
                 )
             if on_mcp_auth_request is not None:
-                await self._client.request(
+                await rpc_client.request(
                     "session.eventLog.registerInterest",
                     {"sessionId": session.session_id, "eventType": "mcp.oauth_required"},
                 )
@@ -3883,7 +3926,7 @@ class CopilotClient:
                         self._sessions[session_id] = replaced_session
                     else:
                         del self._sessions[session_id]
-            session._clear_skill_provider()
+            session._mark_disconnected()
             self._unregister_github_token_provider(github_token_provider_registration_id)
             if not isinstance(exc, asyncio.CancelledError):
                 log_timing(
@@ -5116,6 +5159,7 @@ class CopilotClient:
         if self._installation_confirmation_adapter is not None:
             self._installation_confirmation_adapter.close_connection()
         with self._sessions_lock:
+            self._session_admission_closed = True
             sessions = list(self._sessions.values())
         with self._github_token_providers_lock:
             self._github_token_providers.clear()
@@ -5166,6 +5210,18 @@ class CopilotClient:
                 if registration is not None:
                     registration.session_id = session_id
                     registration.committed = True
+
+    def _register_session(self, session: CopilotSession) -> CopilotSession | None:
+        with self._sessions_lock:
+            if (
+                self._session_admission_closed
+                or self._client is None
+                or self._client is not session._client
+            ):
+                raise RuntimeError("Client not connected")
+            previous = self._sessions.get(session.session_id)
+            self._sessions[session.session_id] = session
+            return previous
 
     def _get_session(self, session_id: str) -> CopilotSession | None:
         with self._sessions_lock:

@@ -43,6 +43,30 @@ describe("Python RPC projection compatibility", () => {
         "utf8"
     );
 
+    it("deserializes usage results shared with session events", () => {
+        expect(code).toContain(
+            'return UsageGetMetricsResult.from_dict(await self._client.request("session.usage.getMetrics"'
+        );
+    });
+
+    it("returns typed quota warning projections", () => {
+        expect(code).toContain(
+            "async def take_warnings(self, *, timeout: float | None = None) -> list[QuotaWarningProjection]:"
+        );
+        expect(code).toContain(
+            'return from_list(QuotaWarningProjection.from_dict, await self._client.request("session.quota.takeWarnings"'
+        );
+    });
+
+    it.each([
+        "account.getAllUsers",
+        "sessions.getClientMetadata",
+        "session.gitHubAuth.getAllAuthAvailable",
+        "session.gitHubAuth.lastAuthErrors",
+    ])("preserves the published dictionary-array result for %s", (method) => {
+        expect(code).toContain(`return list(await self._client.request("${method}"`);
+    });
+
     it("preserves the existing Workflow checkpoint result API", () => {
         const result = "SessionWorkflowPauseAtCheckpointResult";
         expect(code).toContain(`class ${result}:`);

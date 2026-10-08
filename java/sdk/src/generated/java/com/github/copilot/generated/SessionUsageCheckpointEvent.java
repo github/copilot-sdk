@@ -11,6 +11,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
+import java.util.Map;
 import javax.annotation.processing.Generated;
 
 /**
@@ -37,6 +38,12 @@ public final class SessionUsageCheckpointEvent extends SessionEvent {
     public record SessionUsageCheckpointEventData(
         /** Session-wide accumulated nano-AI units cost at checkpoint time */
         @JsonProperty("totalNanoAiu") Double totalNanoAiu,
+        /** Complete accounting state captured atomically with the receipt watermarks. */
+        @JsonProperty("accountingSnapshot") UsageGetMetricsResult accountingSnapshot,
+        /** Provider/model accounting snapshot that subsumes preceding usage receipts. */
+        @JsonProperty("providerModelMetrics") List<UsageMetricsProviderModelMetric> providerModelMetrics,
+        /** Highest accounted sequence per source session; no per-call deduplication history is retained. */
+        @JsonProperty("usageAccountingWatermarks") Map<String, Long> usageAccountingWatermarks,
         /** Total number of premium API requests used at checkpoint time */
         @JsonProperty("totalPremiumRequests") Double totalPremiumRequests,
         /** Internal per-model prompt-cache state used to restore expiration tracking on resume */

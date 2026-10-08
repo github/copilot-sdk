@@ -26,7 +26,7 @@ import javax.annotation.processing.Generated;
 public record SessionModelSwitchToParams(
     /** Target session identifier */
     @JsonProperty("sessionId") String sessionId,
-    /** Model selection id to switch to, as returned by `list`. A bare id (e.g. `claude-sonnet-4.6`) names a Copilot (CAPI) model; a provider-qualified id (`provider/id`, e.g. `acme/claude-sonnet`) targets a registry BYOK model. */
+    /** Model id to switch to, as returned by `list`. Include providerId to select an exact catalog entry when providers share the id. Without providerId, a bare id retains incumbent selection behavior; a registry-qualified id (`provider/id`, e.g. `acme/claude-sonnet`) targets a BYOK model. */
     @JsonProperty("modelId") String modelId,
     /** Optional Auto routing preference to stage atomically with selecting `auto`. Pass null to return to provider-default Auto routing. This field is rejected when `modelId` is not `auto`. */
     @JsonProperty("autoTier") AutoTier autoTier,

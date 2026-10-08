@@ -3365,7 +3365,8 @@ async function generateRpc(schemaPath?: string, sessionEventsSchema?: JSONSchema
     const { FetchingJSONSchemaStore, InputData, JSONSchemaInput, quicktype } = await import("quicktype-core");
 
     const resolvedPath = schemaPath ?? (await getApiSchemaPath());
-    let schema = fixNullableRequiredRefsInApiSchema(cloneSchemaForCodegen((await loadSchemaJson(resolvedPath)) as ApiSchema));
+    const sourceSchema = fixNullableRequiredRefsInApiSchema(cloneSchemaForCodegen((await loadSchemaJson(resolvedPath)) as ApiSchema));
+    let schema = sourceSchema;
     if (sessionEventsSchema) {
         const sharedDefinitions = findSharedSchemaDefinitions(
             schema as unknown as Record<string, unknown>,
@@ -3800,25 +3801,28 @@ def _patch_model_capabilities(data: dict) -> dict:
 
 `);
 
-    // Emit RPC wrapper classes
-    if (schema.server) {
-        const publicNode = filterNodeByVisibility(schema.server, "public");
+    // Imports change where types live, not how their wire values are decoded.
+    const projectionDefinitions = rpcDefinitions;
+    rpcDefinitions = collectDefinitionCollections(sourceSchema as Record<string, unknown>);
+    if (sourceSchema.server) {
+        const publicNode = filterNodeByVisibility(sourceSchema.server, "public");
         if (publicNode) emitRpcWrapper(lines, publicNode, false, resolveType, "");
-        const internalNode = filterNodeByVisibility(schema.server, "internal");
+        const internalNode = filterNodeByVisibility(sourceSchema.server, "internal");
         if (internalNode) emitRpcWrapper(lines, internalNode, false, resolveType, "_Internal");
     }
-    if (schema.session) {
-        const publicNode = filterNodeByVisibility(schema.session, "public");
+    if (sourceSchema.session) {
+        const publicNode = filterNodeByVisibility(sourceSchema.session, "public");
         if (publicNode) emitRpcWrapper(lines, publicNode, true, resolveType, "");
-        const internalNode = filterNodeByVisibility(schema.session, "internal");
+        const internalNode = filterNodeByVisibility(sourceSchema.session, "internal");
         if (internalNode) emitRpcWrapper(lines, internalNode, true, resolveType, "_Internal");
     }
-    if (schema.clientSession) {
-        emitClientSessionApiRegistration(lines, schema.clientSession, resolveType);
+    if (sourceSchema.clientSession) {
+        emitClientSessionApiRegistration(lines, sourceSchema.clientSession, resolveType);
     }
-    if (schema.clientGlobal) {
-        emitClientGlobalApiRegistration(lines, schema.clientGlobal, resolveType);
+    if (sourceSchema.clientGlobal) {
+        emitClientGlobalApiRegistration(lines, sourceSchema.clientGlobal, resolveType);
     }
+    rpcDefinitions = projectionDefinitions;
 
     // Patch models.list to normalize capabilities before deserialization
     let finalCode = lines.join("\n");
@@ -4129,6 +4133,14 @@ function emitRpcWrapper(lines: string[], node: Record<string, unknown>, isSessio
     lines.push(``);
 }
 
+/** Preserve published dictionary-array results while typing new object-array APIs. */
+const PYTHON_LEGACY_RAW_ARRAY_RESULTS = new Set([
+    "account.getAllUsers",
+    "sessions.getClientMetadata",
+    "session.gitHubAuth.getAllAuthAvailable",
+    "session.gitHubAuth.lastAuthErrors",
+]);
+
 export function emitMethod(lines: string[], name: string, method: RpcMethod, isSession: boolean, resolveType: (name: string) => string, groupExperimental = false, groupDeprecated = false): void {
     const isInternal = method.visibility === "internal";
     const methodName = (isInternal ? "_" : "") + toSnakeCase(name);
@@ -4139,13 +4151,22 @@ export function emitMethod(lines: string[], name: string, method: RpcMethod, isS
     const hasNullableResult = !!nullableInner;
     const resultIsOpaque = isOpaqueJson(effectiveResultSchema);
     const resultIsObject = !resultIsOpaque && isPythonObjectResultSchema(effectiveResultSchema);
+    const resultItems = effectiveResultSchema?.type === "array" &&
+        typeof effectiveResultSchema.items === "object" && !Array.isArray(effectiveResultSchema.items)
+        ? effectiveResultSchema.items
+        : undefined;
+    const resultItemType = !PYTHON_LEGACY_RAW_ARRAY_RESULTS.has(method.rpcMethod) &&
+        resultItems?.$ref && isPythonObjectResultSchema(resultItems)
+        ? resolveType(toPascalCase(refTypeName(resultItems.$ref, rpcDefinitions)))
+        : undefined;
+    const arrayResultType = resultItemType ? `list[${resultItemType}]` : undefined;
 
     let resultType: string;
     if (hasNullableResult) {
-        const innerTypeName = resolveType(pythonResultTypeName(method, nullableInner));
+        const innerTypeName = arrayResultType ?? resolveType(pythonResultTypeName(method, nullableInner));
         resultType = `${innerTypeName} | None`;
     } else if (hasResult) {
-        resultType = resolveType(pythonResultTypeName(method));
+        resultType = arrayResultType ?? resolveType(pythonResultTypeName(method));
     } else {
         resultType = "None";
     }
@@ -4181,6 +4202,10 @@ export function emitMethod(lines: string[], name: string, method: RpcMethod, isS
     const deserialize = (expr: string) => {
         if (resultIsOpaque || isAnyType) {
             return expr;
+        }
+        if (resultItemType) {
+            const arrayResult = `from_list(${resultItemType}.from_dict, ${expr})`;
+            return hasNullableResult ? `${arrayResult} if ${expr} is not None else None` : arrayResult;
         }
         if (hasNullableResult) {
             return resultIsObject

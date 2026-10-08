@@ -16,35 +16,47 @@ const RECONNECT_RESULT = "Catalog reconnected. Read both server records now.";
 describe("MCP catalog recovery", async () => {
     const { copilotClient: client, openAiEndpoint } = await createSdkTestContext();
 
-    it.each([
-        { serverName: "bluebird", surfaced: true, staleCall: false },
-        { serverName: "workiq", surfaced: false, staleCall: true },
-    ])(
-        "should recover $serverName instructions without withdrawing peer tools mid-turn",
-        { timeout: 120_000 },
-        async ({ serverName, surfaced, staleCall }) => {
-            const changing = await startCatalogServer("CATALOG_RECORD");
-            const healthy = await startCatalogServer("PEER_RECORD");
-            let session: CopilotSession;
-            let reconnects = 0;
-            const reconnect = async () => {
-                reconnects++;
+    async function checkRecovery({
+        serverName,
+        surfaced,
+        staleCall,
+        reconnectInHook = staleCall,
+        changeSchema = staleCall,
+    }: {
+        serverName: string;
+        surfaced: boolean;
+        staleCall: boolean;
+        reconnectInHook?: boolean;
+        changeSchema?: boolean;
+    }) {
+        const changing = await startCatalogServer("CATALOG_RECORD");
+        const healthy = await startCatalogServer("PEER_RECORD");
+        let session: CopilotSession;
+        let reconnects = 0;
+        const reconnect = async () => {
+            reconnects++;
+            if (!reconnectInHook || changeSchema) {
                 changing.instructions = REPLACEMENT_INSTRUCTIONS;
-                await session.rpc.mcp.restartServer({ serverName });
-                await waitForConnected(session, serverName);
-            };
-            session = await client.createSession({
-                onPermissionRequest: approveAll,
-                availableTools: [
-                    ...(!staleCall ? ["reconnect_catalog"] : []),
-                    `${serverName}-read_record`,
-                    "healthy-read_record",
-                ],
-                mcpServers: {
-                    [serverName]: { type: "http", url: changing.url, tools: ["*"] },
-                    healthy: { type: "http", url: healthy.url, tools: ["*"] },
-                },
-                hooks: staleCall
+            }
+            if (changeSchema) {
+                changing.schemaChanged = true;
+            }
+            await session.rpc.mcp.restartServer({ serverName });
+            await waitForConnected(session, serverName);
+        };
+        session = await client.createSession({
+            onPermissionRequest: approveAll,
+            availableTools: [
+                ...(!reconnectInHook ? ["reconnect_catalog"] : []),
+                `${serverName}-read_record`,
+                "healthy-read_record",
+            ],
+            mcpServers: {
+                [serverName]: { type: "http", url: changing.url, tools: ["*"] },
+                healthy: { type: "http", url: healthy.url, tools: ["*"] },
+            },
+            hooks: reconnectInHook
+                ? staleCall
                     ? {
                           onPreMcpToolCall: async (input) => {
                               if (
@@ -52,99 +64,157 @@ describe("MCP catalog recovery", async () => {
                                   input.toolName === "read_record" &&
                                   reconnects === 0
                               ) {
-                                  // Invalidate the selected catalog before its invocation dispatches.
                                   await reconnect();
                               }
                           },
                       }
-                    : undefined,
-                tools: staleCall
-                    ? []
-                    : [
-                          defineTool("reconnect_catalog", {
-                              description:
-                                  "Reconnect the changing catalog before reading either server.",
-                              parameters: z.object({}),
-                              handler: async () => {
+                    : {
+                          onPreToolUse: async (input) => {
+                              if (
+                                  input.toolName === `${serverName}-read_record` &&
+                                  reconnects === 0
+                              ) {
                                   await reconnect();
-                                  return RECONNECT_RESULT;
-                              },
-                          }),
-                      ],
-            });
-            onTestFinished(() => session.disconnect());
-            const events: SessionEvent[] = [];
-            session.on((event) => events.push(event));
-            await waitForConnected(session, serverName);
-            await waitForConnected(session, "healthy");
+                              }
+                          },
+                      }
+                : undefined,
+            tools: reconnectInHook
+                ? []
+                : [
+                      defineTool("reconnect_catalog", {
+                          description:
+                              "Reconnect the changing catalog before reading either server.",
+                          parameters: z.object({}),
+                          handler: async () => {
+                              await reconnect();
+                              return RECONNECT_RESULT;
+                          },
+                      }),
+                  ],
+        });
+        onTestFinished(() => session.disconnect());
+        const events: SessionEvent[] = [];
+        session.on((event) => events.push(event));
+        await waitForConnected(session, serverName);
+        await waitForConnected(session, "healthy");
 
-            // The instructions change at an awaited tool boundary, not during setup or a new turn.
-            // Tool definitions stay identical, exercising the instruction-only refresh fast path.
-            const response = await session.sendAndWait({
-                prompt:
-                    (staleCall
-                        ? `Call read_record on ${serverName}. If it reports a changed tool catalog, retry it. `
-                        : `Call reconnect_catalog exactly once. After it returns, call read_record on ${serverName}. `) +
-                    "then call read_record on healthy. Do not use other tools or invent their outputs. " +
-                    "Finish by reporting both record values and CATALOG_RECOVERY_COMPLETE.",
-            });
-            expect(response?.data.content).toContain("CATALOG_RECOVERY_COMPLETE");
-            expect(response?.data.content).toContain("CATALOG_RECORD");
-            expect(response?.data.content).toContain("PEER_RECORD");
-            expect(reconnects).toBe(1);
-            expect(changing.calls).toBeGreaterThan(0);
-            expect(healthy.calls).toBeGreaterThan(0);
-            expect(changing.initializations).toBe(2);
-            expect(healthy.initializations).toBe(1);
-            if (staleCall) {
-                expect(
-                    events.some(
-                        (event) =>
-                            event.type === "tool.execution_complete" &&
-                            !event.data.success &&
-                            event.data.error?.message.includes(
-                                "MCP tool catalog changed before tool"
-                            )
-                    ),
-                    "the first stale call must be refused before dispatch"
-                ).toBe(true);
-                expect(changing.calls, "only the recovered call may reach the MCP server").toBe(1);
-            }
-
-            const exchanges = await openAiEndpoint.getExchanges();
-            const initial = exchanges[0].request;
+        // Only a matching schema/instruction successor selected before MCP authorization may rebind.
+        // An unverified late replacement must still refuse the old call.
+        const response = await session.sendAndWait({
+            prompt:
+                (reconnectInHook
+                    ? `Call read_record on ${serverName}. If it reports a changed tool catalog, retry it. `
+                    : `Call reconnect_catalog exactly once. After it returns, call read_record on ${serverName}. `) +
+                "then call read_record on healthy. Do not use other tools or invent their outputs. " +
+                "Finish by reporting both record values and CATALOG_RECOVERY_COMPLETE.",
+        });
+        expect(response?.data.content).toContain("CATALOG_RECOVERY_COMPLETE");
+        expect(response?.data.content).toContain("CATALOG_RECORD");
+        expect(response?.data.content).toContain("PEER_RECORD");
+        expect(reconnects).toBe(1);
+        expect(changing.calls).toBeGreaterThan(0);
+        expect(healthy.calls).toBeGreaterThan(0);
+        expect(changing.initializations).toBe(2);
+        expect(healthy.initializations).toBe(1);
+        if (staleCall) {
             expect(
-                JSON.stringify(initial.messages.filter((message) => message.role === "system"))
-            ).not.toContain(REPLACEMENT_INSTRUCTIONS);
-            const afterReconnect = exchanges.filter(({ request }) =>
-                request.messages.some(
-                    (message) =>
-                        message.role === "tool" &&
-                        JSON.stringify(message.content).includes(
-                            staleCall ? "MCP tool catalog changed before tool" : RECONNECT_RESULT
-                        )
-                )
+                events.some(
+                    (event) =>
+                        event.type === "tool.execution_complete" &&
+                        !event.data.success &&
+                        event.data.error?.message.includes("MCP tool catalog changed before tool")
+                ),
+                "the first stale call must be refused before dispatch"
+            ).toBe(true);
+            expect(changing.calls, "only the recovered call may reach the MCP server").toBe(1);
+        } else if (reconnectInHook) {
+            const starts = events
+                .filter((event) => event.type === "tool.execution_start")
+                .filter((event) => event.data.toolName === `${serverName}-read_record`);
+            expect(starts, "an equivalent successor must not require a model retry").toHaveLength(
+                1
             );
-            expect(
-                afterReconnect.length,
-                "the same turn must continue after reconnect"
-            ).toBeGreaterThan(0);
-            for (const { request } of afterReconnect) {
-                const toolNames = request.tools
-                    ?.filter((tool) => tool.type === "function")
-                    .map((tool) => tool.function.name);
-                expect(toolNames).toContain(`${serverName}-read_record`);
-                expect(toolNames).toContain("healthy-read_record");
-                const system = JSON.stringify(
-                    request.messages.filter((message) => message.role === "system")
-                );
-                if (surfaced) {
-                    expect(system).toContain(REPLACEMENT_INSTRUCTIONS);
-                } else {
-                    expect(system).not.toContain(REPLACEMENT_INSTRUCTIONS);
-                }
+            const completions = events
+                .filter((event) => event.type === "tool.execution_complete")
+                .filter((event) => event.data.toolCallId === starts[0].data.toolCallId);
+            expect(completions).toHaveLength(1);
+            expect(completions[0]).toMatchObject({ data: { success: true } });
+            expect(changing.calls, "rebinding must dispatch the original call exactly once").toBe(
+                1
+            );
+        }
+
+        const exchanges = await openAiEndpoint.getExchanges();
+        const initial = exchanges[0].request;
+        expect(
+            JSON.stringify(initial.messages.filter((message) => message.role === "system"))
+        ).not.toContain(REPLACEMENT_INSTRUCTIONS);
+        const afterReconnect = exchanges.filter(({ request }) =>
+            request.messages.some(
+                (message) =>
+                    message.role === "tool" &&
+                    JSON.stringify(message.content).includes(
+                        staleCall
+                            ? "MCP tool catalog changed before tool"
+                            : reconnectInHook
+                              ? "CATALOG_RECORD"
+                              : RECONNECT_RESULT
+                    )
+            )
+        );
+        expect(
+            afterReconnect.length,
+            "the same turn must continue after reconnect"
+        ).toBeGreaterThan(0);
+        for (const { request } of afterReconnect) {
+            const toolNames = request.tools
+                ?.filter((tool) => tool.type === "function")
+                .map((tool) => tool.function.name);
+            expect(toolNames).toContain(`${serverName}-read_record`);
+            expect(toolNames).toContain("healthy-read_record");
+            const system = JSON.stringify(
+                request.messages.filter((message) => message.role === "system")
+            );
+            if (surfaced) {
+                expect(system).toContain(REPLACEMENT_INSTRUCTIONS);
+            } else {
+                expect(system).not.toContain(REPLACEMENT_INSTRUCTIONS);
             }
         }
+    }
+
+    it.each([
+        { serverName: "bluebird", surfaced: true, staleCall: false },
+        { serverName: "workiq", surfaced: false, staleCall: true },
+    ])(
+        "should recover $serverName instructions without withdrawing peer tools mid-turn",
+        { timeout: 120_000 },
+        checkRecovery
+    );
+
+    it(
+        "should preserve workiq instructions through an equivalent successor without withdrawing peer tools mid-turn",
+        { timeout: 120_000 },
+        () =>
+            checkRecovery({
+                serverName: "workiq",
+                surfaced: false,
+                staleCall: false,
+                reconnectInHook: true,
+            })
+    );
+
+    it(
+        "should refuse an unverified late successor and recover without withdrawing peer tools mid-turn",
+        { timeout: 120_000 },
+        () =>
+            checkRecovery({
+                serverName: "workiq",
+                surfaced: false,
+                staleCall: true,
+                changeSchema: false,
+            })
     );
 });
 
@@ -162,7 +232,7 @@ async function waitForConnected(session: CopilotSession, serverName: string): Pr
 }
 
 async function startCatalogServer(record: string) {
-    const state = { instructions: "", calls: 0, initializations: 0, url: "" };
+    const state = { instructions: "", schemaChanged: false, calls: 0, initializations: 0, url: "" };
     const server = createServer(async (request, response) => {
         if (request.method === "DELETE") {
             response.writeHead(200).end();
@@ -203,7 +273,9 @@ async function startCatalogServer(record: string) {
                             description: "Read this server's current record.",
                             inputSchema: {
                                 type: "object",
-                                properties: {},
+                                properties: state.schemaChanged
+                                    ? { revision: { type: "string" } }
+                                    : {},
                                 additionalProperties: false,
                             },
                             annotations: { readOnlyHint: true },

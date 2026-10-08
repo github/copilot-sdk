@@ -349,7 +349,7 @@ class GeneratedRpcRecordsCoverageTest {
     @Test
     void sessionModeSetParams_record() {
         var params = new SessionModeSetParams("sess-30", SessionMode.PLAN, null, null, null, null, null, null, null,
-                null, null, null, null);
+                null, null, null, null, null);
         assertEquals("sess-30", params.sessionId());
         assertEquals(SessionMode.PLAN, params.mode());
     }
@@ -469,6 +469,7 @@ class GeneratedRpcRecordsCoverageTest {
         var switchTo = mapper.valueToTree(new SessionModelSwitchToParams("sess-32", "auto", null, null, null, null,
                 null, null, null, null, null, null, null, null, null, null));
         assertFalse(switchTo.has("autoTier"));
+        assertFalse(switchTo.has("providerId"));
     }
 
     @Test
@@ -891,8 +892,8 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionModelGetCurrentResult_record() {
-        var result = new SessionModelGetCurrentResult("claude-sonnet-5", "claude-sonnet-4.5", null, null, null, null,
-                null);
+        var result = new SessionModelGetCurrentResult("claude-sonnet-5", null, "claude-sonnet-4.5", null, null, null,
+                null, null, null);
         assertEquals("claude-sonnet-5", result.modelId());
         assertEquals("claude-sonnet-4.5", result.planBaseModelId());
     }
@@ -1003,8 +1004,8 @@ class GeneratedRpcRecordsCoverageTest {
     @Test
     void sessionUsageGetMetricsResult_nested() {
         var changes = new UsageMetricsCodeChanges(100L, 50L, 5L, null);
-        var result = new SessionUsageGetMetricsResult(0.5, 10L, null, null, 2000L, null, changes, null, null, "gpt-5",
-                1000L, 500L);
+        var result = new SessionUsageGetMetricsResult(null, 0.5, 10L, null, null, 2000L, null, changes, null, null,
+                null, "gpt-5", 1000L, 500L);
         assertEquals(0.5, result.totalPremiumRequestCost());
         assertEquals(10L, result.totalUserRequests());
         assertNotNull(result.codeChanges());

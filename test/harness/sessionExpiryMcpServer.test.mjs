@@ -59,3 +59,51 @@ test("negotiates legacy session semantics even when the client requests modern M
   expect(reinitialized.headers.get("mcp-session-id")).not.toBe(sessionId);
   expect(server.stats.initializations).toBe(2);
 });
+
+test("distinguishes answered expiry probes from unrelated traffic", async ({
+  expect,
+  onTestFinished,
+}) => {
+  const startingServer = startSessionExpiryMcpServer();
+  onTestFinished(async () => (await startingServer).close());
+  const server = await startingServer;
+
+  const initialized = await fetch(`${server.url}/mcp`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize" }),
+  });
+  const sessionId = initialized.headers.get("mcp-session-id");
+  expect(initialized.status).toBe(200);
+  expect(sessionId).toBeTruthy();
+  await initialized.json();
+
+  const request = (method) =>
+    fetch(`${server.url}/mcp`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "mcp-session-id": sessionId },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 2, method }),
+    });
+  const alive = await request("ping");
+  expect(alive.status).toBe(200);
+  expect(await alive.json()).toEqual({ jsonrpc: "2.0", id: 2, result: {} });
+  expect(server.stats.expiredSessionProbes).toBe(0);
+
+  const expired = await fetch(`${server.url}/__expire`, { method: "POST" });
+  expect(expired.status).toBe(200);
+  expect(await expired.json()).toEqual({ expired: 1 });
+  expect(server.stats.expiredSessionProbes).toBe(0);
+
+  const ordinary = await request("tools/list");
+  expect(ordinary.status).toBe(404);
+  expect(await ordinary.json()).toEqual({ error: "session_expired" });
+  expect(server.stats.expiredSessionProbes).toBe(0);
+
+  const probe = await request("ping");
+  expect(probe.status).toBe(404);
+  expect(await probe.json()).toEqual({ error: "session_expired" });
+  expect(server.stats.expiredSessionProbes).toBe(1);
+  const observed = await fetch(`${server.url}/__stats`);
+  expect(observed.status).toBe(200);
+  expect(await observed.json()).toMatchObject({ activeSessions: 0, expiredSessionProbes: 1 });
+});
