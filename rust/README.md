@@ -1789,6 +1789,8 @@ and `CARGO_CFG_TARGET_ENV` (cross-compilation works).
 | `in-process` | — | Enables `Transport::InProcess` while preserving the selected runtime acquisition policy. |
 | `local-runtime` | — | Enables `in-process` and, when `bundled-cli` is disabled, disables SDK-managed runtime download, extraction, and embedding. The application must supply a compatible runtime package through `COPILOT_CLI_PATH`. |
 | `bundled-in-process` | — | Enables `in-process`, implies `bundled-cli`, and additionally embeds the platform-native runtime library. |
+| `rustls` | ✓ | TLS for the `CopilotRequestHandler` HTTP/WebSocket forwarding transport via rustls (aws-lc-rs provider, OS trust store). No system OpenSSL required, so musl/static targets build. |
+| `native-tls` | — | Platform-native TLS (OpenSSL on Linux, Secure Transport on macOS, SChannel on Windows) for the request-handler transport instead of rustls. With `default-features = false`, enable one of `rustls` / `native-tls` if you register a `request_handler` that forwards to HTTPS/WSS upstreams. |
 | `derive` | — | `schema_for::<T>()` for generating JSON Schema from Rust types (adds `schemars`). |
 
 ```toml
