@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "test": "node --test validate.test.mjs",
     "extract": "tsx extract.ts",
     "validate": "tsx validate.ts",
     "validate:ts": "tsx validate.ts --lang=typescript",

@@ -75,8 +75,8 @@ async function validateTypeScript(): Promise<ValidationResult[]> {
 
   try {
     // Run tsc
-    const tscPath = path.join(ROOT_DIR, "nodejs/node_modules/.bin/tsc");
-    execFileSync(tscPath, ["--project", tsconfigPath], {
+    const tscPath = path.join(ROOT_DIR, "nodejs/node_modules/typescript/bin/tsc");
+    execFileSync(process.execPath, [tscPath, "--project", tsconfigPath, "--pretty", "false"], {
       encoding: "utf-8",
       cwd: tsDir,
     });
@@ -98,7 +98,7 @@ async function validateTypeScript(): Promise<ValidationResult[]> {
     }
   } catch (err: any) {
     // Parse tsc output for errors
-    const output = err.stdout || err.stderr || err.message || "";
+    const output = [err.stdout, err.stderr].filter(Boolean).join("\n") || err.message || "";
     const errorLines = output.split("\n");
     const fileErrors = new Map<string, string[]>();
     let currentFile = "";
@@ -106,7 +106,7 @@ async function validateTypeScript(): Promise<ValidationResult[]> {
     for (const line of errorLines) {
       const match = line.match(/^(.+\.ts)\((\d+),(\d+)\): error/);
       if (match) {
-        currentFile = match[1];
+        currentFile = path.resolve(tsDir, match[1]);
         if (!fileErrors.has(currentFile)) {
           fileErrors.set(currentFile, []);
         }
@@ -124,7 +124,7 @@ async function validateTypeScript(): Promise<ValidationResult[]> {
       const block = manifest.blocks.find(
         (b) => b.outputFile === `typescript/${file}`,
       );
-      const errors = fileErrors.get(fullPath) || fileErrors.get(file) || [];
+      const errors = fileErrors.get(fullPath) || [];
 
       results.push({
         file: `typescript/${file}`,
@@ -133,6 +133,10 @@ async function validateTypeScript(): Promise<ValidationResult[]> {
         success: errors.length === 0,
         errors,
       });
+    }
+
+    if (results.every((result) => result.success)) {
+      throw new Error(`TypeScript documentation compilation failed:\n${output}`);
     }
   }
 
