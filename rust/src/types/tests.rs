@@ -13,11 +13,11 @@ use super::{
     AgentMode, Attachment, AttachmentLineRange, AttachmentSelectionPosition,
     AttachmentSelectionRange, AutoTier, AzureProviderOptions, CapiSessionOptions, ConnectionState,
     CopilotExpAssignmentResponse, CustomAgentConfig, DeliveryMode, ExpConfigEntry, ExpFlagValue,
-    ExtensionInfo, GitHubMcpToolConfig, GitHubReferenceType, InfiniteSessionConfig,
-    LargeToolOutputConfig, McpServerConfig, McpStdioServerConfig, MemoryConfiguration,
-    NamedProviderConfig, PermissionResponseCapability, ProviderConfig, ProviderModelConfig,
-    ReasoningSummary, ResumeSessionConfig, SessionConfig, SessionEvent, SessionId,
-    SystemMessageConfig, Tool, ToolBinaryResult, ToolResult, ToolResultExpanded,
+    ExtensionInfo, GitHubMcpToolConfig, GitHubReferenceType, ImageGenerationConfig,
+    InfiniteSessionConfig, LargeToolOutputConfig, McpServerConfig, McpStdioServerConfig,
+    MemoryConfiguration, NamedProviderConfig, PermissionResponseCapability, ProviderConfig,
+    ProviderModelConfig, ReasoningSummary, ResumeSessionConfig, SessionConfig, SessionEvent,
+    SessionId, SystemMessageConfig, Tool, ToolBinaryResult, ToolResult, ToolResultExpanded,
     ToolResultResponse, ensure_attachment_display_names,
 };
 use crate::generated::session_events::TypedSessionEvent;
@@ -1946,4 +1946,41 @@ fn github_anchored_attachment_variants_round_trip() {
             "{expected_type} should re-deserialize to the same value"
         );
     }
+}
+#[test]
+fn image_generation_create_and_resume_wire_options() {
+    for enabled in [true, false] {
+        let config = ImageGenerationConfig::new().with_enabled(enabled);
+        let (create, _) = SessionConfig::default()
+            .with_image_generation(config.clone())
+            .into_wire(Some(SessionId::from("image-test")))
+            .unwrap();
+        let (resume, _) = ResumeSessionConfig::new(SessionId::from("image-test"))
+            .with_image_generation(config)
+            .into_wire()
+            .unwrap();
+        for wire in [
+            serde_json::to_value(create).unwrap(),
+            serde_json::to_value(resume).unwrap(),
+        ] {
+            assert_eq!(
+                wire["imageGeneration"],
+                serde_json::json!({"enabled": enabled})
+            );
+        }
+    }
+    let (create, _) = SessionConfig::default().into_wire(None).unwrap();
+    let (resume, _) = ResumeSessionConfig::new(SessionId::from("image-test"))
+        .into_wire()
+        .unwrap();
+    for wire in [
+        serde_json::to_value(create).unwrap(),
+        serde_json::to_value(resume).unwrap(),
+    ] {
+        assert!(wire.get("imageGeneration").is_none(), "{wire}");
+    }
+    assert_eq!(
+        serde_json::to_value(ImageGenerationConfig::new()).unwrap(),
+        serde_json::json!({})
+    );
 }

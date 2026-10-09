@@ -1323,6 +1323,16 @@ type LargeToolOutputConfig struct {
 	OutputDirectory string `json:"outputDir,omitempty"`
 }
 
+// ImageGenerationConfig opts in to an authorized Copilot image model.
+// Experimental: this API may change or be removed in a future release.
+// Omission disables on create/cold resume and preserves resident resume state.
+// Not persisted: re-supply after runtime restart. Policy, permissions, offline
+// mode, and tool filters still apply. BYOK image generation is not supported.
+type ImageGenerationConfig struct {
+	// Enabled opts in when true and disables image generation when false.
+	Enabled *bool `json:"enabled,omitempty"`
+}
+
 // ToolSearchConfig allows to configure tool search behavior.
 // Tool search defers tools to keep the model's active tool set small.
 // To override the tool-search tool's implementation, register a
@@ -1693,6 +1703,9 @@ type SessionConfig struct {
 	// defers rarely used tools behind a searchable index. When nil, the runtime
 	// default applies.
 	ToolSearch *ToolSearchConfig
+	// ImageGeneration is the non-persisted image generation opt-in.
+	// Experimental: this API may change or be removed in a future release.
+	ImageGeneration *ImageGenerationConfig
 	// Memory configures the memory feature for the session. When omitted, the
 	// runtime default applies.
 	Memory *MemoryConfiguration
@@ -2292,6 +2305,9 @@ type ResumeSessionConfig struct {
 	// defers rarely used tools behind a searchable index. When nil, the runtime
 	// default applies.
 	ToolSearch *ToolSearchConfig
+	// ImageGeneration is the non-persisted image generation opt-in.
+	// Experimental: this API may change or be removed in a future release.
+	ImageGeneration *ImageGenerationConfig
 	// Memory configures the memory feature for the session. When omitted, the
 	// runtime default applies.
 	Memory *MemoryConfiguration
@@ -2900,6 +2916,7 @@ type createSessionRequest struct {
 	InfiniteSessions                   *InfiniteSessionConfig                 `json:"infiniteSessions,omitempty"`
 	LargeOutput                        *LargeToolOutputConfig                 `json:"largeOutput,omitempty"`
 	ToolSearch                         *ToolSearchConfig                      `json:"toolSearch,omitempty"`
+	ImageGeneration                    *ImageGenerationConfig                 `json:"imageGeneration,omitempty"`
 	Memory                             *MemoryConfiguration                   `json:"memory,omitempty"`
 	Commands                           []wireCommand                          `json:"commands,omitempty"`
 	RequestElicitation                 *bool                                  `json:"requestElicitation,omitempty"`
@@ -3006,6 +3023,7 @@ type resumeSessionRequest struct {
 	InfiniteSessions                   *InfiniteSessionConfig                 `json:"infiniteSessions,omitempty"`
 	LargeOutput                        *LargeToolOutputConfig                 `json:"largeOutput,omitempty"`
 	ToolSearch                         *ToolSearchConfig                      `json:"toolSearch,omitempty"`
+	ImageGeneration                    *ImageGenerationConfig                 `json:"imageGeneration,omitempty"`
 	Memory                             *MemoryConfiguration                   `json:"memory,omitempty"`
 	Commands                           []wireCommand                          `json:"commands,omitempty"`
 	RequestElicitation                 *bool                                  `json:"requestElicitation,omitempty"`

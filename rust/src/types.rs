@@ -838,6 +838,35 @@ impl LargeToolOutputConfig {
     }
 }
 
+/// Opt in to image generation through an authorized Copilot image model.
+///
+/// **Experimental.** This API may change or be removed in a future release.
+///
+/// Omission disables on create/cold resume and preserves resident resume state.
+/// Not persisted: re-supply after runtime restart. Policy, permissions, offline
+/// mode, and tool filters still apply. BYOK image generation is not supported.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct ImageGenerationConfig {
+    /// True opts in; false disables image generation.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub enabled: Option<bool>,
+}
+
+impl ImageGenerationConfig {
+    /// Construct an unset image generation configuration.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Enable or disable image generation.
+    pub fn with_enabled(mut self, enabled: bool) -> Self {
+        self.enabled = Some(enabled);
+        self
+    }
+}
+
 /// Overrides the runtime's built-in tool-search behavior.
 ///
 /// Tool search defers tools to keep the model's active tool set small.
@@ -2189,6 +2218,8 @@ pub struct SessionConfig {
     /// rarely used tools behind a searchable index. When unset, the runtime
     /// default applies.
     pub tool_search: Option<ToolSearchConfig>,
+    /// **Experimental.** Non-persisted image generation opt-in. Re-supply after runtime restart.
+    pub image_generation: Option<ImageGenerationConfig>,
     /// Skill names to disable. Skills in this set will not be available
     /// even if found in skill directories.
     pub disabled_skills: Option<Vec<String>>,
@@ -2478,6 +2509,7 @@ impl std::fmt::Debug for SessionConfig {
             .field("plugin_directories", &self.plugin_directories)
             .field("large_output", &self.large_output)
             .field("tool_search", &self.tool_search)
+            .field("image_generation", &self.image_generation)
             .field("disabled_skills", &self.disabled_skills)
             .field("disabled_mcp_servers", &self.disabled_mcp_servers)
             .field("hooks", &self.hooks)
@@ -2616,6 +2648,7 @@ impl Default for SessionConfig {
             plugin_directories: None,
             large_output: None,
             tool_search: None,
+            image_generation: None,
             disabled_skills: None,
             disabled_mcp_servers: None,
             hooks: None,
@@ -2788,6 +2821,7 @@ impl SessionConfig {
             plugin_directories: self.plugin_directories,
             large_output: self.large_output,
             tool_search: self.tool_search,
+            image_generation: self.image_generation,
             disabled_skills: self.disabled_skills,
             disabled_mcp_servers: self.disabled_mcp_servers,
             custom_agents: self.custom_agents,
@@ -3279,6 +3313,12 @@ impl SessionConfig {
         self
     }
 
+    /// **Experimental.** Set the non-persisted image generation opt-in on create.
+    pub fn with_image_generation(mut self, config: ImageGenerationConfig) -> Self {
+        self.image_generation = Some(config);
+        self
+    }
+
     /// Set the names of skills to disable (overrides skill discovery).
     pub fn with_disabled_skills<I, S>(mut self, names: I) -> Self
     where
@@ -3690,6 +3730,8 @@ pub struct ResumeSessionConfig {
     /// Overrides the runtime's built-in tool-search behavior on resume. When
     /// unset, the runtime default applies.
     pub tool_search: Option<ToolSearchConfig>,
+    /// **Experimental.** Non-persisted image generation opt-in. Re-supply after runtime restart.
+    pub image_generation: Option<ImageGenerationConfig>,
     /// Skill names to disable on resume.
     pub disabled_skills: Option<Vec<String>>,
     /// Exact MCP server names to disable on resume. This prevents startup and
@@ -3921,6 +3963,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field("plugin_directories", &self.plugin_directories)
             .field("large_output", &self.large_output)
             .field("tool_search", &self.tool_search)
+            .field("image_generation", &self.image_generation)
             .field("disabled_skills", &self.disabled_skills)
             .field("disabled_mcp_servers", &self.disabled_mcp_servers)
             .field("hooks", &self.hooks)
@@ -4096,6 +4139,7 @@ impl ResumeSessionConfig {
             plugin_directories: self.plugin_directories,
             large_output: self.large_output,
             tool_search: self.tool_search,
+            image_generation: self.image_generation,
             disabled_skills: self.disabled_skills,
             disabled_mcp_servers: self.disabled_mcp_servers,
             custom_agents: self.custom_agents,
@@ -4205,6 +4249,7 @@ impl ResumeSessionConfig {
             plugin_directories: None,
             large_output: None,
             tool_search: None,
+            image_generation: None,
             disabled_skills: None,
             disabled_mcp_servers: None,
             hooks: None,
@@ -4666,6 +4711,12 @@ impl ResumeSessionConfig {
     /// tool-search behavior on resume.
     pub fn with_tool_search(mut self, config: ToolSearchConfig) -> Self {
         self.tool_search = Some(config);
+        self
+    }
+
+    /// **Experimental.** Set the image generation opt-in on resume, including after runtime restart.
+    pub fn with_image_generation(mut self, config: ImageGenerationConfig) -> Self {
+        self.image_generation = Some(config);
         self
     }
 

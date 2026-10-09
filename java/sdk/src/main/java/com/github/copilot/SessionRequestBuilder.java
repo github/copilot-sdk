@@ -200,6 +200,7 @@ final class SessionRequestBuilder {
         request.setPluginDirectories(config.getPluginDirectories());
         request.setLargeOutput(config.getLargeOutput());
         request.setToolSearch(config.getToolSearch());
+        request.setImageGeneration(config.getImageGeneration());
         request.setMemory(config.getMemory());
         request.setDisabledSkills(config.getDisabledSkills());
         request.setDisabledMcpServers(config.getDisabledMcpServers());
@@ -366,6 +367,7 @@ final class SessionRequestBuilder {
         request.setPluginDirectories(config.getPluginDirectories());
         request.setLargeOutput(config.getLargeOutput());
         request.setToolSearch(config.getToolSearch());
+        request.setImageGeneration(config.getImageGeneration());
         request.setMemory(config.getMemory());
         request.setDisabledSkills(config.getDisabledSkills());
         request.setDisabledMcpServers(config.getDisabledMcpServers());

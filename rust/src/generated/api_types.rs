@@ -724,6 +724,8 @@ pub mod rpc_methods {
     pub const SESSION_PLUGINS_MARKETPLACES_REFRESH: &str = "session.plugins.marketplaces.refresh";
     /// `session.plugins.reload`
     pub const SESSION_PLUGINS_RELOAD: &str = "session.plugins.reload";
+    /// `session.plugins.retryManaged`
+    pub const SESSION_PLUGINS_RETRYMANAGED: &str = "session.plugins.retryManaged";
     /// `session.provider.getEndpoint`
     pub const SESSION_PROVIDER_GETENDPOINT: &str = "session.provider.getEndpoint";
     /// `session.provider.add`
@@ -11106,6 +11108,26 @@ pub struct ManagedMcpServerConfig {
     pub tools: Option<Vec<String>>,
     /// Hosted MCP streamable HTTP endpoint.
     pub url: String,
+}
+
+/// Retry outcome for one plugin required by managed settings.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManagedPluginRetryEntry {
+    /// Why the plugin was not prepared. Present when `status` is `failed` or `deferred`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+    /// Plugin spec in "plugin@marketplace" form.
+    pub spec: String,
+    /// What the retry did for this plugin.
+    pub status: ManagedPluginRetryStatus,
 }
 
 /// Lock state and provenance of one managed setting.
@@ -23882,6 +23904,37 @@ pub struct SessionPluginsEnableRequest {
 pub struct SessionPluginsInstallRequest {
     /// Plugin install spec. Accepts the same forms as the CLI: "plugin@marketplace" (marketplace install), "owner/repo" or "owner/repo:subpath" (GitHub direct), an http/https/ssh URL, or a local path. Direct (non-marketplace) installs are deprecated and will produce a deprecationWarning in the result.
     pub source: String,
+}
+
+/// Plugins required by the session's managed settings to install or update again.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionPluginsRetryManagedRequest {
+    /// "plugin@marketplace" specs to retry. Omit to retry every plugin the session's managed settings require.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub plugins: Option<Vec<String>>,
+}
+
+/// Per-plugin outcomes of retrying the plugins required by the session's managed settings.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionPluginsRetryManagedResult {
+    /// One entry per requested plugin, in request order. When no plugins were requested, one entry per plugin the managed settings require.
+    pub plugins: Vec<ManagedPluginRetryEntry>,
 }
 
 /// Outcome of the prune operation: deleted IDs, dry-run candidates, skipped IDs, total bytes freed, and the dry-run flag.
@@ -42538,6 +42591,40 @@ pub enum SessionLogLevel {
     /// Error message describing a failure.
     #[serde(rename = "error")]
     Error,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// What retrying did for one plugin required by managed settings.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ManagedPluginRetryStatus {
+    /// The plugin was missing and is now installed.
+    #[serde(rename = "installed")]
+    Installed,
+    /// An update was available and is now installed.
+    #[serde(rename = "updated")]
+    Updated,
+    /// The plugin was already installed and current, so nothing was done.
+    #[serde(rename = "already_present")]
+    AlreadyPresent,
+    /// Checking, installing, or updating the plugin failed. See `error`.
+    #[serde(rename = "failed")]
+    Failed,
+    /// The plugin was not prepared because another session was changing plugins or the managed settings changed during the retry. It is prepared again before a later message.
+    #[serde(rename = "deferred")]
+    Deferred,
+    /// The session's managed settings do not require this plugin, so nothing was done.
+    #[serde(rename = "not_required")]
+    NotRequired,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]

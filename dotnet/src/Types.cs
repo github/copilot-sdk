@@ -3276,6 +3276,21 @@ public sealed class LargeToolOutputConfig
     public string? OutputDirectory { get; set; }
 }
 
+/// <summary>Non-persisted opt-in to image generation.</summary>
+/// <remarks>Experimental. This API may change or be removed in a future release.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public sealed class ImageGenerationConfig
+{
+    /// <summary>
+    /// Opt in to an authorized Copilot image model. False disables image generation.
+    /// Omission disables on create/cold resume and preserves resident resume state.
+    /// Not persisted: re-supply after runtime restart. Policy, permissions, offline
+    /// mode, and tool filters still apply. BYOK image generation is not supported.
+    /// </summary>
+    [JsonPropertyName("enabled")]
+    public bool? Enabled { get; set; }
+}
+
 /// <summary>
 /// Overrides the runtime's built-in tool-search behavior.
 /// Defers tools to keep the model's active tool set small.
@@ -3630,6 +3645,7 @@ public abstract class SessionConfigBase
         InfiniteSessions = other.InfiniteSessions;
         LargeOutput = other.LargeOutput;
         ToolSearch = other.ToolSearch;
+        ImageGeneration = other.ImageGeneration;
         Memory = other.Memory;
         McpServers = other.McpServers is not null
             ? (other.McpServers is Dictionary<string, McpServerConfig> dict
@@ -4136,6 +4152,10 @@ public abstract class SessionConfigBase
     /// the runtime default applies.
     /// </summary>
     public ToolSearchConfig? ToolSearch { get; set; }
+
+    /// <summary>Non-persisted image generation opt-in. Re-supply after runtime restart.</summary>
+    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+    public ImageGenerationConfig? ImageGeneration { get; set; }
 
     /// <summary>
     /// Configuration for session memory. When set, controls whether the

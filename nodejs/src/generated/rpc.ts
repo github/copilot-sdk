@@ -2681,6 +2681,26 @@ export type SessionLogLevel =
   /** Error message describing a failure. */
   | "error";
 /**
+ * What retrying did for one plugin required by managed settings.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ManagedPluginRetryStatus".
+ */
+/** @experimental */
+export type ManagedPluginRetryStatus =
+  /** The plugin was missing and is now installed. */
+  | "installed"
+  /** An update was available and is now installed. */
+  | "updated"
+  /** The plugin was already installed and current, so nothing was done. */
+  | "already_present"
+  /** Checking, installing, or updating the plugin failed. See `error`. */
+  | "failed"
+  /** The plugin was not prepared because another session was changing plugins or the managed settings changed during the retry. It is prepared again before a later message. */
+  | "deferred"
+  /** The session's managed settings do not require this plugin, so nothing was done. */
+  | "not_required";
+/**
  * A channel accepted by managedSettings.compose.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -14694,6 +14714,24 @@ export interface ManagedMcpServerConfig {
   headersRefreshTtlMs?: number;
 }
 /**
+ * Retry outcome for one plugin required by managed settings.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ManagedPluginRetryEntry".
+ */
+/** @experimental */
+export interface ManagedPluginRetryEntry {
+  /**
+   * Plugin spec in "plugin@marketplace" form.
+   */
+  spec: string;
+  status: ManagedPluginRetryStatus;
+  /**
+   * Why the plugin was not prepared. Present when `status` is `failed` or `deferred`.
+   */
+  error?: string;
+}
+/**
  * Lock state and provenance of one managed setting.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -25567,6 +25605,27 @@ export interface SessionPluginsInstallRequest {
    */
   source: string;
 }
+
+/** @experimental */
+export interface SessionPluginsRetryManagedRequest {
+  /**
+   * "plugin@marketplace" specs to retry. Omit to retry every plugin the session's managed settings require.
+   */
+  plugins?: string[];
+}
+/**
+ * Per-plugin outcomes of retrying the plugins required by the session's managed settings.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionPluginsRetryManagedResult".
+ */
+/** @experimental */
+export interface SessionPluginsRetryManagedResult {
+  /**
+   * One entry per requested plugin, in request order. When no plugins were requested, one entry per plugin the managed settings require.
+   */
+  plugins: ManagedPluginRetryEntry[];
+}
 /**
  * Outcome of the prune operation: deleted IDs, dry-run candidates, skipped IDs, total bytes freed, and the dry-run flag.
  *
@@ -34822,6 +34881,15 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
              */
             reload: async (params?: SessionPluginsReloadRequest): Promise<void> =>
                 connection.sendRequest("session.plugins.reload", { ...params, sessionId }),
+            /**
+             * Installs or updates the plugins the session's managed settings require now, without waiting for the next automatic attempt after a failure, then reloads plugins. Reports progress and failures with the same `session.info` and `session.warning` events as automatic preparation. Fails when the runtime does not prepare managed plugins for the session.
+             *
+             * @param params Plugins required by the session's managed settings to install or update again.
+             *
+             * @returns Per-plugin outcomes of retrying the plugins required by the session's managed settings.
+             */
+            retryManaged: async (params?: SessionPluginsRetryManagedRequest): Promise<SessionPluginsRetryManagedResult> =>
+                connection.sendRequest("session.plugins.retryManaged", { ...params, sessionId }),
         },
         /** @experimental */
         provider: {

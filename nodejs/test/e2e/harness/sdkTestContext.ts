@@ -16,6 +16,7 @@ import { formatError, retry } from "./sdkTestHelper";
 import { resolvePreparedRuntimePath } from "../../../scripts/prepare-runtime.js";
 import { testBackend, withTestBackend } from "./testBackend";
 import { readDiagnosticTail } from "../../../../test/harness/sdk-diagnostics.mjs";
+import type { ReplayBackend } from "../../../../test/harness/replayingCapiProxy";
 
 export const isCI = process.env.GITHUB_ACTIONS === "true";
 export const DEFAULT_GITHUB_TOKEN = "fake-token-for-e2e-tests";
@@ -65,6 +66,7 @@ export async function createSdkTestContext({
     copilotClientOptions,
     replayOnly = process.env.COPILOT_SDK_E2E_REPLAY_ONLY === "true",
     modelNames,
+    backend = testBackend,
 }: {
     logLevel?: "error" | "none" | "warning" | "info" | "debug" | "all";
     cliPath?: string;
@@ -72,6 +74,8 @@ export async function createSdkTestContext({
     copilotClientOptions?: CopilotClientOptions;
     replayOnly?: boolean;
     modelNames?: Record<string, string>;
+    /** Pin a provider-specific contract instead of inheriting the CI backend matrix. */
+    backend?: ReplayBackend;
 } = {}) {
     const homeDir = realpathSync(fs.mkdtempSync(join(os.tmpdir(), "copilot-test-config-")));
     const copilotHomeDir = realpathSync(fs.mkdtempSync(join(os.tmpdir(), "copilot-test-home-")));
@@ -170,11 +174,11 @@ export async function createSdkTestContext({
 
     class TestClient extends CopilotClient {
         override createSession(config: SessionConfig) {
-            return super.createSession(withTestBackend(config, testBackend, proxyUrl));
+            return super.createSession(withTestBackend(config, backend, proxyUrl));
         }
 
         override resumeSession(sessionId: string, config: ResumeSessionConfig) {
-            return super.resumeSession(sessionId, withTestBackend(config, testBackend, proxyUrl));
+            return super.resumeSession(sessionId, withTestBackend(config, backend, proxyUrl));
         }
     }
 
@@ -309,6 +313,7 @@ export async function createSdkTestContext({
         }
 
         await openAiEndpoint.updateConfig({
+            backend,
             replayOnly,
             filePath: getTrafficCapturePath(testContext),
             workDir,

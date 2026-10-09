@@ -245,6 +245,7 @@ export type {
     ToolTelemetry,
     ToolResultObject,
     ToolSearchConfig,
+    ImageGenerationConfig,
     TypedSessionEventHandler,
     TypedSessionLifecycleHandler,
     ZodSchema,

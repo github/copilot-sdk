@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CopilotClient } from "../src/client.js";
-import { approveAll } from "../src/index.js";
+import { approveAll, type CopilotSession } from "../src/index.js";
 import { createCanvas, defineWorkflow, joinSession } from "../src/extension.js";
 import { defaultJoinSessionPermissionHandler } from "../src/types.js";
 
@@ -110,6 +110,22 @@ describe("joinSession", () => {
             workflows: [workflow],
         });
     });
+
+    it.each([true, false])(
+        "strips image generation consent (%s) from extension joins",
+        async (enabled) => {
+            process.env.SESSION_ID = "session-123";
+            const resumeForExtension = vi
+                .spyOn(CopilotClient.prototype, "resumeSessionForExtension")
+                .mockResolvedValue({} as CopilotSession);
+
+            const config = { tools: [], imageGeneration: { enabled } };
+            await joinSession(config);
+
+            const [, forwarded] = resumeForExtension.mock.calls[0]!;
+            expect(forwarded).not.toHaveProperty("imageGeneration");
+        }
+    );
 
     it("exports the canvas helper from the extension surface", () => {
         const canvas = createCanvas({

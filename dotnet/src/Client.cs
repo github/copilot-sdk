@@ -1347,6 +1347,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 DisabledMcpServers: config.DisabledMcpServers,
                 LargeOutput: config.LargeOutput,
                 ToolSearch: config.ToolSearch,
+                ImageGeneration: config.ImageGeneration,
                 Memory: config.Memory,
                 Canvases: config.Canvases,
                 RequestCanvasRenderer: config.RequestCanvasRenderer,
@@ -1619,6 +1620,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 DisabledMcpServers: config.DisabledMcpServers,
                 LargeOutput: config.LargeOutput,
                 ToolSearch: config.ToolSearch,
+                ImageGeneration: config.ImageGeneration,
                 Memory: config.Memory,
                 Canvases: config.Canvases,
                 RequestCanvasRenderer: config.RequestCanvasRenderer,
@@ -3273,6 +3275,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         [property: JsonPropertyName("disabledMcpServers")] IList<string>? DisabledMcpServers = null,
         LargeToolOutputConfig? LargeOutput = null,
         ToolSearchConfig? ToolSearch = null,
+        ImageGenerationConfig? ImageGeneration = null,
         MemoryConfiguration? Memory = null,
 #pragma warning disable GHCP001
         IList<CanvasDeclaration>? Canvases = null,
@@ -3395,6 +3398,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         [property: JsonPropertyName("disabledMcpServers")] IList<string>? DisabledMcpServers = null,
         LargeToolOutputConfig? LargeOutput = null,
         ToolSearchConfig? ToolSearch = null,
+        ImageGenerationConfig? ImageGeneration = null,
         MemoryConfiguration? Memory = null,
 #pragma warning disable GHCP001
         IList<CanvasDeclaration>? Canvases = null,

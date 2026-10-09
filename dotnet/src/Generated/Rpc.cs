@@ -19333,6 +19333,54 @@ internal sealed class SessionPluginsReloadRequestWithSession
     public string SessionId { get; set; } = string.Empty;
 }
 
+/// <summary>Retry outcome for one plugin required by managed settings.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class ManagedPluginRetryEntry
+{
+    /// <summary>Why the plugin was not prepared. Present when `status` is `failed` or `deferred`.</summary>
+    [JsonPropertyName("error")]
+    public string? Error { get; set; }
+
+    /// <summary>Plugin spec in "plugin@marketplace" form.</summary>
+    [JsonPropertyName("spec")]
+    public string Spec { get; set; } = string.Empty;
+
+    /// <summary>What the retry did for this plugin.</summary>
+    [JsonPropertyName("status")]
+    public ManagedPluginRetryStatus Status { get; set; }
+}
+
+/// <summary>Per-plugin outcomes of retrying the plugins required by the session's managed settings.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class SessionPluginsRetryManagedResult
+{
+    /// <summary>One entry per requested plugin, in request order. When no plugins were requested, one entry per plugin the managed settings require.</summary>
+    [JsonPropertyName("plugins")]
+    public IList<ManagedPluginRetryEntry> Plugins { get => field ??= []; set; }
+}
+
+/// <summary>RPC data type for SessionPluginsRetryManaged operations.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class SessionPluginsRetryManagedRequest
+{
+    /// <summary>"plugin@marketplace" specs to retry. Omit to retry every plugin the session's managed settings require.</summary>
+    [JsonPropertyName("plugins")]
+    public IList<string>? Plugins { get; set; }
+}
+
+/// <summary>RPC data type for SessionPluginsRetryManagedRequestWithSession operations.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class SessionPluginsRetryManagedRequestWithSession
+{
+    /// <summary>"plugin@marketplace" specs to retry. Omit to retry every plugin the session's managed settings require.</summary>
+    [JsonPropertyName("plugins")]
+    public IList<string>? Plugins { get; set; }
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
 /// <summary>Identifies the target session.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 internal sealed class SessionPluginsMarketplacesListRequest
@@ -39292,6 +39340,81 @@ public readonly struct ConnectorMcpStatus : IEquatable<ConnectorMcpStatus>
 }
 
 
+/// <summary>What retrying did for one plugin required by managed settings.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct ManagedPluginRetryStatus : IEquatable<ManagedPluginRetryStatus>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="ManagedPluginRetryStatus"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="ManagedPluginRetryStatus"/>.</param>
+    [JsonConstructor]
+    public ManagedPluginRetryStatus(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="ManagedPluginRetryStatus"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The plugin was missing and is now installed.</summary>
+    public static ManagedPluginRetryStatus Installed { get; } = new("installed");
+
+    /// <summary>An update was available and is now installed.</summary>
+    public static ManagedPluginRetryStatus Updated { get; } = new("updated");
+
+    /// <summary>The plugin was already installed and current, so nothing was done.</summary>
+    public static ManagedPluginRetryStatus AlreadyPresent { get; } = new("already_present");
+
+    /// <summary>Checking, installing, or updating the plugin failed. See `error`.</summary>
+    public static ManagedPluginRetryStatus Failed { get; } = new("failed");
+
+    /// <summary>The plugin was not prepared because another session was changing plugins or the managed settings changed during the retry. It is prepared again before a later message.</summary>
+    public static ManagedPluginRetryStatus Deferred { get; } = new("deferred");
+
+    /// <summary>The session's managed settings do not require this plugin, so nothing was done.</summary>
+    public static ManagedPluginRetryStatus NotRequired { get; } = new("not_required");
+
+    /// <summary>Returns a value indicating whether two <see cref="ManagedPluginRetryStatus"/> instances are equivalent.</summary>
+    public static bool operator ==(ManagedPluginRetryStatus left, ManagedPluginRetryStatus right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="ManagedPluginRetryStatus"/> instances are not equivalent.</summary>
+    public static bool operator !=(ManagedPluginRetryStatus left, ManagedPluginRetryStatus right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is ManagedPluginRetryStatus other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(ManagedPluginRetryStatus other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{ManagedPluginRetryStatus}"/> for serializing <see cref="ManagedPluginRetryStatus"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<ManagedPluginRetryStatus>
+    {
+        /// <inheritdoc />
+        public override ManagedPluginRetryStatus Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, ManagedPluginRetryStatus value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ManagedPluginRetryStatus));
+        }
+    }
+}
+
+
 /// <summary>Allowed values for the `OptionsUpdateAdditionalContentExclusionPolicyScope` enumeration.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
@@ -49223,6 +49346,18 @@ public sealed class PluginsApi
         await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.plugins.reload", [rpcRequest], cancellationToken);
     }
 
+    /// <summary>Installs or updates the plugins the session's managed settings require now, without waiting for the next automatic attempt after a failure, then reloads plugins. Reports progress and failures with the same `session.info` and `session.warning` events as automatic preparation. Fails when the runtime does not prepare managed plugins for the session.</summary>
+    /// <param name="request">Plugins required by the session's managed settings to install or update again.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Per-plugin outcomes of retrying the plugins required by the session's managed settings.</returns>
+    public async Task<SessionPluginsRetryManagedResult> RetryManagedAsync(SessionPluginsRetryManagedRequest? request = null, CancellationToken cancellationToken = default)
+    {
+        _session.ThrowIfDisposed();
+
+        var rpcRequest = new SessionPluginsRetryManagedRequestWithSession { SessionId = _session.SessionId, Plugins = request?.Plugins };
+        return await CopilotClient.InvokeRpcAsync<SessionPluginsRetryManagedResult>(_session.Rpc, "session.plugins.retryManaged", [rpcRequest], cancellationToken);
+    }
+
     /// <summary>Marketplaces APIs.</summary>
     public PluginsMarketplacesApi Marketplaces =>
         field ??
@@ -52719,6 +52854,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(LogResult))]
 [JsonSerializable(typeof(LoggedInUser))]
 [JsonSerializable(typeof(LspInitializeRequest))]
+[JsonSerializable(typeof(ManagedPluginRetryEntry))]
 [JsonSerializable(typeof(ManagedSettingMeta))]
 [JsonSerializable(typeof(ManagedSettingsComposeLayer))]
 [JsonSerializable(typeof(ManagedSettingsComposeRequest))]
@@ -53297,6 +53433,9 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(SessionPluginsMarketplacesRefreshRequestWithSession))]
 [JsonSerializable(typeof(SessionPluginsReloadRequest))]
 [JsonSerializable(typeof(SessionPluginsReloadRequestWithSession))]
+[JsonSerializable(typeof(SessionPluginsRetryManagedRequest))]
+[JsonSerializable(typeof(SessionPluginsRetryManagedRequestWithSession))]
+[JsonSerializable(typeof(SessionPluginsRetryManagedResult))]
 [JsonSerializable(typeof(SessionProviderGetEndpointRequest))]
 [JsonSerializable(typeof(SessionProviderGetEndpointRequestWithSession))]
 [JsonSerializable(typeof(SessionProvidersGetCatalogRequest))]

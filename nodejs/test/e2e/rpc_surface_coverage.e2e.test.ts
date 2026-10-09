@@ -327,7 +327,7 @@ describe("Generated RPC surface coverage", () => {
             ...collectRuntimeFunctions(session.rpc, "session"),
         ]);
 
-        expect(inventory).toHaveLength(404);
+        expect(inventory).toHaveLength(405);
         expect(inventory.filter((method) => method.wireMethod === "host.listSessions")).toEqual([
             expect.objectContaining({ scope: "server", path: "host.listSessions" }),
         ]);
@@ -341,6 +341,15 @@ describe("Generated RPC surface coverage", () => {
             path: "extensions.reconcile",
             parameterCount: 0,
         });
+        expect(
+            inventory.filter((method) => method.wireMethod === "session.plugins.retryManaged")
+        ).toEqual([
+            expect.objectContaining({
+                scope: "session",
+                path: "plugins.retryManaged",
+                parameterCount: 1,
+            }),
+        ]);
         const sessionProviderMethods = [
             "providers.getCatalog",
             "providers.discover",
@@ -467,6 +476,7 @@ describe("Generated RPC surface coverage", () => {
         expect((await session.rpc.customizations.reload()).outcomes).toEqual([
             { subsystem: "instructions", status: "reloaded" },
         ]);
+        await session.rpc.plugins.retryManaged();
 
         await expect(
             client.rpc.ping({ message: "error", __forceError: true } as never)
@@ -496,5 +506,20 @@ describe("Generated RPC surface coverage", () => {
                 { method: wireMethod, params: { sessionId: "rpc-surface-session" } },
             ]);
         }
+        expect(
+            captured.filter((request) => request.method === "session.plugins.retryManaged")
+        ).toEqual([
+            {
+                method: "session.plugins.retryManaged",
+                params: {
+                    __coveragePath: "session.plugins.retryManaged",
+                    sessionId: "rpc-surface-session",
+                },
+            },
+            {
+                method: "session.plugins.retryManaged",
+                params: { sessionId: "rpc-surface-session" },
+            },
+        ]);
     });
 });

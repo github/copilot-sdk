@@ -984,6 +984,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	req.InfiniteSessions = config.InfiniteSessions
 	req.LargeOutput = config.LargeOutput
 	req.ToolSearch = config.ToolSearch
+	req.ImageGeneration = config.ImageGeneration
 	req.Memory = config.Memory
 	req.GitHubToken = config.GitHubToken
 	req.GitHubTokenProviderRegistrationID = registrationID
@@ -1464,6 +1465,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	req.InfiniteSessions = config.InfiniteSessions
 	req.LargeOutput = config.LargeOutput
 	req.ToolSearch = config.ToolSearch
+	req.ImageGeneration = config.ImageGeneration
 	req.Memory = config.Memory
 	req.GitHubToken = config.GitHubToken
 	req.GitHubTokenProviderRegistrationID = registrationID

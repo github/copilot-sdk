@@ -12168,6 +12168,64 @@ impl<'a> SessionRpcPlugins<'a> {
             .await?;
         Ok(())
     }
+
+    /// Installs or updates the plugins the session's managed settings require now, without waiting for the next automatic attempt after a failure, then reloads plugins. Reports progress and failures with the same `session.info` and `session.warning` events as automatic preparation. Fails when the runtime does not prepare managed plugins for the session.
+    ///
+    /// Wire method: `session.plugins.retryManaged`.
+    ///
+    /// # Returns
+    ///
+    /// Per-plugin outcomes of retrying the plugins required by the session's managed settings.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn retry_managed(&self) -> Result<SessionPluginsRetryManagedResult, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_PLUGINS_RETRYMANAGED, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Installs or updates the plugins the session's managed settings require now, without waiting for the next automatic attempt after a failure, then reloads plugins. Reports progress and failures with the same `session.info` and `session.warning` events as automatic preparation. Fails when the runtime does not prepare managed plugins for the session.
+    ///
+    /// Wire method: `session.plugins.retryManaged`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Plugins required by the session's managed settings to install or update again.
+    ///
+    /// # Returns
+    ///
+    /// Per-plugin outcomes of retrying the plugins required by the session's managed settings.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn retry_managed_with_params(
+        &self,
+        params: SessionPluginsRetryManagedRequest,
+    ) -> Result<SessionPluginsRetryManagedResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_PLUGINS_RETRYMANAGED, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
 }
 
 /// `session.plugins.marketplaces.*` RPCs.

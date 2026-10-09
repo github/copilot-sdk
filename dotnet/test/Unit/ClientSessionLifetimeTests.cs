@@ -25,6 +25,40 @@ public sealed partial class ClientSessionLifetimeTests
     private sealed record RpcRequestRecord(string Method, JsonElement Params);
 
     [Theory]
+    [InlineData(false, true)]
+    [InlineData(false, false)]
+    [InlineData(false, null)]
+    [InlineData(true, true)]
+    [InlineData(true, false)]
+    [InlineData(true, null)]
+    public async Task ImageGeneration_ForwardsCreateAndResumeOptIn(bool resume, bool? enabled)
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        var imageGeneration = enabled is null ? null : new ImageGenerationConfig { Enabled = enabled };
+        await using var session = resume
+            ? await client.ResumeSessionAsync("image-test", new ResumeSessionConfig
+            {
+                OnPermissionRequest = PermissionHandler.ApproveAll,
+                ImageGeneration = imageGeneration
+            }.Clone())
+            : await client.CreateSessionAsync(new SessionConfig
+            {
+                OnPermissionRequest = PermissionHandler.ApproveAll,
+                ImageGeneration = imageGeneration
+            }.Clone());
+        var request = Assert.Single(server.Requests, r => r.Method == (resume ? "session.resume" : "session.create")).Params;
+        if (enabled is null)
+        {
+            Assert.False(request.TryGetProperty("imageGeneration", out _), request.ToString());
+        }
+        else
+        {
+            Assert.Equal(enabled.Value, request.GetProperty("imageGeneration").GetProperty("enabled").GetBoolean());
+        }
+    }
+
+    [Theory]
     [InlineData(CopilotClientMode.CopilotCli, null, null)]
     [InlineData(CopilotClientMode.Empty, null, null)]
     [InlineData(CopilotClientMode.CopilotCli, false, false)]

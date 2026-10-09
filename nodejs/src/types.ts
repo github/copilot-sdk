@@ -864,6 +864,21 @@ export function defineTool<T = unknown>(
 }
 
 /**
+ * Non-persisted opt-in to image generation.
+ * @experimental This API may change or be removed in a future release.
+ */
+export interface ImageGenerationConfig {
+    /**
+     * Opt in to image generation through an authorized Copilot image model.
+     * False disables it; omission defaults to disabled on create/cold resume and
+     * preserves the setting on resident resume. Not persisted: re-supply after
+     * runtime restart. Policy, permissions, offline mode, and tool filters still
+     * apply. BYOK image generation is not supported.
+     */
+    enabled?: boolean;
+}
+
+/**
  * SDK-supplied override for the runtime's built-in tool-search behavior.
  *
  * Tool search lets the model discover tools on demand instead of loading every
@@ -2627,6 +2642,12 @@ export interface SessionConfigBase {
      * {@link SessionConfigBase.tools}.
      */
     toolSearch?: ToolSearchConfig;
+
+    /**
+     * Image generation opt-in. Re-supply after runtime restart.
+     * @experimental This API may change or be removed in a future release.
+     */
+    imageGeneration?: ImageGenerationConfig;
 
     /**
      * List of tool names to allow. When specified, only these tools will be available.

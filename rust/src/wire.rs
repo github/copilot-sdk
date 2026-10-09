@@ -27,9 +27,9 @@ use crate::generated::session_events::ReasoningSummary;
 use crate::types::{
     AskUserVariant, CanvasProviderIdentity, CapiSessionOptions, CloudSessionOptions,
     CustomAgentConfig, DefaultAgentConfig, ExtensionInfo, GitHubMcpToolConfig,
-    InfiniteSessionConfig, LargeToolOutputConfig, McpServerConfig, MemoryConfiguration,
-    NamedProviderConfig, ProviderConfig, ProviderModelConfig, SessionId, SessionLimitsConfig,
-    SystemMessageConfig, Tool, ToolSearchConfig,
+    ImageGenerationConfig, InfiniteSessionConfig, LargeToolOutputConfig, McpServerConfig,
+    MemoryConfiguration, NamedProviderConfig, ProviderConfig, ProviderModelConfig, SessionId,
+    SessionLimitsConfig, SystemMessageConfig, Tool, ToolSearchConfig,
 };
 
 /// Wire representation of a slash command (name + description only). The
@@ -144,6 +144,8 @@ pub(crate) struct SessionCreateWire {
     pub large_output: Option<LargeToolOutputConfig>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_search: Option<ToolSearchConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub image_generation: Option<ImageGenerationConfig>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub disabled_skills: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -316,6 +318,8 @@ pub(crate) struct SessionResumeWire {
     pub large_output: Option<LargeToolOutputConfig>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_search: Option<ToolSearchConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub image_generation: Option<ImageGenerationConfig>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub disabled_skills: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]

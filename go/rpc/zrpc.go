@@ -6787,6 +6787,18 @@ type ManagedMCPServerConfig struct {
 	URL string `json:"url"`
 }
 
+// Retry outcome for one plugin required by managed settings.
+// Experimental: ManagedPluginRetryEntry is part of an experimental API and may change or be
+// removed.
+type ManagedPluginRetryEntry struct {
+	// Why the plugin was not prepared. Present when `status` is `failed` or `deferred`.
+	Error *string `json:"error,omitempty"`
+	// Plugin spec in "plugin@marketplace" form.
+	Spec string `json:"spec"`
+	// What the retry did for this plugin.
+	Status ManagedPluginRetryStatus `json:"status"`
+}
+
 // Lock state and provenance of one managed setting.
 // Experimental: ManagedSettingMeta is part of an experimental API and may change or be
 // removed.
@@ -17067,6 +17079,23 @@ type SessionPluginsReloadRequest struct {
 type SessionPluginsReloadResult struct {
 }
 
+// Experimental: SessionPluginsRetryManagedRequest is part of an experimental API and may
+// change or be removed.
+type SessionPluginsRetryManagedRequest struct {
+	// "plugin@marketplace" specs to retry. Omit to retry every plugin the session's managed
+	// settings require.
+	Plugins []string `json:"plugins,omitzero"`
+}
+
+// Per-plugin outcomes of retrying the plugins required by the session's managed settings.
+// Experimental: SessionPluginsRetryManagedResult is part of an experimental API and may
+// change or be removed.
+type SessionPluginsRetryManagedResult struct {
+	// One entry per requested plugin, in request order. When no plugins were requested, one
+	// entry per plugin the managed settings require.
+	Plugins []ManagedPluginRetryEntry `json:"plugins"`
+}
+
 // Experimental: SessionPluginsUninstallResult is part of an experimental API and may change
 // or be removed.
 type SessionPluginsUninstallResult struct {
@@ -24549,6 +24578,27 @@ const (
 	// A GitHub Enterprise Cloud account — a GitHub account on a non-github.com host, e.g.
 	// *.ghe.com; the host is supplied interactively through the neutral input-required step.
 	LoginProviderKindProxima LoginProviderKind = "proxima"
+)
+
+// What retrying did for one plugin required by managed settings.
+// Experimental: ManagedPluginRetryStatus is part of an experimental API and may change or
+// be removed.
+type ManagedPluginRetryStatus string
+
+const (
+	// The plugin was already installed and current, so nothing was done.
+	ManagedPluginRetryStatusAlreadyPresent ManagedPluginRetryStatus = "already_present"
+	// The plugin was not prepared because another session was changing plugins or the managed
+	// settings changed during the retry. It is prepared again before a later message.
+	ManagedPluginRetryStatusDeferred ManagedPluginRetryStatus = "deferred"
+	// Checking, installing, or updating the plugin failed. See `error`.
+	ManagedPluginRetryStatusFailed ManagedPluginRetryStatus = "failed"
+	// The plugin was missing and is now installed.
+	ManagedPluginRetryStatusInstalled ManagedPluginRetryStatus = "installed"
+	// The session's managed settings do not require this plugin, so nothing was done.
+	ManagedPluginRetryStatusNotRequired ManagedPluginRetryStatus = "not_required"
+	// An update was available and is now installed.
+	ManagedPluginRetryStatusUpdated ManagedPluginRetryStatus = "updated"
 )
 
 // A channel accepted by managedSettings.compose.
@@ -35885,6 +35935,40 @@ func (a *PluginsAPI) Reload(ctx context.Context, params ...*SessionPluginsReload
 		return nil, err
 	}
 	var result SessionPluginsReloadResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// RetryManaged installs or updates the plugins the session's managed settings require now,
+// without waiting for the next automatic attempt after a failure, then reloads plugins.
+// Reports progress and failures with the same `session.info` and `session.warning` events
+// as automatic preparation. Fails when the runtime does not prepare managed plugins for the
+// session.
+//
+// RPC method: session.plugins.retryManaged.
+//
+// Parameters: Plugins required by the session's managed settings to install or update again.
+//
+// Returns: Per-plugin outcomes of retrying the plugins required by the session's managed
+// settings.
+func (a *PluginsAPI) RetryManaged(ctx context.Context, params ...*SessionPluginsRetryManagedRequest) (*SessionPluginsRetryManagedResult, error) {
+	var requestParams *SessionPluginsRetryManagedRequest
+	if len(params) > 0 {
+		requestParams = params[0]
+	}
+	req := map[string]any{"sessionId": a.sessionID}
+	if requestParams != nil {
+		if requestParams.Plugins != nil {
+			req["plugins"] = requestParams.Plugins
+		}
+	}
+	raw, err := a.client.Request(ctx, "session.plugins.retryManaged", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionPluginsRetryManagedResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}

@@ -89,6 +89,7 @@ public class SessionConfig {
     private List<String> pluginDirectories;
     private LargeToolOutputConfig largeOutput;
     private ToolSearchConfig toolSearch;
+    private ImageGenerationConfig imageGeneration;
     private MemoryConfiguration memory;
     private List<String> disabledSkills;
     private List<String> disabledMcpServers;
@@ -1354,6 +1355,29 @@ public class SessionConfig {
     }
 
     /**
+     * Gets the non-persisted image generation opt-in.
+     *
+     * @return the image generation config, or null when unset
+     */
+    @CopilotExperimental
+    public ImageGenerationConfig getImageGeneration() {
+        return imageGeneration;
+    }
+
+    /**
+     * Sets the image generation opt-in. Re-supply after runtime restart.
+     *
+     * @param imageGeneration
+     *            the image generation config
+     * @return this config for method chaining
+     */
+    @CopilotExperimental
+    public SessionConfig setImageGeneration(ImageGenerationConfig imageGeneration) {
+        this.imageGeneration = imageGeneration;
+        return this;
+    }
+
+    /**
      * Sets the tool-search override configuration. When {@code null}, the runtime
      * default tool-search behavior applies.
      *
@@ -2408,6 +2432,7 @@ public class SessionConfig {
         copy.pluginDirectories = this.pluginDirectories != null ? new ArrayList<>(this.pluginDirectories) : null;
         copy.largeOutput = this.largeOutput;
         copy.toolSearch = this.toolSearch;
+        copy.imageGeneration = this.imageGeneration;
         copy.memory = this.memory;
         copy.disabledSkills = this.disabledSkills != null ? new ArrayList<>(this.disabledSkills) : null;
         copy.disabledMcpServers = this.disabledMcpServers != null ? new ArrayList<>(this.disabledMcpServers) : null;
