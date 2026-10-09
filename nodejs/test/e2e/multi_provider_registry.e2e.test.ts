@@ -137,7 +137,8 @@ describe("Multi-provider BYOK registry", async () => {
     async function assertRouting(
         selectionId: string,
         expectedWireModel: string,
-        expectedProviderHeader: string
+        expectedProviderHeader: string,
+        expectedOutputCap?: number
     ): Promise<void> {
         // Two OpenAI-compatible providers, both pointed at the replay proxy so
         // their /chat/completions traffic is captured. They are distinguished on
@@ -162,7 +163,12 @@ describe("Multi-provider BYOK registry", async () => {
             },
         ];
         const models: ProviderModelConfig[] = [
-            { id: "sonnet", provider: "alpha", wireModel: "byok-gpt-4o" },
+            {
+                id: "sonnet",
+                provider: "alpha",
+                wireModel: "byok-gpt-4o",
+                maxOutputTokens: 16_384,
+            },
             { id: "haiku", provider: "alpha", wireModel: "byok-gpt-4o-mini" },
             { id: "turbo", provider: "delta", wireModel: "byok-gpt-4-turbo" },
         ];
@@ -175,7 +181,8 @@ describe("Multi-provider BYOK registry", async () => {
         });
 
         try {
-            await session.sendAndWait({ prompt: "What is 5+5?" });
+            const response = await session.sendAndWait({ prompt: "What is 5+5?" });
+            expect(response?.data.content).toContain("10");
             const exchanges = await waitForExchanges();
             expect(exchanges.length).toBe(1);
             const exchange = exchanges[0];
@@ -183,6 +190,9 @@ describe("Multi-provider BYOK registry", async () => {
             // The wire model sent to the provider is the selected model's
             // wireModel, not its provider-qualified selection id.
             expect(exchange.request.model).toBe(expectedWireModel);
+            expect(exchange.request.max_tokens).toBe(expectedOutputCap);
+            expect(exchange.request.max_completion_tokens).toBeUndefined();
+            expect("max_output_tokens" in exchange.request).toBe(false);
 
             // The request carried the owning provider's custom header, proving
             // the turn was dispatched against the correct provider connection.
@@ -200,7 +210,7 @@ describe("Multi-provider BYOK registry", async () => {
     }
 
     it("should route alpha sonnet turn to its provider and wire model", async () => {
-        await assertRouting("alpha/sonnet", "byok-gpt-4o", "alpha");
+        await assertRouting("alpha/sonnet", "byok-gpt-4o", "alpha", 16_384);
     });
 
     it("should route alpha haiku turn to its provider and wire model", async () => {
