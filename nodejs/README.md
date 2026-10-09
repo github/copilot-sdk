@@ -1377,6 +1377,36 @@ const session = await client.createSession({
 });
 ```
 
+### Managed network policy for client-owned browsers
+
+Obtain a reusable `permissionsContext` from
+`client.rpc.managedSettings.resolve({ selectionId })` for account and device
+policy, or `session.rpc.managedSettings.get()` for the session's retained policy,
+including SDK injection and policy-helper rules. Omit `selectionId` for the current
+account, or device policy only when signed out. Resolution uses the managed-policy
+cache and can fetch server policy; keep it off latency-critical startup paths.
+Older runtimes may omit `permissionsContext`. Treat an absent context as unsupported
+evaluation, not unmanaged policy; do not navigate without a policy decision.
+
+Call `client.rpc.managedSettings.permissions.evaluate({ context: permissionsContext, operations: [{ kind: "url", url: "https://docs.example.com/guide" }] })`.
+This is pure, sessionless evaluation: it performs no policy discovery, I/O,
+prompting, or sandbox changes. Reuse an in-memory context for repeated checks and
+refresh it when managed policy changes. Retain the runtime-owned `permissions`
+object verbatim rather than rebuilding it from the flattened settings display.
+
+The result is `{ results: [{ operation, verdict }], failClosed }`, with one entry per
+input operation in the same order. `deny` blocks navigation, `ask` requires approval,
+`allow` approves under managed policy, and `unmanaged` leaves the consumer's normal
+permission flow in effect. A check never prompts or grants a saved approval.
+Invalid URLs reject the batch. Unknown policy rejects or returns `failClosed: true`
+with all URLs denied; do not navigate on an error.
+
+Check every navigation, redirect, and new-window destination before opening it.
+These APIs evaluate managed permission rules only: they do not replace browser
+security checks, user permissions, or sandbox policy. `permissions.limitTo` neither
+enables the sandbox nor changes `sandbox.userPolicy.network`; configure sandbox
+network restrictions explicitly.
+
 ### Permission Result Kinds
 
 The handler must return one of the `PermissionDecision` shapes (or `{ kind: "no-result" }`). Approval scopes are present-tense — they describe the decision to apply, not the outcome reported back on session events:

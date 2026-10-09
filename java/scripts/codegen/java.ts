@@ -1343,7 +1343,34 @@ export function schemaTypeToJava(
         const name = schema.$ref.replace(/^#\/definitions\//, "");
         const resolved = resolution.definitions[name];
         if (resolved) {
+            if (
+                name === "ManagedPermissionsContext"
+                && generatedSessionEventTypeNames.has(name)
+                && crossSchemaDefinitions.get("session-events.schema.json")?.[name]
+            ) {
+                imports.add(`com.github.copilot.generated.${name}`);
+                return { javaType: name, imports };
+            }
             const directUnion = unionVariants(resolved);
+            if (name === "ManagedPermissionOperation" && directUnion) {
+                const variants = resolveAnyOfVariants(directUnion, resolution.definitions);
+                const [variant] = variants;
+                if (variants.length === 1 && variant?.properties) {
+                    const kind = variant.properties.kind;
+                    if (!kind || typeof kind !== "object" || typeof kind.const !== "string") {
+                        throw new Error("Expected a string discriminator for ManagedPermissionOperation.kind");
+                    }
+                    resolution.standaloneTypes.set(name, {
+                        ...resolved,
+                        ...variant,
+                        properties: {
+                            ...variant.properties,
+                            kind: { ...kind, enum: [kind.const] },
+                        },
+                    });
+                    return { javaType: name, imports };
+                }
+            }
             if (directUnion && ["InstallationReview", "McpInstallationReview", "SkillInstallationReview"].includes(name)) {
                 const variants = resolveAnyOfVariants(directUnion, resolution.definitions);
                 if (variants.length > 1 && findDiscriminator(variants)) {

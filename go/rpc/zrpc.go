@@ -167,6 +167,9 @@ type AccountsSetRequest struct {
 type AccountStatus struct {
 	// Whether this is the active account.
 	Active bool `json:"active"`
+	// Human-readable credential source used to authenticate this account, such as `gh` or
+	// `GITHUB_TOKEN`.
+	AuthSource *string `json:"authSource,omitempty"`
 	// Opaque id of the account this one was derived from (e.g. an EMU account's base Entra
 	// identity); absent for a root account. Matches the base identity account's selectionId,
 	// forming the derivation edge.
@@ -6787,6 +6790,58 @@ type ManagedMCPServerConfig struct {
 	URL string `json:"url"`
 }
 
+// Experimental: ManagedPermissionEvaluation is part of an experimental API and may change
+// or be removed.
+type ManagedPermissionEvaluation struct {
+	// Original input operation associated with this verdict.
+	Operation ManagedPermissionOperation `json:"operation"`
+	// Managed-policy decision only; never bypasses user permissions or other security controls.
+	Verdict ManagedPermissionVerdict `json:"verdict"`
+}
+
+// Experimental: ManagedPermissionOperation is part of an experimental API and may change or
+// be removed.
+type ManagedPermissionOperation struct {
+	// Operation to evaluate. Currently only url is supported.
+	Kind ManagedPermissionOperationKind `json:"kind"`
+	// Absolute HTTP(S) URL with a host. Invalid URLs reject the entire evaluation batch.
+	URL string `json:"url"`
+}
+
+// Reusable managed permission evaluation context. Treat permissions as runtime-owned policy
+// data and retain it verbatim; it includes source-aware composition metadata. This is a
+// snapshot, not a capability or approval token; only use contexts obtained from trusted
+// policy sources.
+// Experimental: ManagedPermissionsContext is part of an experimental API and may change or
+// be removed.
+type ManagedPermissionsContext struct {
+	// Policy could not be determined; evaluation must deny every operation.
+	FailClosed bool `json:"failClosed"`
+	// Runtime-owned composed permissions object. Absent when no permission policy is configured.
+	Permissions any `json:"permissions,omitempty"`
+}
+
+// Managed policy context and ordered operations for pure, sessionless evaluation.
+// Experimental: ManagedPermissionsEvaluateRequest is part of an experimental API and may
+// change or be removed.
+type ManagedPermissionsEvaluateRequest struct {
+	// Trusted, reusable managed permission policy snapshot; no policy is discovered during
+	// evaluation.
+	Context ManagedPermissionsContext `json:"context"`
+	// Operations to evaluate, preserving input order and duplicates. An empty batch is valid.
+	Operations []ManagedPermissionOperation `json:"operations"`
+}
+
+// Ordered managed permission verdicts and the supplied policy's fail-closed posture.
+// Experimental: ManagedPermissionsEvaluateResult is part of an experimental API and may
+// change or be removed.
+type ManagedPermissionsEvaluateResult struct {
+	// Managed permission policy could not be determined; every operation is denied.
+	FailClosed bool `json:"failClosed"`
+	// One verdict per input operation, in the same order, including duplicates.
+	Results []ManagedPermissionEvaluation `json:"results"`
+}
+
 // Retry outcome for one plugin required by managed settings.
 // Experimental: ManagedPluginRetryEntry is part of an experimental API and may change or be
 // removed.
@@ -6906,6 +6961,16 @@ type ManagedSettingsMeta struct {
 	Model *ManagedSettingMeta `json:"model,omitempty"`
 }
 
+// Ordered managed permission verdicts and the supplied policy's fail-closed posture.
+// Experimental: ManagedSettingsPermissionsEvaluateResult is part of an experimental API and
+// may change or be removed.
+type ManagedSettingsPermissionsEvaluateResult struct {
+	// Managed permission policy could not be determined; every operation is denied.
+	FailClosed bool `json:"failClosed"`
+	// One verdict per input operation, in the same order, including duplicates.
+	Results []ManagedPermissionEvaluation `json:"results"`
+}
+
 // Validated device-managed settings discovered before a session exists.
 // Experimental: ManagedSettingsReadResult is part of an experimental API and may change or
 // be removed.
@@ -6943,6 +7008,10 @@ type ManagedSettingsResolvedData struct {
 	// Whether at least two managed sources supplied permission allowlists, so enforcement
 	// intersects them and the flattened settings payload omits `permissions.allow`.
 	PermissionsAllowIntersected *bool `json:"permissionsAllowIntersected,omitempty"`
+	// Reusable retained managed permission policy for managedSettings.permissions.evaluate,
+	// including source composition and session-local injection. Provided by live session
+	// snapshots; absent in older events. Refresh the context when managed policy changes.
+	PermissionsContext *ManagedPermissionsContext `json:"permissionsContext,omitempty"`
 	// Whether the policy-helper managed-settings layer was present. The policy helper is the
 	// weakest channel: it fills keys no enterprise source set and can never replace one.
 	PolicyHelperManaged *bool `json:"policyHelperManaged,omitempty"`
@@ -6997,6 +7066,11 @@ type ManagedSettingsResolveResult struct {
 	Layers []ManagedSettingsLayer `json:"layers"`
 	// Per-key lock state and provenance for the entries in `values`, using the same key names.
 	Meta *ManagedSettingsMeta `json:"meta,omitempty"`
+	// Reusable source-composed permission policy for managedSettings.permissions.evaluate.
+	// Unlike resolved.settings.permissions, this retains every source's allowlist and
+	// default-prompt semantics. Refresh through resolve when account/device policy changes.
+	// Absent on runtimes that do not support permission evaluation.
+	PermissionsContext *ManagedPermissionsContext `json:"permissionsContext,omitempty"`
 	// Effective managed settings from the device and account (server) channels, in the same
 	// shape as `session.managedSettings.get`, excluding session-local injection.
 	Resolved ManagedSettingsResolvedData `json:"resolved"`
@@ -13273,6 +13347,30 @@ type ProviderModelConfig struct {
 	WireModel *string `json:"wireModel,omitempty"`
 }
 
+// An authoritative monthly usage reading for the observation's provider, account, and
+// service.
+// Experimental: ProviderMonthlyUsage is part of an experimental API and may change or be
+// removed.
+type ProviderMonthlyUsage struct {
+	// Nonnegative finite consumption reported by the service, preserving zero and fractions.
+	// Present only when state is available; never computed from tokens or balance differences.
+	ConsumedQuantity *float64 `json:"consumedQuantity,omitempty"`
+	// Start of the service-reported monthly billing cycle, in UTC RFC 3339.
+	CycleStart *string `json:"cycleStart,omitempty"`
+	// Service read time in UTC RFC 3339, not a ledger reconciliation watermark or confirmation
+	// of the latest inference charge.
+	QueriedAt *string `json:"queriedAt,omitempty"`
+	// End of the service-reported monthly billing cycle, in UTC RFC 3339.
+	ResetOn *string `json:"resetOn,omitempty"`
+	// Identity scope of the reading within its provider and service.
+	Scope ProviderMonthlyUsageScope `json:"scope"`
+	// Availability of monthly consumption. Missing or unavailable usage must never be
+	// interpreted as zero.
+	State ProviderMonthlyUsageState `json:"state"`
+	// Unit of consumedQuantity; independent of the parent observation's balance unit.
+	Unit ProviderQuotaUnit `json:"unit"`
+}
+
 // Authoritative budget measurements and policy metadata, independent of provider.
 // Experimental: ProviderQuotaBudgetMetadata is part of an experimental API and may change
 // or be removed.
@@ -13331,6 +13429,9 @@ type ProviderQuotaState struct {
 	HasQuota *bool `json:"hasQuota,omitempty"`
 	// HTTP status from acquisition, when available.
 	HTTPStatus *int64 `json:"httpStatus,omitempty"`
+	// Service-reported monthly consumption, independent of quota balances and per-call or
+	// session cost. Omitted when the service does not report monthly usage.
+	MonthlyUsage *ProviderMonthlyUsage `json:"monthlyUsage,omitempty"`
 	// Whether this is a GET account reading or a pre-response admission observation.
 	// Observations are never merged across kinds.
 	ObservationKind *ProviderQuotaObservationKind `json:"observationKind,omitempty"`
@@ -24580,6 +24681,31 @@ const (
 	LoginProviderKindProxima LoginProviderKind = "proxima"
 )
 
+// Operation to evaluate. Currently only url is supported.
+type ManagedPermissionOperationKind string
+
+const (
+	ManagedPermissionOperationKindURL ManagedPermissionOperationKind = "url"
+)
+
+// Managed-policy verdict only: deny blocks the URL, ask requires approval, allow approves
+// under managed policy, and unmanaged leaves the normal consumer permission flow in effect.
+// No verdict bypasses other security controls.
+// Experimental: ManagedPermissionVerdict is part of an experimental API and may change or
+// be removed.
+type ManagedPermissionVerdict string
+
+const (
+	// Managed policy allows the operation, subject to other security controls.
+	ManagedPermissionVerdictAllow ManagedPermissionVerdict = "allow"
+	// Managed policy requires the consumer to obtain approval.
+	ManagedPermissionVerdictAsk ManagedPermissionVerdict = "ask"
+	// Managed policy prohibits the operation; do not offer approval.
+	ManagedPermissionVerdictDeny ManagedPermissionVerdict = "deny"
+	// Managed policy does not decide the operation; use the consumer's normal permission flow.
+	ManagedPermissionVerdictUnmanaged ManagedPermissionVerdict = "unmanaged"
+)
+
 // What retrying did for one plugin required by managed settings.
 // Experimental: ManagedPluginRetryStatus is part of an experimental API and may change or
 // be removed.
@@ -26251,6 +26377,35 @@ const (
 	ProviderEndpointWireAPICompletions ProviderEndpointWireAPI = "completions"
 	// Newer responses request shape.
 	ProviderEndpointWireAPIResponses ProviderEndpointWireAPI = "responses"
+)
+
+// Identity scope of a monthly usage reading.
+// Experimental: ProviderMonthlyUsageScope is part of an experimental API and may change or
+// be removed.
+type ProviderMonthlyUsageScope string
+
+const (
+	// The service did not establish a recognized usage scope.
+	ProviderMonthlyUsageScopeUnknown ProviderMonthlyUsageScope = "unknown"
+	// Consumption of the authenticated user within the parent observation's service and
+	// returned cycle.
+	ProviderMonthlyUsageScopeUser ProviderMonthlyUsageScope = "user"
+)
+
+// Availability of a service's monthly consumption reading.
+// Experimental: ProviderMonthlyUsageState is part of an experimental API and may change or
+// be removed.
+type ProviderMonthlyUsageState string
+
+const (
+	// The service reported a usable consumption reading, including an explicit zero.
+	ProviderMonthlyUsageStateAvailable ProviderMonthlyUsageState = "available"
+	// The service found no usage policy; no consumption amount is known.
+	ProviderMonthlyUsageStateNoPolicy ProviderMonthlyUsageState = "no_policy"
+	// The read failed or its data could not be used; consumption is unknown.
+	ProviderMonthlyUsageStateUnavailable ProviderMonthlyUsageState = "unavailable"
+	// The service reported an unrecognized usage state.
+	ProviderMonthlyUsageStateUnknown ProviderMonthlyUsageState = "unknown"
 )
 
 // Access policy reported by the quota service.
@@ -28743,6 +28898,42 @@ func (a *ServerManagedSettingsAPI) Validate(ctx context.Context, params *Managed
 		return nil, err
 	}
 	return &result, nil
+}
+
+// Experimental: ServerManagedSettingsPermissionsAPI contains experimental APIs that may
+// change or be removed.
+type ServerManagedSettingsPermissionsAPI serverAPI
+
+// Evaluate pure, sessionless evaluation of operations against a supplied
+// permissionsContext. Performs no policy discovery, I/O, prompting, navigation, permission
+// grants, or sandbox changes. Obtain the context from managedSettings.resolve or
+// session.managedSettings.get, or reuse an in-memory context. Results preserve input order
+// and duplicates. Consumers must block deny, obtain approval for ask, and use their normal
+// permission flow for unmanaged. Unknown policy returns failClosed with every operation
+// denied. This is not a substitute for user permissions or other security controls.
+//
+// RPC method: managedSettings.permissions.evaluate.
+//
+// Parameters: Managed policy context and ordered operations for pure, sessionless
+// evaluation.
+//
+// Returns: Ordered managed permission verdicts and the supplied policy's fail-closed
+// posture.
+func (a *ServerManagedSettingsPermissionsAPI) Evaluate(ctx context.Context, params *ManagedPermissionsEvaluateRequest) (*ManagedSettingsPermissionsEvaluateResult, error) {
+	raw, err := a.client.Request(ctx, "managedSettings.permissions.evaluate", params)
+	if err != nil {
+		return nil, err
+	}
+	var result ManagedSettingsPermissionsEvaluateResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Experimental: Permissions returns experimental APIs that may change or be removed.
+func (s *ServerManagedSettingsAPI) Permissions() *ServerManagedSettingsPermissionsAPI {
+	return (*ServerManagedSettingsPermissionsAPI)(s)
 }
 
 // Experimental: ServerMCPAPI contains experimental APIs that may change or be removed.

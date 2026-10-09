@@ -408,7 +408,7 @@ jobs:
     with:
       runtime-source: ${{ needs.detect-layout.outputs.runtime-source }}
       sdk-home: ${{ needs.detect-layout.outputs.sdk-home }}
-      os: macos-26-xlarge
+      os: macos-26-xlarge-agent-runtime
       target: darwin-arm64
       artifact: macOS-ARM64
       bazel-config: e2e-no-lto

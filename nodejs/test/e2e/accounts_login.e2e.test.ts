@@ -43,7 +43,7 @@ function clientForTest(): CopilotClient {
     return client;
 }
 
-describe("Shared Entra login", () => {
+describe.skipIf(process.platform === "linux")("Shared Entra login", () => {
     it("returns a cancellable flow before discovery and preserves session ownership", async () => {
         const client = clientForTest();
         await using session = await client.createSession({ onPermissionRequest: approveAll });

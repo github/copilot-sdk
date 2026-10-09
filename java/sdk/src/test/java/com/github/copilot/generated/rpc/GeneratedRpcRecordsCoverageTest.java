@@ -21,6 +21,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.copilot.AllowCopilotExperimental;
 import com.github.copilot.TestUtil;
+import com.github.copilot.generated.SessionManagedSettingsResolvedEvent.SessionManagedSettingsResolvedEventData;
 
 /**
  * Tests for generated RPC param and result record types. Exercises
@@ -28,6 +29,27 @@ import com.github.copilot.TestUtil;
  * of the generated code without requiring network access.
  */
 class GeneratedRpcRecordsCoverageTest {
+
+    @Test
+    @AllowCopilotExperimental
+    void managedPermissions_reuses_event_context_and_evaluated_operations() throws Exception {
+        var mapper = new ObjectMapper();
+        var eventJson = mapper.readTree("""
+                {"permissionsContext":{"permissions":{"_limitToLists":[["https://example.com"]]},"failClosed":false}}
+                """);
+        var eventData = mapper.treeToValue(eventJson, SessionManagedSettingsResolvedEventData.class);
+        var evaluation = mapper.readValue("""
+                {"operation":{"kind":"url","url":"https://example.com/a"},"verdict":"allow"}
+                """, ManagedPermissionEvaluation.class);
+        var params = new ManagedSettingsPermissionsEvaluateParams(eventData.permissionsContext(),
+                List.of(evaluation.operation()));
+        var paramsJson = mapper.valueToTree(params);
+        assertEquals(eventJson.get("permissionsContext"), paramsJson.get("context"));
+        assertEquals("url", paramsJson.get("operations").get(0).get("kind").asText());
+        assertEquals("https://example.com/a", paramsJson.get("operations").get(0).get("url").asText());
+        assertEquals(ManagedPermissionOperation.ManagedPermissionOperationKind.URL, evaluation.operation().kind());
+        assertEquals(params, mapper.treeToValue(paramsJson, ManagedSettingsPermissionsEvaluateParams.class));
+    }
 
     // ── Params records ─────────────────────────────────────────────────────
 

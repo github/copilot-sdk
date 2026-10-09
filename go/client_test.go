@@ -2099,7 +2099,7 @@ func TestClient_InProcessConnection(t *testing.T) {
 			Mode:                      ModeEmpty,
 		})
 
-		config := client.inProcessHostConfig()
+		config := client.inProcessHostConfig("")
 		expectedArgs := []string{
 			"--log-level", "debug",
 			"--auth-token-env", "COPILOT_SDK_AUTH_TOKEN",
@@ -2117,6 +2117,33 @@ func TestClient_InProcessConnection(t *testing.T) {
 		}
 		if !reflect.DeepEqual(config.Environment, expectedEnvironment) {
 			t.Fatalf("Expected managed environment %v, got %v", expectedEnvironment, config.Environment)
+		}
+	})
+
+	t.Run("forwards supported CLI login sync integrations", func(t *testing.T) {
+		t.Setenv("GITHUB_COPILOT_INTEGRATION_ID", "github/github-app")
+		client := NewClient(&ClientOptions{Connection: InProcessConnection{}})
+		t.Setenv("GITHUB_COPILOT_INTEGRATION_ID", "changed/after-construction")
+
+		integrationID := getEnvValue(client.options.Env, "GITHUB_COPILOT_INTEGRATION_ID")
+		config := client.inProcessHostConfig(integrationID)
+
+		expectedArgs := []string{"--cli-login-sync-integration-id=github/github-app"}
+		if !reflect.DeepEqual(config.Args, expectedArgs) {
+			t.Fatalf("Expected CLI login sync arguments %v, got %v", expectedArgs, config.Args)
+		}
+	})
+
+	t.Run("forwards integration validation to the runtime", func(t *testing.T) {
+		t.Setenv("GITHUB_COPILOT_INTEGRATION_ID", "third-party/integration")
+		client := NewClient(&ClientOptions{Connection: InProcessConnection{}})
+
+		integrationID := getEnvValue(client.options.Env, "GITHUB_COPILOT_INTEGRATION_ID")
+		config := client.inProcessHostConfig(integrationID)
+
+		expectedArgs := []string{"--cli-login-sync-integration-id=third-party/integration"}
+		if !reflect.DeepEqual(config.Args, expectedArgs) {
+			t.Fatalf("Expected CLI login sync arguments %v, got %v", expectedArgs, config.Args)
 		}
 	})
 }

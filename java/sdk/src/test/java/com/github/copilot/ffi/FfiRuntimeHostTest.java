@@ -77,7 +77,7 @@ class FfiRuntimeHostTest {
                 .setRemote(true).setMode(CopilotClientMode.EMPTY).setCliArgs(new String[]{"--extra-flag"});
 
         FfiRuntimeHost host = new FfiRuntimeHost(binding, "/tmp/runtime.node");
-        host.start("/tmp/entrypoint.js", options);
+        host.start("/tmp/entrypoint.js", "github/github-app", options);
 
         List<String> argv = MAPPER.readValue(binding.argv, new TypeReference<List<String>>() {
         });
@@ -92,6 +92,7 @@ class FfiRuntimeHostTest {
         assertTrue(argv.contains("42"));
         assertTrue(argv.contains("--remote"));
         assertTrue(argv.contains("--extra-flag"));
+        assertTrue(argv.contains("--cli-login-sync-integration-id=github/github-app"));
 
         Map<String, String> env = MAPPER.readValue(binding.env, new TypeReference<Map<String, String>>() {
         });
@@ -133,7 +134,7 @@ class FfiRuntimeHostTest {
         };
 
         try (FfiRuntimeHost host = new FfiRuntimeHost(binding, "/tmp/runtime.node")) {
-            host.start(null, new CopilotClientOptions().setLogLevel("debug"));
+            host.start(null, null, new CopilotClientOptions().setLogLevel("debug"));
         }
 
         List<String> argv = MAPPER.readValue(argvJson.get(), new TypeReference<List<String>>() {
@@ -184,7 +185,7 @@ class FfiRuntimeHostTest {
         };
 
         FfiRuntimeHost host = new FfiRuntimeHost(binding, "test-lib", throwingStream);
-        assertDoesNotThrow(() -> host.start("/tmp/entrypoint", new CopilotClientOptions()));
+        assertDoesNotThrow(() -> host.start("/tmp/entrypoint", null, new CopilotClientOptions()));
         assertTrue(callbackReturned.get(), "callback should return normally even when enqueue throws");
     }
 
@@ -219,7 +220,7 @@ class FfiRuntimeHostTest {
         };
 
         FfiRuntimeHost host = new FfiRuntimeHost(binding, "test-lib");
-        host.start("/tmp/entrypoint", new CopilotClientOptions());
+        host.start("/tmp/entrypoint", null, new CopilotClientOptions());
         assertDoesNotThrow(host::close);
     }
 
@@ -310,7 +311,7 @@ class FfiRuntimeHostTest {
         };
 
         FfiRuntimeHost host = new FfiRuntimeHost(binding, "test-lib");
-        host.start("/tmp/entrypoint", new CopilotClientOptions());
+        host.start("/tmp/entrypoint", null, new CopilotClientOptions());
 
         CompletableFuture<Void> writer = CompletableFuture.runAsync(() -> {
             try {
@@ -389,7 +390,7 @@ class FfiRuntimeHostTest {
         };
 
         FfiRuntimeHost host = new FfiRuntimeHost(binding, "test-lib", blockingStream);
-        host.start("/tmp/entrypoint", new CopilotClientOptions());
+        host.start("/tmp/entrypoint", null, new CopilotClientOptions());
         assertNotNull(callbackRef.get());
 
         ExecutorService executor = Executors.newFixedThreadPool(2);

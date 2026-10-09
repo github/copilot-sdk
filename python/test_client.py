@@ -16,6 +16,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
+import copilot.client as client_module
 from copilot import (
     CanvasProviderIdentity,
     CapiSessionOptions,
@@ -85,6 +86,29 @@ def test_inprocess_connection_has_no_child_process_options():
     assert list(inspect.signature(RuntimeConnection.for_inprocess).parameters) == []
     assert not hasattr(connection, "path")
     assert not hasattr(connection, "args")
+
+
+@pytest.mark.asyncio
+async def test_inprocess_forwards_integration_id_to_native_host(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+):
+    monkeypatch.setenv("GITHUB_COPILOT_INTEGRATION_ID", "  microsoft/vscode  ")
+    monkeypatch.setattr(
+        "copilot._cli_download.ensure_runtime_wrapper",
+        lambda: str(tmp_path / "copilot-runtime"),
+    )
+    host = Mock()
+    host.process = Mock()
+    host.start_blocking = Mock()
+    create_host = Mock(return_value=host)
+    monkeypatch.setattr(client_module.FfiRuntimeHost, "create", create_host)
+    client = CopilotClient(connection=RuntimeConnection.for_inprocess())
+
+    await client._start_inprocess_ffi()
+
+    assert (
+        "--cli-login-sync-integration-id=microsoft/vscode" in create_host.call_args.kwargs["args"]
+    )
 
 
 def test_explicit_child_process_path_does_not_require_runtime_bundle(tmp_path):

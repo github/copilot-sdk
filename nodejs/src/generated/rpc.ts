@@ -5,7 +5,7 @@
 
 import type { MessageConnection } from "vscode-jsonrpc/node.js";
 
-import type { AbortReason, AgentModelPolicy, Attachment, AutoTier, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, IndexedSearchState, ManagedSettingsResolvedData, McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerMetadata, McpServerSource, McpServerStatus, ModelChangeSource, ModelProviderKind, ModelProviderRef, PermissionDecisionSource, PermissionMode, PermissionPromptRequest, PermissionRule, ProviderQuotaState, ReasoningSummary, RemediationAction, SessionEvent, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskCompleteData, TaskCompletionOutcome, UsageGetMetricsResult, UserToolSessionApproval, Verbosity } from "./session-events.js";
+import type { AbortReason, AgentModelPolicy, Attachment, AutoTier, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, IndexedSearchState, ManagedPermissionsContext, ManagedSettingsResolvedData, McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerMetadata, McpServerSource, McpServerStatus, ModelChangeSource, ModelProviderKind, ModelProviderRef, PermissionDecisionSource, PermissionMode, PermissionPromptRequest, PermissionRule, ProviderQuotaState, ReasoningSummary, RemediationAction, SessionEvent, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskCompleteData, TaskCompletionOutcome, UsageGetMetricsResult, UserToolSessionApproval, Verbosity } from "./session-events.js";
 
 /** A value that can be represented losslessly on the SDK JSON wire. */
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
@@ -2680,6 +2680,34 @@ export type SessionLogLevel =
   | "warning"
   /** Error message describing a failure. */
   | "error";
+
+/** @experimental */
+export type ManagedPermissionOperation = {
+  /**
+   * Absolute HTTP(S) URL with a host. Invalid URLs reject the entire evaluation batch.
+   */
+  url: string;
+  /**
+   * Operation to evaluate. Currently only url is supported.
+   */
+  kind: "url";
+};
+/**
+ * Managed-policy verdict only: deny blocks the URL, ask requires approval, allow approves under managed policy, and unmanaged leaves the normal consumer permission flow in effect. No verdict bypasses other security controls.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ManagedPermissionVerdict".
+ */
+/** @experimental */
+export type ManagedPermissionVerdict =
+  /** Managed policy prohibits the operation; do not offer approval. */
+  | "deny"
+  /** Managed policy requires the consumer to obtain approval. */
+  | "ask"
+  /** Managed policy allows the operation, subject to other security controls. */
+  | "allow"
+  /** Managed policy does not decide the operation; use the consumer's normal permission flow. */
+  | "unmanaged";
 /**
  * What retrying did for one plugin required by managed settings.
  *
@@ -7092,6 +7120,10 @@ export interface AccountStatus {
    */
   login: string;
   kind: AccountKind;
+  /**
+   * Human-readable credential source used to authenticate this account, such as `gh` or `GITHUB_TOKEN`.
+   */
+  authSource?: string;
   /**
    * Opaque id of the account this one was derived from (e.g. an EMU account's base Entra identity); absent for a root account. Matches the base identity account's selectionId, forming the derivation edge.
    */
@@ -14713,6 +14745,43 @@ export interface ManagedMcpServerConfig {
    */
   headersRefreshTtlMs?: number;
 }
+
+/** @experimental */
+export interface ManagedPermissionEvaluation {
+  operation: ManagedPermissionOperation;
+  verdict: ManagedPermissionVerdict;
+}
+/**
+ * Managed policy context and ordered operations for pure, sessionless evaluation.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ManagedPermissionsEvaluateRequest".
+ */
+/** @experimental */
+export interface ManagedPermissionsEvaluateRequest {
+  context: ManagedPermissionsContext;
+  /**
+   * Operations to evaluate, preserving input order and duplicates. An empty batch is valid.
+   */
+  operations: ManagedPermissionOperation[];
+}
+/**
+ * Ordered managed permission verdicts and the supplied policy's fail-closed posture.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ManagedPermissionsEvaluateResult".
+ */
+/** @experimental */
+export interface ManagedPermissionsEvaluateResult {
+  /**
+   * One verdict per input operation, in the same order, including duplicates.
+   */
+  results: ManagedPermissionEvaluation[];
+  /**
+   * Managed permission policy could not be determined; every operation is denied.
+   */
+  failClosed: boolean;
+}
 /**
  * Retry outcome for one plugin required by managed settings.
  *
@@ -14911,6 +14980,7 @@ export interface ManagedSettingsResolveRequest {
  */
 /** @experimental */
 export interface ManagedSettingsResolveResult {
+  permissionsContext?: ManagedPermissionsContext;
   /**
    * Printable opaque identity of the account the settings were resolved for, suitable for comparison and storage, not an account selectionId. Absent when no account was available, in which case only device policy is reported.
    */
@@ -31462,6 +31532,37 @@ export interface HostGetConfigurationResult {
  */
 /** @experimental */
 export interface HostReadyResult {}
+/**
+ * Ordered managed permission verdicts and the supplied policy's fail-closed posture.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ManagedSettingsPermissionsEvaluateResult".
+ */
+/** @experimental */
+export interface ManagedSettingsPermissionsEvaluateResult {
+  /**
+   * One verdict per input operation, in the same order, including duplicates.
+   */
+  results: ManagedPermissionEvaluation[];
+  /**
+   * Managed permission policy could not be determined; every operation is denied.
+   */
+  failClosed: boolean;
+}
+/**
+ * Managed policy context and ordered operations for pure, sessionless evaluation.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ManagedSettingsPermissionsEvaluateRequest".
+ */
+/** @experimental */
+export interface ManagedSettingsPermissionsEvaluateRequest {
+  context: ManagedPermissionsContext;
+  /**
+   * Operations to evaluate, preserving input order and duplicates. An empty batch is valid.
+   */
+  operations: ManagedPermissionOperation[];
+}
 
 /** @experimental */
 export interface SessionWorkflowPauseAtCheckpointResult {
@@ -32751,6 +32852,18 @@ export function createServerRpc(connection: MessageConnection) {
              */
             resolve: async (params: ManagedSettingsResolveRequest): Promise<ManagedSettingsResolveResult> =>
                 connection.sendRequest("managedSettings.resolve", params),
+            /** @experimental */
+            permissions: {
+                /**
+                 * Pure, sessionless evaluation of operations against a supplied permissionsContext. Performs no policy discovery, I/O, prompting, navigation, permission grants, or sandbox changes. Obtain the context from managedSettings.resolve or session.managedSettings.get, or reuse an in-memory context. Results preserve input order and duplicates. Consumers must block deny, obtain approval for ask, and use their normal permission flow for unmanaged. Unknown policy returns failClosed with every operation denied. This is not a substitute for user permissions or other security controls.
+                 *
+                 * @param params Managed policy context and ordered operations for pure, sessionless evaluation.
+                 *
+                 * @returns Ordered managed permission verdicts and the supplied policy's fail-closed posture.
+                 */
+                evaluate: async (params: ManagedSettingsPermissionsEvaluateRequest): Promise<ManagedSettingsPermissionsEvaluateResult> =>
+                    connection.sendRequest("managedSettings.permissions.evaluate", params),
+            },
             /**
              * Returns the managed-settings authoring JSON schema with descriptive `x-composition` annotations aligned with the shared settings-engine vocabulary. These annotations are not a complete runtime composition contract: model, effortLevel, and contextTier remain coupled. Use `managedSettings.compose` for the runtime's effective result. Performs no I/O.
              *

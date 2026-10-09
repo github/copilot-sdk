@@ -15,15 +15,19 @@ import type {
 import { approveAll, CopilotRequestHandler } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
 import { waitForCondition } from "./harness/sdkTestHelper.js";
+import { isByokBackend } from "./harness/testBackend.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const TEST_MCP_SERVER = resolve(__dirname, "../../../test/harness/test-mcp-server.mjs");
 const TEST_HARNESS_DIR = dirname(TEST_MCP_SERVER);
+const capiIt = it.skipIf(isByokBackend);
 
 interface InferenceRequest {
     agentId?: string;
     parentAgentId?: string;
+    model: string;
+    reasoningEffort?: string;
     systemPrompt: string;
     toolNames: string[];
 }
@@ -37,9 +41,16 @@ class RecordingRequestHandler extends CopilotRequestHandler {
     ): Promise<Response> {
         const body = request.body ? await request.text() : "";
         if (isInferenceUrl(request.url)) {
+            const inference = JSON.parse(body) as {
+                model: string;
+                reasoning_effort?: string;
+                reasoning?: { effort?: string };
+            };
             this.inferenceRequests.push({
                 agentId: ctx.agentId,
                 parentAgentId: ctx.parentAgentId,
+                model: inference.model,
+                reasoningEffort: inference.reasoning_effort ?? inference.reasoning?.effort,
                 systemPrompt: systemPromptFromRequest(request.url, body),
                 toolNames: toolNamesFromRequest(body),
             });
@@ -119,6 +130,32 @@ function bootstrapResponse(url: string): Response {
                             tool_calls: true,
                             parallel_tool_calls: true,
                             vision: true,
+                        },
+                    },
+                },
+                {
+                    id: "gpt-5.4-mini",
+                    name: "GPT-5.4 Mini",
+                    object: "model",
+                    vendor: "OpenAI",
+                    version: "1",
+                    preview: false,
+                    model_picker_enabled: true,
+                    supported_endpoints: ["/chat/completions"],
+                    capabilities: {
+                        type: "chat",
+                        family: "gpt-5.4-mini",
+                        tokenizer: "o200k_base",
+                        limits: {
+                            max_context_window_tokens: 200000,
+                            max_output_tokens: 8192,
+                        },
+                        supports: {
+                            streaming: true,
+                            tool_calls: true,
+                            parallel_tool_calls: true,
+                            vision: true,
+                            reasoning_effort: ["low", "medium", "high"],
                         },
                     },
                 },
@@ -225,13 +262,21 @@ describe("Subagent prompt resume", async () => {
             },
             { timeoutMessage: `Agent ${agentId} did not become idle.` }
         );
+        const task = (await session.rpc.tasks.list()).tasks.find(
+            (candidate) => candidate.id === agentId
+        );
+        if (task?.type !== "agent") {
+            throw new Error(`Agent task ${agentId} is missing or has the wrong type.`);
+        }
+        expect(task.latestResponse ?? task.result).toContain("SUBAGENT_TURN_COMPLETE");
     }
 
     async function runResumeScenario(
         trigger: (session: CopilotSession) => Promise<void>,
         createOptions: Parameters<typeof client.createSession>[0] = {},
         beforeAgentStart: (session: CopilotSession) => Promise<void> = async () => {},
-        agentType = "explore"
+        agentType = "explore",
+        agentModel: string | null = "claude-sonnet-5"
     ): Promise<[InferenceRequest, InferenceRequest]> {
         await writeFile(join(env.COPILOT_HOME, "settings.json"), "{}");
         const requestBaseline = requestHandler.inferenceRequests.length;
@@ -248,7 +293,7 @@ describe("Subagent prompt resume", async () => {
                 prompt: "Reply with exactly SUBAGENT_TURN_COMPLETE.",
                 name: "prompt-resume",
                 description: "Exercise an idle subagent follow-up.",
-                model: "claude-sonnet-5",
+                ...(agentModel ? { model: agentModel } : {}),
             });
             await waitForIdleAgent(session, agentId);
 
@@ -270,6 +315,7 @@ describe("Subagent prompt resume", async () => {
                 },
                 { timeoutMessage: "Agent did not complete its follow-up turn." }
             );
+            await waitForIdleAgent(session, agentId);
 
             const childRequests = requestHandler.inferenceRequests
                 .slice(requestBaseline)
@@ -316,6 +362,61 @@ describe("Subagent prompt resume", async () => {
         expectAdaptedExplorePrompt(initial.systemPrompt);
         expect(resumed.systemPrompt).toBe(initial.systemPrompt);
     });
+
+    capiIt.each(["minimal", "max", "xhigh", "none", "high"])(
+        "reconciles a concrete child's composed %s effort on its first and resumed requests",
+        async (effort) => {
+            const requests = await runResumeScenario(
+                async () => {},
+                {
+                    customAgents: [
+                        {
+                            name: "composed-effort",
+                            prompt: "Reply with exactly SUBAGENT_TURN_COMPLETE.",
+                            model: `gpt-5.4-mini:defaultReasoningEffort=${effort}`,
+                            tools: [],
+                        },
+                    ],
+                },
+                async () => {},
+                "composed-effort",
+                null
+            );
+
+            for (const request of requests) {
+                expect(request.model).toBe("gpt-5.4-mini");
+                expect(request.reasoningEffort).toBe(effort === "high" ? "high" : "medium");
+            }
+        }
+    );
+
+    capiIt(
+        "reconciles an independently declared child effort without changing its model",
+        async () => {
+            const requests = await runResumeScenario(
+                async () => {},
+                {
+                    customAgents: [
+                        {
+                            name: "declared-effort",
+                            prompt: "Reply with exactly SUBAGENT_TURN_COMPLETE.",
+                            model: "gpt-5.4-mini",
+                            reasoningEffort: "max",
+                            tools: [],
+                        },
+                    ],
+                },
+                async () => {},
+                "declared-effort",
+                null
+            );
+
+            for (const request of requests) {
+                expect(request.model).toBe("gpt-5.4-mini");
+                expect(request.reasoningEffort).toBe("medium");
+            }
+        }
+    );
 
     it("preserves the adapted prompt after persisted settings rebuild the child context", async () => {
         const [initial, resumed] = await runResumeScenario(changePersistedSettings);

@@ -393,6 +393,20 @@ describe("Entra identity-first resource discovery", () => {
                 configDirectory: profile,
                 onPermissionRequest: approveAll,
             });
+            if (process.platform === "linux") {
+                await expect(session.rpc.accounts.login.begin({ kind: "entra" })).rejects.toThrow(
+                    "only on Windows and macOS"
+                );
+                expect(grants).toEqual([]);
+                expect(catalogs).toEqual([]);
+                expect(
+                    await session.rpc.accounts.get({ query: { kind: "activeAccount" } })
+                ).toEqual({
+                    kind: "activeAccount",
+                    account: null,
+                });
+                return;
+            }
             const { flowId } = await session.rpc.accounts.login.begin({ kind: "entra" });
             const step = await session.rpc.accounts.login.advance({ flowId });
             expect(step.kind).toBe("open-url");

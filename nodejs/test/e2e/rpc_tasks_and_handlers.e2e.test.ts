@@ -7,7 +7,7 @@ import { z } from "zod";
 import { approveAll, CopilotRequestHandler } from "../../src/index.js";
 import type { SessionEvent, CopilotRequestContext, CopilotSession } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
-import { waitForCondition } from "./harness/sdkTestHelper.js";
+import { getNextEventOfType, waitForCondition } from "./harness/sdkTestHelper.js";
 import { isByokBackend } from "./harness/testBackend";
 
 const capiIt = it.skipIf(isByokBackend);
@@ -325,6 +325,96 @@ describe("Session tasks RPC and pending handlers", async () => {
             await session.disconnect();
         }
     });
+
+    // Shell IDs count up per runtime process, so each attached-shell test owns its
+    // client: the recorded `shellId: 0` then holds regardless of test order.
+    async function withRunningAttachedShell(
+        run: (
+            session: CopilotSession,
+            shellId: string,
+            eventTypes: SessionEvent["type"][],
+            replies: string[]
+        ) => Promise<void>
+    ): Promise<void> {
+        const shellClient = createClient();
+        try {
+            const session = await shellClient.createSession({ onPermissionRequest: approveAll });
+            const eventTypes: SessionEvent["type"][] = [];
+            const replies: string[] = [];
+            const unsubscribe = session.on((event) => {
+                eventTypes.push(event.type);
+                if (event.type === "assistant.message") {
+                    replies.push(event.data.content ?? "");
+                }
+            });
+            try {
+                const assistantIdle = getNextEventOfType(session, "assistant.idle");
+                await session.send({
+                    prompt: "Use your shell tool to run `sleep 600` in async mode without detaching. Do not read its output or wait for it. Then reply with exactly SHELL_STARTED.",
+                });
+                await assistantIdle;
+                expect(replies.at(-1)).toContain("SHELL_STARTED");
+
+                const shell = (await session.rpc.tasks.list()).tasks.find(
+                    (task) => task.type === "shell" && task.status === "running"
+                );
+                expect(shell).toMatchObject({ attachmentMode: "attached" });
+                await run(session, shell!.id, eventTypes, replies);
+            } finally {
+                unsubscribe();
+                await session.disconnect();
+            }
+        } finally {
+            await shellClient.stop();
+        }
+    }
+
+    it(
+        "should emit session idle after cancelling a running attached shell",
+        { timeout: 120_000 },
+        async () => {
+            await withRunningAttachedShell(async (session, shellId, eventTypes) => {
+                // The running attached shell holds the turn's session.idle.
+                expect(eventTypes).not.toContain("session.idle");
+
+                expect((await session.rpc.tasks.cancel({ id: shellId })).cancelled).toBe(true);
+                await waitForCondition(() => eventTypes.includes("session.idle"), {
+                    timeoutMessage: `session.idle never followed cancelling shell ${shellId}`,
+                });
+            });
+        }
+    );
+
+    it(
+        "should run a queued message after cancelling a running attached shell",
+        { timeout: 120_000 },
+        async () => {
+            await withRunningAttachedShell(async (session, shellId, eventTypes, replies) => {
+                // The running attached shell holds idle, so an enqueued message waits behind it.
+                await session.send({ prompt: "Reply with exactly QUEUED_DONE.", mode: "enqueue" });
+                await waitForCondition(
+                    async () =>
+                        (await session.rpc.queue.pendingItems()).items.some((item) =>
+                            item.displayText.includes("QUEUED_DONE")
+                        ),
+                    { timeoutMessage: "The enqueued message was not parked behind the shell" }
+                );
+                expect(replies.some((reply) => reply.includes("QUEUED_DONE"))).toBe(false);
+                expect(eventTypes).not.toContain("session.idle");
+
+                expect((await session.rpc.tasks.cancel({ id: shellId })).cancelled).toBe(true);
+                await waitForCondition(
+                    () => replies.some((reply) => reply.includes("QUEUED_DONE")),
+                    {
+                        timeoutMessage: `The queued message never ran after cancelling shell ${shellId}`,
+                    }
+                );
+                await waitForCondition(() => eventTypes.includes("session.idle"), {
+                    timeoutMessage: "session.idle never followed the queued message",
+                });
+            });
+        }
+    );
 
     it(
         "should apply a custom agent's composed model and effort when started over RPC",

@@ -40,6 +40,8 @@ public final class SessionManagedSettingsResolvedEvent extends SessionEvent {
     @JsonIgnoreProperties(ignoreUnknown = true)
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record SessionManagedSettingsResolvedEventData(
+        /** Reusable retained managed permission policy for managedSettings.permissions.evaluate, including source composition and session-local injection. Provided by live session snapshots; absent in older events. Refresh the context when managed policy changes. */
+        @JsonProperty("permissionsContext") ManagedPermissionsContext permissionsContext,
         /** Channel summary: `server`, `device`, `client`, or `policyHelper` when exactly one channel contributed; `mixed` when multiple channels contributed; otherwise `none`. Consult the per-channel booleans for exact provenance. */
         @JsonProperty("source") ManagedSettingsResolvedSource source,
         /** Whether the server (account/org) managed-settings layer was present */

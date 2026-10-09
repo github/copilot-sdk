@@ -11,6 +11,7 @@ use github_copilot_sdk::rpc::{
     CustomizationReloadOutcome, CustomizationReloadStatus, CustomizationReloadSubsystem,
     EnqueueCommandResult, Extension, ExtensionList, ExtensionSource, ExtensionStatus,
     ExtensionsDisableRequest, ExtensionsEnableRequest, FleetStartRequest, FleetStartResult,
+    ManagedPermissionEvaluation, ManagedPermissionOperationKind, ManagedPermissionsEvaluateRequest,
     McpConfiguredServer, McpConfiguredServerList, McpConfiguredServerState, McpDisableRequest,
     McpEnableOptions, McpEnableRequest, McpInstallationOperationStatus, McpOauthLoginOptions,
     McpOauthLoginRequest, McpServer, McpStopServerRequest, ModelSetAllowedModelsRequest,
@@ -24,6 +25,30 @@ use github_copilot_sdk::session_events::{
     SessionEventData, TypedSessionEvent,
 };
 use github_copilot_sdk::{AutoTier, AutoTierPreference, SetModelOptions};
+
+#[test]
+fn managed_permission_results_reuse_operations_without_reconstruction() {
+    let evaluation: ManagedPermissionEvaluation = serde_json::from_value(serde_json::json!({
+        "operation": {"kind": "url", "url": "https://example.com/a"},
+        "verdict": "allow",
+    }))
+    .unwrap();
+    let request = ManagedPermissionsEvaluateRequest {
+        context: serde_json::from_value(serde_json::json!({"failClosed": false})).unwrap(),
+        operations: vec![evaluation.operation],
+    };
+    assert_eq!(
+        request.operations[0].kind,
+        ManagedPermissionOperationKind::Url
+    );
+    assert_eq!(
+        serde_json::to_value(request).unwrap(),
+        serde_json::json!({
+            "context": {"failClosed": false},
+            "operations": [{"kind": "url", "url": "https://example.com/a"}],
+        })
+    );
+}
 
 #[test]
 fn extensible_tier_unknown_literal_retains_its_provider_identity() {

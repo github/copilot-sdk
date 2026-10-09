@@ -245,6 +245,7 @@ impl AsyncWrite for FfiWriter {
 pub(crate) struct FfiHost {
     library_path: PathBuf,
     cli_entrypoint: Option<PathBuf>,
+    integration_id: Option<String>,
     environment: Vec<(String, String)>,
     args: Vec<String>,
     host_start: HostStartFn,
@@ -263,6 +264,7 @@ impl FfiHost {
     pub(crate) fn create(
         runtime_entrypoint: &Path,
         cli_entrypoint: Option<&Path>,
+        integration_id: Option<&str>,
         environment: Vec<(String, String)>,
         args: Vec<String>,
     ) -> Result<Self, Error> {
@@ -307,6 +309,7 @@ impl FfiHost {
         Ok(Self {
             library_path,
             cli_entrypoint,
+            integration_id: integration_id.map(str::to_owned),
             environment,
             args,
             host_start,
@@ -330,7 +333,11 @@ impl FfiHost {
     }
 
     fn start_blocking(self) -> Result<(FfiReader, FfiWriter, Arc<FfiShared>), Error> {
-        let argv = build_argv_json(self.cli_entrypoint.as_deref(), &self.args);
+        let argv = build_argv_json(
+            self.cli_entrypoint.as_deref(),
+            self.integration_id.as_deref(),
+            &self.args,
+        );
         let env = build_env_json(&self.environment);
 
         let (env_ptr, env_len) = match &env {
@@ -561,7 +568,11 @@ fn path_for_child_process(path: PathBuf) -> PathBuf {
     path
 }
 
-fn build_argv_json(entrypoint: Option<&Path>, extra_args: &[String]) -> Vec<u8> {
+fn build_argv_json(
+    entrypoint: Option<&Path>,
+    integration_id: Option<&str>,
+    extra_args: &[String],
+) -> Vec<u8> {
     let mut argv = Vec::new();
     if let Some(entrypoint) = entrypoint {
         let entrypoint_str = entrypoint.to_string_lossy().into_owned();
@@ -577,6 +588,9 @@ fn build_argv_json(entrypoint: Option<&Path>, extra_args: &[String]) -> Vec<u8> 
             "--embedded-host".to_string(),
             "--no-auto-update".to_string(),
         ]);
+    }
+    if let Some(integration_id) = integration_id {
+        argv.push(format!("--cli-login-sync-integration-id={integration_id}"));
     }
     argv.extend_from_slice(extra_args);
     serde_json::to_vec(&argv).expect("argv serializes")

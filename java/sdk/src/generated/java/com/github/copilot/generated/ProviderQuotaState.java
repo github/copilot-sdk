@@ -49,6 +49,8 @@ public record ProviderQuotaState(
     @JsonProperty("acquisitionError") String acquisitionError,
     /** Optional metadata for an authoritative budget. Advisory balances and admission-only observations do not populate this. */
     @JsonProperty("budgetMetadata") ProviderQuotaBudgetMetadata budgetMetadata,
+    /** Service-reported monthly consumption, independent of quota balances and per-call or session cost. Omitted when the service does not report monthly usage. */
+    @JsonProperty("monthlyUsage") ProviderMonthlyUsage monthlyUsage,
     /** Key for the backwards-compatible snapshots projection, when the authoritative budget supports that contract. */
     @JsonProperty("compatibilityKey") String compatibilityKey,
     /** Explicit service admission flag, when reported. */

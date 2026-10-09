@@ -7673,6 +7673,10 @@ public sealed class ManagedSettingsResolvedData
     [JsonPropertyName("permissionsAllowIntersected")]
     public bool? PermissionsAllowIntersected { get; set; }
 
+    /// <summary>Reusable retained managed permission policy for managedSettings.permissions.evaluate, including source composition and session-local injection. Provided by live session snapshots; absent in older events. Refresh the context when managed policy changes.</summary>
+    [JsonPropertyName("permissionsContext")]
+    public ManagedPermissionsContext? PermissionsContext { get; set; }
+
     /// <summary>Whether the policy-helper managed-settings layer was present. The policy helper is the weakest channel: it fills keys no enterprise source set and can never replace one.</summary>
     [JsonPropertyName("policyHelperManaged")]
     public bool? PolicyHelperManaged { get; set; }
@@ -7734,6 +7738,10 @@ public sealed class ManagedSettingsResolveResult
     /// <summary>Per-key lock state and provenance for the entries in `values`, using the same key names.</summary>
     [JsonPropertyName("meta")]
     public ManagedSettingsMeta? Meta { get; set; }
+
+    /// <summary>Reusable source-composed permission policy for managedSettings.permissions.evaluate. Unlike resolved.settings.permissions, this retains every source's allowlist and default-prompt semantics. Refresh through resolve when account/device policy changes. Absent on runtimes that do not support permission evaluation.</summary>
+    [JsonPropertyName("permissionsContext")]
+    public ManagedPermissionsContext? PermissionsContext { get; set; }
 
     /// <summary>Effective managed settings from the device and account (server) channels, in the same shape as `session.managedSettings.get`, excluding session-local injection.</summary>
     [JsonPropertyName("resolved")]
@@ -7853,6 +7861,72 @@ internal sealed class ManagedSettingsComposeRequest
     /// <summary>One entry per channel. `source` must be `device`, `server`, or `policyHelper`, each at most once (checked at runtime); order does not matter, because channel precedence is fixed. To preview documents from resolve output, map recognized source strings to ManagedSettingsChannel and copy their settings; generated resolve and compose layer types are distinct. Omitted settings means this channel delivered no document. Supplied documents must be valid within the preview limits; warnings are returned in diagnostics. Compose does not reproduce source-failure state or retained enforcement floors from resolve.</summary>
     [JsonPropertyName("layers")]
     public IList<ManagedSettingsComposeLayer> Layers { get => field ??= []; set; }
+}
+
+/// <summary>Polymorphic base type discriminated by <c>kind</c>.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonPolymorphic(
+    TypeDiscriminatorPropertyName = "kind",
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+[JsonDerivedType(typeof(ManagedPermissionOperationUrl), "url")]
+public partial class ManagedPermissionOperation
+{
+    /// <summary>The type discriminator.</summary>
+    [JsonPropertyName("kind")]
+    public virtual string Kind { get; set; } = string.Empty;
+}
+
+
+/// <summary>The <c>url</c> variant of <see cref="ManagedPermissionOperation"/>.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class ManagedPermissionOperationUrl : ManagedPermissionOperation
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "url";
+
+    /// <summary>Absolute HTTP(S) URL with a host. Invalid URLs reject the entire evaluation batch.</summary>
+    [JsonPropertyName("url")]
+    public required string Url { get; set; }
+}
+
+/// <summary>RPC data type for ManagedPermissionEvaluation operations.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class ManagedPermissionEvaluation
+{
+    /// <summary>Original input operation associated with this verdict.</summary>
+    [JsonPropertyName("operation")]
+    public ManagedPermissionOperation Operation { get => field ??= new(); set; }
+
+    /// <summary>Managed-policy decision only; never bypasses user permissions or other security controls.</summary>
+    [JsonPropertyName("verdict")]
+    public ManagedPermissionVerdict Verdict { get; set; }
+}
+
+/// <summary>Ordered managed permission verdicts and the supplied policy's fail-closed posture.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class ManagedSettingsPermissionsEvaluateResult
+{
+    /// <summary>Managed permission policy could not be determined; every operation is denied.</summary>
+    [JsonPropertyName("failClosed")]
+    public bool FailClosed { get; set; }
+
+    /// <summary>One verdict per input operation, in the same order, including duplicates.</summary>
+    [JsonPropertyName("results")]
+    public IList<ManagedPermissionEvaluation> Results { get => field ??= []; set; }
+}
+
+/// <summary>Managed policy context and ordered operations for pure, sessionless evaluation.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class ManagedSettingsPermissionsEvaluateRequest
+{
+    /// <summary>Trusted, reusable managed permission policy snapshot; no policy is discovered during evaluation.</summary>
+    [JsonPropertyName("context")]
+    public ManagedPermissionsContext Context { get; set; } = null!;
+
+    /// <summary>Operations to evaluate, preserving input order and duplicates. An empty batch is valid.</summary>
+    [JsonPropertyName("operations")]
+    public IList<ManagedPermissionOperation> Operations { get => field ??= []; set; }
 }
 
 /// <summary>Indicates whether the calling client was registered as the session filesystem provider.</summary>
@@ -11477,6 +11551,10 @@ public sealed class AccountStatus
     /// <summary>Whether this is the active account.</summary>
     [JsonPropertyName("active")]
     public bool Active { get; set; }
+
+    /// <summary>Human-readable credential source used to authenticate this account, such as `gh` or `GITHUB_TOKEN`.</summary>
+    [JsonPropertyName("authSource")]
+    public string? AuthSource { get; set; }
 
     /// <summary>Opaque id of the account this one was derived from (e.g. an EMU account's base Entra identity); absent for a root account. Matches the base identity account's selectionId, forming the derivation edge.</summary>
     [JsonPropertyName("derivedFrom")]
@@ -32806,6 +32884,75 @@ public readonly struct ManagedSettingsChannel : IEquatable<ManagedSettingsChanne
 }
 
 
+/// <summary>Managed-policy verdict only: deny blocks the URL, ask requires approval, allow approves under managed policy, and unmanaged leaves the normal consumer permission flow in effect. No verdict bypasses other security controls.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct ManagedPermissionVerdict : IEquatable<ManagedPermissionVerdict>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="ManagedPermissionVerdict"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="ManagedPermissionVerdict"/>.</param>
+    [JsonConstructor]
+    public ManagedPermissionVerdict(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="ManagedPermissionVerdict"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Managed policy prohibits the operation; do not offer approval.</summary>
+    public static ManagedPermissionVerdict Deny { get; } = new("deny");
+
+    /// <summary>Managed policy requires the consumer to obtain approval.</summary>
+    public static ManagedPermissionVerdict Ask { get; } = new("ask");
+
+    /// <summary>Managed policy allows the operation, subject to other security controls.</summary>
+    public static ManagedPermissionVerdict Allow { get; } = new("allow");
+
+    /// <summary>Managed policy does not decide the operation; use the consumer's normal permission flow.</summary>
+    public static ManagedPermissionVerdict Unmanaged { get; } = new("unmanaged");
+
+    /// <summary>Returns a value indicating whether two <see cref="ManagedPermissionVerdict"/> instances are equivalent.</summary>
+    public static bool operator ==(ManagedPermissionVerdict left, ManagedPermissionVerdict right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="ManagedPermissionVerdict"/> instances are not equivalent.</summary>
+    public static bool operator !=(ManagedPermissionVerdict left, ManagedPermissionVerdict right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is ManagedPermissionVerdict other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(ManagedPermissionVerdict other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{ManagedPermissionVerdict}"/> for serializing <see cref="ManagedPermissionVerdict"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<ManagedPermissionVerdict>
+    {
+        /// <inheritdoc />
+        public override ManagedPermissionVerdict Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, ManagedPermissionVerdict value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ManagedPermissionVerdict));
+        }
+    }
+}
+
+
 /// <summary>Path conventions used by this filesystem.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
@@ -45315,6 +45462,38 @@ public sealed class ServerManagedSettingsApi
         var request = new ManagedSettingsComposeRequest { Layers = layers };
         return await CopilotClient.InvokeRpcAsync<ManagedSettingsComposeResult>(_rpc, "managedSettings.compose", [request], cancellationToken);
     }
+
+    /// <summary>Permissions APIs.</summary>
+    public ServerManagedSettingsPermissionsApi Permissions =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_rpc), null) ??
+        field;
+}
+
+/// <summary>Provides server-scoped ManagedSettingsPermissions APIs.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class ServerManagedSettingsPermissionsApi
+{
+    private readonly JsonRpc _rpc;
+
+    internal ServerManagedSettingsPermissionsApi(JsonRpc rpc)
+    {
+        _rpc = rpc;
+    }
+
+    /// <summary>Pure, sessionless evaluation of operations against a supplied permissionsContext. Performs no policy discovery, I/O, prompting, navigation, permission grants, or sandbox changes. Obtain the context from managedSettings.resolve or session.managedSettings.get, or reuse an in-memory context. Results preserve input order and duplicates. Consumers must block deny, obtain approval for ask, and use their normal permission flow for unmanaged. Unknown policy returns failClosed with every operation denied. This is not a substitute for user permissions or other security controls.</summary>
+    /// <param name="context">Trusted, reusable managed permission policy snapshot; no policy is discovered during evaluation.</param>
+    /// <param name="operations">Operations to evaluate, preserving input order and duplicates. An empty batch is valid.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Ordered managed permission verdicts and the supplied policy's fail-closed posture.</returns>
+    public async Task<ManagedSettingsPermissionsEvaluateResult> EvaluateAsync(ManagedPermissionsContext context, IList<ManagedPermissionOperation> operations, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(operations);
+
+        var request = new ManagedSettingsPermissionsEvaluateRequest { Context = context, Operations = operations };
+        return await CopilotClient.InvokeRpcAsync<ManagedSettingsPermissionsEvaluateResult>(_rpc, "managedSettings.permissions.evaluate", [request], cancellationToken);
+    }
 }
 
 /// <summary>Provides server-scoped Runtime APIs.</summary>
@@ -52216,6 +52395,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.IndexedSearchIncrementalPhase), TypeInfoPropertyName = "SessionEventsIndexedSearchIncrementalPhase")]
 [JsonSerializable(typeof(GitHub.Copilot.IndexedSearchOutcome), TypeInfoPropertyName = "SessionEventsIndexedSearchOutcome")]
 [JsonSerializable(typeof(GitHub.Copilot.IndexedSearchState), TypeInfoPropertyName = "SessionEventsIndexedSearchState")]
+[JsonSerializable(typeof(GitHub.Copilot.ManagedPermissionsContext), TypeInfoPropertyName = "SessionEventsManagedPermissionsContext")]
 [JsonSerializable(typeof(GitHub.Copilot.ManagedPluginProgressPhase), TypeInfoPropertyName = "SessionEventsManagedPluginProgressPhase")]
 [JsonSerializable(typeof(GitHub.Copilot.ManagedSettingsEnforcedAction), TypeInfoPropertyName = "SessionEventsManagedSettingsEnforcedAction")]
 [JsonSerializable(typeof(GitHub.Copilot.ManagedSettingsEnforcedEscalation), TypeInfoPropertyName = "SessionEventsManagedSettingsEnforcedEscalation")]
@@ -52261,8 +52441,10 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.ModelCallFinishedData), TypeInfoPropertyName = "SessionEventsModelCallFinishedData")]
 [JsonSerializable(typeof(GitHub.Copilot.ModelCallFinishedEvent), TypeInfoPropertyName = "SessionEventsModelCallFinishedEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.ModelCallFinishedOutcome), TypeInfoPropertyName = "SessionEventsModelCallFinishedOutcome")]
+[JsonSerializable(typeof(GitHub.Copilot.ModelCallRequestBodyEncoding), TypeInfoPropertyName = "SessionEventsModelCallRequestBodyEncoding")]
 [JsonSerializable(typeof(GitHub.Copilot.ModelCallStartData), TypeInfoPropertyName = "SessionEventsModelCallStartData")]
 [JsonSerializable(typeof(GitHub.Copilot.ModelCallStartEvent), TypeInfoPropertyName = "SessionEventsModelCallStartEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.ModelCallWebSocketFallbackErrorKind), TypeInfoPropertyName = "SessionEventsModelCallWebSocketFallbackErrorKind")]
 [JsonSerializable(typeof(GitHub.Copilot.ModelCallWebSocketFallbackReason), TypeInfoPropertyName = "SessionEventsModelCallWebSocketFallbackReason")]
 [JsonSerializable(typeof(GitHub.Copilot.ModelChangeSource), TypeInfoPropertyName = "SessionEventsModelChangeSource")]
 [JsonSerializable(typeof(GitHub.Copilot.ModelDeselectedReason), TypeInfoPropertyName = "SessionEventsModelDeselectedReason")]
@@ -52349,6 +52531,9 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.PlanChangedOperation), TypeInfoPropertyName = "SessionEventsPlanChangedOperation")]
 [JsonSerializable(typeof(GitHub.Copilot.PromptCacheBreakData), TypeInfoPropertyName = "SessionEventsPromptCacheBreakData")]
 [JsonSerializable(typeof(GitHub.Copilot.PromptCacheBreakEvent), TypeInfoPropertyName = "SessionEventsPromptCacheBreakEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.ProviderMonthlyUsage), TypeInfoPropertyName = "SessionEventsProviderMonthlyUsage")]
+[JsonSerializable(typeof(GitHub.Copilot.ProviderMonthlyUsageScope), TypeInfoPropertyName = "SessionEventsProviderMonthlyUsageScope")]
+[JsonSerializable(typeof(GitHub.Copilot.ProviderMonthlyUsageState), TypeInfoPropertyName = "SessionEventsProviderMonthlyUsageState")]
 [JsonSerializable(typeof(GitHub.Copilot.ProviderQuotaAccessState), TypeInfoPropertyName = "SessionEventsProviderQuotaAccessState")]
 [JsonSerializable(typeof(GitHub.Copilot.ProviderQuotaAcquisitionStatus), TypeInfoPropertyName = "SessionEventsProviderQuotaAcquisitionStatus")]
 [JsonSerializable(typeof(GitHub.Copilot.ProviderQuotaBudgetMetadata), TypeInfoPropertyName = "SessionEventsProviderQuotaBudgetMetadata")]
@@ -52854,6 +53039,8 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(LogResult))]
 [JsonSerializable(typeof(LoggedInUser))]
 [JsonSerializable(typeof(LspInitializeRequest))]
+[JsonSerializable(typeof(ManagedPermissionEvaluation))]
+[JsonSerializable(typeof(ManagedPermissionOperation))]
 [JsonSerializable(typeof(ManagedPluginRetryEntry))]
 [JsonSerializable(typeof(ManagedSettingMeta))]
 [JsonSerializable(typeof(ManagedSettingsComposeLayer))]
@@ -52862,6 +53049,8 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(ManagedSettingsDiagnostic))]
 [JsonSerializable(typeof(ManagedSettingsLayer))]
 [JsonSerializable(typeof(ManagedSettingsMeta))]
+[JsonSerializable(typeof(ManagedSettingsPermissionsEvaluateRequest))]
+[JsonSerializable(typeof(ManagedSettingsPermissionsEvaluateResult))]
 [JsonSerializable(typeof(ManagedSettingsReadResult))]
 [JsonSerializable(typeof(ManagedSettingsResolveRequest))]
 [JsonSerializable(typeof(ManagedSettingsResolveResult))]

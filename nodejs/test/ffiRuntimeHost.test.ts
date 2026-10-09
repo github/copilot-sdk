@@ -109,6 +109,18 @@ describe("FfiRuntimeHost callback cleanup", () => {
         vi.useRealTimers();
     });
 
+    it("forwards the CLI login sync integration without a CLI entrypoint", async () => {
+        const host = FfiRuntimeHost.create("runtime.node", undefined, undefined, [
+            "--cli-login-sync-integration-id=github/github-app",
+        ]);
+        await host.start();
+
+        const argv = JSON.parse(ffi.hostStart.async.mock.calls[0][0].toString()) as string[];
+        expect(argv).toEqual(["--cli-login-sync-integration-id=github/github-app"]);
+
+        await host.dispose();
+    });
+
     it("finishes disposal after a false close while retaining resources for the detached retry", async () => {
         ffi.connectionClose.async.mockImplementationOnce((_id, callback) => callback(null, false));
         const host = FfiRuntimeHost.create("runtime.node", undefined, undefined, []);

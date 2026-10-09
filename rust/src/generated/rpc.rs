@@ -1998,6 +1998,13 @@ pub struct ClientRpcManagedSettings<'a> {
 }
 
 impl<'a> ClientRpcManagedSettings<'a> {
+    /// `managedSettings.permissions.*` sub-namespace.
+    pub fn permissions(&self) -> ClientRpcManagedSettingsPermissions<'a> {
+        ClientRpcManagedSettingsPermissions {
+            client: self.client,
+        }
+    }
+
     /// Discovers device-managed settings from production MDM and managed-file sources, validates them against the runtime-owned managed-settings schema, and returns the canonical JSON without requiring a session. `managedSettings.resolve` returns the same device settings together with the account's server policy.
     ///
     /// Wire method: `managedSettings.read`.
@@ -2179,6 +2186,48 @@ impl<'a> ClientRpcManagedSettings<'a> {
         let _value = self
             .client
             .call(rpc_methods::MANAGEDSETTINGS_COMPOSE, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+}
+
+/// `managedSettings.permissions.*` RPCs.
+#[derive(Clone, Copy)]
+pub struct ClientRpcManagedSettingsPermissions<'a> {
+    pub(crate) client: &'a Client,
+}
+
+impl<'a> ClientRpcManagedSettingsPermissions<'a> {
+    /// Pure, sessionless evaluation of operations against a supplied permissionsContext. Performs no policy discovery, I/O, prompting, navigation, permission grants, or sandbox changes. Obtain the context from managedSettings.resolve or session.managedSettings.get, or reuse an in-memory context. Results preserve input order and duplicates. Consumers must block deny, obtain approval for ask, and use their normal permission flow for unmanaged. Unknown policy returns failClosed with every operation denied. This is not a substitute for user permissions or other security controls.
+    ///
+    /// Wire method: `managedSettings.permissions.evaluate`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Managed policy context and ordered operations for pure, sessionless evaluation.
+    ///
+    /// # Returns
+    ///
+    /// Ordered managed permission verdicts and the supplied policy's fail-closed posture.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn evaluate(
+        &self,
+        params: ManagedPermissionsEvaluateRequest,
+    ) -> Result<ManagedPermissionsEvaluateResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(
+                rpc_methods::MANAGEDSETTINGS_PERMISSIONS_EVALUATE,
+                Some(wire_params),
+            )
             .await?;
         Ok(serde_json::from_value(_value)?)
     }

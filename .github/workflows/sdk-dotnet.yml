@@ -99,9 +99,9 @@ jobs:
           retention-days: 7
 
   dotnet-darwin-arm64:
-    name: ".NET (macos-26-xlarge, default, CAPI)"
+    name: ".NET (macos-26-xlarge-agent-runtime, default, CAPI)"
     if: inputs.platform == 'all' || inputs.platform == 'darwin-arm64'
-    runs-on: macos-26-xlarge
+    runs-on: macos-26-xlarge-agent-runtime
     timeout-minutes: 30
     defaults:
       run:

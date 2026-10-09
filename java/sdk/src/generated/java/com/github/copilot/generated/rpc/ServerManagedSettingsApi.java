@@ -21,9 +21,13 @@ public final class ServerManagedSettingsApi {
 
     private final RpcCaller caller;
 
+    /** API methods for the {@code managedSettings.permissions} sub-namespace. */
+    public final ServerManagedSettingsPermissionsApi permissions;
+
     /** @param caller the RPC transport function */
     ServerManagedSettingsApi(RpcCaller caller) {
         this.caller = caller;
+        this.permissions = new ServerManagedSettingsPermissionsApi(caller);
     }
 
     /**

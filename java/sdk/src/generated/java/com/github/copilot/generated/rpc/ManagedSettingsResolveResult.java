@@ -11,6 +11,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.github.copilot.CopilotExperimental;
+import com.github.copilot.generated.ManagedPermissionsContext;
 import java.util.List;
 import javax.annotation.processing.Generated;
 
@@ -25,6 +26,8 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record ManagedSettingsResolveResult(
+    /** Reusable source-composed permission policy for managedSettings.permissions.evaluate. Unlike resolved.settings.permissions, this retains every source's allowlist and default-prompt semantics. Refresh through resolve when account/device policy changes. Absent on runtimes that do not support permission evaluation. */
+    @JsonProperty("permissionsContext") ManagedPermissionsContext permissionsContext,
     /** Printable opaque identity of the account the settings were resolved for, suitable for comparison and storage, not an account selectionId. Absent when no account was available, in which case only device policy is reported. */
     @JsonProperty("account") String account,
     /** Effective managed settings from the device and account (server) channels, in the same shape as `session.managedSettings.get`, excluding session-local injection. */

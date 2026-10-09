@@ -11,6 +11,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.github.copilot.CopilotExperimental;
+import com.github.copilot.generated.ManagedPermissionsContext;
 import java.util.List;
 import javax.annotation.processing.Generated;
 
@@ -25,6 +26,8 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionManagedSettingsGetResult(
+    /** Reusable retained managed permission policy for managedSettings.permissions.evaluate, including source composition and session-local injection. Provided by live session snapshots; absent in older events. Refresh the context when managed policy changes. */
+    @JsonProperty("permissionsContext") ManagedPermissionsContext permissionsContext,
     /** Channel summary: `server`, `device`, `client`, or `policyHelper` when exactly one channel contributed; `mixed` when multiple channels contributed; otherwise `none`. Consult the per-channel booleans for exact provenance. */
     @JsonProperty("source") ManagedSettingsResolvedSource source,
     /** Whether the server (account/org) managed-settings layer was present */

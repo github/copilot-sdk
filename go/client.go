@@ -2426,7 +2426,8 @@ func (c *Client) startInProcess(ctx context.Context) error {
 		return errors.New("in-process runtime unavailable: build with the bundled embedded runtime or set COPILOT_CLI_PATH to a compatible runtime package")
 	}
 
-	config := c.inProcessHostConfig()
+	integrationID := strings.TrimSpace(getEnvValue(c.options.Env, "GITHUB_COPILOT_INTEGRATION_ID"))
+	config := c.inProcessHostConfig(integrationID)
 
 	host, err := createInProcessHost(runtimePath, cliEntrypoint, config)
 	if err != nil {
@@ -2464,7 +2465,7 @@ func (c *Client) startInProcess(ctx context.Context) error {
 	return nil
 }
 
-func (c *Client) inProcessHostConfig() inProcessHostConfig {
+func (c *Client) inProcessHostConfig(cliLoginSyncIntegrationID string) inProcessHostConfig {
 	args := make([]string, 0, 8)
 	if c.options.LogLevel != "" {
 		args = append(args, "--log-level", c.options.LogLevel)
@@ -2486,6 +2487,9 @@ func (c *Client) inProcessHostConfig() inProcessHostConfig {
 	}
 	if c.options.EnableRemoteSessions {
 		args = append(args, "--remote")
+	}
+	if cliLoginSyncIntegrationID != "" {
+		args = append(args, "--cli-login-sync-integration-id="+cliLoginSyncIntegrationID)
 	}
 
 	environment := make(map[string]string)

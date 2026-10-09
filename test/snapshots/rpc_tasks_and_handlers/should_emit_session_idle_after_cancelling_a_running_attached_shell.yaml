@@ -1,0 +1,21 @@
+models:
+  - claude-sonnet-5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Use your shell tool to run `sleep 600` in async mode without detaching. Do not read its output or wait for it.
+          Then reply with exactly SHELL_STARTED.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: ${shell}
+              arguments: '{"command":"sleep 600","description":"Sleep for 600 seconds","mode":"async"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: "<command started in background with shellId: 0>"
+      - role: assistant
+        content: SHELL_STARTED

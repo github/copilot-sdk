@@ -11,12 +11,13 @@ use serde::{Deserialize, Serialize};
 
 pub use super::session_events::{
     AbortReason, AgentModelPolicy, AutoTier, ContextTier, IndexedSearchState,
-    ManagedSettingsResolvedSource, McpOauthHttpResponse, McpOauthWWWAuthenticateParams,
-    McpServerMetadata, McpServerSource, McpServerStatus, ModelChangeSource, ModelProviderKind,
-    ModelProviderRef, OmittedBinaryOmittedReason, PermissionDecisionSource, PermissionMode,
-    PermissionPromptRequest, PermissionRule, ProviderQuotaState, ReasoningSummary,
-    RemediationAction, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskBlocker,
-    TaskCompletionOutcome, UsageGetMetricsResult, UserToolSessionApproval, Verbosity,
+    ManagedPermissionsContext, ManagedSettingsResolvedSource, McpOauthHttpResponse,
+    McpOauthWWWAuthenticateParams, McpServerMetadata, McpServerSource, McpServerStatus,
+    ModelChangeSource, ModelProviderKind, ModelProviderRef, OmittedBinaryOmittedReason,
+    PermissionDecisionSource, PermissionMode, PermissionPromptRequest, PermissionRule,
+    ProviderQuotaState, ReasoningSummary, RemediationAction, SessionLimitsConfig, SessionMode,
+    ShutdownType, SkillSource, TaskBlocker, TaskCompletionOutcome, UsageGetMetricsResult,
+    UserToolSessionApproval, Verbosity,
 };
 use crate::types::{RequestId, SessionEvent, SessionId};
 
@@ -231,6 +232,8 @@ pub mod rpc_methods {
     pub const MANAGEDSETTINGS_CLEARCACHE: &str = "managedSettings.clearCache";
     /// `managedSettings.resolve`
     pub const MANAGEDSETTINGS_RESOLVE: &str = "managedSettings.resolve";
+    /// `managedSettings.permissions.evaluate`
+    pub const MANAGEDSETTINGS_PERMISSIONS_EVALUATE: &str = "managedSettings.permissions.evaluate";
     /// `managedSettings.schema`
     pub const MANAGEDSETTINGS_SCHEMA: &str = "managedSettings.schema";
     /// `managedSettings.validate`
@@ -2041,6 +2044,9 @@ pub struct AccountsSetRequest {
 pub struct AccountStatus {
     /// Whether this is the active account.
     pub active: bool,
+    /// Human-readable credential source used to authenticate this account, such as `gh` or `GITHUB_TOKEN`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auth_source: Option<String>,
     /// Opaque id of the account this one was derived from (e.g. an EMU account's base Entra identity); absent for a root account. Matches the base identity account's selectionId, forming the derivation edge.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub derived_from: Option<String>,
@@ -11110,6 +11116,72 @@ pub struct ManagedMcpServerConfig {
     pub url: String,
 }
 
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManagedPermissionOperation {
+    /// Operation to evaluate. Currently only url is supported.
+    pub kind: ManagedPermissionOperationKind,
+    /// Absolute HTTP(S) URL with a host. Invalid URLs reject the entire evaluation batch.
+    pub url: String,
+}
+
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManagedPermissionEvaluation {
+    /// Original input operation associated with this verdict.
+    pub operation: ManagedPermissionOperation,
+    /// Managed-policy decision only; never bypasses user permissions or other security controls.
+    pub verdict: ManagedPermissionVerdict,
+}
+
+/// Managed policy context and ordered operations for pure, sessionless evaluation.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManagedPermissionsEvaluateRequest {
+    /// Trusted, reusable managed permission policy snapshot; no policy is discovered during evaluation.
+    pub context: ManagedPermissionsContext,
+    /// Operations to evaluate, preserving input order and duplicates. An empty batch is valid.
+    pub operations: Vec<ManagedPermissionOperation>,
+}
+
+/// Ordered managed permission verdicts and the supplied policy's fail-closed posture.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManagedPermissionsEvaluateResult {
+    /// Managed permission policy could not be determined; every operation is denied.
+    pub fail_closed: bool,
+    /// One verdict per input operation, in the same order, including duplicates.
+    pub results: Vec<ManagedPermissionEvaluation>,
+}
+
 /// Retry outcome for one plugin required by managed settings.
 ///
 /// <div class="warning">
@@ -11270,6 +11342,9 @@ pub struct ManagedSettingsResolvedData {
     /// Whether at least two managed sources supplied permission allowlists, so enforcement intersects them and the flattened settings payload omits `permissions.allow`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub permissions_allow_intersected: Option<bool>,
+    /// Reusable retained managed permission policy for managedSettings.permissions.evaluate, including source composition and session-local injection. Provided by live session snapshots; absent in older events. Refresh the context when managed policy changes.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub permissions_context: Option<ManagedPermissionsContext>,
     /// Whether the policy-helper managed-settings layer was present. The policy helper is the weakest channel: it fills keys no enterprise source set and can never replace one.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub policy_helper_managed: Option<bool>,
@@ -11400,6 +11475,9 @@ pub struct ManagedSettingsResolveResult {
     /// Per-key lock state and provenance for the entries in `values`, using the same key names.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub meta: Option<ManagedSettingsMeta>,
+    /// Reusable source-composed permission policy for managedSettings.permissions.evaluate. Unlike resolved.settings.permissions, this retains every source's allowlist and default-prompt semantics. Refresh through resolve when account/device policy changes. Absent on runtimes that do not support permission evaluation.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub permissions_context: Option<ManagedPermissionsContext>,
     /// Effective managed settings from the device and account (server) channels, in the same shape as `session.managedSettings.get`, excluding session-local injection.
     pub resolved: ManagedSettingsResolvedData,
     /// Typed effective values of managed settings, keyed like the managed-settings schema and already resolved across channels, with the `{ "overridable": ... }` wrapper removed. Present when policy sets at least one typed key. Keys not typed here are available in `resolved.settings`.
@@ -30912,6 +30990,23 @@ pub struct GitWorkingDirectoryContextResult {
     pub repository_host: Option<String>,
 }
 
+/// Ordered managed permission verdicts and the supplied policy's fail-closed posture.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManagedSettingsPermissionsEvaluateResult {
+    /// Managed permission policy could not be determined; every operation is denied.
+    pub fail_closed: bool,
+    /// One verdict per input operation, in the same order, including duplicates.
+    pub results: Vec<ManagedPermissionEvaluation>,
+}
+
 /// Result of opening a session.
 ///
 /// <div class="warning">
@@ -34913,6 +35008,9 @@ pub struct SessionManagedSettingsGetResult {
     /// Whether at least two managed sources supplied permission allowlists, so enforcement intersects them and the flattened settings payload omits `permissions.allow`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub permissions_allow_intersected: Option<bool>,
+    /// Reusable retained managed permission policy for managedSettings.permissions.evaluate, including source composition and session-local injection. Provided by live session snapshots; absent in older events. Refresh the context when managed policy changes.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub permissions_context: Option<ManagedPermissionsContext>,
     /// Whether the policy-helper managed-settings layer was present. The policy helper is the weakest channel: it fills keys no enterprise source set and can never replace one.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub policy_helper_managed: Option<bool>,
@@ -42591,6 +42689,42 @@ pub enum SessionLogLevel {
     /// Error message describing a failure.
     #[serde(rename = "error")]
     Error,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Operation to evaluate. Currently only url is supported.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ManagedPermissionOperationKind {
+    #[serde(rename = "url")]
+    #[default]
+    Url,
+}
+
+/// Managed-policy verdict only: deny blocks the URL, ask requires approval, allow approves under managed policy, and unmanaged leaves the normal consumer permission flow in effect. No verdict bypasses other security controls.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ManagedPermissionVerdict {
+    /// Managed policy prohibits the operation; do not offer approval.
+    #[serde(rename = "deny")]
+    Deny,
+    /// Managed policy requires the consumer to obtain approval.
+    #[serde(rename = "ask")]
+    Ask,
+    /// Managed policy allows the operation, subject to other security controls.
+    #[serde(rename = "allow")]
+    Allow,
+    /// Managed policy does not decide the operation; use the consumer's normal permission flow.
+    #[serde(rename = "unmanaged")]
+    Unmanaged,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
