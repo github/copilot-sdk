@@ -54,6 +54,8 @@ pub mod hooks;
 /// Connection-global human confirmation for experimental installation operations.
 pub mod installation_confirmation;
 mod jsonrpc;
+/// Experimental native notification host callbacks.
+pub mod notifications;
 /// Permission-policy helpers that produce a [`handler::PermissionHandler`].
 pub mod permission;
 mod process_tree;
@@ -397,6 +399,11 @@ pub struct ClientOptions {
     /// It does not register or enable installation capabilities on the runtime.
     pub installation_confirmation_handler:
         Option<Arc<dyn crate::installation_confirmation::InstallationConfirmationHandler>>,
+    /// Optional native notification host, registered before session creation.
+    ///
+    /// Only a runtime-nominated stdio root can register. Inspect
+    /// [`Client::notification_host_registration`] for unsupported or denied hosts.
+    pub notification_handler: Option<Arc<dyn crate::notifications::NotificationHandler>>,
     /// Connection-level GitHub telemetry forwarding callback (experimental).
     ///
     /// When set, every session created or resumed on this client opts into
@@ -595,6 +602,10 @@ impl std::fmt::Debug for ClientOptions {
                     .installation_confirmation_handler
                     .as_ref()
                     .map(|_| "<set>"),
+            )
+            .field(
+                "notification_handler",
+                &self.notification_handler.as_ref().map(|_| "<set>"),
             )
             .field(
                 "on_github_telemetry",
@@ -852,6 +863,7 @@ impl Default for ClientOptions {
             request_handler: None,
             extension_launch_provider: None,
             installation_confirmation_handler: None,
+            notification_handler: None,
             on_github_telemetry: None,
             on_get_trace_context: None,
             telemetry: None,
@@ -1029,6 +1041,19 @@ impl ClientOptions {
         H: crate::installation_confirmation::InstallationConfirmationHandler,
     {
         self.installation_confirmation_handler = Some(Arc::new(handler));
+        self
+    }
+
+    /// Configure native notifications on an intentionally selected application host.
+    ///
+    /// Callbacks are installed before registration. An older runtime reports
+    /// unsupported through [`Client::notification_host_registration`] without
+    /// making unrelated sessions unusable.
+    pub fn with_notification_handler(
+        mut self,
+        handler: Arc<dyn crate::notifications::NotificationHandler>,
+    ) -> Self {
+        self.notification_handler = Some(handler);
         self
     }
 
@@ -1278,6 +1303,7 @@ struct ClientInner {
     llm_inference: OnceLock<Arc<copilot_request_handler::CopilotRequestDispatcher>>,
     extension_launch_provider: Arc<extension_launch_provider::ExtensionLaunchProviderDispatcher>,
     installation_confirmation: Arc<installation_confirmation::InstallationConfirmationDispatcher>,
+    notifications: Arc<notifications::NotificationDispatcher>,
     /// Connection-level GitHub telemetry forwarding callback, set from
     /// [`ClientOptions::on_github_telemetry`]. Drives the
     /// `enableGitHubTelemetryForwarding` wire flag and the
@@ -1443,6 +1469,7 @@ impl Client {
         let request_handler = options.request_handler.clone();
         let extension_launch_provider = options.extension_launch_provider.clone();
         let installation_confirmation_handler = options.installation_confirmation_handler.clone();
+        let notification_handler = options.notification_handler.clone();
         let session_fs_sqlite_declared = session_fs_config
             .as_ref()
             .and_then(|c| c.capabilities.as_ref())
@@ -1679,6 +1706,10 @@ impl Client {
             .inner
             .installation_confirmation
             .set_handler(installation_confirmation_handler);
+        client
+            .inner
+            .notifications
+            .set_handler(notification_handler.clone());
         debug!(
             elapsed_ms = start_time.elapsed().as_millis(),
             "Client::start transport setup complete"
@@ -1699,6 +1730,9 @@ impl Client {
             dispatcher
         });
         client.inner.router.ensure_started(&client.inner);
+        if notification_handler.is_some() {
+            client.register_notification_host().await?;
+        }
         if client.inner.extension_launch_provider.is_configured() {
             client.rpc().register_extension_launch_provider().await?;
         }
@@ -2123,6 +2157,7 @@ impl Client {
         );
         let installation_confirmation =
             Arc::new(installation_confirmation::InstallationConfirmationDispatcher::new());
+        let notifications = Arc::new(notifications::NotificationDispatcher::new());
         let ahp_host_sessions = Arc::new(ahp_host::HostSessions::new());
         let client = Self {
             ahp_host_sessions: Some(ahp_host_sessions.clone()),
@@ -2152,6 +2187,7 @@ impl Client {
                 llm_inference: OnceLock::new(),
                 extension_launch_provider: extension_launch_provider.clone(),
                 installation_confirmation: installation_confirmation.clone(),
+                notifications: notifications.clone(),
                 on_github_telemetry,
                 on_get_trace_context,
                 effective_connection_token,
@@ -2164,6 +2200,7 @@ impl Client {
         github_token_registry.set_client(Arc::downgrade(&client.inner));
         extension_launch_provider.set_client(Arc::downgrade(&client.inner));
         installation_confirmation.set_client(Arc::downgrade(&client.inner));
+        notifications.set_client(Arc::downgrade(&client.inner));
         client.spawn_lifecycle_dispatcher();
         client.spawn_ahp_host_dispatcher(host_notification_rx);
         client.register_ahp_session_factory()?;
@@ -3089,6 +3126,9 @@ impl Client {
         let pid = self.pid();
         info!(pid = ?pid, "stopping CLI process");
         let mut errors: Vec<Error> = Vec::new();
+        if let Err(error) = self.unregister_notification_host().await {
+            errors.push(error);
+        }
         self.inner.extension_launch_provider.clear();
         self.inner.installation_confirmation.clear();
 
@@ -3265,6 +3305,7 @@ impl Client {
         info!(pid = ?pid, "force-stopping CLI process");
         self.inner.extension_launch_provider.clear();
         self.inner.installation_confirmation.clear();
+        self.inner.notifications.clear();
         if let Some(process_tree) = self.inner.process_tree.lock().take()
             && let Err(error) = process_tree.terminate()
         {

@@ -137,6 +137,7 @@ transports.
 | `transport`         | `Transport`                 | `Default`, `Stdio`, `InProcess`, `Tcp`, or `External`             |
 | `extension_launch_provider` | `Option<Arc<dyn ExtensionLaunchProvider>>` | Connection-global extension launch resolver |
 | `installation_confirmation_handler` | `Option<Arc<dyn InstallationConfirmationHandler>>` | Experimental connection-global human installation review |
+| `notification_handler` | `Option<Arc<dyn NotificationHandler>>` | Experimental native notification host |
 
 With the default `CliProgram::Resolve`, managed stdio and TCP transports resolve an explicit `CliProgram::Path(path)`, `COPILOT_CLI_PATH`, then the bundled `copilot-runtime` wrapper and adjacent `runtime.node`. In-process transport loads the native runtime library adjacent to that resolved runtime bundle. There is no PATH scanning.
 
@@ -373,6 +374,48 @@ CLI distribution containing `index.js` and its matching preloads. When the
 executable is a version-matched standalone Copilot binary, omit that variable
 and set `COPILOT_AUTO_UPDATE=false` so its embedded distribution remains
 selected.
+
+#### Native notification host (experimental)
+
+Applications that deliver native notifications can configure
+`ClientOptions::with_notification_handler(Arc<dyn NotificationHandler>)`.
+The `notifications` module re-exports the generated notification DTOs. Its
+`NotificationHandler` trait provides `get_capabilities`, `request_permission`,
+and `show`, each with a `NotificationContext`.
+
+Callbacks are installed before the `notifications.registerHost` handshake, and
+registration finishes before `Client::start` returns. Only a runtime-nominated
+stdio root can register. Do not register helper, observer, TCP, or embedded
+clients as notification hosts. Inspect `Client::notification_host_registration`
+before offering notifications; configuring a handler alone is not registration
+or permission.
+
+The runtime authenticates the callback's session, extension, and attachment.
+The host must resolve that provenance against its trusted installation mapping
+before granting persistent permission. In particular, an app-level bridge's
+module path is not necessarily the original installed extension. Notification
+opt-in, extension permission, and OS permission are separate checks.
+
+Handlers must observe `NotificationContext::cancellation()` and check it again
+immediately before OS handoff. Request cancellation, connection closure, and
+host shutdown retire pending callbacks. The SDK sanitizes callback errors and
+does not send notification payloads through session events or logging.
+
+The `show` callback receives only a validated URL or an opaque canvas-focus
+activation ID. Authenticate URL metadata before handing it to the OS if clicks
+must survive an app restart; do not create a separate notification-content
+database. For live canvas clicks, retain the context and call
+`NotificationContext::activate_canvas`. It holds a weak connection reference,
+so a focus receipt cannot keep a client alive. The runtime validates and consumes
+the activation ID once; focus receipts do not survive a session restart.
+Successful delivery does not cancel the callback context's token. That token is
+not a receipt-validity check: use `activate_canvas` and combine pending work with
+any application-owned generation cancellation.
+
+Report capabilities and delivery outcomes accurately. `accepted` means OS
+handoff, not confirmed display. Unsupported named sounds must not silently fall
+back to another sound. Never retry notification delivery after a timeout or lost
+response, and do not log titles, bodies, URLs, callback contexts, or host errors.
 
 ### Session
 

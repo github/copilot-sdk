@@ -206,6 +206,7 @@ impl SessionRouter {
         let github_telemetry = client.on_github_telemetry.clone();
         let github_token_registry = client.github_token_registry.clone();
         let installation_confirmation = client.installation_confirmation.clone();
+        let notifications = client.notifications.clone();
 
         // Notification routing task
         let sessions = self.sessions.clone();
@@ -315,6 +316,10 @@ impl SessionRouter {
                     };
                     if request.method == crate::installation_confirmation::CONFIRM_METHOD {
                         installation_confirmation.dispatch(request);
+                        continue;
+                    }
+                    if crate::notifications::is_callback(&request.method) {
+                        notifications.dispatch(request);
                         continue;
                     }
                     if request.method == crate::extension_launch_provider::RESOLVE_METHOD {

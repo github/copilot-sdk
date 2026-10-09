@@ -74,6 +74,66 @@ An approval is remembered against the exact set of names the user saw, so an ext
 
 An approved extension can pass a granted value to anything it starts, so ask only for what the extension genuinely needs.
 
+## Desktop Notifications (Experimental)
+
+Notifications run in the extension provider process, not in canvas HTML. A
+provider can notify while its canvas is hidden, provided the provider and its
+session are still running. Declare the opt-in when joining:
+
+```js
+const session = await joinSession({ requestNotifications: true });
+const capabilities = await session.notifications.getCapabilities();
+```
+
+`getCapabilities()` reports `available`, `unsupported`, `unavailable`, or
+`failed`. An available result includes the host platform, current extension and
+OS permission states, supported click targets, and supported sound modes and
+names. The opt-in alone grants no permission. After an explicit user action,
+call `requestPermission()` and inspect its result before enabling delivery.
+Permission requests and delivery must not run merely because a canvas opened.
+
+```js
+const result = await session.notifications.show({
+    title: "Pull request updated",
+    body: "A review is ready.",
+    onClick: { kind: "open-url", url: "https://github.com/example/project/pull/42" },
+    sound: { kind: "none" },
+});
+```
+
+`accepted` means the host handed the notification to the OS; it does not promise
+that the OS displayed it. Other results are `denied`, `unsupported`,
+`unavailable`, `failed`, or `invalid-request`. Transport errors reject the
+promise. Never retry or switch to another notification mechanism after `show()`
+fails: the OS may have accepted it before the response was lost.
+
+All three methods accept a final, non-wire `{ signal: AbortSignal }` option.
+For example, use `show(notification, { signal: controller.signal })` to cancel a
+pending request when the user disables notifications. Cancellation is forwarded
+to the runtime; an already-aborted signal sends nothing. It cannot retract a
+notification that the OS has already accepted.
+
+Click targets are credential-free HTTP(S) URLs or
+`{ kind: "focus-canvas", canvasId, instanceId? }` for a canvas declared by this
+provider. There are no JavaScript callbacks, shell commands, or arbitrary canvas
+actions. The runtime authenticates the originating provider; callers cannot
+supply an identity. Supporting hosts authenticate URL activation data in OS
+metadata so URL clicks can survive a restart. Canvas focus is live-session-only.
+
+Sound defaults to `{ kind: "default" }`. `{ kind: "none" }` requests silence;
+`{ kind: "named", name }` requires a name advertised by the host. Unsupported
+sounds are rejected, not silently substituted.
+
+An older runtime may ignore `requestNotifications`. Only capability discovery
+maps JSON-RPC method-not-found to `unsupported`. A consumer may select a legacy
+adapter after that negotiation, but must not bypass denied permission or switch
+adapters after attempting delivery.
+
+The API does not add notification content to the agent conversation, session
+events, or SDK logs. Do not log the notification, URL, callback context, or
+host errors in provider code. OS notification retention is the explicit
+exception; avoid secrets and sensitive information in notification text.
+
 ## Further Reading
 
 - `examples.md` — Practical code examples for tools, hooks, events, and complete extensions

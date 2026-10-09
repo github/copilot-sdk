@@ -36,6 +36,12 @@ fn remote_error_log_message<'a>(method: &str, message: &'a str) -> &'a str {
     // Listener negotiation carries a token that a remote error may echo.
     match method {
         "host.getConfiguration" | "host.ready" => "listener negotiation request rejected",
+        method
+            if method.starts_with("notifications.")
+                || method.starts_with("session.notifications.") =>
+        {
+            "notification request rejected"
+        }
         _ => message,
     }
 }
@@ -292,12 +298,13 @@ impl CancellableRequests {
     fn honors_cancellation(method: &str) -> bool {
         use crate::generated::api_types::rpc_methods;
 
-        matches!(
-            method,
-            crate::installation_confirmation::CONFIRM_METHOD
-                | rpc_methods::SKILLPROVIDER_LIST
-                | rpc_methods::SKILLPROVIDER_READ
-        )
+        crate::notifications::is_callback(method)
+            || matches!(
+                method,
+                crate::installation_confirmation::CONFIRM_METHOD
+                    | rpc_methods::SKILLPROVIDER_LIST
+                    | rpc_methods::SKILLPROVIDER_READ
+            )
     }
 
     fn register(&self, id: u64) -> bool {

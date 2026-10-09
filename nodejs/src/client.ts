@@ -2195,6 +2195,9 @@ export class CopilotClient {
                 enableManagedSettings: config.enableManagedSettings,
                 enforceManagedModelDefaults: config.enforceManagedModelDefaults,
                 managedSettings: config.managedSettings,
+                ...(extensionOptions?.requestNotifications === true
+                    ? { requestNotifications: true }
+                    : {}),
                 ...(extensionOptions?.requestedEnvironmentVariables
                     ? {
                           requestedEnvironmentVariables:

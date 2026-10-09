@@ -97,8 +97,16 @@ pub mod rpc_methods {
     pub const MCP_CONFIG_DISABLE: &str = "mcp.config.disable";
     /// `mcp.config.reload`
     pub const MCP_CONFIG_RELOAD: &str = "mcp.config.reload";
+    /// `mcp.registry.allocateRequestId`
+    pub const MCP_REGISTRY_ALLOCATEREQUESTID: &str = "mcp.registry.allocateRequestId";
+    /// `mcp.registry.search`
+    pub const MCP_REGISTRY_SEARCH: &str = "mcp.registry.search";
+    /// `mcp.registry.cancel`
+    pub const MCP_REGISTRY_CANCEL: &str = "mcp.registry.cancel";
     /// `mcp.discover`
     pub const MCP_DISCOVER: &str = "mcp.discover";
+    /// `mcp.shouldExcludeGitHubTools`
+    pub const MCP_SHOULDEXCLUDEGITHUBTOOLS: &str = "mcp.shouldExcludeGitHubTools";
     /// `mcp.planInstall`
     pub const MCP_PLANINSTALL: &str = "mcp.planInstall";
     /// `mcp.prepareInstall`
@@ -330,6 +338,10 @@ pub mod rpc_methods {
     pub const CONNECTORS_LIST: &str = "connectors.list";
     /// `connectors.refresh`
     pub const CONNECTORS_REFRESH: &str = "connectors.refresh";
+    /// `notifications.registerHost`
+    pub const NOTIFICATIONS_REGISTERHOST: &str = "notifications.registerHost";
+    /// `notifications.unregisterHost`
+    pub const NOTIFICATIONS_UNREGISTERHOST: &str = "notifications.unregisterHost";
     /// `session.providers.getCatalog`
     pub const SESSION_PROVIDERS_GETCATALOG: &str = "session.providers.getCatalog";
     /// `session.providers.discover`
@@ -1022,6 +1034,15 @@ pub mod rpc_methods {
     pub const SESSION_SCHEDULE_REARMSELFPACED: &str = "session.schedule.rearmSelfPaced";
     /// `session.schedule.stop`
     pub const SESSION_SCHEDULE_STOP: &str = "session.schedule.stop";
+    /// `session.notifications.getCapabilities`
+    pub const SESSION_NOTIFICATIONS_GETCAPABILITIES: &str = "session.notifications.getCapabilities";
+    /// `session.notifications.requestPermission`
+    pub const SESSION_NOTIFICATIONS_REQUESTPERMISSION: &str =
+        "session.notifications.requestPermission";
+    /// `session.notifications.show`
+    pub const SESSION_NOTIFICATIONS_SHOW: &str = "session.notifications.show";
+    /// `session.notifications.activate`
+    pub const SESSION_NOTIFICATIONS_ACTIVATE: &str = "session.notifications.activate";
     /// `skillProvider.list`
     pub const SKILLPROVIDER_LIST: &str = "skillProvider.list";
     /// `skillProvider.read`
@@ -11328,14 +11349,14 @@ pub struct ManagedSettingsMeta {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ManagedSettingsResolvedData {
-    /// Whether enterprise policy disables bypass-permissions ("yolo") mode for this session. Deny-wins across layers, and forced on when `failClosed` is true.
+    /// Whether an explicit enterprise policy restriction disables bypass-permissions ("yolo") mode for this session. Deny-wins across layers; an unresolved policy does not force this on by itself.
     pub bypass_permissions_disabled: bool,
     /// Whether a session-local permissions layer injected by the SDK host was present
     #[serde(skip_serializing_if = "Option::is_none")]
     pub client_managed: Option<bool>,
     /// Whether an actual device MDM/plist/registry/file managed-settings layer was present
     pub device_managed: bool,
-    /// Whether managed policy could not be determined (e.g. a failed server fetch) and the session fell back to the fail-closed restriction. When true, restrictions such as disabling bypass-permissions are enforced even though `settings` may be absent.
+    /// Whether managed policy could not be determined (e.g. a failed server fetch) and unresolved-policy safeguards remain active. This does not by itself disable bypass-permissions; `bypassPermissionsDisabled` reports only an explicit policy restriction.
     pub fail_closed: bool,
     /// The setting keys under enterprise management in the effective managed settings (e.g. `model`, `enabledPlugins`, `permissions`). Empty when no managed settings are in force.
     pub managed_keys: Vec<String>,
@@ -14026,6 +14047,91 @@ pub(crate) struct McpRegisterExternalClientRequest {
     pub(crate) transport: serde_json::Value,
 }
 
+/// Registry search to abandon.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct McpRegistryCancelRequest {
+    /// Request ID from `mcp.registry.allocateRequestId` that the search uses.
+    pub request_id: i64,
+}
+
+/// Whether the cancel reached a live search.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct McpRegistryCancelResult {
+    /// True when the cancel stopped a running search. False for unknown or reclaimed IDs, completed or canceled searches, and unused reservations. The cancel releases an unused reservation.
+    pub canceled: bool,
+}
+
+/// Request id naming a cancellable registry search.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct McpRegistryRequestIdResult {
+    /// Request ID for `mcp.registry.search` and `mcp.registry.cancel`. It serves one search. Allocation can reclaim unused IDs at the 1,024-ID reservation limit.
+    pub request_id: i64,
+}
+
+/// Registry search terms, the credential to search under, and the request id that makes the search cancellable.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct McpRegistrySearchRequest {
+    /// The credential the search runs under, carried opaquely. Hosts usually send credential-free `AuthIdentity`; a `token` identity can be resolved only when it embeds a token, while `env` and `gh-cli` identities can use a token embedded in the request first.
+    pub auth_info: serde_json::Value,
+    /// Maximum number of servers to return.
+    pub limit: i64,
+    /// Free-text query. Omitted or empty asks the registry for its top servers rather than searching. A value that is not a string is refused.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub query: Option<String>,
+    /// Repository used for the policy lookup, as `owner/name`. The policy selects the registry URL and whether the user token goes to the registry. The registry receives this repository only when the policy entry lists it as required context. A value that is not a string is refused.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub repository: Option<String>,
+    /// Request ID from `mcp.registry.allocateRequestId`. The search refuses unknown, reclaimed, or canceled IDs and IDs that another search or request already uses.
+    pub request_id: i64,
+}
+
+/// Servers selected from the registry response.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct McpRegistrySearchResult {
+    /// The server objects, carried opaquely. The runtime follows pages, keeps the newest entry per server name, cuts the list to `limit`, and sorts an empty-query result by GitHub stars. Each server object remains unchanged because the registry owns that shape.
+    pub servers: serde_json::Value,
+}
+
 /// In-process MCP reload configuration.
 ///
 /// <div class="warning">
@@ -14844,6 +14950,43 @@ pub struct McpSetEnvValueModeParams {
 pub struct McpSetEnvValueModeResult {
     /// Mode recorded on the session after the update
     pub mode: McpSetEnvValueModeDetails,
+}
+
+/// The session tool filters that decide whether the session still has a shell to run `gh` with.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct McpShouldExcludeGitHubToolsRequest {
+    /// The session's tool allowlist, when it set one. Omitted means the session constrains nothing this way.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub available_tools: Option<Vec<String>>,
+    /// The session's tool denylist, when it set one. Omitted means the session constrains nothing this way.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub excluded_tools: Option<Vec<String>>,
+    /// How the allowlist and denylist combine when both are set. Omitted means the default every session gets, so a caller that never chose a precedence is answered as its sessions behave.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_filter_precedence: Option<OptionsUpdateToolFilterPrecedence>,
+}
+
+/// Whether the gh-replaceable GitHub MCP tools may be clipped for the session described by the request.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct McpShouldExcludeGitHubToolsResult {
+    /// True only when both halves hold: the session's filters still reach the platform shell tool, and the host actually has the `gh` those tools would be replaced by. Feed it straight back as the `excludeGhReplaceableTools` build option.
+    pub exclude_gh_replaceable_tools: bool,
 }
 
 /// Server name and optional configuration for an individual MCP server start. Omit `config` for a config-free start-by-name of an already-configured server.
@@ -16886,6 +17029,553 @@ pub struct NameSetAutoResult {
 pub struct NameSetRequest {
     /// New session name (1–100 characters, trimmed of leading/trailing whitespace)
     pub name: String,
+}
+
+/// Native host request to consume one live canvas activation.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotificationActivateParams {
+    /// Opaque one-shot credential originally returned only to this host.
+    pub activation_id: String,
+}
+
+/// Focus this existing instance without constructing new input.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotificationActivateResultActivatedTarget {
+    /// Provider-local canvas identifier.
+    pub canvas_id: String,
+    /// Authenticated owning extension.
+    pub extension_id: String,
+    /// Exact original ready instance.
+    pub instance_id: String,
+    /// Discriminator selecting this notification variant.
+    pub kind: NotificationActivateResultActivatedTargetKind,
+}
+
+/// This original live instance may be focused once.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotificationActivateResultActivated {
+    /// Discriminator selecting this notification variant.
+    pub status: NotificationActivateResultActivatedStatus,
+    /// Sanitized target; URL clicks never use this RPC.
+    pub target: NotificationActivateResultActivatedTarget,
+}
+
+/// The caller is not the original native host.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotificationActivateResultDenied {
+    /// Discriminator selecting this notification variant.
+    pub status: NotificationActivateResultDeniedStatus,
+}
+
+/// The activation or its original owner/instance has expired.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotificationActivateResultUnavailable {
+    /// Discriminator selecting this notification variant.
+    pub status: NotificationActivateResultUnavailableStatus,
+}
+
+/// Activation failed.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotificationActivateResultFailed {
+    /// Discriminator selecting this notification variant.
+    pub status: NotificationActivateResultFailedStatus,
+}
+
+/// Notification permission at the installation and OS boundaries.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotificationPermission {
+    /// Host-validated canonical installation consent.
+    pub extension: NotificationPermissionState,
+    /// Native OS authorization.
+    pub os: NotificationOsPermissionState,
+}
+
+/// Exact sound support advertised by the native host.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotificationSounds {
+    /// Whether the platform default notification sound is supported.
+    pub default: bool,
+    /// Supported platform sound names. Names not in this list must be rejected.
+    pub named: Vec<String>,
+    /// Whether silent delivery is supported.
+    pub none: bool,
+}
+
+/// The host supports native notifications.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotificationCapabilitiesResultAvailable {
+    /// Supported click actions.
+    pub on_click: Vec<NotificationClickKind>,
+    /// Current installation and OS permission.
+    pub permission: NotificationPermission,
+    /// Platform executing native notification effects.
+    pub platform: NotificationPlatform,
+    /// Exact supported sounds.
+    pub sounds: NotificationSounds,
+    /// Discriminator selecting this notification variant.
+    pub status: NotificationCapabilitiesResultAvailableStatus,
+}
+
+/// This runtime or host does not support native notifications.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotificationCapabilitiesResultUnsupported {
+    /// Discriminator selecting this notification variant.
+    pub status: NotificationCapabilitiesResultUnsupportedStatus,
+}
+
+/// The original host or extension is no longer available.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotificationCapabilitiesResultUnavailable {
+    /// Discriminator selecting this notification variant.
+    pub status: NotificationCapabilitiesResultUnavailableStatus,
+}
+
+/// The operation failed without exposing content or platform errors.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotificationCapabilitiesResultFailed {
+    /// Discriminator selecting this notification variant.
+    pub status: NotificationCapabilitiesResultFailedStatus,
+}
+
+/// Open a credential-free absolute HTTP or HTTPS URL.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotificationClickActionOpenUrl {
+    /// Discriminator selecting this notification variant.
+    pub kind: NotificationClickActionOpenUrlKind,
+    /// Destination URL; the host may seal it in OS metadata for restart-safe activation.
+    pub url: String,
+}
+
+/// Focus an existing canvas owned by this extension connection.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotificationClickActionFocusCanvas {
+    /// Registered provider-local canvas identifier.
+    pub canvas_id: String,
+    /// Existing instance; omission requires exactly one matching ready instance.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub instance_id: Option<String>,
+    /// Discriminator selecting this notification variant.
+    pub kind: NotificationClickActionFocusCanvasKind,
+}
+
+/// Runtime-discovered extension origin, never supplied by a notification caller.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotificationExtensionOrigin {
+    /// Runtime discovery identity.
+    pub id: String,
+    /// Host-discovered module path. App bridge origins must be resolved through trusted launch metadata before selecting a consent key.
+    pub module_path: String,
+    /// Discovered extension name, not a caller-supplied label.
+    pub name: String,
+    /// Discovery source.
+    pub source: String,
+}
+
+/// Exact live canvas instance authorized for native host focus.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotificationFocusTarget {
+    /// Provider-local canvas identifier.
+    pub canvas_id: String,
+    /// Authenticated owning extension.
+    pub extension_id: String,
+    /// Exact original ready instance.
+    pub instance_id: String,
+    /// Discriminator selecting this notification variant.
+    pub kind: NotificationFocusTargetKind,
+}
+
+/// A restart-safe URL target owned by the native host.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotificationHostClickActionOpenUrl {
+    /// Discriminator selecting this notification variant.
+    pub kind: NotificationHostClickActionOpenUrlKind,
+    /// Validated HTTP or HTTPS destination. Retain only in authenticated OS metadata, not an application content database.
+    pub url: String,
+}
+
+/// A one-shot runtime canvas-focus activation.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotificationHostClickActionFocusCanvas {
+    /// Opaque activation credential scoped to the original live host and provider.
+    pub activation_id: String,
+    /// Discriminator selecting this notification variant.
+    pub kind: NotificationHostClickActionFocusCanvasKind,
+}
+
+/// Authenticated origin for a callback to the single native host.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotificationHostContext {
+    /// Opaque live attachment identity; never a persistent installation grant.
+    pub attachment_id: String,
+    /// Trusted discovery provenance for host installation binding.
+    pub extension: NotificationExtensionOrigin,
+    /// Runtime session owning the extension, not the active UI conversation.
+    pub session_id: SessionId,
+}
+
+/// This connection is the registered notification host.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotificationHostRegistrationResultRegistered {
+    /// Discriminator selecting this notification variant.
+    pub status: NotificationHostRegistrationResultRegisteredStatus,
+}
+
+/// The connection is not the nominated host.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotificationHostRegistrationResultDenied {
+    /// Discriminator selecting this notification variant.
+    pub status: NotificationHostRegistrationResultDeniedStatus,
+}
+
+/// This transport cannot host native notifications.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotificationHostRegistrationResultUnsupported {
+    /// Discriminator selecting this notification variant.
+    pub status: NotificationHostRegistrationResultUnsupportedStatus,
+}
+
+/// The connection is unavailable.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotificationHostRegistrationResultUnavailable {
+    /// Discriminator selecting this notification variant.
+    pub status: NotificationHostRegistrationResultUnavailableStatus,
+}
+
+/// Registration failed.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotificationHostRegistrationResultFailed {
+    /// Discriminator selecting this notification variant.
+    pub status: NotificationHostRegistrationResultFailedStatus,
+}
+
+/// Origin-only host capability or permission request.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotificationHostRequest {
+    /// Engine-authenticated caller context.
+    pub context: NotificationHostContext,
+}
+
+/// Use the native default sound.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotificationSoundDefault {
+    /// Discriminator selecting this notification variant.
+    pub kind: NotificationSoundDefaultKind,
+}
+
+/// Deliver without sound.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotificationSoundNone {
+    /// Discriminator selecting this notification variant.
+    pub kind: NotificationSoundNoneKind,
+}
+
+/// Use exactly one advertised platform sound.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotificationSoundNamed {
+    /// Discriminator selecting this notification variant.
+    pub kind: NotificationSoundNamedKind,
+    /// Exact advertised sound name, not a filesystem path.
+    pub name: String,
+}
+
+/// One live native notification enqueue request. Never log or persist this payload.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotificationHostShowParams {
+    /// Optional plain-text subtext.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub body: Option<String>,
+    /// Engine-authenticated caller context.
+    pub context: NotificationHostContext,
+    /// Runtime-generated delivery operation identifier.
+    pub notification_id: String,
+    /// Validated URL or one-shot canvas activation.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub on_click: Option<NotificationHostClickAction>,
+    /// Requested sound, with the default made explicit.
+    pub sound: NotificationSound,
+    /// Plain-text title.
+    pub title: String,
+}
+
+/// Native enqueue acknowledged; display is not guaranteed.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotificationHostShowResultAccepted {
+    /// Discriminator selecting this notification variant.
+    pub status: NotificationHostShowResultAcceptedStatus,
+}
+
+/// Installation or OS permission does not allow delivery.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotificationHostShowResultDenied {
+    /// Discriminator selecting this notification variant.
+    pub status: NotificationHostShowResultDeniedStatus,
+}
+
+/// Requested behavior is unsupported.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotificationHostShowResultUnsupported {
+    /// Discriminator selecting this notification variant.
+    pub status: NotificationHostShowResultUnsupportedStatus,
+}
+
+/// The original host, extension or canvas is unavailable.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotificationHostShowResultUnavailable {
+    /// Discriminator selecting this notification variant.
+    pub status: NotificationHostShowResultUnavailableStatus,
+}
+
+/// Handoff failed or its result is unknown. Never automatically retry.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotificationHostShowResultFailed {
+    /// Discriminator selecting this notification variant.
+    pub status: NotificationHostShowResultFailedStatus,
+}
+
+/// Content or action validation failed.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotificationHostShowResultInvalidRequest {
+    /// Discriminator selecting this notification variant.
+    pub status: NotificationHostShowResultInvalidRequestStatus,
+}
+
+/// This host registration has been revoked.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotificationHostUnregistrationResultUnregistered {
+    /// Discriminator selecting this notification variant.
+    pub status: NotificationHostUnregistrationResultUnregisteredStatus,
+}
+
+/// The connection does not own the registration.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotificationHostUnregistrationResultDenied {
+    /// Discriminator selecting this notification variant.
+    pub status: NotificationHostUnregistrationResultDeniedStatus,
+}
+
+/// This transport cannot host native notifications.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotificationHostUnregistrationResultUnsupported {
+    /// Discriminator selecting this notification variant.
+    pub status: NotificationHostUnregistrationResultUnsupportedStatus,
+}
+
+/// The connection is unavailable.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotificationHostUnregistrationResultUnavailable {
+    /// Discriminator selecting this notification variant.
+    pub status: NotificationHostUnregistrationResultUnavailableStatus,
+}
+
+/// Unregistration failed.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotificationHostUnregistrationResultFailed {
+    /// Discriminator selecting this notification variant.
+    pub status: NotificationHostUnregistrationResultFailedStatus,
+}
+
+/// The consent flow completed or was dismissed.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotificationPermissionResultCompleted {
+    /// Current permission; dismissal remains not-requested.
+    pub permission: NotificationPermission,
+    /// Discriminator selecting this notification variant.
+    pub status: NotificationPermissionResultCompletedStatus,
+}
+
+/// Permission negotiation is unsupported.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotificationPermissionResultUnsupported {
+    /// Discriminator selecting this notification variant.
+    pub status: NotificationPermissionResultUnsupportedStatus,
+}
+
+/// The original host or extension is unavailable.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotificationPermissionResultUnavailable {
+    /// Discriminator selecting this notification variant.
+    pub status: NotificationPermissionResultUnavailableStatus,
+}
+
+/// The operation failed without exposing content or platform errors.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotificationPermissionResultFailed {
+    /// Discriminator selecting this notification variant.
+    pub status: NotificationPermissionResultFailedStatus,
+}
+
+/// Native notification content, carried only by the live provider-to-host request.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotificationShowParams {
+    /// Optional plain-text subtext.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub body: Option<String>,
+    /// Optional restricted click action.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub on_click: Option<NotificationClickAction>,
+    /// Requested sound; omission means default.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sound: Option<NotificationSound>,
+    /// Plain-text title.
+    pub title: String,
+}
+
+/// The OS accepted enqueueing, which does not guarantee display.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotificationShowResultAccepted {
+    /// Runtime-generated operation identifier, not an activation credential.
+    pub notification_id: String,
+    /// Discriminator selecting this notification variant.
+    pub status: NotificationShowResultAcceptedStatus,
+}
+
+/// Installation or OS permission does not allow delivery.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotificationShowResultDenied {
+    /// Discriminator selecting this notification variant.
+    pub status: NotificationShowResultDeniedStatus,
+}
+
+/// Requested notification behavior is unsupported.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotificationShowResultUnsupported {
+    /// Discriminator selecting this notification variant.
+    pub status: NotificationShowResultUnsupportedStatus,
+}
+
+/// The original host, extension or canvas is unavailable.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotificationShowResultUnavailable {
+    /// Discriminator selecting this notification variant.
+    pub status: NotificationShowResultUnavailableStatus,
+}
+
+/// Handoff failed or its result is unknown. Do not automatically retry.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotificationShowResultFailed {
+    /// Discriminator selecting this notification variant.
+    pub status: NotificationShowResultFailedStatus,
+}
+
+/// Content or a restricted action failed validation.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotificationShowResultInvalidRequest {
+    /// Discriminator selecting this notification variant.
+    pub status: NotificationShowResultInvalidRequestStatus,
 }
 
 /// Source descriptor for a `session.options.update` content-exclusion rule, with source name and type.
@@ -30584,6 +31274,21 @@ pub struct McpConfigListResult {
     pub servers: HashMap<String, serde_json::Value>,
 }
 
+/// Request id naming a cancellable registry search.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct McpRegistryAllocateRequestIdResult {
+    /// Request ID for `mcp.registry.search` and `mcp.registry.cancel`. It serves one search. Allocation can reclaim unused IDs at the 1,024-ID reservation limit.
+    pub request_id: i64,
+}
+
 /// Extensions discovered from persisted Copilot home state and their effective loading mode. Launch-scoped additional plugins are not included.
 ///
 /// <div class="warning">
@@ -34994,14 +35699,14 @@ pub struct SessionManagedSettingsGetParams {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionManagedSettingsGetResult {
-    /// Whether enterprise policy disables bypass-permissions ("yolo") mode for this session. Deny-wins across layers, and forced on when `failClosed` is true.
+    /// Whether an explicit enterprise policy restriction disables bypass-permissions ("yolo") mode for this session. Deny-wins across layers; an unresolved policy does not force this on by itself.
     pub bypass_permissions_disabled: bool,
     /// Whether a session-local permissions layer injected by the SDK host was present
     #[serde(skip_serializing_if = "Option::is_none")]
     pub client_managed: Option<bool>,
     /// Whether an actual device MDM/plist/registry/file managed-settings layer was present
     pub device_managed: bool,
-    /// Whether managed policy could not be determined (e.g. a failed server fetch) and the session fell back to the fail-closed restriction. When true, restrictions such as disabling bypass-permissions are enforced even though `settings` may be absent.
+    /// Whether managed policy could not be determined (e.g. a failed server fetch) and unresolved-policy safeguards remain active. This does not by itself disable bypass-permissions; `bypassPermissionsDisabled` reports only an explicit policy restriction.
     pub fail_closed: bool,
     /// The setting keys under enterprise management in the effective managed settings (e.g. `model`, `enabledPlugins`, `permissions`). Empty when no managed settings are in force.
     pub managed_keys: Vec<String>,
@@ -37867,6 +38572,75 @@ pub struct SessionScheduleStopResult {
     /// The removed entry, or omitted if no entry matched.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub entry: Option<ScheduleEntry>,
+}
+
+/// Identifies the target session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionNotificationsGetCapabilitiesParams {
+    /// Target session identifier
+    pub session_id: SessionId,
+}
+
+/// Identifies the target session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionNotificationsRequestPermissionParams {
+    /// Target session identifier
+    pub session_id: SessionId,
+}
+
+/// Native notification content, carried only by the live provider-to-host request.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionNotificationsShowParams {
+    /// Plain-text title.
+    pub title: String,
+    /// Optional plain-text subtext.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub body: Option<String>,
+    /// Optional restricted click action.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub on_click: Option<NotificationClickAction>,
+    /// Requested sound; omission means default.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sound: Option<NotificationSound>,
+}
+
+/// Native host request to consume one live canvas activation.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionNotificationsActivateParams {
+    /// Opaque one-shot credential originally returned only to this host.
+    pub activation_id: String,
 }
 
 /// Identifies the target session.
@@ -43936,6 +44710,28 @@ pub enum McpSetEnvValueModeDetails {
     Unknown,
 }
 
+/// Controls how availableTools (allowlist) and excludedTools (denylist) combine when both are set.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum OptionsUpdateToolFilterPrecedence {
+    /// If availableTools is set, it is the only constraint that applies (excludedTools is ignored). Preserves CLI / pre-existing client behavior. Default.
+    #[serde(rename = "available")]
+    Available,
+    /// A tool is enabled if and only if it matches the allowlist (or the allowlist is unset) AND it does not match the denylist. Makes 'all except X' expressible by combining the two lists.
+    #[serde(rename = "excluded")]
+    Excluded,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
 /// Hosting platform type of the repository
 ///
 /// <div class="warning">
@@ -44358,6 +45154,624 @@ pub enum ModelSwitchAutoTierStatus {
     Unknown,
 }
 
+/// Discriminator selecting this notification variant.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NotificationActivateResultActivatedStatus {
+    #[serde(rename = "activated")]
+    #[default]
+    Activated,
+}
+
+/// Discriminator selecting this notification variant.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NotificationActivateResultActivatedTargetKind {
+    #[serde(rename = "focus-canvas")]
+    #[default]
+    FocusCanvas,
+}
+
+/// Discriminator selecting this notification variant.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NotificationActivateResultDeniedStatus {
+    #[serde(rename = "denied")]
+    #[default]
+    Denied,
+}
+
+/// Discriminator selecting this notification variant.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NotificationActivateResultUnavailableStatus {
+    #[serde(rename = "unavailable")]
+    #[default]
+    Unavailable,
+}
+
+/// Discriminator selecting this notification variant.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NotificationActivateResultFailedStatus {
+    #[serde(rename = "failed")]
+    #[default]
+    Failed,
+}
+
+/// Result of consuming a native canvas-focus activation.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum NotificationActivateResult {
+    Activated(NotificationActivateResultActivated),
+    Denied(NotificationActivateResultDenied),
+    Unavailable(NotificationActivateResultUnavailable),
+    Failed(NotificationActivateResultFailed),
+}
+
+/// Click behaviors the native host can execute.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NotificationClickKind {
+    /// Open a validated HTTP or HTTPS URL.
+    #[serde(rename = "open-url")]
+    OpenUrl,
+    /// Focus a caller-owned live canvas instance.
+    #[serde(rename = "focus-canvas")]
+    FocusCanvas,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Explicit installation-scoped notification consent.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NotificationPermissionState {
+    /// No decision, including a dismissed consent prompt.
+    #[serde(rename = "not-requested")]
+    NotRequested,
+    /// Explicitly allowed by the user.
+    #[serde(rename = "granted")]
+    Granted,
+    /// Explicitly denied by the user.
+    #[serde(rename = "denied")]
+    Denied,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Native OS authorization state, separate from installation consent.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NotificationOsPermissionState {
+    /// Authorization has not been requested.
+    #[serde(rename = "not-requested")]
+    NotRequested,
+    /// The OS has granted authorization.
+    #[serde(rename = "granted")]
+    Granted,
+    /// The OS has denied authorization.
+    #[serde(rename = "denied")]
+    Denied,
+    /// This platform has no OS authorization gate.
+    #[serde(rename = "not-required")]
+    NotRequired,
+    /// The OS permission facility is unsupported.
+    #[serde(rename = "unsupported")]
+    Unsupported,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Platform of the native notification host, independent of the extension process.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NotificationPlatform {
+    /// macOS.
+    #[serde(rename = "darwin")]
+    Darwin,
+    /// Windows.
+    #[serde(rename = "win32")]
+    Win32,
+    /// Linux.
+    #[serde(rename = "linux")]
+    Linux,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Discriminator selecting this notification variant.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NotificationCapabilitiesResultAvailableStatus {
+    #[serde(rename = "available")]
+    #[default]
+    Available,
+}
+
+/// Discriminator selecting this notification variant.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NotificationCapabilitiesResultUnsupportedStatus {
+    #[serde(rename = "unsupported")]
+    #[default]
+    Unsupported,
+}
+
+/// Discriminator selecting this notification variant.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NotificationCapabilitiesResultUnavailableStatus {
+    #[serde(rename = "unavailable")]
+    #[default]
+    Unavailable,
+}
+
+/// Discriminator selecting this notification variant.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NotificationCapabilitiesResultFailedStatus {
+    #[serde(rename = "failed")]
+    #[default]
+    Failed,
+}
+
+/// Native host capabilities and permissions, queried without prompting.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum NotificationCapabilitiesResult {
+    Available(NotificationCapabilitiesResultAvailable),
+    Unsupported(NotificationCapabilitiesResultUnsupported),
+    Unavailable(NotificationCapabilitiesResultUnavailable),
+    Failed(NotificationCapabilitiesResultFailed),
+}
+
+/// Discriminator selecting this notification variant.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NotificationClickActionOpenUrlKind {
+    #[serde(rename = "open-url")]
+    #[default]
+    OpenUrl,
+}
+
+/// Discriminator selecting this notification variant.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NotificationClickActionFocusCanvasKind {
+    #[serde(rename = "focus-canvas")]
+    #[default]
+    FocusCanvas,
+}
+
+/// Restricted action performed when a notification is clicked.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum NotificationClickAction {
+    OpenUrl(NotificationClickActionOpenUrl),
+    FocusCanvas(NotificationClickActionFocusCanvas),
+}
+
+/// Discriminator selecting this notification variant.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NotificationFocusTargetKind {
+    #[serde(rename = "focus-canvas")]
+    #[default]
+    FocusCanvas,
+}
+
+/// Discriminator selecting this notification variant.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NotificationHostClickActionOpenUrlKind {
+    #[serde(rename = "open-url")]
+    #[default]
+    OpenUrl,
+}
+
+/// Discriminator selecting this notification variant.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NotificationHostClickActionFocusCanvasKind {
+    #[serde(rename = "focus-canvas")]
+    #[default]
+    FocusCanvas,
+}
+
+/// Validated native-host click behavior.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum NotificationHostClickAction {
+    OpenUrl(NotificationHostClickActionOpenUrl),
+    FocusCanvas(NotificationHostClickActionFocusCanvas),
+}
+
+/// Discriminator selecting this notification variant.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NotificationHostRegistrationResultRegisteredStatus {
+    #[serde(rename = "registered")]
+    #[default]
+    Registered,
+}
+
+/// Discriminator selecting this notification variant.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NotificationHostRegistrationResultDeniedStatus {
+    #[serde(rename = "denied")]
+    #[default]
+    Denied,
+}
+
+/// Discriminator selecting this notification variant.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NotificationHostRegistrationResultUnsupportedStatus {
+    #[serde(rename = "unsupported")]
+    #[default]
+    Unsupported,
+}
+
+/// Discriminator selecting this notification variant.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NotificationHostRegistrationResultUnavailableStatus {
+    #[serde(rename = "unavailable")]
+    #[default]
+    Unavailable,
+}
+
+/// Discriminator selecting this notification variant.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NotificationHostRegistrationResultFailedStatus {
+    #[serde(rename = "failed")]
+    #[default]
+    Failed,
+}
+
+/// Result of registering callbacks on the native-nominated host connection.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum NotificationHostRegistrationResult {
+    Registered(NotificationHostRegistrationResultRegistered),
+    Denied(NotificationHostRegistrationResultDenied),
+    Unsupported(NotificationHostRegistrationResultUnsupported),
+    Unavailable(NotificationHostRegistrationResultUnavailable),
+    Failed(NotificationHostRegistrationResultFailed),
+}
+
+/// Discriminator selecting this notification variant.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NotificationSoundDefaultKind {
+    #[serde(rename = "default")]
+    #[default]
+    Default,
+}
+
+/// Discriminator selecting this notification variant.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NotificationSoundNoneKind {
+    #[serde(rename = "none")]
+    #[default]
+    None,
+}
+
+/// Discriminator selecting this notification variant.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NotificationSoundNamedKind {
+    #[serde(rename = "named")]
+    #[default]
+    Named,
+}
+
+/// Sound requested for a native notification; omission means default.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum NotificationSound {
+    Default(NotificationSoundDefault),
+    None(NotificationSoundNone),
+    Named(NotificationSoundNamed),
+}
+
+/// Discriminator selecting this notification variant.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NotificationHostShowResultAcceptedStatus {
+    #[serde(rename = "accepted")]
+    #[default]
+    Accepted,
+}
+
+/// Discriminator selecting this notification variant.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NotificationHostShowResultDeniedStatus {
+    #[serde(rename = "denied")]
+    #[default]
+    Denied,
+}
+
+/// Discriminator selecting this notification variant.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NotificationHostShowResultUnsupportedStatus {
+    #[serde(rename = "unsupported")]
+    #[default]
+    Unsupported,
+}
+
+/// Discriminator selecting this notification variant.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NotificationHostShowResultUnavailableStatus {
+    #[serde(rename = "unavailable")]
+    #[default]
+    Unavailable,
+}
+
+/// Discriminator selecting this notification variant.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NotificationHostShowResultFailedStatus {
+    #[serde(rename = "failed")]
+    #[default]
+    Failed,
+}
+
+/// Discriminator selecting this notification variant.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NotificationHostShowResultInvalidRequestStatus {
+    #[serde(rename = "invalid-request")]
+    #[default]
+    InvalidRequest,
+}
+
+/// Content-free native enqueue acknowledgement.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum NotificationHostShowResult {
+    Accepted(NotificationHostShowResultAccepted),
+    Denied(NotificationHostShowResultDenied),
+    Unsupported(NotificationHostShowResultUnsupported),
+    Unavailable(NotificationHostShowResultUnavailable),
+    Failed(NotificationHostShowResultFailed),
+    InvalidRequest(NotificationHostShowResultInvalidRequest),
+}
+
+/// Discriminator selecting this notification variant.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NotificationHostUnregistrationResultUnregisteredStatus {
+    #[serde(rename = "unregistered")]
+    #[default]
+    Unregistered,
+}
+
+/// Discriminator selecting this notification variant.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NotificationHostUnregistrationResultDeniedStatus {
+    #[serde(rename = "denied")]
+    #[default]
+    Denied,
+}
+
+/// Discriminator selecting this notification variant.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NotificationHostUnregistrationResultUnsupportedStatus {
+    #[serde(rename = "unsupported")]
+    #[default]
+    Unsupported,
+}
+
+/// Discriminator selecting this notification variant.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NotificationHostUnregistrationResultUnavailableStatus {
+    #[serde(rename = "unavailable")]
+    #[default]
+    Unavailable,
+}
+
+/// Discriminator selecting this notification variant.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NotificationHostUnregistrationResultFailedStatus {
+    #[serde(rename = "failed")]
+    #[default]
+    Failed,
+}
+
+/// Result of revoking a native notification host registration.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum NotificationHostUnregistrationResult {
+    Unregistered(NotificationHostUnregistrationResultUnregistered),
+    Denied(NotificationHostUnregistrationResultDenied),
+    Unsupported(NotificationHostUnregistrationResultUnsupported),
+    Unavailable(NotificationHostUnregistrationResultUnavailable),
+    Failed(NotificationHostUnregistrationResultFailed),
+}
+
+/// Discriminator selecting this notification variant.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NotificationPermissionResultCompletedStatus {
+    #[serde(rename = "completed")]
+    #[default]
+    Completed,
+}
+
+/// Discriminator selecting this notification variant.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NotificationPermissionResultUnsupportedStatus {
+    #[serde(rename = "unsupported")]
+    #[default]
+    Unsupported,
+}
+
+/// Discriminator selecting this notification variant.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NotificationPermissionResultUnavailableStatus {
+    #[serde(rename = "unavailable")]
+    #[default]
+    Unavailable,
+}
+
+/// Discriminator selecting this notification variant.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NotificationPermissionResultFailedStatus {
+    #[serde(rename = "failed")]
+    #[default]
+    Failed,
+}
+
+/// Result of explicit notification permission negotiation.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum NotificationPermissionResult {
+    Completed(NotificationPermissionResultCompleted),
+    Unsupported(NotificationPermissionResultUnsupported),
+    Unavailable(NotificationPermissionResultUnavailable),
+    Failed(NotificationPermissionResultFailed),
+}
+
+/// Discriminator selecting this notification variant.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NotificationShowResultAcceptedStatus {
+    #[serde(rename = "accepted")]
+    #[default]
+    Accepted,
+}
+
+/// Discriminator selecting this notification variant.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NotificationShowResultDeniedStatus {
+    #[serde(rename = "denied")]
+    #[default]
+    Denied,
+}
+
+/// Discriminator selecting this notification variant.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NotificationShowResultUnsupportedStatus {
+    #[serde(rename = "unsupported")]
+    #[default]
+    Unsupported,
+}
+
+/// Discriminator selecting this notification variant.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NotificationShowResultUnavailableStatus {
+    #[serde(rename = "unavailable")]
+    #[default]
+    Unavailable,
+}
+
+/// Discriminator selecting this notification variant.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NotificationShowResultFailedStatus {
+    #[serde(rename = "failed")]
+    #[default]
+    Failed,
+}
+
+/// Discriminator selecting this notification variant.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NotificationShowResultInvalidRequestStatus {
+    #[serde(rename = "invalid-request")]
+    #[default]
+    InvalidRequest,
+}
+
+/// Metadata-only result of one notification delivery attempt.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum NotificationShowResult {
+    Accepted(NotificationShowResultAccepted),
+    Denied(NotificationShowResultDenied),
+    Unsupported(NotificationShowResultUnsupported),
+    Unavailable(NotificationShowResultUnavailable),
+    Failed(NotificationShowResultFailed),
+    InvalidRequest(NotificationShowResultInvalidRequest),
+}
+
 /// Allowed values for the `OptionsUpdateAdditionalContentExclusionPolicyScope` enumeration.
 ///
 /// <div class="warning">
@@ -44443,28 +45857,6 @@ pub enum OptionsUpdateReasoningSummary {
     /// Request a detailed summary of model reasoning.
     #[serde(rename = "detailed")]
     Detailed,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// Controls how availableTools (allowlist) and excludedTools (denylist) combine when both are set.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum OptionsUpdateToolFilterPrecedence {
-    /// If availableTools is set, it is the only constraint that applies (excludedTools is ignored). Preserves CLI / pre-existing client behavior. Default.
-    #[serde(rename = "available")]
-    Available,
-    /// A tool is enabled if and only if it matches the allowlist (or the allowlist is unset) AND it does not match the denylist. Makes 'all except X' expressible by combining the two lists.
-    #[serde(rename = "excluded")]
-    Excluded,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]

@@ -80,6 +80,41 @@ describe("joinSession", () => {
         expect(resumeForExtension.mock.calls[1]![3]).toBeUndefined();
     });
 
+    it("forwards notification opt-in only through extension options", async () => {
+        process.env.SESSION_ID = "session-123";
+        const resumeForExtension = vi
+            .spyOn(CopilotClient.prototype, "resumeSessionForExtension")
+            .mockResolvedValue({} as CopilotSession);
+
+        await joinSession({ requestNotifications: true });
+        await joinSession({
+            requestNotifications: true,
+            requestedEnvironmentVariables: ["SDK_TEST_TOKEN"],
+        });
+
+        expect(resumeForExtension.mock.calls[0]![3]).toEqual({ requestNotifications: true });
+        expect(resumeForExtension.mock.calls[1]![3]).toEqual({
+            requestNotifications: true,
+            requestedEnvironmentVariables: ["SDK_TEST_TOKEN"],
+        });
+        for (const [, config] of resumeForExtension.mock.calls) {
+            expect(config).not.toHaveProperty("requestNotifications");
+        }
+    });
+
+    it("does not request notifications without an explicit opt-in", async () => {
+        process.env.SESSION_ID = "session-123";
+        const resumeForExtension = vi
+            .spyOn(CopilotClient.prototype, "resumeSessionForExtension")
+            .mockResolvedValue({} as CopilotSession);
+
+        await joinSession();
+        await joinSession({ requestNotifications: false });
+
+        expect(resumeForExtension.mock.calls[0]![3]).toBeUndefined();
+        expect(resumeForExtension.mock.calls[1]![3]).toBeUndefined();
+    });
+
     it("strips a skill provider, which only the session's owning client may supply", async () => {
         process.env.SESSION_ID = "session-123";
         const resumeForExtension = vi

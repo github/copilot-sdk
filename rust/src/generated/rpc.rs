@@ -155,6 +155,13 @@ impl<'a> ClientRpc<'a> {
         }
     }
 
+    /// `notifications.*` sub-namespace.
+    pub fn notifications(&self) -> ClientRpcNotifications<'a> {
+        ClientRpcNotifications {
+            client: self.client,
+        }
+    }
+
     /// `plugins.*` sub-namespace.
     pub fn plugins(&self) -> ClientRpcPlugins<'a> {
         ClientRpcPlugins {
@@ -2254,6 +2261,13 @@ impl<'a> ClientRpcMcp<'a> {
         }
     }
 
+    /// `mcp.registry.*` sub-namespace.
+    pub fn registry(&self) -> ClientRpcMcpRegistry<'a> {
+        ClientRpcMcpRegistry {
+            client: self.client,
+        }
+    }
+
     /// Discovers MCP servers from user, workspace, plugin, and builtin sources.
     ///
     /// Wire method: `mcp.discover`.
@@ -2278,6 +2292,37 @@ impl<'a> ClientRpcMcp<'a> {
         let _value = self
             .client
             .call(rpc_methods::MCP_DISCOVER, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Reports whether the gh-replaceable GitHub MCP tools may be clipped for a session, which a host feeds back as the `excludeGhReplaceableTools` build option. The tools are redundant only when the session can reach a shell *and* the host has the `gh` that would replace them, so both halves are decided here. The shell half runs the platform shell tool through the runtime's own tool-filter matcher, so entry forms like `builtin:bash` and `builtin:*` behave exactly as they do when a session builds its tool catalog. The host half probes for `gh`, and is skipped entirely when the filters already rule the shell out. Host presence alone is not enough: a session restricted to, say, `view` would otherwise lose the built-in issue-read fallback while having no shell to replace it with. The answer describes the host the runtime runs on, so it is never forwarded to a remote engine.
+    ///
+    /// Wire method: `mcp.shouldExcludeGitHubTools`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - The session tool filters that decide whether the session still has a shell to run `gh` with.
+    ///
+    /// # Returns
+    ///
+    /// Whether the gh-replaceable GitHub MCP tools may be clipped for the session described by the request.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn should_exclude_git_hub_tools(
+        &self,
+        params: McpShouldExcludeGitHubToolsRequest,
+    ) -> Result<McpShouldExcludeGitHubToolsResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::MCP_SHOULDEXCLUDEGITHUBTOOLS, Some(wire_params))
             .await?;
         Ok(serde_json::from_value(_value)?)
     }
@@ -2775,6 +2820,103 @@ impl<'a> ClientRpcMcpInstallations<'a> {
     }
 }
 
+/// `mcp.registry.*` RPCs.
+#[derive(Clone, Copy)]
+pub struct ClientRpcMcpRegistry<'a> {
+    pub(crate) client: &'a Client,
+}
+
+impl<'a> ClientRpcMcpRegistry<'a> {
+    /// Allocates an ID for one cancellable MCP registry search. The ID exists before the search starts, so callers can cancel before it starts. The networking stack supplies the cancellation namespace. The runtime retains at most 1,024 unused IDs. At capacity, another allocation can reclaim an unused ID. Active searches retain their IDs until they finish.
+    ///
+    /// Wire method: `mcp.registry.allocateRequestId`.
+    ///
+    /// # Returns
+    ///
+    /// Request id naming a cancellable registry search.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn allocate_request_id(&self) -> Result<McpRegistryRequestIdResult, Error> {
+        let wire_params = serde_json::json!({});
+        let _value = self
+            .client
+            .call(
+                rpc_methods::MCP_REGISTRY_ALLOCATEREQUESTID,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Searches the MCP registry the supplied credential may read, resolving the registry endpoint from policy first. Hosts usually send credential-free `AuthIdentity`; a `token` identity can be resolved only when it embeds a token, while `env` and `gh-cli` identities can use a token embedded in the request first. The runtime follows registry pages, keeps the newest entry per server name, cuts the list to `limit`, and sorts an empty-query result by GitHub stars. Each server object is carried opaquely.
+    ///
+    /// Wire method: `mcp.registry.search`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Registry search terms, the credential to search under, and the request id that makes the search cancellable.
+    ///
+    /// # Returns
+    ///
+    /// Servers selected from the registry response.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn search(
+        &self,
+        params: McpRegistrySearchRequest,
+    ) -> Result<McpRegistrySearchResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::MCP_REGISTRY_SEARCH, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Abandons the registry search that uses the given request ID. It acts only on IDs from `mcp.registry.allocateRequestId`, so it never cancels another component's request. Answers `canceled: true` when it stops a running search. Answers `canceled: false` for unknown or reclaimed IDs, completed or canceled searches, and unused reservations. It releases an unused reservation, so a later search with that ID is refused.
+    ///
+    /// Wire method: `mcp.registry.cancel`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Registry search to abandon.
+    ///
+    /// # Returns
+    ///
+    /// Whether the cancel reached a live search.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn cancel(
+        &self,
+        params: McpRegistryCancelRequest,
+    ) -> Result<McpRegistryCancelResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::MCP_REGISTRY_CANCEL, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+}
+
 /// `models.*` RPCs.
 #[derive(Clone, Copy)]
 pub struct ClientRpcModels<'a> {
@@ -2854,6 +2996,62 @@ impl<'a> ClientRpcModels<'a> {
         let _value = self
             .client
             .call(rpc_methods::MODELS_GETBUILTINCATALOG, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+}
+
+/// `notifications.*` RPCs.
+#[derive(Clone, Copy)]
+pub struct ClientRpcNotifications<'a> {
+    pub(crate) client: &'a Client,
+}
+
+impl<'a> ClientRpcNotifications<'a> {
+    /// Registers notification callbacks on the native-nominated stdio control connection. Other connections cannot claim or replace this authority.
+    ///
+    /// Wire method: `notifications.registerHost`.
+    ///
+    /// # Returns
+    ///
+    /// Result of registering callbacks on the native-nominated host connection.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn register_host(&self) -> Result<NotificationHostRegistrationResult, Error> {
+        let wire_params = serde_json::json!({});
+        let _value = self
+            .client
+            .call(rpc_methods::NOTIFICATIONS_REGISTERHOST, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Revokes this control connection's notification callback registration and pending canvas activations.
+    ///
+    /// Wire method: `notifications.unregisterHost`.
+    ///
+    /// # Returns
+    ///
+    /// Result of revoking a native notification host registration.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn unregister_host(&self) -> Result<NotificationHostUnregistrationResult, Error> {
+        let wire_params = serde_json::json!({});
+        let _value = self
+            .client
+            .call(rpc_methods::NOTIFICATIONS_UNREGISTERHOST, Some(wire_params))
             .await?;
         Ok(serde_json::from_value(_value)?)
     }
@@ -5424,6 +5622,13 @@ impl<'a> SessionRpc<'a> {
     /// `session.name.*` sub-namespace.
     pub fn name(&self) -> SessionRpcName<'a> {
         SessionRpcName {
+            session: self.session,
+        }
+    }
+
+    /// `session.notifications.*` sub-namespace.
+    pub fn notifications(&self) -> SessionRpcNotifications<'a> {
+        SessionRpcNotifications {
             session: self.session,
         }
     }
@@ -11016,6 +11221,139 @@ impl<'a> SessionRpcName<'a> {
             .session
             .client()
             .call(rpc_methods::SESSION_NAME_SETAUTO, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+}
+
+/// `session.notifications.*` RPCs.
+#[derive(Clone, Copy)]
+pub struct SessionRpcNotifications<'a> {
+    pub(crate) session: &'a Session,
+}
+
+impl<'a> SessionRpcNotifications<'a> {
+    /// Queries native notification support and permission without prompting. Only authenticated extensions that opted in on resume may use this API.
+    ///
+    /// Wire method: `session.notifications.getCapabilities`.
+    ///
+    /// # Returns
+    ///
+    /// Native host capabilities and permissions, queried without prompting.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn get_capabilities(&self) -> Result<NotificationCapabilitiesResult, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_NOTIFICATIONS_GETCAPABILITIES,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Requests explicit host-owned extension consent and OS notification permission. Never called automatically during startup or delivery.
+    ///
+    /// Wire method: `session.notifications.requestPermission`.
+    ///
+    /// # Returns
+    ///
+    /// Result of explicit notification permission negotiation.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn request_permission(&self) -> Result<NotificationPermissionResult, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_NOTIFICATIONS_REQUESTPERMISSION,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Hands one native notification to the owning host without prompting or retrying. Accepted means native enqueue acknowledgement, not guaranteed display. Content is never recorded in session history.
+    ///
+    /// Wire method: `session.notifications.show`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Native notification content, carried only by the live provider-to-host request.
+    ///
+    /// # Returns
+    ///
+    /// Metadata-only result of one notification delivery attempt.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn show(
+        &self,
+        params: SessionNotificationsShowParams,
+    ) -> Result<NotificationShowResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_NOTIFICATIONS_SHOW, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Consumes a native host's one-shot canvas-focus activation, revalidating the original provider, session and instance. URL activations are owned by the native host and do not call this method.
+    ///
+    /// Wire method: `session.notifications.activate`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Native host request to consume one live canvas activation.
+    ///
+    /// # Returns
+    ///
+    /// Result of consuming a native canvas-focus activation.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn activate(
+        &self,
+        params: SessionNotificationsActivateParams,
+    ) -> Result<NotificationActivateResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_NOTIFICATIONS_ACTIVATE,
+                Some(wire_params),
+            )
             .await?;
         Ok(serde_json::from_value(_value)?)
     }

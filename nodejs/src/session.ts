@@ -22,6 +22,7 @@ import type {
     ModelSwitchAutoTierResult,
 } from "./generated/rpc.js";
 import { type Canvas, CanvasError } from "./canvas.js";
+import { createSessionNotifications, type SessionNotificationsApi } from "./notifications.js";
 import type { OpenCanvasInstance } from "./generated/rpc.js";
 import { getTraceContext } from "./telemetry.js";
 import { isResponseSchema, toJsonSchema } from "./schema.js";
@@ -484,6 +485,9 @@ export class CopilotSession {
     /** @internal Client session API handlers, populated by CopilotClient during create/resume. */
     clientSessionApis: ClientSessionApiHandlers = {};
 
+    /** Provider-process desktop notifications, independent of canvas visibility. @experimental */
+    readonly notifications: SessionNotificationsApi;
+
     /**
      * Friendly workflow API for running registered workflows by name or handle.
      *
@@ -668,6 +672,7 @@ export class CopilotSession {
         this.mcpAuthHandler = options?.mcpAuthHandler;
         this.managedSettingsEnabled = options?.managedSettingsEnabled === true;
         this.onDisconnected = options?.onDisconnected;
+        this.notifications = createSessionNotifications(connection, sessionId);
     }
 
     /**

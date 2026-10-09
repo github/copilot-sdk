@@ -57,6 +57,15 @@ export type JoinSessionConfig = Omit<
      */
     requestedEnvironmentVariables?: string[];
     /**
+     * Opt this extension into the experimental desktop notification API.
+     *
+     * This declares intent, not permission. Inspect
+     * `session.notifications.getCapabilities()` and request permission after
+     * an explicit user action before showing notifications. Older runtimes
+     * may ignore this option; capability discovery reports unsupported.
+     */
+    requestNotifications?: boolean;
+    /**
      * Workflow handles to register when the extension joins the session.
      *
      * @experimental Part of the experimental Dynamic Workflows surface and may
@@ -66,6 +75,7 @@ export type JoinSessionConfig = Omit<
 };
 
 export type { ExtensionInfo } from "./types.js";
+export type * from "./notifications.js";
 export {
     defineWorkflow,
     WorkflowResumeError,
@@ -133,6 +143,7 @@ export async function joinSession(config: JoinSessionConfig = {}): Promise<Copil
         imageGeneration: _strippedImageGeneration,
         workflows,
         requestedEnvironmentVariables,
+        requestNotifications,
         ...rest
     } = config as JoinSessionConfig & {
         extensionSdkPath?: string;
@@ -152,6 +163,13 @@ export async function joinSession(config: JoinSessionConfig = {}): Promise<Copil
             suppressResumeEvent: config.suppressResumeEvent ?? true,
         },
         { workflows },
-        requestedEnvironmentVariables?.length ? { requestedEnvironmentVariables } : undefined
+        requestedEnvironmentVariables?.length || requestNotifications === true
+            ? {
+                  ...(requestedEnvironmentVariables?.length
+                      ? { requestedEnvironmentVariables }
+                      : {}),
+                  ...(requestNotifications === true ? { requestNotifications: true } : {}),
+              }
+            : undefined
     );
 }

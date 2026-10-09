@@ -19,6 +19,26 @@ fn listener_negotiation_logs_do_not_echo_remote_errors() {
 }
 
 #[test]
+fn notification_logs_do_not_echo_remote_errors() {
+    let message = "synthetic notification body and https://example.test/private";
+    for method in [
+        "notifications.registerHost",
+        "notifications.unregisterHost",
+        "notifications.show",
+        "session.notifications.getCapabilities",
+        "session.notifications.requestPermission",
+        "session.notifications.show",
+        "session.notifications.activate",
+    ] {
+        assert_eq!(
+            remote_error_log_message(method, message),
+            "notification request rejected"
+        );
+    }
+    assert_eq!(remote_error_log_message("ping", message), message);
+}
+
+#[test]
 fn deserialize_notification() {
     let json = r#"{"jsonrpc":"2.0","method":"session.event","params":{"id":"e1"}}"#;
     let msg: JsonRpcMessage = serde_json::from_str(json).unwrap();

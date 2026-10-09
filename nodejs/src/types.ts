@@ -3267,6 +3267,8 @@ export interface TranscriptRecovery {
  * @internal
  */
 export interface ExtensionJoinOptions {
+    /** Non-persisted extension opt-in; does not grant notification permission. */
+    requestNotifications?: boolean;
     /**
      * Names of sensitive environment variables the extension asks the host to grant.
      * Sent on the `session.resume` wire payload as `requestedEnvironmentVariables`.

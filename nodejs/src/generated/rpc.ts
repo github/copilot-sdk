@@ -3597,6 +3597,18 @@ export type McpSetEnvValueModeDetails =
   /** Treat MCP server environment values as host-side references to resolve before launch. */
   | "indirect";
 /**
+ * Controls how availableTools (allowlist) and excludedTools (denylist) combine when both are set.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "OptionsUpdateToolFilterPrecedence".
+ */
+/** @experimental */
+export type OptionsUpdateToolFilterPrecedence =
+  /** If availableTools is set, it is the only constraint that applies (excludedTools is ignored). Preserves CLI / pre-existing client behavior. Default. */
+  | "available"
+  /** A tool is enabled if and only if it matches the allowlist (or the allowlist is unset) AND it does not match the denylist. Makes 'all except X' expressible by combining the two lists. */
+  | "excluded";
+/**
  * Per-source context-window attribution, or null if the session has not yet been initialized (no system prompt or tool metadata cached).
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -4058,6 +4070,452 @@ export type ModelSwitchAutoTierStatus =
   /** The request was accepted but has not committed. A later user turn using the `auto` model must mint and validate the replacement before it becomes effective. */
   | "pending";
 /**
+ * Result of consuming a native canvas-focus activation.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "NotificationActivateResult".
+ */
+/** @experimental */
+export type NotificationActivateResult =
+  | {
+      target: NotificationFocusTarget;
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "activated";
+    }
+  | {
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "denied";
+    }
+  | {
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "unavailable";
+    }
+  | {
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "failed";
+    };
+/**
+ * Exact live canvas instance authorized for native host focus.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "NotificationFocusTarget".
+ */
+/** @experimental */
+export type NotificationFocusTarget = {
+  /**
+   * Authenticated owning extension.
+   */
+  extensionId: string;
+  /**
+   * Provider-local canvas identifier.
+   */
+  canvasId: string;
+  /**
+   * Exact original ready instance.
+   */
+  instanceId: string;
+  /**
+   * Discriminator selecting this notification variant.
+   */
+  kind: "focus-canvas";
+};
+/**
+ * Native host capabilities and permissions, queried without prompting.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "NotificationCapabilitiesResult".
+ */
+/** @experimental */
+export type NotificationCapabilitiesResult =
+  | {
+      platform: NotificationPlatform;
+      permission: NotificationPermission;
+      /**
+       * Supported click actions.
+       */
+      onClick: NotificationClickKind[];
+      sounds: NotificationSounds;
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "available";
+    }
+  | {
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "unsupported";
+    }
+  | {
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "unavailable";
+    }
+  | {
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "failed";
+    };
+/**
+ * Platform of the native notification host, independent of the extension process.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "NotificationPlatform".
+ */
+/** @experimental */
+export type NotificationPlatform =
+  /** macOS. */
+  | "darwin"
+  /** Windows. */
+  | "win32"
+  /** Linux. */
+  | "linux";
+/**
+ * Explicit installation-scoped notification consent.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "NotificationPermissionState".
+ */
+/** @experimental */
+export type NotificationPermissionState =
+  /** No decision, including a dismissed consent prompt. */
+  | "not-requested"
+  /** Explicitly allowed by the user. */
+  | "granted"
+  /** Explicitly denied by the user. */
+  | "denied";
+/**
+ * Native OS authorization state, separate from installation consent.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "NotificationOsPermissionState".
+ */
+/** @experimental */
+export type NotificationOsPermissionState =
+  /** Authorization has not been requested. */
+  | "not-requested"
+  /** The OS has granted authorization. */
+  | "granted"
+  /** The OS has denied authorization. */
+  | "denied"
+  /** This platform has no OS authorization gate. */
+  | "not-required"
+  /** The OS permission facility is unsupported. */
+  | "unsupported";
+/**
+ * Click behaviors the native host can execute.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "NotificationClickKind".
+ */
+/** @experimental */
+export type NotificationClickKind =
+  /** Open a validated HTTP or HTTPS URL. */
+  | "open-url"
+  /** Focus a caller-owned live canvas instance. */
+  | "focus-canvas";
+/**
+ * Restricted action performed when a notification is clicked.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "NotificationClickAction".
+ */
+/** @experimental */
+export type NotificationClickAction =
+  | {
+      /**
+       * Destination URL; the host may seal it in OS metadata for restart-safe activation.
+       */
+      url: string;
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      kind: "open-url";
+    }
+  | {
+      /**
+       * Registered provider-local canvas identifier.
+       */
+      canvasId: string;
+      /**
+       * Existing instance; omission requires exactly one matching ready instance.
+       */
+      instanceId?: string;
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      kind: "focus-canvas";
+    };
+/**
+ * Validated native-host click behavior.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "NotificationHostClickAction".
+ */
+/** @experimental */
+export type NotificationHostClickAction =
+  | {
+      /**
+       * Validated HTTP or HTTPS destination. Retain only in authenticated OS metadata, not an application content database.
+       */
+      url: string;
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      kind: "open-url";
+    }
+  | {
+      /**
+       * Opaque activation credential scoped to the original live host and provider.
+       */
+      activationId: string;
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      kind: "focus-canvas";
+    };
+/**
+ * Result of registering callbacks on the native-nominated host connection.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "NotificationHostRegistrationResult".
+ */
+/** @experimental */
+export type NotificationHostRegistrationResult =
+  | {
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "registered";
+    }
+  | {
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "denied";
+    }
+  | {
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "unsupported";
+    }
+  | {
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "unavailable";
+    }
+  | {
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "failed";
+    };
+/**
+ * Sound requested for a native notification; omission means default.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "NotificationSound".
+ */
+/** @experimental */
+export type NotificationSound =
+  | {
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      kind: "default";
+    }
+  | {
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      kind: "none";
+    }
+  | {
+      /**
+       * Exact advertised sound name, not a filesystem path.
+       */
+      name: string;
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      kind: "named";
+    };
+/**
+ * Content-free native enqueue acknowledgement.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "NotificationHostShowResult".
+ */
+/** @experimental */
+export type NotificationHostShowResult =
+  | {
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "accepted";
+    }
+  | {
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "denied";
+    }
+  | {
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "unsupported";
+    }
+  | {
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "unavailable";
+    }
+  | {
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "failed";
+    }
+  | {
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "invalid-request";
+    };
+/**
+ * Result of revoking a native notification host registration.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "NotificationHostUnregistrationResult".
+ */
+/** @experimental */
+export type NotificationHostUnregistrationResult =
+  | {
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "unregistered";
+    }
+  | {
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "denied";
+    }
+  | {
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "unsupported";
+    }
+  | {
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "unavailable";
+    }
+  | {
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "failed";
+    };
+/**
+ * Result of explicit notification permission negotiation.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "NotificationPermissionResult".
+ */
+/** @experimental */
+export type NotificationPermissionResult =
+  | {
+      permission: NotificationPermission;
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "completed";
+    }
+  | {
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "unsupported";
+    }
+  | {
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "unavailable";
+    }
+  | {
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "failed";
+    };
+/**
+ * Metadata-only result of one notification delivery attempt.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "NotificationShowResult".
+ */
+/** @experimental */
+export type NotificationShowResult =
+  | {
+      /**
+       * Runtime-generated operation identifier, not an activation credential.
+       */
+      notificationId: string;
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "accepted";
+    }
+  | {
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "denied";
+    }
+  | {
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "unsupported";
+    }
+  | {
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "unavailable";
+    }
+  | {
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "failed";
+    }
+  | {
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "invalid-request";
+    };
+/**
  * Allowed values for the `OptionsUpdateAdditionalContentExclusionPolicyScope` enumeration.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -4107,18 +4565,6 @@ export type OptionsUpdateReasoningSummary =
   | "concise"
   /** Request a detailed summary of model reasoning. */
   | "detailed";
-/**
- * Controls how availableTools (allowlist) and excludedTools (denylist) combine when both are set.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "OptionsUpdateToolFilterPrecedence".
- */
-/** @experimental */
-export type OptionsUpdateToolFilterPrecedence =
-  /** If availableTools is set, it is the only constraint that applies (excludedTools is ignored). Preserves CLI / pre-existing client behavior. Default. */
-  | "available"
-  /** A tool is enabled if and only if it matches the allowlist (or the allowlist is unset) AND it does not match the denylist. Makes 'all except X' expressible by combining the two lists. */
-  | "excluded";
 /**
  * The client's response to the pending permission prompt
  *
@@ -6240,6 +6686,82 @@ export type WorkspacesWorkspaceDetailsHostType =
 /** @experimental */
 export type AccountGetAllUsersResult = AccountAllUsers[];
 /**
+ * Result of registering callbacks on the native-nominated host connection.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "NotificationsRegisterHostResult".
+ */
+/** @experimental */
+export type NotificationsRegisterHostResult =
+  | {
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "registered";
+    }
+  | {
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "denied";
+    }
+  | {
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "unsupported";
+    }
+  | {
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "unavailable";
+    }
+  | {
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "failed";
+    };
+/**
+ * Result of revoking a native notification host registration.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "NotificationsUnregisterHostResult".
+ */
+/** @experimental */
+export type NotificationsUnregisterHostResult =
+  | {
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "unregistered";
+    }
+  | {
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "denied";
+    }
+  | {
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "unsupported";
+    }
+  | {
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "unavailable";
+    }
+  | {
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "failed";
+    };
+/**
  * The number of running background agents (task-registry agents) that were cancelled.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -6279,6 +6801,275 @@ export type SessionGitHubAuthLogoutUserResult = boolean;
  */
 /** @experimental */
 export type SessionQuotaTakeWarningsResult = QuotaWarningProjection[];
+/**
+ * Native host capabilities and permissions, queried without prompting.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionNotificationsGetCapabilitiesResult".
+ */
+/** @experimental */
+export type SessionNotificationsGetCapabilitiesResult =
+  | {
+      platform: NotificationPlatform;
+      permission: NotificationPermission;
+      /**
+       * Supported click actions.
+       */
+      onClick: NotificationClickKind[];
+      sounds: NotificationSounds;
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "available";
+    }
+  | {
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "unsupported";
+    }
+  | {
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "unavailable";
+    }
+  | {
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "failed";
+    };
+/**
+ * Result of explicit notification permission negotiation.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionNotificationsRequestPermissionResult".
+ */
+/** @experimental */
+export type SessionNotificationsRequestPermissionResult =
+  | {
+      permission: NotificationPermission;
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "completed";
+    }
+  | {
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "unsupported";
+    }
+  | {
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "unavailable";
+    }
+  | {
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "failed";
+    };
+/**
+ * Metadata-only result of one notification delivery attempt.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionNotificationsShowResult".
+ */
+/** @experimental */
+export type SessionNotificationsShowResult =
+  | {
+      /**
+       * Runtime-generated operation identifier, not an activation credential.
+       */
+      notificationId: string;
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "accepted";
+    }
+  | {
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "denied";
+    }
+  | {
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "unsupported";
+    }
+  | {
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "unavailable";
+    }
+  | {
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "failed";
+    }
+  | {
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "invalid-request";
+    };
+/**
+ * Result of consuming a native canvas-focus activation.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionNotificationsActivateResult".
+ */
+/** @experimental */
+export type SessionNotificationsActivateResult =
+  | {
+      target: NotificationFocusTarget;
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "activated";
+    }
+  | {
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "denied";
+    }
+  | {
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "unavailable";
+    }
+  | {
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "failed";
+    };
+/**
+ * Native host capabilities and permissions, queried without prompting.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "NotificationsGetCapabilitiesResult".
+ */
+/** @experimental */
+export type NotificationsGetCapabilitiesResult =
+  | {
+      platform: NotificationPlatform;
+      permission: NotificationPermission;
+      /**
+       * Supported click actions.
+       */
+      onClick: NotificationClickKind[];
+      sounds: NotificationSounds;
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "available";
+    }
+  | {
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "unsupported";
+    }
+  | {
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "unavailable";
+    }
+  | {
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "failed";
+    };
+/**
+ * Result of explicit notification permission negotiation.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "NotificationsRequestPermissionResult".
+ */
+/** @experimental */
+export type NotificationsRequestPermissionResult =
+  | {
+      permission: NotificationPermission;
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "completed";
+    }
+  | {
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "unsupported";
+    }
+  | {
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "unavailable";
+    }
+  | {
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "failed";
+    };
+/**
+ * Content-free native enqueue acknowledgement.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "NotificationsShowResult".
+ */
+/** @experimental */
+export type NotificationsShowResult =
+  | {
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "accepted";
+    }
+  | {
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "denied";
+    }
+  | {
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "unsupported";
+    }
+  | {
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "unavailable";
+    }
+  | {
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "failed";
+    }
+  | {
+      /**
+       * Discriminator selecting this notification variant.
+       */
+      status: "invalid-request";
+    };
 
 /**
  * Parameters for aborting the current turn
@@ -17091,6 +17882,92 @@ export interface McpRegisterExternalClientRequest {
   config: OpaqueInProcessValue;
 }
 /**
+ * Registry search to abandon.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpRegistryCancelRequest".
+ */
+/** @experimental */
+/** @internal */
+export interface McpRegistryCancelRequest {
+  /**
+   * Request ID from `mcp.registry.allocateRequestId` that the search uses.
+   */
+  requestId: number;
+}
+/**
+ * Whether the cancel reached a live search.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpRegistryCancelResult".
+ */
+/** @experimental */
+/** @internal */
+export interface McpRegistryCancelResult {
+  /**
+   * True when the cancel stopped a running search. False for unknown or reclaimed IDs, completed or canceled searches, and unused reservations. The cancel releases an unused reservation.
+   */
+  canceled: boolean;
+}
+/**
+ * Request id naming a cancellable registry search.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpRegistryRequestIdResult".
+ */
+/** @experimental */
+/** @internal */
+export interface McpRegistryRequestIdResult {
+  /**
+   * Request ID for `mcp.registry.search` and `mcp.registry.cancel`. It serves one search. Allocation can reclaim unused IDs at the 1,024-ID reservation limit.
+   */
+  requestId: number;
+}
+/**
+ * Registry search terms, the credential to search under, and the request id that makes the search cancellable.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpRegistrySearchRequest".
+ */
+/** @experimental */
+/** @internal */
+export interface McpRegistrySearchRequest {
+  /**
+   * Request ID from `mcp.registry.allocateRequestId`. The search refuses unknown, reclaimed, or canceled IDs and IDs that another search or request already uses.
+   */
+  requestId: number;
+  /**
+   * The credential the search runs under, carried opaquely. Hosts usually send credential-free `AuthIdentity`; a `token` identity can be resolved only when it embeds a token, while `env` and `gh-cli` identities can use a token embedded in the request first.
+   */
+  authInfo: JsonValue;
+  /**
+   * Free-text query. Omitted or empty asks the registry for its top servers rather than searching. A value that is not a string is refused.
+   */
+  query?: string;
+  /**
+   * Repository used for the policy lookup, as `owner/name`. The policy selects the registry URL and whether the user token goes to the registry. The registry receives this repository only when the policy entry lists it as required context. A value that is not a string is refused.
+   */
+  repository?: string;
+  /**
+   * Maximum number of servers to return.
+   */
+  limit: number;
+}
+/**
+ * Servers selected from the registry response.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpRegistrySearchResult".
+ */
+/** @experimental */
+/** @internal */
+export interface McpRegistrySearchResult {
+  /**
+   * The server objects, carried opaquely. The runtime follows pages, keeps the newest entry per server name, cuts the list to `limit`, and sorts an empty-query result by GitHub stars. Each server object remains unchanged because the registry owns that shape.
+   */
+  servers: JsonValue;
+}
+/**
  * In-process MCP reload configuration.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -17623,6 +18500,42 @@ export interface McpSetEnvValueModeParams {
 /** @experimental */
 export interface McpSetEnvValueModeResult {
   mode: McpSetEnvValueModeDetails;
+}
+/**
+ * The session tool filters that decide whether the session still has a shell to run `gh` with.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpShouldExcludeGitHubToolsRequest".
+ */
+/** @experimental */
+/** @internal */
+export interface McpShouldExcludeGitHubToolsRequest {
+  /**
+   * The session's tool allowlist, when it set one. Omitted means the session constrains nothing this way.
+   */
+  availableTools?: string[];
+  /**
+   * The session's tool denylist, when it set one. Omitted means the session constrains nothing this way.
+   */
+  excludedTools?: string[];
+  /**
+   * How the allowlist and denylist combine when both are set. Omitted means the default every session gets, so a caller that never chose a precedence is answered as its sessions behave.
+   */
+  toolFilterPrecedence?: OptionsUpdateToolFilterPrecedence | null;
+}
+/**
+ * Whether the gh-replaceable GitHub MCP tools may be clipped for the session described by the request.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpShouldExcludeGitHubToolsResult".
+ */
+/** @experimental */
+/** @internal */
+export interface McpShouldExcludeGitHubToolsResult {
+  /**
+   * True only when both halves hold: the session's filters still reach the platform shell tool, and the host actually has the `gh` those tools would be replaced by. Feed it straight back as the `excludeGhReplaceableTools` build option.
+   */
+  excludeGhReplaceableTools: boolean;
 }
 /**
  * Server name and optional configuration for an individual MCP server start. Omit `config` for a config-free start-by-name of an already-configured server.
@@ -19243,6 +20156,147 @@ export interface NameSetRequest {
    * New session name (1–100 characters, trimmed of leading/trailing whitespace)
    */
   name: string;
+}
+/**
+ * Native host request to consume one live canvas activation.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "NotificationActivateParams".
+ */
+/** @experimental */
+export interface NotificationActivateParams {
+  /**
+   * Opaque one-shot credential originally returned only to this host.
+   */
+  activationId: string;
+}
+/**
+ * Notification permission at the installation and OS boundaries.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "NotificationPermission".
+ */
+/** @experimental */
+export interface NotificationPermission {
+  extension: NotificationPermissionState;
+  os: NotificationOsPermissionState;
+}
+/**
+ * Exact sound support advertised by the native host.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "NotificationSounds".
+ */
+/** @experimental */
+export interface NotificationSounds {
+  /**
+   * Whether the platform default notification sound is supported.
+   */
+  default: boolean;
+  /**
+   * Whether silent delivery is supported.
+   */
+  none: boolean;
+  /**
+   * Supported platform sound names. Names not in this list must be rejected.
+   */
+  named: string[];
+}
+/**
+ * Runtime-discovered extension origin, never supplied by a notification caller.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "NotificationExtensionOrigin".
+ */
+/** @experimental */
+export interface NotificationExtensionOrigin {
+  /**
+   * Runtime discovery identity.
+   */
+  id: string;
+  /**
+   * Discovered extension name, not a caller-supplied label.
+   */
+  name: string;
+  /**
+   * Discovery source.
+   */
+  source: string;
+  /**
+   * Host-discovered module path. App bridge origins must be resolved through trusted launch metadata before selecting a consent key.
+   */
+  modulePath: string;
+}
+/**
+ * Authenticated origin for a callback to the single native host.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "NotificationHostContext".
+ */
+/** @experimental */
+export interface NotificationHostContext {
+  /**
+   * Runtime session owning the extension, not the active UI conversation.
+   */
+  sessionId: string;
+  /**
+   * Opaque live attachment identity; never a persistent installation grant.
+   */
+  attachmentId: string;
+  extension: NotificationExtensionOrigin;
+}
+/**
+ * Origin-only host capability or permission request.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "NotificationHostRequest".
+ */
+/** @experimental */
+export interface NotificationHostRequest {
+  context: NotificationHostContext;
+}
+/**
+ * One live native notification enqueue request. Never log or persist this payload.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "NotificationHostShowParams".
+ */
+/** @experimental */
+export interface NotificationHostShowParams {
+  context: NotificationHostContext;
+  /**
+   * Runtime-generated delivery operation identifier.
+   */
+  notificationId: string;
+  /**
+   * Plain-text title.
+   */
+  title: string;
+  /**
+   * Optional plain-text subtext.
+   */
+  body?: string;
+  onClick?: NotificationHostClickAction;
+  sound: NotificationSound;
+}
+/**
+ * Native notification content, carried only by the live provider-to-host request.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "NotificationShowParams".
+ */
+/** @experimental */
+export interface NotificationShowParams {
+  /**
+   * Plain-text title.
+   */
+  title: string;
+  /**
+   * Optional plain-text subtext.
+   */
+  body?: string;
+  onClick?: NotificationClickAction;
+  sound?: NotificationSound;
 }
 /**
  * Content-exclusion policy supplied to `session.options.update`, with rules, last-updated data, and scope.
@@ -31908,6 +32962,38 @@ export interface SessionLimitPredictionPredictRequest {
   clientType?: SessionLimitPredictionClientType;
 }
 /**
+ * Native notification content, carried only by the live provider-to-host request.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionNotificationsShowRequest".
+ */
+/** @experimental */
+export interface SessionNotificationsShowRequest {
+  /**
+   * Plain-text title.
+   */
+  title: string;
+  /**
+   * Optional plain-text subtext.
+   */
+  body?: string;
+  onClick?: NotificationClickAction;
+  sound?: NotificationSound;
+}
+/**
+ * Native host request to consume one live canvas activation.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionNotificationsActivateRequest".
+ */
+/** @experimental */
+export interface SessionNotificationsActivateRequest {
+  /**
+   * Opaque one-shot credential originally returned only to this host.
+   */
+  activationId: string;
+}
+/**
  * Identifies the target session.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -32085,6 +33171,50 @@ export interface InstallationsConfirmRequest {
    */
   reviewFingerprint: string;
   review: InstallationReview;
+}
+/**
+ * Origin-only host capability or permission request.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "NotificationsGetCapabilitiesRequest".
+ */
+/** @experimental */
+export interface NotificationsGetCapabilitiesRequest {
+  context: NotificationHostContext;
+}
+/**
+ * Origin-only host capability or permission request.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "NotificationsRequestPermissionRequest".
+ */
+/** @experimental */
+export interface NotificationsRequestPermissionRequest {
+  context: NotificationHostContext;
+}
+/**
+ * One live native notification enqueue request. Never log or persist this payload.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "NotificationsShowRequest".
+ */
+/** @experimental */
+export interface NotificationsShowRequest {
+  context: NotificationHostContext;
+  /**
+   * Runtime-generated delivery operation identifier.
+   */
+  notificationId: string;
+  /**
+   * Plain-text title.
+   */
+  title: string;
+  /**
+   * Optional plain-text subtext.
+   */
+  body?: string;
+  onClick?: NotificationHostClickAction;
+  sound: NotificationSound;
 }
 
 /** Create typed server-scoped RPC methods (no session required). */
@@ -33209,6 +34339,23 @@ export function createServerRpc(connection: MessageConnection) {
             refresh: async (params: ConnectorDiscoveryAccountRequest): Promise<ConnectorDiscoveryCatalogResult> =>
                 connection.sendRequest("connectors.refresh", params),
         },
+        /** @experimental */
+        notifications: {
+            /**
+             * Registers notification callbacks on the native-nominated stdio control connection. Other connections cannot claim or replace this authority.
+             *
+             * @returns Result of registering callbacks on the native-nominated host connection.
+             */
+            registerHost: async (): Promise<NotificationsRegisterHostResult> =>
+                connection.sendRequest("notifications.registerHost", {}),
+            /**
+             * Revokes this control connection's notification callback registration and pending canvas activations.
+             *
+             * @returns Result of revoking a native notification host registration.
+             */
+            unregisterHost: async (): Promise<NotificationsUnregisterHostResult> =>
+                connection.sendRequest("notifications.unregisterHost", {}),
+        },
     };
 }
 
@@ -33274,6 +34421,46 @@ export function createInternalServerRpc(connection: MessageConnection) {
          */
         connect: async (params: ConnectRequest): Promise<ConnectResult> =>
             connection.sendRequest("connect", params),
+        /** @experimental */
+        mcp: {
+            /** @experimental */
+            registry: {
+                /**
+                 * Allocates an ID for one cancellable MCP registry search. The ID exists before the search starts, so callers can cancel before it starts. The networking stack supplies the cancellation namespace. The runtime retains at most 1,024 unused IDs. At capacity, another allocation can reclaim an unused ID. Active searches retain their IDs until they finish.
+                 *
+                 * @returns Request id naming a cancellable registry search.
+                 */
+                allocateRequestId: async (): Promise<McpRegistryRequestIdResult> =>
+                    connection.sendRequest("mcp.registry.allocateRequestId", {}),
+                /**
+                 * Searches the MCP registry the supplied credential may read, resolving the registry endpoint from policy first. Hosts usually send credential-free `AuthIdentity`; a `token` identity can be resolved only when it embeds a token, while `env` and `gh-cli` identities can use a token embedded in the request first. The runtime follows registry pages, keeps the newest entry per server name, cuts the list to `limit`, and sorts an empty-query result by GitHub stars. Each server object is carried opaquely.
+                 *
+                 * @param params Registry search terms, the credential to search under, and the request id that makes the search cancellable.
+                 *
+                 * @returns Servers selected from the registry response.
+                 */
+                search: async (params: McpRegistrySearchRequest): Promise<McpRegistrySearchResult> =>
+                    connection.sendRequest("mcp.registry.search", params),
+                /**
+                 * Abandons the registry search that uses the given request ID. It acts only on IDs from `mcp.registry.allocateRequestId`, so it never cancels another component's request. Answers `canceled: true` when it stops a running search. Answers `canceled: false` for unknown or reclaimed IDs, completed or canceled searches, and unused reservations. It releases an unused reservation, so a later search with that ID is refused.
+                 *
+                 * @param params Registry search to abandon.
+                 *
+                 * @returns Whether the cancel reached a live search.
+                 */
+                cancel: async (params: McpRegistryCancelRequest): Promise<McpRegistryCancelResult> =>
+                    connection.sendRequest("mcp.registry.cancel", params),
+            },
+            /**
+             * Reports whether the gh-replaceable GitHub MCP tools may be clipped for a session, which a host feeds back as the `excludeGhReplaceableTools` build option. The tools are redundant only when the session can reach a shell *and* the host has the `gh` that would replace them, so both halves are decided here. The shell half runs the platform shell tool through the runtime's own tool-filter matcher, so entry forms like `builtin:bash` and `builtin:*` behave exactly as they do when a session builds its tool catalog. The host half probes for `gh`, and is skipped entirely when the filters already rule the shell out. Host presence alone is not enough: a session restricted to, say, `view` would otherwise lose the built-in issue-read fallback while having no shell to replace it with. The answer describes the host the runtime runs on, so it is never forwarded to a remote engine.
+             *
+             * @param params The session tool filters that decide whether the session still has a shell to run `gh` with.
+             *
+             * @returns Whether the gh-replaceable GitHub MCP tools may be clipped for the session described by the request.
+             */
+            shouldExcludeGitHubTools: async (params: McpShouldExcludeGitHubToolsRequest): Promise<McpShouldExcludeGitHubToolsResult> =>
+                connection.sendRequest("mcp.shouldExcludeGitHubTools", params),
+        },
         /** @experimental */
         agents: {
             /**
@@ -36027,6 +37214,41 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
             stop: async (params: ScheduleStopRequest): Promise<ScheduleStopResult> =>
                 connection.sendRequest("session.schedule.stop", { ...params, sessionId }),
         },
+        /** @experimental */
+        notifications: {
+            /**
+             * Queries native notification support and permission without prompting. Only authenticated extensions that opted in on resume may use this API.
+             *
+             * @returns Native host capabilities and permissions, queried without prompting.
+             */
+            getCapabilities: async (): Promise<SessionNotificationsGetCapabilitiesResult> =>
+                connection.sendRequest("session.notifications.getCapabilities", { sessionId }),
+            /**
+             * Requests explicit host-owned extension consent and OS notification permission. Never called automatically during startup or delivery.
+             *
+             * @returns Result of explicit notification permission negotiation.
+             */
+            requestPermission: async (): Promise<SessionNotificationsRequestPermissionResult> =>
+                connection.sendRequest("session.notifications.requestPermission", { sessionId }),
+            /**
+             * Hands one native notification to the owning host without prompting or retrying. Accepted means native enqueue acknowledgement, not guaranteed display. Content is never recorded in session history.
+             *
+             * @param params Native notification content, carried only by the live provider-to-host request.
+             *
+             * @returns Metadata-only result of one notification delivery attempt.
+             */
+            show: async (params: SessionNotificationsShowRequest): Promise<SessionNotificationsShowResult> =>
+                connection.sendRequest("session.notifications.show", { ...params, sessionId }),
+            /**
+             * Consumes a native host's one-shot canvas-focus activation, revalidating the original provider, session and instance. URL activations are owned by the native host and do not call this method.
+             *
+             * @param params Native host request to consume one live canvas activation.
+             *
+             * @returns Result of consuming a native canvas-focus activation.
+             */
+            activate: async (params: SessionNotificationsActivateRequest): Promise<SessionNotificationsActivateResult> =>
+                connection.sendRequest("session.notifications.activate", { ...params, sessionId }),
+        },
     };
 }
 
@@ -36844,6 +38066,35 @@ export interface InstallationsHandler {
     confirm(params: InstallationsConfirmRequest): Promise<InstallationsConfirmResult>;
 }
 
+/** Handler for `notifications` client global API methods. */
+/** @experimental */
+export interface NotificationsHandler {
+    /**
+     * Queries the registered native host for notification capabilities and permission for an authenticated extension. Must not prompt, persist the request, or log its origin.
+     *
+     * @param params Origin-only host capability or permission request.
+     *
+     * @returns Native host capabilities and permissions, queried without prompting.
+     */
+    getCapabilities(params: NotificationsGetCapabilitiesRequest): Promise<NotificationsGetCapabilitiesResult>;
+    /**
+     * Asks the registered native host for explicit installation-scoped consent and OS permission. The host must bind runtime provenance to its trusted installation identity and honor request cancellation.
+     *
+     * @param params Origin-only host capability or permission request.
+     *
+     * @returns Result of explicit notification permission negotiation.
+     */
+    requestPermission(params: NotificationsRequestPermissionRequest): Promise<NotificationsRequestPermissionResult>;
+    /**
+     * Enqueues one native notification on the registered host. Revalidate permission and cancellation before native handoff. Never retry, log, persist in an application content database, or emit the payload as a session event. A sealed URL activation may be retained in OS notification metadata.
+     *
+     * @param params One live native notification enqueue request. Never log or persist this payload.
+     *
+     * @returns Content-free native enqueue acknowledgement.
+     */
+    show(params: NotificationsShowRequest): Promise<NotificationsShowResult>;
+}
+
 /** All client global API handler groups. */
 export interface ClientGlobalApiHandlers {
     host?: HostHandler;
@@ -36852,6 +38103,7 @@ export interface ClientGlobalApiHandlers {
     gitHubTelemetry?: GitHubTelemetryHandler;
     gitHubToken?: GitHubTokenHandler;
     installations?: InstallationsHandler;
+    notifications?: NotificationsHandler;
 }
 
 /**
@@ -36899,5 +38151,20 @@ export function registerClientGlobalApiHandlers(
         const handler = handlers.installations;
         if (!handler) throw new Error("No installations client-global handler registered");
         return handler.confirm(params);
+    });
+    connection.onRequest("notifications.getCapabilities", async (params: NotificationsGetCapabilitiesRequest) => {
+        const handler = handlers.notifications;
+        if (!handler) throw new Error("No notifications client-global handler registered");
+        return handler.getCapabilities(params);
+    });
+    connection.onRequest("notifications.requestPermission", async (params: NotificationsRequestPermissionRequest) => {
+        const handler = handlers.notifications;
+        if (!handler) throw new Error("No notifications client-global handler registered");
+        return handler.requestPermission(params);
+    });
+    connection.onRequest("notifications.show", async (params: NotificationsShowRequest) => {
+        const handler = handlers.notifications;
+        if (!handler) throw new Error("No notifications client-global handler registered");
+        return handler.show(params);
     });
 }

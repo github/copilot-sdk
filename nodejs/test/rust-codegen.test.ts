@@ -1,5 +1,6 @@
 import type { ApiSchema } from "../../scripts/codegen/utils.ts";
 import {
+    getApiSchemaPath,
     normalizeSchemaBrandCasing,
     postProcessSchema,
     propagateInternalVisibility,
@@ -254,6 +255,44 @@ pub enum McpPlanTransportChoice {
         expect(code).toContain('if value != "package"');
         expect(code).toContain('if value != "remote"');
         expect(code).not.toContain("Vec<serde_json::Value>");
+    });
+
+    it.each([
+        "NotificationActivateResult",
+        "NotificationCapabilitiesResult",
+        "NotificationHostRegistrationResult",
+        "NotificationHostShowResult",
+        "NotificationHostUnregistrationResult",
+        "NotificationPermissionResult",
+        "NotificationShowResult",
+    ])("preserves %s as a typed status union", (name) => {
+        const code = generateApiTypesCode({
+            definitions: {
+                [name]: {
+                    title: name,
+                    oneOf: ["accepted", "failed"].map((status) => ({
+                        type: "object",
+                        required: ["status"],
+                        properties: { status: { type: "string", const: status } },
+                        additionalProperties: false,
+                    })),
+                },
+            },
+        } as ApiSchema);
+
+        expect(code).toContain(`pub enum ${name} {`);
+        expect(code).toContain(`Accepted(${name}Accepted),`);
+        expect(code).toContain(`Failed(${name}Failed),`);
+        for (const [variant, wire] of [
+            ["Accepted", "accepted"],
+            ["Failed", "failed"],
+        ]) {
+            const discriminator = code.match(
+                new RegExp(`pub enum ${name}${variant}Status \\{\\n([\\s\\S]*?)\\n\\}`)
+            )?.[1];
+            expect(discriminator).toContain(`#[serde(rename = "${wire}")]`);
+            expect(discriminator).not.toContain("Unknown");
+        }
     });
 
     it.each(["anyOf", "oneOf"] as const)(
@@ -1015,18 +1054,14 @@ describe("Rust x-legacy-parameters", () => {
         ).toThrow(/Rust string enum Kind is requested for different values/);
     });
 
-    it("keeps every const discriminator of the committed API schema distinct in Rust", () => {
+    it("keeps every const discriminator of the selected API schema distinct in Rust", async () => {
+        const schemaPath = await getApiSchemaPath();
         // Mirror the generator's own schema preparation so emission order matches.
         const schema = propagateInternalVisibility(
             postProcessSchema(
                 stripBooleanLiterals(
                     normalizeSchemaBrandCasing(
-                        JSON.parse(
-                            readFileSync(
-                                new URL("../../../../generated/api.schema.json", import.meta.url),
-                                "utf8"
-                            )
-                        ) as ApiSchema
+                        JSON.parse(readFileSync(schemaPath, "utf8")) as ApiSchema
                     )
                 ) as JSONSchema7
             )
