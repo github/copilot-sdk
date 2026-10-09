@@ -107,6 +107,9 @@ that the OS displayed it. Other results are `denied`, `unsupported`,
 promise. Never retry or switch to another notification mechanism after `show()`
 fails: the OS may have accepted it before the response was lost.
 
+Titles accept 1-200 Unicode scalar values, bodies up to 1,000, and URLs up to
+16,384. Oversized content is rejected with `invalid-request`, never truncated.
+
 All three methods accept a final, non-wire `{ signal: AbortSignal }` option.
 For example, use `show(notification, { signal: controller.signal })` to cancel a
 pending request when the user disables notifications. Cancellation is forwarded
