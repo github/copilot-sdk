@@ -1701,8 +1701,10 @@ impl Client {
 
     /// Resume an existing session on the CLI.
     ///
-    /// Sends `session.resume` and `session.skills.reload`, registers the
-    /// session on the router, and spawns the event loop.
+    /// Sends `session.resume`, registers the session on the router, and
+    /// spawns the event loop. By default, also awaits a best-effort
+    /// `session.skills.reload`; [`ResumeSessionConfig::with_reload_skills(false)`](ResumeSessionConfig::with_reload_skills)
+    /// omits that request when the caller owns skill reconciliation.
     ///
     /// All callbacks (event handler, hooks, transform) are configured
     /// via [`ResumeSessionConfig`] using its `with_*` builder methods.
@@ -2084,8 +2086,10 @@ impl Client {
 
     /// Resume an existing session on the CLI.
     ///
-    /// Sends `session.resume` and `session.skills.reload`, registers the
-    /// session on the router, and spawns the event loop.
+    /// Sends `session.resume`, registers the session on the router, and
+    /// spawns the event loop. By default, also awaits a best-effort
+    /// `session.skills.reload` unless [`ResumeSessionConfig::reload_skills`]
+    /// is explicitly `false`.
     ///
     /// All callbacks (event handler, hooks, transform) are configured
     /// via [`ResumeSessionConfig`] using its `with_*` builder methods.
@@ -2111,6 +2115,7 @@ impl Client {
             None
         };
         let session_id = config.session_id.clone();
+        let reload_skills = config.reload_skills.unwrap_or(true);
         if config.hooks_handler.is_some() && config.hooks.is_none() {
             config.hooks = Some(true);
         }
@@ -2327,27 +2332,28 @@ impl Client {
             registration.cleanup(event_loop).await;
             return Err(error);
         }
-        // Reload skills after resume (best-effort).
-        let skills_reload_start = Instant::now();
-        if let Err(e) = self
-            .call(
-                "session.skills.reload",
-                Some(serde_json::json!({ "sessionId": session_id })),
-            )
-            .await
-        {
-            warn!(
-                elapsed_ms = skills_reload_start.elapsed().as_millis(),
-                session_id = %session_id,
-                error = %e,
-                "Client::resume_session skills reload request failed"
-            );
-        } else {
-            tracing::debug!(
-                elapsed_ms = skills_reload_start.elapsed().as_millis(),
-                session_id = %session_id,
-                "Client::resume_session skills reload request completed successfully"
-            );
+        if reload_skills {
+            let skills_reload_start = Instant::now();
+            if let Err(e) = self
+                .call(
+                    "session.skills.reload",
+                    Some(serde_json::json!({ "sessionId": session_id })),
+                )
+                .await
+            {
+                warn!(
+                    elapsed_ms = skills_reload_start.elapsed().as_millis(),
+                    session_id = %session_id,
+                    error = %e,
+                    "Client::resume_session skills reload request failed"
+                );
+            } else {
+                tracing::debug!(
+                    elapsed_ms = skills_reload_start.elapsed().as_millis(),
+                    session_id = %session_id,
+                    "Client::resume_session skills reload request completed successfully"
+                );
+            }
         }
 
         *capabilities.write() = resume_result.capabilities.unwrap_or_default();

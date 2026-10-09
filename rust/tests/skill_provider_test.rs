@@ -521,6 +521,55 @@ async fn serves_early_create_and_resume_callbacks() {
 }
 
 #[tokio::test]
+async fn serves_skill_provider_callbacks_without_automatic_reload() {
+    let (client, mut server) = make_client();
+    let provider = Arc::new(RecordingProvider::new());
+    let calls = provider.calls.clone();
+    let resume = tokio::spawn({
+        let client = client.clone();
+        async move {
+            client
+                .resume_session(
+                    ResumeSessionConfig::new(SessionId::new("caller-owned-provider"))
+                        .with_reload_skills(false)
+                        .with_skill_provider(provider),
+                )
+                .await
+                .unwrap()
+        }
+    });
+    let request = server.read_request().await;
+    assert_eq!(request["method"], "session.resume");
+    assert_eq!(request["params"]["hasSkillProvider"], true);
+    server
+        .send_request(
+            12,
+            "skillProvider.list",
+            json!({ "sessionId": "caller-owned-provider" }),
+        )
+        .await;
+    let list = server.read_response().await;
+    assert_eq!(list["id"], 12);
+    assert_eq!(list["result"]["skills"][0]["name"], "review");
+    server
+        .respond(&request, json!({ "sessionId": "caller-owned-provider" }))
+        .await;
+    let session = timeout(TIMEOUT, resume).await.unwrap().unwrap();
+    server
+        .send_request(
+            13,
+            "skillProvider.read",
+            json!({ "sessionId": "caller-owned-provider", "name": "review" }),
+        )
+        .await;
+    let read = server.read_response().await;
+    assert_eq!(read["id"], 13);
+    assert_eq!(read["result"]["markdown"], "Review carefully.");
+    assert_eq!(calls.snapshot(), ["list", "read:review"]);
+    session.stop_event_loop().await;
+}
+
+#[tokio::test]
 async fn cloud_sessions_reject_provider_before_rpc() {
     let (client, mut server) = make_client();
     let provider = Arc::new(RecordingProvider::new());

@@ -8636,6 +8636,7 @@ enum StartupRoute {
     Local,
     Deferred,
     Resume,
+    ResumeWithoutSkillReload,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -8662,17 +8663,22 @@ async fn check_startup_callback_ownership(
         write: server_write,
         session_id: "startup-callbacks".into(),
     };
-    let prepared = if route == StartupRoute::Resume {
-        client
-            .prepare_resume_session(
-                github_copilot_sdk::ResumeSessionConfig::new(SessionId::new(&server.session_id))
-                    .with_permission_handler(permission.clone())
-                    .with_session_fs_provider(fs.clone())
-                    .with_elicitation_handler(elicitation.clone())
-                    .with_mcp_auth_handler(mcp_auth.clone())
-                    .with_coauthor_enabled(false),
-            )
-            .unwrap()
+    let resume = matches!(
+        route,
+        StartupRoute::Resume | StartupRoute::ResumeWithoutSkillReload
+    );
+    let prepared = if resume {
+        let mut config =
+            github_copilot_sdk::ResumeSessionConfig::new(SessionId::new(&server.session_id))
+                .with_permission_handler(permission.clone())
+                .with_session_fs_provider(fs.clone())
+                .with_elicitation_handler(elicitation.clone())
+                .with_mcp_auth_handler(mcp_auth.clone())
+                .with_coauthor_enabled(false);
+        if route == StartupRoute::ResumeWithoutSkillReload {
+            config = config.with_reload_skills(false);
+        }
+        client.prepare_resume_session(config).unwrap()
     } else {
         let mut config = SessionConfig::default()
             .with_permission_handler(permission.clone())
@@ -8694,7 +8700,7 @@ async fn check_startup_callback_ownership(
     let mut request = timeout(TIMEOUT, server.read_request()).await.unwrap();
     assert_eq!(
         request["method"],
-        if route == StartupRoute::Resume {
+        if resume {
             "session.resume"
         } else {
             "session.create"
@@ -8875,20 +8881,26 @@ async fn check_startup_callback_ownership(
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn startup_callbacks_owned_until_resume_response() {
-    for outcome in [StartupOutcome::Failure, StartupOutcome::Cancellation] {
-        Box::pin(check_startup_callback_ownership(
-            StartupRoute::Resume,
-            "session.resume",
-            outcome,
-            true,
-        ))
-        .await;
+    for route in [StartupRoute::Resume, StartupRoute::ResumeWithoutSkillReload] {
+        for outcome in [StartupOutcome::Failure, StartupOutcome::Cancellation] {
+            Box::pin(check_startup_callback_ownership(
+                route,
+                "session.resume",
+                outcome,
+                true,
+            ))
+            .await;
+        }
     }
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn startup_callbacks_owned_through_mcp_interest() {
-    for route in [StartupRoute::Local, StartupRoute::Resume] {
+    for route in [
+        StartupRoute::Local,
+        StartupRoute::Resume,
+        StartupRoute::ResumeWithoutSkillReload,
+    ] {
         for outcome in [StartupOutcome::Failure, StartupOutcome::Cancellation] {
             for before_response in [false, true] {
                 Box::pin(check_startup_callback_ownership(
@@ -8922,6 +8934,7 @@ async fn startup_callbacks_owned_through_mode_patch() {
         StartupRoute::Local,
         StartupRoute::Deferred,
         StartupRoute::Resume,
+        StartupRoute::ResumeWithoutSkillReload,
     ] {
         for outcome in [StartupOutcome::Failure, StartupOutcome::Cancellation] {
             Box::pin(check_startup_callback_ownership(
@@ -8954,6 +8967,7 @@ async fn startup_callbacks_survive_successful_setup() {
         StartupRoute::Local,
         StartupRoute::Deferred,
         StartupRoute::Resume,
+        StartupRoute::ResumeWithoutSkillReload,
     ] {
         Box::pin(check_startup_callback_ownership(
             route,

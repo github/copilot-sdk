@@ -213,6 +213,11 @@ impl McpAuthHandler for CancelMcpAuthHandler {
     }
 }
 
+struct NoopHooks;
+
+#[async_trait]
+impl github_copilot_sdk::hooks::SessionHooks for NoopHooks {}
+
 fn make_client() -> (Client, FakeServer) {
     let (client_write, server_read) = duplex(1 << 20);
     let (server_write, client_read) = duplex(1 << 20);
@@ -1075,6 +1080,220 @@ async fn resume_session_wrapper_keeps_rpc_sequence() {
     assert_eq!(session.id(), &session_id);
     server.expect_quiet().await;
     drop(session);
+}
+
+#[tokio::test]
+async fn resume_without_automatic_skill_reload() {
+    check_resume_without_automatic_skill_reload(false).await;
+}
+
+#[tokio::test]
+async fn prepared_resume_without_automatic_skill_reload() {
+    check_resume_without_automatic_skill_reload(true).await;
+}
+
+async fn check_resume_without_automatic_skill_reload(prepared: bool) {
+    let (client, mut server) = make_client();
+    let session_id = SessionId::new("caller-owned-skills");
+    let published = Arc::new(tokio::sync::Notify::new());
+    let config = ResumeSessionConfig::new(session_id.clone())
+        .with_reload_skills(false)
+        .with_enable_skills(true)
+        .with_permission_handler(Arc::new(PublicationFence(published.clone())))
+        .with_hooks(Arc::new(NoopHooks))
+        .with_mcp_auth_handler(Arc::new(CancelMcpAuthHandler))
+        .with_coauthor_enabled(false);
+    let prepared = prepared.then(|| client.prepare_resume_session(config.clone()).unwrap());
+    let mut events = prepared.as_ref().map(|prepared| prepared.subscribe());
+    let mut start = Box::pin(async {
+        match prepared {
+            Some(prepared) => prepared.start().await,
+            None => client.resume_session(config).await,
+        }
+    });
+
+    let resume = tokio::select! {
+        result = &mut start => panic!("resume finished before its request: {:?}", result.map(|_| ())),
+        request = server.read_request() => request,
+    };
+    assert_eq!(resume["method"], "session.resume");
+    assert_eq!(resume["params"]["enableSkills"], true);
+    assert_eq!(resume["params"]["hooks"], true);
+    assert!(resume["params"].get("reloadSkills").is_none());
+    assert!(start.as_mut().now_or_never().is_none());
+    server
+        .send_event(session_id.as_str(), "before-resume", "session.idle", true)
+        .await;
+    server
+        .await_publication(session_id.as_str(), &published)
+        .await;
+    server
+        .respond(&resume, json!({ "sessionId": session_id.as_str() }))
+        .await;
+
+    let interest = tokio::select! {
+        result = &mut start => panic!("resume skipped MCP-auth readiness: {:?}", result.map(|_| ())),
+        request = server.read_request() => request,
+    };
+    assert_eq!(interest["method"], "session.eventLog.registerInterest");
+    assert!(start.as_mut().now_or_never().is_none());
+    let hook = json!({
+        "jsonrpc": "2.0", "id": 9020, "method": "hooks.invoke",
+        "params": {
+            "sessionId": session_id.as_str(), "hookType": "sessionEnd",
+            "input": {
+                "sessionId": session_id.as_str(), "timestamp": 1234567890,
+                "cwd": "/tmp", "reason": "complete"
+            }
+        }
+    });
+    write_framed(&mut server.write, &serde_json::to_vec(&hook).unwrap()).await;
+    let response = server.read_request().await;
+    assert_eq!(response["id"], 9020);
+    assert_eq!(response["result"]["output"], json!({}));
+    server
+        .send_event(session_id.as_str(), "during-interest", "session.idle", true)
+        .await;
+    server
+        .await_publication(session_id.as_str(), &published)
+        .await;
+    server.respond(&interest, json!({})).await;
+
+    let options = tokio::select! {
+        result = &mut start => panic!("resume skipped options readiness: {:?}", result.map(|_| ())),
+        request = server.read_request() => request,
+    };
+    assert_eq!(
+        options["method"], "session.options.update",
+        "opting out must not issue session.skills.reload"
+    );
+    assert!(start.as_mut().now_or_never().is_none());
+    server
+        .send_event(session_id.as_str(), "during-options", "session.idle", true)
+        .await;
+    server
+        .await_publication(session_id.as_str(), &published)
+        .await;
+    server.respond(&options, json!({ "success": true })).await;
+    let session = timeout(TIMEOUT, start).await.unwrap().unwrap();
+    let mut events = events.take().unwrap_or_else(|| session.subscribe());
+    for id in [
+        "before-resume",
+        "publication-fence",
+        "during-interest",
+        "publication-fence",
+        "during-options",
+        "publication-fence",
+    ] {
+        expect_event_id(&mut events, id).await;
+    }
+
+    let skills = session.rpc().skills();
+    let mut explicit_reload = Box::pin(skills.reload());
+    let reload = tokio::select! {
+        result = &mut explicit_reload => panic!("explicit reload finished before its request: {result:?}"),
+        request = server.read_request() => request,
+    };
+    assert_eq!(reload["method"], "session.skills.reload");
+    assert!(explicit_reload.as_mut().now_or_never().is_none());
+    server
+        .respond(&reload, json!({ "errors": [], "warnings": [] }))
+        .await;
+    let diagnostics = timeout(TIMEOUT, explicit_reload).await.unwrap().unwrap();
+    assert!(diagnostics.errors.is_empty());
+    assert!(diagnostics.warnings.is_empty());
+    server.expect_quiet().await;
+    session.stop_event_loop().await;
+    drop(session);
+    expect_closed(&mut events).await;
+    await_no_registrations(&client).await;
+}
+
+#[tokio::test]
+async fn automatic_skill_reload_waits_for_settlement_and_tolerates_returned_errors() {
+    for reload_skills in [None, Some(true)] {
+        for reload_error in [false, true] {
+            let (client, mut server) = make_client();
+            let session_id = SessionId::new("automatic-skills");
+            let mut config = ResumeSessionConfig::new(session_id.clone());
+            config.reload_skills = reload_skills;
+            let mut start = Box::pin(client.resume_session(config));
+            let resume = tokio::select! {
+                result = &mut start => panic!("resume finished before its request: {:?}", result.map(|_| ())),
+                request = server.read_request() => request,
+            };
+            assert_eq!(resume["method"], "session.resume");
+            server
+                .respond(&resume, json!({ "sessionId": session_id.as_str() }))
+                .await;
+            let reload = tokio::select! {
+                result = &mut start => panic!("resume did not await its reload: {:?}", result.map(|_| ())),
+                request = server.read_request() => request,
+            };
+            assert_eq!(reload["method"], "session.skills.reload");
+            assert!(start.as_mut().now_or_never().is_none());
+            if reload_error {
+                server
+                    .respond_error(&reload, -32003, "skills reload failed")
+                    .await;
+            } else {
+                server.respond(&reload, json!({})).await;
+            }
+            let session = timeout(TIMEOUT, start).await.unwrap().unwrap();
+            assert_eq!(session.id(), &session_id);
+            server.expect_quiet().await;
+            session.stop_event_loop().await;
+            drop(session);
+            await_no_registrations(&client).await;
+        }
+    }
+}
+
+#[tokio::test]
+async fn resume_without_skill_reload_cleans_up_on_owner_connection_loss() {
+    for phase in [
+        "session.resume",
+        "session.eventLog.registerInterest",
+        "session.options.update",
+    ] {
+        let (client, mut server) = make_client();
+        let session_id = SessionId::new("skills-owner-loss");
+        let prepared = client
+            .prepare_resume_session(
+                ResumeSessionConfig::new(session_id.clone())
+                    .with_reload_skills(false)
+                    .with_mcp_auth_handler(Arc::new(CancelMcpAuthHandler))
+                    .with_coauthor_enabled(false),
+            )
+            .unwrap();
+        let mut events = prepared.subscribe();
+        let start = tokio::spawn(prepared.start());
+        for expected in [
+            "session.resume",
+            "session.eventLog.registerInterest",
+            "session.options.update",
+        ] {
+            let request = server.read_request().await;
+            assert_eq!(request["method"], expected);
+            if expected == phase {
+                break;
+            }
+            server
+                .respond(
+                    &request,
+                    json!({ "sessionId": session_id.as_str(), "success": true }),
+                )
+                .await;
+        }
+        client.force_stop();
+        let error = expect_error(timeout(TIMEOUT, start).await.unwrap().unwrap());
+        assert_eq!(
+            error.kind(),
+            &ErrorKind::Protocol(github_copilot_sdk::ProtocolErrorKind::RequestCancelled),
+        );
+        expect_closed(&mut events).await;
+        await_no_registrations(&client).await;
+    }
 }
 
 #[tokio::test]

@@ -110,6 +110,17 @@ When allowed and performed, `session.transcript_recovery()` returns
 the planned backup path, invalid line numbers, and whether `session.start` was moved;
 the backup is written on the next append rather than during resume.
 
+Rust resumes await a best-effort `session.skills.reload` by default: returned
+errors are logged, but an unanswered request delays resume completion.
+`ResumeSessionConfig::with_reload_skills(false)` omits that automatic request
+when the application owns required skill reconciliation before skill-dependent
+work. It is SDK-local, does not disable skills, and does not prove the catalog
+or disabled-skill preferences are current. Explicit
+`session.rpc().skills().reload().await` remains available. This option does not
+gate continued pending work or work already running on another connection;
+applications must account for those paths in their own reconciliation barrier.
+It does not cancel or settle a reload that was already issued.
+
 After `Client::start` succeeds, inspect its startup cost without parsing logs:
 
 ```rust,ignore
@@ -1455,6 +1466,10 @@ larger results return a filesystem error before encoding or decoding.
   extension points.
 
 ### Rust-only API
+
+Rust also exposes `ResumeSessionConfig::with_reload_skills` to control its
+automatic post-resume skill reload; other SDKs such as Node and .NET do not
+issue that automatic request. The Rust default is unchanged.
 
 A handful of conveniences exist only on the Rust SDK as of 0.1.0. These
 are surface areas where Rust idiom (newtypes, enums, trait objects)
