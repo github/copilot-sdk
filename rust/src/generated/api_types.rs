@@ -17047,6 +17047,13 @@ pub struct NotificationActivateParams {
 }
 
 /// Focus this existing instance without constructing new input.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NotificationActivateResultActivatedTarget {
@@ -17061,6 +17068,13 @@ pub struct NotificationActivateResultActivatedTarget {
 }
 
 /// This original live instance may be focused once.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NotificationActivateResultActivated {
@@ -17071,6 +17085,13 @@ pub struct NotificationActivateResultActivated {
 }
 
 /// The caller is not the original native host.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NotificationActivateResultDenied {
@@ -17079,6 +17100,13 @@ pub struct NotificationActivateResultDenied {
 }
 
 /// The activation or its original owner/instance has expired.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NotificationActivateResultUnavailable {
@@ -17087,6 +17115,13 @@ pub struct NotificationActivateResultUnavailable {
 }
 
 /// Activation failed.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NotificationActivateResultFailed {
@@ -17131,6 +17166,13 @@ pub struct NotificationSounds {
 }
 
 /// The host supports native notifications.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NotificationCapabilitiesResultAvailable {
@@ -17147,6 +17189,13 @@ pub struct NotificationCapabilitiesResultAvailable {
 }
 
 /// This runtime or host does not support native notifications.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NotificationCapabilitiesResultUnsupported {
@@ -17155,6 +17204,13 @@ pub struct NotificationCapabilitiesResultUnsupported {
 }
 
 /// The original host or extension is no longer available.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NotificationCapabilitiesResultUnavailable {
@@ -17163,6 +17219,13 @@ pub struct NotificationCapabilitiesResultUnavailable {
 }
 
 /// The operation failed without exposing content or platform errors.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NotificationCapabilitiesResultFailed {
@@ -17171,6 +17234,13 @@ pub struct NotificationCapabilitiesResultFailed {
 }
 
 /// Open a credential-free absolute HTTP or HTTPS URL.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NotificationClickActionOpenUrl {
@@ -17181,6 +17251,13 @@ pub struct NotificationClickActionOpenUrl {
 }
 
 /// Focus an existing canvas owned by this extension connection.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NotificationClickActionFocusCanvas {
@@ -17236,6 +17313,13 @@ pub struct NotificationFocusTarget {
 }
 
 /// A restart-safe URL target owned by the native host.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NotificationHostClickActionOpenUrl {
@@ -17246,6 +17330,13 @@ pub struct NotificationHostClickActionOpenUrl {
 }
 
 /// A one-shot runtime canvas-focus activation.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NotificationHostClickActionFocusCanvas {
@@ -17275,6 +17366,13 @@ pub struct NotificationHostContext {
 }
 
 /// This connection is the registered notification host.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NotificationHostRegistrationResultRegistered {
@@ -17283,6 +17381,13 @@ pub struct NotificationHostRegistrationResultRegistered {
 }
 
 /// The connection is not the nominated host.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NotificationHostRegistrationResultDenied {
@@ -17291,6 +17396,13 @@ pub struct NotificationHostRegistrationResultDenied {
 }
 
 /// This transport cannot host native notifications.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NotificationHostRegistrationResultUnsupported {
@@ -17299,6 +17411,13 @@ pub struct NotificationHostRegistrationResultUnsupported {
 }
 
 /// The connection is unavailable.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NotificationHostRegistrationResultUnavailable {
@@ -17307,6 +17426,13 @@ pub struct NotificationHostRegistrationResultUnavailable {
 }
 
 /// Registration failed.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NotificationHostRegistrationResultFailed {
@@ -17330,6 +17456,13 @@ pub struct NotificationHostRequest {
 }
 
 /// Use the native default sound.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NotificationSoundDefault {
@@ -17338,6 +17471,13 @@ pub struct NotificationSoundDefault {
 }
 
 /// Deliver without sound.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NotificationSoundNone {
@@ -17346,6 +17486,13 @@ pub struct NotificationSoundNone {
 }
 
 /// Use exactly one advertised platform sound.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NotificationSoundNamed {
@@ -17383,6 +17530,13 @@ pub struct NotificationHostShowParams {
 }
 
 /// Native enqueue acknowledged; display is not guaranteed.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NotificationHostShowResultAccepted {
@@ -17391,6 +17545,13 @@ pub struct NotificationHostShowResultAccepted {
 }
 
 /// Installation or OS permission does not allow delivery.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NotificationHostShowResultDenied {
@@ -17399,6 +17560,13 @@ pub struct NotificationHostShowResultDenied {
 }
 
 /// Requested behavior is unsupported.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NotificationHostShowResultUnsupported {
@@ -17407,6 +17575,13 @@ pub struct NotificationHostShowResultUnsupported {
 }
 
 /// The original host, extension or canvas is unavailable.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NotificationHostShowResultUnavailable {
@@ -17415,6 +17590,13 @@ pub struct NotificationHostShowResultUnavailable {
 }
 
 /// Handoff failed or its result is unknown. Never automatically retry.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NotificationHostShowResultFailed {
@@ -17423,6 +17605,13 @@ pub struct NotificationHostShowResultFailed {
 }
 
 /// Content or action validation failed.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NotificationHostShowResultInvalidRequest {
@@ -17431,6 +17620,13 @@ pub struct NotificationHostShowResultInvalidRequest {
 }
 
 /// This host registration has been revoked.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NotificationHostUnregistrationResultUnregistered {
@@ -17439,6 +17635,13 @@ pub struct NotificationHostUnregistrationResultUnregistered {
 }
 
 /// The connection does not own the registration.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NotificationHostUnregistrationResultDenied {
@@ -17447,6 +17650,13 @@ pub struct NotificationHostUnregistrationResultDenied {
 }
 
 /// This transport cannot host native notifications.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NotificationHostUnregistrationResultUnsupported {
@@ -17455,6 +17665,13 @@ pub struct NotificationHostUnregistrationResultUnsupported {
 }
 
 /// The connection is unavailable.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NotificationHostUnregistrationResultUnavailable {
@@ -17463,6 +17680,13 @@ pub struct NotificationHostUnregistrationResultUnavailable {
 }
 
 /// Unregistration failed.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NotificationHostUnregistrationResultFailed {
@@ -17471,6 +17695,13 @@ pub struct NotificationHostUnregistrationResultFailed {
 }
 
 /// The consent flow completed or was dismissed.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NotificationPermissionResultCompleted {
@@ -17481,6 +17712,13 @@ pub struct NotificationPermissionResultCompleted {
 }
 
 /// Permission negotiation is unsupported.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NotificationPermissionResultUnsupported {
@@ -17489,6 +17727,13 @@ pub struct NotificationPermissionResultUnsupported {
 }
 
 /// The original host or extension is unavailable.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NotificationPermissionResultUnavailable {
@@ -17497,6 +17742,13 @@ pub struct NotificationPermissionResultUnavailable {
 }
 
 /// The operation failed without exposing content or platform errors.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NotificationPermissionResultFailed {
@@ -17529,6 +17781,13 @@ pub struct NotificationShowParams {
 }
 
 /// The OS accepted enqueueing, which does not guarantee display.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NotificationShowResultAccepted {
@@ -17539,6 +17798,13 @@ pub struct NotificationShowResultAccepted {
 }
 
 /// Installation or OS permission does not allow delivery.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NotificationShowResultDenied {
@@ -17547,6 +17813,13 @@ pub struct NotificationShowResultDenied {
 }
 
 /// Requested notification behavior is unsupported.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NotificationShowResultUnsupported {
@@ -17555,6 +17828,13 @@ pub struct NotificationShowResultUnsupported {
 }
 
 /// The original host, extension or canvas is unavailable.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NotificationShowResultUnavailable {
@@ -17563,6 +17843,13 @@ pub struct NotificationShowResultUnavailable {
 }
 
 /// Handoff failed or its result is unknown. Do not automatically retry.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NotificationShowResultFailed {
@@ -17571,6 +17858,13 @@ pub struct NotificationShowResultFailed {
 }
 
 /// Content or a restricted action failed validation.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NotificationShowResultInvalidRequest {
