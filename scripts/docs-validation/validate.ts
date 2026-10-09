@@ -334,7 +334,7 @@ async function validateCSharp(): Promise<ValidationResult[]> {
       });
     }
   } catch (err: any) {
-    const output = err.stdout || err.stderr || err.message || "";
+    const output = [err.stdout, err.stderr].filter(Boolean).join("\n") || err.message || "";
 
     // Parse errors by file
     const fileErrors = new Map<string, string[]>();
@@ -363,6 +363,10 @@ async function validateCSharp(): Promise<ValidationResult[]> {
         success: errors.length === 0,
         errors,
       });
+    }
+
+    if (results.every((result) => result.success)) {
+      throw new Error(`C# documentation compilation failed:\n${output}`);
     }
   }
 
