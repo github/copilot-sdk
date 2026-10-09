@@ -27,15 +27,14 @@ The organization's **Allow use of Copilot CLI billed to the organization** polic
 
 For services outside GitHub Actions:
 
-1. Create a GitHub App with the **Copilot Requests** repository permission set to **Read & write**.
-1. Install it on the organization that should be billed. The current Copilot permission check requires **All repositories** access.
-1. [Create an installation access token](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-an-installation-access-token-for-a-github-app) with a repository ID and the Copilot permission:
+1. Create a GitHub App with the **Copilot Requests** organization permission set to **Read-only**.
+1. Install it on the organization that usage should be attributed and billed to.
+1. [Create an installation access token](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-an-installation-access-token-for-a-github-app) with the Copilot permission:
 
    ```json
    {
-     "repository_ids": [123456789],
      "permissions": {
-       "copilot_requests": "write"
+       "organization_copilot_requests": "read"
      }
    }
    ```
@@ -186,16 +185,16 @@ Mint a new installation token before the current token expires. For a child proc
 
 ## Billing
 
-Usage is attributed and billed to the account that owns the GitHub App installation. Use an organization installation for organization billing; a user-account installation attributes usage to that user.
+Usage is attributed and billed to the organization that owns the GitHub App installation.
 
 ## Troubleshooting
 
 | Symptom | Check |
 |---|---|
-| `401 Unauthorized` | Confirm the organization supports GitHub App installation authentication for Copilot. |
+| `401 Unauthorized` | The token may be expired or invalid. Mint a new installation token. |
+| `403` stating that Copilot requests with GitHub App installation access tokens are not enabled | Confirm the organization supports GitHub App installation authentication for Copilot. |
 | `403 Resource not accessible by integration` or an error mentioning user information | Confirm the installation token is in `COPILOT_GITHUB_TOKEN`, not the SDK's explicit token option. |
-| `403 Forbidden` from the Copilot API | Confirm the token request contains `repository_ids` and `copilot_requests: write`. |
-| `403 Forbidden` with the required token request | Confirm the app installation has **All repositories** access, then mint a new token. |
+| `403 Forbidden` from the Copilot API | Confirm the installation has the organization **Copilot Requests** permission, then mint a new token. |
 | Requested model is unavailable | Confirm the organization's Copilot policy allows the model and the bundled runtime supports it. |
 | Wrong account billed | Confirm the installation belongs to the intended organization. |
 
