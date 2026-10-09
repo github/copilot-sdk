@@ -17,7 +17,7 @@ cargo_toml_env_vars(
 )
 
 rust_library(
-    name = "zeroize",
+    name = "inout",
     srcs = glob(
         include = ["**/*.rs"],
         allow_empty = True,
@@ -34,16 +34,8 @@ rust_library(
             "WORKSPACE.bazel",
         ],
     ),
-    crate_features = [
-        "alloc",
-        "default",
-        "zeroize_derive",
-    ],
     crate_root = "src/lib.rs",
-    edition = "2024",
-    proc_macro_deps = [
-        "@sdk_vendor__zeroize_derive-1.5.0//:zeroize_derive",
-    ],
+    edition = "2021",
     rustc_env_files = [
         ":cargo_toml_env_vars",
     ],
@@ -52,7 +44,7 @@ rust_library(
     ],
     tags = [
         "cargo-bazel",
-        "crate-name=zeroize",
+        "crate-name=inout",
         "manual",
         "noclippy",
         "norustfmt",
@@ -66,5 +58,8 @@ rust_library(
         "@rules_rust//rust/platform:x86_64-unknown-linux-gnu": [],
         "//conditions:default": ["@platforms//:incompatible"],
     }),
-    version = "1.9.0",
+    version = "0.1.4",
+    deps = [
+        "@sdk_vendor__generic-array-0.14.7//:generic_array",
+    ],
 )

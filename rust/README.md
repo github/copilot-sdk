@@ -124,6 +124,12 @@ Transport-specific phases are optional. For example, `port_wait_ms` is present
 only for TCP and `process_spawn_ms` is absent for external and in-process
 transports.
 
+On Windows, SDK-spawned CLI processes start suspended and are assigned to a
+private kill-on-close Job Object before their initial thread resumes. Thread
+lookup captures only that child's process snapshot, rather than enumerating
+machine-wide threads. The Job owns the CLI and its descendants until client
+shutdown or final-client drop, including abrupt termination of the SDK host.
+
 **`ClientOptions`:**
 
 | Field               | Type                        | Description                                                       |

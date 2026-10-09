@@ -81,8 +81,10 @@ tokio-tungstenite = { version = "0.28.0", default-features = false, features = [
 zip = { version = "7.2.0", default-features = false, features = ["deflate"], optional = true }
 windows-sys = { version = "0.61", default-features = false, features = [
     "Win32_Foundation",
-    "Win32_System_Diagnostics_ToolHelp",
+    "Win32_System_Diagnostics_Debug",
+    "Win32_System_Diagnostics_ProcessSnapshotting",
     "Win32_System_JobObjects",
+    "Win32_System_Kernel",
     "Win32_System_Threading",
 ] }
 

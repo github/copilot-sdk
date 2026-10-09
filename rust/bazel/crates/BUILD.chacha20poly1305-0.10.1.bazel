@@ -17,7 +17,7 @@ cargo_toml_env_vars(
 )
 
 rust_library(
-    name = "zeroize",
+    name = "chacha20poly1305",
     srcs = glob(
         include = ["**/*.rs"],
         allow_empty = True,
@@ -37,13 +37,11 @@ rust_library(
     crate_features = [
         "alloc",
         "default",
-        "zeroize_derive",
+        "getrandom",
+        "rand_core",
     ],
     crate_root = "src/lib.rs",
-    edition = "2024",
-    proc_macro_deps = [
-        "@sdk_vendor__zeroize_derive-1.5.0//:zeroize_derive",
-    ],
+    edition = "2021",
     rustc_env_files = [
         ":cargo_toml_env_vars",
     ],
@@ -52,7 +50,7 @@ rust_library(
     ],
     tags = [
         "cargo-bazel",
-        "crate-name=zeroize",
+        "crate-name=chacha20poly1305",
         "manual",
         "noclippy",
         "norustfmt",
@@ -66,5 +64,12 @@ rust_library(
         "@rules_rust//rust/platform:x86_64-unknown-linux-gnu": [],
         "//conditions:default": ["@platforms//:incompatible"],
     }),
-    version = "1.9.0",
+    version = "0.10.1",
+    deps = [
+        "@sdk_vendor__aead-0.5.2//:aead",
+        "@sdk_vendor__chacha20-0.9.1//:chacha20",
+        "@sdk_vendor__cipher-0.4.4//:cipher",
+        "@sdk_vendor__poly1305-0.8.0//:poly1305",
+        "@sdk_vendor__zeroize-1.9.0//:zeroize",
+    ],
 )

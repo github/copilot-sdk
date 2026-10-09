@@ -9,12 +9,22 @@ const { dirname } = require("node:path");
 
 const [marker, mode, pidFile] = process.argv.slice(2);
 const useTcp = process.argv.includes("--fixture-tcp");
-if (!marker || !pidFile || !["stop", "dispose", "force", "fallback", "start-failure", "shutdown-error"].includes(mode)) {
+if (!marker || !pidFile || !["stop", "dispose", "force", "fallback", "start-failure", "shutdown-error", "connect-stall", "port-stall"].includes(mode)) {
     throw new Error("Expected cleanup marker, shutdown mode, and PID file arguments");
 }
 fs.writeFileSync(pidFile, String(process.pid));
-if (mode === "fallback" || mode === "start-failure") {
+if (mode === "fallback" || mode === "start-failure" || mode === "connect-stall" || mode === "port-stall") {
     setInterval(() => {}, 1000);
+}
+if (process.argv.includes("--fixture-descendant")) {
+    const child = require("node:child_process").spawn(
+        process.execPath,
+        ["-e", "setInterval(() => {}, 1000)"],
+        { stdio: "ignore" },
+    );
+    child.on("error", (error) => { throw error; });
+    fs.writeFileSync(`${pidFile}.descendant`, String(child.pid));
+    child.unref();
 }
 
 let buffered = Buffer.alloc(0);
@@ -35,6 +45,7 @@ const handleData = (chunk, output) => {
         let error;
         switch (message.method) {
             case "connect":
+                if (mode === "connect-stall") continue;
                 result = {
                     ok: true,
                     protocolVersion: mode === "start-failure" ? -1 : 3,
@@ -42,7 +53,7 @@ const handleData = (chunk, output) => {
                 };
                 break;
             case "ping":
-                result = { message: message.params?.message, timestamp: Date.now(), protocolVersion: 3 };
+                result = { message: message.params?.message, timestamp: new Date().toISOString(), protocolVersion: 3 };
                 break;
             case "runtime.shutdown":
                 shutdownRequested = true;
@@ -68,7 +79,7 @@ if (useTcp) {
         socket.on("data", (chunk) => handleData(chunk, socket));
     });
     server.listen(0, "127.0.0.1", () => {
-        console.log(`listening on port ${server.address().port}`);
+        if (mode !== "port-stall") console.log(`listening on port ${server.address().port}`);
     });
 } else {
     process.stdin.on("data", (chunk) => handleData(chunk, process.stdout));

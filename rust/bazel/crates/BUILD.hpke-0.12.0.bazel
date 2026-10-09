@@ -17,7 +17,7 @@ cargo_toml_env_vars(
 )
 
 rust_library(
-    name = "zeroize",
+    name = "hpke",
     srcs = glob(
         include = ["**/*.rs"],
         allow_empty = True,
@@ -36,14 +36,10 @@ rust_library(
     ),
     crate_features = [
         "alloc",
-        "default",
-        "zeroize_derive",
+        "x25519",
     ],
     crate_root = "src/lib.rs",
-    edition = "2024",
-    proc_macro_deps = [
-        "@sdk_vendor__zeroize_derive-1.5.0//:zeroize_derive",
-    ],
+    edition = "2021",
     rustc_env_files = [
         ":cargo_toml_env_vars",
     ],
@@ -52,7 +48,7 @@ rust_library(
     ],
     tags = [
         "cargo-bazel",
-        "crate-name=zeroize",
+        "crate-name=hpke",
         "manual",
         "noclippy",
         "norustfmt",
@@ -66,5 +62,19 @@ rust_library(
         "@rules_rust//rust/platform:x86_64-unknown-linux-gnu": [],
         "//conditions:default": ["@platforms//:incompatible"],
     }),
-    version = "1.9.0",
+    version = "0.12.0",
+    deps = [
+        "@sdk_vendor__aead-0.5.2//:aead",
+        "@sdk_vendor__aes-gcm-0.10.3//:aes_gcm",
+        "@sdk_vendor__chacha20poly1305-0.10.1//:chacha20poly1305",
+        "@sdk_vendor__digest-0.10.7//:digest",
+        "@sdk_vendor__generic-array-0.14.7//:generic_array",
+        "@sdk_vendor__hkdf-0.12.4//:hkdf",
+        "@sdk_vendor__hmac-0.12.1//:hmac",
+        "@sdk_vendor__rand_core-0.6.4//:rand_core",
+        "@sdk_vendor__sha2-0.10.9//:sha2",
+        "@sdk_vendor__subtle-2.6.1//:subtle",
+        "@sdk_vendor__x25519-dalek-2.0.1//:x25519_dalek",
+        "@sdk_vendor__zeroize-1.9.0//:zeroize",
+    ],
 )

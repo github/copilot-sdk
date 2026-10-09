@@ -56,9 +56,11 @@ mod platform {
     use std::{io, ptr};
 
     use tokio::process::{Child, Command};
-    use windows_sys::Win32::Foundation::{CloseHandle, HANDLE, INVALID_HANDLE_VALUE};
-    use windows_sys::Win32::System::Diagnostics::ToolHelp::{
-        CreateToolhelp32Snapshot, TH32CS_SNAPTHREAD, THREADENTRY32, Thread32First, Thread32Next,
+    use windows_sys::Win32::Foundation::{CloseHandle, ERROR_NO_MORE_ITEMS, HANDLE};
+    use windows_sys::Win32::System::Diagnostics::ProcessSnapshotting::{
+        HPSS, HPSSWALK, PSS_CAPTURE_THREADS, PSS_THREAD_ENTRY, PSS_WALK_THREADS,
+        PssCaptureSnapshot, PssFreeSnapshot, PssWalkMarkerCreate, PssWalkMarkerFree,
+        PssWalkSnapshot,
     };
     use windows_sys::Win32::System::JobObjects::{
         AssignProcessToJobObject, CreateJobObjectW, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
@@ -66,8 +68,47 @@ mod platform {
         SetInformationJobObject, TerminateJobObject,
     };
     use windows_sys::Win32::System::Threading::{
-        CREATE_NO_WINDOW, CREATE_SUSPENDED, OpenThread, ResumeThread, THREAD_SUSPEND_RESUME,
+        CREATE_NO_WINDOW, CREATE_SUSPENDED, GetCurrentProcess, GetProcessIdOfThread, OpenThread,
+        ResumeThread, THREAD_QUERY_LIMITED_INFORMATION, THREAD_SUSPEND_RESUME,
     };
+
+    #[cfg(test)]
+    use super::tests::{
+        BEFORE_ASSIGNMENT, BEFORE_RESUME, FailurePoint, MARKERS, RESUME_ELAPSED, SNAPSHOTS,
+        THREADS_EXAMINED, fail_at,
+    };
+
+    struct ThreadSnapshot(HPSS);
+
+    impl Drop for ThreadSnapshot {
+        fn drop(&mut self) {
+            // SAFETY: this process uniquely owns the local snapshot descriptor.
+            let status = unsafe { PssFreeSnapshot(GetCurrentProcess(), self.0) };
+            if let Err(error) = check_status(status) {
+                tracing::warn!(%error, "failed to free CLI thread snapshot");
+            }
+            #[cfg(test)]
+            if status == 0 {
+                SNAPSHOTS.set((SNAPSHOTS.get().0, SNAPSHOTS.get().1 + 1));
+            }
+        }
+    }
+
+    struct WalkMarker(HPSSWALK);
+
+    impl Drop for WalkMarker {
+        fn drop(&mut self) {
+            // SAFETY: this value uniquely owns a valid walk marker.
+            let status = unsafe { PssWalkMarkerFree(self.0) };
+            if let Err(error) = check_status(status) {
+                tracing::warn!(%error, "failed to free CLI thread walk marker");
+            }
+            #[cfg(test)]
+            if status == 0 {
+                MARKERS.set((MARKERS.get().0, MARKERS.get().1 + 1));
+            }
+        }
+    }
 
     struct OwnedHandle(HANDLE);
 
@@ -97,13 +138,19 @@ mod platform {
         match attach_and_resume(&child) {
             Ok(tree) => Ok((child, tree)),
             Err(error) => {
-                let _ = child.start_kill();
+                if let Err(kill_error) = child.start_kill() {
+                    tracing::warn!(%kill_error, "failed to terminate suspended CLI child");
+                }
                 Err(error)
             }
         }
     }
 
     fn attach_and_resume(child: &Child) -> io::Result<Tree> {
+        #[cfg(test)]
+        if let Some(hook) = BEFORE_ASSIGNMENT.with_borrow_mut(Option::take) {
+            hook(child)?;
+        }
         // SAFETY: null security attributes and name create a private,
         // non-inheritable Job Object.
         let raw_job = unsafe { CreateJobObjectW(ptr::null(), ptr::null()) };
@@ -138,50 +185,122 @@ mod platform {
             return Err(io::Error::last_os_error());
         }
 
-        resume_initial_thread(child.id().ok_or_else(|| {
-            io::Error::new(io::ErrorKind::NotFound, "CLI exited before thread resume")
-        })?)?;
+        #[cfg(test)]
+        if let Some(hook) = BEFORE_RESUME.with_borrow_mut(Option::take) {
+            hook(child, job.0)?;
+        }
+        #[cfg(test)]
+        let resume_start = std::time::Instant::now();
+        let result = resume_initial_thread(
+            process.cast(),
+            child.id().ok_or_else(|| {
+                io::Error::new(io::ErrorKind::NotFound, "CLI exited before thread resume")
+            })?,
+        );
+        #[cfg(test)]
+        RESUME_ELAPSED.set(resume_start.elapsed());
+        result?;
         Ok(Tree { job })
     }
 
-    fn resume_initial_thread(pid: u32) -> io::Result<()> {
-        // SAFETY: the returned snapshot handle is owned and closed below.
-        let snapshot = unsafe { CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0) };
-        if snapshot == INVALID_HANDLE_VALUE {
-            return Err(io::Error::last_os_error());
+    pub(super) fn check_status(status: u32) -> io::Result<()> {
+        if status == 0 {
+            Ok(())
+        } else {
+            Err(io::Error::from_raw_os_error(status as i32))
         }
-        let snapshot = OwnedHandle(snapshot);
-        let mut entry = THREADENTRY32 {
-            dwSize: size_of::<THREADENTRY32>() as u32,
-            ..Default::default()
-        };
+    }
 
-        // SAFETY: `entry` has the documented size and remains live throughout
-        // enumeration.
-        let mut found = unsafe { Thread32First(snapshot.0, &mut entry) } != 0;
-        while found {
-            if entry.th32OwnerProcessID == pid {
-                // SAFETY: the thread id came from the live system snapshot.
-                let raw_thread =
-                    unsafe { OpenThread(THREAD_SUSPEND_RESUME, 0, entry.th32ThreadID) };
+    pub(super) fn resume_initial_thread(process: HANDLE, pid: u32) -> io::Result<()> {
+        #[cfg(test)]
+        THREADS_EXAMINED.set(0);
+        #[cfg(test)]
+        fail_at(FailurePoint::Capture)?;
+        let mut snapshot = ptr::null_mut();
+        // SAFETY: the suspended child owns the live process handle throughout
+        // capture and resume. Only its thread information is captured.
+        check_status(unsafe {
+            PssCaptureSnapshot(process, PSS_CAPTURE_THREADS, 0, &mut snapshot)
+        })?;
+        let snapshot = ThreadSnapshot(snapshot);
+        #[cfg(test)]
+        SNAPSHOTS.set((SNAPSHOTS.get().0 + 1, SNAPSHOTS.get().1));
+
+        #[cfg(test)]
+        fail_at(FailurePoint::Marker)?;
+        let mut marker = ptr::null_mut();
+        // SAFETY: Windows initializes the marker with its default allocator.
+        check_status(unsafe { PssWalkMarkerCreate(ptr::null(), &mut marker) })?;
+        let marker = WalkMarker(marker);
+        #[cfg(test)]
+        MARKERS.set((MARKERS.get().0 + 1, MARKERS.get().1));
+
+        loop {
+            #[cfg(test)]
+            fail_at(FailurePoint::Walk)?;
+            let mut entry = PSS_THREAD_ENTRY::default();
+            // SAFETY: the aligned entry has the layout and size required by
+            // PSS_WALK_THREADS; both snapshot and marker remain owned.
+            let status = unsafe {
+                PssWalkSnapshot(
+                    snapshot.0,
+                    PSS_WALK_THREADS,
+                    marker.0,
+                    ptr::from_mut(&mut entry).cast(),
+                    size_of::<PSS_THREAD_ENTRY>() as u32,
+                )
+            };
+            if status == ERROR_NO_MORE_ITEMS {
+                return Err(io::Error::new(
+                    io::ErrorKind::NotFound,
+                    "CLI initial thread was not found in its process snapshot",
+                ));
+            }
+            check_status(status)?;
+            #[cfg(test)]
+            THREADS_EXAMINED.set(THREADS_EXAMINED.get() + 1);
+            if entry.ProcessId == pid {
+                #[cfg(test)]
+                fail_at(FailurePoint::OpenThread)?;
+                // SAFETY: the thread id came from the child's process snapshot.
+                let raw_thread = unsafe {
+                    OpenThread(
+                        THREAD_SUSPEND_RESUME | THREAD_QUERY_LIMITED_INFORMATION,
+                        0,
+                        entry.ThreadId,
+                    )
+                };
                 if raw_thread.is_null() {
                     return Err(io::Error::last_os_error());
                 }
                 let thread = OwnedHandle(raw_thread);
-                // SAFETY: this is the root's suspended initial thread.
-                if unsafe { ResumeThread(thread.0) } == u32::MAX {
-                    return Err(io::Error::last_os_error());
-                }
-                return Ok(());
+                return resume_owned_thread(thread.0, pid);
             }
-            // SAFETY: same valid snapshot and initialized entry as above.
-            found = unsafe { Thread32Next(snapshot.0, &mut entry) } != 0;
         }
+    }
 
-        Err(io::Error::new(
-            io::ErrorKind::NotFound,
-            "CLI initial thread was not found",
-        ))
+    pub(super) fn resume_owned_thread(thread: HANDLE, pid: u32) -> io::Result<()> {
+        #[cfg(test)]
+        fail_at(FailurePoint::QueryThread)?;
+        // SAFETY: the caller owns this thread handle with limited-query rights.
+        let owner = unsafe { GetProcessIdOfThread(thread) };
+        if owner == 0 {
+            return Err(io::Error::last_os_error());
+        }
+        if owner != pid {
+            return Err(io::Error::new(
+                io::ErrorKind::PermissionDenied,
+                "CLI initial thread no longer belongs to the spawned process",
+            ));
+        }
+        #[cfg(test)]
+        fail_at(FailurePoint::Resume)?;
+        // SAFETY: the open handle's ownership was verified, and the root's
+        // initial thread remains suspended until Job assignment completes.
+        if unsafe { ResumeThread(thread) } == u32::MAX {
+            return Err(io::Error::last_os_error());
+        }
+        Ok(())
     }
 
     impl Tree {
@@ -195,3 +314,6 @@ mod platform {
         }
     }
 }
+
+#[cfg(all(test, windows, feature = "runtime"))]
+mod tests;

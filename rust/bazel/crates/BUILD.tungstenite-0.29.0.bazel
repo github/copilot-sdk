@@ -17,7 +17,7 @@ cargo_toml_env_vars(
 )
 
 rust_library(
-    name = "zeroize",
+    name = "tungstenite",
     srcs = glob(
         include = ["**/*.rs"],
         allow_empty = True,
@@ -35,15 +35,14 @@ rust_library(
         ],
     ),
     crate_features = [
-        "alloc",
-        "default",
-        "zeroize_derive",
+        "data-encoding",
+        "handshake",
+        "http",
+        "httparse",
+        "sha1",
     ],
     crate_root = "src/lib.rs",
-    edition = "2024",
-    proc_macro_deps = [
-        "@sdk_vendor__zeroize_derive-1.5.0//:zeroize_derive",
-    ],
+    edition = "2021",
     rustc_env_files = [
         ":cargo_toml_env_vars",
     ],
@@ -52,7 +51,7 @@ rust_library(
     ],
     tags = [
         "cargo-bazel",
-        "crate-name=zeroize",
+        "crate-name=tungstenite",
         "manual",
         "noclippy",
         "norustfmt",
@@ -66,5 +65,15 @@ rust_library(
         "@rules_rust//rust/platform:x86_64-unknown-linux-gnu": [],
         "//conditions:default": ["@platforms//:incompatible"],
     }),
-    version = "1.9.0",
+    version = "0.29.0",
+    deps = [
+        "@sdk_vendor__bytes-1.12.1//:bytes",
+        "@sdk_vendor__data-encoding-2.11.1//:data_encoding",
+        "@sdk_vendor__http-1.5.0//:http",
+        "@sdk_vendor__httparse-1.10.1//:httparse",
+        "@sdk_vendor__log-0.4.34//:log",
+        "@sdk_vendor__rand-0.9.5//:rand",
+        "@sdk_vendor__sha1-0.10.7//:sha1",
+        "@sdk_vendor__thiserror-2.0.20//:thiserror",
+    ],
 )

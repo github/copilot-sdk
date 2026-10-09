@@ -32,6 +32,42 @@ filegroup(
 
 # Workspace Member Dependencies
 alias(
+    name = "ahp-0.9.0",
+    actual = "@sdk_vendor__ahp-0.9.0//:ahp",
+    tags = ["manual"],
+)
+
+alias(
+    name = "ahp",
+    actual = "@sdk_vendor__ahp-0.9.0//:ahp",
+    tags = ["manual"],
+)
+
+alias(
+    name = "ahp-types-0.9.0",
+    actual = "@sdk_vendor__ahp-types-0.9.0//:ahp_types",
+    tags = ["manual"],
+)
+
+alias(
+    name = "ahp-types",
+    actual = "@sdk_vendor__ahp-types-0.9.0//:ahp_types",
+    tags = ["manual"],
+)
+
+alias(
+    name = "ahp-ws-0.9.0",
+    actual = "@sdk_vendor__ahp-ws-0.9.0//:ahp_ws",
+    tags = ["manual"],
+)
+
+alias(
+    name = "ahp-ws",
+    actual = "@sdk_vendor__ahp-ws-0.9.0//:ahp_ws",
+    tags = ["manual"],
+)
+
+alias(
     name = "async-trait-0.1.92",
     actual = "@sdk_vendor__async-trait-0.1.92//:async_trait",
     tags = ["manual"],
@@ -116,6 +152,18 @@ alias(
 )
 
 alias(
+    name = "hpke-0.12.0",
+    actual = "@sdk_vendor__hpke-0.12.0//:hpke",
+    tags = ["manual"],
+)
+
+alias(
+    name = "hpke",
+    actual = "@sdk_vendor__hpke-0.12.0//:hpke",
+    tags = ["manual"],
+)
+
+alias(
     name = "http-1.5.0",
     actual = "@sdk_vendor__http-1.5.0//:http",
     tags = ["manual"],
@@ -178,6 +226,18 @@ alias(
 alias(
     name = "parking_lot",
     actual = "@sdk_vendor__parking_lot-0.12.5//:parking_lot",
+    tags = ["manual"],
+)
+
+alias(
+    name = "rand_core-0.6.4",
+    actual = "@sdk_vendor__rand_core-0.6.4//:rand_core",
+    tags = ["manual"],
+)
+
+alias(
+    name = "rand_core",
+    actual = "@sdk_vendor__rand_core-0.6.4//:rand_core",
     tags = ["manual"],
 )
 

@@ -6,8 +6,12 @@
 #     bazel run @@//src/sdk/rust/bazel:vendor
 ###############################################################################
 
-load("@rules_rust//cargo:defs.bzl", "cargo_toml_env_vars")
-load("@rules_rust//rust:defs.bzl", "rust_library")
+load(
+    "@rules_rust//cargo:defs.bzl",
+    "cargo_build_script",
+    "cargo_toml_env_vars",
+)
+load("@rules_rust//rust:defs.bzl", "rust_proc_macro")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -16,8 +20,8 @@ cargo_toml_env_vars(
     src = "Cargo.toml",
 )
 
-rust_library(
-    name = "syn",
+rust_proc_macro(
+    name = "defmt_macros",
     srcs = glob(
         include = ["**/*.rs"],
         allow_empty = True,
@@ -34,18 +38,6 @@ rust_library(
             "WORKSPACE.bazel",
         ],
     ),
-    crate_features = [
-        "clone-impls",
-        "default",
-        "derive",
-        "extra-traits",
-        "full",
-        "parsing",
-        "printing",
-        "proc-macro",
-        "visit",
-        "visit-mut",
-    ],
     crate_root = "src/lib.rs",
     edition = "2021",
     rustc_env_files = [
@@ -56,7 +48,7 @@ rust_library(
     ],
     tags = [
         "cargo-bazel",
-        "crate-name=syn",
+        "crate-name=defmt-macros",
         "manual",
         "noclippy",
         "norustfmt",
@@ -70,10 +62,74 @@ rust_library(
         "@rules_rust//rust/platform:x86_64-unknown-linux-gnu": [],
         "//conditions:default": ["@platforms//:incompatible"],
     }),
-    version = "2.0.119",
+    version = "1.1.1",
     deps = [
+        ":build_script_build",
+        "@sdk_vendor__defmt-parser-1.0.0//:defmt_parser",
         "@sdk_vendor__proc-macro2-1.0.107//:proc_macro2",
         "@sdk_vendor__quote-1.0.47//:quote",
-        "@sdk_vendor__unicode-ident-1.0.26//:unicode_ident",
+        "@sdk_vendor__syn-2.0.119//:syn",
     ],
+)
+
+cargo_build_script(
+    name = "_bs",
+    srcs = glob(
+        include = ["**/*.rs"],
+        allow_empty = True,
+    ),
+    build_script_env_files = [
+        ":cargo_toml_env_vars",
+    ],
+    compile_data = glob(
+        include = ["**"],
+        allow_empty = True,
+        exclude = [
+            "**/* *",
+            "**/*.rs",
+            ".tmp_git_root/**/*",
+            "BUILD",
+            "BUILD.bazel",
+            "WORKSPACE",
+            "WORKSPACE.bazel",
+        ],
+    ),
+    crate_name = "build_script_build",
+    crate_root = "build.rs",
+    data = glob(
+        include = ["**"],
+        allow_empty = True,
+        exclude = [
+            "**/* *",
+            ".tmp_git_root/**/*",
+            "BUILD",
+            "BUILD.bazel",
+            "WORKSPACE",
+            "WORKSPACE.bazel",
+        ],
+    ),
+    edition = "2021",
+    emit_warnings = False,
+    pkg_name = "defmt-macros",
+    rustc_env_files = [
+        ":cargo_toml_env_vars",
+    ],
+    rustc_flags = [
+        "--cap-lints=allow",
+    ],
+    tags = [
+        "cargo-bazel",
+        "crate-name=defmt-macros",
+        "manual",
+        "noclippy",
+        "norustfmt",
+    ],
+    version = "1.1.1",
+    visibility = ["//visibility:private"],
+)
+
+alias(
+    name = "build_script_build",
+    actual = ":_bs",
+    tags = ["manual"],
 )

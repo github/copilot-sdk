@@ -6,7 +6,11 @@
 #     bazel run @@//src/sdk/rust/bazel:vendor
 ###############################################################################
 
-load("@rules_rust//cargo:defs.bzl", "cargo_toml_env_vars")
+load(
+    "@rules_rust//cargo:defs.bzl",
+    "cargo_build_script",
+    "cargo_toml_env_vars",
+)
 load("@rules_rust//rust:defs.bzl", "rust_library")
 
 package(default_visibility = ["//visibility:public"])
@@ -17,7 +21,7 @@ cargo_toml_env_vars(
 )
 
 rust_library(
-    name = "digest",
+    name = "portable_atomic_util",
     srcs = glob(
         include = ["**/*.rs"],
         allow_empty = True,
@@ -34,15 +38,6 @@ rust_library(
             "WORKSPACE.bazel",
         ],
     ),
-    crate_features = [
-        "alloc",
-        "block-buffer",
-        "core-api",
-        "default",
-        "mac",
-        "std",
-        "subtle",
-    ],
     crate_root = "src/lib.rs",
     edition = "2018",
     rustc_env_files = [
@@ -53,7 +48,7 @@ rust_library(
     ],
     tags = [
         "cargo-bazel",
-        "crate-name=digest",
+        "crate-name=portable-atomic-util",
         "manual",
         "noclippy",
         "norustfmt",
@@ -67,10 +62,71 @@ rust_library(
         "@rules_rust//rust/platform:x86_64-unknown-linux-gnu": [],
         "//conditions:default": ["@platforms//:incompatible"],
     }),
-    version = "0.10.7",
+    version = "0.2.8",
     deps = [
-        "@sdk_vendor__block-buffer-0.10.4//:block_buffer",
-        "@sdk_vendor__crypto-common-0.1.7//:crypto_common",
-        "@sdk_vendor__subtle-2.6.1//:subtle",
+        ":build_script_build",
+        "@sdk_vendor__portable-atomic-1.15.0//:portable_atomic",
     ],
+)
+
+cargo_build_script(
+    name = "_bs",
+    srcs = glob(
+        include = ["**/*.rs"],
+        allow_empty = True,
+    ),
+    build_script_env_files = [
+        ":cargo_toml_env_vars",
+    ],
+    compile_data = glob(
+        include = ["**"],
+        allow_empty = True,
+        exclude = [
+            "**/* *",
+            "**/*.rs",
+            ".tmp_git_root/**/*",
+            "BUILD",
+            "BUILD.bazel",
+            "WORKSPACE",
+            "WORKSPACE.bazel",
+        ],
+    ),
+    crate_name = "build_script_build",
+    crate_root = "build.rs",
+    data = glob(
+        include = ["**"],
+        allow_empty = True,
+        exclude = [
+            "**/* *",
+            ".tmp_git_root/**/*",
+            "BUILD",
+            "BUILD.bazel",
+            "WORKSPACE",
+            "WORKSPACE.bazel",
+        ],
+    ),
+    edition = "2018",
+    emit_warnings = False,
+    pkg_name = "portable-atomic-util",
+    rustc_env_files = [
+        ":cargo_toml_env_vars",
+    ],
+    rustc_flags = [
+        "--cap-lints=allow",
+    ],
+    tags = [
+        "cargo-bazel",
+        "crate-name=portable-atomic-util",
+        "manual",
+        "noclippy",
+        "norustfmt",
+    ],
+    version = "0.2.8",
+    visibility = ["//visibility:private"],
+)
+
+alias(
+    name = "build_script_build",
+    actual = ":_bs",
+    tags = ["manual"],
 )

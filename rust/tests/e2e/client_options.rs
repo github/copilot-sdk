@@ -18,6 +18,10 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 use tempfile::TempDir;
 
+#[cfg(windows)]
+#[path = "client_options/windows_process_tree.rs"]
+mod windows_process_tree;
+
 #[tokio::test]
 async fn should_forward_advanced_session_creation_options_to_the_cli() {
     let fake = FakeCli::new();

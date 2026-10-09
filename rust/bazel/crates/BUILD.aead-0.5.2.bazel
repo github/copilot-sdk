@@ -17,7 +17,7 @@ cargo_toml_env_vars(
 )
 
 rust_library(
-    name = "zeroize",
+    name = "aead",
     srcs = glob(
         include = ["**/*.rs"],
         allow_empty = True,
@@ -37,13 +37,11 @@ rust_library(
     crate_features = [
         "alloc",
         "default",
-        "zeroize_derive",
+        "getrandom",
+        "rand_core",
     ],
     crate_root = "src/lib.rs",
-    edition = "2024",
-    proc_macro_deps = [
-        "@sdk_vendor__zeroize_derive-1.5.0//:zeroize_derive",
-    ],
+    edition = "2021",
     rustc_env_files = [
         ":cargo_toml_env_vars",
     ],
@@ -52,7 +50,7 @@ rust_library(
     ],
     tags = [
         "cargo-bazel",
-        "crate-name=zeroize",
+        "crate-name=aead",
         "manual",
         "noclippy",
         "norustfmt",
@@ -66,5 +64,9 @@ rust_library(
         "@rules_rust//rust/platform:x86_64-unknown-linux-gnu": [],
         "//conditions:default": ["@platforms//:incompatible"],
     }),
-    version = "1.9.0",
+    version = "0.5.2",
+    deps = [
+        "@sdk_vendor__crypto-common-0.1.7//:crypto_common",
+        "@sdk_vendor__generic-array-0.14.7//:generic_array",
+    ],
 )

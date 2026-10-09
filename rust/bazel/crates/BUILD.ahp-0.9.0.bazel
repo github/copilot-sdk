@@ -17,7 +17,7 @@ cargo_toml_env_vars(
 )
 
 rust_library(
-    name = "zeroize",
+    name = "ahp",
     srcs = glob(
         include = ["**/*.rs"],
         allow_empty = True,
@@ -34,16 +34,8 @@ rust_library(
             "WORKSPACE.bazel",
         ],
     ),
-    crate_features = [
-        "alloc",
-        "default",
-        "zeroize_derive",
-    ],
     crate_root = "src/lib.rs",
-    edition = "2024",
-    proc_macro_deps = [
-        "@sdk_vendor__zeroize_derive-1.5.0//:zeroize_derive",
-    ],
+    edition = "2021",
     rustc_env_files = [
         ":cargo_toml_env_vars",
     ],
@@ -52,7 +44,7 @@ rust_library(
     ],
     tags = [
         "cargo-bazel",
-        "crate-name=zeroize",
+        "crate-name=ahp",
         "manual",
         "noclippy",
         "norustfmt",
@@ -66,5 +58,14 @@ rust_library(
         "@rules_rust//rust/platform:x86_64-unknown-linux-gnu": [],
         "//conditions:default": ["@platforms//:incompatible"],
     }),
-    version = "1.9.0",
+    version = "0.9.0",
+    deps = [
+        "@sdk_vendor__ahp-types-0.9.0//:ahp_types",
+        "@sdk_vendor__jiff-0.2.37//:jiff",
+        "@sdk_vendor__serde-1.0.229//:serde",
+        "@sdk_vendor__serde_json-1.0.151//:serde_json",
+        "@sdk_vendor__thiserror-2.0.20//:thiserror",
+        "@sdk_vendor__tokio-1.53.1//:tokio",
+        "@sdk_vendor__tracing-0.1.44//:tracing",
+    ],
 )
