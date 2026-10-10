@@ -113,7 +113,7 @@ jobs:
             echo "Device-policy fixture controls are assigned to the mandatory Linux CAPI step"
             test_args+=(--testNamePattern "$pattern")
           fi
-          if [ "$GITHUB_EVENT_NAME" = "merge_group" ] || [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
+          if [ "$GITHUB_EVENT_NAME" = "merge_group" ] || [ "$GITHUB_EVENT_NAME" = "pull_request" ] || [ "$GITHUB_EVENT_NAME" = "push" ]; then
             npm test -- "${test_args[@]}" --reporter=default --reporter=json --outputFile="$RUNNER_TEMP/sdk-nodejs-results.json"
           else
             npm test -- "${test_args[@]}"
