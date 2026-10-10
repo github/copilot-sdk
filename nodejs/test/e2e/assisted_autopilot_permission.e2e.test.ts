@@ -1130,6 +1130,19 @@ describe("Assisted permission handling in Autopilot", async () => {
                     HUMAN_REVIEW_OUTPUT,
                 ]);
             }
+            console.info(
+                "Assisted contract completed:",
+                JSON.stringify({
+                    contract,
+                    elapsedMs: Date.now() - started,
+                    cleanupMs: completedPhases
+                        .filter(({ phase }) => /cleanup|disconnect-before-resume/.test(phase))
+                        .reduce((total, { elapsedMs }) => total + elapsedMs, 0),
+                    agentCalls,
+                    judgeCalls: judgeOutputs.length,
+                    providerFailures: providerFailures.length,
+                })
+            );
         }
     );
 });
