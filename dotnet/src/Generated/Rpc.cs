@@ -5343,7 +5343,7 @@ internal sealed class SkillsConfigSetSkillDisabledRequest
     public string Name { get; set; } = string.Empty;
 }
 
-/// <summary>Outcome of a catalog.search call: either bounded inert candidates, or one typed refusal. Never a partial success.</summary>
+/// <summary>Outcome of catalog.search or catalog.recommend: either bounded inert candidates, or one typed refusal. Never a partial success.</summary>
 /// <remarks>Polymorphic base type discriminated by <c>kind</c>.</remarks>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 [JsonPolymorphic(
@@ -6048,6 +6048,38 @@ public sealed class CatalogSearchRequest
     [MaxLength(256)]
     [JsonPropertyName("query")]
     public required string Query { get; set; }
+}
+
+/// <summary>Initial-page official-product recommendations for a complete task. The runtime fixes recommendationPolicy to official-product and pageSize to 10; callers cannot override the policy, request pagination or fall back to search.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class CatalogRecommendRequest
+{
+    /// <summary>Required contract, including catalog-recommend, catalog-search-session-bound and catalog-search-credential-required.</summary>
+    [JsonPropertyName("contract")]
+    public CatalogClientContract Contract { get => field ??= new(); set; }
+
+    /// <summary>Existing attached local session whose account, host and connection own the candidate references. Never creates or resumes a session.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [MaxLength(256)]
+    [JsonPropertyName("policySessionId")]
+    public string PolicySessionId { get; set; } = string.Empty;
+
+    /// <summary>Requested product, forwarded verbatim. Agent Finder resolves aliases and applies its versioned official-product approvals before limiting results.</summary>
+    [RegularExpression("\\S")]
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [MaxLength(256)]
+    [JsonPropertyName("product")]
+    public string Product { get; set; } = string.Empty;
+
+    /// <summary>Full original task, including action, account, output and host requirements. Forwarded without trimming or rewriting and excluded from telemetry.</summary>
+    [RegularExpression("\\S")]
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [MaxLength(16384)]
+    [JsonPropertyName("query")]
+    public string Query { get; set; } = string.Empty;
 }
 
 /// <summary>Typed outcome of catalog.select. Only the selected host result carries a fresh candidate handle; the model-facing projection removes both that handle and searchId.</summary>
@@ -28818,6 +28850,9 @@ public readonly struct CatalogCapability : IEquatable<CatalogCapability>
     /// <summary>Captures the exact existing native session, account, host and connection for authenticated catalogue search, selection and planning. Requires catalog-search-credential-required; does not grant installation or create a session.</summary>
     public static CatalogCapability CatalogSearchSessionBound { get; } = new("catalog-search-session-bound");
 
+    /// <summary>Understands initial-page official-product recommendations for a full task and product forwarded verbatim with fixed pageSize 10. Requires catalog-search-session-bound and catalog-search-credential-required. Uses selected GitHub.com user authentication; successful capability negotiation does not establish service acceptance. No anonymous retry, search fallback or continuation. Server-approved provenance does not establish task suitability.</summary>
+    public static CatalogCapability CatalogRecommend { get; } = new("catalog-recommend");
+
     /// <summary>Understands effect-free preparation, exact human-confirmed apply and owned removal for fully resolved personal remote MCP choices without supplied inputs or configured secrets. Advertised only when the real producer and lower owned admission are linked; requires original connection and bound session authority for new work.</summary>
     public static CatalogCapability McpConfirmedRemoteInstallation { get; } = new("mcp-confirmed-remote-installation");
 
@@ -44802,7 +44837,7 @@ public sealed class ServerCatalogApi
     /// <param name="kinds">Restrict results to these candidate kinds. Agent Plugins are opt-in and require the `agent-plugin-discovery` capability so protocol-v3 clients generated before that variant cannot receive an unknown result; when omitted, the backwards-compatible MCP server and AI skill kinds are searched.</param>
     /// <param name="page">Numbered navigation using metadata from an earlier response. Requires catalog-search-pagination and the same query, kinds and effective limit. Omit for a fresh first-page search.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>Outcome of a catalog.search call: either bounded inert candidates, or one typed refusal. Never a partial success.</returns>
+    /// <returns>Outcome of catalog.search or catalog.recommend: either bounded inert candidates, or one typed refusal. Never a partial success.</returns>
     public async Task<CatalogSearchResult> SearchAsync(CatalogClientContract contract, string query, int? limit = null, IList<CatalogCandidateKind>? kinds = null, CatalogSearchPage? page = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(contract);
@@ -44815,13 +44850,31 @@ public sealed class ServerCatalogApi
     /// <summary>Requests a bounded catalog search. This host-implemented server method is available through SDK/TUI hosts; standalone and C-ABI runtimes whose host does not implement server-method dispatch return JSON-RPC MethodNotFound. A runtime with search available returns inert candidate summaries, each with an opaque single-use handle scoped to this runtime instance; a runtime without it returns the typed search-unavailable result. Public authorities may be searched anonymously, while an authority that requires credentials yields the typed authentication-required result. All returned text, URLs, and package metadata are untrusted external data and can never trigger instructions, tools, or installation. Read-only: nothing is installed, configured, or persisted.</summary>
     /// <param name="request">A bounded catalog search. Both the query length and the result count are capped by the schema so a caller cannot request an unbounded scan.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>Outcome of a catalog.search call: either bounded inert candidates, or one typed refusal. Never a partial success.</returns>
+    /// <returns>Outcome of catalog.search or catalog.recommend: either bounded inert candidates, or one typed refusal. Never a partial success.</returns>
     public async Task<CatalogSearchResult> SearchAsync(CatalogSearchRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(request.Contract);
         ArgumentNullException.ThrowIfNull(request.Query);
         return await CopilotClient.InvokeRpcAsync<CatalogSearchResult>(_rpc, "catalog.search", [request], cancellationToken);
+    }
+
+    /// <summary>Requests the initial page of at most ten official-product recommendations for a complete task and product, bound to an existing attached local session. Requires catalog-recommend, catalog-search-session-bound and catalog-search-credential-required. Uses selected GitHub.com user authentication on the fixed Agent Finder recommendations route; successful capability negotiation does not establish service acceptance. Forwards the full task and product verbatim. Returns the existing inert catalog candidates and retained install references with the typed catalog refusal union. No anonymous retry, search fallback or continuation is performed. Server-approved provenance does not establish task suitability. Read-only: nothing is installed, configured or persisted.</summary>
+    /// <param name="contract">Required contract, including catalog-recommend, catalog-search-session-bound and catalog-search-credential-required.</param>
+    /// <param name="policySessionId">Existing attached local session whose account, host and connection own the candidate references. Never creates or resumes a session.</param>
+    /// <param name="query">Full original task, including action, account, output and host requirements. Forwarded without trimming or rewriting and excluded from telemetry.</param>
+    /// <param name="product">Requested product, forwarded verbatim. Agent Finder resolves aliases and applies its versioned official-product approvals before limiting results.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Outcome of catalog.search or catalog.recommend: either bounded inert candidates, or one typed refusal. Never a partial success.</returns>
+    public async Task<CatalogSearchResult> RecommendAsync(CatalogClientContract contract, string policySessionId, string query, string product, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(contract);
+        ArgumentNullException.ThrowIfNull(policySessionId);
+        ArgumentNullException.ThrowIfNull(query);
+        ArgumentNullException.ThrowIfNull(product);
+
+        var request = new CatalogRecommendRequest { Contract = contract, PolicySessionId = policySessionId, Query = query, Product = product };
+        return await CopilotClient.InvokeRpcAsync<CatalogSearchResult>(_rpc, "catalog.recommend", [request], cancellationToken);
     }
 
     /// <summary>Terminates one retained catalog selection group. A selected outcome returns the native host a fresh single-use candidate handle plus the original searchId for a later explicit mcp.planInstall call; non-selected outcomes release the group without producing a planning input. Candidate state, cards, URLs, credentials and private identifiers remain inside the runtime. The model-facing catalog_select tool projects the result separately and never exposes the candidate handle or searchId.</summary>
@@ -52818,6 +52871,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(CatalogMcpServerCandidateProvenance))]
 [JsonSerializable(typeof(CatalogNegotiatedContract))]
 [JsonSerializable(typeof(CatalogPluginRepositorySource))]
+[JsonSerializable(typeof(CatalogRecommendRequest))]
 [JsonSerializable(typeof(CatalogSearchPage))]
 [JsonSerializable(typeof(CatalogSearchPagination))]
 [JsonSerializable(typeof(CatalogSearchRequest))]

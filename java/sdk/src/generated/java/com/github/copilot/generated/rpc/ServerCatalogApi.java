@@ -52,6 +52,17 @@ public final class ServerCatalogApi {
     }
 
     /**
+     * Requests the initial page of at most ten official-product recommendations for a complete task and product, bound to an existing attached local session. Requires catalog-recommend, catalog-search-session-bound and catalog-search-credential-required. Uses selected GitHub.com user authentication on the fixed Agent Finder recommendations route; successful capability negotiation does not establish service acceptance. Forwards the full task and product verbatim. Returns the existing inert catalog candidates and retained install references with the typed catalog refusal union. No anonymous retry, search fallback or continuation is performed. Server-approved provenance does not establish task suitability. Read-only: nothing is installed, configured or persisted.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<CatalogSearchResult> recommend(CatalogRecommendParams params) {
+        return caller.invoke("catalog.recommend", params, CatalogSearchResult.class);
+    }
+
+    /**
      * Terminates one retained catalog selection group. A selected outcome returns the native host a fresh single-use candidate handle plus the original searchId for a later explicit mcp.planInstall call; non-selected outcomes release the group without producing a planning input. Candidate state, cards, URLs, credentials and private identifiers remain inside the runtime. The model-facing catalog_select tool projects the result separately and never exposes the candidate handle or searchId.
      *
      * @apiNote This method is experimental and may change in a future version.
