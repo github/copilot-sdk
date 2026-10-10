@@ -742,7 +742,7 @@ impl<'a> ClientRpcCatalog<'a> {
     ///
     /// # Returns
     ///
-    /// Outcome of a catalog.search call: either bounded inert candidates, or one typed refusal. Never a partial success.
+    /// Outcome of catalog.search or catalog.recommend: either bounded inert candidates, or one typed refusal. Never a partial success.
     ///
     /// <div class="warning">
     ///
@@ -770,7 +770,7 @@ impl<'a> ClientRpcCatalog<'a> {
     ///
     /// # Returns
     ///
-    /// Outcome of a catalog.search call: either bounded inert candidates, or one typed refusal. Never a partial success.
+    /// Outcome of catalog.search or catalog.recommend: either bounded inert candidates, or one typed refusal. Never a partial success.
     ///
     /// <div class="warning">
     ///
@@ -789,6 +789,37 @@ impl<'a> ClientRpcCatalog<'a> {
         let _value = self
             .client
             .call(rpc_methods::CATALOG_SEARCH, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Requests the initial page of at most ten official-product recommendations for a complete task and product, bound to an existing attached local session. Requires catalog-recommend, catalog-search-session-bound and catalog-search-credential-required. Uses selected GitHub.com user authentication on the fixed Agent Finder recommendations route; successful capability negotiation does not establish service acceptance. Forwards the full task and product verbatim. Returns the existing inert catalog candidates and retained install references with the typed catalog refusal union. No anonymous retry, search fallback or continuation is performed. Server-approved provenance does not establish task suitability. Read-only: nothing is installed, configured or persisted.
+    ///
+    /// Wire method: `catalog.recommend`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Initial-page official-product recommendations for a complete task. The runtime fixes recommendationPolicy to official-product and pageSize to 10; callers cannot override the policy, request pagination or fall back to search.
+    ///
+    /// # Returns
+    ///
+    /// Outcome of catalog.search or catalog.recommend: either bounded inert candidates, or one typed refusal. Never a partial success.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn recommend(
+        &self,
+        params: CatalogRecommendRequest,
+    ) -> Result<CatalogSearchResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::CATALOG_RECOMMEND, Some(wire_params))
             .await?;
         Ok(serde_json::from_value(_value)?)
     }

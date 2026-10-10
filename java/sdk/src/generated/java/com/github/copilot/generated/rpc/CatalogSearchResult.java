@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import javax.annotation.processing.Generated;
 
 /**
- * Outcome of a catalog.search call: either bounded inert candidates, or one typed refusal. Never a partial success.
+ * Outcome of catalog.search or catalog.recommend: either bounded inert candidates, or one typed refusal. Never a partial success.
  *
  * @since 1.0.0
  */

@@ -38,6 +38,8 @@ public enum CatalogCapability {
     CATALOG_SEARCH_CREDENTIAL_REQUIRED("catalog-search-credential-required"),
     /** The {@code catalog-search-session-bound} variant. */
     CATALOG_SEARCH_SESSION_BOUND("catalog-search-session-bound"),
+    /** The {@code catalog-recommend} variant. */
+    CATALOG_RECOMMEND("catalog-recommend"),
     /** The {@code mcp-confirmed-remote-installation} variant. */
     MCP_CONFIRMED_REMOTE_INSTALLATION("mcp-confirmed-remote-installation"),
     /** The {@code mcp-configured-remote-installation} variant. */

@@ -926,6 +926,8 @@ export type CatalogCapability =
   | "catalog-search-credential-required"
   /** Captures the exact existing native session, account, host and connection for authenticated catalogue search, selection and planning. Requires catalog-search-credential-required; does not grant installation or create a session. */
   | "catalog-search-session-bound"
+  /** Understands initial-page official-product recommendations for a full task and product forwarded verbatim with fixed pageSize 10. Requires catalog-search-session-bound and catalog-search-credential-required. Uses selected GitHub.com user authentication; successful capability negotiation does not establish service acceptance. No anonymous retry, search fallback or continuation. Server-approved provenance does not establish task suitability. */
+  | "catalog-recommend"
   /** Understands effect-free preparation, exact human-confirmed apply and owned removal for fully resolved personal remote MCP choices without supplied inputs or configured secrets. Advertised only when the real producer and lower owned admission are linked; requires original connection and bound session authority for new work. */
   | "mcp-confirmed-remote-installation"
   /** Extends mcp-confirmed-remote-installation to declared non-secret header and URL values and receipt-owned header secrets for personal remote MCP choices. Requires mcp-confirmed-remote-installation and bound session authority. Secret values are written only to the reviewed backend after confirmation and are never returned; package and stdio choices remain unsupported. Advertised only when owned secret effects and owned secret activation are linked. */
@@ -1139,7 +1141,7 @@ export type CatalogSearchTotalCountRelation =
   /** No exact/full-query or lower-bound guarantee is available. */
   "unknown";
 /**
- * Outcome of a catalog.search call: either bounded inert candidates, or one typed refusal. Never a partial success.
+ * Outcome of catalog.search or catalog.recommend: either bounded inert candidates, or one typed refusal. Never a partial success.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "CatalogSearchResult".
@@ -9167,6 +9169,28 @@ export interface CatalogPolicyRejectedError {
    * Human-readable explanation, safe to surface. Never contains a query, URL, handle, or secret.
    */
   message: string;
+}
+/**
+ * Initial-page official-product recommendations for a complete task. The runtime fixes recommendationPolicy to official-product and pageSize to 10; callers cannot override the policy, request pagination or fall back to search.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogRecommendRequest".
+ */
+/** @experimental */
+export interface CatalogRecommendRequest {
+  contract: CatalogClientContract;
+  /**
+   * Existing attached local session whose account, host and connection own the candidate references. Never creates or resumes a session.
+   */
+  policySessionId: string;
+  /**
+   * Full original task, including action, account, output and host requirements. Forwarded without trimming or rewriting and excluded from telemetry.
+   */
+  query: string;
+  /**
+   * Requested product, forwarded verbatim. Agent Finder resolves aliases and applies its versioned official-product approvals before limiting results.
+   */
+  product: string;
 }
 /**
  * An explicit numbered-page request. SDK consumers treat the token as opaque. For bound search, the runtime unwraps an expiring owner-bound reference to the private authority token; only the runtime changes the authority token's targetPage. Legacy unbound navigation keeps its authority-issued token semantics. No snapshot stability is promised.
@@ -32631,10 +32655,19 @@ export function createServerRpc(connection: MessageConnection) {
              *
              * @param params A bounded catalog search. Both the query length and the result count are capped by the schema so a caller cannot request an unbounded scan.
              *
-             * @returns Outcome of a catalog.search call: either bounded inert candidates, or one typed refusal. Never a partial success.
+             * @returns Outcome of catalog.search or catalog.recommend: either bounded inert candidates, or one typed refusal. Never a partial success.
              */
             search: async (params: CatalogSearchRequest): Promise<CatalogSearchResult> =>
                 connection.sendRequest("catalog.search", params),
+            /**
+             * Requests the initial page of at most ten official-product recommendations for a complete task and product, bound to an existing attached local session. Requires catalog-recommend, catalog-search-session-bound and catalog-search-credential-required. Uses selected GitHub.com user authentication on the fixed Agent Finder recommendations route; successful capability negotiation does not establish service acceptance. Forwards the full task and product verbatim. Returns the existing inert catalog candidates and retained install references with the typed catalog refusal union. No anonymous retry, search fallback or continuation is performed. Server-approved provenance does not establish task suitability. Read-only: nothing is installed, configured or persisted.
+             *
+             * @param params Initial-page official-product recommendations for a complete task. The runtime fixes recommendationPolicy to official-product and pageSize to 10; callers cannot override the policy, request pagination or fall back to search.
+             *
+             * @returns Outcome of catalog.search or catalog.recommend: either bounded inert candidates, or one typed refusal. Never a partial success.
+             */
+            recommend: async (params: CatalogRecommendRequest): Promise<CatalogSearchResult> =>
+                connection.sendRequest("catalog.recommend", params),
             /**
              * Terminates one retained catalog selection group. A selected outcome returns the native host a fresh single-use candidate handle plus the original searchId for a later explicit mcp.planInstall call; non-selected outcomes release the group without producing a planning input. Candidate state, cards, URLs, credentials and private identifiers remain inside the runtime. The model-facing catalog_select tool projects the result separately and never exposes the candidate handle or searchId.
              *
