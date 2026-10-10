@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, onTestFailed } from "vitest";
 import { z } from "zod";
 import { approveAll, CopilotRequestHandler } from "../../src/index.js";
 import type { SessionEvent, CopilotRequestContext, CopilotSession } from "../../src/index.js";
@@ -390,25 +390,59 @@ describe("Session tasks RPC and pending handlers", async () => {
         { timeout: 120_000 },
         async () => {
             await withRunningAttachedShell(async (session, shellId, eventTypes, replies) => {
+                const started = performance.now();
+                let phase = "enqueue";
+                let queuePolls = 0;
+                let pendingCount = 0;
+                let queuedMatch = false;
+                onTestFailed(() => {
+                    console.error(
+                        "Attached shell queue failure boundary:",
+                        JSON.stringify({
+                            phase,
+                            elapsedMs: Math.round(performance.now() - started),
+                            queuePolls,
+                            pendingCount,
+                            queuedMatch,
+                            replyCount: replies.length,
+                            hasQueuedReply: replies.some((reply) => reply.includes("QUEUED_DONE")),
+                            sessionIdleCount: eventTypes.filter((type) => type === "session.idle")
+                                .length,
+                            assistantIdleCount: eventTypes.filter(
+                                (type) => type === "assistant.idle"
+                            ).length,
+                        })
+                    );
+                });
                 // The running attached shell holds idle, so an enqueued message waits behind it.
                 await session.send({ prompt: "Reply with exactly QUEUED_DONE.", mode: "enqueue" });
+                phase = "pending-queue";
                 await waitForCondition(
-                    async () =>
-                        (await session.rpc.queue.pendingItems()).items.some((item) =>
+                    async () => {
+                        const { items } = await session.rpc.queue.pendingItems();
+                        queuePolls++;
+                        pendingCount = items.length;
+                        queuedMatch = items.some((item) =>
                             item.displayText.includes("QUEUED_DONE")
-                        ),
+                        );
+                        return queuedMatch;
+                    },
                     { timeoutMessage: "The enqueued message was not parked behind the shell" }
                 );
+                phase = "assert-parked";
                 expect(replies.some((reply) => reply.includes("QUEUED_DONE"))).toBe(false);
                 expect(eventTypes).not.toContain("session.idle");
 
+                phase = "cancel-shell";
                 expect((await session.rpc.tasks.cancel({ id: shellId })).cancelled).toBe(true);
+                phase = "queued-reply";
                 await waitForCondition(
                     () => replies.some((reply) => reply.includes("QUEUED_DONE")),
                     {
                         timeoutMessage: `The queued message never ran after cancelling shell ${shellId}`,
                     }
                 );
+                phase = "session-idle";
                 await waitForCondition(() => eventTypes.includes("session.idle"), {
                     timeoutMessage: "session.idle never followed the queued message",
                 });
