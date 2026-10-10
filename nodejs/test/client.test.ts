@@ -29,6 +29,7 @@ import {
     type SubagentStopHookOutput,
     type SessionFsProvider,
 } from "../src/index.js";
+import type { Model } from "../src/generated/rpc.js";
 import { CopilotSession } from "../src/session.js";
 import { defaultJoinSessionPermissionHandler } from "../src/types.js";
 import { getSdkProtocolVersion } from "../src/sdkProtocolVersion.js";
@@ -3564,7 +3565,32 @@ describe("CopilotClient", () => {
         });
     });
 
-    describe("onListModels", () => {
+    describe("model listing", () => {
+        it("preserves synthetic model identifiers and picker metadata through models.list", async () => {
+            const models: Model[] = [
+                {
+                    id: "hydrafusion",
+                    name: "HydraFusion",
+                    capabilities: {},
+                    modelPickerCategory: "versatile",
+                },
+                {
+                    id: "hydrafusion-max",
+                    name: "HydraFusion Max",
+                    capabilities: {},
+                    modelPickerCategory: "powerful",
+                },
+            ];
+            const sendRequest = vi.fn().mockResolvedValue({ models });
+            const client = new CopilotClient();
+            (client as any).connection = { sendRequest };
+
+            const result = await client.rpc.models.list({});
+
+            expect(sendRequest).toHaveBeenCalledWith("models.list", {});
+            expect(result.models).toEqual(models);
+        });
+
         it("calls onListModels handler instead of RPC when provided", async () => {
             const customModels: ModelInfo[] = [
                 {
