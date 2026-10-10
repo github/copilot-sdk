@@ -257,16 +257,18 @@ export async function launchRuntime(kind) {
         throw new Error("Original runtime exec unexpectedly returned");
     }
 
-    const fixtureInfo = fs.lstatSync(fixture);
-    if (
-        !inside(process.cwd(), fixture) ||
-        fs.realpathSync(fixture) !== fixture ||
-        !fixtureInfo.isFile() ||
-        fixtureInfo.isSymbolicLink() ||
-        fixtureInfo.uid !== process.getuid()
-    )
+    if (!inside(process.cwd(), fixture) || fs.realpathSync(fixture) !== fixture)
         throw new Error("Device policy must be a regular file inside the test workspace");
-    const policy = fs.readFileSync(fixture, "utf8");
+    const descriptor = fs.openSync(fixture, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
+    let policy;
+    try {
+        const fixtureInfo = fs.fstatSync(descriptor);
+        if (!fixtureInfo.isFile() || fixtureInfo.uid !== process.getuid())
+            throw new Error("Device policy must be a regular file owned by the runner");
+        policy = fs.readFileSync(descriptor, "utf8");
+    } finally {
+        fs.closeSync(descriptor);
+    }
     const parsed = JSON.parse(policy);
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
         throw new Error("Device policy must be a JSON object");
