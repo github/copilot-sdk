@@ -180,14 +180,14 @@ func main() {
 		if d.Cost != nil {
 			cost = *d.Cost
 		}
-        cacheRead, cacheWrite := "n/a", "n/a"
-        if d.CacheReadTokens != nil {
-            cacheRead = fmt.Sprint(*d.CacheReadTokens)
-        }
-        if d.CacheWriteTokens != nil {
-            cacheWrite = fmt.Sprint(*d.CacheWriteTokens)
-        }
-        fmt.Printf("%s: in=%d out=%d cache_read=%s cache_write=%s cost=%g\n", d.Model, in, out, cacheRead, cacheWrite, cost)
+		cacheRead, cacheWrite := "n/a", "n/a"
+		if d.CacheReadTokens != nil {
+			cacheRead = fmt.Sprint(*d.CacheReadTokens)
+		}
+		if d.CacheWriteTokens != nil {
+			cacheWrite = fmt.Sprint(*d.CacheWriteTokens)
+		}
+		fmt.Printf("%s: in=%d out=%d cache_read=%s cache_write=%s cost=%g\n", d.Model, in, out, cacheRead, cacheWrite, cost)
 	})
 	_ = session
 }
