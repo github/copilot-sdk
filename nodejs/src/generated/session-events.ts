@@ -12923,7 +12923,7 @@ export interface ManagedSettingsResolvedEvent {
 /** @experimental */
 export interface ManagedSettingsResolvedData {
   /**
-   * Whether enterprise policy disables bypass-permissions ("yolo") mode for this session. Deny-wins across layers, and forced on when `failClosed` is true.
+   * Whether an explicit enterprise policy restriction disables bypass-permissions ("yolo") mode for this session. Deny-wins across layers; an unresolved policy does not force this on by itself.
    */
   bypassPermissionsDisabled: boolean;
   /**
@@ -12935,7 +12935,7 @@ export interface ManagedSettingsResolvedData {
    */
   deviceManaged: boolean;
   /**
-   * Whether managed policy could not be determined (e.g. a failed server fetch) and the session fell back to the fail-closed restriction. When true, restrictions such as disabling bypass-permissions are enforced even though `settings` may be absent.
+   * Whether managed policy could not be determined (e.g. a failed server fetch) and unresolved-policy safeguards remain active. This does not by itself disable bypass-permissions; `bypassPermissionsDisabled` reports only an explicit policy restriction.
    */
   failClosed: boolean;
   /**

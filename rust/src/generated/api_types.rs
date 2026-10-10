@@ -97,8 +97,16 @@ pub mod rpc_methods {
     pub const MCP_CONFIG_DISABLE: &str = "mcp.config.disable";
     /// `mcp.config.reload`
     pub const MCP_CONFIG_RELOAD: &str = "mcp.config.reload";
+    /// `mcp.registry.allocateRequestId`
+    pub const MCP_REGISTRY_ALLOCATEREQUESTID: &str = "mcp.registry.allocateRequestId";
+    /// `mcp.registry.search`
+    pub const MCP_REGISTRY_SEARCH: &str = "mcp.registry.search";
+    /// `mcp.registry.cancel`
+    pub const MCP_REGISTRY_CANCEL: &str = "mcp.registry.cancel";
     /// `mcp.discover`
     pub const MCP_DISCOVER: &str = "mcp.discover";
+    /// `mcp.shouldExcludeGitHubTools`
+    pub const MCP_SHOULDEXCLUDEGITHUBTOOLS: &str = "mcp.shouldExcludeGitHubTools";
     /// `mcp.planInstall`
     pub const MCP_PLANINSTALL: &str = "mcp.planInstall";
     /// `mcp.prepareInstall`
@@ -349,6 +357,9 @@ pub mod rpc_methods {
     pub const SESSION_SENDMESSAGES: &str = "session.sendMessages";
     /// `session.sandbox.getEnforcementStatus`
     pub const SESSION_SANDBOX_GETENFORCEMENTSTATUS: &str = "session.sandbox.getEnforcementStatus";
+    /// `session.sandbox.getCredentialSuggestions`
+    pub const SESSION_SANDBOX_GETCREDENTIALSUGGESTIONS: &str =
+        "session.sandbox.getCredentialSuggestions";
     /// `session.sandbox.disableForSession`
     pub const SESSION_SANDBOX_DISABLEFORSESSION: &str = "session.sandbox.disableForSession";
     /// `session.sandbox.grantPathForRequest`
@@ -8776,9 +8787,6 @@ pub(crate) struct LoggedInUser {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct GlobalStateLoadResult {
-    /// Whether the user has answered the prompt suggesting they install the desktop app.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub app_install_nudge_responded: Option<bool>,
     /// Whether the app tip has been shown.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub app_tip_shown: Option<bool>,
@@ -11328,14 +11336,14 @@ pub struct ManagedSettingsMeta {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ManagedSettingsResolvedData {
-    /// Whether enterprise policy disables bypass-permissions ("yolo") mode for this session. Deny-wins across layers, and forced on when `failClosed` is true.
+    /// Whether an explicit enterprise policy restriction disables bypass-permissions ("yolo") mode for this session. Deny-wins across layers; an unresolved policy does not force this on by itself.
     pub bypass_permissions_disabled: bool,
     /// Whether a session-local permissions layer injected by the SDK host was present
     #[serde(skip_serializing_if = "Option::is_none")]
     pub client_managed: Option<bool>,
     /// Whether an actual device MDM/plist/registry/file managed-settings layer was present
     pub device_managed: bool,
-    /// Whether managed policy could not be determined (e.g. a failed server fetch) and the session fell back to the fail-closed restriction. When true, restrictions such as disabling bypass-permissions are enforced even though `settings` may be absent.
+    /// Whether managed policy could not be determined (e.g. a failed server fetch) and unresolved-policy safeguards remain active. This does not by itself disable bypass-permissions; `bypassPermissionsDisabled` reports only an explicit policy restriction.
     pub fail_closed: bool,
     /// The setting keys under enterprise management in the effective managed settings (e.g. `model`, `enabledPlugins`, `permissions`). Empty when no managed settings are in force.
     pub managed_keys: Vec<String>,
@@ -14026,6 +14034,91 @@ pub(crate) struct McpRegisterExternalClientRequest {
     pub(crate) transport: serde_json::Value,
 }
 
+/// Registry search to abandon.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct McpRegistryCancelRequest {
+    /// Request ID from `mcp.registry.allocateRequestId` that the search uses.
+    pub request_id: i64,
+}
+
+/// Whether the cancel reached a live search.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct McpRegistryCancelResult {
+    /// True when the cancel stopped a running search. False for unknown or reclaimed IDs, completed or canceled searches, and unused reservations. The cancel releases an unused reservation.
+    pub canceled: bool,
+}
+
+/// Request id naming a cancellable registry search.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct McpRegistryRequestIdResult {
+    /// Request ID for `mcp.registry.search` and `mcp.registry.cancel`. It serves one search. Allocation can reclaim unused IDs at the 1,024-ID reservation limit.
+    pub request_id: i64,
+}
+
+/// Registry search terms, the credential to search under, and the request id that makes the search cancellable.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct McpRegistrySearchRequest {
+    /// The credential the search runs under, carried opaquely. Hosts usually send credential-free `AuthIdentity`; a `token` identity can be resolved only when it embeds a token, while `env` and `gh-cli` identities can use a token embedded in the request first.
+    pub auth_info: serde_json::Value,
+    /// Maximum number of servers to return.
+    pub limit: i64,
+    /// Free-text query. Omitted or empty asks the registry for its top servers rather than searching. A value that is not a string is refused.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub query: Option<String>,
+    /// Repository used for the policy lookup, as `owner/name`. The policy selects the registry URL and whether the user token goes to the registry. The registry receives this repository only when the policy entry lists it as required context. A value that is not a string is refused.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub repository: Option<String>,
+    /// Request ID from `mcp.registry.allocateRequestId`. The search refuses unknown, reclaimed, or canceled IDs and IDs that another search or request already uses.
+    pub request_id: i64,
+}
+
+/// Servers selected from the registry response.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct McpRegistrySearchResult {
+    /// The server objects, carried opaquely. The runtime follows pages, keeps the newest entry per server name, cuts the list to `limit`, and sorts an empty-query result by GitHub stars. Each server object remains unchanged because the registry owns that shape.
+    pub servers: serde_json::Value,
+}
+
 /// In-process MCP reload configuration.
 ///
 /// <div class="warning">
@@ -14844,6 +14937,43 @@ pub struct McpSetEnvValueModeParams {
 pub struct McpSetEnvValueModeResult {
     /// Mode recorded on the session after the update
     pub mode: McpSetEnvValueModeDetails,
+}
+
+/// The session tool filters that decide whether the session still has a shell to run `gh` with.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct McpShouldExcludeGitHubToolsRequest {
+    /// The session's tool allowlist, when it set one. Omitted means the session constrains nothing this way.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub available_tools: Option<Vec<String>>,
+    /// The session's tool denylist, when it set one. Omitted means the session constrains nothing this way.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub excluded_tools: Option<Vec<String>>,
+    /// How the allowlist and denylist combine when both are set. Omitted means the default every session gets, so a caller that never chose a precedence is answered as its sessions behave.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_filter_precedence: Option<OptionsUpdateToolFilterPrecedence>,
+}
+
+/// Whether the gh-replaceable GitHub MCP tools may be clipped for the session described by the request.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct McpShouldExcludeGitHubToolsResult {
+    /// True only when both halves hold: the session's filters still reach the platform shell tool, and the host actually has the `gh` those tools would be replaced by. Feed it straight back as the `excludeGhReplaceableTools` build option.
+    pub exclude_gh_replaceable_tools: bool,
 }
 
 /// Server name and optional configuration for an individual MCP server start. Omit `config` for a config-free start-by-name of an already-configured server.
@@ -21223,6 +21353,38 @@ pub struct SandboxConfig {
     /// User-managed sandbox policy fragment merged into the auto-discovered base policy.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub user_policy: Option<SandboxConfigUserPolicy>,
+}
+
+/// A possible secret-bearing environment variable and optional locally suggested HTTPS injection hosts. This is a draft for user review, not an active grant.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SandboxCredentialSuggestion {
+    /// Environment variable name. The secret value is never returned.
+    pub name: String,
+    /// HTTPS hostnames suggested by a local known-provider mapping. An empty list requires the user to supply injection hosts before adding a masking entry. These suggestions do not allow network access.
+    pub suggested_inject_hosts: Vec<String>,
+}
+
+/// Possible unconfigured secrets in the sandbox shell environment, sorted by variable name, with no secret values.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SandboxCredentialSuggestionsResult {
+    /// Candidates for user review. Empty when sandboxing is disabled or no unconfigured candidates are present.
+    pub suggestions: Vec<SandboxCredentialSuggestion>,
 }
 
 /// Request to disable sandboxing for the current session while resolving an active sandbox-bypass permission prompt.
@@ -30584,6 +30746,21 @@ pub struct McpConfigListResult {
     pub servers: HashMap<String, serde_json::Value>,
 }
 
+/// Request id naming a cancellable registry search.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct McpRegistryAllocateRequestIdResult {
+    /// Request ID for `mcp.registry.search` and `mcp.registry.cancel`. It serves one search. Allocation can reclaim unused IDs at the 1,024-ID reservation limit.
+    pub request_id: i64,
+}
+
 /// Extensions discovered from persisted Copilot home state and their effective loading mode. Launch-scoped additional plugins are not included.
 ///
 /// <div class="warning">
@@ -30860,9 +31037,6 @@ pub struct InstructionsGetDiscoveryPathsResult {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct GlobalStateLoadForConfigDirResult {
-    /// Whether the user has answered the prompt suggesting they install the desktop app.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub app_install_nudge_responded: Option<bool>,
     /// Whether the app tip has been shown.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub app_tip_shown: Option<bool>,
@@ -31543,6 +31717,36 @@ pub struct SessionSandboxGetEnforcementStatusResult {
     pub reason: Option<String>,
     /// Whether the effective managed policy requires an available sandbox backend.
     pub required: bool,
+}
+
+/// Identifies the target session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionSandboxGetCredentialSuggestionsParams {
+    /// Target session identifier
+    pub session_id: SessionId,
+}
+
+/// Possible unconfigured secrets in the sandbox shell environment, sorted by variable name, with no secret values.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionSandboxGetCredentialSuggestionsResult {
+    /// Candidates for user review. Empty when sandboxing is disabled or no unconfigured candidates are present.
+    pub suggestions: Vec<SandboxCredentialSuggestion>,
 }
 
 /// Result of attempting to disable sandboxing for the current session.
@@ -34994,14 +35198,14 @@ pub struct SessionManagedSettingsGetParams {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionManagedSettingsGetResult {
-    /// Whether enterprise policy disables bypass-permissions ("yolo") mode for this session. Deny-wins across layers, and forced on when `failClosed` is true.
+    /// Whether an explicit enterprise policy restriction disables bypass-permissions ("yolo") mode for this session. Deny-wins across layers; an unresolved policy does not force this on by itself.
     pub bypass_permissions_disabled: bool,
     /// Whether a session-local permissions layer injected by the SDK host was present
     #[serde(skip_serializing_if = "Option::is_none")]
     pub client_managed: Option<bool>,
     /// Whether an actual device MDM/plist/registry/file managed-settings layer was present
     pub device_managed: bool,
-    /// Whether managed policy could not be determined (e.g. a failed server fetch) and the session fell back to the fail-closed restriction. When true, restrictions such as disabling bypass-permissions are enforced even though `settings` may be absent.
+    /// Whether managed policy could not be determined (e.g. a failed server fetch) and unresolved-policy safeguards remain active. This does not by itself disable bypass-permissions; `bypassPermissionsDisabled` reports only an explicit policy restriction.
     pub fail_closed: bool,
     /// The setting keys under enterprise management in the effective managed settings (e.g. `model`, `enabledPlugins`, `permissions`). Empty when no managed settings are in force.
     pub managed_keys: Vec<String>,
@@ -43936,6 +44140,28 @@ pub enum McpSetEnvValueModeDetails {
     Unknown,
 }
 
+/// Controls how availableTools (allowlist) and excludedTools (denylist) combine when both are set.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum OptionsUpdateToolFilterPrecedence {
+    /// If availableTools is set, it is the only constraint that applies (excludedTools is ignored). Preserves CLI / pre-existing client behavior. Default.
+    #[serde(rename = "available")]
+    Available,
+    /// A tool is enabled if and only if it matches the allowlist (or the allowlist is unset) AND it does not match the denylist. Makes 'all except X' expressible by combining the two lists.
+    #[serde(rename = "excluded")]
+    Excluded,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
 /// Hosting platform type of the repository
 ///
 /// <div class="warning">
@@ -44443,28 +44669,6 @@ pub enum OptionsUpdateReasoningSummary {
     /// Request a detailed summary of model reasoning.
     #[serde(rename = "detailed")]
     Detailed,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// Controls how availableTools (allowlist) and excludedTools (denylist) combine when both are set.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum OptionsUpdateToolFilterPrecedence {
-    /// If availableTools is set, it is the only constraint that applies (excludedTools is ignored). Preserves CLI / pre-existing client behavior. Default.
-    #[serde(rename = "available")]
-    Available,
-    /// A tool is enabled if and only if it matches the allowlist (or the allowlist is unset) AND it does not match the denylist. Makes 'all except X' expressible by combining the two lists.
-    #[serde(rename = "excluded")]
-    Excluded,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]

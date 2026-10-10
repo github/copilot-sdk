@@ -1,0 +1,14 @@
+models:
+  - claude-sonnet-5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Without using tools, reply with exactly SKILL_ORDER_INITIAL_OK.
+      - role: assistant
+        content: SKILL_ORDER_INITIAL_OK
+      - role: user
+        content: Without using tools, reply with exactly SKILL_ORDER_RESUMED_OK.
+      - role: assistant
+        content: SKILL_ORDER_RESUMED_OK

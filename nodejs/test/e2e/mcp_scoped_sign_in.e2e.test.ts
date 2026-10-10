@@ -104,6 +104,7 @@ describe("MCP sign-in for one server", async () => {
         const events: SessionEvent[] = [];
         const session = await client.createSession({
             onPermissionRequest: approveAll,
+            onEvent: (event) => events.push(event),
             mcpServers: {
                 alpha: {
                     type: "local",
@@ -122,8 +123,6 @@ describe("MCP sign-in for one server", async () => {
             },
         });
         onTestFinished(() => disconnectSession(session));
-        session.on((event) => events.push(event));
-
         await waitForMcpServerStatus(session, "alpha", "connected");
         await waitForMcpServerStatus(session, "bravo", "needs-auth");
         await waitForMcpServerStatus(session, "delta", "needs-auth");
@@ -132,6 +131,20 @@ describe("MCP sign-in for one server", async () => {
             redirectUri: REDIRECT_URI,
         });
         expect(deltaLogin.authorizationId).toBeDefined();
+        // Live status can precede its asynchronous event, so observe startup before measuring peer changes.
+        await waitForCondition(
+            () =>
+                events.some(
+                    (event) =>
+                        event.type === "session.mcp_server_status_changed" &&
+                        event.data.serverName === "alpha" &&
+                        event.data.status === "connected"
+                ),
+            {
+                timeoutMs: STEP_TIMEOUT_MS,
+                timeoutMessage: "alpha's initial connected event did not arrive",
+            }
+        );
         const baseline = events.length;
 
         return {

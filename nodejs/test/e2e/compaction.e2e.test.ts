@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, onTestFailed } from "vitest";
 import { existsSync } from "node:fs";
 import * as fs from "node:fs/promises";
 import { join } from "node:path";
@@ -18,8 +18,32 @@ import { testBackend } from "./harness/testBackend.js";
 
 const compactionTimeoutMs = 60_000;
 
+interface CacheWireBlock {
+    text?: string;
+    cache_control?: unknown;
+    copilot_cache_control?: unknown;
+}
+
+interface CacheWireRequest extends CacheWireBlock {
+    model: string;
+    max_tokens: number;
+    stream?: boolean;
+    system?: CacheWireBlock[];
+    tools?: CacheWireBlock[];
+    tool_choice?: unknown;
+    messages: (CacheWireBlock & { role: string; content: string | CacheWireBlock[] })[];
+}
+
 class RefusalBudgetReplayHandler extends CopilotRequestHandler {
-    readonly requests: { model: string; max_tokens: number }[] = [];
+    readonly requests: CacheWireRequest[] = [];
+    readonly requestUrls: string[] = [];
+
+    constructor(
+        private readonly endpoint: "/v1/messages" | "/chat/completions" = "/v1/messages",
+        private readonly fusionCritic = false
+    ) {
+        super();
+    }
 
     protected override async sendRequest(request: Request): Promise<Response> {
         const path = new URL(request.url).pathname;
@@ -28,6 +52,7 @@ class RefusalBudgetReplayHandler extends CopilotRequestHandler {
                 data: [
                     ["claude-sonnet-5.5", 250_000, 384_000, 128_000],
                     ["claude-sonnet-5", 112_000, 128_000, 64_000],
+                    ...(this.fusionCritic ? [["claude-opus-5", 112_000, 128_000, 64_000]] : []),
                 ].map(([id, prompt, context, output]) => ({
                     id,
                     name: id,
@@ -35,7 +60,21 @@ class RefusalBudgetReplayHandler extends CopilotRequestHandler {
                     vendor: "Anthropic",
                     version: "1",
                     model_picker_enabled: true,
-                    supported_endpoints: ["/v1/messages"],
+                    policy: { state: "enabled" },
+                    supported_endpoints: [this.endpoint],
+                    // Synthetic prices exercise TTL eligibility, not measured savings.
+                    billing: {
+                        token_prices: {
+                            batch_size: 1_000_000,
+                            default: {
+                                input_price: 3,
+                                output_price: 15,
+                                cache_read_price: 0.3,
+                                cache_write_price: 1,
+                                cache_write_1h_price: 2,
+                            },
+                        },
+                    },
                     capabilities: {
                         type: "chat",
                         family: id,
@@ -50,17 +89,75 @@ class RefusalBudgetReplayHandler extends CopilotRequestHandler {
                 })),
             });
         }
+        if (this.fusionCritic && path === "/model/fusion") {
+            return Response.json({
+                fusion_mode: "hydrafusion-max",
+                fusion_pattern: "critique",
+                plan_version: "1",
+                steps: [
+                    { role: "draft", model_id: "claude-opus-5" },
+                    { role: "critic", model_id: "claude-opus-5" },
+                    { role: "revision", model_id: "claude-opus-5" },
+                ],
+                session: { token: "jwt.fake.cache-wire-fusion", expires_at: 0 },
+            });
+        }
         if (path.endsWith("/models/session")) return Response.json({});
         if (path.includes("/policy")) return Response.json({ state: "enabled" });
-        expect(path).toBe("/v1/messages");
-        const body = (await request.json()) as {
-            model: string;
-            max_tokens: number;
-            stream?: boolean;
-        };
+        expect(path).toBe(this.endpoint);
+        const body = (await request.json()) as CacheWireRequest;
         this.requests.push(body);
+        this.requestUrls.push(request.url);
         const refuses = body.model === "claude-sonnet-5.5";
-        const content = refuses ? "PRIMARY_REFUSAL" : "FALLBACK_BUDGET_OK";
+        const content = refuses
+            ? "PRIMARY_REFUSAL"
+            : this.fusionCritic && !body.tools?.length
+              ? JSON.stringify({ assessment: "approve", feedback: "" })
+              : "FALLBACK_BUDGET_OK";
+        const compaction =
+            Boolean(body.tools?.length) &&
+            (body.tool_choice === "none" ||
+                (typeof body.tool_choice === "object" &&
+                    body.tool_choice !== null &&
+                    "type" in body.tool_choice &&
+                    body.tool_choice.type === "none"));
+        // Model a warm tools/system prefix; this is accounting coverage, not a measured hit.
+        const cacheReadTokens = compaction ? 50 : 0;
+        if (this.endpoint === "/chat/completions") {
+            const usage = {
+                prompt_tokens: 100 + cacheReadTokens,
+                completion_tokens: 10,
+                total_tokens: 110 + cacheReadTokens,
+                prompt_tokens_details: {
+                    cached_tokens: cacheReadTokens,
+                    cache_creation_tokens: 0,
+                },
+            };
+            const choice = {
+                index: 0,
+                message: { role: "assistant", content },
+                finish_reason: "stop",
+            };
+            if (!body.stream) {
+                return Response.json({
+                    id: "cache-wire-replay",
+                    object: "chat.completion",
+                    model: body.model,
+                    choices: [choice],
+                    usage,
+                });
+            }
+            const chunk = {
+                id: "cache-wire-replay",
+                object: "chat.completion.chunk",
+                model: body.model,
+                choices: [{ index: 0, delta: { content }, finish_reason: "stop" }],
+                usage,
+            };
+            return new Response(`data: ${JSON.stringify(chunk)}\n\ndata: [DONE]\n\n`, {
+                headers: { "content-type": "text/event-stream" },
+            });
+        }
         const message = {
             id: "refusal-budget-replay",
             type: "message",
@@ -69,7 +166,12 @@ class RefusalBudgetReplayHandler extends CopilotRequestHandler {
             content: [{ type: "text", text: content }],
             stop_reason: refuses ? "refusal" : "end_turn",
             stop_sequence: null,
-            usage: { input_tokens: 100, output_tokens: 10 },
+            usage: {
+                input_tokens: 100,
+                output_tokens: 10,
+                cache_read_input_tokens: cacheReadTokens,
+                cache_creation_input_tokens: 0,
+            },
         };
         if (!body.stream) return Response.json(message);
         const events = [
@@ -103,6 +205,421 @@ class RefusalBudgetReplayHandler extends CopilotRequestHandler {
         );
     }
 }
+
+function expectNoConversationCacheMarkers(request: CacheWireRequest): void {
+    expect(request.cache_control).toBeUndefined();
+    expect(Boolean(request.copilot_cache_control)).toBe(false);
+    for (const message of request.messages.filter(({ role }) => role !== "system")) {
+        expect(Boolean(message.copilot_cache_control)).toBe(false);
+        if (typeof message.content !== "string") {
+            for (const block of message.content) {
+                expect(block.cache_control).toBeUndefined();
+            }
+        }
+    }
+}
+
+function systemCacheMarkers(request: CacheWireRequest): unknown[] {
+    return [
+        ...(request.system ?? []).map(({ cache_control }) => cache_control),
+        ...request.messages
+            .filter(({ role }) => role === "system")
+            .map(({ copilot_cache_control }) => copilot_cache_control),
+    ].filter(Boolean);
+}
+
+for (const oneHour of [false, true]) {
+    describe(`Disposable Anthropic prompt caching (one-hour ${oneHour})`, async () => {
+        const { createClient } = await createSdkTestContext({
+            replayOnly: true,
+            logLevel: "debug",
+        });
+
+        it.each(["CAPI Messages", "CAPI Chat", "BYOK Messages"] as const)(
+            "keeps reusable prefixes but not disposable writes on %s",
+            async (route) => {
+                const handler = new RefusalBudgetReplayHandler(
+                    route === "CAPI Chat" ? "/chat/completions" : "/v1/messages"
+                );
+                const cacheClient = createClient({ requestHandler: handler });
+                let phase = "create session";
+                const events: string[] = [];
+                onTestFailed(() => {
+                    console.error(
+                        `[cache-wire-progress] ${JSON.stringify({
+                            phase,
+                            events: events.slice(-20),
+                            requests: handler.requests.map((request, index) => ({
+                                endpoint: new URL(handler.requestUrls[index]!).pathname,
+                                model: request.model,
+                                stream: request.stream,
+                                messages: request.messages.length,
+                                hasTools: Boolean(request.tools?.length),
+                                toolChoice: request.tool_choice,
+                            })),
+                        })}`
+                    );
+                });
+                try {
+                    const session = await cacheClient.createSession({
+                        onPermissionRequest: approveAll,
+                        model: "claude-sonnet-5",
+                        contextTier: "default",
+                        featureFlags: { ANTHROPIC_1_HOUR_PROMPT_CACHE: oneHour },
+                        expAssignments: {
+                            Features: ["copilot_cli_anthropic_1_hour_prompt_cache"],
+                            Flights: {
+                                copilot_cli_anthropic_1_hour_prompt_cache: String(oneHour),
+                            },
+                            Configs: [
+                                {
+                                    Id: "default",
+                                    Parameters: {
+                                        copilot_cli_anthropic_1_hour_prompt_cache: oneHour,
+                                    },
+                                },
+                            ],
+                            AssignmentContext: `cache-wire-one-hour-${oneHour}`,
+                        },
+                        ...(route === "BYOK Messages"
+                            ? {
+                                  provider: {
+                                      type: "anthropic" as const,
+                                      baseUrl: "https://cache-wire-replay.invalid",
+                                      apiKey: "fake-cache-wire-key",
+                                      modelId: "claude-sonnet-5",
+                                  },
+                              }
+                            : { providers: [] }),
+                        systemMessage: {
+                            mode: "replace",
+                            content: "Reusable agent policy. ".repeat(4_096),
+                        },
+                        streaming: false,
+                        infiniteSessions: { enabled: false },
+                    });
+                    session.on((event) => events.push(event.type));
+                    phase = "initial turn";
+                    expect(
+                        (
+                            await session.sendAndWait({
+                                prompt: "Initialize the reusable conversation.",
+                            })
+                        )?.data.content
+                    ).toBe("FALLBACK_BUDGET_OK");
+                    const initial = handler.requests.at(-1)!;
+                    expect(
+                        new URL(handler.requestUrls.at(-1)!).hostname ===
+                            "cache-wire-replay.invalid"
+                    ).toBe(route === "BYOK Messages");
+                    const marker = {
+                        type: "ephemeral",
+                        ...(oneHour && route !== "BYOK Messages" ? { ttl: "1h" } : {}),
+                    };
+                    expect(systemCacheMarkers(initial)).toContainEqual(marker);
+                    expect(
+                        initial.tools?.some((tool) =>
+                            Boolean(tool.cache_control ?? tool.copilot_cache_control)
+                        )
+                    ).toBe(true);
+
+                    const beforeSampling = handler.requests.length;
+                    phase = "sampling and concurrent turn";
+                    const [sampling, concurrentTurn] = await Promise.all([
+                        session.rpc.mcp.executeSampling({
+                            requestId: "cache-wire-sampling",
+                            serverName: "cache-wire-server",
+                            mcpRequestId: "cache-wire-mcp",
+                            request: {
+                                systemPrompt: "Disposable caller-owned policy. ".repeat(4_096),
+                                messages: [
+                                    {
+                                        role: "user",
+                                        content: {
+                                            type: "text",
+                                            text: "Compute a sampling result.",
+                                        },
+                                    },
+                                ],
+                                maxTokens: 4096,
+                            },
+                        }),
+                        session.sendAndWait({
+                            prompt: "Continue while sampling runs independently.",
+                        }),
+                    ]);
+                    expect(concurrentTurn?.data.content).toBe("FALLBACK_BUDGET_OK");
+                    expect(sampling).toMatchObject({
+                        action: "success",
+                        result: { content: { type: "text", text: "FALLBACK_BUDGET_OK" } },
+                    });
+                    const concurrentRequests = handler.requests.slice(beforeSampling);
+                    expect(concurrentRequests).toHaveLength(2);
+                    const sampled = concurrentRequests.find((request) => !request.tools?.length)!;
+                    const continued = concurrentRequests.find((request) =>
+                        Boolean(request.tools?.length)
+                    )!;
+                    expect(systemCacheMarkers(sampled)).toEqual([]);
+                    expectNoConversationCacheMarkers(sampled);
+                    expect(systemCacheMarkers(continued)).toContainEqual(marker);
+
+                    phase = "handoff summary";
+                    expect(await session.rpc.history.summarizeForHandoff()).toMatchObject({
+                        summary: "FALLBACK_BUDGET_OK",
+                    });
+                    expect(systemCacheMarkers(handler.requests.at(-1)!)).toEqual([]);
+                    expectNoConversationCacheMarkers(handler.requests.at(-1)!);
+
+                    phase = "manual compaction";
+                    const completed = getNextSessionEvent(
+                        session,
+                        "session.compaction_complete",
+                        "manual cache compaction"
+                    );
+                    const [compacted, completionEvent] = await Promise.all([
+                        session.rpc.history.compact({ trigger: "manual" }),
+                        completed,
+                    ]);
+                    expect(compacted).toMatchObject({
+                        success: true,
+                        summaryContent: "FALLBACK_BUDGET_OK",
+                    });
+                    expect(completionEvent.data.compactionTokensUsed).toMatchObject({
+                        inputTokens: 150,
+                        outputTokens: 10,
+                        cacheReadTokens: 50,
+                        cacheWriteTokens: 0,
+                    });
+                    const compacting = handler.requests.at(-1)!;
+                    expect(systemCacheMarkers(compacting)).toEqual(systemCacheMarkers(initial));
+                    expect(compacting.tools).toEqual(initial.tools);
+                    expect(compacting.tool_choice).toEqual(
+                        route === "CAPI Chat" ? "none" : { type: "none" }
+                    );
+                    expectNoConversationCacheMarkers(compacting);
+
+                    phase = "post-compaction turn";
+                    expect(
+                        (await session.sendAndWait({ prompt: "Continue after compaction." }))?.data
+                            .content
+                    ).toBe("FALLBACK_BUDGET_OK");
+                    expect(systemCacheMarkers(handler.requests.at(-1)!)).toContainEqual(marker);
+                    phase = "disconnect session";
+                    await session.disconnect();
+                } finally {
+                    phase = `stop client (after ${phase})`;
+                    await cacheClient.stop();
+                }
+            }
+        );
+    });
+}
+
+describe("Disposable Anthropic prompt caching during automatic compaction", async () => {
+    const { createClient } = await createSdkTestContext({ replayOnly: true });
+    it.each(["CAPI Messages", "CAPI Chat", "BYOK Messages"] as const)(
+        "avoids discarded transcript writes during automatic compaction on %s",
+        async (route) => {
+            const handler = new RefusalBudgetReplayHandler(
+                route === "CAPI Chat" ? "/chat/completions" : "/v1/messages"
+            );
+            const cacheClient = createClient({ requestHandler: handler });
+            try {
+                const session = await cacheClient.createSession({
+                    onPermissionRequest: approveAll,
+                    model: "claude-sonnet-5",
+                    ...(route === "BYOK Messages"
+                        ? {
+                              provider: {
+                                  type: "anthropic" as const,
+                                  baseUrl: "https://cache-wire-replay.invalid",
+                                  apiKey: "fake-cache-wire-key",
+                                  modelId: "claude-sonnet-5",
+                              },
+                          }
+                        : { providers: [] }),
+                    systemMessage: {
+                        mode: "replace",
+                        content: "Reusable automatic policy. ".repeat(600),
+                    },
+                    streaming: false,
+                    infiniteSessions: {
+                        enabled: true,
+                        backgroundCompactionThreshold: 0.005,
+                        bufferExhaustionThreshold: 0.01,
+                    },
+                });
+                const completed = getNextSessionEvent(
+                    session,
+                    "session.compaction_complete",
+                    "automatic cache compaction"
+                );
+                const [, completionEvent] = await Promise.all([
+                    (async () => {
+                        expect(
+                            (
+                                await session.sendAndWait({
+                                    prompt: "Start the automatic compaction scenario.",
+                                })
+                            )?.data.content
+                        ).toBe("FALLBACK_BUDGET_OK");
+                        expect(
+                            (
+                                await session.sendAndWait({
+                                    prompt: "Continue the automatic compaction scenario.",
+                                })
+                            )?.data.content
+                        ).toBe("FALLBACK_BUDGET_OK");
+                    })(),
+                    completed,
+                ]);
+                expect(completionEvent.data).toMatchObject({
+                    success: true,
+                    summaryContent: "FALLBACK_BUDGET_OK",
+                    compactionTokensUsed: {
+                        inputTokens: 150,
+                        outputTokens: 10,
+                        cacheReadTokens: 50,
+                        cacheWriteTokens: 0,
+                    },
+                });
+                const compactions = handler.requests.filter(({ tool_choice }) =>
+                    route === "CAPI Chat"
+                        ? tool_choice === "none"
+                        : typeof tool_choice === "object" &&
+                          tool_choice !== null &&
+                          "type" in tool_choice &&
+                          tool_choice.type === "none"
+                );
+                expect(compactions.length).toBeGreaterThan(0);
+                for (const request of compactions) {
+                    expect(systemCacheMarkers(request)).not.toEqual([]);
+                    expect(request.tools).toEqual(handler.requests[0].tools);
+                    expectNoConversationCacheMarkers(request);
+                }
+                await session.disconnect();
+            } finally {
+                await cacheClient.stop();
+            }
+        }
+    );
+});
+
+describe("Disposable Anthropic prompt caching during refusal fallback", async () => {
+    const { createClient } = await createSdkTestContext({
+        replayOnly: true,
+        copilotClientOptions: {
+            env: {
+                ANTHROPIC_REFUSAL_FALLBACK: "true",
+                COPILOT_EXP_COPILOT_CLI_ANTHROPIC_REFUSAL_FALLBACK: "true",
+            },
+        },
+    });
+
+    it("preserves single-use cache intent across refusal fallback", async () => {
+        const handler = new RefusalBudgetReplayHandler();
+        const cacheClient = createClient({ requestHandler: handler });
+        try {
+            const session = await cacheClient.createSession({
+                onPermissionRequest: approveAll,
+                model: "claude-sonnet-5.5",
+                providers: [],
+                infiniteSessions: { enabled: false },
+            });
+            const sampled = await session.rpc.mcp.executeSampling({
+                requestId: "fallback-cache-sampling",
+                serverName: "cache-wire-server",
+                mcpRequestId: "fallback-cache-mcp",
+                request: {
+                    systemPrompt: "Disposable fallback policy. ".repeat(4_096),
+                    messages: [
+                        {
+                            role: "user",
+                            content: { type: "text", text: "Compute a sampling result." },
+                        },
+                    ],
+                    maxTokens: 4096,
+                },
+            });
+            expect(sampled).toMatchObject({
+                action: "success",
+                result: { content: { text: "FALLBACK_BUDGET_OK" } },
+            });
+            expect(handler.requests.map(({ model }) => model)).toEqual([
+                "claude-sonnet-5.5",
+                "claude-sonnet-5",
+            ]);
+            for (const request of handler.requests) {
+                expect(systemCacheMarkers(request)).toEqual([]);
+                expectNoConversationCacheMarkers(request);
+            }
+            await session.disconnect();
+        } finally {
+            await cacheClient.stop();
+        }
+    });
+});
+
+describe("Disposable Anthropic prompt caching during Fusion review", async () => {
+    const { createClient } = await createSdkTestContext({ replayOnly: true });
+    it("avoids tool-less critic writes without disabling the solver cache", async () => {
+        const handler = new RefusalBudgetReplayHandler("/v1/messages", true);
+        const cacheClient = createClient({ requestHandler: handler });
+        try {
+            const session = await cacheClient.createSession({
+                onPermissionRequest: approveAll,
+                model: "hydrafusion-max",
+                providers: [],
+                enableExperimentalMode: true,
+                featureFlags: {
+                    HYDRAFUSION: true,
+                    HYDRAFUSION_ROLLOUT: true,
+                    HYDRAFUSION_PLAN_V2: true,
+                },
+                expAssignments: {
+                    Features: [],
+                    Flights: {},
+                    Configs: [],
+                    AssignmentContext: "cache-wire-fusion-review",
+                },
+                infiniteSessions: { enabled: false },
+            });
+            const events: SessionEvent[] = [];
+            expect((await session.rpc.model.getCurrent()).modelId).toBe("hydrafusion-max");
+            const unsubscribe = session.on((event) => events.push(event));
+            try {
+                expect(
+                    (
+                        await session.sendAndWait({
+                            prompt: "Answer the cache policy review scenario without using tools.",
+                        })
+                    )?.data.content
+                ).toBe("FALLBACK_BUDGET_OK");
+                expect(
+                    events.filter((event) => event.type === "session.fusion_route_failed")
+                ).toEqual([]);
+                expect(
+                    events
+                        .filter((event) => event.type === "assistant.fusion_phase_completed")
+                        .map((event) => event.data.phaseKind)
+                ).toEqual(["draft", "critic"]);
+                expect(handler.requests).toHaveLength(2);
+                expect(systemCacheMarkers(handler.requests[0])).not.toEqual([]);
+                expect(handler.requests[0].tools?.length).toBeGreaterThan(0);
+                const critic = handler.requests[1];
+                expect(critic.model).toBe("claude-opus-5");
+                expect(critic.tools ?? []).toEqual([]);
+                expect(systemCacheMarkers(critic)).toEqual([]);
+                expectNoConversationCacheMarkers(critic);
+            } finally {
+                unsubscribe();
+                await session.disconnect();
+            }
+        } finally {
+            await cacheClient.stop();
+        }
+    });
+});
 
 class BudgetReplayHandler extends CopilotRequestHandler {
     readonly requests: unknown[] = [];

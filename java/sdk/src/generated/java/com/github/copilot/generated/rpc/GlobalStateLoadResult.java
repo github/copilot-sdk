@@ -58,8 +58,6 @@ record GlobalStateLoadResult(
     @JsonProperty("staffUpdateChannelMigrationAt") String staffUpdateChannelMigrationAt,
     /** Folders the user has marked as trusted. */
     @JsonProperty("trustedFolders") List<String> trustedFolders,
-    /** Whether the user has answered the prompt suggesting they install the desktop app. */
-    @JsonProperty("appInstallNudgeResponded") Boolean appInstallNudgeResponded,
     /** When the Auto-feedback hint was last shown, as an ISO 8601 timestamp. It enforces the once-per-day cap for non-staff users across restarts. */
     @JsonProperty("autoFeedbackLastPromptedAt") String autoFeedbackLastPromptedAt
 ) {

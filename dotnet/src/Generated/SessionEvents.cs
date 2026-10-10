@@ -7365,7 +7365,7 @@ public sealed partial class SessionManagedPluginProgressData
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public sealed partial class SessionManagedSettingsResolvedData
 {
-    /// <summary>Whether enterprise policy disables bypass-permissions ("yolo") mode for this session. Deny-wins across layers, and forced on when `failClosed` is true.</summary>
+    /// <summary>Whether an explicit enterprise policy restriction disables bypass-permissions ("yolo") mode for this session. Deny-wins across layers; an unresolved policy does not force this on by itself.</summary>
     [JsonPropertyName("bypassPermissionsDisabled")]
     public required bool BypassPermissionsDisabled { get; set; }
 
@@ -7378,7 +7378,7 @@ public sealed partial class SessionManagedSettingsResolvedData
     [JsonPropertyName("deviceManaged")]
     public required bool DeviceManaged { get; set; }
 
-    /// <summary>Whether managed policy could not be determined (e.g. a failed server fetch) and the session fell back to the fail-closed restriction. When true, restrictions such as disabling bypass-permissions are enforced even though `settings` may be absent.</summary>
+    /// <summary>Whether managed policy could not be determined (e.g. a failed server fetch) and unresolved-policy safeguards remain active. This does not by itself disable bypass-permissions; `bypassPermissionsDisabled` reports only an explicit policy restriction.</summary>
     [JsonPropertyName("failClosed")]
     public required bool FailClosed { get; set; }
 

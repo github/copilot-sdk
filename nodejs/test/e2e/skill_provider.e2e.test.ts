@@ -6,10 +6,11 @@ import { execFileSync } from "child_process";
 import * as fs from "fs";
 import * as path from "path";
 import { fileURLToPath } from "url";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, onTestFinished } from "vitest";
 import {
     approveAll,
     RuntimeConnection,
+    type SessionConfig,
     type SessionEvent,
     type SkillProvider,
     type SkillProviderDescriptor,
@@ -50,7 +51,12 @@ function skill(name: string, description: string, markdown: string): ProvidedSki
 }
 
 describe("Skill providers", async () => {
-    const { copilotClient: client, workDir } = await createSdkTestContext();
+    const {
+        copilotClient: client,
+        createClient,
+        openAiEndpoint,
+        workDir,
+    } = await createSdkTestContext();
 
     it("should load provider skill lazily through skill tool", async () => {
         // Body-only content: the catalog descriptor supplies all of the metadata.
@@ -173,6 +179,83 @@ describe("Skill providers", async () => {
         } finally {
             await session.disconnect();
         }
+    });
+
+    it("should preserve skill prompt bytes across cold resume with reordered discovery", async () => {
+        const directories = ["custom-b", "custom-a"].map((name) => {
+            const directory = path.join(workDir, name);
+            fs.mkdirSync(directory, { recursive: true });
+            fs.writeFileSync(
+                path.join(directory, "SKILL.md"),
+                `---\nname: ${name}\ndescription: An ordering fixture.\n---\nOrdering fixture.\n`
+            );
+            return directory;
+        });
+        const provided = ["provider-c", "provider-a", "provider-b"].map((name) =>
+            skill(name, "An ordering fixture.", "Ordering fixture.\n")
+        );
+        const config = {
+            model: "claude-sonnet-5",
+            onPermissionRequest: approveAll,
+            availableTools: ["skill"],
+            enableConfigDiscovery: false,
+            includedBuiltinSkills: [],
+            skipCustomInstructions: true,
+            skipEmbeddingRetrieval: true,
+        } satisfies SessionConfig;
+        const first = createClient({ connection: RuntimeConnection.forStdio() });
+        onTestFinished(() => first.stop());
+        const session = await first.createSession({
+            ...config,
+            skillProvider: new TestSkillProvider(provided),
+            skillDirectories: directories,
+        });
+        const response = await session.sendAndWait({
+            prompt: "Without using tools, reply with exactly SKILL_ORDER_INITIAL_OK.",
+        });
+        // Validate the final assistant response arrived (guards against truncated captures)
+        expect(response?.data.content).toContain("SKILL_ORDER_INITIAL_OK");
+        const beforeRequests = await openAiEndpoint.getRequests();
+        const beforeBlocks = beforeRequests.flatMap(
+            (request) =>
+                request.body.match(/<available_skills>\\n[\s\S]*?<\/available_skills>/g) ?? []
+        );
+        expect(beforeBlocks.length).toBeGreaterThan(0);
+        for (const block of beforeBlocks) {
+            for (const name of [
+                ...provided.map((entry) => entry.descriptor.name),
+                "custom-a",
+                "custom-b",
+            ]) {
+                expect(block).toContain(`<name>${name}</name>`);
+            }
+            expect(block.indexOf("<name>provider-c</name>")).toBeLessThan(
+                block.indexOf("<name>custom-a</name>")
+            );
+        }
+        await session.disconnect();
+        expect(await first.stop()).toHaveLength(0);
+
+        const second = createClient({ connection: RuntimeConnection.forStdio() });
+        onTestFinished(() => second.stop());
+        const resumed = await second.resumeSession(session.sessionId, {
+            ...config,
+            skillProvider: new TestSkillProvider([provided[2], provided[0], provided[1]]),
+            skillDirectories: [...directories].reverse(),
+        });
+        const resumedResponse = await resumed.sendAndWait({
+            prompt: "Without using tools, reply with exactly SKILL_ORDER_RESUMED_OK.",
+        });
+        // Validate the final assistant response arrived (guards against truncated captures)
+        expect(resumedResponse?.data.content).toContain("SKILL_ORDER_RESUMED_OK");
+        const afterBlocks = (await openAiEndpoint.getRequests())
+            .slice(beforeRequests.length)
+            .flatMap(
+                (request) =>
+                    request.body.match(/<available_skills>\\n[\s\S]*?<\/available_skills>/g) ?? []
+            );
+        expect(afterBlocks).toEqual(beforeBlocks);
+        await resumed.disconnect();
     });
 
     it("should report provider read failure without leaking details", async () => {

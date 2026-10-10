@@ -24,6 +24,8 @@ public final class ServerMcpApi {
 
     /** API methods for the {@code mcp.config} sub-namespace. */
     public final ServerMcpConfigApi config;
+    /** API methods for the {@code mcp.registry} sub-namespace. */
+    final ServerMcpRegistryApi registry;
     /** API methods for the {@code mcp.installations} sub-namespace. */
     public final ServerMcpInstallationsApi installations;
 
@@ -31,6 +33,7 @@ public final class ServerMcpApi {
     ServerMcpApi(RpcCaller caller) {
         this.caller = caller;
         this.config = new ServerMcpConfigApi(caller);
+        this.registry = new ServerMcpRegistryApi(caller);
         this.installations = new ServerMcpInstallationsApi(caller);
     }
 
@@ -43,6 +46,17 @@ public final class ServerMcpApi {
     @CopilotExperimental
     public CompletableFuture<McpDiscoverResult> discover(McpDiscoverParams params) {
         return caller.invoke("mcp.discover", params, McpDiscoverResult.class);
+    }
+
+    /**
+     * Reports whether the gh-replaceable GitHub MCP tools may be clipped for a session, which a host feeds back as the `excludeGhReplaceableTools` build option. The tools are redundant only when the session can reach a shell *and* the host has the `gh` that would replace them, so both halves are decided here. The shell half runs the platform shell tool through the runtime's own tool-filter matcher, so entry forms like `builtin:bash` and `builtin:*` behave exactly as they do when a session builds its tool catalog. The host half probes for `gh`, and is skipped entirely when the filters already rule the shell out. Host presence alone is not enough: a session restricted to, say, `view` would otherwise lose the built-in issue-read fallback while having no shell to replace it with. The answer describes the host the runtime runs on, so it is never forwarded to a remote engine.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    CompletableFuture<McpShouldExcludeGitHubToolsResult> shouldExcludeGitHubTools(McpShouldExcludeGitHubToolsParams params) {
+        return caller.invoke("mcp.shouldExcludeGitHubTools", params, McpShouldExcludeGitHubToolsResult.class);
     }
 
     /**

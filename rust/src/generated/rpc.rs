@@ -1452,7 +1452,7 @@ impl<'a> ClientRpcGlobalState<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
-    /// Records one top-level key in the host's machine-wide state, the counterpart to `globalState.load`. A host calls this to remember that it has shown an onboarding step, asked a one-off question, or completed a migration, so the next run can skip it. Only the named key is replaced and the rest of the document is preserved, which lets two writers record different flags without overwriting each other; passing no value removes the key instead. Only the keys a host records itself are writable: `appInstallNudgeResponded`, `appTipShown`, `askedSetupTerminals`, `autoFeedbackLastPromptedAt`, `firstLaunchAt`, `recentModelIds`, `sandboxCredentialProxyCaDeclined` and `sandboxOnboardingShown`. Every other key is refused, including `installedPlugins`, the stored credentials, `trustedFolders`, the staff flags and the signed-in accounts. Plugin enablement must use the plugin APIs, which apply repository and managed-policy checks.
+    /// Records one top-level key in the host's machine-wide state, the counterpart to `globalState.load`. A host calls this to remember that it has shown an onboarding step, asked a one-off question, or completed a migration, so the next run can skip it. Only the named key is replaced and the rest of the document is preserved, which lets two writers record different flags without overwriting each other; passing no value removes the key instead. Only the keys a host records itself are writable: `appTipShown`, `askedSetupTerminals`, `autoFeedbackLastPromptedAt`, `firstLaunchAt`, `recentModelIds`, `sandboxCredentialProxyCaDeclined` and `sandboxOnboardingShown`. Every other key is refused, including `installedPlugins`, the stored credentials, `trustedFolders`, the staff flags and the signed-in accounts. Plugin enablement must use the plugin APIs, which apply repository and managed-policy checks.
     ///
     /// Wire method: `globalState.writeKey`.
     ///
@@ -2254,6 +2254,13 @@ impl<'a> ClientRpcMcp<'a> {
         }
     }
 
+    /// `mcp.registry.*` sub-namespace.
+    pub fn registry(&self) -> ClientRpcMcpRegistry<'a> {
+        ClientRpcMcpRegistry {
+            client: self.client,
+        }
+    }
+
     /// Discovers MCP servers from user, workspace, plugin, and builtin sources.
     ///
     /// Wire method: `mcp.discover`.
@@ -2278,6 +2285,37 @@ impl<'a> ClientRpcMcp<'a> {
         let _value = self
             .client
             .call(rpc_methods::MCP_DISCOVER, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Reports whether the gh-replaceable GitHub MCP tools may be clipped for a session, which a host feeds back as the `excludeGhReplaceableTools` build option. The tools are redundant only when the session can reach a shell *and* the host has the `gh` that would replace them, so both halves are decided here. The shell half runs the platform shell tool through the runtime's own tool-filter matcher, so entry forms like `builtin:bash` and `builtin:*` behave exactly as they do when a session builds its tool catalog. The host half probes for `gh`, and is skipped entirely when the filters already rule the shell out. Host presence alone is not enough: a session restricted to, say, `view` would otherwise lose the built-in issue-read fallback while having no shell to replace it with. The answer describes the host the runtime runs on, so it is never forwarded to a remote engine.
+    ///
+    /// Wire method: `mcp.shouldExcludeGitHubTools`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - The session tool filters that decide whether the session still has a shell to run `gh` with.
+    ///
+    /// # Returns
+    ///
+    /// Whether the gh-replaceable GitHub MCP tools may be clipped for the session described by the request.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn should_exclude_git_hub_tools(
+        &self,
+        params: McpShouldExcludeGitHubToolsRequest,
+    ) -> Result<McpShouldExcludeGitHubToolsResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::MCP_SHOULDEXCLUDEGITHUBTOOLS, Some(wire_params))
             .await?;
         Ok(serde_json::from_value(_value)?)
     }
@@ -2770,6 +2808,103 @@ impl<'a> ClientRpcMcpInstallations<'a> {
         let _value = self
             .client
             .call(rpc_methods::MCP_INSTALLATIONS_CANCEL, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+}
+
+/// `mcp.registry.*` RPCs.
+#[derive(Clone, Copy)]
+pub struct ClientRpcMcpRegistry<'a> {
+    pub(crate) client: &'a Client,
+}
+
+impl<'a> ClientRpcMcpRegistry<'a> {
+    /// Allocates an ID for one cancellable MCP registry search. The ID exists before the search starts, so callers can cancel before it starts. The networking stack supplies the cancellation namespace. The runtime retains at most 1,024 unused IDs. At capacity, another allocation can reclaim an unused ID. Active searches retain their IDs until they finish.
+    ///
+    /// Wire method: `mcp.registry.allocateRequestId`.
+    ///
+    /// # Returns
+    ///
+    /// Request id naming a cancellable registry search.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn allocate_request_id(&self) -> Result<McpRegistryRequestIdResult, Error> {
+        let wire_params = serde_json::json!({});
+        let _value = self
+            .client
+            .call(
+                rpc_methods::MCP_REGISTRY_ALLOCATEREQUESTID,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Searches the MCP registry the supplied credential may read, resolving the registry endpoint from policy first. Hosts usually send credential-free `AuthIdentity`; a `token` identity can be resolved only when it embeds a token, while `env` and `gh-cli` identities can use a token embedded in the request first. The runtime follows registry pages, keeps the newest entry per server name, cuts the list to `limit`, and sorts an empty-query result by GitHub stars. Each server object is carried opaquely.
+    ///
+    /// Wire method: `mcp.registry.search`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Registry search terms, the credential to search under, and the request id that makes the search cancellable.
+    ///
+    /// # Returns
+    ///
+    /// Servers selected from the registry response.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn search(
+        &self,
+        params: McpRegistrySearchRequest,
+    ) -> Result<McpRegistrySearchResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::MCP_REGISTRY_SEARCH, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Abandons the registry search that uses the given request ID. It acts only on IDs from `mcp.registry.allocateRequestId`, so it never cancels another component's request. Answers `canceled: true` when it stops a running search. Answers `canceled: false` for unknown or reclaimed IDs, completed or canceled searches, and unused reservations. It releases an unused reservation, so a later search with that ID is refused.
+    ///
+    /// Wire method: `mcp.registry.cancel`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Registry search to abandon.
+    ///
+    /// # Returns
+    ///
+    /// Whether the cancel reached a live search.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn cancel(
+        &self,
+        params: McpRegistryCancelRequest,
+    ) -> Result<McpRegistryCancelResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::MCP_REGISTRY_CANCEL, Some(wire_params))
             .await?;
         Ok(serde_json::from_value(_value)?)
     }
@@ -13650,6 +13785,36 @@ impl<'a> SessionRpcSandbox<'a> {
             .client()
             .call(
                 rpc_methods::SESSION_SANDBOX_GETENFORCEMENTSTATUS,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Lists possible secret-bearing environment variables available to new sandboxed shells that are not already covered by credential masking. Uses local name rules and known-provider host suggestions, never returns secret values, and changes no settings or network permissions. Returns no suggestions while the session is not sandboxed.
+    ///
+    /// Wire method: `session.sandbox.getCredentialSuggestions`.
+    ///
+    /// # Returns
+    ///
+    /// Possible unconfigured secrets in the sandbox shell environment, sorted by variable name, with no secret values.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn get_credential_suggestions(
+        &self,
+    ) -> Result<SandboxCredentialSuggestionsResult, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_SANDBOX_GETCREDENTIALSUGGESTIONS,
                 Some(wire_params),
             )
             .await?;

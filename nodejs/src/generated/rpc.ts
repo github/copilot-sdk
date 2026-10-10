@@ -3597,6 +3597,18 @@ export type McpSetEnvValueModeDetails =
   /** Treat MCP server environment values as host-side references to resolve before launch. */
   | "indirect";
 /**
+ * Controls how availableTools (allowlist) and excludedTools (denylist) combine when both are set.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "OptionsUpdateToolFilterPrecedence".
+ */
+/** @experimental */
+export type OptionsUpdateToolFilterPrecedence =
+  /** If availableTools is set, it is the only constraint that applies (excludedTools is ignored). Preserves CLI / pre-existing client behavior. Default. */
+  | "available"
+  /** A tool is enabled if and only if it matches the allowlist (or the allowlist is unset) AND it does not match the denylist. Makes 'all except X' expressible by combining the two lists. */
+  | "excluded";
+/**
  * Per-source context-window attribution, or null if the session has not yet been initialized (no system prompt or tool metadata cached).
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -4107,18 +4119,6 @@ export type OptionsUpdateReasoningSummary =
   | "concise"
   /** Request a detailed summary of model reasoning. */
   | "detailed";
-/**
- * Controls how availableTools (allowlist) and excludedTools (denylist) combine when both are set.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "OptionsUpdateToolFilterPrecedence".
- */
-/** @experimental */
-export type OptionsUpdateToolFilterPrecedence =
-  /** If availableTools is set, it is the only constraint that applies (excludedTools is ignored). Preserves CLI / pre-existing client behavior. Default. */
-  | "available"
-  /** A tool is enabled if and only if it matches the allowlist (or the allowlist is unset) AND it does not match the denylist. Makes 'all except X' expressible by combining the two lists. */
-  | "excluded";
 /**
  * The client's response to the pending permission prompt
  *
@@ -12577,10 +12577,6 @@ export interface GlobalStateLoadResult {
    */
   trustedFolders?: string[];
   /**
-   * Whether the user has answered the prompt suggesting they install the desktop app.
-   */
-  appInstallNudgeResponded?: boolean;
-  /**
    * When the Auto-feedback hint was last shown, as an ISO 8601 timestamp. It enforces the once-per-day cap for non-staff users across restarts.
    */
   autoFeedbackLastPromptedAt?: string;
@@ -17091,6 +17087,92 @@ export interface McpRegisterExternalClientRequest {
   config: OpaqueInProcessValue;
 }
 /**
+ * Registry search to abandon.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpRegistryCancelRequest".
+ */
+/** @experimental */
+/** @internal */
+export interface McpRegistryCancelRequest {
+  /**
+   * Request ID from `mcp.registry.allocateRequestId` that the search uses.
+   */
+  requestId: number;
+}
+/**
+ * Whether the cancel reached a live search.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpRegistryCancelResult".
+ */
+/** @experimental */
+/** @internal */
+export interface McpRegistryCancelResult {
+  /**
+   * True when the cancel stopped a running search. False for unknown or reclaimed IDs, completed or canceled searches, and unused reservations. The cancel releases an unused reservation.
+   */
+  canceled: boolean;
+}
+/**
+ * Request id naming a cancellable registry search.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpRegistryRequestIdResult".
+ */
+/** @experimental */
+/** @internal */
+export interface McpRegistryRequestIdResult {
+  /**
+   * Request ID for `mcp.registry.search` and `mcp.registry.cancel`. It serves one search. Allocation can reclaim unused IDs at the 1,024-ID reservation limit.
+   */
+  requestId: number;
+}
+/**
+ * Registry search terms, the credential to search under, and the request id that makes the search cancellable.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpRegistrySearchRequest".
+ */
+/** @experimental */
+/** @internal */
+export interface McpRegistrySearchRequest {
+  /**
+   * Request ID from `mcp.registry.allocateRequestId`. The search refuses unknown, reclaimed, or canceled IDs and IDs that another search or request already uses.
+   */
+  requestId: number;
+  /**
+   * The credential the search runs under, carried opaquely. Hosts usually send credential-free `AuthIdentity`; a `token` identity can be resolved only when it embeds a token, while `env` and `gh-cli` identities can use a token embedded in the request first.
+   */
+  authInfo: JsonValue;
+  /**
+   * Free-text query. Omitted or empty asks the registry for its top servers rather than searching. A value that is not a string is refused.
+   */
+  query?: string;
+  /**
+   * Repository used for the policy lookup, as `owner/name`. The policy selects the registry URL and whether the user token goes to the registry. The registry receives this repository only when the policy entry lists it as required context. A value that is not a string is refused.
+   */
+  repository?: string;
+  /**
+   * Maximum number of servers to return.
+   */
+  limit: number;
+}
+/**
+ * Servers selected from the registry response.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpRegistrySearchResult".
+ */
+/** @experimental */
+/** @internal */
+export interface McpRegistrySearchResult {
+  /**
+   * The server objects, carried opaquely. The runtime follows pages, keeps the newest entry per server name, cuts the list to `limit`, and sorts an empty-query result by GitHub stars. Each server object remains unchanged because the registry owns that shape.
+   */
+  servers: JsonValue;
+}
+/**
  * In-process MCP reload configuration.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -17623,6 +17705,42 @@ export interface McpSetEnvValueModeParams {
 /** @experimental */
 export interface McpSetEnvValueModeResult {
   mode: McpSetEnvValueModeDetails;
+}
+/**
+ * The session tool filters that decide whether the session still has a shell to run `gh` with.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpShouldExcludeGitHubToolsRequest".
+ */
+/** @experimental */
+/** @internal */
+export interface McpShouldExcludeGitHubToolsRequest {
+  /**
+   * The session's tool allowlist, when it set one. Omitted means the session constrains nothing this way.
+   */
+  availableTools?: string[];
+  /**
+   * The session's tool denylist, when it set one. Omitted means the session constrains nothing this way.
+   */
+  excludedTools?: string[];
+  /**
+   * How the allowlist and denylist combine when both are set. Omitted means the default every session gets, so a caller that never chose a precedence is answered as its sessions behave.
+   */
+  toolFilterPrecedence?: OptionsUpdateToolFilterPrecedence | null;
+}
+/**
+ * Whether the gh-replaceable GitHub MCP tools may be clipped for the session described by the request.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpShouldExcludeGitHubToolsResult".
+ */
+/** @experimental */
+/** @internal */
+export interface McpShouldExcludeGitHubToolsResult {
+  /**
+   * True only when both halves hold: the session's filters still reach the platform shell tool, and the host actually has the `gh` those tools would be replaced by. Feed it straight back as the `excludeGhReplaceableTools` build option.
+   */
+  excludeGhReplaceableTools: boolean;
 }
 /**
  * Server name and optional configuration for an individual MCP server start. Omit `config` for a config-free start-by-name of an already-configured server.
@@ -23195,6 +23313,36 @@ export interface SandboxMaskedEnvVar {
    * Nonempty list of HTTPS injection hostnames or *.example.com patterns. Bare * is not accepted. These grants never override the sandbox network policy. Values in plaintext HTTP requests, URLs, bodies, encoded credentials, and signed requests are not substituted.
    */
   injectHosts: string[];
+}
+/**
+ * A possible secret-bearing environment variable and optional locally suggested HTTPS injection hosts. This is a draft for user review, not an active grant.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SandboxCredentialSuggestion".
+ */
+/** @experimental */
+export interface SandboxCredentialSuggestion {
+  /**
+   * Environment variable name. The secret value is never returned.
+   */
+  name: string;
+  /**
+   * HTTPS hostnames suggested by a local known-provider mapping. An empty list requires the user to supply injection hosts before adding a masking entry. These suggestions do not allow network access.
+   */
+  suggestedInjectHosts: string[];
+}
+/**
+ * Possible unconfigured secrets in the sandbox shell environment, sorted by variable name, with no secret values.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SandboxCredentialSuggestionsResult".
+ */
+/** @experimental */
+export interface SandboxCredentialSuggestionsResult {
+  /**
+   * Candidates for user review. Empty when sandboxing is disabled or no unconfigured candidates are present.
+   */
+  suggestions: SandboxCredentialSuggestion[];
 }
 /**
  * Request to disable sandboxing for the current session while resolving an active sandbox-bypass permission prompt.
@@ -33275,6 +33423,46 @@ export function createInternalServerRpc(connection: MessageConnection) {
         connect: async (params: ConnectRequest): Promise<ConnectResult> =>
             connection.sendRequest("connect", params),
         /** @experimental */
+        mcp: {
+            /** @experimental */
+            registry: {
+                /**
+                 * Allocates an ID for one cancellable MCP registry search. The ID exists before the search starts, so callers can cancel before it starts. The networking stack supplies the cancellation namespace. The runtime retains at most 1,024 unused IDs. At capacity, another allocation can reclaim an unused ID. Active searches retain their IDs until they finish.
+                 *
+                 * @returns Request id naming a cancellable registry search.
+                 */
+                allocateRequestId: async (): Promise<McpRegistryRequestIdResult> =>
+                    connection.sendRequest("mcp.registry.allocateRequestId", {}),
+                /**
+                 * Searches the MCP registry the supplied credential may read, resolving the registry endpoint from policy first. Hosts usually send credential-free `AuthIdentity`; a `token` identity can be resolved only when it embeds a token, while `env` and `gh-cli` identities can use a token embedded in the request first. The runtime follows registry pages, keeps the newest entry per server name, cuts the list to `limit`, and sorts an empty-query result by GitHub stars. Each server object is carried opaquely.
+                 *
+                 * @param params Registry search terms, the credential to search under, and the request id that makes the search cancellable.
+                 *
+                 * @returns Servers selected from the registry response.
+                 */
+                search: async (params: McpRegistrySearchRequest): Promise<McpRegistrySearchResult> =>
+                    connection.sendRequest("mcp.registry.search", params),
+                /**
+                 * Abandons the registry search that uses the given request ID. It acts only on IDs from `mcp.registry.allocateRequestId`, so it never cancels another component's request. Answers `canceled: true` when it stops a running search. Answers `canceled: false` for unknown or reclaimed IDs, completed or canceled searches, and unused reservations. It releases an unused reservation, so a later search with that ID is refused.
+                 *
+                 * @param params Registry search to abandon.
+                 *
+                 * @returns Whether the cancel reached a live search.
+                 */
+                cancel: async (params: McpRegistryCancelRequest): Promise<McpRegistryCancelResult> =>
+                    connection.sendRequest("mcp.registry.cancel", params),
+            },
+            /**
+             * Reports whether the gh-replaceable GitHub MCP tools may be clipped for a session, which a host feeds back as the `excludeGhReplaceableTools` build option. The tools are redundant only when the session can reach a shell *and* the host has the `gh` that would replace them, so both halves are decided here. The shell half runs the platform shell tool through the runtime's own tool-filter matcher, so entry forms like `builtin:bash` and `builtin:*` behave exactly as they do when a session builds its tool catalog. The host half probes for `gh`, and is skipped entirely when the filters already rule the shell out. Host presence alone is not enough: a session restricted to, say, `view` would otherwise lose the built-in issue-read fallback while having no shell to replace it with. The answer describes the host the runtime runs on, so it is never forwarded to a remote engine.
+             *
+             * @param params The session tool filters that decide whether the session still has a shell to run `gh` with.
+             *
+             * @returns Whether the gh-replaceable GitHub MCP tools may be clipped for the session described by the request.
+             */
+            shouldExcludeGitHubTools: async (params: McpShouldExcludeGitHubToolsRequest): Promise<McpShouldExcludeGitHubToolsResult> =>
+                connection.sendRequest("mcp.shouldExcludeGitHubTools", params),
+        },
+        /** @experimental */
         agents: {
             /**
              * Lists the agents this runtime ships, by name. A consumer separating shipped agents from ones the user or a plugin authored should compare against these names rather than against `AgentInfo.source`: an authored agent may carry the `builtin` source while not being one of these, and the runtime treats the two as separate questions. `disableableNames` is the subset a user may turn off, which a client needs to decide whether to offer a toggle. `yamlBasedNames` is the subset backed by a shipped YAML definition, which a client needs before asking the runtime to load one.
@@ -33339,7 +33527,7 @@ export function createInternalServerRpc(connection: MessageConnection) {
             loadForConfigDir: async (params: GlobalStateLoadForConfigDirRequest): Promise<GlobalStateLoadResult> =>
                 connection.sendRequest("globalState.loadForConfigDir", params),
             /**
-             * Records one top-level key in the host's machine-wide state, the counterpart to `globalState.load`. A host calls this to remember that it has shown an onboarding step, asked a one-off question, or completed a migration, so the next run can skip it. Only the named key is replaced and the rest of the document is preserved, which lets two writers record different flags without overwriting each other; passing no value removes the key instead. Only the keys a host records itself are writable: `appInstallNudgeResponded`, `appTipShown`, `askedSetupTerminals`, `autoFeedbackLastPromptedAt`, `firstLaunchAt`, `recentModelIds`, `sandboxCredentialProxyCaDeclined` and `sandboxOnboardingShown`. Every other key is refused, including `installedPlugins`, the stored credentials, `trustedFolders`, the staff flags and the signed-in accounts. Plugin enablement must use the plugin APIs, which apply repository and managed-policy checks.
+             * Records one top-level key in the host's machine-wide state, the counterpart to `globalState.load`. A host calls this to remember that it has shown an onboarding step, asked a one-off question, or completed a migration, so the next run can skip it. Only the named key is replaced and the rest of the document is preserved, which lets two writers record different flags without overwriting each other; passing no value removes the key instead. Only the keys a host records itself are writable: `appTipShown`, `askedSetupTerminals`, `autoFeedbackLastPromptedAt`, `firstLaunchAt`, `recentModelIds`, `sandboxCredentialProxyCaDeclined` and `sandboxOnboardingShown`. Every other key is refused, including `installedPlugins`, the stored credentials, `trustedFolders`, the staff flags and the signed-in accounts. Plugin enablement must use the plugin APIs, which apply repository and managed-policy checks.
              *
              * @param params A single top-level key to record in the host's machine-wide state. The write replaces only that key and leaves the rest of the document untouched, so two writers recording different one-off flags do not overwrite each other. The stored credential keys cannot be written through this method.
              */
@@ -33598,6 +33786,13 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
              */
             getEnforcementStatus: async (): Promise<SandboxEnforcementStatus> =>
                 connection.sendRequest("session.sandbox.getEnforcementStatus", { sessionId }),
+            /**
+             * Lists possible secret-bearing environment variables available to new sandboxed shells that are not already covered by credential masking. Uses local name rules and known-provider host suggestions, never returns secret values, and changes no settings or network permissions. Returns no suggestions while the session is not sandboxed.
+             *
+             * @returns Possible unconfigured secrets in the sandbox shell environment, sorted by variable name, with no secret values.
+             */
+            getCredentialSuggestions: async (): Promise<SandboxCredentialSuggestionsResult> =>
+                connection.sendRequest("session.sandbox.getCredentialSuggestions", { sessionId }),
             /**
              * Disables sandboxing for the remainder of the current session and approves the referenced pending sandbox-bypass permission request. The request is rejected unless the exact request is still pending and the effective sandbox policy permits bypass.
              *
