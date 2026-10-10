@@ -38,20 +38,27 @@ Usage totals belong to a session, not the active account. In the CLI, switching 
 > [!NOTE]
 > `session.quota`, `session.usage.getMetrics`, `session.metadata.contextInfo`, and `session.metadata.recomputeContextTokens` are marked experimental in the generated RPC surface. In .NET they raise the `GHCP001` experimental diagnostic, which you suppress with `#pragma warning disable GHCP001` or a project-level `<NoWarn>GHCP001</NoWarn>`. Pin both the SDK and the Copilot CLI runtime if your application depends on them.
 
-The field tables below list only the fields used in the examples on this page. The complete, always-current field reference is the generated SDK types plus [Streaming events](./streaming-events.md), which is regenerated from the CLI schema on every dependency bump. Treat those as the source of truth and this page as a task-oriented guide.
+The field tables below highlight the usage data covered on this page. The complete, always-current field reference is the generated SDK types plus [Streaming events](./streaming-events.md), which is regenerated from the CLI schema on every dependency bump. Treat those as the source of truth and this page as a task-oriented guide.
 
 ## Per-call token counts
 
 The `assistant.usage` event is emitted once for every model API call in a turn (including calls made by sub-agents). It carries the token counts and the billing multiplier for that single call.
 
-The example below uses these fields. See [Streaming events](./streaming-events.md#assistantusage) for the full list, including cache, reasoning, latency, and tracing fields.
+The example below uses these fields. See [Streaming events](./streaming-events.md#assistantusage) for the full list, including reasoning, latency, and tracing fields.
 
 | Field | Type | Description |
 |---|---|---|
 | `model` | `string` | Model identifier for this call |
 | `inputTokens` | `number` | Input tokens consumed |
 | `outputTokens` | `number` | Output tokens produced |
+| `cacheReadTokens` | `number` (optional) | Tokens read from the prompt cache for this call |
+| `cacheWriteTokens` | `number` (optional) | Tokens written to the prompt cache for this call |
 | `cost` | `number` | Premium request multiplier applied to this call |
+
+An absent cache count means no value was reported. The examples display `n/a` for an absent count and preserve a reported zero. The accumulated equivalents are `modelMetrics[model].usage.cacheReadTokens` and `modelMetrics[model].usage.cacheWriteTokens` in `session.usage.getMetrics`.
+
+> [!NOTE]
+> These examples display the token categories separately. They do not define whether `inputTokens` includes cache reads or writes. Confirm that accounting convention with the runtime or provider before adding or subtracting these values, estimating charges, or comparing them with another SDK's token counts.
 
 > [!TIP]
 > `assistant.usage` is ephemeral, so it is delivered live but not replayed when you resume a session. To read accumulated totals after the fact, call `session.usage.getMetrics` (see [Accumulated AI credit and token totals](#accumulated-ai-credit-and-token-totals)).
@@ -68,8 +75,10 @@ const session = await client.createSession({ streaming: true });
 
 session.on("assistant.usage", (event) => {
     const { model, inputTokens, outputTokens, cost } = event.data;
+    const { cacheReadTokens, cacheWriteTokens } = event.data;
     console.log(
-        `${model}: in=${inputTokens ?? 0} out=${outputTokens ?? 0} cost=${cost ?? 0}`,
+        `${model}: in=${inputTokens ?? 0} out=${outputTokens ?? 0} ` +
+            `cache_read=${cacheReadTokens ?? "n/a"} cache_write=${cacheWriteTokens ?? "n/a"} cost=${cost ?? 0}`,
     );
 });
 ```
@@ -78,8 +87,10 @@ session.on("assistant.usage", (event) => {
 ```typescript
 session.on("assistant.usage", (event) => {
     const { model, inputTokens, outputTokens, cost } = event.data;
+    const { cacheReadTokens, cacheWriteTokens } = event.data;
     console.log(
-        `${model}: in=${inputTokens ?? 0} out=${outputTokens ?? 0} cost=${cost ?? 0}`,
+        `${model}: in=${inputTokens ?? 0} out=${outputTokens ?? 0} ` +
+            `cache_read=${cacheReadTokens ?? "n/a"} cache_write=${cacheWriteTokens ?? "n/a"} cost=${cost ?? 0}`,
     );
 });
 ```
@@ -100,7 +111,12 @@ session = await client.create_session(streaming=True)
 def on_usage(event):
     if event.type == SessionEventType.ASSISTANT_USAGE:
         data = event.data
-        print(f"{data.model}: in={data.input_tokens or 0} out={data.output_tokens or 0} cost={data.cost or 0}")
+        cache_read = data.cache_read_tokens if data.cache_read_tokens is not None else "n/a"
+        cache_write = data.cache_write_tokens if data.cache_write_tokens is not None else "n/a"
+        print(
+            f"{data.model}: in={data.input_tokens or 0} out={data.output_tokens or 0} "
+            f"cache_read={cache_read} cache_write={cache_write} cost={data.cost or 0}"
+        )
 
 session.on(on_usage)
 ```
@@ -110,7 +126,12 @@ session.on(on_usage)
 def on_usage(event):
     if event.type == SessionEventType.ASSISTANT_USAGE:
         data = event.data
-        print(f"{data.model}: in={data.input_tokens or 0} out={data.output_tokens or 0} cost={data.cost or 0}")
+        cache_read = data.cache_read_tokens if data.cache_read_tokens is not None else "n/a"
+        cache_write = data.cache_write_tokens if data.cache_write_tokens is not None else "n/a"
+        print(
+            f"{data.model}: in={data.input_tokens or 0} out={data.output_tokens or 0} "
+            f"cache_read={cache_read} cache_write={cache_write} cost={data.cost or 0}"
+        )
 
 session.on(on_usage)
 ```
@@ -159,7 +180,14 @@ func main() {
 		if d.Cost != nil {
 			cost = *d.Cost
 		}
-		fmt.Printf("%s: in=%d out=%d cost=%g\n", d.Model, in, out, cost)
+        cacheRead, cacheWrite := "n/a", "n/a"
+        if d.CacheReadTokens != nil {
+            cacheRead = fmt.Sprint(*d.CacheReadTokens)
+        }
+        if d.CacheWriteTokens != nil {
+            cacheWrite = fmt.Sprint(*d.CacheWriteTokens)
+        }
+        fmt.Printf("%s: in=%d out=%d cache_read=%s cache_write=%s cost=%g\n", d.Model, in, out, cacheRead, cacheWrite, cost)
 	})
 	_ = session
 }
@@ -182,7 +210,14 @@ session.On(func(event copilot.SessionEvent) {
     if d.Cost != nil {
         cost = *d.Cost
     }
-    fmt.Printf("%s: in=%d out=%d cost=%g\n", d.Model, in, out, cost)
+    cacheRead, cacheWrite := "n/a", "n/a"
+    if d.CacheReadTokens != nil {
+        cacheRead = fmt.Sprint(*d.CacheReadTokens)
+    }
+    if d.CacheWriteTokens != nil {
+        cacheWrite = fmt.Sprint(*d.CacheWriteTokens)
+    }
+    fmt.Printf("%s: in=%d out=%d cache_read=%s cache_write=%s cost=%g\n", d.Model, in, out, cacheRead, cacheWrite, cost)
 })
 ```
 
@@ -202,7 +237,8 @@ session.On<AssistantUsageEvent>(evt =>
 {
     var data = evt.Data;
     Console.WriteLine(
-        $"{data.Model}: in={data.InputTokens ?? 0} out={data.OutputTokens ?? 0} cost={data.Cost ?? 0}");
+        $"{data.Model}: in={data.InputTokens ?? 0} out={data.OutputTokens ?? 0} " +
+        $"cache_read={data.CacheReadTokens?.ToString() ?? "n/a"} cache_write={data.CacheWriteTokens?.ToString() ?? "n/a"} cost={data.Cost ?? 0}");
 });
 ```
 <!-- /docs-validate: hidden -->
@@ -212,7 +248,8 @@ session.On<AssistantUsageEvent>(evt =>
 {
     var data = evt.Data;
     Console.WriteLine(
-        $"{data.Model}: in={data.InputTokens ?? 0} out={data.OutputTokens ?? 0} cost={data.Cost ?? 0}");
+        $"{data.Model}: in={data.InputTokens ?? 0} out={data.OutputTokens ?? 0} " +
+        $"cache_read={data.CacheReadTokens?.ToString() ?? "n/a"} cache_write={data.CacheWriteTokens?.ToString() ?? "n/a"} cost={data.Cost ?? 0}");
 });
 ```
 
@@ -228,7 +265,9 @@ session.on(AssistantUsageEvent.class, event -> {
     long in = data.inputTokens() != null ? data.inputTokens() : 0;
     long out = data.outputTokens() != null ? data.outputTokens() : 0;
     double cost = data.cost() != null ? data.cost() : 0.0;
-    System.out.printf("%s: in=%d out=%d cost=%s%n", data.model(), in, out, cost);
+    String cacheRead = data.cacheReadTokens() != null ? data.cacheReadTokens().toString() : "n/a";
+    String cacheWrite = data.cacheWriteTokens() != null ? data.cacheWriteTokens().toString() : "n/a";
+    System.out.printf("%s: in=%d out=%d cache_read=%s cache_write=%s cost=%s%n", data.model(), in, out, cacheRead, cacheWrite, cost);
 });
 ```
 
@@ -244,11 +283,17 @@ let mut events = session.subscribe();
 while let Ok(event) = events.recv().await {
     if event.event_type == "assistant.usage" {
         if let Some(data) = event.typed_data::<AssistantUsageData>() {
+            let cache_read = data.cache_read_tokens
+                .map(|tokens| tokens.to_string()).unwrap_or_else(|| "n/a".to_string());
+            let cache_write = data.cache_write_tokens
+                .map(|tokens| tokens.to_string()).unwrap_or_else(|| "n/a".to_string());
             println!(
-                "{}: in={} out={} cost={}",
+                "{}: in={} out={} cache_read={} cache_write={} cost={}",
                 data.model,
                 data.input_tokens.unwrap_or(0),
                 data.output_tokens.unwrap_or(0),
+                cache_read,
+                cache_write,
                 data.cost.unwrap_or(0.0),
             );
         }
@@ -672,7 +717,7 @@ The example uses the fields below. The generated `UsageGetMetricsResult` type is
 |---|---|---|
 | `totalNanoAiu` | `number` | Session-wide AI credit cost, in nano-AI units |
 | `totalPremiumRequestCost` | `number` | Premium request cost across all models, after multipliers |
-| `modelMetrics` | `Record<string, ModelMetric>` | Per-model breakdown; each entry has `usage.inputTokens`, `usage.outputTokens`, and `totalNanoAiu` |
+| `modelMetrics` | `Record<string, ModelMetric>` | Per-model breakdown; each entry has `usage.inputTokens`, `usage.outputTokens`, `usage.cacheReadTokens`, `usage.cacheWriteTokens`, and `totalNanoAiu` |
 
 > [!NOTE]
 > Cost is reported in **nano-AI units** (the field is named `totalNanoAiu`). The exact conversion to AI credits and the precise meaning of premium request accounting are defined by GitHub Copilot billing, not by the SDK—treat [GitHub's Copilot billing documentation](https://docs.github.com/en/copilot/managing-copilot/understanding-and-managing-copilot-usage) as the source of truth and verify before surfacing currency-like values to users. The examples divide by `1e9` as a convenience, following the SI `nano` prefix; confirm this matches current billing before relying on it. The `modelMetrics` and `tokenDetails` maps are keyed by runtime strings (model IDs and token-type names) that the SDK type system does not validate.
