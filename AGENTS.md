@@ -18,7 +18,7 @@
 - Test harness & E2E: `<SDK_ROOT>/test/harness/*`, Python harness wrapper `<SDK_ROOT>/python/e2e/testharness/proxy.py`
 - Schemas and type generation: `<SDK_ROOT>/scripts/codegen/` and `<SDK_ROOT>/java/scripts/codegen/`
 - Session snapshots used by E2E: `<SDK_ROOT>/test/snapshots/` (used by the replay proxy)
-- Docs style guide: `<SDK_ROOT>/docs/AGENTS.md`
+- Docs style guide: `<SDK_ROOT>/.github/instructions/docs-style.instructions.md`
 
 ## Developer workflows (commands you’ll use often) ▶️
 

@@ -1,3 +1,7 @@
+---
+applyTo: "docs/**"
+---
+
 # Copilot SDK docs style guide
 
 This style guide applies to all documentation in the `docs/` directory. These docs are synced to `github/docs-internal` via a normalization pipeline, so they must follow the conventions below to be compatible with docs.github.com.
