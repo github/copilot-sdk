@@ -39,7 +39,7 @@ public final class SessionQuotaObservationEvent extends SessionEvent {
     @JsonIgnoreProperties(ignoreUnknown = true)
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record SessionQuotaObservationEventData(
-        /** The admitted provider's state observation. Admission observations never contain quantities or reset/percentage semantics. */
+        /** The admitted provider's state observation. Admission balances and percentages remain absent; separate monthly usage may report its own amount and cycle. */
         @JsonProperty("observation") ProviderQuotaState observation
     ) {
     }

@@ -3436,6 +3436,25 @@ async function generateRpc(schemaPath?: string, sessionEventsSchema?: JSONSchema
 
     const allDefinitions = combinedSchema.definitions! as Record<string, JSONSchema7>;
     preservePythonRpcStringDateFields(allDefinitions);
+    const managedOperationProperties = resolveObjectSchema(
+        allDefinitions.ManagedPermissionOperation,
+        rpcDefinitions
+    )?.properties;
+    const managedOperationKind = managedOperationProperties?.kind;
+    if (managedOperationProperties && managedOperationKind && typeof managedOperationKind === "object") {
+        const values =
+            managedOperationKind.enum ??
+            (typeof managedOperationKind.const === "string" ? [managedOperationKind.const] : undefined);
+        if (!values?.every((value): value is string => typeof value === "string")) {
+            throw new Error("Expected a string discriminator for ManagedPermissionOperation.kind");
+        }
+        allDefinitions.ManagedPermissionOperationKind = {
+            type: "string",
+            enum: values,
+            description: managedOperationKind.description,
+        };
+        managedOperationProperties.kind = { $ref: "#/definitions/ManagedPermissionOperationKind" };
+    }
     const allDefinitionCollections: DefinitionCollections = {
         definitions: { ...(combinedSchema.$defs ?? {}), ...allDefinitions },
         $defs: { ...allDefinitions, ...(combinedSchema.$defs ?? {}) },
@@ -3455,13 +3474,13 @@ async function generateRpc(schemaPath?: string, sessionEventsSchema?: JSONSchema
     };
     const externalRefs = rewriteExternalRefsForPython(singleSchema as JSONSchema7 & { definitions?: Record<string, JSONSchema7> });
     const externalEnumNames = collectPythonExternalEnumNames(sessionEventsSchema, externalRefs.placeholderNames);
-    // Discovery and session availability are independently versioned despite identical values.
-    // Hide the discovery enum from quicktype's enum merging, then restore it with our enum emitter.
+    // Independently versioned enums must not be structurally merged by quicktype.
+    // Hide them from quicktype's enum merging, then restore them with our enum emitter.
     const distinctEnums: Pick<PyCodegenCtx, "enumsByName" | "enums"> = {
         enumsByName: new Map(),
         enums: [],
     };
-    for (const name of ["ConnectorDiscoveryAvailability"]) {
+    for (const name of ["ConnectorDiscoveryAvailability", "ManagedPermissionOperationKind"]) {
         const definition = allDefinitions[name];
         if (!definition) continue;
         if (!definition.enum?.every((value): value is string => typeof value === "string")) {

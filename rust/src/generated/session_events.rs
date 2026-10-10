@@ -2273,6 +2273,37 @@ pub struct ProviderQuotaBudgetMetadata {
     pub usage_allowed_when_exhausted: bool,
 }
 
+/// An authoritative monthly usage reading for the observation's provider, account, and service.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderMonthlyUsage {
+    /// Nonnegative finite consumption reported by the service, preserving zero and fractions. Present only when state is available; never computed from tokens or balance differences.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub consumed_quantity: Option<f64>,
+    /// Start of the service-reported monthly billing cycle, in UTC RFC 3339.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cycle_start: Option<String>,
+    /// Service read time in UTC RFC 3339, not a ledger reconciliation watermark or confirmation of the latest inference charge.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub queried_at: Option<String>,
+    /// End of the service-reported monthly billing cycle, in UTC RFC 3339.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reset_on: Option<String>,
+    /// Identity scope of the reading within its provider and service.
+    pub scope: ProviderMonthlyUsageScope,
+    /// Availability of monthly consumption. Missing or unavailable usage must never be interpreted as zero.
+    pub state: ProviderMonthlyUsageState,
+    /// Unit of consumedQuantity; independent of the parent observation's balance unit.
+    pub unit: ProviderQuotaUnit,
+}
+
 /// An account quota reading. Absence of a quantity is unknown, never zero.
 ///
 /// <div class="warning">
@@ -2312,6 +2343,9 @@ pub struct ProviderQuotaState {
     /// HTTP status from acquisition, when available.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub http_status: Option<i64>,
+    /// Service-reported monthly consumption, independent of quota balances and per-call or session cost. Omitted when the service does not report monthly usage.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub monthly_usage: Option<ProviderMonthlyUsage>,
     /// Whether this is a GET account reading or a pre-response admission observation. Observations are never merged across kinds.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub observation_kind: Option<ProviderQuotaObservationKind>,
@@ -2349,7 +2383,7 @@ pub struct ProviderQuotaState {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionQuotaObservationData {
-    /// The admitted provider's state observation. Admission observations never contain quantities or reset/percentage semantics.
+    /// The admitted provider's state observation. Admission balances and percentages remain absent; separate monthly usage may report its own amount and cycle.
     pub observation: ProviderQuotaState,
 }
 
@@ -4096,9 +4130,15 @@ pub struct AssistantUsageData {
     /// Number of rejected speculative prediction tokens
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rejected_prediction_tokens: Option<i64>,
-    /// Serialized (uncompressed) byte length of the request body. A content-free size signal.
+    /// Serialized (uncompressed) byte length of the request body, before any Content-Encoding. A content-free size signal.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_body_bytes: Option<i64>,
+    /// Content-Encoding applied to the request body of the attempt that produced this outcome; identity when uncompressed
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_body_encoding: Option<ModelCallRequestBodyEncoding>,
+    /// Byte length of the request body actually sent on the wire for the attempt that produced this outcome, after any Content-Encoding. Equals requestBodyBytes when the body was not compressed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_body_wire_bytes: Option<i64>,
     /// Per-request treatment/eligibility signal returned by the Copilot API in the `X-GitHub-Copilot-Request-TE` response header for the associated model call; `false` when the header was absent or unparseable.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rte: Option<bool>,
@@ -4130,9 +4170,24 @@ pub struct AssistantUsageData {
     /// Milliseconds spent on the WebSocket attempt before falling back to HTTP
     #[serde(skip_serializing_if = "Option::is_none")]
     pub websocket_fallback_after_ms: Option<i64>,
+    /// WebSocket close code received before the HTTP fallback
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub websocket_fallback_close_code: Option<i32>,
+    /// Normalized cause of the WebSocket failure that triggered the HTTP fallback; absent when no fallback occurred or the cause is unknown
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub websocket_fallback_error_kind: Option<ModelCallWebSocketFallbackErrorKind>,
     /// Why the call was carried by the HTTP fallback of a WebSocket-capable dispatcher; absent when no fallback occurred
     #[serde(skip_serializing_if = "Option::is_none")]
     pub websocket_fallback_reason: Option<ModelCallWebSocketFallbackReason>,
+    /// Whether a WebSocket reconnect was attempted before falling back to HTTP
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub websocket_fallback_reconnect_attempted: Option<bool>,
+    /// Whether the HTTP fallback started during this model call, rather than being inherited from an earlier call
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub websocket_fallback_started_this_call: Option<bool>,
+    /// HTTP status of the WebSocket upgrade rejection or WebSocket API error that triggered the HTTP fallback
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub websocket_fallback_status_code: Option<i32>,
 }
 
 /// Session event "prompt_cache_break". A detected loss of a previously cached prompt prefix
@@ -4333,9 +4388,15 @@ pub struct ModelCallFailureData {
     /// Reasoning effort level used for the failed model call, if applicable
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_effort: Option<String>,
-    /// Serialized (uncompressed) byte length of the failed request body. A content-free size signal.
+    /// Serialized (uncompressed) byte length of the failed request body, before any Content-Encoding. A content-free size signal.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_body_bytes: Option<i64>,
+    /// Content-Encoding applied to the failed request body; identity when uncompressed
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_body_encoding: Option<ModelCallRequestBodyEncoding>,
+    /// Byte length of the failed request body actually sent on the wire, after any Content-Encoding. Equals requestBodyBytes when the body was not compressed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_body_wire_bytes: Option<i64>,
     /// Content-free structural summary of the failing request. Contains only counts and shape flags (no prompt content), so it is safe for unrestricted telemetry. Populated only for client-error (4xx) failures.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_fingerprint: Option<ModelCallFailureRequestFingerprint>,
@@ -4359,9 +4420,24 @@ pub struct ModelCallFailureData {
     /// Milliseconds spent on the WebSocket attempt before falling back to HTTP
     #[serde(skip_serializing_if = "Option::is_none")]
     pub websocket_fallback_after_ms: Option<i64>,
+    /// WebSocket close code received before the HTTP fallback
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub websocket_fallback_close_code: Option<i32>,
+    /// Normalized cause of the WebSocket failure that triggered the HTTP fallback; absent when no fallback occurred or the cause is unknown
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub websocket_fallback_error_kind: Option<ModelCallWebSocketFallbackErrorKind>,
     /// Why the failed call was carried by the HTTP fallback of a WebSocket-capable dispatcher; absent when no fallback occurred
     #[serde(skip_serializing_if = "Option::is_none")]
     pub websocket_fallback_reason: Option<ModelCallWebSocketFallbackReason>,
+    /// Whether a WebSocket reconnect was attempted before falling back to HTTP
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub websocket_fallback_reconnect_attempted: Option<bool>,
+    /// Whether the HTTP fallback started during this model call, rather than being inherited from an earlier call
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub websocket_fallback_started_this_call: Option<bool>,
+    /// HTTP status of the WebSocket upgrade rejection or WebSocket API error that triggered the HTTP fallback
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub websocket_fallback_status_code: Option<i32>,
 }
 
 /// Session event "model.call_final_result". Internal telemetry result for one logical model operation after all orchestrator-owned retries settle
@@ -8002,6 +8078,17 @@ pub struct SessionManagedPluginProgressData {
     pub plugin_specs: Vec<String>,
 }
 
+/// Reusable managed permission evaluation context. Treat permissions as runtime-owned policy data and retain it verbatim; it includes source-aware composition metadata. This is a snapshot, not a capability or approval token; only use contexts obtained from trusted policy sources.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManagedPermissionsContext {
+    /// Policy could not be determined; evaluation must deny every operation.
+    pub fail_closed: bool,
+    /// Runtime-owned composed permissions object. Absent when no permission policy is configured.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub permissions: Option<serde_json::Value>,
+}
+
 /// Session event "session.managed_settings_resolved". Effective enterprise managed settings applied to the session and their contributing channels. Emitted whenever managed policy is applied or reapplied, including session start, resume, and account switch. This ephemeral live snapshot is delivered to subscribers but not persisted to the session event log; initial resolution occurs before session.start.
 ///
 /// <div class="warning">
@@ -8013,20 +8100,23 @@ pub struct SessionManagedPluginProgressData {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionManagedSettingsResolvedData {
-    /// Whether enterprise policy disables bypass-permissions ("yolo") mode for this session. Deny-wins across layers, and forced on when `failClosed` is true.
+    /// Whether an explicit enterprise policy restriction disables bypass-permissions ("yolo") mode for this session. Deny-wins across layers; an unresolved policy does not force this on by itself.
     pub bypass_permissions_disabled: bool,
     /// Whether a session-local permissions layer injected by the SDK host was present
     #[serde(skip_serializing_if = "Option::is_none")]
     pub client_managed: Option<bool>,
     /// Whether an actual device MDM/plist/registry/file managed-settings layer was present
     pub device_managed: bool,
-    /// Whether managed policy could not be determined (e.g. a failed server fetch) and the session fell back to the fail-closed restriction. When true, restrictions such as disabling bypass-permissions are enforced even though `settings` may be absent.
+    /// Whether managed policy could not be determined (e.g. a failed server fetch) and unresolved-policy safeguards remain active. This does not by itself disable bypass-permissions; `bypassPermissionsDisabled` reports only an explicit policy restriction.
     pub fail_closed: bool,
     /// The setting keys under enterprise management in the effective managed settings (e.g. `model`, `enabledPlugins`, `permissions`). Empty when no managed settings are in force.
     pub managed_keys: Vec<String>,
     /// Whether at least two managed sources supplied permission allowlists, so enforcement intersects them and the flattened settings payload omits `permissions.allow`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub permissions_allow_intersected: Option<bool>,
+    /// Reusable retained managed permission policy for managedSettings.permissions.evaluate, including source composition and session-local injection. Provided by live session snapshots; absent in older events. Refresh the context when managed policy changes.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub permissions_context: Option<ManagedPermissionsContext>,
     /// Whether the policy-helper managed-settings layer was present. The policy helper is the weakest channel: it fills keys no enterprise source set and can never replace one.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub policy_helper_managed: Option<bool>,
@@ -9452,6 +9542,63 @@ pub enum ProviderQuotaCapacityState {
     Unknown,
 }
 
+/// Identity scope of a monthly usage reading.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ProviderMonthlyUsageScope {
+    /// Consumption of the authenticated user within the parent observation's service and returned cycle.
+    #[serde(rename = "user")]
+    User,
+    /// The service did not establish a recognized usage scope.
+    #[serde(rename = "unknown")]
+    UnknownValue,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Availability of a service's monthly consumption reading.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ProviderMonthlyUsageState {
+    /// The service reported a usable consumption reading, including an explicit zero.
+    #[serde(rename = "available")]
+    Available,
+    /// The service found no usage policy; no consumption amount is known.
+    #[serde(rename = "no_policy")]
+    NoPolicy,
+    /// The read failed or its data could not be used; consumption is unknown.
+    #[serde(rename = "unavailable")]
+    Unavailable,
+    /// The service reported an unrecognized usage state.
+    #[serde(rename = "unknown")]
+    UnknownValue,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Units explicitly reported by a quota provider.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ProviderQuotaUnit {
+    /// AI credits, not tokens or currency.
+    #[serde(rename = "ai_credits")]
+    AiCredits,
+    /// Requests charged against an entitlement.
+    #[serde(rename = "requests")]
+    Requests,
+    /// Model tokens.
+    #[serde(rename = "tokens")]
+    Tokens,
+    /// The observation does not establish a quantity unit.
+    #[serde(rename = "unknown")]
+    UnknownValue,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
 /// Timing and purpose of a provider quota observation.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ProviderQuotaObservationKind {
@@ -9479,27 +9626,6 @@ pub enum ProviderQuotaQuantityKind {
     /// No quantity measurement, as with admission-only response headers.
     #[serde(rename = "none")]
     None,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// Units explicitly reported by a quota provider.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ProviderQuotaUnit {
-    /// AI credits, not tokens or currency.
-    #[serde(rename = "ai_credits")]
-    AiCredits,
-    /// Requests charged against an entitlement.
-    #[serde(rename = "requests")]
-    Requests,
-    /// Model tokens.
-    #[serde(rename = "tokens")]
-    Tokens,
-    /// The observation does not establish a quantity unit.
-    #[serde(rename = "unknown")]
-    UnknownValue,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
@@ -10108,6 +10234,24 @@ pub enum AssistantUsageApiEndpoint {
     Unknown,
 }
 
+/// Content-Encoding applied to the request body sent on the wire
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ModelCallRequestBodyEncoding {
+    /// The request body was sent uncompressed (including every WebSocket request).
+    #[serde(rename = "identity")]
+    Identity,
+    /// The request body was sent gzip-compressed.
+    #[serde(rename = "gzip")]
+    Gzip,
+    /// The request body was sent zstd-compressed.
+    #[serde(rename = "zstd")]
+    Zstd,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
 /// Transport used for a successful model call
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AssistantUsageTransport {
@@ -10117,6 +10261,51 @@ pub enum AssistantUsageTransport {
     /// WebSocket transport.
     #[serde(rename = "websocket")]
     Websocket,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Normalized cause of the WebSocket failure that triggered the HTTP fallback
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ModelCallWebSocketFallbackErrorKind {
+    /// DNS resolution of the WebSocket host failed.
+    #[serde(rename = "dns")]
+    Dns,
+    /// The TLS handshake or a TLS record failed.
+    #[serde(rename = "tls")]
+    Tls,
+    /// A WebSocket connect or read timed out.
+    #[serde(rename = "timeout")]
+    Timeout,
+    /// The peer refused the TCP connection.
+    #[serde(rename = "connection_refused")]
+    ConnectionRefused,
+    /// The connection was reset, aborted, or ended mid-stream without a close.
+    #[serde(rename = "connection_reset")]
+    ConnectionReset,
+    /// The peer closed the WebSocket.
+    #[serde(rename = "closed_by_peer")]
+    ClosedByPeer,
+    /// The runtime closed the WebSocket itself.
+    #[serde(rename = "closed_locally")]
+    ClosedLocally,
+    /// The socket was already closed before it was used.
+    #[serde(rename = "not_connected")]
+    NotConnected,
+    /// The upgrade or request was rejected with an HTTP status.
+    #[serde(rename = "http_status")]
+    HttpStatus,
+    /// A WebSocket protocol violation or an undecodable frame.
+    #[serde(rename = "protocol")]
+    Protocol,
+    /// The WebSocket request could not be built.
+    #[serde(rename = "configuration")]
+    Configuration,
+    /// A failure that maps onto none of the other kinds.
+    #[serde(rename = "other")]
+    Other,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]

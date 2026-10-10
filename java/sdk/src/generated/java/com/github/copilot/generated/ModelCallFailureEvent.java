@@ -60,14 +60,28 @@ public final class ModelCallFailureEvent extends SessionEvent {
         @JsonProperty("transport") ModelCallFailureTransport transport,
         /** Whether the failure originated from an API response or the request transport */
         @JsonProperty("failureKind") ModelCallFailureKind failureKind,
-        /** Serialized (uncompressed) byte length of the failed request body. A content-free size signal. */
+        /** Serialized (uncompressed) byte length of the failed request body, before any Content-Encoding. A content-free size signal. */
         @JsonProperty("requestBodyBytes") Long requestBodyBytes,
+        /** Byte length of the failed request body actually sent on the wire, after any Content-Encoding. Equals requestBodyBytes when the body was not compressed. */
+        @JsonProperty("requestBodyWireBytes") Long requestBodyWireBytes,
+        /** Content-Encoding applied to the failed request body; identity when uncompressed */
+        @JsonProperty("requestBodyEncoding") ModelCallRequestBodyEncoding requestBodyEncoding,
         /** Zero-based orchestrator retry index of the failed attempt */
         @JsonProperty("retryAttempt") Long retryAttempt,
         /** Why the failed call was carried by the HTTP fallback of a WebSocket-capable dispatcher; absent when no fallback occurred */
         @JsonProperty("websocketFallbackReason") ModelCallWebSocketFallbackReason websocketFallbackReason,
         /** Milliseconds spent on the WebSocket attempt before falling back to HTTP */
         @JsonProperty("websocketFallbackAfterMs") Long websocketFallbackAfterMs,
+        /** Normalized cause of the WebSocket failure that triggered the HTTP fallback; absent when no fallback occurred or the cause is unknown */
+        @JsonProperty("websocketFallbackErrorKind") ModelCallWebSocketFallbackErrorKind websocketFallbackErrorKind,
+        /** HTTP status of the WebSocket upgrade rejection or WebSocket API error that triggered the HTTP fallback */
+        @JsonProperty("websocketFallbackStatusCode") Long websocketFallbackStatusCode,
+        /** WebSocket close code received before the HTTP fallback */
+        @JsonProperty("websocketFallbackCloseCode") Long websocketFallbackCloseCode,
+        /** Whether a WebSocket reconnect was attempted before falling back to HTTP */
+        @JsonProperty("websocketFallbackReconnectAttempted") Boolean websocketFallbackReconnectAttempted,
+        /** Whether the HTTP fallback started during this model call, rather than being inherited from an earlier call */
+        @JsonProperty("websocketFallbackStartedThisCall") Boolean websocketFallbackStartedThisCall,
         /** Effective maximum prompt-token limit for the failed call */
         @JsonProperty("maxPromptTokens") Long maxPromptTokens,
         /** Effective maximum output-token limit for the failed call */

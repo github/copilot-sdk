@@ -1790,6 +1790,54 @@ class PermissionSandboxPathGrant:
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
+class ProviderMonthlyUsage:
+    "An authoritative monthly usage reading for the observation's provider, account, and service."
+    scope: ProviderMonthlyUsageScope
+    state: ProviderMonthlyUsageState
+    unit: ProviderQuotaUnit
+    consumed_quantity: float | None = None
+    cycle_start: str | None = None
+    queried_at: str | None = None
+    reset_on: str | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "ProviderMonthlyUsage":
+        assert isinstance(obj, dict)
+        scope = parse_enum(ProviderMonthlyUsageScope, obj.get("scope"))
+        state = parse_enum(ProviderMonthlyUsageState, obj.get("state"))
+        unit = parse_enum(ProviderQuotaUnit, obj.get("unit"))
+        consumed_quantity = from_union([from_none, from_float], obj.get("consumedQuantity"))
+        cycle_start = from_union([from_none, from_str], obj.get("cycleStart"))
+        queried_at = from_union([from_none, from_str], obj.get("queriedAt"))
+        reset_on = from_union([from_none, from_str], obj.get("resetOn"))
+        return ProviderMonthlyUsage(
+            scope=scope,
+            state=state,
+            unit=unit,
+            consumed_quantity=consumed_quantity,
+            cycle_start=cycle_start,
+            queried_at=queried_at,
+            reset_on=reset_on,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["scope"] = to_enum(ProviderMonthlyUsageScope, self.scope)
+        result["state"] = to_enum(ProviderMonthlyUsageState, self.state)
+        result["unit"] = to_enum(ProviderQuotaUnit, self.unit)
+        if self.consumed_quantity is not None:
+            result["consumedQuantity"] = from_union([from_none, to_float], self.consumed_quantity)
+        if self.cycle_start is not None:
+            result["cycleStart"] = from_union([from_none, from_str], self.cycle_start)
+        if self.queried_at is not None:
+            result["queriedAt"] = from_union([from_none, from_str], self.queried_at)
+        if self.reset_on is not None:
+            result["resetOn"] = from_union([from_none, from_str], self.reset_on)
+        return result
+
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
 class ProviderQuotaState:
     "An account quota reading. Absence of a quantity is unknown, never zero."
     access_state: ProviderQuotaAccessState
@@ -1805,6 +1853,7 @@ class ProviderQuotaState:
     entitled_quantity: int | None = None
     has_quota: bool | None = None
     http_status: int | None = None
+    monthly_usage: ProviderMonthlyUsage | None = None
     observation_kind: ProviderQuotaObservationKind | None = None
     observed_at: str | None = None
     quantity_kind: ProviderQuotaQuantityKind | None = None
@@ -1828,6 +1877,7 @@ class ProviderQuotaState:
         entitled_quantity = from_union([from_none, from_int], obj.get("entitledQuantity"))
         has_quota = from_union([from_none, from_bool], obj.get("hasQuota"))
         http_status = from_union([from_none, from_int], obj.get("httpStatus"))
+        monthly_usage = from_union([from_none, ProviderMonthlyUsage.from_dict], obj.get("monthlyUsage"))
         observation_kind = from_union([from_none, lambda x: parse_enum(ProviderQuotaObservationKind, x)], obj.get("observationKind"))
         observed_at = from_union([from_none, from_str], obj.get("observedAt"))
         quantity_kind = from_union([from_none, lambda x: parse_enum(ProviderQuotaQuantityKind, x)], obj.get("quantityKind"))
@@ -1848,6 +1898,7 @@ class ProviderQuotaState:
             entitled_quantity=entitled_quantity,
             has_quota=has_quota,
             http_status=http_status,
+            monthly_usage=monthly_usage,
             observation_kind=observation_kind,
             observed_at=observed_at,
             quantity_kind=quantity_kind,
@@ -1879,6 +1930,8 @@ class ProviderQuotaState:
             result["hasQuota"] = from_union([from_none, from_bool], self.has_quota)
         if self.http_status is not None:
             result["httpStatus"] = from_union([from_none, to_int], self.http_status)
+        if self.monthly_usage is not None:
+            result["monthlyUsage"] = from_union([from_none, lambda x: to_class(ProviderMonthlyUsage, x)], self.monthly_usage)
         if self.observation_kind is not None:
             result["observationKind"] = from_union([from_none, lambda x: to_enum(ProviderQuotaObservationKind, x)], self.observation_kind)
         if self.observed_at is not None:
@@ -2636,6 +2689,7 @@ class SessionManagedSettingsResolvedData:
     source: ManagedSettingsResolvedSource
     client_managed: bool | None = None
     permissions_allow_intersected: bool | None = None
+    permissions_context: ManagedPermissionsContext | None = None
     policy_helper_managed: bool | None = None
     sandbox_enabled_by_undetermined_policy: bool | None = None
     settings: Any = None
@@ -2651,6 +2705,7 @@ class SessionManagedSettingsResolvedData:
         source = parse_enum(ManagedSettingsResolvedSource, obj.get("source"))
         client_managed = from_union([from_none, from_bool], obj.get("clientManaged"))
         permissions_allow_intersected = from_union([from_none, from_bool], obj.get("permissionsAllowIntersected"))
+        permissions_context = from_union([from_none, ManagedPermissionsContext.from_dict], obj.get("permissionsContext"))
         policy_helper_managed = from_union([from_none, from_bool], obj.get("policyHelperManaged"))
         sandbox_enabled_by_undetermined_policy = from_union([from_none, from_bool], obj.get("sandboxEnabledByUndeterminedPolicy"))
         settings = obj.get("settings")
@@ -2663,6 +2718,7 @@ class SessionManagedSettingsResolvedData:
             source=source,
             client_managed=client_managed,
             permissions_allow_intersected=permissions_allow_intersected,
+            permissions_context=permissions_context,
             policy_helper_managed=policy_helper_managed,
             sandbox_enabled_by_undetermined_policy=sandbox_enabled_by_undetermined_policy,
             settings=settings,
@@ -2680,6 +2736,8 @@ class SessionManagedSettingsResolvedData:
             result["clientManaged"] = from_union([from_none, from_bool], self.client_managed)
         if self.permissions_allow_intersected is not None:
             result["permissionsAllowIntersected"] = from_union([from_none, from_bool], self.permissions_allow_intersected)
+        if self.permissions_context is not None:
+            result["permissionsContext"] = from_union([from_none, lambda x: to_class(ManagedPermissionsContext, x)], self.permissions_context)
         if self.policy_helper_managed is not None:
             result["policyHelperManaged"] = from_union([from_none, from_bool], self.policy_helper_managed)
         if self.sandbox_enabled_by_undetermined_policy is not None:
@@ -3708,6 +3766,8 @@ class AssistantUsageData:
     reasoning_tokens: int | None = None
     rejected_prediction_tokens: int | None = None
     request_body_bytes: int | None = None
+    request_body_encoding: ModelCallRequestBodyEncoding | None = None
+    request_body_wire_bytes: int | None = None
     rte: bool | None = None
     service_request_id: str | None = None
     # Internal: this field is an internal SDK API and is not part of the public surface.
@@ -3721,7 +3781,12 @@ class AssistantUsageData:
     _tool_token_count: int | None = None
     transport: AssistantUsageTransport | None = None
     websocket_fallback_after: timedelta | None = None
+    websocket_fallback_close_code: int | None = None
+    websocket_fallback_error_kind: ModelCallWebSocketFallbackErrorKind | None = None
     websocket_fallback_reason: ModelCallWebSocketFallbackReason | None = None
+    websocket_fallback_reconnect_attempted: bool | None = None
+    websocket_fallback_started_this_call: bool | None = None
+    websocket_fallback_status_code: int | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "AssistantUsageData":
@@ -3768,6 +3833,8 @@ class AssistantUsageData:
         reasoning_tokens = from_union([from_none, from_int], obj.get("reasoningTokens"))
         rejected_prediction_tokens = from_union([from_none, from_int], obj.get("rejectedPredictionTokens"))
         request_body_bytes = from_union([from_none, from_int], obj.get("requestBodyBytes"))
+        request_body_encoding = from_union([from_none, lambda x: parse_enum(ModelCallRequestBodyEncoding, x)], obj.get("requestBodyEncoding"))
+        request_body_wire_bytes = from_union([from_none, from_int], obj.get("requestBodyWireBytes"))
         rte = from_union([from_none, from_bool], obj.get("rte"))
         service_request_id = from_union([from_none, from_str], obj.get("serviceRequestId"))
         _thinking_dropped_blocks = from_union([from_none, from_int], obj.get("thinkingDroppedBlocks"))
@@ -3777,7 +3844,12 @@ class AssistantUsageData:
         _tool_token_count = from_union([from_none, from_int], obj.get("toolTokenCount"))
         transport = from_union([from_none, lambda x: parse_enum(AssistantUsageTransport, x)], obj.get("transport"))
         websocket_fallback_after = from_union([from_none, from_timedelta], obj.get("websocketFallbackAfterMs"))
+        websocket_fallback_close_code = from_union([from_none, from_int], obj.get("websocketFallbackCloseCode"))
+        websocket_fallback_error_kind = from_union([from_none, lambda x: parse_enum(ModelCallWebSocketFallbackErrorKind, x)], obj.get("websocketFallbackErrorKind"))
         websocket_fallback_reason = from_union([from_none, lambda x: parse_enum(ModelCallWebSocketFallbackReason, x)], obj.get("websocketFallbackReason"))
+        websocket_fallback_reconnect_attempted = from_union([from_none, from_bool], obj.get("websocketFallbackReconnectAttempted"))
+        websocket_fallback_started_this_call = from_union([from_none, from_bool], obj.get("websocketFallbackStartedThisCall"))
+        websocket_fallback_status_code = from_union([from_none, from_int], obj.get("websocketFallbackStatusCode"))
         return AssistantUsageData(
             model=model,
             accepted_prediction_tokens=accepted_prediction_tokens,
@@ -3821,6 +3893,8 @@ class AssistantUsageData:
             reasoning_tokens=reasoning_tokens,
             rejected_prediction_tokens=rejected_prediction_tokens,
             request_body_bytes=request_body_bytes,
+            request_body_encoding=request_body_encoding,
+            request_body_wire_bytes=request_body_wire_bytes,
             rte=rte,
             service_request_id=service_request_id,
             _thinking_dropped_blocks=_thinking_dropped_blocks,
@@ -3830,7 +3904,12 @@ class AssistantUsageData:
             _tool_token_count=_tool_token_count,
             transport=transport,
             websocket_fallback_after=websocket_fallback_after,
+            websocket_fallback_close_code=websocket_fallback_close_code,
+            websocket_fallback_error_kind=websocket_fallback_error_kind,
             websocket_fallback_reason=websocket_fallback_reason,
+            websocket_fallback_reconnect_attempted=websocket_fallback_reconnect_attempted,
+            websocket_fallback_started_this_call=websocket_fallback_started_this_call,
+            websocket_fallback_status_code=websocket_fallback_status_code,
         )
 
     def to_dict(self) -> dict:
@@ -3918,6 +3997,10 @@ class AssistantUsageData:
             result["rejectedPredictionTokens"] = from_union([from_none, to_int], self.rejected_prediction_tokens)
         if self.request_body_bytes is not None:
             result["requestBodyBytes"] = from_union([from_none, to_int], self.request_body_bytes)
+        if self.request_body_encoding is not None:
+            result["requestBodyEncoding"] = from_union([from_none, lambda x: to_enum(ModelCallRequestBodyEncoding, x)], self.request_body_encoding)
+        if self.request_body_wire_bytes is not None:
+            result["requestBodyWireBytes"] = from_union([from_none, to_int], self.request_body_wire_bytes)
         if self.rte is not None:
             result["rte"] = from_union([from_none, from_bool], self.rte)
         if self.service_request_id is not None:
@@ -3936,8 +4019,18 @@ class AssistantUsageData:
             result["transport"] = from_union([from_none, lambda x: to_enum(AssistantUsageTransport, x)], self.transport)
         if self.websocket_fallback_after is not None:
             result["websocketFallbackAfterMs"] = from_union([from_none, to_timedelta_int], self.websocket_fallback_after)
+        if self.websocket_fallback_close_code is not None:
+            result["websocketFallbackCloseCode"] = from_union([from_none, to_int], self.websocket_fallback_close_code)
+        if self.websocket_fallback_error_kind is not None:
+            result["websocketFallbackErrorKind"] = from_union([from_none, lambda x: to_enum(ModelCallWebSocketFallbackErrorKind, x)], self.websocket_fallback_error_kind)
         if self.websocket_fallback_reason is not None:
             result["websocketFallbackReason"] = from_union([from_none, lambda x: to_enum(ModelCallWebSocketFallbackReason, x)], self.websocket_fallback_reason)
+        if self.websocket_fallback_reconnect_attempted is not None:
+            result["websocketFallbackReconnectAttempted"] = from_union([from_none, from_bool], self.websocket_fallback_reconnect_attempted)
+        if self.websocket_fallback_started_this_call is not None:
+            result["websocketFallbackStartedThisCall"] = from_union([from_none, from_bool], self.websocket_fallback_started_this_call)
+        if self.websocket_fallback_status_code is not None:
+            result["websocketFallbackStatusCode"] = from_union([from_none, to_int], self.websocket_fallback_status_code)
         return result
 
 
@@ -5886,6 +5979,30 @@ class HumanResponseRecordedResponse:
 
 
 @dataclass
+class ManagedPermissionsContext:
+    "Reusable managed permission evaluation context. Treat permissions as runtime-owned policy data and retain it verbatim; it includes source-aware composition metadata. This is a snapshot, not a capability or approval token; only use contexts obtained from trusted policy sources."
+    fail_closed: bool
+    permissions: Any = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "ManagedPermissionsContext":
+        assert isinstance(obj, dict)
+        fail_closed = from_bool(obj.get("failClosed"))
+        permissions = obj.get("permissions")
+        return ManagedPermissionsContext(
+            fail_closed=fail_closed,
+            permissions=permissions,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["failClosed"] = from_bool(self.fail_closed)
+        if self.permissions is not None:
+            result["permissions"] = self.permissions
+        return result
+
+
+@dataclass
 class McpAppToolCallCompleteData:
     "MCP App view called a tool on a connected MCP server (SEP-1865)"
     duration_ms: float
@@ -6388,6 +6505,8 @@ class ModelCallFailureData:
     _quota_snapshots: dict[str, _AssistantUsageQuotaSnapshot] | None = None
     reasoning_effort: str | None = None
     request_body_bytes: int | None = None
+    request_body_encoding: ModelCallRequestBodyEncoding | None = None
+    request_body_wire_bytes: int | None = None
     request_fingerprint: ModelCallFailureRequestFingerprint | None = None
     retry_attempt: int | None = None
     rte: bool | None = None
@@ -6395,7 +6514,12 @@ class ModelCallFailureData:
     status_code: int | None = None
     transport: ModelCallFailureTransport | None = None
     websocket_fallback_after: timedelta | None = None
+    websocket_fallback_close_code: int | None = None
+    websocket_fallback_error_kind: ModelCallWebSocketFallbackErrorKind | None = None
     websocket_fallback_reason: ModelCallWebSocketFallbackReason | None = None
+    websocket_fallback_reconnect_attempted: bool | None = None
+    websocket_fallback_started_this_call: bool | None = None
+    websocket_fallback_status_code: int | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "ModelCallFailureData":
@@ -6424,6 +6548,8 @@ class ModelCallFailureData:
         _quota_snapshots = from_union([from_none, lambda x: from_dict(_AssistantUsageQuotaSnapshot.from_dict, x)], obj.get("quotaSnapshots"))
         reasoning_effort = from_union([from_none, from_str], obj.get("reasoningEffort"))
         request_body_bytes = from_union([from_none, from_int], obj.get("requestBodyBytes"))
+        request_body_encoding = from_union([from_none, lambda x: parse_enum(ModelCallRequestBodyEncoding, x)], obj.get("requestBodyEncoding"))
+        request_body_wire_bytes = from_union([from_none, from_int], obj.get("requestBodyWireBytes"))
         request_fingerprint = from_union([from_none, ModelCallFailureRequestFingerprint.from_dict], obj.get("requestFingerprint"))
         retry_attempt = from_union([from_none, from_int], obj.get("retryAttempt"))
         rte = from_union([from_none, from_bool], obj.get("rte"))
@@ -6431,7 +6557,12 @@ class ModelCallFailureData:
         status_code = from_union([from_none, from_int], obj.get("statusCode"))
         transport = from_union([from_none, lambda x: parse_enum(ModelCallFailureTransport, x)], obj.get("transport"))
         websocket_fallback_after = from_union([from_none, from_timedelta], obj.get("websocketFallbackAfterMs"))
+        websocket_fallback_close_code = from_union([from_none, from_int], obj.get("websocketFallbackCloseCode"))
+        websocket_fallback_error_kind = from_union([from_none, lambda x: parse_enum(ModelCallWebSocketFallbackErrorKind, x)], obj.get("websocketFallbackErrorKind"))
         websocket_fallback_reason = from_union([from_none, lambda x: parse_enum(ModelCallWebSocketFallbackReason, x)], obj.get("websocketFallbackReason"))
+        websocket_fallback_reconnect_attempted = from_union([from_none, from_bool], obj.get("websocketFallbackReconnectAttempted"))
+        websocket_fallback_started_this_call = from_union([from_none, from_bool], obj.get("websocketFallbackStartedThisCall"))
+        websocket_fallback_status_code = from_union([from_none, from_int], obj.get("websocketFallbackStatusCode"))
         return ModelCallFailureData(
             source=source,
             api_call_id=api_call_id,
@@ -6457,6 +6588,8 @@ class ModelCallFailureData:
             _quota_snapshots=_quota_snapshots,
             reasoning_effort=reasoning_effort,
             request_body_bytes=request_body_bytes,
+            request_body_encoding=request_body_encoding,
+            request_body_wire_bytes=request_body_wire_bytes,
             request_fingerprint=request_fingerprint,
             retry_attempt=retry_attempt,
             rte=rte,
@@ -6464,7 +6597,12 @@ class ModelCallFailureData:
             status_code=status_code,
             transport=transport,
             websocket_fallback_after=websocket_fallback_after,
+            websocket_fallback_close_code=websocket_fallback_close_code,
+            websocket_fallback_error_kind=websocket_fallback_error_kind,
             websocket_fallback_reason=websocket_fallback_reason,
+            websocket_fallback_reconnect_attempted=websocket_fallback_reconnect_attempted,
+            websocket_fallback_started_this_call=websocket_fallback_started_this_call,
+            websocket_fallback_status_code=websocket_fallback_status_code,
         )
 
     def to_dict(self) -> dict:
@@ -6516,6 +6654,10 @@ class ModelCallFailureData:
             result["reasoningEffort"] = from_union([from_none, from_str], self.reasoning_effort)
         if self.request_body_bytes is not None:
             result["requestBodyBytes"] = from_union([from_none, to_int], self.request_body_bytes)
+        if self.request_body_encoding is not None:
+            result["requestBodyEncoding"] = from_union([from_none, lambda x: to_enum(ModelCallRequestBodyEncoding, x)], self.request_body_encoding)
+        if self.request_body_wire_bytes is not None:
+            result["requestBodyWireBytes"] = from_union([from_none, to_int], self.request_body_wire_bytes)
         if self.request_fingerprint is not None:
             result["requestFingerprint"] = from_union([from_none, lambda x: to_class(ModelCallFailureRequestFingerprint, x)], self.request_fingerprint)
         if self.retry_attempt is not None:
@@ -6530,8 +6672,18 @@ class ModelCallFailureData:
             result["transport"] = from_union([from_none, lambda x: to_enum(ModelCallFailureTransport, x)], self.transport)
         if self.websocket_fallback_after is not None:
             result["websocketFallbackAfterMs"] = from_union([from_none, to_timedelta_int], self.websocket_fallback_after)
+        if self.websocket_fallback_close_code is not None:
+            result["websocketFallbackCloseCode"] = from_union([from_none, to_int], self.websocket_fallback_close_code)
+        if self.websocket_fallback_error_kind is not None:
+            result["websocketFallbackErrorKind"] = from_union([from_none, lambda x: to_enum(ModelCallWebSocketFallbackErrorKind, x)], self.websocket_fallback_error_kind)
         if self.websocket_fallback_reason is not None:
             result["websocketFallbackReason"] = from_union([from_none, lambda x: to_enum(ModelCallWebSocketFallbackReason, x)], self.websocket_fallback_reason)
+        if self.websocket_fallback_reconnect_attempted is not None:
+            result["websocketFallbackReconnectAttempted"] = from_union([from_none, from_bool], self.websocket_fallback_reconnect_attempted)
+        if self.websocket_fallback_started_this_call is not None:
+            result["websocketFallbackStartedThisCall"] = from_union([from_none, from_bool], self.websocket_fallback_started_this_call)
+        if self.websocket_fallback_status_code is not None:
+            result["websocketFallbackStatusCode"] = from_union([from_none, to_int], self.websocket_fallback_status_code)
         return result
 
 
@@ -15221,6 +15373,44 @@ class ModelCallFinishedOutcome(Enum):
     REJECTED = "rejected"
 
 
+class ModelCallRequestBodyEncoding(Enum):
+    "Content-Encoding applied to the request body sent on the wire"
+    # The request body was sent uncompressed (including every WebSocket request).
+    IDENTITY = "identity"
+    # The request body was sent gzip-compressed.
+    GZIP = "gzip"
+    # The request body was sent zstd-compressed.
+    ZSTD = "zstd"
+
+
+class ModelCallWebSocketFallbackErrorKind(Enum):
+    "Normalized cause of the WebSocket failure that triggered the HTTP fallback"
+    # DNS resolution of the WebSocket host failed.
+    DNS = "dns"
+    # The TLS handshake or a TLS record failed.
+    TLS = "tls"
+    # A WebSocket connect or read timed out.
+    TIMEOUT = "timeout"
+    # The peer refused the TCP connection.
+    CONNECTION_REFUSED = "connection_refused"
+    # The connection was reset, aborted, or ended mid-stream without a close.
+    CONNECTION_RESET = "connection_reset"
+    # The peer closed the WebSocket.
+    CLOSED_BY_PEER = "closed_by_peer"
+    # The runtime closed the WebSocket itself.
+    CLOSED_LOCALLY = "closed_locally"
+    # The socket was already closed before it was used.
+    NOT_CONNECTED = "not_connected"
+    # The upgrade or request was rejected with an HTTP status.
+    HTTP_STATUS = "http_status"
+    # A WebSocket protocol violation or an undecodable frame.
+    PROTOCOL = "protocol"
+    # The WebSocket request could not be built.
+    CONFIGURATION = "configuration"
+    # A failure that maps onto none of the other kinds.
+    OTHER = "other"
+
+
 class ModelCallWebSocketFallbackReason(Enum):
     "Why a WebSocket-capable model call was carried by the HTTP fallback"
     # The WebSocket connection could not be established.
@@ -15545,6 +15735,26 @@ class PlanChangedOperation(Enum):
     UPDATE = "update"
     # The plan file was deleted.
     DELETE = "delete"
+
+
+class ProviderMonthlyUsageScope(Enum):
+    "Identity scope of a monthly usage reading."
+    # Consumption of the authenticated user within the parent observation's service and returned cycle.
+    USER = "user"
+    # The service did not establish a recognized usage scope.
+    UNKNOWN = "unknown"
+
+
+class ProviderMonthlyUsageState(Enum):
+    "Availability of a service's monthly consumption reading."
+    # The service reported a usable consumption reading, including an explicit zero.
+    AVAILABLE = "available"
+    # The service found no usage policy; no consumption amount is known.
+    NO_POLICY = "no_policy"
+    # The read failed or its data could not be used; consumption is unknown.
+    UNAVAILABLE = "unavailable"
+    # The service reported an unrecognized usage state.
+    UNKNOWN = "unknown"
 
 
 class ProviderQuotaAccessState(Enum):
@@ -16474,6 +16684,7 @@ __all__ = [
     "IndexedSearchIncrementalPhase",
     "IndexedSearchOutcome",
     "IndexedSearchState",
+    "ManagedPermissionsContext",
     "ManagedPluginProgressPhase",
     "ManagedSettingsEnforcedAction",
     "ManagedSettingsEnforcedEscalation",
@@ -16511,7 +16722,9 @@ __all__ = [
     "ModelCallFinalResultData",
     "ModelCallFinishedData",
     "ModelCallFinishedOutcome",
+    "ModelCallRequestBodyEncoding",
     "ModelCallStartData",
+    "ModelCallWebSocketFallbackErrorKind",
     "ModelCallWebSocketFallbackReason",
     "ModelChangeSource",
     "ModelDeselectedReason",
@@ -16601,6 +16814,9 @@ __all__ = [
     "PersistedBinaryResult",
     "PlanChangedOperation",
     "PromptCacheBreakData",
+    "ProviderMonthlyUsage",
+    "ProviderMonthlyUsageScope",
+    "ProviderMonthlyUsageState",
     "ProviderQuotaAccessState",
     "ProviderQuotaAcquisitionStatus",
     "ProviderQuotaBudgetMetadata",

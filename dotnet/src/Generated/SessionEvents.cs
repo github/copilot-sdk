@@ -3678,7 +3678,7 @@ public sealed partial class SessionUsageCheckpointData
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public sealed partial class SessionQuotaObservationData
 {
-    /// <summary>The admitted provider's state observation. Admission observations never contain quantities or reset/percentage semantics.</summary>
+    /// <summary>The admitted provider's state observation. Admission balances and percentages remain absent; separate monthly usage may report its own amount and cycle.</summary>
     [JsonPropertyName("observation")]
     public required ProviderQuotaState Observation { get; set; }
 }
@@ -5218,10 +5218,20 @@ public sealed partial class AssistantUsageData
     [JsonPropertyName("rejectedPredictionTokens")]
     public long? RejectedPredictionTokens { get; set; }
 
-    /// <summary>Serialized (uncompressed) byte length of the request body. A content-free size signal.</summary>
+    /// <summary>Serialized (uncompressed) byte length of the request body, before any Content-Encoding. A content-free size signal.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("requestBodyBytes")]
     public long? RequestBodyBytes { get; set; }
+
+    /// <summary>Content-Encoding applied to the request body of the attempt that produced this outcome; identity when uncompressed.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("requestBodyEncoding")]
+    public ModelCallRequestBodyEncoding? RequestBodyEncoding { get; set; }
+
+    /// <summary>Byte length of the request body actually sent on the wire for the attempt that produced this outcome, after any Content-Encoding. Equals requestBodyBytes when the body was not compressed.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("requestBodyWireBytes")]
+    public long? RequestBodyWireBytes { get; set; }
 
     /// <summary>Per-request treatment/eligibility signal returned by the Copilot API in the `X-GitHub-Copilot-Request-TE` response header for the associated model call; `false` when the header was absent or unparseable.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -5274,10 +5284,35 @@ public sealed partial class AssistantUsageData
     [JsonPropertyName("websocketFallbackAfterMs")]
     public TimeSpan? WebsocketFallbackAfter { get; set; }
 
+    /// <summary>WebSocket close code received before the HTTP fallback.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("websocketFallbackCloseCode")]
+    public int? WebsocketFallbackCloseCode { get; set; }
+
+    /// <summary>Normalized cause of the WebSocket failure that triggered the HTTP fallback; absent when no fallback occurred or the cause is unknown.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("websocketFallbackErrorKind")]
+    public ModelCallWebSocketFallbackErrorKind? WebsocketFallbackErrorKind { get; set; }
+
     /// <summary>Why the call was carried by the HTTP fallback of a WebSocket-capable dispatcher; absent when no fallback occurred.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("websocketFallbackReason")]
     public ModelCallWebSocketFallbackReason? WebsocketFallbackReason { get; set; }
+
+    /// <summary>Whether a WebSocket reconnect was attempted before falling back to HTTP.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("websocketFallbackReconnectAttempted")]
+    public bool? WebsocketFallbackReconnectAttempted { get; set; }
+
+    /// <summary>Whether the HTTP fallback started during this model call, rather than being inherited from an earlier call.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("websocketFallbackStartedThisCall")]
+    public bool? WebsocketFallbackStartedThisCall { get; set; }
+
+    /// <summary>HTTP status of the WebSocket upgrade rejection or WebSocket API error that triggered the HTTP fallback.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("websocketFallbackStatusCode")]
+    public int? WebsocketFallbackStatusCode { get; set; }
 }
 
 /// <summary>A detected loss of a previously cached prompt prefix.</summary>
@@ -5532,10 +5567,20 @@ public sealed partial class ModelCallFailureData
     [JsonPropertyName("reasoningEffort")]
     public string? ReasoningEffort { get; set; }
 
-    /// <summary>Serialized (uncompressed) byte length of the failed request body. A content-free size signal.</summary>
+    /// <summary>Serialized (uncompressed) byte length of the failed request body, before any Content-Encoding. A content-free size signal.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("requestBodyBytes")]
     public long? RequestBodyBytes { get; set; }
+
+    /// <summary>Content-Encoding applied to the failed request body; identity when uncompressed.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("requestBodyEncoding")]
+    public ModelCallRequestBodyEncoding? RequestBodyEncoding { get; set; }
+
+    /// <summary>Byte length of the failed request body actually sent on the wire, after any Content-Encoding. Equals requestBodyBytes when the body was not compressed.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("requestBodyWireBytes")]
+    public long? RequestBodyWireBytes { get; set; }
 
     /// <summary>Content-free structural summary of the failing request. Contains only counts and shape flags (no prompt content), so it is safe for unrestricted telemetry. Populated only for client-error (4xx) failures.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -5577,10 +5622,35 @@ public sealed partial class ModelCallFailureData
     [JsonPropertyName("websocketFallbackAfterMs")]
     public TimeSpan? WebsocketFallbackAfter { get; set; }
 
+    /// <summary>WebSocket close code received before the HTTP fallback.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("websocketFallbackCloseCode")]
+    public int? WebsocketFallbackCloseCode { get; set; }
+
+    /// <summary>Normalized cause of the WebSocket failure that triggered the HTTP fallback; absent when no fallback occurred or the cause is unknown.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("websocketFallbackErrorKind")]
+    public ModelCallWebSocketFallbackErrorKind? WebsocketFallbackErrorKind { get; set; }
+
     /// <summary>Why the failed call was carried by the HTTP fallback of a WebSocket-capable dispatcher; absent when no fallback occurred.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("websocketFallbackReason")]
     public ModelCallWebSocketFallbackReason? WebsocketFallbackReason { get; set; }
+
+    /// <summary>Whether a WebSocket reconnect was attempted before falling back to HTTP.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("websocketFallbackReconnectAttempted")]
+    public bool? WebsocketFallbackReconnectAttempted { get; set; }
+
+    /// <summary>Whether the HTTP fallback started during this model call, rather than being inherited from an earlier call.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("websocketFallbackStartedThisCall")]
+    public bool? WebsocketFallbackStartedThisCall { get; set; }
+
+    /// <summary>HTTP status of the WebSocket upgrade rejection or WebSocket API error that triggered the HTTP fallback.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("websocketFallbackStatusCode")]
+    public int? WebsocketFallbackStatusCode { get; set; }
 }
 
 /// <summary>Internal telemetry result for one logical model operation after all orchestrator-owned retries settle.</summary>
@@ -7295,7 +7365,7 @@ public sealed partial class SessionManagedPluginProgressData
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public sealed partial class SessionManagedSettingsResolvedData
 {
-    /// <summary>Whether enterprise policy disables bypass-permissions ("yolo") mode for this session. Deny-wins across layers, and forced on when `failClosed` is true.</summary>
+    /// <summary>Whether an explicit enterprise policy restriction disables bypass-permissions ("yolo") mode for this session. Deny-wins across layers; an unresolved policy does not force this on by itself.</summary>
     [JsonPropertyName("bypassPermissionsDisabled")]
     public required bool BypassPermissionsDisabled { get; set; }
 
@@ -7308,7 +7378,7 @@ public sealed partial class SessionManagedSettingsResolvedData
     [JsonPropertyName("deviceManaged")]
     public required bool DeviceManaged { get; set; }
 
-    /// <summary>Whether managed policy could not be determined (e.g. a failed server fetch) and the session fell back to the fail-closed restriction. When true, restrictions such as disabling bypass-permissions are enforced even though `settings` may be absent.</summary>
+    /// <summary>Whether managed policy could not be determined (e.g. a failed server fetch) and unresolved-policy safeguards remain active. This does not by itself disable bypass-permissions; `bypassPermissionsDisabled` reports only an explicit policy restriction.</summary>
     [JsonPropertyName("failClosed")]
     public required bool FailClosed { get; set; }
 
@@ -7320,6 +7390,11 @@ public sealed partial class SessionManagedSettingsResolvedData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("permissionsAllowIntersected")]
     public bool? PermissionsAllowIntersected { get; set; }
+
+    /// <summary>Reusable retained managed permission policy for managedSettings.permissions.evaluate, including source composition and session-local injection. Provided by live session snapshots; absent in older events. Refresh the context when managed policy changes.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("permissionsContext")]
+    public ManagedPermissionsContext? PermissionsContext { get; set; }
 
     /// <summary>Whether the policy-helper managed-settings layer was present. The policy helper is the weakest channel: it fills keys no enterprise source set and can never replace one.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -8489,6 +8564,44 @@ public sealed partial class ProviderQuotaBudgetMetadata
     public required bool UsageAllowedWhenExhausted { get; set; }
 }
 
+/// <summary>An authoritative monthly usage reading for the observation's provider, account, and service.</summary>
+/// <remarks>Nested data type for <c>ProviderMonthlyUsage</c>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed partial class ProviderMonthlyUsage
+{
+    /// <summary>Nonnegative finite consumption reported by the service, preserving zero and fractions. Present only when state is available; never computed from tokens or balance differences.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("consumedQuantity")]
+    public double? ConsumedQuantity { get; set; }
+
+    /// <summary>Start of the service-reported monthly billing cycle, in UTC RFC 3339.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("cycleStart")]
+    public string? CycleStart { get; set; }
+
+    /// <summary>Service read time in UTC RFC 3339, not a ledger reconciliation watermark or confirmation of the latest inference charge.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("queriedAt")]
+    public string? QueriedAt { get; set; }
+
+    /// <summary>End of the service-reported monthly billing cycle, in UTC RFC 3339.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("resetOn")]
+    public string? ResetOn { get; set; }
+
+    /// <summary>Identity scope of the reading within its provider and service.</summary>
+    [JsonPropertyName("scope")]
+    public required ProviderMonthlyUsageScope Scope { get; set; }
+
+    /// <summary>Availability of monthly consumption. Missing or unavailable usage must never be interpreted as zero.</summary>
+    [JsonPropertyName("state")]
+    public required ProviderMonthlyUsageState State { get; set; }
+
+    /// <summary>Unit of consumedQuantity; independent of the parent observation's balance unit.</summary>
+    [JsonPropertyName("unit")]
+    public required ProviderQuotaUnit Unit { get; set; }
+}
+
 /// <summary>An account quota reading. Absence of a quantity is unknown, never zero.</summary>
 /// <remarks>Nested data type for <c>ProviderQuotaState</c>.</remarks>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
@@ -8541,6 +8654,11 @@ public sealed partial class ProviderQuotaState
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("httpStatus")]
     public long? HttpStatus { get; set; }
+
+    /// <summary>Service-reported monthly consumption, independent of quota balances and per-call or session cost. Omitted when the service does not report monthly usage.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("monthlyUsage")]
+    public ProviderMonthlyUsage? MonthlyUsage { get; set; }
 
     /// <summary>Whether this is a GET account reading or a pre-response admission observation. Observations are never merged across kinds.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -13548,6 +13666,20 @@ public sealed partial class SessionLimitsExhaustedResponse
     public double? MaxAiCredits { get; set; }
 }
 
+/// <summary>Reusable managed permission evaluation context. Treat permissions as runtime-owned policy data and retain it verbatim; it includes source-aware composition metadata. This is a snapshot, not a capability or approval token; only use contexts obtained from trusted policy sources.</summary>
+/// <remarks>Nested data type for <c>ManagedPermissionsContext</c>.</remarks>
+public sealed partial class ManagedPermissionsContext
+{
+    /// <summary>Policy could not be determined; evaluation must deny every operation.</summary>
+    [JsonPropertyName("failClosed")]
+    public required bool FailClosed { get; set; }
+
+    /// <summary>Runtime-owned composed permissions object. Absent when no permission policy is configured.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("permissions")]
+    public JsonElement? Permissions { get; set; }
+}
+
 /// <summary>A single slash command available in the session, as listed by the `commands.changed` event.</summary>
 /// <remarks>Nested data type for <c>CommandsChangedCommand</c>.</remarks>
 public sealed partial class CommandsChangedCommand
@@ -15884,6 +16016,201 @@ public readonly struct ProviderQuotaCapacityState : IEquatable<ProviderQuotaCapa
     }
 }
 
+/// <summary>Identity scope of a monthly usage reading.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct ProviderMonthlyUsageScope : IEquatable<ProviderMonthlyUsageScope>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="ProviderMonthlyUsageScope"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="ProviderMonthlyUsageScope"/>.</param>
+    [JsonConstructor]
+    public ProviderMonthlyUsageScope(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="ProviderMonthlyUsageScope"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Consumption of the authenticated user within the parent observation's service and returned cycle.</summary>
+    public static ProviderMonthlyUsageScope User { get; } = new("user");
+
+    /// <summary>The service did not establish a recognized usage scope.</summary>
+    public static ProviderMonthlyUsageScope Unknown { get; } = new("unknown");
+
+    /// <summary>Returns a value indicating whether two <see cref="ProviderMonthlyUsageScope"/> instances are equivalent.</summary>
+    public static bool operator ==(ProviderMonthlyUsageScope left, ProviderMonthlyUsageScope right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="ProviderMonthlyUsageScope"/> instances are not equivalent.</summary>
+    public static bool operator !=(ProviderMonthlyUsageScope left, ProviderMonthlyUsageScope right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is ProviderMonthlyUsageScope other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(ProviderMonthlyUsageScope other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{ProviderMonthlyUsageScope}"/> for serializing <see cref="ProviderMonthlyUsageScope"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<ProviderMonthlyUsageScope>
+    {
+        /// <inheritdoc />
+        public override ProviderMonthlyUsageScope Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, ProviderMonthlyUsageScope value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ProviderMonthlyUsageScope));
+        }
+    }
+}
+
+/// <summary>Availability of a service's monthly consumption reading.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct ProviderMonthlyUsageState : IEquatable<ProviderMonthlyUsageState>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="ProviderMonthlyUsageState"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="ProviderMonthlyUsageState"/>.</param>
+    [JsonConstructor]
+    public ProviderMonthlyUsageState(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="ProviderMonthlyUsageState"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The service reported a usable consumption reading, including an explicit zero.</summary>
+    public static ProviderMonthlyUsageState Available { get; } = new("available");
+
+    /// <summary>The service found no usage policy; no consumption amount is known.</summary>
+    public static ProviderMonthlyUsageState NoPolicy { get; } = new("no_policy");
+
+    /// <summary>The read failed or its data could not be used; consumption is unknown.</summary>
+    public static ProviderMonthlyUsageState Unavailable { get; } = new("unavailable");
+
+    /// <summary>The service reported an unrecognized usage state.</summary>
+    public static ProviderMonthlyUsageState Unknown { get; } = new("unknown");
+
+    /// <summary>Returns a value indicating whether two <see cref="ProviderMonthlyUsageState"/> instances are equivalent.</summary>
+    public static bool operator ==(ProviderMonthlyUsageState left, ProviderMonthlyUsageState right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="ProviderMonthlyUsageState"/> instances are not equivalent.</summary>
+    public static bool operator !=(ProviderMonthlyUsageState left, ProviderMonthlyUsageState right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is ProviderMonthlyUsageState other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(ProviderMonthlyUsageState other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{ProviderMonthlyUsageState}"/> for serializing <see cref="ProviderMonthlyUsageState"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<ProviderMonthlyUsageState>
+    {
+        /// <inheritdoc />
+        public override ProviderMonthlyUsageState Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, ProviderMonthlyUsageState value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ProviderMonthlyUsageState));
+        }
+    }
+}
+
+/// <summary>Units explicitly reported by a quota provider.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct ProviderQuotaUnit : IEquatable<ProviderQuotaUnit>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="ProviderQuotaUnit"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="ProviderQuotaUnit"/>.</param>
+    [JsonConstructor]
+    public ProviderQuotaUnit(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="ProviderQuotaUnit"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>AI credits, not tokens or currency.</summary>
+    public static ProviderQuotaUnit AiCredits { get; } = new("ai_credits");
+
+    /// <summary>Requests charged against an entitlement.</summary>
+    public static ProviderQuotaUnit Requests { get; } = new("requests");
+
+    /// <summary>Model tokens.</summary>
+    public static ProviderQuotaUnit Tokens { get; } = new("tokens");
+
+    /// <summary>The observation does not establish a quantity unit.</summary>
+    public static ProviderQuotaUnit Unknown { get; } = new("unknown");
+
+    /// <summary>Returns a value indicating whether two <see cref="ProviderQuotaUnit"/> instances are equivalent.</summary>
+    public static bool operator ==(ProviderQuotaUnit left, ProviderQuotaUnit right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="ProviderQuotaUnit"/> instances are not equivalent.</summary>
+    public static bool operator !=(ProviderQuotaUnit left, ProviderQuotaUnit right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is ProviderQuotaUnit other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(ProviderQuotaUnit other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{ProviderQuotaUnit}"/> for serializing <see cref="ProviderQuotaUnit"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<ProviderQuotaUnit>
+    {
+        /// <inheritdoc />
+        public override ProviderQuotaUnit Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, ProviderQuotaUnit value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ProviderQuotaUnit));
+        }
+    }
+}
+
 /// <summary>Timing and purpose of a provider quota observation.</summary>
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
@@ -16005,73 +16332,6 @@ public readonly struct ProviderQuotaQuantityKind : IEquatable<ProviderQuotaQuant
         public override void Write(Utf8JsonWriter writer, ProviderQuotaQuantityKind value, JsonSerializerOptions options)
         {
             GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ProviderQuotaQuantityKind));
-        }
-    }
-}
-
-/// <summary>Units explicitly reported by a quota provider.</summary>
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct ProviderQuotaUnit : IEquatable<ProviderQuotaUnit>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="ProviderQuotaUnit"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="ProviderQuotaUnit"/>.</param>
-    [JsonConstructor]
-    public ProviderQuotaUnit(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="ProviderQuotaUnit"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>AI credits, not tokens or currency.</summary>
-    public static ProviderQuotaUnit AiCredits { get; } = new("ai_credits");
-
-    /// <summary>Requests charged against an entitlement.</summary>
-    public static ProviderQuotaUnit Requests { get; } = new("requests");
-
-    /// <summary>Model tokens.</summary>
-    public static ProviderQuotaUnit Tokens { get; } = new("tokens");
-
-    /// <summary>The observation does not establish a quantity unit.</summary>
-    public static ProviderQuotaUnit Unknown { get; } = new("unknown");
-
-    /// <summary>Returns a value indicating whether two <see cref="ProviderQuotaUnit"/> instances are equivalent.</summary>
-    public static bool operator ==(ProviderQuotaUnit left, ProviderQuotaUnit right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="ProviderQuotaUnit"/> instances are not equivalent.</summary>
-    public static bool operator !=(ProviderQuotaUnit left, ProviderQuotaUnit right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is ProviderQuotaUnit other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(ProviderQuotaUnit other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{ProviderQuotaUnit}"/> for serializing <see cref="ProviderQuotaUnit"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<ProviderQuotaUnit>
-    {
-        /// <inheritdoc />
-        public override ProviderQuotaUnit Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, ProviderQuotaUnit value, JsonSerializerOptions options)
-        {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ProviderQuotaUnit));
         }
     }
 }
@@ -18038,6 +18298,70 @@ public readonly struct AssistantUsageApiEndpoint : IEquatable<AssistantUsageApiE
     }
 }
 
+/// <summary>Content-Encoding applied to the request body sent on the wire.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct ModelCallRequestBodyEncoding : IEquatable<ModelCallRequestBodyEncoding>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="ModelCallRequestBodyEncoding"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="ModelCallRequestBodyEncoding"/>.</param>
+    [JsonConstructor]
+    public ModelCallRequestBodyEncoding(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="ModelCallRequestBodyEncoding"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The request body was sent uncompressed (including every WebSocket request).</summary>
+    public static ModelCallRequestBodyEncoding Identity { get; } = new("identity");
+
+    /// <summary>The request body was sent gzip-compressed.</summary>
+    public static ModelCallRequestBodyEncoding Gzip { get; } = new("gzip");
+
+    /// <summary>The request body was sent zstd-compressed.</summary>
+    public static ModelCallRequestBodyEncoding Zstd { get; } = new("zstd");
+
+    /// <summary>Returns a value indicating whether two <see cref="ModelCallRequestBodyEncoding"/> instances are equivalent.</summary>
+    public static bool operator ==(ModelCallRequestBodyEncoding left, ModelCallRequestBodyEncoding right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="ModelCallRequestBodyEncoding"/> instances are not equivalent.</summary>
+    public static bool operator !=(ModelCallRequestBodyEncoding left, ModelCallRequestBodyEncoding right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is ModelCallRequestBodyEncoding other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(ModelCallRequestBodyEncoding other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{ModelCallRequestBodyEncoding}"/> for serializing <see cref="ModelCallRequestBodyEncoding"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<ModelCallRequestBodyEncoding>
+    {
+        /// <inheritdoc />
+        public override ModelCallRequestBodyEncoding Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, ModelCallRequestBodyEncoding value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ModelCallRequestBodyEncoding));
+        }
+    }
+}
+
 /// <summary>Transport used for a successful model call.</summary>
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
@@ -18095,6 +18419,97 @@ public readonly struct AssistantUsageTransport : IEquatable<AssistantUsageTransp
         public override void Write(Utf8JsonWriter writer, AssistantUsageTransport value, JsonSerializerOptions options)
         {
             GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AssistantUsageTransport));
+        }
+    }
+}
+
+/// <summary>Normalized cause of the WebSocket failure that triggered the HTTP fallback.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct ModelCallWebSocketFallbackErrorKind : IEquatable<ModelCallWebSocketFallbackErrorKind>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="ModelCallWebSocketFallbackErrorKind"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="ModelCallWebSocketFallbackErrorKind"/>.</param>
+    [JsonConstructor]
+    public ModelCallWebSocketFallbackErrorKind(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="ModelCallWebSocketFallbackErrorKind"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>DNS resolution of the WebSocket host failed.</summary>
+    public static ModelCallWebSocketFallbackErrorKind Dns { get; } = new("dns");
+
+    /// <summary>The TLS handshake or a TLS record failed.</summary>
+    public static ModelCallWebSocketFallbackErrorKind Tls { get; } = new("tls");
+
+    /// <summary>A WebSocket connect or read timed out.</summary>
+    public static ModelCallWebSocketFallbackErrorKind Timeout { get; } = new("timeout");
+
+    /// <summary>The peer refused the TCP connection.</summary>
+    public static ModelCallWebSocketFallbackErrorKind ConnectionRefused { get; } = new("connection_refused");
+
+    /// <summary>The connection was reset, aborted, or ended mid-stream without a close.</summary>
+    public static ModelCallWebSocketFallbackErrorKind ConnectionReset { get; } = new("connection_reset");
+
+    /// <summary>The peer closed the WebSocket.</summary>
+    public static ModelCallWebSocketFallbackErrorKind ClosedByPeer { get; } = new("closed_by_peer");
+
+    /// <summary>The runtime closed the WebSocket itself.</summary>
+    public static ModelCallWebSocketFallbackErrorKind ClosedLocally { get; } = new("closed_locally");
+
+    /// <summary>The socket was already closed before it was used.</summary>
+    public static ModelCallWebSocketFallbackErrorKind NotConnected { get; } = new("not_connected");
+
+    /// <summary>The upgrade or request was rejected with an HTTP status.</summary>
+    public static ModelCallWebSocketFallbackErrorKind HttpStatus { get; } = new("http_status");
+
+    /// <summary>A WebSocket protocol violation or an undecodable frame.</summary>
+    public static ModelCallWebSocketFallbackErrorKind Protocol { get; } = new("protocol");
+
+    /// <summary>The WebSocket request could not be built.</summary>
+    public static ModelCallWebSocketFallbackErrorKind Configuration { get; } = new("configuration");
+
+    /// <summary>A failure that maps onto none of the other kinds.</summary>
+    public static ModelCallWebSocketFallbackErrorKind Other { get; } = new("other");
+
+    /// <summary>Returns a value indicating whether two <see cref="ModelCallWebSocketFallbackErrorKind"/> instances are equivalent.</summary>
+    public static bool operator ==(ModelCallWebSocketFallbackErrorKind left, ModelCallWebSocketFallbackErrorKind right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="ModelCallWebSocketFallbackErrorKind"/> instances are not equivalent.</summary>
+    public static bool operator !=(ModelCallWebSocketFallbackErrorKind left, ModelCallWebSocketFallbackErrorKind right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is ModelCallWebSocketFallbackErrorKind other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(ModelCallWebSocketFallbackErrorKind other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{ModelCallWebSocketFallbackErrorKind}"/> for serializing <see cref="ModelCallWebSocketFallbackErrorKind"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<ModelCallWebSocketFallbackErrorKind>
+    {
+        /// <inheritdoc />
+        public override ModelCallWebSocketFallbackErrorKind Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, ModelCallWebSocketFallbackErrorKind value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ModelCallWebSocketFallbackErrorKind));
         }
     }
 }
@@ -23184,6 +23599,7 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(HumanResponseRecordedResponseAskUser))]
 [JsonSerializable(typeof(HumanResponseRecordedResponseExitPlanMode))]
 [JsonSerializable(typeof(HumanResponseRecordedResponseUserInput))]
+[JsonSerializable(typeof(ManagedPermissionsContext))]
 [JsonSerializable(typeof(McpAppToolCallCompleteData))]
 [JsonSerializable(typeof(McpAppToolCallCompleteError))]
 [JsonSerializable(typeof(McpAppToolCallCompleteEvent))]
@@ -23290,6 +23706,7 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(PersistedBinaryResult))]
 [JsonSerializable(typeof(PromptCacheBreakData))]
 [JsonSerializable(typeof(PromptCacheBreakEvent))]
+[JsonSerializable(typeof(ProviderMonthlyUsage))]
 [JsonSerializable(typeof(ProviderQuotaBudgetMetadata))]
 [JsonSerializable(typeof(ProviderQuotaState))]
 [JsonSerializable(typeof(ResponsesReasoning))]

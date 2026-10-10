@@ -1634,12 +1634,17 @@ impl Client {
                     if !use_logged_in_user {
                         args.push("--no-auto-login".to_string());
                     }
+                    let integration_id = std::env::var("GITHUB_COPILOT_INTEGRATION_ID")
+                        .ok()
+                        .map(|value| value.trim().to_owned())
+                        .filter(|value| !value.is_empty());
                     let explicit_cli = std::env::var_os("COPILOT_CLI_PATH")
                         .map(PathBuf::from)
                         .filter(|path| path.is_file());
                     let host = crate::ffi::FfiHost::create(
                         &program,
                         explicit_cli.as_deref(),
+                        integration_id.as_deref(),
                         environment,
                         args,
                     )?;

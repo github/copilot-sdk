@@ -197,6 +197,16 @@ it("requires linked sign-in, adopts same-session re-login, and persists silent r
     );
     expect(modelRequests).toEqual([]);
     expect(grants).toBe(0);
+    if (process.platform === "linux") {
+        await expect(session.rpc.accounts.login.begin({ kind: "entra" })).rejects.toThrow(
+            "only on Windows and macOS"
+        );
+        expect(signIns).toBe(0);
+        expect(exchanges).toBe(0);
+        expect(grants).toBe(0);
+        expect(modelRequests).toEqual([]);
+        return;
+    }
 
     const signIn = async () => {
         const { flowId } = await session.rpc.accounts.login.begin({ kind: "entra" });

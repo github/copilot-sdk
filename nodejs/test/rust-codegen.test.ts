@@ -18,6 +18,45 @@ import {
 import { legacyRequestSchema } from "./legacy-parameters-fixture.ts";
 
 describe("Rust API type codegen", () => {
+    it("reuses the named managed operation and kind in request and result fields", () => {
+        const code = generateApiTypesCode({
+            definitions: {
+                ManagedPermissionOperation: {
+                    anyOf: [
+                        {
+                            type: "object",
+                            properties: {
+                                kind: { type: "string", const: "url" },
+                                url: { type: "string" },
+                            },
+                            required: ["kind", "url"],
+                        },
+                    ],
+                },
+                ManagedPermissionsEvaluateRequest: {
+                    type: "object",
+                    properties: {
+                        operations: {
+                            type: "array",
+                            items: { $ref: "#/definitions/ManagedPermissionOperation" },
+                        },
+                    },
+                    required: ["operations"],
+                },
+                ManagedPermissionEvaluation: {
+                    type: "object",
+                    properties: { operation: { $ref: "#/definitions/ManagedPermissionOperation" } },
+                    required: ["operation"],
+                },
+            },
+        } as ApiSchema);
+        expect(code).toContain("pub operations: Vec<ManagedPermissionOperation>,");
+        expect(code).toContain("pub operation: ManagedPermissionOperation,");
+        expect(code).toContain("pub kind: ManagedPermissionOperationKind,");
+        expect(code).not.toContain("ManagedPermissionsEvaluateRequestOperationsItem");
+        expect(code).not.toContain("ManagedPermissionEvaluationOperation");
+    });
+
     it("keeps every noncanonical open identifier distinct from the default sentinel", () => {
         const code = generateApiTypesCode(
             postProcessSchema({

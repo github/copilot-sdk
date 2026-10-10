@@ -18,6 +18,123 @@ function closeServer(server: Server): Promise<void> {
 describe("Managed permissions limitTo", async () => {
     const { copilotClient: client, workDir } = await createSdkTestContext();
 
+    it("evaluates retained managed network policy without invoking the permission handler", async () => {
+        let permissionRequests = 0;
+        const session = await client.createSession({
+            managedSettings: {
+                permissions: {
+                    limitTo: ["Domain(*.example.com)"],
+                    deny: ["Domain(blocked.example.com)"],
+                    ask: ["Domain(prompt.example.com)"],
+                    allow: ["Domain(allowed.example.com)"],
+                },
+            },
+            onPermissionRequest: () => {
+                permissionRequests++;
+                return { kind: "approve-once" };
+            },
+        });
+        try {
+            const urls = [
+                "https://allowed.example.com/guide",
+                "https://prompt.example.com/",
+                "https://blocked.example.com/",
+                "https://outside.test/",
+                "http://allowed.example.com:8080/redirect",
+            ];
+            const snapshot = await session.rpc.managedSettings.get();
+            expect(snapshot.permissionsContext).toBeDefined();
+            const context = snapshot.permissionsContext!;
+            const operations = urls.map((url) => ({ kind: "url" as const, url }));
+            const result = await client.rpc.managedSettings.permissions.evaluate({
+                context,
+                operations,
+            });
+            expect(result).toEqual({
+                failClosed: false,
+                results: operations.map((operation, index) => ({
+                    operation,
+                    verdict: ["allow", "ask", "deny", "deny", "ask"][index],
+                })),
+            });
+            expect(permissionRequests).toBe(0);
+            await expect(
+                client.rpc.managedSettings.permissions.evaluate({
+                    context,
+                    operations: [{ kind: "url", url: "file:///secret" }],
+                })
+            ).rejects.toMatchObject({ code: -32602 });
+            expect(
+                await client.rpc.managedSettings.permissions.evaluate({ context, operations: [] })
+            ).toEqual({
+                failClosed: false,
+                results: [],
+            });
+            expect(snapshot.settings).not.toHaveProperty("sandbox");
+        } finally {
+            await session.disconnect();
+        }
+    });
+
+    it("evaluates an in-memory permissions context without creating a session", async () => {
+        await client.start();
+        const operations = [
+            { kind: "url" as const, url: "https://api.example.com/guide" },
+            { kind: "url" as const, url: "https://outside.test/" },
+        ];
+        const context = {
+            permissions: { limitTo: ["Domain(api.example.com)"] },
+            failClosed: false,
+        };
+        const result = await client.rpc.managedSettings.permissions.evaluate({
+            context,
+            operations,
+        });
+        expect(result).toEqual({
+            failClosed: false,
+            results: [
+                { operation: operations[0], verdict: "unmanaged" },
+                { operation: operations[1], verdict: "deny" },
+            ],
+        });
+        expect(
+            await client.rpc.managedSettings.permissions.evaluate({
+                context: { ...context, failClosed: true },
+                operations,
+            })
+        ).toEqual({
+            failClosed: true,
+            results: operations.map((operation) => ({ operation, verdict: "deny" })),
+        });
+    });
+
+    it("denies every URL for an empty managed boundary", async () => {
+        const session = await client.createSession({
+            managedSettings: { permissions: { limitTo: [] } },
+        });
+        try {
+            const snapshot = await session.rpc.managedSettings.get();
+            expect(snapshot.permissionsContext).toBeDefined();
+            expect(
+                await client.rpc.managedSettings.permissions.evaluate({
+                    context: snapshot.permissionsContext!,
+                    operations: [
+                        { kind: "url", url: "https://example.com/" },
+                        { kind: "url", url: "https://api.github.com/" },
+                    ],
+                })
+            ).toEqual({
+                failClosed: false,
+                results: [
+                    { operation: { kind: "url", url: "https://example.com/" }, verdict: "deny" },
+                    { operation: { kind: "url", url: "https://api.github.com/" }, verdict: "deny" },
+                ],
+            });
+        } finally {
+            await session.disconnect();
+        }
+    });
+
     it.skipIf(process.platform !== "darwin")(
         "admits only the configured dynamic loopback destination",
         async () => {

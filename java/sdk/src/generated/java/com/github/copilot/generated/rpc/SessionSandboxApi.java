@@ -42,6 +42,17 @@ public final class SessionSandboxApi {
     }
 
     /**
+     * Lists possible secret-bearing environment variables available to new sandboxed shells that are not already covered by credential masking. Uses local name rules and known-provider host suggestions, never returns secret values, and changes no settings or network permissions. Returns no suggestions while the session is not sandboxed.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionSandboxGetCredentialSuggestionsResult> getCredentialSuggestions() {
+        return caller.invoke("session.sandbox.getCredentialSuggestions", java.util.Map.of("sessionId", this.sessionId), SessionSandboxGetCredentialSuggestionsResult.class);
+    }
+
+    /**
      * Disables sandboxing for the remainder of the current session and approves the referenced pending sandbox-bypass permission request. The request is rejected unless the exact request is still pending and the effective sandbox policy permits bypass.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden

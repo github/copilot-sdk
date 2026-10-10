@@ -67,6 +67,19 @@ describe("Python RPC projection compatibility", () => {
         expect(code).toContain(`return list(await self._client.request("${method}"`);
     });
 
+    it("keeps the managed permission discriminator independent of MCP URL kinds", () => {
+        expect(code).toContain("class ManagedPermissionOperationKind(Enum):");
+        const operation = code
+            .split("class ManagedPermissionOperation:")[1]
+            ?.split("\n\n@dataclass")[0];
+        expect(operation).toContain("kind: ManagedPermissionOperationKind");
+        expect(operation).toContain('kind = ManagedPermissionOperationKind(obj.get("kind"))');
+        expect(operation).toContain(
+            'result["kind"] = to_enum(ManagedPermissionOperationKind, self.kind)'
+        );
+        expect(operation).not.toContain("MCPServerCardURLKind");
+    });
+
     it("preserves the existing Workflow checkpoint result API", () => {
         const result = "SessionWorkflowPauseAtCheckpointResult";
         expect(code).toContain(`class ${result}:`);

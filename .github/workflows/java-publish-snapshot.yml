@@ -370,7 +370,7 @@ jobs:
   build-darwin-classifier:
     name: Build Darwin snapshot classifier
     needs: resolve-source
-    runs-on: macos-26
+    runs-on: macos-26-agent-runtime
     permissions:
       contents: read
     outputs:

@@ -167,6 +167,9 @@ type AccountsSetRequest struct {
 type AccountStatus struct {
 	// Whether this is the active account.
 	Active bool `json:"active"`
+	// Human-readable credential source used to authenticate this account, such as `gh` or
+	// `GITHUB_TOKEN`.
+	AuthSource *string `json:"authSource,omitempty"`
 	// Opaque id of the account this one was derived from (e.g. an EMU account's base Entra
 	// identity); absent for a root account. Matches the base identity account's selectionId,
 	// forming the derivation edge.
@@ -5389,8 +5392,6 @@ type GlobalStateLoadForConfigDirRequest struct {
 // Internal: GlobalStateLoadResult is an internal SDK API and is not part of the public
 // surface.
 type GlobalStateLoadResult struct {
-	// Whether the user has answered the prompt suggesting they install the desktop app.
-	AppInstallNudgeResponded *bool `json:"appInstallNudgeResponded,omitempty"`
 	// Whether the app tip has been shown.
 	AppTipShown *bool `json:"appTipShown,omitempty"`
 	// Terminals the user has already been asked to set up, so the host does not ask twice.
@@ -6787,6 +6788,58 @@ type ManagedMCPServerConfig struct {
 	URL string `json:"url"`
 }
 
+// Experimental: ManagedPermissionEvaluation is part of an experimental API and may change
+// or be removed.
+type ManagedPermissionEvaluation struct {
+	// Original input operation associated with this verdict.
+	Operation ManagedPermissionOperation `json:"operation"`
+	// Managed-policy decision only; never bypasses user permissions or other security controls.
+	Verdict ManagedPermissionVerdict `json:"verdict"`
+}
+
+// Experimental: ManagedPermissionOperation is part of an experimental API and may change or
+// be removed.
+type ManagedPermissionOperation struct {
+	// Operation to evaluate. Currently only url is supported.
+	Kind ManagedPermissionOperationKind `json:"kind"`
+	// Absolute HTTP(S) URL with a host. Invalid URLs reject the entire evaluation batch.
+	URL string `json:"url"`
+}
+
+// Reusable managed permission evaluation context. Treat permissions as runtime-owned policy
+// data and retain it verbatim; it includes source-aware composition metadata. This is a
+// snapshot, not a capability or approval token; only use contexts obtained from trusted
+// policy sources.
+// Experimental: ManagedPermissionsContext is part of an experimental API and may change or
+// be removed.
+type ManagedPermissionsContext struct {
+	// Policy could not be determined; evaluation must deny every operation.
+	FailClosed bool `json:"failClosed"`
+	// Runtime-owned composed permissions object. Absent when no permission policy is configured.
+	Permissions any `json:"permissions,omitempty"`
+}
+
+// Managed policy context and ordered operations for pure, sessionless evaluation.
+// Experimental: ManagedPermissionsEvaluateRequest is part of an experimental API and may
+// change or be removed.
+type ManagedPermissionsEvaluateRequest struct {
+	// Trusted, reusable managed permission policy snapshot; no policy is discovered during
+	// evaluation.
+	Context ManagedPermissionsContext `json:"context"`
+	// Operations to evaluate, preserving input order and duplicates. An empty batch is valid.
+	Operations []ManagedPermissionOperation `json:"operations"`
+}
+
+// Ordered managed permission verdicts and the supplied policy's fail-closed posture.
+// Experimental: ManagedPermissionsEvaluateResult is part of an experimental API and may
+// change or be removed.
+type ManagedPermissionsEvaluateResult struct {
+	// Managed permission policy could not be determined; every operation is denied.
+	FailClosed bool `json:"failClosed"`
+	// One verdict per input operation, in the same order, including duplicates.
+	Results []ManagedPermissionEvaluation `json:"results"`
+}
+
 // Retry outcome for one plugin required by managed settings.
 // Experimental: ManagedPluginRetryEntry is part of an experimental API and may change or be
 // removed.
@@ -6906,6 +6959,16 @@ type ManagedSettingsMeta struct {
 	Model *ManagedSettingMeta `json:"model,omitempty"`
 }
 
+// Ordered managed permission verdicts and the supplied policy's fail-closed posture.
+// Experimental: ManagedSettingsPermissionsEvaluateResult is part of an experimental API and
+// may change or be removed.
+type ManagedSettingsPermissionsEvaluateResult struct {
+	// Managed permission policy could not be determined; every operation is denied.
+	FailClosed bool `json:"failClosed"`
+	// One verdict per input operation, in the same order, including duplicates.
+	Results []ManagedPermissionEvaluation `json:"results"`
+}
+
 // Validated device-managed settings discovered before a session exists.
 // Experimental: ManagedSettingsReadResult is part of an experimental API and may change or
 // be removed.
@@ -6926,16 +6989,18 @@ type ManagedSettingsReadResult struct {
 // Experimental: ManagedSettingsResolvedData is part of an experimental API and may change
 // or be removed.
 type ManagedSettingsResolvedData struct {
-	// Whether enterprise policy disables bypass-permissions ("yolo") mode for this session.
-	// Deny-wins across layers, and forced on when `failClosed` is true.
+	// Whether an explicit enterprise policy restriction disables bypass-permissions ("yolo")
+	// mode for this session. Deny-wins across layers; an unresolved policy does not force this
+	// on by itself.
 	BypassPermissionsDisabled bool `json:"bypassPermissionsDisabled"`
 	// Whether a session-local permissions layer injected by the SDK host was present
 	ClientManaged *bool `json:"clientManaged,omitempty"`
 	// Whether an actual device MDM/plist/registry/file managed-settings layer was present
 	DeviceManaged bool `json:"deviceManaged"`
-	// Whether managed policy could not be determined (e.g. a failed server fetch) and the
-	// session fell back to the fail-closed restriction. When true, restrictions such as
-	// disabling bypass-permissions are enforced even though `settings` may be absent.
+	// Whether managed policy could not be determined (e.g. a failed server fetch) and
+	// unresolved-policy safeguards remain active. This does not by itself disable
+	// bypass-permissions; `bypassPermissionsDisabled` reports only an explicit policy
+	// restriction.
 	FailClosed bool `json:"failClosed"`
 	// The setting keys under enterprise management in the effective managed settings (e.g.
 	// `model`, `enabledPlugins`, `permissions`). Empty when no managed settings are in force.
@@ -6943,6 +7008,10 @@ type ManagedSettingsResolvedData struct {
 	// Whether at least two managed sources supplied permission allowlists, so enforcement
 	// intersects them and the flattened settings payload omits `permissions.allow`.
 	PermissionsAllowIntersected *bool `json:"permissionsAllowIntersected,omitempty"`
+	// Reusable retained managed permission policy for managedSettings.permissions.evaluate,
+	// including source composition and session-local injection. Provided by live session
+	// snapshots; absent in older events. Refresh the context when managed policy changes.
+	PermissionsContext *ManagedPermissionsContext `json:"permissionsContext,omitempty"`
 	// Whether the policy-helper managed-settings layer was present. The policy helper is the
 	// weakest channel: it fills keys no enterprise source set and can never replace one.
 	PolicyHelperManaged *bool `json:"policyHelperManaged,omitempty"`
@@ -6997,6 +7066,11 @@ type ManagedSettingsResolveResult struct {
 	Layers []ManagedSettingsLayer `json:"layers"`
 	// Per-key lock state and provenance for the entries in `values`, using the same key names.
 	Meta *ManagedSettingsMeta `json:"meta,omitempty"`
+	// Reusable source-composed permission policy for managedSettings.permissions.evaluate.
+	// Unlike resolved.settings.permissions, this retains every source's allowlist and
+	// default-prompt semantics. Refresh through resolve when account/device policy changes.
+	// Absent on runtimes that do not support permission evaluation.
+	PermissionsContext *ManagedPermissionsContext `json:"permissionsContext,omitempty"`
 	// Effective managed settings from the device and account (server) channels, in the same
 	// shape as `session.managedSettings.get`, excluding session-local injection.
 	Resolved ManagedSettingsResolvedData `json:"resolved"`
@@ -9245,6 +9319,67 @@ type MCPRegisterExternalClientRequest struct {
 	Transport any `json:"transport"`
 }
 
+// Registry search to abandon.
+// Experimental: MCPRegistryCancelRequest is part of an experimental API and may change or
+// be removed.
+type MCPRegistryCancelRequest struct {
+	// Request ID from `mcp.registry.allocateRequestId` that the search uses.
+	RequestID int64 `json:"requestId"`
+}
+
+// Whether the cancel reached a live search.
+// Experimental: MCPRegistryCancelResult is part of an experimental API and may change or be
+// removed.
+type MCPRegistryCancelResult struct {
+	// True when the cancel stopped a running search. False for unknown or reclaimed IDs,
+	// completed or canceled searches, and unused reservations. The cancel releases an unused
+	// reservation.
+	Canceled bool `json:"canceled"`
+}
+
+// Request id naming a cancellable registry search.
+// Experimental: MCPRegistryRequestIDResult is part of an experimental API and may change or
+// be removed.
+type MCPRegistryRequestIDResult struct {
+	// Request ID for `mcp.registry.search` and `mcp.registry.cancel`. It serves one search.
+	// Allocation can reclaim unused IDs at the 1,024-ID reservation limit.
+	RequestID int64 `json:"requestId"`
+}
+
+// Registry search terms, the credential to search under, and the request id that makes the
+// search cancellable.
+// Experimental: MCPRegistrySearchRequest is part of an experimental API and may change or
+// be removed.
+type MCPRegistrySearchRequest struct {
+	// The credential the search runs under, carried opaquely. Hosts usually send
+	// credential-free `AuthIdentity`; a `token` identity can be resolved only when it embeds a
+	// token, while `env` and `gh-cli` identities can use a token embedded in the request first.
+	AuthInfo any `json:"authInfo"`
+	// Maximum number of servers to return.
+	Limit int64 `json:"limit"`
+	// Free-text query. Omitted or empty asks the registry for its top servers rather than
+	// searching. A value that is not a string is refused.
+	Query *string `json:"query,omitempty"`
+	// Repository used for the policy lookup, as `owner/name`. The policy selects the registry
+	// URL and whether the user token goes to the registry. The registry receives this
+	// repository only when the policy entry lists it as required context. A value that is not a
+	// string is refused.
+	Repository *string `json:"repository,omitempty"`
+	// Request ID from `mcp.registry.allocateRequestId`. The search refuses unknown, reclaimed,
+	// or canceled IDs and IDs that another search or request already uses.
+	RequestID int64 `json:"requestId"`
+}
+
+// Servers selected from the registry response.
+// Experimental: MCPRegistrySearchResult is part of an experimental API and may change or be
+// removed.
+type MCPRegistrySearchResult struct {
+	// The server objects, carried opaquely. The runtime follows pages, keeps the newest entry
+	// per server name, cuts the list to `limit`, and sorts an empty-query result by GitHub
+	// stars. Each server object remains unchanged because the registry owns that shape.
+	Servers any `json:"servers"`
+}
+
 // In-process MCP reload configuration.
 // Experimental: MCPReloadConfig is part of an experimental API and may change or be removed.
 type MCPReloadConfig struct {
@@ -9890,6 +10025,34 @@ type MCPSetEnvValueModeParams struct {
 type MCPSetEnvValueModeResult struct {
 	// Mode recorded on the session after the update
 	Mode MCPSetEnvValueModeDetails `json:"mode"`
+}
+
+// The session tool filters that decide whether the session still has a shell to run `gh`
+// with.
+// Experimental: MCPShouldExcludeGitHubToolsRequest is part of an experimental API and may
+// change or be removed.
+type MCPShouldExcludeGitHubToolsRequest struct {
+	// The session's tool allowlist, when it set one. Omitted means the session constrains
+	// nothing this way.
+	AvailableTools []string `json:"availableTools,omitzero"`
+	// The session's tool denylist, when it set one. Omitted means the session constrains
+	// nothing this way.
+	ExcludedTools []string `json:"excludedTools,omitzero"`
+	// How the allowlist and denylist combine when both are set. Omitted means the default every
+	// session gets, so a caller that never chose a precedence is answered as its sessions
+	// behave.
+	ToolFilterPrecedence *OptionsUpdateToolFilterPrecedence `json:"toolFilterPrecedence,omitempty"`
+}
+
+// Whether the gh-replaceable GitHub MCP tools may be clipped for the session described by
+// the request.
+// Experimental: MCPShouldExcludeGitHubToolsResult is part of an experimental API and may
+// change or be removed.
+type MCPShouldExcludeGitHubToolsResult struct {
+	// True only when both halves hold: the session's filters still reach the platform shell
+	// tool, and the host actually has the `gh` those tools would be replaced by. Feed it
+	// straight back as the `excludeGhReplaceableTools` build option.
+	ExcludeGhReplaceableTools bool `json:"excludeGhReplaceableTools"`
 }
 
 // Concrete configuration file containing an MCP server declaration.
@@ -13273,6 +13436,30 @@ type ProviderModelConfig struct {
 	WireModel *string `json:"wireModel,omitempty"`
 }
 
+// An authoritative monthly usage reading for the observation's provider, account, and
+// service.
+// Experimental: ProviderMonthlyUsage is part of an experimental API and may change or be
+// removed.
+type ProviderMonthlyUsage struct {
+	// Nonnegative finite consumption reported by the service, preserving zero and fractions.
+	// Present only when state is available; never computed from tokens or balance differences.
+	ConsumedQuantity *float64 `json:"consumedQuantity,omitempty"`
+	// Start of the service-reported monthly billing cycle, in UTC RFC 3339.
+	CycleStart *string `json:"cycleStart,omitempty"`
+	// Service read time in UTC RFC 3339, not a ledger reconciliation watermark or confirmation
+	// of the latest inference charge.
+	QueriedAt *string `json:"queriedAt,omitempty"`
+	// End of the service-reported monthly billing cycle, in UTC RFC 3339.
+	ResetOn *string `json:"resetOn,omitempty"`
+	// Identity scope of the reading within its provider and service.
+	Scope ProviderMonthlyUsageScope `json:"scope"`
+	// Availability of monthly consumption. Missing or unavailable usage must never be
+	// interpreted as zero.
+	State ProviderMonthlyUsageState `json:"state"`
+	// Unit of consumedQuantity; independent of the parent observation's balance unit.
+	Unit ProviderQuotaUnit `json:"unit"`
+}
+
 // Authoritative budget measurements and policy metadata, independent of provider.
 // Experimental: ProviderQuotaBudgetMetadata is part of an experimental API and may change
 // or be removed.
@@ -13331,6 +13518,9 @@ type ProviderQuotaState struct {
 	HasQuota *bool `json:"hasQuota,omitempty"`
 	// HTTP status from acquisition, when available.
 	HTTPStatus *int64 `json:"httpStatus,omitempty"`
+	// Service-reported monthly consumption, independent of quota balances and per-call or
+	// session cost. Omitted when the service does not report monthly usage.
+	MonthlyUsage *ProviderMonthlyUsage `json:"monthlyUsage,omitempty"`
 	// Whether this is a GET account reading or a pre-response admission observation.
 	// Observations are never merged across kinds.
 	ObservationKind *ProviderQuotaObservationKind `json:"observationKind,omitempty"`
@@ -14668,6 +14858,29 @@ type SandboxCredentialsConfig struct {
 	// Environment variable names and their HTTPS injection destinations. Absent variables stay
 	// absent. No real values or sentinels are stored in this map.
 	EnvVars map[string]SandboxMaskedEnvVar `json:"envVars"`
+}
+
+// A possible secret-bearing environment variable and optional locally suggested HTTPS
+// injection hosts. This is a draft for user review, not an active grant.
+// Experimental: SandboxCredentialSuggestion is part of an experimental API and may change
+// or be removed.
+type SandboxCredentialSuggestion struct {
+	// Environment variable name. The secret value is never returned.
+	Name string `json:"name"`
+	// HTTPS hostnames suggested by a local known-provider mapping. An empty list requires the
+	// user to supply injection hosts before adding a masking entry. These suggestions do not
+	// allow network access.
+	SuggestedInjectHosts []string `json:"suggestedInjectHosts"`
+}
+
+// Possible unconfigured secrets in the sandbox shell environment, sorted by variable name,
+// with no secret values.
+// Experimental: SandboxCredentialSuggestionsResult is part of an experimental API and may
+// change or be removed.
+type SandboxCredentialSuggestionsResult struct {
+	// Candidates for user review. Empty when sandboxing is disabled or no unconfigured
+	// candidates are present.
+	Suggestions []SandboxCredentialSuggestion `json:"suggestions"`
 }
 
 // Request to disable sandboxing for the current session while resolving an active
@@ -24580,6 +24793,31 @@ const (
 	LoginProviderKindProxima LoginProviderKind = "proxima"
 )
 
+// Operation to evaluate. Currently only url is supported.
+type ManagedPermissionOperationKind string
+
+const (
+	ManagedPermissionOperationKindURL ManagedPermissionOperationKind = "url"
+)
+
+// Managed-policy verdict only: deny blocks the URL, ask requires approval, allow approves
+// under managed policy, and unmanaged leaves the normal consumer permission flow in effect.
+// No verdict bypasses other security controls.
+// Experimental: ManagedPermissionVerdict is part of an experimental API and may change or
+// be removed.
+type ManagedPermissionVerdict string
+
+const (
+	// Managed policy allows the operation, subject to other security controls.
+	ManagedPermissionVerdictAllow ManagedPermissionVerdict = "allow"
+	// Managed policy requires the consumer to obtain approval.
+	ManagedPermissionVerdictAsk ManagedPermissionVerdict = "ask"
+	// Managed policy prohibits the operation; do not offer approval.
+	ManagedPermissionVerdictDeny ManagedPermissionVerdict = "deny"
+	// Managed policy does not decide the operation; use the consumer's normal permission flow.
+	ManagedPermissionVerdictUnmanaged ManagedPermissionVerdict = "unmanaged"
+)
+
 // What retrying did for one plugin required by managed settings.
 // Experimental: ManagedPluginRetryStatus is part of an experimental API and may change or
 // be removed.
@@ -26251,6 +26489,35 @@ const (
 	ProviderEndpointWireAPICompletions ProviderEndpointWireAPI = "completions"
 	// Newer responses request shape.
 	ProviderEndpointWireAPIResponses ProviderEndpointWireAPI = "responses"
+)
+
+// Identity scope of a monthly usage reading.
+// Experimental: ProviderMonthlyUsageScope is part of an experimental API and may change or
+// be removed.
+type ProviderMonthlyUsageScope string
+
+const (
+	// The service did not establish a recognized usage scope.
+	ProviderMonthlyUsageScopeUnknown ProviderMonthlyUsageScope = "unknown"
+	// Consumption of the authenticated user within the parent observation's service and
+	// returned cycle.
+	ProviderMonthlyUsageScopeUser ProviderMonthlyUsageScope = "user"
+)
+
+// Availability of a service's monthly consumption reading.
+// Experimental: ProviderMonthlyUsageState is part of an experimental API and may change or
+// be removed.
+type ProviderMonthlyUsageState string
+
+const (
+	// The service reported a usable consumption reading, including an explicit zero.
+	ProviderMonthlyUsageStateAvailable ProviderMonthlyUsageState = "available"
+	// The service found no usage policy; no consumption amount is known.
+	ProviderMonthlyUsageStateNoPolicy ProviderMonthlyUsageState = "no_policy"
+	// The read failed or its data could not be used; consumption is unknown.
+	ProviderMonthlyUsageStateUnavailable ProviderMonthlyUsageState = "unavailable"
+	// The service reported an unrecognized usage state.
+	ProviderMonthlyUsageStateUnknown ProviderMonthlyUsageState = "unknown"
 )
 
 // Access policy reported by the quota service.
@@ -28745,6 +29012,42 @@ func (a *ServerManagedSettingsAPI) Validate(ctx context.Context, params *Managed
 	return &result, nil
 }
 
+// Experimental: ServerManagedSettingsPermissionsAPI contains experimental APIs that may
+// change or be removed.
+type ServerManagedSettingsPermissionsAPI serverAPI
+
+// Evaluate pure, sessionless evaluation of operations against a supplied
+// permissionsContext. Performs no policy discovery, I/O, prompting, navigation, permission
+// grants, or sandbox changes. Obtain the context from managedSettings.resolve or
+// session.managedSettings.get, or reuse an in-memory context. Results preserve input order
+// and duplicates. Consumers must block deny, obtain approval for ask, and use their normal
+// permission flow for unmanaged. Unknown policy returns failClosed with every operation
+// denied. This is not a substitute for user permissions or other security controls.
+//
+// RPC method: managedSettings.permissions.evaluate.
+//
+// Parameters: Managed policy context and ordered operations for pure, sessionless
+// evaluation.
+//
+// Returns: Ordered managed permission verdicts and the supplied policy's fail-closed
+// posture.
+func (a *ServerManagedSettingsPermissionsAPI) Evaluate(ctx context.Context, params *ManagedPermissionsEvaluateRequest) (*ManagedSettingsPermissionsEvaluateResult, error) {
+	raw, err := a.client.Request(ctx, "managedSettings.permissions.evaluate", params)
+	if err != nil {
+		return nil, err
+	}
+	var result ManagedSettingsPermissionsEvaluateResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Experimental: Permissions returns experimental APIs that may change or be removed.
+func (s *ServerManagedSettingsAPI) Permissions() *ServerManagedSettingsPermissionsAPI {
+	return (*ServerManagedSettingsPermissionsAPI)(s)
+}
+
 // Experimental: ServerMCPAPI contains experimental APIs that may change or be removed.
 type ServerMCPAPI serverAPI
 
@@ -31066,12 +31369,12 @@ func (a *InternalServerGlobalStateAPI) LoadForConfigDir(ctx context.Context, par
 // asked a one-off question, or completed a migration, so the next run can skip it. Only the
 // named key is replaced and the rest of the document is preserved, which lets two writers
 // record different flags without overwriting each other; passing no value removes the key
-// instead. Only the keys a host records itself are writable: `appInstallNudgeResponded`,
-// `appTipShown`, `askedSetupTerminals`, `autoFeedbackLastPromptedAt`, `firstLaunchAt`,
-// `recentModelIds`, `sandboxCredentialProxyCaDeclined` and `sandboxOnboardingShown`. Every
-// other key is refused, including `installedPlugins`, the stored credentials,
-// `trustedFolders`, the staff flags and the signed-in accounts. Plugin enablement must use
-// the plugin APIs, which apply repository and managed-policy checks.
+// instead. Only the keys a host records itself are writable: `appTipShown`,
+// `askedSetupTerminals`, `autoFeedbackLastPromptedAt`, `firstLaunchAt`, `recentModelIds`,
+// `sandboxCredentialProxyCaDeclined` and `sandboxOnboardingShown`. Every other key is
+// refused, including `installedPlugins`, the stored credentials, `trustedFolders`, the
+// staff flags and the signed-in accounts. Plugin enablement must use the plugin APIs, which
+// apply repository and managed-policy checks.
 //
 // RPC method: globalState.writeKey.
 //
@@ -31203,6 +31506,127 @@ func (a *InternalServerHostAPI) ReleaseSession(ctx context.Context, params *Host
 		return nil, err
 	}
 	return &result, nil
+}
+
+// Experimental: InternalServerMCPAPI contains experimental APIs that may change or be
+// removed.
+type InternalServerMCPAPI internalServerAPI
+
+// ShouldExcludeGitHubTools reports whether the gh-replaceable GitHub MCP tools may be
+// clipped for a session, which a host feeds back as the `excludeGhReplaceableTools` build
+// option. The tools are redundant only when the session can reach a shell *and* the host
+// has the `gh` that would replace them, so both halves are decided here. The shell half
+// runs the platform shell tool through the runtime's own tool-filter matcher, so entry
+// forms like `builtin:bash` and `builtin:*` behave exactly as they do when a session builds
+// its tool catalog. The host half probes for `gh`, and is skipped entirely when the filters
+// already rule the shell out. Host presence alone is not enough: a session restricted to,
+// say, `view` would otherwise lose the built-in issue-read fallback while having no shell
+// to replace it with. The answer describes the host the runtime runs on, so it is never
+// forwarded to a remote engine.
+//
+// RPC method: mcp.shouldExcludeGitHubTools.
+//
+// Parameters: The session tool filters that decide whether the session still has a shell to
+// run `gh` with.
+//
+// Returns: Whether the gh-replaceable GitHub MCP tools may be clipped for the session
+// described by the request.
+// Internal: ShouldExcludeGitHubTools is part of the SDK's internal handshake/plumbing;
+// external callers should not use it.
+func (a *InternalServerMCPAPI) ShouldExcludeGitHubTools(ctx context.Context, params *MCPShouldExcludeGitHubToolsRequest) (*MCPShouldExcludeGitHubToolsResult, error) {
+	raw, err := a.client.Request(ctx, "mcp.shouldExcludeGitHubTools", params)
+	if err != nil {
+		return nil, err
+	}
+	var result MCPShouldExcludeGitHubToolsResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Experimental: InternalServerMCPRegistryAPI contains experimental APIs that may change or
+// be removed.
+type InternalServerMCPRegistryAPI internalServerAPI
+
+// AllocateRequestId allocates an ID for one cancellable MCP registry search. The ID exists
+// before the search starts, so callers can cancel before it starts. The networking stack
+// supplies the cancellation namespace. The runtime retains at most 1,024 unused IDs. At
+// capacity, another allocation can reclaim an unused ID. Active searches retain their IDs
+// until they finish.
+//
+// RPC method: mcp.registry.allocateRequestId.
+//
+// Returns: Request id naming a cancellable registry search.
+// Internal: AllocateRequestId is part of the SDK's internal handshake/plumbing; external
+// callers should not use it.
+func (a *InternalServerMCPRegistryAPI) AllocateRequestId(ctx context.Context) (*MCPRegistryRequestIDResult, error) {
+	raw, err := a.client.Request(ctx, "mcp.registry.allocateRequestId", nil)
+	if err != nil {
+		return nil, err
+	}
+	var result MCPRegistryRequestIDResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Cancel abandons the registry search that uses the given request ID. It acts only on IDs
+// from `mcp.registry.allocateRequestId`, so it never cancels another component's request.
+// Answers `canceled: true` when it stops a running search. Answers `canceled: false` for
+// unknown or reclaimed IDs, completed or canceled searches, and unused reservations. It
+// releases an unused reservation, so a later search with that ID is refused.
+//
+// RPC method: mcp.registry.cancel.
+//
+// Parameters: Registry search to abandon.
+//
+// Returns: Whether the cancel reached a live search.
+// Internal: Cancel is part of the SDK's internal handshake/plumbing; external callers
+// should not use it.
+func (a *InternalServerMCPRegistryAPI) Cancel(ctx context.Context, params *MCPRegistryCancelRequest) (*MCPRegistryCancelResult, error) {
+	raw, err := a.client.Request(ctx, "mcp.registry.cancel", params)
+	if err != nil {
+		return nil, err
+	}
+	var result MCPRegistryCancelResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Searches the MCP registry the supplied credential may read, resolving the registry
+// endpoint from policy first. Hosts usually send credential-free `AuthIdentity`; a `token`
+// identity can be resolved only when it embeds a token, while `env` and `gh-cli` identities
+// can use a token embedded in the request first. The runtime follows registry pages, keeps
+// the newest entry per server name, cuts the list to `limit`, and sorts an empty-query
+// result by GitHub stars. Each server object is carried opaquely.
+//
+// RPC method: mcp.registry.search.
+//
+// Parameters: Registry search terms, the credential to search under, and the request id
+// that makes the search cancellable.
+//
+// Returns: Servers selected from the registry response.
+// Internal: Search is part of the SDK's internal handshake/plumbing; external callers
+// should not use it.
+func (a *InternalServerMCPRegistryAPI) Search(ctx context.Context, params *MCPRegistrySearchRequest) (*MCPRegistrySearchResult, error) {
+	raw, err := a.client.Request(ctx, "mcp.registry.search", params)
+	if err != nil {
+		return nil, err
+	}
+	var result MCPRegistrySearchResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Experimental: Registry returns experimental APIs that may change or be removed.
+func (s *InternalServerMCPAPI) Registry() *InternalServerMCPRegistryAPI {
+	return (*InternalServerMCPRegistryAPI)(s)
 }
 
 // Experimental: InternalServerSessionsAPI contains experimental APIs that may change or be
@@ -31464,6 +31888,7 @@ type InternalServerRPC struct {
 	GitHubRepository *InternalServerGitHubRepositoryAPI
 	GlobalState      *InternalServerGlobalStateAPI
 	Host             *InternalServerHostAPI
+	MCP              *InternalServerMCPAPI
 	Sessions         *InternalServerSessionsAPI
 }
 
@@ -31505,6 +31930,7 @@ func NewInternalServerRPC(client *jsonrpc2.Client) *InternalServerRPC {
 	r.GitHubRepository = (*InternalServerGitHubRepositoryAPI)(&r.common)
 	r.GlobalState = (*InternalServerGlobalStateAPI)(&r.common)
 	r.Host = (*InternalServerHostAPI)(&r.common)
+	r.MCP = (*InternalServerMCPAPI)(&r.common)
 	r.Sessions = (*InternalServerSessionsAPI)(&r.common)
 	return r
 }
@@ -36878,6 +37304,29 @@ func (a *SandboxAPI) DisableForSession(ctx context.Context, params *SandboxDisab
 		return nil, err
 	}
 	var result SandboxDisableForSessionResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// GetCredentialSuggestions lists possible secret-bearing environment variables available to
+// new sandboxed shells that are not already covered by credential masking. Uses local name
+// rules and known-provider host suggestions, never returns secret values, and changes no
+// settings or network permissions. Returns no suggestions while the session is not
+// sandboxed.
+//
+// RPC method: session.sandbox.getCredentialSuggestions.
+//
+// Returns: Possible unconfigured secrets in the sandbox shell environment, sorted by
+// variable name, with no secret values.
+func (a *SandboxAPI) GetCredentialSuggestions(ctx context.Context) (*SandboxCredentialSuggestionsResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request(ctx, "session.sandbox.getCredentialSuggestions", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SandboxCredentialSuggestionsResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}

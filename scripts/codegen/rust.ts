@@ -804,8 +804,11 @@ function resolveRustType(
 				);
 				return wrapOption(typeName, isRequired);
 			}
-			if (isObjectSchema(resolved)) {
-				emitRustStruct(typeName, resolved, ctx);
+			const namedObject = typeName === "ManagedPermissionOperation"
+				? resolveObjectSchema(resolved, ctx.definitions)
+				: resolved;
+			if (namedObject && isObjectSchema(namedObject)) {
+				emitRustStruct(typeName, { ...resolved, ...namedObject }, ctx);
 				return wrapOption(typeName, isRequired);
 			}
 			return resolveRustType(

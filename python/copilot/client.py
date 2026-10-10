@@ -1752,6 +1752,9 @@ class CopilotClient:
         self._ffi_host: FfiRuntimeHost | None = None
         self._inprocess_runtime_path: str | None = None
         self._inprocess_cli_entrypoint: str | None = None
+        self._cli_login_sync_integration_id = (
+            os.environ.get("GITHUB_COPILOT_INTEGRATION_ID", "").strip() or None
+        )
 
         if isinstance(connection, UriRuntimeConnection):
             if connection.connection_token is not None and len(connection.connection_token) == 0:
@@ -4811,6 +4814,8 @@ class CopilotClient:
             args.extend(["--session-idle-timeout", str(opts.session_idle_timeout_seconds)])
         if opts.enable_remote_sessions:
             args.append("--remote")
+        if self._cli_login_sync_integration_id is not None:
+            args.append(f"--cli-login-sync-integration-id={self._cli_login_sync_integration_id}")
 
         environment: dict[str, str] = {}
         if opts.github_token:

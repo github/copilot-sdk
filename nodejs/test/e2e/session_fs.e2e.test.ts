@@ -6,7 +6,7 @@ import { SessionCompactionCompleteEvent } from "@github/copilot/sdk";
 import { MemoryProvider, VirtualProvider } from "@platformatic/vfs";
 import { createHash } from "crypto";
 import { existsSync, mkdtempSync, realpathSync } from "fs";
-import { mkdir, readFile, rm, writeFile } from "fs/promises";
+import { mkdir, readFile, readdir, rm, writeFile } from "fs/promises";
 import { createServer } from "http";
 import { tmpdir } from "os";
 import { join } from "path";
@@ -305,6 +305,91 @@ describe("Session Fs", async () => {
             .poll(() => provider.readFile(eventsPath, "utf8"), { timeout: 30_000 })
             .toContain("checkpointNumber");
     });
+});
+
+describe("Session Fs native plan edits", async () => {
+    const { createClient, workDir } = await createSdkTestContext();
+
+    it.each(["interactive", "plan"] as const)(
+        "keeps native edits and write failures in the provider in %s mode",
+        async (mode) => {
+            const statePath = join(workDir, `provider-state-${mode}`);
+            const planPath = join(statePath, "plan.md");
+            const provider = new MemoryProvider();
+            const writes: string[] = [];
+            let rejectWrites = false;
+            const client = createClient({
+                mode: "empty",
+                sessionFs: {
+                    initialCwd: workDir,
+                    sessionStatePath: statePath,
+                    conventions: process.platform === "win32" ? "windows" : "posix",
+                },
+            });
+            onTestFinished(() => client.stop());
+            const session = await client.createSession({
+                onPermissionRequest: approveAll,
+                availableTools: ["edit"],
+                createSessionFsProvider: (session) => {
+                    const handler = createTestSessionFsHandler(session, provider);
+                    return {
+                        ...handler,
+                        async writeFile(path, content) {
+                            if (path === planPath) {
+                                writes.push(content);
+                                if (rejectWrites) {
+                                    throw new Error("provider write denied");
+                                }
+                            }
+                            return handler.writeFile(path, content);
+                        },
+                    };
+                },
+            });
+            await session.rpc.mode.set({ mode });
+            await session.rpc.plan.update({ content: "# Provider plan\n" });
+            expect(await session.rpc.plan.read()).toMatchObject({
+                path: planPath,
+                content: "# Provider plan\n",
+            });
+
+            // A writable host parent makes an accidental host write succeed.
+            await mkdir(statePath, { recursive: true });
+            expect(await readdir(statePath)).toEqual([]);
+            const edit = (old_str: string, new_str: string) =>
+                session.rpc.tools.execute({
+                    name: "edit",
+                    arguments: { path: planPath, old_str, new_str },
+                });
+            await expect(edit("Provider plan", "Native update")).resolves.toMatchObject({
+                resultType: "success",
+            });
+            expect((await session.rpc.plan.read()).content).toBe("# Native update\n");
+            expect(writes).toEqual(["# Provider plan\n", "# Native update\n"]);
+            expect(await readdir(statePath)).toEqual([]);
+
+            await writeFile(planPath, "host-only content\n");
+            await expect(edit("Native update", "Second update")).resolves.toMatchObject({
+                resultType: "success",
+            });
+            expect((await session.rpc.plan.read()).content).toBe("# Second update\n");
+            expect(await readFile(planPath, "utf8")).toBe("host-only content\n");
+
+            rejectWrites = true;
+            const failed = await edit("Second update", "Rejected update");
+            expect(failed.resultType).toBe("failure");
+            expect(failed.textResultForLlm).toContain("provider write denied");
+            expect((await session.rpc.plan.read()).content).toBe("# Second update\n");
+            expect(writes).toEqual([
+                "# Provider plan\n",
+                "# Native update\n",
+                "# Second update\n",
+                "# Rejected update\n",
+            ]);
+            expect(await readFile(planPath, "utf8")).toBe("host-only content\n");
+            expect(await readdir(statePath)).toEqual(["plan.md"]);
+        }
+    );
 });
 
 describe("Session Fs remembered approvals", async () => {

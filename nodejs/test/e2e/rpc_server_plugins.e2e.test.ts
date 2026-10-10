@@ -3,15 +3,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { randomUUID } from "node:crypto";
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
-import { describe, expect, it } from "vitest";
-import { CopilotClient, RuntimeConnection } from "../../src/index.js";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+import { describe, expect, it, onTestFinished } from "vitest";
+import {
+    approveAll,
+    CopilotClient,
+    RuntimeConnection,
+    type CopilotSession,
+} from "../../src/index.js";
 import { createSdkTestContext, DEFAULT_GITHUB_TOKEN } from "./harness/sdkTestContext.js";
+import { waitForCondition } from "./harness/sdkTestHelper.js";
 
 const MARKETPLACE_NAME = "csharp-e2e-marketplace";
 const PLUGIN_NAME = "csharp-e2e-plugin";
 const DIRECT_PLUGIN_NAME = "csharp-e2e-direct";
+const TEST_MCP_SERVER = fileURLToPath(
+    new URL("../../../test/harness/test-mcp-server.mjs", import.meta.url)
+);
 
 describe("Server-scoped plugin RPC", async () => {
     const { env, workDir } = await createSdkTestContext();
@@ -126,6 +136,110 @@ This skill exists so the plugin reports at least one installed skill.
 `;
         writeFileSync(join(pluginDir, "SKILL.md"), skill);
     }
+
+    it(
+        "keeps unrelated MCP servers running when Computer Use is toggled",
+        { timeout: 120_000 },
+        async ({ expect }) => {
+            const pluginDir = createUniqueDirectory("computer-use");
+            const { client, home } = await createIsolatedStartedClient();
+            let session: CopilotSession | undefined;
+            onTestFinished(async () => {
+                try {
+                    await session?.disconnect();
+                } finally {
+                    await disposeIsolated(client, home, pluginDir);
+                }
+            });
+            writeFileSync(
+                join(pluginDir, "plugin.json"),
+                JSON.stringify({
+                    name: "computer-use",
+                    version: "1.0.0",
+                    mcpServers: "./.mcp.json",
+                })
+            );
+            writeFileSync(
+                join(pluginDir, ".mcp.json"),
+                JSON.stringify({
+                    mcpServers: {
+                        "computer-use": {
+                            command: process.execPath,
+                            args: [TEST_MCP_SERVER, "--server-name", "computer-use"],
+                            cwd: dirname(TEST_MCP_SERVER),
+                            tools: ["*"],
+                        },
+                    },
+                })
+            );
+            await client.rpc.plugins.builtin.set({ paths: [pluginDir] });
+            const serverName = "unrelated-to-computer-use";
+            const startupMarker = join(home, "unrelated-mcp-starts.log");
+            const mcpSession = await client.createSession({
+                onPermissionRequest: approveAll,
+                mcpServers: {
+                    [serverName]: {
+                        type: "local",
+                        command: process.execPath,
+                        args: [
+                            TEST_MCP_SERVER,
+                            "--startup-marker",
+                            startupMarker,
+                            "--server-name",
+                            serverName,
+                        ],
+                        workingDirectory: dirname(TEST_MCP_SERVER),
+                        tools: ["*"],
+                    },
+                },
+            });
+            session = mcpSession;
+            const waitForConnected = (name: string) =>
+                waitForCondition(
+                    async () =>
+                        (await mcpSession.rpc.mcp.list()).servers.some(
+                            (server) => server.name === name && server.status === "connected"
+                        ),
+                    {
+                        timeoutMs: 60_000,
+                        intervalMs: 200,
+                        timeoutMessage: `${name} did not connect`,
+                    }
+                );
+            await waitForConnected(serverName);
+            expect(readFileSync(startupMarker, "utf8")).toBe(`${serverName}\n`);
+            const toolsBefore = await mcpSession.rpc.mcp.listTools({ serverName });
+            expect(toolsBefore.tools.map((tool) => tool.name)).toContain("get_env");
+            expect(
+                (await mcpSession.rpc.mcp.list()).servers.map((server) => server.name)
+            ).not.toContain("computer-use");
+
+            for (const enabled of [true, false, true, false]) {
+                if (enabled) {
+                    await client.rpc.plugins.enable({ names: ["computer-use"] });
+                    await waitForConnected("computer-use");
+                } else {
+                    await client.rpc.plugins.disable({ names: ["computer-use"] });
+                    await waitForCondition(
+                        async () =>
+                            !(await mcpSession.rpc.mcp.list()).servers.some(
+                                (server) => server.name === "computer-use"
+                            ),
+                        {
+                            timeoutMs: 60_000,
+                            intervalMs: 200,
+                            timeoutMessage: "Computer Use MCP server was not removed",
+                        }
+                    );
+                }
+                expect((await mcpSession.rpc.mcp.isServerRunning({ serverName })).running).toBe(
+                    true
+                );
+                expect(await mcpSession.rpc.mcp.listTools({ serverName })).toEqual(toolsBefore);
+                expect(readFileSync(startupMarker, "utf8")).toBe(`${serverName}\n`);
+            }
+        }
+    );
 
     it("should install and list plugin from local marketplace", { timeout: 120_000 }, async () => {
         const marketplaceDir = createLocalMarketplaceFixture();

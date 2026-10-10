@@ -4,7 +4,7 @@
 
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, realpath, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { join } from "node:path";
 import { text } from "node:stream/consumers";
@@ -13,6 +13,7 @@ import {
     createAttributedPermissionResult,
     type CopilotSession,
     type NamedProviderConfig,
+    type PermissionRequest,
     type ProviderModelConfig,
 } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
@@ -21,13 +22,33 @@ import { getNextEventOfType } from "./harness/sdkTestHelper.js";
 const JUDGE_OUTPUT = "ALLOW: Explicitly authorized bounded filename search.";
 const HUMAN_REVIEW_OUTPUT = "DENY: Ask the registered human permission handler.";
 const SHELL_TOOL = process.platform === "win32" ? "powershell" : "bash";
+const EARLIER_RESTRICTION_MARKER = "ASSISTED_AUTHORIZATION_RESTRICT";
+const LATER_AUTHORIZATION_MARKER = "ASSISTED_AUTHORIZATION_ALLOW";
+const AUTHORIZATION_FIXTURE = "assisted-authorization-updated";
+
+type ContractRecommendation = "approve" | "requireApproval" | "excluded";
+type ContractScope = "root" | "subagent";
+
+function contractMarker(recommendation: ContractRecommendation): string {
+    return recommendation === "requireApproval" ? "REQUIRE" : recommendation.toUpperCase();
+}
+
+function contractShellCallId(scope: ContractScope, recommendation: ContractRecommendation): string {
+    const owner = scope === "subagent" ? "child" : "root";
+    return `assisted-contract-${owner}-${recommendation}`;
+}
+
+function contractFixtureName(scope: ContractScope, recommendation: ContractRecommendation): string {
+    return `assisted-contract-${recommendation}-${scope}`;
+}
 
 describe("Assisted permission handling in Autopilot", async () => {
     const { copilotClient: client, workDir } = await createSdkTestContext({ useStdio: true });
 
-    it("executes eligible shell and path ALLOWs without calling created or resumed SDK hosts", async () => {
+    it("resolves Assisted recommendations before Autopilot permission recovery", async () => {
         let agentCalls = 0;
         const judgeOutputs: string[] = [];
+        const authorizationJudgeRequests: string[] = [];
         const providerFailures: Error[] = [];
         const outsideDir = `${workDir}-outside`;
         await mkdir(outsideDir, { recursive: true });
@@ -42,6 +63,10 @@ describe("Assisted permission handling in Autopilot", async () => {
                 };
                 const isJudge = body.model === "gpt-6-luna";
                 const messages = JSON.stringify(body.messages);
+                const latestUserMessage = [...body.messages]
+                    .reverse()
+                    .find((entry) => entry.role === "user");
+                const latestUserText = JSON.stringify(latestUserMessage?.content);
                 let message:
                     | { role: "assistant"; content: string }
                     | {
@@ -54,9 +79,27 @@ describe("Assisted permission handling in Autopilot", async () => {
                           }>;
                       };
                 if (isJudge) {
-                    const output = messages.includes("assisted-human-ask")
-                        ? HUMAN_REVIEW_OUTPUT
-                        : JUDGE_OUTPUT;
+                    const earlierRestrictionIndex = messages.lastIndexOf(
+                        EARLIER_RESTRICTION_MARKER
+                    );
+                    const laterAuthorizationIndex = messages.lastIndexOf(
+                        LATER_AUTHORIZATION_MARKER
+                    );
+                    const authorizationRoute = laterAuthorizationIndex !== -1;
+                    if (authorizationRoute) {
+                        authorizationJudgeRequests.push(messages);
+                    }
+                    const contractRequiresApproval =
+                        messages.includes(contractFixtureName("root", "requireApproval")) ||
+                        messages.includes(contractFixtureName("subagent", "requireApproval"));
+                    const output = authorizationRoute
+                        ? earlierRestrictionIndex !== -1 &&
+                          earlierRestrictionIndex < laterAuthorizationIndex
+                            ? JUDGE_OUTPUT
+                            : HUMAN_REVIEW_OUTPUT
+                        : messages.includes("assisted-human-ask") || contractRequiresApproval
+                          ? HUMAN_REVIEW_OUTPUT
+                          : JUDGE_OUTPUT;
                     judgeOutputs.push(output);
                     message = { role: "assistant", content: output };
                 } else {
@@ -64,90 +107,259 @@ describe("Assisted permission handling in Autopilot", async () => {
                     const toolResultCount = body.messages.filter(
                         (entry) => entry.role === "tool"
                     ).length;
-                    const primeIndex = messages.lastIndexOf("ASSISTED_SESSION_PRIME");
-                    const shellIndex = messages.lastIndexOf("ASSISTED_SHELL_");
-                    const pathIndex = messages.lastIndexOf("ASSISTED_PATH_ROUTE");
-                    const humanIndex = messages.lastIndexOf("ASSISTED_HUMAN_");
-                    const primeRoute = primeIndex > Math.max(shellIndex, pathIndex, humanIndex);
-                    const humanRoute = humanIndex > Math.max(primeIndex, shellIndex, pathIndex);
-                    const shellRoute = shellIndex > Math.max(primeIndex, pathIndex, humanIndex);
-                    const resumedShellRoute =
-                        messages.lastIndexOf("ASSISTED_SHELL_RESUME_ROUTE") === shellIndex;
-                    const humanApproved = messages.includes("ASSISTED_HUMAN_APPROVE_");
-                    const humanLifecycle =
-                        messages.includes("ASSISTED_HUMAN_APPROVE_RESUME_ROUTE") ||
-                        messages.includes("ASSISTED_HUMAN_DENY_RESUME_ROUTE")
-                            ? "resume"
-                            : "create";
-                    const finalText = humanRoute
-                        ? humanApproved
-                            ? "human-approved"
-                            : "human-denied"
-                        : shellRoute
-                          ? "shell-approved"
-                          : "approval-probe.txt";
-                    message = primeRoute
-                        ? { role: "assistant", content: "prime-ready" }
-                        : toolResultCount >= 2
-                          ? {
+                    const contractChildRoute = latestUserText.includes("ASSISTED_CONTRACT_CHILD_");
+                    const contractSubagentRoute = latestUserText.includes(
+                        "ASSISTED_CONTRACT_SUBAGENT_"
+                    );
+                    const contractRootRoute = latestUserText.includes("ASSISTED_CONTRACT_ROOT_");
+                    const authorizationRestrictionRoute = latestUserText.includes(
+                        EARLIER_RESTRICTION_MARKER
+                    );
+                    const authorizationAllowRoute = latestUserText.includes(
+                        LATER_AUTHORIZATION_MARKER
+                    );
+                    if (authorizationRestrictionRoute) {
+                        message = { role: "assistant", content: "restriction-recorded" };
+                    } else if (authorizationAllowRoute) {
+                        message =
+                            toolResultCount >= 2
+                                ? { role: "assistant", content: "authorization-updated" }
+                                : toolResultCount === 1
+                                  ? {
+                                        role: "assistant",
+                                        content: "",
+                                        tool_calls: [
+                                            {
+                                                id: "assisted-authorization-task-complete",
+                                                type: "function",
+                                                function: {
+                                                    name: "task_complete",
+                                                    arguments: JSON.stringify({
+                                                        summary: "authorization-updated",
+                                                    }),
+                                                },
+                                            },
+                                        ],
+                                    }
+                                  : {
+                                        role: "assistant",
+                                        content: "",
+                                        tool_calls: [
+                                            {
+                                                id: "assisted-authorization-shell",
+                                                type: "function",
+                                                function: {
+                                                    name: SHELL_TOOL,
+                                                    arguments: JSON.stringify({
+                                                        command:
+                                                            process.platform === "win32"
+                                                                ? `New-Item -ItemType Directory -Path ${AUTHORIZATION_FIXTURE}`
+                                                                : `mkdir ${AUTHORIZATION_FIXTURE}`,
+                                                        description:
+                                                            "Create the fixture authorized by the latest instruction",
+                                                    }),
+                                                },
+                                            },
+                                        ],
+                                    };
+                    } else if (contractChildRoute || contractSubagentRoute || contractRootRoute) {
+                        const recommendation: ContractRecommendation = latestUserText.includes(
+                            "_REQUIRE"
+                        )
+                            ? "requireApproval"
+                            : latestUserText.includes("_EXCLUDED")
+                              ? "excluded"
+                              : "approve";
+                        const scope: ContractScope =
+                            contractChildRoute || contractSubagentRoute ? "subagent" : "root";
+                        const finalText = `contract-${scope}-${
+                            recommendation === "approve" ? "approved" : "blocked"
+                        }`;
+                        if (contractSubagentRoute) {
+                            message =
+                                toolResultCount === 0
+                                    ? {
+                                          role: "assistant",
+                                          content: "",
+                                          tool_calls: [
+                                              {
+                                                  id: `assisted-contract-task-${recommendation}`,
+                                                  type: "function",
+                                                  function: {
+                                                      name: "task",
+                                                      arguments: JSON.stringify({
+                                                          name: "assisted-contract",
+                                                          description:
+                                                              "Exercise an Assisted permission request",
+                                                          prompt: `ASSISTED_CONTRACT_CHILD_${contractMarker(
+                                                              recommendation
+                                                          )}: Run the requested shell command once and report whether it completed.`,
+                                                          agent_type: "task",
+                                                          mode: "sync",
+                                                      }),
+                                                  },
+                                              },
+                                          ],
+                                      }
+                                    : {
+                                          role: "assistant",
+                                          content: "",
+                                          tool_calls: [
+                                              {
+                                                  id: `assisted-contract-task-complete-${recommendation}`,
+                                                  type: "function",
+                                                  function: {
+                                                      name: "task_complete",
+                                                      arguments: JSON.stringify({
+                                                          summary: finalText,
+                                                      }),
+                                                  },
+                                              },
+                                          ],
+                                      };
+                        } else if (contractChildRoute && toolResultCount > 0) {
+                            message = { role: "assistant", content: finalText };
+                        } else if (
+                            (contractChildRoute || contractRootRoute) &&
+                            (toolResultCount === 0 ||
+                                (recommendation === "excluded" && toolResultCount === 1))
+                        ) {
+                            const command =
+                                recommendation === "excluded"
+                                    ? process.platform === "win32"
+                                        ? "Get-Content approval-probe.txt | & $runner"
+                                        : "printf payload | $runner"
+                                    : process.platform === "win32"
+                                      ? `New-Item -ItemType Directory -Path ${contractFixtureName(
+                                            scope,
+                                            recommendation
+                                        )}`
+                                      : `mkdir ${contractFixtureName(scope, recommendation)}`;
+                            message = {
                                 role: "assistant",
-                                content: finalText,
-                            }
-                          : toolResultCount === 1
-                            ? {
-                                  role: "assistant",
-                                  content: "",
-                                  tool_calls: [
-                                      {
-                                          id: "assisted-autopilot-task-complete",
-                                          type: "function",
-                                          function: {
-                                              name: "task_complete",
-                                              arguments: JSON.stringify({
-                                                  summary: finalText,
-                                              }),
+                                content: "",
+                                tool_calls: [
+                                    {
+                                        id:
+                                            toolResultCount === 0
+                                                ? contractShellCallId(scope, recommendation)
+                                                : `${contractShellCallId(
+                                                      scope,
+                                                      recommendation
+                                                  )}-retry`,
+                                        type: "function",
+                                        function: {
+                                            name: SHELL_TOOL,
+                                            arguments: JSON.stringify({
+                                                command,
+                                                description: "Exercise Assisted permission routing",
+                                            }),
+                                        },
+                                    },
+                                ],
+                            };
+                        } else {
+                            message = {
+                                role: "assistant",
+                                content: "",
+                                tool_calls: [
+                                    {
+                                        id: `assisted-contract-task-complete-${recommendation}`,
+                                        type: "function",
+                                        function: {
+                                            name: "task_complete",
+                                            arguments: JSON.stringify({ summary: finalText }),
+                                        },
+                                    },
+                                ],
+                            };
+                        }
+                    } else {
+                        const primeIndex = messages.lastIndexOf("ASSISTED_SESSION_PRIME");
+                        const shellIndex = messages.lastIndexOf("ASSISTED_SHELL_");
+                        const pathIndex = messages.lastIndexOf("ASSISTED_PATH_ROUTE");
+                        const humanIndex = messages.lastIndexOf("ASSISTED_HUMAN_");
+                        const primeRoute = primeIndex > Math.max(shellIndex, pathIndex, humanIndex);
+                        const humanRoute = humanIndex > Math.max(primeIndex, shellIndex, pathIndex);
+                        const shellRoute = shellIndex > Math.max(primeIndex, pathIndex, humanIndex);
+                        const resumedShellRoute =
+                            messages.lastIndexOf("ASSISTED_SHELL_RESUME_ROUTE") === shellIndex;
+                        const humanApproved = messages.includes("ASSISTED_HUMAN_APPROVE_");
+                        const humanLifecycle =
+                            messages.includes("ASSISTED_HUMAN_APPROVE_RESUME_ROUTE") ||
+                            messages.includes("ASSISTED_HUMAN_DENY_RESUME_ROUTE")
+                                ? "resume"
+                                : "create";
+                        const finalText = humanRoute
+                            ? humanApproved
+                                ? "human-approved"
+                                : "human-denied"
+                            : shellRoute
+                              ? "shell-approved"
+                              : "approval-probe.txt";
+                        message = primeRoute
+                            ? { role: "assistant", content: "prime-ready" }
+                            : toolResultCount >= 2
+                              ? {
+                                    role: "assistant",
+                                    content: finalText,
+                                }
+                              : toolResultCount === 1
+                                ? {
+                                      role: "assistant",
+                                      content: "",
+                                      tool_calls: [
+                                          {
+                                              id: "assisted-autopilot-task-complete",
+                                              type: "function",
+                                              function: {
+                                                  name: "task_complete",
+                                                  arguments: JSON.stringify({
+                                                      summary: finalText,
+                                                  }),
+                                              },
                                           },
-                                      },
-                                  ],
-                              }
-                            : {
-                                  role: "assistant",
-                                  content: "",
-                                  tool_calls: [
-                                      {
-                                          id: shellRoute
-                                              ? "assisted-autopilot-shell"
-                                              : humanRoute
-                                                ? "assisted-autopilot-human"
-                                                : "assisted-autopilot-glob",
-                                          type: "function",
-                                          function:
-                                              shellRoute || humanRoute
-                                                  ? {
-                                                        name: SHELL_TOOL,
-                                                        arguments: JSON.stringify({
-                                                            command: humanRoute
-                                                                ? process.platform === "win32"
-                                                                    ? `New-Item -ItemType Directory -Path assisted-human-ask-${humanApproved ? "approve" : "deny"}-${humanLifecycle}`
-                                                                    : `mkdir assisted-human-ask-${humanApproved ? "approve" : "deny"}-${humanLifecycle}`
-                                                                : process.platform === "win32"
-                                                                  ? `New-Item -ItemType Directory -Path assisted-shell-${resumedShellRoute ? "resume" : "create"}`
-                                                                  : `mkdir assisted-shell-${resumedShellRoute ? "resume" : "create"}`,
-                                                            description: humanRoute
-                                                                ? "Create the human-reviewed SDK permission fixture"
-                                                                : "Create the authorized SDK permission fixture",
-                                                        }),
-                                                    }
-                                                  : {
-                                                        name: "glob",
-                                                        arguments: JSON.stringify({
-                                                            pattern: "*.txt",
-                                                            path: outsideDir,
-                                                        }),
-                                                    },
-                                      },
-                                  ],
-                              };
+                                      ],
+                                  }
+                                : {
+                                      role: "assistant",
+                                      content: "",
+                                      tool_calls: [
+                                          {
+                                              id: shellRoute
+                                                  ? "assisted-autopilot-shell"
+                                                  : humanRoute
+                                                    ? "assisted-autopilot-human"
+                                                    : "assisted-autopilot-glob",
+                                              type: "function",
+                                              function:
+                                                  shellRoute || humanRoute
+                                                      ? {
+                                                            name: SHELL_TOOL,
+                                                            arguments: JSON.stringify({
+                                                                command: humanRoute
+                                                                    ? process.platform === "win32"
+                                                                        ? `New-Item -ItemType Directory -Path assisted-human-ask-${humanApproved ? "approve" : "deny"}-${humanLifecycle}`
+                                                                        : `mkdir assisted-human-ask-${humanApproved ? "approve" : "deny"}-${humanLifecycle}`
+                                                                    : process.platform === "win32"
+                                                                      ? `New-Item -ItemType Directory -Path assisted-shell-${resumedShellRoute ? "resume" : "create"}`
+                                                                      : `mkdir assisted-shell-${resumedShellRoute ? "resume" : "create"}`,
+                                                                description: humanRoute
+                                                                    ? "Create the human-reviewed SDK permission fixture"
+                                                                    : "Create the authorized SDK permission fixture",
+                                                            }),
+                                                        }
+                                                      : {
+                                                            name: "glob",
+                                                            arguments: JSON.stringify({
+                                                                pattern: "*.txt",
+                                                                path: outsideDir,
+                                                            }),
+                                                        },
+                                          },
+                                      ],
+                                  };
+                    }
                 }
 
                 const choice = {
@@ -243,11 +455,23 @@ describe("Assisted permission handling in Autopilot", async () => {
         ] as const;
         for (const scenario of scenarios) {
             let permissionCallbacks = 0;
+            const expectedRecommendation =
+                scenario.decision === "judge" ? "approve" : "requireApproval";
+            const recommendationByToolCallId = new Map<string, string | undefined>();
+            const recommendationWaiters = new Map<
+                string,
+                (recommendation: string | undefined) => void
+            >();
             const recommendations: string[] = [];
             const recoveryStatuses: string[] = [];
             const toolResults: Array<{ success?: boolean; result?: { content?: string } }> = [];
             const decisionSources: string[] = [];
-            const taskOutcomes: Array<{ success?: boolean; summary?: string }> = [];
+            const taskOutcomes: Array<{
+                success?: boolean;
+                summary?: string;
+                outcome?: string;
+                reason?: string;
+            }> = [];
             const sessionConfig = {
                 model: "local/gpt-5.6-sol",
                 providers,
@@ -259,8 +483,26 @@ describe("Assisted permission handling in Autopilot", async () => {
                     AUTO_APPROVAL: true,
                     ASSISTED_PERMISSIONS_V2: true,
                 },
-                onPermissionRequest: () => {
+                onPermissionRequest: async (request: PermissionRequest) => {
                     permissionCallbacks++;
+                    if (!request.toolCallId) {
+                        throw new Error(
+                            "Expected the permission request to identify its tool call"
+                        );
+                    }
+                    const recommendation = recommendationByToolCallId.has(request.toolCallId)
+                        ? recommendationByToolCallId.get(request.toolCallId)
+                        : await new Promise<string | undefined>((resolve) => {
+                              recommendationWaiters.set(request.toolCallId!, resolve);
+                          });
+                    recommendationByToolCallId.delete(request.toolCallId);
+                    if (recommendation !== expectedRecommendation) {
+                        throw new Error(
+                            `Expected Assisted recommendation ${expectedRecommendation}, got ${String(
+                                recommendation
+                            )}`
+                        );
+                    }
                     if (scenario.decision === "judge") {
                         return createAttributedPermissionResult(
                             { kind: "approve-once" },
@@ -291,11 +533,15 @@ describe("Assisted permission handling in Autopilot", async () => {
                     await session.sendAndWait({
                         prompt: "ASSISTED_SESSION_PRIME: Reply with prime-ready without tools.",
                     });
+                    await configureAssistedAutopilot(session, workDir);
+                    await expectAssistedAutopilotConfigured(session, workDir);
                     await session.disconnect();
                     session = undefined;
                     session = await client.resumeSession(sessionId, sessionConfig);
+                    await expectAssistedAutopilotConfigured(session, workDir);
+                } else {
+                    await configureAssistedAutopilot(session, workDir);
                 }
-                await configureAssistedAutopilot(session, workDir);
                 session.on((event) => {
                     if (event.type === "permission.requested") {
                         const promptRequest = (
@@ -309,6 +555,20 @@ describe("Assisted permission handling in Autopilot", async () => {
                         const recommendation =
                             promptRequest?.assistedApproval?.recommendation ??
                             promptRequest?.autoApproval?.recommendation;
+                        const toolCallId = (
+                            event.data as {
+                                permissionRequest?: { toolCallId?: string };
+                            }
+                        ).permissionRequest?.toolCallId;
+                        if (toolCallId) {
+                            const waiter = recommendationWaiters.get(toolCallId);
+                            if (waiter) {
+                                recommendationWaiters.delete(toolCallId);
+                                waiter(recommendation);
+                            } else {
+                                recommendationByToolCallId.set(toolCallId, recommendation);
+                            }
+                        }
                         if (recommendation) recommendations.push(recommendation);
                     } else if (event.type === "permission.completed") {
                         const source = (event.data as { decisionSource?: string }).decisionSource;
@@ -337,12 +597,11 @@ describe("Assisted permission handling in Autopilot", async () => {
                     throw new Error(`${JSON.stringify(scenario)} failed`, { cause: error });
                 }
 
-                const expectedCompletions = scenario.route === "path" ? 2 : 1;
+                const expectedCompletions =
+                    scenario.route === "path" && scenario.lifecycle === "create" ? 2 : 1;
                 expect(permissionCallbacks, JSON.stringify(scenario)).toBe(expectedCompletions);
                 expect(recommendations, JSON.stringify(scenario)).toEqual(
-                    Array(expectedCompletions).fill(
-                        scenario.decision === "judge" ? "approve" : "requireApproval"
-                    )
+                    Array(expectedCompletions).fill(expectedRecommendation)
                 );
                 expect(decisionSources, JSON.stringify(scenario)).toEqual(
                     Array(expectedCompletions).fill(
@@ -399,6 +658,380 @@ describe("Assisted permission handling in Autopilot", async () => {
             ...Array(4).fill(HUMAN_REVIEW_OUTPUT),
         ]);
         expect(agentCalls).toBe(scenarios.length * 2 + 4);
+
+        const authorizationJudgeStart = judgeOutputs.length;
+        let authorizationPermissionCallbacks = 0;
+        const authorizationRecommendations: string[] = [];
+        const authorizationDecisionSources: string[] = [];
+        const authorizationRecoveryStatuses: string[] = [];
+        const authorizationToolResults: Array<{ toolCallId?: string; success?: boolean }> = [];
+        const authorizationTaskOutcomes: Array<{ success?: boolean; summary?: string }> = [];
+        let resolveAuthorizationRecommendation: (recommendation: string | undefined) => void;
+        const authorizationRecommendation = new Promise<string | undefined>((resolve) => {
+            resolveAuthorizationRecommendation = resolve;
+        });
+        let authorizationSession: CopilotSession | undefined;
+        try {
+            authorizationSession = await client.createSession({
+                model: "local/gpt-5.6-sol",
+                providers,
+                models,
+                availableTools: [SHELL_TOOL, "task_complete"],
+                streaming: false,
+                skipCustomInstructions: true,
+                featureFlags: {
+                    AUTO_APPROVAL: true,
+                    ASSISTED_PERMISSIONS_V2: true,
+                },
+                onPermissionRequest: async (request) => {
+                    authorizationPermissionCallbacks++;
+                    if (request.toolCallId !== "assisted-authorization-shell") {
+                        throw new Error(
+                            `Expected authorization shell permission, got ${String(
+                                request.toolCallId
+                            )}`
+                        );
+                    }
+                    const recommendation = await authorizationRecommendation;
+                    if (recommendation !== "approve") {
+                        throw new Error(
+                            `Expected later authorization to reach the judge as approve, got ${String(
+                                recommendation
+                            )}`
+                        );
+                    }
+                    return createAttributedPermissionResult(
+                        { kind: "approve-once" },
+                        {
+                            outcome: "auto_approved",
+                            source: "assisted_approval",
+                            surface: "sdk",
+                            responseCapability: "headless",
+                        }
+                    );
+                },
+            });
+            await authorizationSession.sendAndWait({
+                prompt: `${EARLIER_RESTRICTION_MARKER}: Do not create the authorization fixture. Reply restriction-recorded without tools.`,
+            });
+            await configureAssistedAutopilot(authorizationSession, workDir);
+            authorizationSession.on((event) => {
+                if (event.type === "permission.requested") {
+                    const recommendation = (
+                        event.data as {
+                            promptRequest?: {
+                                assistedApproval?: { recommendation?: string };
+                            };
+                        }
+                    ).promptRequest?.assistedApproval?.recommendation;
+                    if (recommendation) {
+                        authorizationRecommendations.push(recommendation);
+                    }
+                    resolveAuthorizationRecommendation(recommendation);
+                } else if (event.type === "permission.completed") {
+                    const source = (event.data as { decisionSource?: string }).decisionSource;
+                    if (source) authorizationDecisionSources.push(source);
+                } else if (event.type === "session.permission_recovery") {
+                    authorizationRecoveryStatuses.push((event.data as { status: string }).status);
+                } else if (event.type === "tool.execution_complete") {
+                    authorizationToolResults.push({
+                        toolCallId: event.data.toolCallId,
+                        success: event.data.success,
+                    });
+                } else if (event.type === "session.task_complete") {
+                    authorizationTaskOutcomes.push(event.data);
+                }
+            });
+
+            const taskComplete = getNextEventOfType(authorizationSession, "session.task_complete");
+            await authorizationSession.send({
+                prompt: `${LATER_AUTHORIZATION_MARKER}: The earlier restriction is superseded. Create the authorization fixture now and report authorization-updated.`,
+            });
+            await taskComplete;
+
+            expect(judgeOutputs.slice(authorizationJudgeStart)).toEqual([JUDGE_OUTPUT]);
+            expect(authorizationJudgeRequests).toHaveLength(1);
+            const authorizationRequest = authorizationJudgeRequests[0] ?? "";
+            expect(authorizationRequest.indexOf(EARLIER_RESTRICTION_MARKER)).toBeGreaterThanOrEqual(
+                0
+            );
+            expect(authorizationRequest.indexOf(LATER_AUTHORIZATION_MARKER)).toBeGreaterThan(
+                authorizationRequest.indexOf(EARLIER_RESTRICTION_MARKER)
+            );
+            expect(authorizationPermissionCallbacks).toBe(1);
+            expect(authorizationRecommendations).toEqual(["approve"]);
+            expect(authorizationDecisionSources).toEqual(["assisted_approval"]);
+            expect(authorizationRecoveryStatuses).toEqual([]);
+            expect(authorizationToolResults).toContainEqual({
+                toolCallId: "assisted-authorization-shell",
+                success: true,
+            });
+            expect(authorizationTaskOutcomes).toEqual([
+                expect.objectContaining({
+                    success: true,
+                    summary: "authorization-updated",
+                }),
+            ]);
+            expect(existsSync(join(workDir, AUTHORIZATION_FIXTURE))).toBe(true);
+        } finally {
+            if (authorizationSession) {
+                await authorizationSession.abort();
+                await authorizationSession.disconnect();
+            }
+        }
+
+        const contractScenarios = [
+            { scope: "root", recommendation: "approve", handler: "registered" },
+            { scope: "root", recommendation: "requireApproval", handler: "registered" },
+            { scope: "root", recommendation: "excluded", handler: "registered" },
+            { scope: "subagent", recommendation: "approve", handler: "registered" },
+            { scope: "subagent", recommendation: "requireApproval", handler: "registered" },
+            { scope: "root", recommendation: "requireApproval", handler: "none" },
+        ] as const satisfies readonly {
+            scope: ContractScope;
+            recommendation: ContractRecommendation;
+            handler: "registered" | "none";
+        }[];
+        const contractJudgeStart = judgeOutputs.length;
+        for (const scenario of contractScenarios) {
+            let permissionCallbacks = 0;
+            const recommendations: string[] = [];
+            const recoveryStatuses: string[] = [];
+            const decisionSources: string[] = [];
+            const sequence: string[] = [];
+            const subagentIds = new Set<string>();
+            const permissionAgentIds: Array<string | undefined> = [];
+            const toolResults: Array<{
+                agentId?: string;
+                toolCallId?: string;
+                success?: boolean;
+                error?: { message?: string };
+                result?: unknown;
+            }> = [];
+            const taskOutcomes: Array<{ success?: boolean; summary?: string }> = [];
+            const onPermissionRequest = () => {
+                permissionCallbacks++;
+                sequence.push("host");
+                if (scenario.recommendation === "approve") {
+                    return createAttributedPermissionResult(
+                        { kind: "approve-once" },
+                        {
+                            outcome: "auto_approved",
+                            source: "assisted_approval",
+                            surface: "sdk",
+                            responseCapability: "headless",
+                        }
+                    );
+                }
+                if (scenario.recommendation === "requireApproval") {
+                    return createAttributedPermissionResult(
+                        {
+                            kind: "reject",
+                            feedback: HUMAN_REVIEW_OUTPUT.replace(/^DENY:\s*/, ""),
+                        },
+                        {
+                            outcome: "autopilot_denied",
+                            source: "assisted_approval",
+                            surface: "sdk",
+                            responseCapability: "headless",
+                        }
+                    );
+                }
+                if (scenario.recommendation === "excluded") {
+                    return createAttributedPermissionResult(
+                        { kind: "user-not-available" },
+                        {
+                            outcome: "autopilot_denied",
+                            source: "unattended_fallback",
+                            surface: "sdk",
+                            responseCapability: "headless",
+                        }
+                    );
+                }
+                throw new Error("Unexpected Assisted permission recommendation");
+            };
+            const sessionConfig = {
+                model: "local/gpt-5.6-sol",
+                providers,
+                models,
+                availableTools: [SHELL_TOOL, "task", "task_complete"],
+                streaming: false,
+                skipCustomInstructions: true,
+                featureFlags: {
+                    AUTO_APPROVAL: true,
+                    ASSISTED_PERMISSIONS_V2: true,
+                },
+                ...(scenario.handler === "registered" ? { onPermissionRequest } : {}),
+            } as const;
+            let session: CopilotSession | undefined;
+            try {
+                session = await client.createSession(sessionConfig);
+                await configureAssistedAutopilot(session, workDir);
+                session.on((event) => {
+                    if (event.type === "permission.requested") {
+                        const promptRequest = (
+                            event.data as {
+                                promptRequest?: {
+                                    assistedApproval?: { recommendation?: string };
+                                    autoApproval?: { recommendation?: string };
+                                };
+                            }
+                        ).promptRequest;
+                        const recommendation =
+                            promptRequest?.assistedApproval?.recommendation ??
+                            promptRequest?.autoApproval?.recommendation;
+                        if (recommendation) {
+                            recommendations.push(recommendation);
+                            sequence.push(`permission:${recommendation}`);
+                        }
+                        permissionAgentIds.push(event.agentId);
+                    } else if (event.type === "permission.completed") {
+                        const source = (event.data as { decisionSource?: string }).decisionSource;
+                        if (source) decisionSources.push(source);
+                    } else if (event.type === "session.permission_recovery") {
+                        const status = (event.data as { status: string }).status;
+                        recoveryStatuses.push(status);
+                        sequence.push(`recovery:${status}`);
+                    } else if (event.type === "tool.execution_complete") {
+                        toolResults.push({
+                            agentId: event.agentId,
+                            toolCallId: event.data.toolCallId,
+                            success: event.data.success,
+                            error: event.data.error,
+                            result: event.data.result,
+                        });
+                    } else if (event.type === "session.task_complete") {
+                        taskOutcomes.push(event.data);
+                    } else if (event.type === "subagent.started") {
+                        subagentIds.add(event.agentId);
+                    }
+                });
+
+                const marker = contractMarker(scenario.recommendation);
+                const prompt =
+                    scenario.scope === "root"
+                        ? `ASSISTED_CONTRACT_ROOT_${marker}: Run the requested shell command once and report the outcome.`
+                        : `ASSISTED_CONTRACT_SUBAGENT_${marker}: Use the task tool once so a task subagent runs the requested shell command.`;
+                try {
+                    const taskComplete = getNextEventOfType(session, "session.task_complete");
+                    await session.send({ prompt });
+                    await taskComplete;
+                } catch (error) {
+                    throw new Error(`${JSON.stringify(scenario)} failed`, { cause: error });
+                }
+
+                if (scenario.handler === "none") {
+                    expect(permissionCallbacks, JSON.stringify(scenario)).toBe(0);
+                    expect(recommendations, JSON.stringify(scenario)).toEqual([]);
+                } else if (scenario.recommendation === "approve") {
+                    expect(permissionCallbacks, JSON.stringify(scenario)).toBe(1);
+                    expect(recommendations, JSON.stringify(scenario)).toEqual(["approve"]);
+                } else if (scenario.recommendation === "requireApproval") {
+                    expect(permissionCallbacks, JSON.stringify(scenario)).toBe(1);
+                    expect(recommendations, JSON.stringify(scenario)).toEqual(["requireApproval"]);
+                } else {
+                    expect(permissionCallbacks, JSON.stringify(scenario)).toBeGreaterThanOrEqual(1);
+                    expect(recommendations, JSON.stringify(scenario)).toEqual(
+                        Array(permissionCallbacks).fill("excluded")
+                    );
+                }
+                if (scenario.handler === "none") {
+                    expect(decisionSources, JSON.stringify(scenario)).toEqual([]);
+                    expect(recoveryStatuses, JSON.stringify(scenario)).toEqual(["recovering"]);
+                } else {
+                    expect(decisionSources, JSON.stringify(scenario)).toContain(
+                        scenario.recommendation === "excluded"
+                            ? "unattended_fallback"
+                            : "assisted_approval"
+                    );
+                }
+                if (scenario.recommendation === "excluded") {
+                    expect(recoveryStatuses.at(-1), JSON.stringify(scenario)).toBe("blocked");
+                } else if (scenario.handler === "registered") {
+                    expect(recoveryStatuses, JSON.stringify(scenario)).toEqual([]);
+                }
+                const hostIndex = sequence.indexOf("host");
+                const firstRecoveryIndex = sequence.findIndex((entry) =>
+                    entry.startsWith("recovery:")
+                );
+                if (firstRecoveryIndex !== -1 && scenario.handler === "registered") {
+                    expect(
+                        hostIndex,
+                        JSON.stringify({ scenario, sequence })
+                    ).toBeGreaterThanOrEqual(0);
+                    expect(hostIndex, JSON.stringify({ scenario, sequence })).toBeLessThan(
+                        firstRecoveryIndex
+                    );
+                }
+
+                const shellResult = toolResults.find(
+                    (result) =>
+                        result.toolCallId ===
+                        contractShellCallId(scenario.scope, scenario.recommendation)
+                );
+                expect(shellResult, JSON.stringify({ scenario, toolResults })).toBeDefined();
+                expect(shellResult?.success, JSON.stringify(scenario)).toBe(
+                    scenario.recommendation === "approve" && scenario.handler === "registered"
+                );
+                if (
+                    scenario.recommendation === "requireApproval" &&
+                    scenario.handler === "registered"
+                ) {
+                    expect(shellResult?.error?.message, JSON.stringify(scenario)).toContain(
+                        "Ask the registered human permission handler."
+                    );
+                } else if (scenario.handler === "none") {
+                    expect(shellResult?.error?.message, JSON.stringify(scenario)).toContain(
+                        "Permission could not be granted automatically."
+                    );
+                }
+                if (scenario.scope === "subagent") {
+                    expect(subagentIds.size, JSON.stringify(scenario)).toBe(1);
+                    expect(
+                        subagentIds.has(shellResult?.agentId ?? ""),
+                        JSON.stringify(scenario)
+                    ).toBe(true);
+                    for (const agentId of permissionAgentIds) {
+                        expect(subagentIds.has(agentId ?? ""), JSON.stringify(scenario)).toBe(true);
+                    }
+                }
+
+                expect(
+                    existsSync(
+                        join(workDir, contractFixtureName(scenario.scope, scenario.recommendation))
+                    ),
+                    JSON.stringify(scenario)
+                ).toBe(scenario.recommendation === "approve" && scenario.handler === "registered");
+                expect(
+                    (await session.rpc.permissions.pendingRequests()).items,
+                    JSON.stringify(scenario)
+                ).toEqual([]);
+                expect(taskOutcomes, JSON.stringify(scenario)).toHaveLength(1);
+                expect(taskOutcomes[0]?.success, JSON.stringify(scenario)).toBe(
+                    scenario.recommendation !== "excluded" && scenario.handler === "registered"
+                );
+                if (scenario.handler === "none") {
+                    expect(taskOutcomes[0], JSON.stringify(scenario)).toMatchObject({
+                        outcome: "continue",
+                        reason: "Autopilot is still recovering from a required permission.",
+                    });
+                }
+            } finally {
+                if (session) {
+                    await session.abort();
+                    await session.disconnect();
+                }
+            }
+        }
+
+        expect(providerFailures).toEqual([]);
+        expect(judgeOutputs.slice(contractJudgeStart)).toEqual([
+            JUDGE_OUTPUT,
+            HUMAN_REVIEW_OUTPUT,
+            JUDGE_OUTPUT,
+            HUMAN_REVIEW_OUTPUT,
+            HUMAN_REVIEW_OUTPUT,
+        ]);
     });
 });
 
@@ -421,4 +1054,16 @@ async function configureAssistedAutopilot(session: CopilotSession, workDir: stri
         source: "rpc",
     });
     await session.rpc.mode.set({ mode: "autopilot" });
+}
+
+async function expectAssistedAutopilotConfigured(
+    session: CopilotSession,
+    workDir: string
+): Promise<void> {
+    expect(await session.rpc.mode.get()).toBe("autopilot");
+    expect(await session.rpc.permissions.getMode()).toMatchObject({ mode: "assisted" });
+    expect((await session.rpc.permissions.folderTrust.isTrusted({ path: workDir })).trusted).toBe(
+        true
+    );
+    expect((await session.rpc.permissions.paths.list()).primary).toBe(await realpath(workDir));
 }

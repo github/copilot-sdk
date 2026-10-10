@@ -488,8 +488,10 @@ public final class CopilotClient implements AutoCloseable {
     private static InProcessTransport openInProcessTransport(CopilotClientOptions options) throws IOException {
         FfiRuntimeHost host = new FfiRuntimeHost();
         try {
-            Path explicitEntrypoint = NativeRuntimeLoader.resolveConfiguredEntrypoint();
-            host.start(explicitEntrypoint == null ? null : explicitEntrypoint.toString(), options);
+            String integrationId = System.getenv("GITHUB_COPILOT_INTEGRATION_ID");
+            integrationId = integrationId == null || integrationId.isBlank() ? null : integrationId.trim();
+            Path cliEntrypoint = NativeRuntimeLoader.resolveConfiguredEntrypoint();
+            host.start(cliEntrypoint == null ? null : cliEntrypoint.toString(), integrationId, options);
         } catch (RuntimeException | Error e) {
             host.close();
             throw e;

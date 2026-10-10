@@ -270,13 +270,13 @@ fn repair_lone_surrogates(body: &[u8]) -> Option<Vec<u8>> {
 ///
 /// `frame` is the fully serialized bytes (header + body); the caller pays
 /// the serde cost synchronously before enqueueing so the actor never sees a
-/// `Result` from JSON encoding. `ack` resolves once the bytes have been
+/// `Result` from JSON encoding. When present, `ack` resolves once the bytes have been
 /// fully written and flushed (or the underlying I/O reports an error). If
 /// the caller drops the `oneshot::Receiver`, the actor still completes the
 /// frame — caller cancellation cannot desync the wire.
 struct WriteCommand {
     frame: Vec<u8>,
-    ack: oneshot::Sender<Result<(), std::io::Error>>,
+    ack: Option<oneshot::Sender<Result<(), std::io::Error>>>,
 }
 
 /// Inbound requests that honor `$/cancelRequest`.
@@ -412,9 +412,12 @@ impl JsonRpcClient {
         host_notifications: Option<mpsc::UnboundedSender<JsonRpcNotification>>,
     ) -> Self {
         let (write_tx, write_rx) = mpsc::unbounded_channel::<WriteCommand>();
+        let connection_closed = CancellationToken::new();
 
         let writer_span = tracing::error_span!("jsonrpc_write_loop");
-        let write_task = tokio::spawn(Self::write_loop(writer, write_rx).instrument(writer_span));
+        let write_task = tokio::spawn(
+            Self::write_loop(writer, write_rx, connection_closed.clone()).instrument(writer_span),
+        );
 
         let client = Self {
             request_id: AtomicU64::new(1),
@@ -423,7 +426,7 @@ impl JsonRpcClient {
             notification_tx,
             request_tx,
             request_handlers: Arc::new(RwLock::new(HashMap::new())),
-            connection_closed: CancellationToken::new(),
+            connection_closed,
             cancellable_requests: Arc::new(CancellableRequests::default()),
             read_task: Mutex::new(None),
             write_task: Mutex::new(Some(write_task)),
@@ -518,6 +521,7 @@ impl JsonRpcClient {
     async fn write_loop(
         mut writer: impl AsyncWrite + Unpin + Send + 'static,
         mut rx: mpsc::UnboundedReceiver<WriteCommand>,
+        connection_closed: CancellationToken,
     ) {
         while let Some(WriteCommand { frame, ack }) = rx.recv().await {
             let result = async {
@@ -526,11 +530,21 @@ impl JsonRpcClient {
                 Ok::<_, std::io::Error>(())
             }
             .await;
-
             // Caller may have dropped the ack receiver (e.g. their
             // `await` was cancelled); that's fine — we still completed
             // the write, which was the whole point.
-            let _ = ack.send(result);
+            match ack {
+                Some(ack) => {
+                    let _ = ack.send(result);
+                }
+                None => {
+                    if let Err(error) = result {
+                        error!(%error, "router rejection write failed; closing connection");
+                        connection_closed.cancel();
+                        break;
+                    }
+                }
+            }
         }
     }
 
@@ -550,7 +564,12 @@ impl JsonRpcClient {
         let (connection_closed, cancellable_requests) = connection;
 
         loop {
-            match Self::read_message(&mut reader).await {
+            let message = tokio::select! {
+                biased;
+                _ = connection_closed.cancelled() => break,
+                message = Self::read_message(&mut reader) => message,
+            };
+            match message {
                 Ok(Some(message)) => match message {
                     JsonRpcMessage::Response(mut response) => {
                         let id = response.id;
@@ -904,27 +923,18 @@ impl JsonRpcClient {
         Self::write_message(&self.write_tx, message).await
     }
 
+    /// Commit a router rejection to the existing writer actor without retaining
+    /// a delivery waiter. The actor reports write failure and closes the connection.
+    pub(crate) fn enqueue_response(&self, response: &JsonRpcResponse) -> Result<(), Error> {
+        Self::enqueue_message(&self.write_tx, response, None)
+    }
+
     async fn write_message<T: serde::Serialize>(
         write_tx: &mpsc::UnboundedSender<WriteCommand>,
         message: &T,
     ) -> Result<(), Error> {
-        let body = serde_json::to_vec(message)?;
-        let mut frame = Vec::with_capacity(CONTENT_LENGTH_HEADER.len() + 16 + body.len() + 4);
-        frame.extend_from_slice(CONTENT_LENGTH_HEADER.as_bytes());
-        frame.extend_from_slice(body.len().to_string().as_bytes());
-        frame.extend_from_slice(b"\r\n\r\n");
-        frame.extend_from_slice(&body);
-
         let (ack_tx, ack_rx) = oneshot::channel();
-        write_tx
-            .send(WriteCommand { frame, ack: ack_tx })
-            .map_err(|_| {
-                Error::from(std::io::Error::new(
-                    std::io::ErrorKind::BrokenPipe,
-                    "writer actor has shut down",
-                ))
-            })?;
-
+        Self::enqueue_message(write_tx, message, Some(ack_tx))?;
         match ack_rx.await {
             Ok(Ok(())) => Ok(()),
             Ok(Err(e)) => Err(Error::from(e)),
@@ -933,6 +943,28 @@ impl JsonRpcClient {
                 "writer actor dropped ack without responding",
             ))),
         }
+    }
+
+    fn enqueue_message<T: serde::Serialize>(
+        write_tx: &mpsc::UnboundedSender<WriteCommand>,
+        message: &T,
+        ack: Option<oneshot::Sender<Result<(), std::io::Error>>>,
+    ) -> Result<(), Error> {
+        let body = serde_json::to_vec(message)?;
+        let mut frame = Vec::with_capacity(CONTENT_LENGTH_HEADER.len() + 16 + body.len() + 4);
+        frame.extend_from_slice(CONTENT_LENGTH_HEADER.as_bytes());
+        frame.extend_from_slice(body.len().to_string().as_bytes());
+        frame.extend_from_slice(b"\r\n\r\n");
+        frame.extend_from_slice(&body);
+
+        write_tx.send(WriteCommand { frame, ack }).map_err(|_| {
+            Error::from(std::io::Error::new(
+                std::io::ErrorKind::BrokenPipe,
+                "writer actor has shut down",
+            ))
+        })?;
+
+        Ok(())
     }
 }
 

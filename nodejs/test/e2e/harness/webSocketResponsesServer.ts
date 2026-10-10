@@ -14,6 +14,9 @@ export async function startWebSocketResponsesServer() {
         messages: [] as Array<Record<string, unknown>>,
         messageConnectionIds: [] as number[],
         responses: [] as WebSocketReply[],
+        /** Scripted HTTP `/responses` SSE replies; when empty, HTTP requests are forwarded. */
+        httpResponses: [] as WebSocketEnvelope[][],
+        httpResponseRequestPaths: [] as string[],
         openConnectionIds: new Set<number>(),
         connectionCount: 0,
         closedConnectionCount: 0,
@@ -49,6 +52,24 @@ export async function startWebSocketResponsesServer() {
                     ],
                 })
             );
+            return;
+        }
+        const scriptedHttpEvents =
+            req.method === "POST" &&
+            new URL(req.url ?? "/", "http://localhost").pathname.endsWith("/responses")
+                ? state.httpResponses.shift()
+                : undefined;
+        if (scriptedHttpEvents) {
+            state.httpResponseRequestPaths.push(req.url ?? "/");
+            req.resume();
+            req.on("error", (error) => errors.push(error));
+            req.on("end", () => {
+                res.writeHead(200, { "content-type": "text/event-stream" });
+                for (const event of scriptedHttpEvents) {
+                    res.write(`event: ${String(event.type)}\ndata: ${JSON.stringify(event)}\n\n`);
+                }
+                res.end();
+            });
             return;
         }
         if (!httpTargetUrl) {
