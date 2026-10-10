@@ -7,6 +7,7 @@ env:
   HUSKY: 0
   POWERSHELL_UPDATECHECK: Off
   SDK_HOME: ${{ inputs.sdk-home }}
+  COPILOT_CI_RUNTIME_SOURCE: ${{ inputs.runtime-source }}
   SETUP_NODE_TIMEOUT_MINUTES: 10
 
 on:
@@ -17,6 +18,9 @@ on:
         type: string
         default: all
       sdk-home:
+        required: true
+        type: string
+      runtime-source:
         required: true
         type: string
     outputs:
@@ -89,16 +93,48 @@ jobs:
         working-directory: ${{ inputs.sdk-home }}/scripts/corrections
       - if: runner.os == 'Windows'
         run: pwsh.exe -Command "Write-Host 'PowerShell ready'"
+      - name: Test device-policy CI plans and required-result guard
+        if: runner.os == 'Linux'
+        working-directory: .
+        run: node --test "$SDK_HOME/scripts/ci/device-policy-fixture.test.mjs"
+      - name: Prepare isolated production device-policy fixtures
+        id: device-policy
+        if: inputs.runtime-source == 'published' && runner.os == 'Linux'
+        working-directory: .
+        run: node "$SDK_HOME/scripts/ci/device-policy-fixture.mjs" prepare
       - name: Test out-of-process
         id: subprocess
         env:
           COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
         run: |
-          if [ "$GITHUB_EVENT_NAME" = "merge_group" ] || [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
-            npm test -- --reporter=default --reporter=json --outputFile="$RUNNER_TEMP/sdk-nodejs-results.json"
-          else
-            npm test
+          test_args=()
+          pattern=$(node ../scripts/ci/device-policy-fixture.mjs portable-pattern "$COPILOT_CI_RUNTIME_SOURCE")
+          if [[ -n "$pattern" ]]; then
+            echo "Device-policy fixture controls are assigned to the mandatory Linux CAPI step"
+            test_args+=(--testNamePattern "$pattern")
           fi
+          if [ "$GITHUB_EVENT_NAME" = "merge_group" ] || [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
+            npm test -- "${test_args[@]}" --reporter=default --reporter=json --outputFile="$RUNNER_TEMP/sdk-nodejs-results.json"
+          else
+            npm test -- "${test_args[@]}"
+          fi
+      - name: Test required production device-policy controls
+        if: ${{ !cancelled() && inputs.runtime-source == 'published' && runner.os == 'Linux' && (steps.subprocess.outcome == 'success' || steps.subprocess.outcome == 'failure') }}
+        env:
+          COPILOT_CLI_PATH: ${{ steps.device-policy.outputs.native-launcher }}
+          COPILOT_LEGACY_CLI_PATH: ${{ steps.device-policy.outputs.legacy-launcher }}
+          COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
+        run: |
+          status=0
+          npm test -- test/e2e/managed_plugin_progress.e2e.test.ts test/e2e/rpc_server.e2e.test.ts \
+            --testNamePattern "$(node ../scripts/ci/device-policy-fixture.mjs required-pattern)" \
+            --reporter=default --reporter=json --outputFile="$RUNNER_TEMP/sdk-device-policy-results.json" || status=$?
+          node ../scripts/ci/device-policy-fixture.mjs verify "$RUNNER_TEMP/sdk-device-policy-results.json"
+          exit "$status"
+      - name: Clean up owned device-policy containers
+        if: always() && steps.device-policy.outcome == 'success'
+        working-directory: .
+        run: node "$SDK_HOME/scripts/ci/device-policy-fixture.mjs" cleanup
       - name: Upload Flake Finder Node.js test results
         if: always() && (github.event_name == 'merge_group' || github.event_name == 'pull_request') && runner.os == 'Linux'
         continue-on-error: true
@@ -162,7 +198,14 @@ jobs:
       - name: Test out-of-process E2Es
         env:
           COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
-        run: npm test -- test/e2e
+        run: |
+          test_args=()
+          pattern=$(node ../scripts/ci/device-policy-fixture.mjs portable-pattern "$COPILOT_CI_RUNTIME_SOURCE")
+          if [[ -n "$pattern" ]]; then
+            echo "Device-policy fixture controls are assigned to the mandatory Linux CAPI step"
+            test_args+=(--testNamePattern "$pattern")
+          fi
+          npm test -- test/e2e "${test_args[@]}"
 
   nodejs-musl-x64:
     name: "Node.js (Alpine x64, CAPI)"
@@ -182,6 +225,7 @@ jobs:
       - uses: ./.github/actions/run-alpine-tests
         env:
           COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
+          COPILOT_CI_RUNTIME_SOURCE: ${{ inputs.runtime-source }}
         with:
           image: node:22-alpine
           sdk-root: /workspace/${{ inputs.sdk-home }}
@@ -206,6 +250,12 @@ jobs:
             test -x "$COPILOT_CLI_PATH"
             test -f "$(dirname "$COPILOT_CLI_PATH")/runtime.node"
             status=0
-            npm test || status=$?
+            pattern=$(node "$COPILOT_SDK_ROOT/scripts/ci/device-policy-fixture.mjs" portable-pattern "$COPILOT_CI_RUNTIME_SOURCE")
+            if [ -n "$pattern" ]; then
+              echo "Device-policy fixture controls are assigned to the mandatory Linux CAPI step"
+              npm test -- --testNamePattern "$pattern" || status=$?
+            else
+              npm test || status=$?
+            fi
             COPILOT_SDK_DEFAULT_CONNECTION=inprocess npm test -- test/e2e/inprocess_ffi.e2e.test.ts test/e2e/auth_host.e2e.test.ts || status=$?
             exit "$status"
