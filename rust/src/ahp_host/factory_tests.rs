@@ -677,6 +677,24 @@ fn host_settings_round_trip_without_callbacks_or_losing_constraints() {
     assert!(wire.get("mcpOauthTokenStorage").is_none());
 }
 
+#[test]
+fn host_resume_settings_do_not_forward_local_skill_reload_policy() {
+    let config = crate::ResumeSessionConfig::new(crate::SessionId::from("skills"));
+    let expected = resume_config_for_host(&config).unwrap();
+    for reload in [false, true] {
+        assert_eq!(
+            resume_config_for_host(&config.clone().with_reload_skills(reload)).unwrap(),
+            expected
+        );
+    }
+    let decoded =
+        resume_config_from_host(&serde_json::from_value(expected.clone()).unwrap()).unwrap();
+    assert_eq!(decoded.reload_skills, None);
+    let mut unsupported = expected;
+    unsupported["reloadSkills"] = json!(false);
+    assert!(resume_config_from_host(&serde_json::from_value(unsupported).unwrap()).is_err());
+}
+
 #[tokio::test]
 async fn release_before_request_poll_prevents_factory_invocation() {
     let (client, mut peer) = fixture();

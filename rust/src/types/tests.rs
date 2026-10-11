@@ -1150,6 +1150,31 @@ fn resume_session_config_serializes_continue_pending_work_to_camel_case() {
 }
 
 #[test]
+fn resume_reload_skills_is_local_only_and_preserves_skill_configuration() {
+    let config = ResumeSessionConfig::new(SessionId::from("skills"))
+        .with_enable_skills(true)
+        .with_enable_config_discovery(true)
+        .with_skill_directories([PathBuf::from("skills")])
+        .with_disabled_skills(["disabled"]);
+    assert_eq!(config.reload_skills, None);
+    let (wire, _) = config.clone().into_wire().unwrap();
+    let expected = serde_json::to_value(wire).unwrap();
+    assert_eq!(expected["enableSkills"], true);
+    assert_eq!(expected["enableConfigDiscovery"], true);
+    assert_eq!(expected["skillDirectories"], json!(["skills"]));
+    assert_eq!(expected["disabledSkills"], json!(["disabled"]));
+
+    for reload in [false, true] {
+        let configured = config.clone().with_reload_skills(reload);
+        assert_eq!(configured.reload_skills, Some(reload));
+        assert_eq!(configured.clone().reload_skills, Some(reload));
+        assert!(format!("{configured:?}").contains(&format!("reload_skills: Some({reload})")));
+        let (wire, _) = configured.into_wire().unwrap();
+        assert_eq!(serde_json::to_value(wire).unwrap(), expected);
+    }
+}
+
+#[test]
 fn resume_policy_and_recovery_report_round_trip() {
     let config =
         ResumeSessionConfig::new(SessionId::from("sess-1")).with_allow_transcript_recovery(false);
