@@ -19,6 +19,9 @@ on:
       sdk-home:
         required: true
         type: string
+      runtime-source:
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -99,9 +102,9 @@ jobs:
           retention-days: 7
 
   dotnet-darwin-arm64:
-    name: ".NET (macos-26-xlarge-agent-runtime, default, CAPI)"
+    name: ".NET (${{ inputs.runtime-source == 'published' && 'macos-26' || 'macos-26-xlarge-agent-runtime' }}, default, CAPI)"
     if: inputs.platform == 'all' || inputs.platform == 'darwin-arm64'
-    runs-on: macos-26-xlarge-agent-runtime
+    runs-on: ${{ inputs.runtime-source == 'published' && 'macos-26' || 'macos-26-xlarge-agent-runtime' }}
     timeout-minutes: 30
     defaults:
       run:
@@ -147,7 +150,7 @@ jobs:
       - if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: dotnet-test-diagnostics-macos-26-xlarge-default-capi-${{ github.run_attempt }}
+          name: dotnet-test-diagnostics-${{ inputs.runtime-source == 'published' && 'macos-26' || 'macos-26-xlarge' }}-default-capi-${{ github.run_attempt }}
           path: ${{ inputs.sdk-home }}/dotnet/TestResults/
           if-no-files-found: warn
           retention-days: 7

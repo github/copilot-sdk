@@ -363,6 +363,11 @@ failure fails the job. Java uses JDK 25 on all four platforms, plus a
 Linux/glibc JDK 17 compatibility job using precompiled classes.
 Merge groups retain the reduced Linux TypeScript CAPI subprocess coverage.
 
+Standalone published-runtime macOS jobs use the standard `macos-26` ARM64
+GitHub-hosted runner. Source-runtime jobs retain their configured runtime
+runners, including the larger Rust and .NET profiles. Test selection and
+timeouts are unchanged; failures on the standard runner still fail coverage.
+
 The `sdk-typescript` required rollup checks only the Linux CAPI job, including
 its build, packaging, and applicable static checks. Other platforms, BYOK
 backends, and languages keep their existing scheduling and failure reporting;

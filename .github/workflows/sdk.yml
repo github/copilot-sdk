@@ -468,6 +468,7 @@ jobs:
     with:
       platform: linuxmusl-arm64
       sdk-home: ${{ needs.detect-layout.outputs.sdk-home }}
+      runtime-source: ${{ needs.detect-layout.outputs.runtime-source }}
     secrets: inherit
 
   sdk-darwin-arm64:
