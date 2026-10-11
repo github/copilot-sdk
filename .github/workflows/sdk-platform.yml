@@ -11,9 +11,6 @@ on:
       sdk-home:
         required: true
         type: string
-      runtime-source:
-        required: true
-        type: string
     outputs:
       nodejs-result:
         description: "Node.js SDK result, independent of other languages"
@@ -32,7 +29,6 @@ jobs:
     with:
       platform: ${{ inputs.platform }}
       sdk-home: ${{ inputs.sdk-home }}
-      runtime-source: ${{ inputs.runtime-source }}
     secrets: inherit
 
   python:
@@ -41,7 +37,6 @@ jobs:
     with:
       platform: ${{ inputs.platform }}
       sdk-home: ${{ inputs.sdk-home }}
-      runtime-source: ${{ inputs.runtime-source }}
     secrets: inherit
 
   go:
@@ -50,7 +45,6 @@ jobs:
     with:
       platform: ${{ inputs.platform }}
       sdk-home: ${{ inputs.sdk-home }}
-      runtime-source: ${{ inputs.runtime-source }}
     secrets: inherit
 
   dotnet:
@@ -59,7 +53,6 @@ jobs:
     with:
       platform: ${{ inputs.platform }}
       sdk-home: ${{ inputs.sdk-home }}
-      runtime-source: ${{ inputs.runtime-source }}
     secrets: inherit
 
   rust:
@@ -68,7 +61,6 @@ jobs:
     with:
       platform: ${{ inputs.platform }}
       sdk-home: ${{ inputs.sdk-home }}
-      runtime-source: ${{ inputs.runtime-source }}
     secrets: inherit
 
   java:
@@ -77,5 +69,4 @@ jobs:
     with:
       platform: ${{ inputs.platform }}
       sdk-home: ${{ inputs.sdk-home }}
-      runtime-source: ${{ inputs.runtime-source }}
     secrets: inherit

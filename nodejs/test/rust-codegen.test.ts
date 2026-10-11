@@ -1,6 +1,5 @@
 import type { ApiSchema } from "../../scripts/codegen/utils.ts";
 import {
-    getApiSchemaPath,
     normalizeSchemaBrandCasing,
     postProcessSchema,
     propagateInternalVisibility,
@@ -1016,13 +1015,18 @@ describe("Rust x-legacy-parameters", () => {
         ).toThrow(/Rust string enum Kind is requested for different values/);
     });
 
-    it("keeps every const discriminator of the selected API schema distinct in Rust", async () => {
+    it("keeps every const discriminator of the committed API schema distinct in Rust", () => {
         // Mirror the generator's own schema preparation so emission order matches.
         const schema = propagateInternalVisibility(
             postProcessSchema(
                 stripBooleanLiterals(
                     normalizeSchemaBrandCasing(
-                        JSON.parse(readFileSync(await getApiSchemaPath(), "utf8")) as ApiSchema
+                        JSON.parse(
+                            readFileSync(
+                                new URL("../../../../generated/api.schema.json", import.meta.url),
+                                "utf8"
+                            )
+                        ) as ApiSchema
                     )
                 ) as JSONSchema7
             )

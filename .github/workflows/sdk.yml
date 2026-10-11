@@ -446,7 +446,6 @@ jobs:
     with:
       platform: linux-x64
       sdk-home: ${{ needs.detect-layout.outputs.sdk-home }}
-      runtime-source: ${{ needs.detect-layout.outputs.runtime-source }}
     secrets: inherit
 
   sdk-linuxmusl-x64:
@@ -457,7 +456,6 @@ jobs:
     with:
       platform: linuxmusl-x64
       sdk-home: ${{ needs.detect-layout.outputs.sdk-home }}
-      runtime-source: ${{ needs.detect-layout.outputs.runtime-source }}
     secrets: inherit
 
   sdk-linuxmusl-arm64:
@@ -468,7 +466,6 @@ jobs:
     with:
       platform: linuxmusl-arm64
       sdk-home: ${{ needs.detect-layout.outputs.sdk-home }}
-      runtime-source: ${{ needs.detect-layout.outputs.runtime-source }}
     secrets: inherit
 
   sdk-darwin-arm64:
@@ -479,7 +476,6 @@ jobs:
     with:
       platform: darwin-arm64
       sdk-home: ${{ needs.detect-layout.outputs.sdk-home }}
-      runtime-source: ${{ needs.detect-layout.outputs.runtime-source }}
     secrets: inherit
 
   sdk-win32-x64:
@@ -491,7 +487,6 @@ jobs:
     with:
       platform: win32-x64
       sdk-home: ${{ needs.detect-layout.outputs.sdk-home }}
-      runtime-source: ${{ needs.detect-layout.outputs.runtime-source }}
     secrets: inherit
 
   # Only Linux CAPI gates this rollup; the full SDK aggregate still reports all coverage.

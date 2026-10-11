@@ -18,16 +18,13 @@ on:
       sdk-home:
         required: true
         type: string
-      runtime-source:
-        required: true
-        type: string
 
 permissions:
   contents: read
 
 jobs:
   java:
-    name: "Java (${{ inputs.runtime-source == 'published' && matrix.os == 'macos-26-agent-runtime' && 'macos-26' || matrix.os }}, JDK ${{ matrix.test-jdk }})"
+    name: "Java (${{ matrix.os }}, JDK ${{ matrix.test-jdk }})"
     if: contains(fromJSON('["all","linux-x64","darwin-arm64","win32-x64"]'), inputs.platform)
     strategy:
       fail-fast: false
@@ -39,7 +36,7 @@ jobs:
             test-jdk: "17"
           - os: windows-latest
             test-jdk: "17"
-    runs-on: ${{ inputs.runtime-source == 'published' && matrix.os == 'macos-26-agent-runtime' && 'macos-26' || matrix.os }}
+    runs-on: ${{ matrix.os }}
     defaults:
       run:
         shell: bash

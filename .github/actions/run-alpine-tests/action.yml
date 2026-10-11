@@ -54,7 +54,6 @@ runs:
           --env COPILOT_SDK_ROOT="$ALPINE_TEST_SDK_ROOT" \
           --env COPILOT_HMAC_KEY \
           --env COPILOT_SDK_E2E_BACKEND \
-          --env COPILOT_CI_RUNTIME_SOURCE \
           --env BUNDLED_CLI_CACHE_DIR \
           --env CARGO_TERM_COLOR \
           --env RUST_BACKTRACE \

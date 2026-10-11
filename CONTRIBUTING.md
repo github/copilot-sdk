@@ -363,37 +363,11 @@ failure fails the job. Java uses JDK 25 on all four platforms, plus a
 Linux/glibc JDK 17 compatibility job using precompiled classes.
 Merge groups retain the reduced Linux TypeScript CAPI subprocess coverage.
 
-Standalone published-runtime macOS jobs use the standard `macos-26` ARM64
-GitHub-hosted runner. Source-runtime jobs retain their configured runtime
-runners, including the larger Rust and .NET profiles. Test selection and
-timeouts are unchanged; failures on the standard runner still fail coverage.
-
 The `sdk-typescript` required rollup checks only the Linux CAPI job, including
 its build, packaging, and applicable static checks. Other platforms, BYOK
 backends, and languages keep their existing scheduling and failure reporting;
 they do not gate this rollup. The full `SDK` aggregate still requires all
 scheduled coverage to succeed.
-
-Standalone CI assigns the two managed-device fixture controls to a separate
-mandatory Linux CAPI step. Each fixture-bearing CLI child runs the unchanged,
-pinned published runtime in its own disposable container, with the fixture
-installed at the [documented production device-policy location](https://docs.github.com/en/copilot/how-tos/administer-copilot/manage-for-enterprise/use-managed-settings/deploy-managed-settings).
-The launcher consumes the temporary-file test hint, verifies isolation and
-root file ownership, then restores the runner's identity before launching the
-runtime. It never writes policy to the host. A result guard requires both
-original plugin-lifecycle and sessionless device/model tests to pass; missing
-or skipped controls fail the job. Other published-runtime profiles explicitly
-delegate only those two cases to this step. Source-runtime profiles retain
-their existing full test selection and launch setup.
-
-The CI-only container setup requires Linux, Docker, and Node.js 22.15 or newer.
-Do not provision a machine-wide policy file on a developer workstation to
-run these fixtures. Launcher plan, selection, and result-guard unit controls
-run without Docker, a CLI, or dependency installation:
-
-```bash
-node --test scripts/ci/device-policy-fixture.test.mjs
-```
 
 The three BYOK backend sweeps run in separate Linux TypeScript jobs, alongside
 the normal CAPI job; they do not repeat unit tests, packaging, or static
