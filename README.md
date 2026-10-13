@@ -45,7 +45,9 @@ For Go, Java, and Rust, [install the CLI manually](https://github.com/features/c
 
 ## Architecture
 
-All SDKs communicate with the Copilot CLI server via JSON-RPC:
+The Copilot agent runtime is the engine that powers sessions, tools, and events. The Copilot CLI is the default process interface to that runtime.
+
+By default, all SDKs communicate with the Copilot CLI server out of process via JSON-RPC:
 
 ```
 Your Application
@@ -56,6 +58,8 @@ Your Application
 ```
 
 The SDK manages the CLI process lifecycle automatically. You can also connect to an external CLI server—see the [Getting Started Guide](./docs/getting-started.md#connecting-to-an-external-cli-server) for details on running the CLI in server mode.
+
+As an experimental alternative, each SDK can load the native Copilot agent runtime in the application process through its C ABI/FFI without starting a CLI child process. See [Run the Copilot runtime in process](./docs/setup/in-process-runtime.md) for setup requirements and examples.
 
 ### Agent Finder Skill installation APIs
 
