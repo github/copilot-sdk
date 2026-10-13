@@ -271,8 +271,9 @@ pub struct SessionEndInput {
     /// The last assistant message.
     #[serde(default)]
     pub final_message: Option<String>,
-    /// Error message, if the session ended due to an error.
-    #[serde(default)]
+    /// Error message, if the session ended due to an error. Structured errors
+    /// use their string `message`, or JSON text if no string message is present.
+    #[serde(default, deserialize_with = "deserialize_optional_hook_error")]
     pub error: Option<String>,
 }
 
@@ -302,12 +303,52 @@ pub struct ErrorOccurredInput {
     /// Working directory.
     #[serde(rename = "cwd")]
     pub working_directory: PathBuf,
-    /// The error message.
+    /// The error message. Structured errors use their string `message`, or
+    /// JSON text if no string message is present.
+    #[serde(deserialize_with = "deserialize_hook_error")]
     pub error: String,
     /// Context where the error occurred: `"model_call"`, `"tool_execution"`, `"system"`, `"user_input"`.
     pub error_context: String,
     /// Whether the error is recoverable.
     pub recoverable: bool,
+}
+
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum HookError {
+    Text(String),
+    Object(serde_json::Map<String, Value>),
+}
+
+impl HookError {
+    fn into_text(self) -> String {
+        match self {
+            Self::Text(text) => text,
+            Self::Object(object) => object
+                .get("message")
+                .and_then(Value::as_str)
+                .map(str::to_owned)
+                .unwrap_or_else(|| Value::Object(object).to_string()),
+        }
+    }
+}
+
+fn deserialize_hook_error<'de, Deserializer>(
+    deserializer: Deserializer,
+) -> Result<String, Deserializer::Error>
+where
+    Deserializer: serde::Deserializer<'de>,
+{
+    HookError::deserialize(deserializer).map(HookError::into_text)
+}
+
+fn deserialize_optional_hook_error<'de, Deserializer>(
+    deserializer: Deserializer,
+) -> Result<Option<String>, Deserializer::Error>
+where
+    Deserializer: serde::Deserializer<'de>,
+{
+    Option::<HookError>::deserialize(deserializer).map(|error| error.map(HookError::into_text))
 }
 
 /// Output for the `errorOccurred` hook.

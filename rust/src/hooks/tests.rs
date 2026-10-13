@@ -147,6 +147,135 @@ async fn dispatch_unknown_hook_type() {
     assert_eq!(result["output"], serde_json::json!({}));
 }
 
+struct ErrorHooks {
+    expected: Option<String>,
+}
+
+#[async_trait]
+impl SessionHooks for ErrorHooks {
+    async fn on_error_occurred(
+        &self,
+        input: ErrorOccurredInput,
+        ctx: HookContext,
+    ) -> Option<ErrorOccurredOutput> {
+        assert_eq!(ctx.session_id, SessionId::new("sess-1"));
+        assert_eq!(Some(input.error), self.expected);
+        Some(ErrorOccurredOutput {
+            suppress_output: Some(true),
+            error_handling: Some("abort".to_string()),
+            ..Default::default()
+        })
+    }
+
+    async fn on_session_end(
+        &self,
+        input: SessionEndInput,
+        ctx: HookContext,
+    ) -> Option<SessionEndOutput> {
+        assert_eq!(ctx.session_id, SessionId::new("sess-1"));
+        assert_eq!(input.error, self.expected);
+        Some(SessionEndOutput {
+            suppress_output: Some(true),
+            ..Default::default()
+        })
+    }
+}
+
+fn error_hook_input() -> Value {
+    serde_json::json!({
+        "sessionId": "sess-1",
+        "timestamp": 1234567890,
+        "cwd": "/tmp",
+        "reason": "error",
+        "errorContext": "model_call",
+        "recoverable": true
+    })
+}
+
+#[tokio::test]
+async fn dispatch_error_hooks_accept_strings_and_objects() {
+    for (error, expected) in [
+        (serde_json::json!("legacy error"), "legacy error"),
+        (
+            serde_json::json!({"name": "Error", "message": "model timeout", "stack": "trace"}),
+            "model timeout",
+        ),
+        (serde_json::json!({"message": ""}), ""),
+        (serde_json::json!({"name": "Error"}), r#"{"name":"Error"}"#),
+        (serde_json::json!({"message": 42}), r#"{"message":42}"#),
+        (serde_json::json!({}), "{}"),
+    ] {
+        for hook_type in ["errorOccurred", "sessionEnd"] {
+            let mut input = error_hook_input();
+            input["error"] = error.clone();
+            let hooks = ErrorHooks {
+                expected: Some(expected.to_string()),
+            };
+            let result = dispatch_hook(&hooks, &SessionId::new("sess-1"), hook_type, input)
+                .await
+                .unwrap_or_else(|error| panic!("{hook_type}: {error}"));
+            assert_eq!(result["output"]["suppressOutput"], true);
+            if hook_type == "errorOccurred" {
+                assert_eq!(result["output"]["errorHandling"], "abort");
+            }
+        }
+    }
+}
+
+#[tokio::test]
+async fn dispatch_session_end_accepts_missing_and_null_errors() {
+    for error in [None, Some(Value::Null)] {
+        let mut input = error_hook_input();
+        if let Some(error) = error {
+            input["error"] = error;
+        }
+        let result = dispatch_hook(
+            &ErrorHooks { expected: None },
+            &SessionId::new("sess-1"),
+            "sessionEnd",
+            input,
+        )
+        .await
+        .unwrap();
+        assert_eq!(result["output"]["suppressOutput"], true);
+    }
+}
+
+#[tokio::test]
+async fn dispatch_error_hooks_reject_unsupported_values() {
+    for error in [
+        serde_json::json!(42),
+        serde_json::json!(true),
+        serde_json::json!([]),
+    ] {
+        for hook_type in ["errorOccurred", "sessionEnd"] {
+            let mut input = error_hook_input();
+            input["error"] = error.clone();
+            assert!(
+                dispatch_hook(&TestHooks, &SessionId::new("sess-1"), hook_type, input)
+                    .await
+                    .is_err()
+            );
+        }
+    }
+    for error in [None, Some(Value::Null)] {
+        let mut input = error_hook_input();
+        if let Some(error) = error {
+            input["error"] = error;
+        }
+        assert!(
+            dispatch_hook(
+                &TestHooks,
+                &SessionId::new("sess-1"),
+                "errorOccurred",
+                input
+            )
+            .await
+            .is_err()
+        );
+    }
+}
+
 #[tokio::test]
 async fn dispatch_subagent_hooks_with_typed_input_and_output() {
     struct SubagentHooks;
