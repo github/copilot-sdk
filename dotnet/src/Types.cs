@@ -1961,8 +1961,10 @@ public sealed class SessionEndHookInput
 
     /// <summary>
     /// Error message if the session ended due to an error.
+    /// Structured errors use their message, or JSON text when no string message is available.
     /// </summary>
     [JsonPropertyName("error")]
+    [JsonConverter(typeof(HookErrorJsonConverter))]
     public string? Error { get; set; }
 }
 
@@ -2016,8 +2018,10 @@ public sealed class ErrorOccurredHookInput
 
     /// <summary>
     /// Error message describing what went wrong.
+    /// Structured errors use their message, or JSON text when no string message is available.
     /// </summary>
     [JsonPropertyName("error")]
+    [JsonConverter(typeof(HookErrorJsonConverter))]
     public string Error { get; set; } = string.Empty;
 
     /// <summary>
