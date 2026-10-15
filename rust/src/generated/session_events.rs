@@ -8228,6 +8228,74 @@ pub struct ManagedPermissionsContext {
     pub permissions: Option<serde_json::Value>,
 }
 
+/// Policy Helper failure and recovery features implemented by this runtime. Capability presence, not absence of an optional failure, determines whether a client may rely on these contracts.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PolicyHelperCapabilities {
+    /// The runtime supports session.managedSettings.recheckPolicyHelper for a fresh scoped helper evaluation.
+    pub recheck: bool,
+    /// The runtime emits PolicyHelperFailure on shared managed-settings snapshots and applicable structured operation errors.
+    pub structured_failure: bool,
+}
+
+/// One bounded field-specific finding reported by a Policy Helper. The path is a helper-defined logical configuration path, not necessarily a filesystem path.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PolicyHelperFailureDetail {
+    /// Bounded helper-authored plain-text explanation for this finding.
+    pub message: String,
+    /// Optional helper-defined logical configuration path.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
+}
+
+/// An explicit bounded absolute HTTP(S) destination supplied by a Policy Helper. The runtime validates but never fetches, previews, resolves redirects for, or opens it; clients must sanitize it again before navigation.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PolicyHelperHelpLink {
+    /// Optional bounded helper-authored plain-text label. Clients may use localized fallback text when absent.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
+    /// Validated absolute HTTP(S) URL.
+    pub url: String,
+}
+
+/// The latest unresolved Policy Helper failure for this policy context. Helper-authored text is bounded display-intended content but remains untrusted; render it as plain text, keep diagnostics secondary, and do not automatically log, persist, export, execute, or inject it into model context.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PolicyHelperFailure {
+    /// Managed authority that registered the helper, when known. Known values are device and server; clients must tolerate future values.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub authority: Option<String>,
+    /// Stable runtime classification. Known values are helper-reported, registration-undetermined, working-directory, resolve, resolve-task, spawn, timeout, exit-status, output-too-large, envelope, schema, and internal. This is not a closed set; clients must tolerate unknown values.
+    pub category: String,
+    /// Stable bounded helper-defined identifier for a valid structured helper error. Absent for runtime-detected failures and not globally unique.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub code: Option<String>,
+    /// Optional bounded field-specific findings supplied by the helper.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub details: Option<Vec<PolicyHelperFailureDetail>>,
+    /// Optional bounded untrusted secondary troubleshooting text, such as trimmed stderr. Do not use it as primary UI copy.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub diagnostic: Option<String>,
+    /// Effective runtime behavior: ignore continues with remaining or retained policy, while failClosed activates restrictive safeguards. This is runtime-owned, not helper-authored.
+    pub failure_mode: String,
+    /// Optional explicit validated additional-information link. URLs embedded in other text are not links.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub help_link: Option<PolicyHelperHelpLink>,
+    /// Bounded plain-text primary explanation. Runtime-authored for runtime failures and helper-authored for a valid structured helper error.
+    pub message: String,
+    /// True when an earlier successful helper-derived layer still contributes to this effective snapshot. This does not promise that every relaxation from the old layer was retained.
+    pub previous_policy_retained: bool,
+    /// Invocation reason. Known values are sessionStart and pluginActivation; clients must tolerate future values.
+    pub reason: String,
+    /// Optional bounded helper-authored plain-text recovery guidance. It is explanatory and must not be executed automatically.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub remediation: Option<String>,
+    /// Runtime-calculated presentation severity: warning for ignore and error for failClosed. Error severity does not imply that session creation failed.
+    pub severity: String,
+}
+
 /// Session event "session.managed_settings_resolved". Effective enterprise managed settings applied to the session and their contributing channels. Emitted whenever managed policy is applied or reapplied, including session start, resume, and account switch. This ephemeral live snapshot is delivered to subscribers but not persisted to the session event log; initial resolution occurs before session.start.
 ///
 /// <div class="warning">
@@ -8256,6 +8324,12 @@ pub struct SessionManagedSettingsResolvedData {
     /// Reusable retained managed permission policy for managedSettings.permissions.evaluate, including source composition and session-local injection. Provided by live session snapshots; absent in older events. Refresh the context when managed policy changes.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub permissions_context: Option<ManagedPermissionsContext>,
+    /// Explicit Policy Helper structured-failure and recheck capabilities supported by this runtime.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub policy_helper_capabilities: Option<PolicyHelperCapabilities>,
+    /// The latest unresolved Policy Helper failure for this exact policy context. It remains present across retained-policy refresh failures and clears only after fresh success or authoritative removal.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub policy_helper_failure: Option<PolicyHelperFailure>,
     /// Whether the policy-helper managed-settings layer was present. The policy helper is the weakest channel: it fills keys no enterprise source set and can never replace one.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub policy_helper_managed: Option<bool>,

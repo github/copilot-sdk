@@ -539,6 +539,28 @@ let forked = client
     .await?;
 ```
 
+Managed-settings snapshots carry explicit Policy Helper capabilities. Only call
+the scoped recheck when the current snapshot advertises it; older runtimes omit
+the capability object.
+
+```rust,ignore
+let snapshot = session.rpc().managed_settings().get().await?;
+if snapshot
+    .policy_helper_capabilities
+    .as_ref()
+    .is_some_and(|capabilities| capabilities.recheck)
+{
+    let refreshed = session
+        .rpc()
+        .managed_settings()
+        .recheck_policy_helper()
+        .await?;
+    if let Some(failure) = refreshed.policy_helper_failure {
+        eprintln!("{}", failure.message);
+    }
+}
+```
+
 New RPCs land in the namespace immediately as the schema regenerates;
 helpers are added on top only when an ergonomic story is worth the
 maintenance.
@@ -1445,6 +1467,23 @@ pub enum Error {
 // Check if the transport is broken (caller should discard the client)
 if err.is_transport_failure() {
     client = Client::start(options).await?;
+}
+```
+
+JSON-RPC failures retain structured `error.data` separately from their primary
+code and message. Applicable session startup, resume, and policy-dependent
+activation failures may include the same generated `PolicyHelperFailure` used
+by managed-settings snapshots:
+
+```rust,ignore
+use github_copilot_sdk::session_events::PolicyHelperFailure;
+
+if let Some(value) = err
+    .rpc_data()
+    .and_then(|data| data.get("policyHelperFailure"))
+{
+    let failure: PolicyHelperFailure = serde_json::from_value(value.clone())?;
+    eprintln!("{}", failure.message);
 }
 ```
 

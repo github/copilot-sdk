@@ -5,7 +5,7 @@
 
 import type { MessageConnection } from "vscode-jsonrpc/node.js";
 
-import type { AbortReason, AgentModelPolicy, Attachment, AutoTier, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, IndexedSearchState, ManagedPermissionsContext, ManagedSettingsResolvedData, McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerMetadata, McpServerSource, McpServerStatus, ModelChangeSource, ModelProviderKind, ModelProviderRef, PermissionDecisionSource, PermissionMode, PermissionPromptRequest, PermissionRule, ProviderQuotaState, ReasoningSummary, RemediationAction, SessionEvent, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskCompleteData, TaskCompletionOutcome, UsageGetMetricsResult, UserToolSessionApproval, Verbosity } from "./session-events.js";
+import type { AbortReason, AgentModelPolicy, Attachment, AutoTier, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, IndexedSearchState, ManagedPermissionsContext, ManagedSettingsResolvedData, McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerMetadata, McpServerSource, McpServerStatus, ModelChangeSource, ModelProviderKind, ModelProviderRef, PermissionDecisionSource, PermissionMode, PermissionPromptRequest, PermissionRule, PolicyHelperFailure, ProviderQuotaState, ReasoningSummary, RemediationAction, SessionEvent, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskCompleteData, TaskCompletionOutcome, UsageGetMetricsResult, UserToolSessionApproval, Verbosity } from "./session-events.js";
 
 /** A value that can be represented losslessly on the SDK JSON wire. */
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
@@ -16801,6 +16801,7 @@ export interface ManagedSettingsIngestResult {
    * Diagnostics emitted while resolving the layers, in the order they occurred.
    */
   logMessages: ManagedSettingsLogMessage[];
+  policyHelperFailure?: PolicyHelperFailure;
 }
 /**
  * One diagnostic emitted while ingesting managed settings. Returned rather than logged by the runtime so the host decides where ingestion diagnostics go, which matters because an ingestion runs before a session exists to carry a log sink.
@@ -17069,6 +17070,13 @@ export interface ManagedSettingsResolveRequest {
    * Working directory used to run an organization policy helper. When omitted, sessionless resolution does not run the helper.
    */
   workingDirectory?: string;
+  /**
+   * Why the Policy Helper is being invoked. Defaults to sessionStart.
+   */
+  policyHelperReason?: /** Resolve policy for session startup. */
+    | "sessionStart"
+    /** Resolve policy before plugin activation. */
+    | "pluginActivation";
 }
 /**
  * Effective enterprise managed settings for an account, resolved without a session.
@@ -17238,6 +17246,7 @@ export interface ManagedSettingsResolveStartupPolicyResult {
    * Warnings raised while resolving, in the order they occurred.
    */
   warnings: string[];
+  policyHelperFailure?: PolicyHelperFailure;
 }
 /**
  * The managed layers to retain as this process's startup policy, with the outcome of fetching each one.
@@ -39876,6 +39885,13 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
              */
             get: async (): Promise<ManagedSettingsResolvedData> =>
                 connection.sendRequest("session.managedSettings.get", { sessionId }),
+            /**
+             * Runs a fresh Policy Helper evaluation for the live session's current account, registration, working directory, repository and client context, bypassing only a completed cached helper result for that exact context while coalescing an equivalent execution already in flight. The previous failure and safeguards remain active until fresh success is applied. Returns the same retained snapshot as session.managedSettings.get after the recheck settles.
+             *
+             * @returns Effective enterprise managed settings and contributing channels. Session events report applied policy; sessionless resolve reports an account/device snapshot, and compose reports a non-applying preview of candidate documents. Device values take precedence over server values, then the policy helper, per ordinary key, while permissions compose restrictively. Session-local SDK-client policy is included only in session results. Marked experimental while the managed-settings surface stabilizes.
+             */
+            recheckPolicyHelper: async (): Promise<ManagedSettingsResolvedData> =>
+                connection.sendRequest("session.managedSettings.recheckPolicyHelper", { sessionId }),
         },
         /** @experimental */
         plugins: {

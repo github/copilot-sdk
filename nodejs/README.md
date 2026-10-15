@@ -1442,6 +1442,33 @@ security checks, user permissions, or sandbox policy. `permissions.limitTo` neit
 enables the sandbox nor changes `sandbox.userPolicy.network`; configure sandbox
 network restrictions explicitly.
 
+### Policy Helper failures and scoped recheck
+
+Managed-settings snapshots may include a structured `policyHelperFailure` and
+the explicit `policyHelperCapabilities` supported by the runtime. Treat helper
+text as untrusted plain text, keep `diagnostic` secondary, and sanitize an
+explicit `helpLink` again before navigation.
+
+```typescript
+const snapshot = await session.rpc.managedSettings.get();
+
+if (snapshot.policyHelperFailure) {
+    console.warn(snapshot.policyHelperFailure.message);
+}
+
+if (snapshot.policyHelperCapabilities?.recheck === true) {
+    const refreshed = await session.rpc.managedSettings.recheckPolicyHelper();
+    // Only a current capable snapshot without policyHelperFailure establishes recovery.
+    console.log(refreshed.policyHelperFailure ?? "Policy Helper recovered");
+}
+```
+
+Older runtimes omit `policyHelperCapabilities`. Do not infer support or recovery
+only because `policyHelperFailure` is absent. Applicable `session.create`,
+`session.resume`, and policy-dependent activation failures preserve the same DTO
+under JSON-RPC `error.data.policyHelperFailure` while retaining the primary
+operation error code and message.
+
 ### Permission Result Kinds
 
 The handler must return one of the `PermissionDecision` shapes (or `{ kind: "no-result" }`). Approval scopes are present-tense — they describe the decision to apply, not the outcome reported back on session events:

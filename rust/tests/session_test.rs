@@ -23,12 +23,13 @@ use github_copilot_sdk::rpc::{
     ConnectorCapabilities, ConnectorCatalogResult, ConnectorCatalogStatus, ConnectorConnectRequest,
     ConnectorConnectResult, ConnectorContinueRequest, ConnectorDisconnectResult,
     ConnectorMcpStatus, ConnectorReconcileOptions, ConnectorReconcileRequest,
-    ConnectorSessionAccount, ConnectorStatus, ModelSetAllowedModelsRequest, OpenCanvasInstance,
-    SendAgentMode, SendMode, SendRequest, SessionRpcConnectors,
+    ConnectorSessionAccount, ConnectorStatus, ManagedSettingsResolveRequest,
+    ManagedSettingsResolveRequestPolicyHelperReason, ModelSetAllowedModelsRequest,
+    OpenCanvasInstance, SendAgentMode, SendMode, SendRequest, SessionRpcConnectors,
 };
 use github_copilot_sdk::session_events::{
-    ManagedSettingsResolvedSource, McpOauthRequiredData, ReasoningSummary, SessionLimitsConfig,
-    SessionManagedSettingsResolvedData,
+    ManagedSettingsResolvedSource, McpOauthRequiredData, PolicyHelperCapabilities,
+    PolicyHelperFailure, ReasoningSummary, SessionLimitsConfig, SessionManagedSettingsResolvedData,
 };
 use github_copilot_sdk::types::{
     AskUserVariant, CanvasProviderIdentity, CloudSessionOptions, CloudSessionRepository,
@@ -372,11 +373,26 @@ impl FakeServer {
     }
 
     async fn respond_error(&mut self, request: &Value, code: i64, message: &str) {
+        self.respond_error_with_data(request, code, message, None)
+            .await;
+    }
+
+    async fn respond_error_with_data(
+        &mut self,
+        request: &Value,
+        code: i64,
+        message: &str,
+        data: Option<Value>,
+    ) {
         let id = request["id"].as_u64().unwrap();
+        let mut error = serde_json::json!({ "code": code, "message": message });
+        if let Some(data) = data {
+            error["data"] = data;
+        }
         let response = serde_json::json!({
             "jsonrpc": "2.0",
             "id": id,
-            "error": { "code": code, "message": message },
+            "error": error,
         });
         write_framed(&mut self.write, &serde_json::to_vec(&response).unwrap()).await;
     }
@@ -1989,6 +2005,169 @@ fn managed_settings_resolved_event_preserves_client_provenance() {
     let serialized = serde_json::to_value(&without_client).unwrap();
     assert_eq!(serialized["source"], "mixed");
     assert!(serialized.get("clientManaged").is_none());
+}
+
+fn policy_helper_failure_json() -> Value {
+    serde_json::json!({
+        "authority": "future-authority",
+        "category": "future-category",
+        "code": "helper.future-code",
+        "details": [{
+            "path": "allowedRepositories",
+            "message": "Expected an array.",
+        }],
+        "diagnostic": "bounded diagnostic",
+        "failureMode": "future-mode",
+        "helpLink": {
+            "url": "https://docs.example.com/policy-helper",
+            "label": "Review configuration",
+        },
+        "message": "The Policy Helper rejected the current configuration.",
+        "previousPolicyRetained": true,
+        "reason": "future-reason",
+        "remediation": "Update the configuration and recheck managed policy.",
+        "severity": "future-severity",
+    })
+}
+
+fn policy_helper_snapshot_json() -> Value {
+    serde_json::json!({
+        "bypassPermissionsDisabled": true,
+        "deviceManaged": false,
+        "failClosed": true,
+        "managedKeys": ["permissions"],
+        "policyHelperCapabilities": {
+            "recheck": true,
+            "structuredFailure": true,
+        },
+        "policyHelperFailure": policy_helper_failure_json(),
+        "policyHelperManaged": true,
+        "serverManaged": true,
+        "source": "policyHelper",
+    })
+}
+
+#[test]
+fn managed_settings_resolved_event_round_trips_policy_helper_failure() {
+    let data: SessionManagedSettingsResolvedData =
+        serde_json::from_value(policy_helper_snapshot_json()).unwrap();
+
+    let capabilities = data.policy_helper_capabilities.as_ref().unwrap();
+    assert!(capabilities.recheck);
+    assert!(capabilities.structured_failure);
+    let failure = data.policy_helper_failure.as_ref().unwrap();
+    assert_eq!(failure.category, "future-category");
+    assert_eq!(failure.failure_mode, "future-mode");
+    assert_eq!(failure.severity, "future-severity");
+    assert_eq!(failure.reason, "future-reason");
+    assert_eq!(failure.authority.as_deref(), Some("future-authority"));
+    assert_eq!(failure.code.as_deref(), Some("helper.future-code"));
+    assert_eq!(
+        serde_json::to_value(data).unwrap(),
+        policy_helper_snapshot_json()
+    );
+
+    let legacy: SessionManagedSettingsResolvedData = serde_json::from_value(serde_json::json!({
+        "bypassPermissionsDisabled": false,
+        "deviceManaged": false,
+        "failClosed": false,
+        "managedKeys": [],
+        "serverManaged": false,
+        "source": "none",
+    }))
+    .unwrap();
+    assert!(legacy.policy_helper_capabilities.is_none());
+    assert!(legacy.policy_helper_failure.is_none());
+}
+
+#[tokio::test]
+async fn managed_settings_recheck_policy_helper_binds_session_and_round_trips_failure() {
+    let (session, mut server) = create_session_pair().await;
+    let recheck = tokio::spawn(async move {
+        session
+            .rpc()
+            .managed_settings()
+            .recheck_policy_helper()
+            .await
+    });
+
+    let request = server.read_request().await;
+    assert_eq!(
+        request["method"],
+        "session.managedSettings.recheckPolicyHelper"
+    );
+    assert_eq!(request["params"]["sessionId"], server.session_id);
+    server
+        .respond(&request, policy_helper_snapshot_json())
+        .await;
+
+    let result = timeout(TIMEOUT, recheck).await.unwrap().unwrap().unwrap();
+    let capabilities: &PolicyHelperCapabilities =
+        result.policy_helper_capabilities.as_ref().unwrap();
+    assert!(capabilities.recheck);
+    assert!(capabilities.structured_failure);
+    let failure: &PolicyHelperFailure = result.policy_helper_failure.as_ref().unwrap();
+    assert_eq!(failure.category, "future-category");
+    assert_eq!(
+        failure.message,
+        "The Policy Helper rejected the current configuration."
+    );
+}
+
+#[tokio::test]
+async fn managed_settings_resolve_preserves_policy_helper_activation_error_data() {
+    let (client, server_read, server_write) = make_client();
+    let mut server = FakeServer {
+        read: server_read,
+        write: server_write,
+        session_id: String::new(),
+    };
+    let resolve = tokio::spawn({
+        let client = client.clone();
+        async move {
+            client
+                .rpc()
+                .managed_settings()
+                .resolve_with_params(ManagedSettingsResolveRequest {
+                    policy_helper_reason: Some(
+                        ManagedSettingsResolveRequestPolicyHelperReason::PluginActivation,
+                    ),
+                    working_directory: Some("/workspace".to_string()),
+                    ..Default::default()
+                })
+                .await
+        }
+    });
+
+    let request = server.read_request().await;
+    assert_eq!(request["method"], "managedSettings.resolve");
+    assert_eq!(request["params"]["workingDirectory"], "/workspace");
+    assert_eq!(request["params"]["policyHelperReason"], "pluginActivation");
+    let data = serde_json::json!({
+        "code": "plugin_activation_failed",
+        "policyHelperFailure": policy_helper_failure_json(),
+    });
+    server
+        .respond_error_with_data(
+            &request,
+            -32001,
+            "plugin activation failed",
+            Some(data.clone()),
+        )
+        .await;
+
+    let error = timeout(TIMEOUT, resolve)
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap_err();
+    assert_eq!(error.kind(), &ErrorKind::Rpc { code: -32001 });
+    assert_eq!(error.message(), Some("plugin activation failed"));
+    assert_eq!(error.rpc_data(), Some(&data));
+    let failure: PolicyHelperFailure =
+        serde_json::from_value(error.rpc_data().unwrap()["policyHelperFailure"].clone()).unwrap();
+    assert_eq!(failure.category, "future-category");
+    assert_eq!(failure.reason, "future-reason");
 }
 
 fn make_client_with_telemetry(

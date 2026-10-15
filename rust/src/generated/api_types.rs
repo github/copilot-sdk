@@ -15,9 +15,9 @@ pub use super::session_events::{
     McpOauthWWWAuthenticateParams, McpServerMetadata, McpServerSource, McpServerStatus,
     ModelChangeSource, ModelProviderKind, ModelProviderRef, OmittedBinaryOmittedReason,
     PermissionDecisionSource, PermissionMode, PermissionPromptRequest, PermissionRule,
-    ProviderQuotaState, ReasoningSummary, RemediationAction, SessionLimitsConfig, SessionMode,
-    ShutdownType, SkillSource, TaskBlocker, TaskCompletionOutcome, UsageGetMetricsResult,
-    UserToolSessionApproval, Verbosity,
+    PolicyHelperCapabilities, PolicyHelperFailure, ProviderQuotaState, ReasoningSummary,
+    RemediationAction, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskBlocker,
+    TaskCompletionOutcome, UsageGetMetricsResult, UserToolSessionApproval, Verbosity,
 };
 use crate::types::{RequestId, SessionEvent, SessionId};
 
@@ -888,6 +888,9 @@ pub mod rpc_methods {
     pub const SESSION_CONNECTORS_WITHDRAWPROJECTION: &str = "session.connectors.withdrawProjection";
     /// `session.managedSettings.get`
     pub const SESSION_MANAGEDSETTINGS_GET: &str = "session.managedSettings.get";
+    /// `session.managedSettings.recheckPolicyHelper`
+    pub const SESSION_MANAGEDSETTINGS_RECHECKPOLICYHELPER: &str =
+        "session.managedSettings.recheckPolicyHelper";
     /// `session.plugins.list`
     pub const SESSION_PLUGINS_LIST: &str = "session.plugins.list";
     /// `session.plugins.install`
@@ -12879,6 +12882,12 @@ pub struct ManagedSettingsResolvedData {
     /// Reusable retained managed permission policy for managedSettings.permissions.evaluate, including source composition and session-local injection. Provided by live session snapshots; absent in older events. Refresh the context when managed policy changes.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub permissions_context: Option<ManagedPermissionsContext>,
+    /// Explicit Policy Helper structured-failure and recheck capabilities supported by this runtime.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub policy_helper_capabilities: Option<PolicyHelperCapabilities>,
+    /// The latest unresolved Policy Helper failure for this exact policy context. It remains present across retained-policy refresh failures and clears only after fresh success or authoritative removal.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub policy_helper_failure: Option<PolicyHelperFailure>,
     /// Whether the policy-helper managed-settings layer was present. The policy helper is the weakest channel: it fills keys no enterprise source set and can never replace one.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub policy_helper_managed: Option<bool>,
@@ -13055,6 +13064,9 @@ pub(crate) struct ManagedSettingsIngestResult {
     pub policy_helper_configured: bool,
     /// The policy helper's failure must be treated as fail-closed rather than ignored.
     pub policy_helper_fail_closed: bool,
+    /// Structured latest Policy Helper failure for this ingestion, when one occurred.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub policy_helper_failure: Option<PolicyHelperFailure>,
     /// The policy helper was configured but could not be run or its output could not be read.
     pub policy_helper_load_failed: bool,
     /// The layer produced by the platform policy helper, when one ran.
@@ -13355,6 +13367,9 @@ pub struct ManagedSettingsResolveRequest {
     /// GitHub token to resolve instead of the current account. The call fails when the token cannot be resolved.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub git_hub_token: Option<String>,
+    /// Why the Policy Helper is being invoked. Defaults to sessionStart.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub policy_helper_reason: Option<ManagedSettingsResolveRequestPolicyHelperReason>,
     /// Opaque account identifier returned by `account.getAllUsers`. When omitted, the current account is used, or device policy only when no account is signed in.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub selection_id: Option<String>,
@@ -13484,6 +13499,9 @@ pub(crate) struct ManagedSettingsResolveStartupPolicyResult {
     pub managed_policy_present: bool,
     /// The permissions layer specifically could not be confirmed, so permission gates apply their fail-closed posture.
     pub permission_policy_undetermined: bool,
+    /// Structured latest Policy Helper failure for this startup resolution, when one occurred.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub policy_helper_failure: Option<PolicyHelperFailure>,
     /// The policy helper was configured but could not be run, or its output could not be read.
     pub policy_helper_load_failed: bool,
     /// The layer produced by the platform policy helper, when one ran.
@@ -39462,6 +39480,76 @@ pub struct SessionManagedSettingsGetResult {
     /// Reusable retained managed permission policy for managedSettings.permissions.evaluate, including source composition and session-local injection. Provided by live session snapshots; absent in older events. Refresh the context when managed policy changes.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub permissions_context: Option<ManagedPermissionsContext>,
+    /// Explicit Policy Helper structured-failure and recheck capabilities supported by this runtime.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub policy_helper_capabilities: Option<PolicyHelperCapabilities>,
+    /// The latest unresolved Policy Helper failure for this exact policy context. It remains present across retained-policy refresh failures and clears only after fresh success or authoritative removal.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub policy_helper_failure: Option<PolicyHelperFailure>,
+    /// Whether the policy-helper managed-settings layer was present. The policy helper is the weakest channel: it fills keys no enterprise source set and can never replace one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub policy_helper_managed: Option<bool>,
+    /// Whether the effective sandbox policy forces the sandbox on *only* because managed policy could not be determined, rather than because the policy requires it. Lets clients tell a user whose `--no-sandbox` was overridden that the sandbox stayed on as a fail-closed fallback, instead of attributing it to an administrator who set no such policy.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sandbox_enabled_by_undetermined_policy: Option<bool>,
+    /// Whether the server (account/org) managed-settings layer was present
+    pub server_managed: bool,
+    /// The effective (resolved) managed settings values, so clients can render exactly what is enforced. Absent when no managed policy is in force.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub settings: Option<serde_json::Value>,
+    /// Channel summary: `server`, `device`, `client`, or `policyHelper` when exactly one channel contributed; `mixed` when multiple channels contributed; otherwise `none`. Consult the per-channel booleans for exact provenance.
+    pub source: ManagedSettingsResolvedSource,
+}
+
+/// Identifies the target session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionManagedSettingsRecheckPolicyHelperParams {
+    /// Target session identifier
+    pub session_id: SessionId,
+}
+
+/// Effective enterprise managed settings and contributing channels. Session events report applied policy; sessionless resolve reports an account/device snapshot, and compose reports a non-applying preview of candidate documents. Device values take precedence over server values, then the policy helper, per ordinary key, while permissions compose restrictively. Session-local SDK-client policy is included only in session results. Marked experimental while the managed-settings surface stabilizes.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionManagedSettingsRecheckPolicyHelperResult {
+    /// Whether an explicit enterprise policy restriction disables bypass-permissions ("yolo") mode for this session. Deny-wins across layers; an unresolved policy does not force this on by itself.
+    pub bypass_permissions_disabled: bool,
+    /// Whether a session-local permissions layer injected by the SDK host was present
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub client_managed: Option<bool>,
+    /// Whether an actual device MDM/plist/registry/file managed-settings layer was present
+    pub device_managed: bool,
+    /// Whether managed policy could not be determined (e.g. a failed server fetch) and unresolved-policy safeguards remain active. This does not by itself disable bypass-permissions; `bypassPermissionsDisabled` reports only an explicit policy restriction.
+    pub fail_closed: bool,
+    /// The setting keys under enterprise management in the effective managed settings (e.g. `model`, `enabledPlugins`, `permissions`). Empty when no managed settings are in force.
+    pub managed_keys: Vec<String>,
+    /// Whether at least two managed sources supplied permission allowlists, so enforcement intersects them and the flattened settings payload omits `permissions.allow`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub permissions_allow_intersected: Option<bool>,
+    /// Reusable retained managed permission policy for managedSettings.permissions.evaluate, including source composition and session-local injection. Provided by live session snapshots; absent in older events. Refresh the context when managed policy changes.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub permissions_context: Option<ManagedPermissionsContext>,
+    /// Explicit Policy Helper structured-failure and recheck capabilities supported by this runtime.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub policy_helper_capabilities: Option<PolicyHelperCapabilities>,
+    /// The latest unresolved Policy Helper failure for this exact policy context. It remains present across retained-policy refresh failures and clears only after fresh success or authoritative removal.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub policy_helper_failure: Option<PolicyHelperFailure>,
     /// Whether the policy-helper managed-settings layer was present. The policy helper is the weakest channel: it fills keys no enterprise source set and can never replace one.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub policy_helper_managed: Option<bool>,
@@ -48018,6 +48106,21 @@ pub enum ManagedSettingsServerPolicyResolution {
     /// No fetch was attempted because no usable token was available.
     #[serde(rename = "skippedNoToken")]
     SkippedNoToken,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Why the Policy Helper is being invoked. Defaults to sessionStart.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ManagedSettingsResolveRequestPolicyHelperReason {
+    /// Resolve policy for session startup.
+    #[serde(rename = "sessionStart")]
+    SessionStart,
+    /// Resolve policy before plugin activation.
+    #[serde(rename = "pluginActivation")]
+    PluginActivation,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]

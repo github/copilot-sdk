@@ -11675,6 +11675,34 @@ impl<'a> SessionRpcManagedSettings<'a> {
             .await?;
         Ok(serde_json::from_value(_value)?)
     }
+
+    /// Runs a fresh Policy Helper evaluation for the live session's current account, registration, working directory, repository and client context, bypassing only a completed cached helper result for that exact context while coalescing an equivalent execution already in flight. The previous failure and safeguards remain active until fresh success is applied. Returns the same retained snapshot as session.managedSettings.get after the recheck settles.
+    ///
+    /// Wire method: `session.managedSettings.recheckPolicyHelper`.
+    ///
+    /// # Returns
+    ///
+    /// Effective enterprise managed settings and contributing channels. Session events report applied policy; sessionless resolve reports an account/device snapshot, and compose reports a non-applying preview of candidate documents. Device values take precedence over server values, then the policy helper, per ordinary key, while permissions compose restrictively. Session-local SDK-client policy is included only in session results. Marked experimental while the managed-settings surface stabilizes.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn recheck_policy_helper(&self) -> Result<ManagedSettingsResolvedData, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_MANAGEDSETTINGS_RECHECKPOLICYHELPER,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
 }
 
 /// `session.mcp.*` RPCs.

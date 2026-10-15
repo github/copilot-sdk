@@ -13091,6 +13091,8 @@ export interface ManagedSettingsResolvedData {
    */
   permissionsAllowIntersected?: boolean;
   permissionsContext?: ManagedPermissionsContext;
+  policyHelperCapabilities?: PolicyHelperCapabilities;
+  policyHelperFailure?: PolicyHelperFailure;
   /**
    * Whether the policy-helper managed-settings layer was present. The policy helper is the weakest channel: it fills keys no enterprise source set and can never replace one.
    */
@@ -13121,6 +13123,95 @@ export interface ManagedPermissionsContext {
    * Runtime-owned composed permissions object. Absent when no permission policy is configured.
    */
   permissions?: JsonValue;
+}
+/**
+ * Policy Helper failure and recovery features implemented by this runtime. Capability presence, not absence of an optional failure, determines whether a client may rely on these contracts.
+ */
+export interface PolicyHelperCapabilities {
+  /**
+   * The runtime supports session.managedSettings.recheckPolicyHelper for a fresh scoped helper evaluation.
+   */
+  recheck: boolean;
+  /**
+   * The runtime emits PolicyHelperFailure on shared managed-settings snapshots and applicable structured operation errors.
+   */
+  structuredFailure: boolean;
+}
+/**
+ * The latest unresolved Policy Helper failure for this policy context. Helper-authored text is bounded display-intended content but remains untrusted; render it as plain text, keep diagnostics secondary, and do not automatically log, persist, export, execute, or inject it into model context.
+ */
+export interface PolicyHelperFailure {
+  /**
+   * Managed authority that registered the helper, when known. Known values are device and server; clients must tolerate future values.
+   */
+  authority?: string;
+  /**
+   * Stable runtime classification. Known values are helper-reported, registration-undetermined, working-directory, resolve, resolve-task, spawn, timeout, exit-status, output-too-large, envelope, schema, and internal. This is not a closed set; clients must tolerate unknown values.
+   */
+  category: string;
+  /**
+   * Stable bounded helper-defined identifier for a valid structured helper error. Absent for runtime-detected failures and not globally unique.
+   */
+  code?: string;
+  /**
+   * Optional bounded field-specific findings supplied by the helper.
+   */
+  details?: PolicyHelperFailureDetail[];
+  /**
+   * Optional bounded untrusted secondary troubleshooting text, such as trimmed stderr. Do not use it as primary UI copy.
+   */
+  diagnostic?: string;
+  /**
+   * Effective runtime behavior: ignore continues with remaining or retained policy, while failClosed activates restrictive safeguards. This is runtime-owned, not helper-authored.
+   */
+  failureMode: string;
+  helpLink?: PolicyHelperHelpLink;
+  /**
+   * Bounded plain-text primary explanation. Runtime-authored for runtime failures and helper-authored for a valid structured helper error.
+   */
+  message: string;
+  /**
+   * True when an earlier successful helper-derived layer still contributes to this effective snapshot. This does not promise that every relaxation from the old layer was retained.
+   */
+  previousPolicyRetained: boolean;
+  /**
+   * Invocation reason. Known values are sessionStart and pluginActivation; clients must tolerate future values.
+   */
+  reason: string;
+  /**
+   * Optional bounded helper-authored plain-text recovery guidance. It is explanatory and must not be executed automatically.
+   */
+  remediation?: string;
+  /**
+   * Runtime-calculated presentation severity: warning for ignore and error for failClosed. Error severity does not imply that session creation failed.
+   */
+  severity: string;
+}
+/**
+ * One bounded field-specific finding reported by a Policy Helper. The path is a helper-defined logical configuration path, not necessarily a filesystem path.
+ */
+export interface PolicyHelperFailureDetail {
+  /**
+   * Bounded helper-authored plain-text explanation for this finding.
+   */
+  message: string;
+  /**
+   * Optional helper-defined logical configuration path.
+   */
+  path?: string;
+}
+/**
+ * An explicit bounded absolute HTTP(S) destination supplied by a Policy Helper. The runtime validates but never fetches, previews, resolves redirects for, or opens it; clients must sanitize it again before navigation.
+ */
+export interface PolicyHelperHelpLink {
+  /**
+   * Optional bounded helper-authored plain-text label. Clients may use localized fallback text when absent.
+   */
+  label?: string;
+  /**
+   * Validated absolute HTTP(S) URL.
+   */
+  url: string;
 }
 /**
  * Session event "session.managed_settings_enforced". Runtime enforcement of enterprise managed settings: fires when the session blocks or caps a runtime action because enterprise policy governs it, so SDK clients can explain *why* an action was governed. Unlike `session.managed_settings_resolved` (which reports *what* is managed), this reports a concrete governed action — e.g. a user or host tried to turn on bypass permissions or Assisted Permissions while the corresponding policy disables it. Emitted live (not persisted to the session event log) on user/host-initiated attempts only, never for silent policy application. Marked experimental while the managed-settings surface stabilizes.

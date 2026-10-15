@@ -17,6 +17,7 @@ use github_copilot_sdk::handler::{
     McpAuthHandler, McpAuthRequest, McpAuthResult, PermissionHandler, PermissionResult,
 };
 use github_copilot_sdk::session::PreparedSession;
+use github_copilot_sdk::session_events::PolicyHelperFailure;
 use github_copilot_sdk::subscription::{EventSubscription, RecvErrorKind};
 use github_copilot_sdk::types::{
     CloudSessionOptions, CloudSessionRepository, MessageOptions, PermissionRequestData, RequestId,
@@ -228,6 +229,19 @@ fn make_client() -> (Client, FakeServer) {
 
 fn cloud_options() -> CloudSessionOptions {
     CloudSessionOptions::with_repository(CloudSessionRepository::new("octocat", "hello-world"))
+}
+
+fn policy_helper_failure_data() -> Value {
+    json!({
+        "authority": "future-authority",
+        "category": "future-category",
+        "code": "helper.future-code",
+        "failureMode": "future-mode",
+        "message": "The Policy Helper rejected the current configuration.",
+        "previousPolicyRetained": true,
+        "reason": "future-reason",
+        "severity": "future-severity",
+    })
 }
 
 #[tokio::test]
@@ -736,6 +750,9 @@ async fn cancelled_prepared_resume_cleans_up_and_allows_retry() {
 async fn create_rpc_error_preserves_kind_and_cleans_up() {
     let (client, mut server) = make_client();
     let session_id = SessionId::new("prepared-create-rpc-error");
+    let data = json!({
+        "policyHelperFailure": policy_helper_failure_data(),
+    });
 
     let prepared = client
         .prepare_session(SessionConfig::default().with_session_id(session_id.clone()))
@@ -745,7 +762,12 @@ async fn create_rpc_error_preserves_kind_and_cleans_up() {
 
     let create_req = server.read_request().await;
     server
-        .respond_error(&create_req, -32000, "session create failed")
+        .respond_error_with_data(
+            &create_req,
+            -32000,
+            "session create failed",
+            Some(data.clone()),
+        )
         .await;
 
     let error = expect_error(timeout(TIMEOUT, start).await.unwrap().unwrap());
@@ -754,6 +776,48 @@ async fn create_rpc_error_preserves_kind_and_cleans_up() {
         "unexpected error kind: {:?}",
         error.kind()
     );
+    assert_eq!(error.rpc_data(), Some(&data));
+    let failure: PolicyHelperFailure =
+        serde_json::from_value(error.rpc_data().unwrap()["policyHelperFailure"].clone()).unwrap();
+    assert_eq!(failure.category, "future-category");
+    assert_eq!(failure.code.as_deref(), Some("helper.future-code"));
+    await_no_registrations(&client).await;
+    expect_closed(&mut events).await;
+}
+
+#[tokio::test]
+async fn resume_rpc_error_preserves_data_and_cleans_up() {
+    let (client, mut server) = make_client();
+    let session_id = SessionId::new("prepared-resume-rpc-error");
+    let data = json!({
+        "policyHelperFailure": policy_helper_failure_data(),
+    });
+
+    let prepared = client
+        .prepare_resume_session(ResumeSessionConfig::new(session_id))
+        .unwrap();
+    let mut events = prepared.subscribe();
+    let start = tokio::spawn(prepared.start());
+
+    let resume_req = server.read_request().await;
+    assert_eq!(resume_req["method"], "session.resume");
+    server
+        .respond_error_with_data(
+            &resume_req,
+            -32001,
+            "session resume failed",
+            Some(data.clone()),
+        )
+        .await;
+
+    let error = expect_error(timeout(TIMEOUT, start).await.unwrap().unwrap());
+    assert_eq!(error.kind(), &ErrorKind::Rpc { code: -32001 });
+    assert_eq!(error.message(), Some("session resume failed"));
+    assert_eq!(error.rpc_data(), Some(&data));
+    let failure: PolicyHelperFailure =
+        serde_json::from_value(error.rpc_data().unwrap()["policyHelperFailure"].clone()).unwrap();
+    assert_eq!(failure.reason, "future-reason");
+    assert_eq!(failure.authority.as_deref(), Some("future-authority"));
     await_no_registrations(&client).await;
     expect_closed(&mut events).await;
 }

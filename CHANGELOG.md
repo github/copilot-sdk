@@ -7,6 +7,34 @@ See [GitHub Releases](https://github.com/github/copilot-sdk/releases) for the fu
 
 ## [Unreleased]
 
+### Feature: structured Policy Helper failures and scoped recheck
+
+Node and Rust managed-settings snapshots now expose bounded structured Policy Helper failures, including actionable messages, remediation, details, explicit help links, and secondary diagnostics. The same DTO is preserved in applicable `session.create`, `session.resume`, and policy-dependent activation RPC error data without replacing the operation's primary code or message.
+
+Use `policyHelperCapabilities` to detect support. Older runtimes omit the capability object; the absence of `policyHelperFailure` alone does not prove recovery or support. When `recheck` is true, the new session-scoped RPC performs a fresh helper evaluation for the current policy context.
+
+```ts
+const snapshot = await session.rpc.managedSettings.get();
+if (snapshot.policyHelperCapabilities?.recheck) {
+    await session.rpc.managedSettings.recheckPolicyHelper();
+}
+```
+
+```rust
+let snapshot = session.rpc().managed_settings().get().await?;
+if snapshot
+    .policy_helper_capabilities
+    .as_ref()
+    .is_some_and(|capabilities| capabilities.recheck)
+{
+    session
+        .rpc()
+        .managed_settings()
+        .recheck_policy_helper()
+        .await?;
+}
+```
+
 ## [v1.0.14](https://github.com/github/copilot-sdk/releases/tag/v1.0.14) (2026-09-16)
 
 ### Feature: typed message provenance for user, system, and agent sources
