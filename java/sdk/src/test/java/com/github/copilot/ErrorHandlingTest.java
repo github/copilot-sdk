@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.logging.Logger;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.AfterAll;
@@ -61,7 +62,7 @@ public class ErrorHandlingTest {
         LOG.info("Running test: testHandlesToolCallingErrors_toolErrorDoesNotCrashSession");
         ctx.configureForTest("tools", "handles_tool_calling_errors");
 
-        var allEvents = new ArrayList<SessionEvent>();
+        var allEvents = new CopyOnWriteArrayList<SessionEvent>();
         var idleReceived = new CompletableFuture<Void>();
 
         ToolDefinition errorTool = ToolDefinition.create("get_user_location", "Gets the user's location",

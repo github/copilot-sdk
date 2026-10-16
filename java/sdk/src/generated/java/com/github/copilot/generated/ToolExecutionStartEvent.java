@@ -10,6 +10,7 @@ package com.github.copilot.generated;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
@@ -67,6 +68,7 @@ public final class ToolExecutionStartEvent extends SessionEvent {
         /** Tool call ID of the parent tool invocation when this event originates from a sub-agent */
         @JsonProperty("parentToolCallId") String parentToolCallId,
         /** Experimental HydraFusion attribution for this tool execution. */
+        @CopilotExperimental
         @JsonProperty("fusion") FusionAttribution fusion
     ) {
     }

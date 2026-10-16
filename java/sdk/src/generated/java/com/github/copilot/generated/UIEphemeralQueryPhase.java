@@ -7,13 +7,17 @@
 
 package com.github.copilot.generated;
 
+import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
  * Lifecycle phase for a Rust-owned ephemeral query stream.
  *
+ * @apiNote This type is experimental and may change in a future version.
+ *
  * @since 1.0.0
  */
+@CopilotExperimental
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 public enum UIEphemeralQueryPhase {
     /** The {@code started} variant. */

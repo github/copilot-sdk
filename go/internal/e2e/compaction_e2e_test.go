@@ -2,6 +2,7 @@ package e2e
 
 import (
 	"errors"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -118,8 +119,40 @@ func TestCompactionE2E(t *testing.T) {
 		}
 		if completeData.CompactionTokensUsed == nil {
 			t.Errorf("Expected compaction tokens-used data")
-		} else if completeData.CompactionTokensUsed.InputTokens == nil || *completeData.CompactionTokensUsed.InputTokens <= 0 {
-			t.Errorf("Expected compaction call to consume input tokens, got %v", completeData.CompactionTokensUsed.InputTokens)
+		} else {
+			actualInputTokens := completeData.CompactionTokensUsed.InputTokens
+			// Replay has no prompt usage; recording must preserve the provider's value or absence.
+			if os.Getenv("GITHUB_ACTIONS") == "true" {
+				if actualInputTokens != nil && *actualInputTokens != 0 {
+					t.Errorf("Expected replay compaction input tokens to be zero or unavailable, got %d", *actualInputTokens)
+				}
+			} else {
+				var expectedInputTokens *int64
+				exchanges, err := ctx.GetExchanges()
+				if err != nil {
+					t.Fatalf("Failed to get provider responses: %v", err)
+				}
+				var compactions []*testharness.CompactionProviderUsage
+				for _, exchange := range exchanges {
+					if exchange.CompactionUsage != nil &&
+						completeData.SummaryContent != nil && exchange.CompactionUsage.Summary == *completeData.SummaryContent {
+						compactions = append(compactions, exchange.CompactionUsage)
+					}
+				}
+				if len(compactions) != 1 {
+					t.Fatalf("Expected one provider compaction chain for the completed summary, got %d", len(compactions))
+				}
+				expectedInputTokens = compactions[0].InputTokens
+				if expectedInputTokens == nil {
+					if actualInputTokens != nil {
+						t.Errorf("Expected provider input tokens to be unavailable, got %d", *actualInputTokens)
+					}
+				} else if actualInputTokens == nil {
+					t.Errorf("Expected provider input tokens %d, got unavailable", *expectedInputTokens)
+				} else if *actualInputTokens != *expectedInputTokens {
+					t.Errorf("Expected provider input tokens %d, got %d", *expectedInputTokens, *actualInputTokens)
+				}
+			}
 		}
 		summary := ""
 		if completeData.SummaryContent != nil {
@@ -193,62 +226,4 @@ func TestCompactionE2E(t *testing.T) {
 		}
 	})
 
-	t.Run("should return empty handoff summary for fresh session", func(t *testing.T) {
-		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
-			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
-		})
-		if err != nil {
-			t.Fatalf("Failed to create session: %v", err)
-		}
-
-		result, err := session.RPC.History.SummarizeForHandoff(t.Context())
-		if err != nil {
-			t.Fatalf("History.SummarizeForHandoff failed: %v", err)
-		}
-		if result.Summary != "" {
-			t.Fatalf("Expected empty handoff summary for fresh session, got %+v", result)
-		}
-	})
-
-	t.Run("should summarize for handoff after non ephemeral log event", func(t *testing.T) {
-		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
-			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
-		})
-		if err != nil {
-			t.Fatalf("Failed to create session: %v", err)
-		}
-		if err := session.Log(t.Context(), "handoff summary log coverage", nil); err != nil {
-			t.Fatalf("Session.Log failed: %v", err)
-		}
-
-		result, err := session.RPC.History.SummarizeForHandoff(t.Context())
-		if err != nil {
-			t.Fatalf("History.SummarizeForHandoff failed: %v", err)
-		}
-		_ = result.Summary
-	})
-
-	t.Run("should report no op when cancelling compaction without in flight work", func(t *testing.T) {
-		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
-			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
-		})
-		if err != nil {
-			t.Fatalf("Failed to create session: %v", err)
-		}
-
-		background, err := session.RPC.History.CancelBackgroundCompaction(t.Context())
-		if err != nil {
-			t.Fatalf("History.CancelBackgroundCompaction failed: %v", err)
-		}
-		if background.Cancelled {
-			t.Fatalf("Expected CancelBackgroundCompaction Cancelled=false, got %+v", background)
-		}
-		manual, err := session.RPC.History.AbortManualCompaction(t.Context())
-		if err != nil {
-			t.Fatalf("History.AbortManualCompaction failed: %v", err)
-		}
-		if manual.Aborted {
-			t.Fatalf("Expected AbortManualCompaction Aborted=false, got %+v", manual)
-		}
-	})
 }

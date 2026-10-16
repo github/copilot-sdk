@@ -34,6 +34,8 @@ public final class SessionCompactionStartEvent extends SessionEvent {
     @JsonIgnoreProperties(ignoreUnknown = true)
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record SessionCompactionStartEventData(
+        /** Identifier shared with the matching compaction completion event */
+        @JsonProperty("compactionAttemptId") String compactionAttemptId,
         /** Model identifier used for compaction, when known */
         @JsonProperty("model") String model,
         /** Token count from system message(s) at compaction start */
@@ -46,6 +48,10 @@ public final class SessionCompactionStartEvent extends SessionEvent {
         @JsonProperty("currentTokens") Long currentTokens,
         /** Model context window token limit the compaction is targeting, when known */
         @JsonProperty("tokenLimit") Long tokenLimit,
+        /** Destination prompt-token budget when it differs from the effective compaction token limit */
+        @JsonProperty("targetPromptTokenLimit") Long targetPromptTokenLimit,
+        /** Destination model for a model-switch compaction when it differs from the compacting model */
+        @JsonProperty("switchTargetModel") String switchTargetModel,
         /** What initiated this compaction, when known */
         @JsonProperty("trigger") CompactionTrigger trigger
     ) {

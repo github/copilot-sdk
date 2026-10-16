@@ -11,16 +11,24 @@ import java.io.InputStreamReader;
 import java.net.Socket;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import com.github.copilot.ffi.NativeRuntimeLoader;
+import com.github.copilot.rpc.CopilotClientMode;
 import com.github.copilot.rpc.CopilotClientOptions;
 
 /**
@@ -33,6 +41,7 @@ final class CliServerManager {
 
     private static final Logger LOG = Logger.getLogger(CliServerManager.class.getName());
     private static final int STDERR_READER_JOIN_TIMEOUT_MS = 5000;
+    static final int FORCE_KILL_TIMEOUT_SECONDS = 10;
 
     private final CopilotClientOptions options;
     private final StringBuilder stderrBuffer = new StringBuilder();
@@ -131,12 +140,20 @@ final class CliServerManager {
         // Forward stderr to logger in background
         startStderrReader(process);
 
-        Integer detectedPort = null;
-        if (!options.isUseStdio()) {
-            detectedPort = waitForPortAnnouncement(process);
+        try {
+            Integer detectedPort = null;
+            if (!options.isUseStdio()) {
+                detectedPort = waitForPortAnnouncement(process);
+            }
+            return new ProcessInfo(process, detectedPort);
+        } catch (IOException | RuntimeException error) {
+            try {
+                cleanupCliProcess(process, captureDescendants(process), true);
+            } catch (RuntimeException cleanupError) {
+                error.addSuppressed(cleanupError);
+            }
+            throw error;
         }
-
-        return new ProcessInfo(process, detectedPort);
     }
 
     /**
@@ -205,8 +222,95 @@ final class CliServerManager {
                 }
             }
 
-            process.destroyForcibly();
             throw new IOException("Timeout waiting for CLI to announce port");
+        }
+    }
+
+    static void cleanupCliProcess(Process process, List<ProcessHandle> descendants, boolean forceImmediately) {
+        if (!process.isAlive() && descendants.stream().noneMatch(ProcessHandle::isAlive)) {
+            return;
+        }
+        try {
+            if (terminateProcessTree(process, descendants, forceImmediately)) {
+                return;
+            }
+            if (!forceImmediately) {
+                if (terminateProcessTree(process, descendants, true)) {
+                    return;
+                }
+            }
+            throw new IllegalStateException("CLI process tree did not terminate after shutdown: " + process.pid());
+        } catch (InterruptedException error) {
+            Thread.currentThread().interrupt();
+            throw new CompletionException("Interrupted while terminating the CLI process tree", error);
+        } catch (ExecutionException error) {
+            throw new CompletionException("Failed to await CLI process tree termination", error.getCause());
+        }
+    }
+
+    static List<ProcessHandle> captureDescendants(Process process) {
+        return process.descendants().sorted(Comparator.comparingInt(CliServerManager::processDepth).reversed())
+                .toList();
+    }
+
+    private static int processDepth(ProcessHandle process) {
+        int depth = 0;
+        var parent = process.parent();
+        while (parent.isPresent()) {
+            depth++;
+            parent = parent.get().parent();
+        }
+        return depth;
+    }
+
+    private static boolean terminateProcessTree(Process process, List<ProcessHandle> descendants, boolean force)
+            throws InterruptedException, ExecutionException {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(FORCE_KILL_TIMEOUT_SECONDS);
+        // Reap deepest children while their parents can still collect their exit.
+        // Killing the launcher first can orphan zombies in containers without an init.
+        for (var child : descendants) {
+            if (child.isAlive()) {
+                if (force) {
+                    child.destroyForcibly();
+                } else {
+                    child.destroy();
+                }
+                waitForProcessExit(child, deadline);
+            }
+        }
+        if (process.isAlive()) {
+            if (force) {
+                process.destroyForcibly();
+            } else {
+                process.destroy();
+            }
+        }
+        return waitForProcessTreeExit(process, descendants, deadline);
+    }
+
+    private static boolean waitForProcessTreeExit(Process process, List<ProcessHandle> descendants, long deadline)
+            throws InterruptedException, ExecutionException {
+        if (!process.waitFor(Math.max(0, deadline - System.nanoTime()), TimeUnit.NANOSECONDS)) {
+            return false;
+        }
+        for (var child : descendants) {
+            if (!waitForProcessExit(child, deadline)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean waitForProcessExit(ProcessHandle process, long deadline)
+            throws InterruptedException, ExecutionException {
+        if (!process.isAlive()) {
+            return true;
+        }
+        try {
+            process.onExit().get(Math.max(0, deadline - System.nanoTime()), TimeUnit.NANOSECONDS);
+            return true;
+        } catch (TimeoutException error) {
+            return false;
         }
     }
 
@@ -251,9 +355,17 @@ final class CliServerManager {
             return result;
         }
 
-        // On Windows, use cmd /c to resolve the executable
+        // Own native executables directly so terminating the process cannot orphan
+        // a child behind cmd.exe. Batch shims still require the shell.
         String os = System.getProperty("os.name").toLowerCase();
         if (os.contains("win") && !new File(cliPath).isAbsolute()) {
+            String executable = resolveWindowsExecutable(cliPath);
+            if (executable != null) {
+                var result = new ArrayList<String>();
+                result.add(executable);
+                result.addAll(args);
+                return result;
+            }
             var result = new ArrayList<String>();
             result.add("cmd");
             result.add("/c");
@@ -268,12 +380,68 @@ final class CliServerManager {
         return result;
     }
 
+    private String resolveWindowsExecutable(String cliPath) {
+        Path cwd = Path.of(options.getCwd() != null ? options.getCwd() : System.getProperty("user.dir"))
+                .toAbsolutePath();
+        var directories = new ArrayList<String>();
+        var environment = options.getEnvironment() != null ? options.getEnvironment() : System.getenv();
+        boolean hasDirectory = cliPath.contains("\\") || cliPath.contains("/");
+        if (hasDirectory || environment.keySet().stream()
+                .noneMatch(key -> key.equalsIgnoreCase("NoDefaultCurrentDirectoryInExePath"))) {
+            directories.add(cwd.toString());
+        }
+        if (!hasDirectory) {
+            String pathValue = environment.entrySet().stream().filter(entry -> entry.getKey().equalsIgnoreCase("PATH"))
+                    .map(java.util.Map.Entry::getValue).findFirst().orElse("");
+            directories.addAll(Arrays.asList(pathValue.split(File.pathSeparator)));
+        }
+        String pathExtensions = environment.entrySet().stream()
+                .filter(entry -> entry.getKey().equalsIgnoreCase("PATHEXT")).map(java.util.Map.Entry::getValue)
+                .findFirst().orElse(".COM;.EXE;.BAT;.CMD");
+        String[] names = new File(cliPath).getName().contains(".")
+                ? new String[]{cliPath}
+                : Arrays.stream(pathExtensions.split(";")).map(extension -> cliPath + extension).toArray(String[]::new);
+        // Preserve invalid-command diagnostics even when implicit cwd search is
+        // disabled.
+        if (names.length > 0) {
+            Path.of(names[0]);
+        }
+        for (String directory : directories) {
+            if (directory.isBlank()) {
+                continue;
+            }
+            if (directory.startsWith("\"") && directory.endsWith("\"")) {
+                directory = directory.substring(1, directory.length() - 1);
+            }
+            Path searchDirectory;
+            try {
+                searchDirectory = cwd.resolve(directory);
+            } catch (InvalidPathException error) {
+                LOG.log(Level.FINE, "Skipping invalid PATH entry while resolving CLI executable", error);
+                continue;
+            }
+            for (String name : names) {
+                Path candidate = searchDirectory.resolve(name);
+                if (Files.isRegularFile(candidate)) {
+                    String lowerName = name.toLowerCase(java.util.Locale.ROOT);
+                    return lowerName.endsWith(".exe") || lowerName.endsWith(".com")
+                            ? candidate.toAbsolutePath().toString()
+                            : null;
+                }
+            }
+        }
+        return null;
+    }
+
     void configureProcessEnvironment(ProcessBuilder pb) {
         if (options.getEnvironment() != null) {
             pb.environment().clear();
             pb.environment().putAll(options.getEnvironment());
         }
         pb.environment().remove("NODE_DEBUG");
+        if (options.getMode() != CopilotClientMode.EMPTY) {
+            pb.environment().put("COPILOT_RUNTIME_PROCESS_FILE_LOGGING", "1");
+        }
 
         // Set auth token in environment if provided
         if (options.getGitHubToken() != null && !options.getGitHubToken().isEmpty()) {

@@ -192,10 +192,10 @@ public sealed partial class CopilotSession
                 }
                 pendingEvents.Clear();
             }
-            await Task.WhenAny(completion.Task, JsonRpc.Completion, _eventChannel.Reader.Completion);
+            await Task.WhenAny(completion.Task, _eventDispatchStopped.Task, JsonRpc.Completion, _eventChannel.Reader.Completion);
             if (!completion.Task.IsCompleted)
             {
-                throw new IOException("The session closed before a final structured response was received.");
+                completion.TrySetException(new IOException("The session closed before a final structured response was received."));
             }
             return await completion.Task;
         }

@@ -220,7 +220,6 @@ class TestSessions:
                 await s.get_events()
 
     async def test_should_resume_a_session_using_the_same_client(self, ctx: E2ETestContext):
-        # Create initial session
         session1 = await ctx.client.create_session(
             on_permission_request=PermissionHandler.approve_all
         )
@@ -247,7 +246,6 @@ class TestSessions:
         assert "4" in answer3.data.content
 
     async def test_should_resume_a_session_using_a_new_client(self, ctx: E2ETestContext):
-        # Create initial session
         session1 = await ctx.client.create_session(
             on_permission_request=PermissionHandler.approve_all
         )
@@ -437,7 +435,6 @@ class TestSessions:
         session_ids = [s.session_id for s in sessions]
         assert session_id in session_ids
 
-        # Delete the session
         await ctx.client.delete_session(session_id)
 
         # Verify session no longer exists in the list
@@ -594,7 +591,6 @@ class TestSessions:
                 "run the shell command 'sleep 100' (note this works on both bash and PowerShell)"
             )
 
-            # Wait for the tool to start executing
             _ = await wait_for_tool_start
 
             # Abort the session while the tool is running
@@ -1007,15 +1003,23 @@ class TestSessions:
             events.append(event)
 
         unsubscribe = session.on(on_event)
-        idle_task = get_next_event_of_type(session, "session.idle", timeout=10.0)
+        idle_task = get_next_event_of_type(session, "session.idle")
+        started = asyncio.get_running_loop().time()
         try:
             # Use a slow command so we can verify send() returns before completion
             await session.send("Run 'sleep 2 && echo done'")
+            send_duration = asyncio.get_running_loop().time() - started
 
             # send() should return before turn completes (no session.idle yet)
             assert not any(event.type.value == "session.idle" for event in events)
 
-            await idle_task
+            try:
+                await idle_task
+            except TimeoutError as exc:
+                raise AssertionError(
+                    f"session.idle did not arrive after send() returned in {send_duration:.1f}s; "
+                    f"observed events: {[event.type.value for event in events]}"
+                ) from exc
             messages = [event for event in events if event.type.value == "assistant.message"]
             assert messages
             assert "done" in messages[-1].data.content
@@ -1029,21 +1033,44 @@ class TestSessions:
     async def test_sendandwait_blocks_until_session_idle_and_returns_final_assistant_message(
         self, ctx: E2ETestContext
     ):
-        """`send_and_wait` blocks until idle and returns the final assistant message."""
+        """The synchronous root-idle listener finishes before `send_and_wait` returns."""
+        import asyncio
+
         session = await ctx.client.create_session(
             on_permission_request=PermissionHandler.approve_all,
         )
         events: list[str] = []
-        session.on(lambda evt: events.append(evt.type.value))
+        ordering: list[str] = []
+        waiter_pending: list[bool] = []
+        listener_loops = []
+        loop = asyncio.get_running_loop()
 
-        response = await session.send_and_wait("What is 2+2?")
-        assert response is not None
-        assert response.type.value == "assistant.message"
-        assert "4" in (response.data.content or "")
-        assert "session.idle" in events
-        assert "assistant.message" in events
+        def on_event(event):
+            events.append(event.type.value)
+            if event.type.value == "session.idle" and not event.agent_id:
+                ordering.append("listener entered")
+                listener_loops.append(asyncio.get_running_loop())
+                waiter_pending.append(not send_task.done())
+                # Dispatch is synchronous on the asyncio loop, even though the
+                # JSON-RPC reader is a thread. A blocking gate would deadlock it.
+                ordering.append("listener completed")
 
-        await session.disconnect()
+        unsubscribe = session.on(on_event)
+        try:
+            send_task = asyncio.create_task(session.send_and_wait("What is 2+2?"))
+            response = await send_task
+            ordering.append("wait returned")
+            assert ordering == ["listener entered", "listener completed", "wait returned"]
+            assert waiter_pending == [True]
+            assert listener_loops == [loop]
+            assert response is not None
+            assert response.type.value == "assistant.message"
+            assert "4" in (response.data.content or "")
+            assert "session.idle" in events
+            assert "assistant.message" in events
+        finally:
+            unsubscribe()
+            await session.disconnect()
 
     async def test_sendandwait_throws_on_timeout(self, ctx: E2ETestContext):
         """`send_and_wait` raises TimeoutError when the session does not become idle."""

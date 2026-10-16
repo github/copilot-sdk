@@ -141,6 +141,7 @@ class TestPermissions:
         )
         session_id = session1.session_id
         await session1.send_and_wait("What is 1+1?")
+        await session1.disconnect()
 
         def deny_all(request, invocation):
             return PermissionDecisionUserNotAvailable()
@@ -209,7 +210,6 @@ class TestPermissions:
         """Test resuming session with permission handler"""
         permission_requests = []
 
-        # Create initial session
         session1 = await ctx.client.create_session(
             on_permission_request=PermissionHandler.approve_all
         )

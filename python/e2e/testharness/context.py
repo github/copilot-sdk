@@ -102,6 +102,7 @@ class E2ETestContext:
             DEFAULT_GITHUB_TOKEN,
             {
                 "login": "e2e-test-user",
+                "id": 12345,
                 "copilot_plan": "individual_pro",
                 "endpoints": {
                     "api": self.proxy_url,

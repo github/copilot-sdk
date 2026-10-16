@@ -32,6 +32,10 @@ public record SessionConnectorsGetCapabilitiesResult(
     @JsonProperty("consentContinuation") Boolean consentContinuation,
     /** Whether callers select a host-owned GitHub account through an opaque selection ID rather than supplying a provider token. */
     @JsonProperty("opaqueAccountSelection") Boolean opaqueAccountSelection,
+    /** Whether getAccount is supported. Absence means false. */
+    @JsonProperty("sessionAccountSelection") Boolean sessionAccountSelection,
+    /** Whether reconcile accepts forceConnectorName. Absence means false. */
+    @JsonProperty("targetedReconcile") Boolean targetedReconcile,
     /** Maximum accepted polling attempts for one continuation call. */
     @JsonProperty("maxPollAttempts") Long maxPollAttempts,
     /** Maximum accepted delay in milliseconds between polling attempts. */
@@ -39,4 +43,27 @@ public record SessionConnectorsGetCapabilitiesResult(
     /** Maximum accepted wall-clock deadline in milliseconds for one continuation call. */
     @JsonProperty("maxDeadlineMs") Long maxDeadlineMs
 ) {
+
+    /**
+     * Creates a record with the components it had before later optional fields were added.
+     *
+     * @param apiVersion Connector API contract version.
+     * @param availability Current session availability. Disabled availability is reported without making a Connector request.
+     * @param consentContinuation Whether connect and reconnect can return an opaque continuation for bounded consent polling.
+     * @param opaqueAccountSelection Whether callers select a host-owned GitHub account through an opaque selection ID rather than supplying a provider token.
+     * @param maxPollAttempts Maximum accepted polling attempts for one continuation call.
+     * @param maxPollIntervalMs Maximum accepted delay in milliseconds between polling attempts.
+     * @param maxDeadlineMs Maximum accepted wall-clock deadline in milliseconds for one continuation call.
+     */
+    public SessionConnectorsGetCapabilitiesResult(
+        Long apiVersion,
+        ConnectorAvailability availability,
+        Boolean consentContinuation,
+        Boolean opaqueAccountSelection,
+        Long maxPollAttempts,
+        Long maxPollIntervalMs,
+        Long maxDeadlineMs
+    ) {
+        this(apiVersion, availability, consentContinuation, opaqueAccountSelection, null, null, maxPollAttempts, maxPollIntervalMs, maxDeadlineMs);
+    }
 }

@@ -10,6 +10,6 @@ package(default_visibility = ["//visibility:public"])
 
 alias(
     name = "ureq",
-    actual = "@sdk_vendor__ureq-2.12.1//:ureq",
+    actual = "@sdk_vendor__ureq-3.4.2//:ureq",
     tags = ["manual"],
 )

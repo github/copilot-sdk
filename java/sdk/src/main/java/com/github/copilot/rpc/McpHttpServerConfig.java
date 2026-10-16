@@ -41,6 +41,18 @@ public final class McpHttpServerConfig extends McpServerConfig {
     @JsonProperty("headers")
     private Map<String, String> headers;
 
+    @JsonProperty("oauthClientId")
+    private String oauthClientId;
+
+    @JsonProperty("oauthScopes")
+    private List<String> oauthScopes;
+
+    @JsonProperty("oauthPublicClient")
+    private Boolean oauthPublicClient;
+
+    @JsonProperty("oauthGrantType")
+    private String oauthGrantType;
+
     /**
      * Gets the server type discriminator.
      *
@@ -89,6 +101,91 @@ public final class McpHttpServerConfig extends McpServerConfig {
      */
     public McpHttpServerConfig setHeaders(Map<String, String> headers) {
         this.headers = headers;
+        return this;
+    }
+
+    /**
+     * Gets the statically configured OAuth client ID.
+     *
+     * @return the OAuth client ID, or {@code null}
+     */
+    public String getOauthClientId() {
+        return oauthClientId;
+    }
+
+    /**
+     * Sets the statically configured OAuth client ID.
+     *
+     * @param oauthClientId
+     *            the non-empty OAuth client ID
+     * @return this config for method chaining
+     */
+    public McpHttpServerConfig setOauthClientId(String oauthClientId) {
+        this.oauthClientId = oauthClientId;
+        return this;
+    }
+
+    /**
+     * Gets the configured OAuth scopes.
+     *
+     * @return the OAuth scopes, or {@code null}
+     */
+    public List<String> getOauthScopes() {
+        return oauthScopes == null ? null : Collections.unmodifiableList(oauthScopes);
+    }
+
+    /**
+     * Sets the OAuth scopes to request when the server challenge omits scope or
+     * provides an empty scope.
+     *
+     * @param oauthScopes
+     *            the non-empty list of RFC 6749 scope-token strings
+     * @return this config for method chaining
+     */
+    public McpHttpServerConfig setOauthScopes(List<String> oauthScopes) {
+        this.oauthScopes = oauthScopes;
+        return this;
+    }
+
+    /**
+     * Gets whether the configured OAuth client is public.
+     *
+     * @return whether the client is public, or {@code null}
+     */
+    public Boolean getOauthPublicClient() {
+        return oauthPublicClient;
+    }
+
+    /**
+     * Sets whether the configured OAuth client is public.
+     *
+     * @param oauthPublicClient
+     *            whether the client is public
+     * @return this config for method chaining
+     */
+    public McpHttpServerConfig setOauthPublicClient(Boolean oauthPublicClient) {
+        this.oauthPublicClient = oauthPublicClient;
+        return this;
+    }
+
+    /**
+     * Gets the configured OAuth grant type.
+     *
+     * @return the OAuth grant type, or {@code null}
+     */
+    public String getOauthGrantType() {
+        return oauthGrantType;
+    }
+
+    /**
+     * Sets the OAuth grant type.
+     *
+     * @param oauthGrantType
+     *            the OAuth grant type
+     * @return this config for method chaining
+     */
+    public McpHttpServerConfig setOauthGrantType(String oauthGrantType) {
+        this.oauthGrantType = oauthGrantType;
         return this;
     }
 

@@ -3,6 +3,8 @@ package copilot
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/github/copilot-sdk/go/rpc"
 )
 
 func TestUserPromptTransformedHookOutput_PreservesEmptyReplacement(t *testing.T) {
@@ -45,6 +47,47 @@ func TestProviderConfig_JSONIncludesHeaders(t *testing.T) {
 	}
 }
 
+func TestMCPHTTPServerConfig_JSONIncludesOAuthConfiguration(t *testing.T) {
+	grantType := rpc.MCPServerConfigHTTPOauthGrantTypeClientCredentials
+	config := MCPHTTPServerConfig{
+		URL:               "https://example.com/mcp",
+		OAuthClientID:     String("client-id"),
+		OAuthScopes:       []string{"mcp:read", "mcp:write"},
+		OAuthPublicClient: Bool(false),
+		OAuthGrantType:    &grantType,
+	}
+
+	data, err := json.Marshal(config)
+	if err != nil {
+		t.Fatalf("failed to marshal MCP HTTP server config: %v", err)
+	}
+
+	var decoded map[string]any
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("failed to unmarshal MCP HTTP server config: %v", err)
+	}
+
+	if decoded["type"] != "http" {
+		t.Errorf("expected type 'http', got %v", decoded["type"])
+	}
+	if decoded["oauthClientId"] != "client-id" {
+		t.Errorf("expected oauthClientId 'client-id', got %v", decoded["oauthClientId"])
+	}
+	if decoded["oauthPublicClient"] != false {
+		t.Errorf("expected oauthPublicClient false, got %v", decoded["oauthPublicClient"])
+	}
+	if decoded["oauthGrantType"] != "client_credentials" {
+		t.Errorf("expected oauthGrantType 'client_credentials', got %v", decoded["oauthGrantType"])
+	}
+	scopes, ok := decoded["oauthScopes"].([]any)
+	if !ok {
+		t.Fatalf("expected oauthScopes array, got %T", decoded["oauthScopes"])
+	}
+	if len(scopes) != 2 || scopes[0] != "mcp:read" || scopes[1] != "mcp:write" {
+		t.Errorf("expected OAuth scopes to round-trip, got %v", scopes)
+	}
+}
+
 func TestSessionSendRequest_JSONIncludesRequestHeaders(t *testing.T) {
 	req := sessionSendRequest{
 		SessionID:      "session-1",
@@ -81,6 +124,7 @@ func TestProviderConfig_JSONIncludesAllFields(t *testing.T) {
 		Headers:         map[string]string{"Authorization": "Bearer provider-token"},
 		ModelID:         "gpt-4o",
 		WireModel:       "my-finetune-v3",
+		ModelProvider:   "lm_studio",
 		MaxPromptTokens: 100000,
 		MaxOutputTokens: 4096,
 	}
@@ -103,6 +147,9 @@ func TestProviderConfig_JSONIncludesAllFields(t *testing.T) {
 	}
 	if decoded["wireModel"] != "my-finetune-v3" {
 		t.Errorf("expected wireModel 'my-finetune-v3', got %v", decoded["wireModel"])
+	}
+	if decoded["modelProvider"] != "lm_studio" {
+		t.Errorf("expected modelProvider 'lm_studio', got %v", decoded["modelProvider"])
 	}
 	if decoded["maxPromptTokens"] != float64(100000) {
 		t.Errorf("expected maxPromptTokens 100000, got %v", decoded["maxPromptTokens"])
@@ -132,10 +179,33 @@ func TestProviderConfig_JSONOmitsUnsetTokenFields(t *testing.T) {
 		t.Fatalf("failed to unmarshal ProviderConfig: %v", err)
 	}
 
-	for _, field := range []string{"modelId", "wireModel", "maxPromptTokens", "maxOutputTokens", "headers"} {
+	for _, field := range []string{"modelId", "wireModel", "modelProvider", "maxPromptTokens", "maxOutputTokens", "headers"} {
 		if _, present := decoded[field]; present {
 			t.Errorf("expected %q to be omitted when unset, got %v", field, decoded[field])
 		}
+	}
+}
+
+func TestNamedProviderConfig_JSONIncludesModelProvider(t *testing.T) {
+	cfg := NamedProviderConfig{
+		Name:          "local",
+		Type:          "openai",
+		BaseURL:       "http://localhost:11434/v1",
+		ModelProvider: "ollama",
+	}
+
+	data, err := json.Marshal(cfg)
+	if err != nil {
+		t.Fatalf("failed to marshal NamedProviderConfig: %v", err)
+	}
+
+	var decoded map[string]any
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("failed to unmarshal NamedProviderConfig: %v", err)
+	}
+
+	if decoded["modelProvider"] != "ollama" {
+		t.Errorf("expected modelProvider 'ollama', got %v", decoded["modelProvider"])
 	}
 }
 

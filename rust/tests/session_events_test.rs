@@ -3,10 +3,27 @@
 #![allow(clippy::unwrap_used)]
 
 use github_copilot_sdk::session_events::{
-    IndexedSearchData, PermissionApprovalEvaluation, PermissionApprovalEvaluationEvaluationStage,
-    PermissionApprovalEvaluationJudgeStatus, PermissionApprovalEvaluationReasonCode,
-    SandboxDecisionData, SessionEventData, TypedSessionEvent, UserMessageData,
+    HumanResponseRecordedResponse, IndexedSearchData, PermissionApprovalEvaluation,
+    PermissionApprovalEvaluationEvaluationStage, PermissionApprovalEvaluationJudgeStatus,
+    PermissionApprovalEvaluationReasonCode, SandboxDecisionData, SessionEventData,
+    ToolExecutionCompleteData, ToolExecutionCompleteFileEdit, ToolExecutionCompleteFileEditKind,
+    TypedSessionEvent, UserMessageData,
 };
+
+#[test]
+fn future_file_edit_kind_retains_its_wire_value() {
+    let wire = serde_json::json!({ "path": "/future.txt", "kind": "append" });
+    let edit: ToolExecutionCompleteFileEdit = serde_json::from_value(wire.clone()).unwrap();
+    assert_eq!(
+        edit.kind,
+        ToolExecutionCompleteFileEditKind::Unknown("append".to_owned())
+    );
+    assert_eq!(serde_json::to_value(edit).unwrap(), wire);
+    assert_eq!(
+        serde_json::to_value(ToolExecutionCompleteFileEditKind::Create).unwrap(),
+        "create"
+    );
+}
 
 fn event_envelope(event_type: &str, data: serde_json::Value) -> serde_json::Value {
     serde_json::json!({
@@ -18,6 +35,56 @@ fn event_envelope(event_type: &str, data: serde_json::Value) -> serde_json::Valu
         "type": event_type,
         "data": data
     })
+}
+
+#[test]
+fn image_tool_usage_round_trips_without_inline_payload_storage() {
+    for (success, total_nano_aiu) in [(true, 0.0), (true, 598_500_000.0), (false, 598_500_000.0)] {
+        let wire = event_envelope(
+            "tool.execution_complete",
+            serde_json::json!({
+                "toolCallId": "image-call",
+                "success": success,
+                "toolUsage": {
+                    "requestId": "image-usage",
+                    "model": "gpt-image-2.5-sunburst",
+                    "inputTokens": 21,
+                    "outputTokens": 196,
+                    "totalTokens": 217,
+                    "inputTokensDetails": { "textTokens": 21, "imageTokens": 0 },
+                    "outputTokensDetails": { "textTokens": 0, "imageTokens": 196 },
+                    "copilotUsage": { "totalNanoAiu": total_nano_aiu }
+                }
+            }),
+        );
+        let event: TypedSessionEvent = serde_json::from_value(wire.clone()).unwrap();
+        let SessionEventData::ToolExecutionComplete(data) = &event.payload else {
+            panic!("expected tool-completion event");
+        };
+        assert_eq!(
+            std::mem::size_of_val(&data.tool_usage),
+            std::mem::size_of::<usize>(),
+            "Image usage should occupy only an optional pointer in the shared event"
+        );
+        assert_eq!(
+            data.tool_usage.as_ref().unwrap().model,
+            "gpt-image-2.5-sunburst"
+        );
+        assert_eq!(serde_json::to_value(event).unwrap(), wire);
+    }
+}
+
+#[test]
+fn tool_completion_without_usage_omits_the_usage_field() {
+    let wire = serde_json::json!({ "toolCallId": "ordinary-tool", "success": true });
+    let data: ToolExecutionCompleteData = serde_json::from_value(wire.clone()).unwrap();
+
+    assert!(data.tool_usage.is_none());
+    assert_eq!(
+        std::mem::size_of_val(&data.tool_usage),
+        std::mem::size_of::<usize>()
+    );
+    assert_eq!(serde_json::to_value(data).unwrap(), wire);
 }
 
 #[test]
@@ -129,6 +196,15 @@ fn sandbox_decision_variants_round_trip_full_event_envelopes() {
             "processName": "cat"
         }),
         serde_json::json!({
+            "kind": "access_recorded",
+            "control": "filesystem",
+            "outcome": "allowed",
+            "denialClass": "filesystem_write",
+            "permissiveSource": "policy",
+            "deniedResource": "fixtures/probe.txt",
+            "command": "touch fixtures/probe.txt"
+        }),
+        serde_json::json!({
             "kind": "bypass_decided",
             "control": "bypass",
             "outcome": "declined",
@@ -177,6 +253,7 @@ fn sandbox_decision_variants_round_trip_full_event_envelopes() {
             SandboxDecisionData::SpawnCompleted(_) => "spawn_completed",
             SandboxDecisionData::EnforcementState(_) => "enforcement_state",
             SandboxDecisionData::AccessDenied(_) => "access_denied",
+            SandboxDecisionData::AccessRecorded(_) => "access_recorded",
             SandboxDecisionData::BypassDecided(_) => "bypass_decided",
             SandboxDecisionData::PermissiveRetryDecided(_) => "permissive_retry_decided",
             SandboxDecisionData::PermissiveRetryCompleted(_) => "permissive_retry_completed",
@@ -203,6 +280,90 @@ fn ordinary_and_empty_payloads_round_trip_full_event_envelopes() {
             SessionEventData::SessionIdle(_) => assert_eq!(event_type, "session.idle"),
             _ => panic!("unexpected event variant"),
         }
+        assert_eq!(serde_json::to_value(event).unwrap(), wire);
+    }
+}
+
+#[test]
+fn human_response_variants_round_trip_as_typed_event_data() {
+    let payloads = [
+        serde_json::json!({
+            "requestId": "ask-user-request",
+            "toolCallId": "ask-user-tool",
+            "actor": "human_response",
+            "response": {
+                "responseKind": "ask_user",
+                "message": "Which repository?",
+                "requestedSchema": {
+                    "type": "object",
+                    "properties": {
+                        "answer": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "content": {
+                    "answer": "github/st-mcp-poc"
+                }
+            }
+        }),
+        serde_json::json!({
+            "requestId": "question-request",
+            "toolCallId": "question-tool",
+            "actor": "human_response",
+            "response": {
+                "responseKind": "user_input",
+                "question": "Which file?",
+                "choices": ["alpha.txt", "beta.txt"],
+                "allowFreeform": true,
+                "answer": "alpha.txt",
+                "wasFreeform": false
+            }
+        }),
+        serde_json::json!({
+            "requestId": "plan-request",
+            "toolCallId": "plan-tool",
+            "actor": "human_response",
+            "response": {
+                "responseKind": "exit_plan_mode",
+                "summary": "Edit alpha.txt",
+                "planContent": "Edit alpha.txt and run its test.",
+                "actions": ["autopilot", "interactive", "exit_only"],
+                "recommendedAction": "interactive",
+                "approved": true,
+                "selectedAction": "interactive",
+                "autoApproveEdits": false
+            }
+        }),
+    ];
+
+    for wire in payloads.map(|payload| event_envelope("human_response.recorded", payload)) {
+        let event: TypedSessionEvent = serde_json::from_value(wire.clone()).unwrap();
+        let SessionEventData::HumanResponseRecorded(data) = &event.payload else {
+            panic!("expected human-response event");
+        };
+        let response_kind = match &data.response {
+            HumanResponseRecordedResponse::AskUser(response) => {
+                assert_eq!(
+                    response.content.get("answer"),
+                    Some(&serde_json::json!("github/st-mcp-poc"))
+                );
+                "ask_user"
+            }
+            HumanResponseRecordedResponse::UserInput(response) => {
+                assert_eq!(response.answer, "alpha.txt");
+                "user_input"
+            }
+            HumanResponseRecordedResponse::ExitPlanMode(response) => {
+                assert!(response.approved);
+                "exit_plan_mode"
+            }
+        };
+
+        assert_eq!(
+            response_kind,
+            wire["data"]["response"]["responseKind"].as_str().unwrap()
+        );
         assert_eq!(serde_json::to_value(event).unwrap(), wire);
     }
 }

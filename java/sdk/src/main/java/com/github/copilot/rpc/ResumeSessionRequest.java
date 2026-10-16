@@ -12,6 +12,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import com.github.copilot.CopilotExperimental;
+import com.github.copilot.generated.rpc.DiagnosticsConfiguration;
 import com.github.copilot.generated.rpc.SessionLimitsConfig;
 
 /**
@@ -37,6 +38,12 @@ public final class ResumeSessionRequest {
 
     @JsonProperty("model")
     private String model;
+
+    @JsonProperty("continuePendingWork")
+    private Boolean continuePendingWork;
+
+    @JsonProperty("allowTranscriptRecovery")
+    private Boolean allowTranscriptRecovery;
 
     @JsonProperty("reasoningEffort")
     private String reasoningEffort;
@@ -136,9 +143,17 @@ public final class ResumeSessionRequest {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private Boolean enableSessionStore;
 
+    @JsonProperty("enableGitHubCacheStore")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private Boolean enableGitHubCacheStore;
+
     @JsonProperty("enableSkills")
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private Boolean enableSkills;
+
+    @JsonProperty("hasSkillProvider")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private Boolean hasSkillProvider;
 
     @JsonProperty("embeddingCacheStorage")
     @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -162,6 +177,9 @@ public final class ResumeSessionRequest {
     @JsonProperty("mcpOAuthTokenStorage")
     private String mcpOAuthTokenStorage;
 
+    @JsonProperty("diagnostics")
+    private DiagnosticsConfiguration diagnostics;
+
     @JsonProperty("authClientIdMetadataUrl")
     private String authClientIdMetadataUrl;
 
@@ -183,6 +201,12 @@ public final class ResumeSessionRequest {
     @JsonProperty("skillDirectories")
     private List<String> skillDirectories;
 
+    @JsonProperty("agentDirectories")
+    private List<String> agentDirectories;
+
+    @JsonProperty("hookDirectories")
+    private List<String> hookDirectories;
+
     @JsonProperty("instructionDirectories")
     private List<String> instructionDirectories;
 
@@ -194,6 +218,9 @@ public final class ResumeSessionRequest {
 
     @JsonProperty("toolSearch")
     private ToolSearchConfig toolSearch;
+
+    @JsonProperty("imageGeneration")
+    private ImageGenerationConfig imageGeneration;
 
     @JsonProperty("memory")
     private MemoryConfiguration memory;
@@ -251,6 +278,14 @@ public final class ResumeSessionRequest {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private Boolean enableManagedSettings;
 
+    @JsonProperty("enforceManagedModelDefaults")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private Boolean enforceManagedModelDefaults;
+
+    @JsonProperty("interactiveUser")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private Boolean interactiveUser;
+
     @JsonProperty("managedSettings")
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private ManagedSettings managedSettings;
@@ -283,6 +318,43 @@ public final class ResumeSessionRequest {
     /** Sets the model name. @param model the model */
     public void setModel(String model) {
         this.model = model;
+    }
+
+    /**
+     * Gets the pending-work continuation choice.
+     *
+     * @return the choice, or {@code null} if omitted
+     */
+    public Boolean getContinuePendingWork() {
+        return continuePendingWork;
+    }
+
+    /**
+     * Sets the pending-work continuation choice.
+     *
+     * @param continuePendingWork
+     *            the choice
+     */
+    public void setContinuePendingWork(boolean continuePendingWork) {
+        this.continuePendingWork = continuePendingWork;
+    }
+
+    /** Restores the runtime's default pending-work continuation behavior. */
+    public void clearContinuePendingWork() {
+        continuePendingWork = null;
+    }
+
+    /** @return whether transcript repair was requested, or null if omitted */
+    public Boolean getAllowTranscriptRecovery() {
+        return allowTranscriptRecovery;
+    }
+
+    /**
+     * @param allowTranscriptRecovery
+     *            whether transcript repair is allowed
+     */
+    public void setAllowTranscriptRecovery(boolean allowTranscriptRecovery) {
+        this.allowTranscriptRecovery = allowTranscriptRecovery;
     }
 
     /** Gets the reasoning effort. @return the reasoning effort level */
@@ -702,6 +774,25 @@ public final class ResumeSessionRequest {
         this.enableSessionStore = null;
     }
 
+    /** Gets enable GitHub cache store flag. @return the flag */
+    public Boolean getEnableGitHubCacheStore() {
+        return enableGitHubCacheStore;
+    }
+
+    /**
+     * Sets enable GitHub cache store flag. @param enableGitHubCacheStore the flag
+     */
+    public void setEnableGitHubCacheStore(boolean enableGitHubCacheStore) {
+        this.enableGitHubCacheStore = enableGitHubCacheStore;
+    }
+
+    /**
+     * Clears the enableGitHubCacheStore setting, reverting to the default behavior.
+     */
+    public void clearEnableGitHubCacheStore() {
+        this.enableGitHubCacheStore = null;
+    }
+
     /** Gets enable skills flag. @return the flag */
     public Boolean getEnableSkills() {
         return enableSkills;
@@ -715,6 +806,23 @@ public final class ResumeSessionRequest {
     /** Clears the enableSkills setting, reverting to the default behavior. */
     public void clearEnableSkills() {
         this.enableSkills = null;
+    }
+
+    /** Gets skill-provider availability flag. @return the flag */
+    public Boolean getHasSkillProvider() {
+        return hasSkillProvider;
+    }
+
+    /** Sets skill-provider availability flag. @param hasSkillProvider the flag */
+    public void setHasSkillProvider(boolean hasSkillProvider) {
+        this.hasSkillProvider = hasSkillProvider;
+    }
+
+    /**
+     * Clears the hasSkillProvider setting, reverting to the default behavior.
+     */
+    public void clearHasSkillProvider() {
+        this.hasSkillProvider = null;
     }
 
     /** Gets embedding cache storage mode. @return the mode */
@@ -826,6 +934,19 @@ public final class ResumeSessionRequest {
     }
 
     /**
+     * Gets the diagnostics configuration. @return the level, or {@code null} when
+     * unset
+     */
+    public DiagnosticsConfiguration getDiagnostics() {
+        return diagnostics;
+    }
+
+    /** Sets the diagnostics configuration. @param diagnostics the level */
+    public void setDiagnostics(DiagnosticsConfiguration diagnostics) {
+        this.diagnostics = diagnostics;
+    }
+
+    /**
      * Sets MCP OAuth token storage mode. @param mcpOAuthTokenStorage the storage
      * mode
      */
@@ -908,6 +1029,31 @@ public final class ResumeSessionRequest {
         this.skillDirectories = skillDirectories;
     }
 
+    /** Gets explicit agent discovery roots. @return the directories */
+    public List<String> getAgentDirectories() {
+        return agentDirectories == null ? null : Collections.unmodifiableList(agentDirectories);
+    }
+
+    /**
+     * Sets explicit agent discovery roots. @param agentDirectories the directories
+     */
+    public void setAgentDirectories(List<String> agentDirectories) {
+        this.agentDirectories = agentDirectories;
+    }
+
+    /** Gets explicit file-hook discovery roots. @return the directories */
+    public List<String> getHookDirectories() {
+        return hookDirectories == null ? null : Collections.unmodifiableList(hookDirectories);
+    }
+
+    /**
+     * Sets explicit file-hook discovery roots. @param hookDirectories the
+     * directories
+     */
+    public void setHookDirectories(List<String> hookDirectories) {
+        this.hookDirectories = hookDirectories;
+    }
+
     /** Gets instruction directories. @return the instruction directories */
     public List<String> getInstructionDirectories() {
         return instructionDirectories == null ? null : Collections.unmodifiableList(instructionDirectories);
@@ -943,6 +1089,19 @@ public final class ResumeSessionRequest {
     /** Gets tool-search config. @return the tool-search config */
     public ToolSearchConfig getToolSearch() {
         return toolSearch;
+    }
+
+    /** Gets image generation config. @return the image generation config */
+    public ImageGenerationConfig getImageGeneration() {
+        return imageGeneration;
+    }
+
+    /**
+     * Sets image generation config. @param imageGeneration the image generation
+     * config
+     */
+    public void setImageGeneration(ImageGenerationConfig imageGeneration) {
+        this.imageGeneration = imageGeneration;
     }
 
     /** Sets tool-search config. @param toolSearch the tool-search config */
@@ -1188,6 +1347,39 @@ public final class ResumeSessionRequest {
      */
     public void clearEnableManagedSettings() {
         this.enableManagedSettings = null;
+    }
+
+    /** Gets managed model lock enforcement. @return the flag, or {@code null} */
+    public Boolean getEnforceManagedModelDefaults() {
+        return enforceManagedModelDefaults;
+    }
+
+    /** Sets managed model lock enforcement. @param enforce whether to enforce */
+    public void setEnforceManagedModelDefaults(boolean enforce) {
+        this.enforceManagedModelDefaults = enforce;
+    }
+
+    /** Clears managed model lock enforcement. */
+    public void clearEnforceManagedModelDefaults() {
+        this.enforceManagedModelDefaults = null;
+    }
+
+    /** @return whether this session is human-driven, or {@code null} when unset */
+    public Boolean getInteractiveUser() {
+        return interactiveUser;
+    }
+
+    /**
+     * @param interactiveUser
+     *            whether a human drives this session
+     */
+    public void setInteractiveUser(boolean interactiveUser) {
+        this.interactiveUser = interactiveUser;
+    }
+
+    /** Clears the interactiveUser setting, reverting to the default behavior. */
+    public void clearInteractiveUser() {
+        this.interactiveUser = null;
     }
 
     /** @return host-injected managed settings, or {@code null} when unset */

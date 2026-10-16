@@ -27,9 +27,9 @@ public partial class StructuredOutputE2ETests(E2ETestFixture fixture, ITestOutpu
                 BaseUrl = Ctx.ProxyUrl,
                 ModelId = "gpt-4.1",
                 WireModel = "gpt-4.1",
-                ApiKey = Environment.GetEnvironmentVariable("GITHUB_ACTIONS") == "true"
+                ApiKey = System.Environment.GetEnvironmentVariable("GITHUB_ACTIONS") == "true"
                 ? "fake-token-for-e2e-tests"
-                : Environment.GetEnvironmentVariable("GITHUB_TOKEN") ?? "fake-token-for-e2e-tests",
+                : System.Environment.GetEnvironmentVariable("GITHUB_TOKEN") ?? "fake-token-for-e2e-tests",
                 Headers = new Dictionary<string, string>
                 {
                     ["Copilot-Integration-Id"] = "copilot-developer-cli",
@@ -392,6 +392,15 @@ public partial class StructuredOutputE2ETests(E2ETestFixture fixture, ITestOutpu
         {
             var config = StructuredSessionConfig();
             config.Model = model;
+            config.EnableExperimentalMode = model == "hydrafusion";
+            if (model == "hydrafusion")
+            {
+                config.FeatureFlags = new Dictionary<string, bool>
+                {
+                    ["HYDRAFUSION"] = true,
+                    ["HYDRAFUSION_ROLLOUT"] = true,
+                };
+            }
             config.OnPermissionRequest = PermissionHandler.ApproveAll;
             await using var session = await Ctx.CreateSessionAsync(client, config);
             await Assert.ThrowsAsync<ArgumentException>(() => session.SendAndWaitAsync<CorrectionResult>(

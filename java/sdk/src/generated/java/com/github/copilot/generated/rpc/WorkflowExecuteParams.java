@@ -33,6 +33,7 @@ public record WorkflowExecuteParams(
     /** Opaque token identifying this workflow execution attempt. */
     @JsonProperty("executionToken") String executionToken,
     /** Workflow input value. */
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("args") Object args
 ) {
 }

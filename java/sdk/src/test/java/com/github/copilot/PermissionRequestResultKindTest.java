@@ -23,6 +23,8 @@ public class PermissionRequestResultKindTest {
     @Test
     void wellKnownKinds_haveExpectedValues() {
         assertEquals("approve-once", PermissionRequestResultKind.APPROVED.getValue());
+        assertEquals("approve-read-only-for-session",
+                PermissionRequestResultKind.APPROVE_READ_ONLY_FOR_SESSION.getValue());
         assertEquals("reject", PermissionRequestResultKind.REJECTED.getValue());
         assertEquals("user-not-available", PermissionRequestResultKind.USER_NOT_AVAILABLE.getValue());
         assertEquals("no-result", PermissionRequestResultKind.NO_RESULT.getValue());
@@ -115,8 +117,8 @@ public class PermissionRequestResultKindTest {
     void jsonRoundTrip_allWellKnownKinds() throws Exception {
         ObjectMapper mapper = new ObjectMapper();
         PermissionRequestResultKind[] kinds = {PermissionRequestResultKind.APPROVED,
-                PermissionRequestResultKind.REJECTED, PermissionRequestResultKind.USER_NOT_AVAILABLE,
-                PermissionRequestResultKind.NO_RESULT,};
+                PermissionRequestResultKind.APPROVE_READ_ONLY_FOR_SESSION, PermissionRequestResultKind.REJECTED,
+                PermissionRequestResultKind.USER_NOT_AVAILABLE, PermissionRequestResultKind.NO_RESULT,};
         for (PermissionRequestResultKind kind : kinds) {
             var result = new PermissionRequestResult().setKind(kind);
             String json = mapper.writeValueAsString(result);

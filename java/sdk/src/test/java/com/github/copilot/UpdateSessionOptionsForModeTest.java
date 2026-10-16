@@ -149,6 +149,8 @@ class UpdateSessionOptionsForModeTest {
             assertTrue(pair.lastParams.path("installedPlugins").isMissingNode(), "installedPlugins should be absent");
             assertTrue(pair.lastParams.path("includedBuiltinSkills").isMissingNode(),
                     "includedBuiltinSkills should be absent in COPILOT_CLI mode");
+            assertTrue(pair.lastParams.path("imageGeneration").isMissingNode(),
+                    "Mode patches must preserve the session's image-generation consent");
             client.close();
         }
     }
@@ -206,6 +208,8 @@ class UpdateSessionOptionsForModeTest {
             assertTrue(pair.lastParams.get("includedBuiltinSkills").isArray(),
                     "includedBuiltinSkills should be empty array");
             assertEquals(0, pair.lastParams.get("includedBuiltinSkills").size());
+            assertTrue(pair.lastParams.path("imageGeneration").isMissingNode(),
+                    "Mode defaults must preserve the session's image-generation consent");
             client.close();
         }
     }

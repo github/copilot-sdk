@@ -14,7 +14,7 @@ import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
- * Identifier of the spawned process, used to correlate streamed output and exit notifications.
+ * Identifier of the spawned shell process, usable with shell.kill while the process is running.
  *
  * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
@@ -24,7 +24,7 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionShellExecResult(
-    /** Unique identifier for tracking streamed output */
+    /** Identifier usable with shell.kill while the process is running */
     @JsonProperty("processId") String processId
 ) {
 }

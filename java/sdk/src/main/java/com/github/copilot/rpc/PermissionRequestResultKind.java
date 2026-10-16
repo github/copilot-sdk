@@ -36,6 +36,10 @@ public final class PermissionRequestResultKind {
     /** The permission was approved for this one instance. */
     public static final PermissionRequestResultKind APPROVED = new PermissionRequestResultKind("approve-once");
 
+    /** Read access to selected directories was approved for the session. */
+    public static final PermissionRequestResultKind APPROVE_READ_ONLY_FOR_SESSION = new PermissionRequestResultKind(
+            "approve-read-only-for-session");
+
     /** The permission was denied interactively by the user. */
     public static final PermissionRequestResultKind REJECTED = new PermissionRequestResultKind("reject");
 

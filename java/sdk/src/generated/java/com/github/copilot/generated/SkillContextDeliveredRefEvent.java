@@ -10,12 +10,16 @@ package com.github.copilot.generated;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
  * Session event "skill.context_delivered_ref". Internal durable receipt that reconstructs exact model-visible skill context from earlier session content.
+ *
+ * @apiNote This event type is experimental and may change in a future version.
  * @since 1.0.0
  */
+@CopilotExperimental
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
@@ -31,6 +35,7 @@ public final class SkillContextDeliveredRefEvent extends SessionEvent {
     public void setData(SkillContextDeliveredRefEventData data) { this.data = data; }
 
     /** Data payload for {@link SkillContextDeliveredRefEvent}. */
+    @CopilotExperimental
     @JsonIgnoreProperties(ignoreUnknown = true)
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record SkillContextDeliveredRefEventData(

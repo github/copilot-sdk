@@ -14,7 +14,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
+import java.util.stream.Stream;
 
 import com.fasterxml.jackson.databind.JsonNode;
 
@@ -68,7 +70,7 @@ class CapiSessionOptionsTest {
     }
 
     @ParameterizedTest
-    @CsvSource({"EFFICIENCY,efficiency", "BALANCE,balance", "INTELLIGENCE,intelligence", "FAST,fast"})
+    @MethodSource("canonicalAutoTiers")
     void autoTierCanonicalValuesRoundTripAndForward(AutoTier tier, String value) throws Exception {
         var mapper = JsonRpcClient.getObjectMapper();
         var capi = new CapiSessionOptions().setAutoTier(tier);
@@ -90,11 +92,23 @@ class CapiSessionOptionsTest {
     }
 
     @Test
-    void autoTierRejectsNoncanonicalValues() {
+    void autoTierPreservesServerIdentifiersAndRejectsMalformedValues() throws Exception {
+        var mapper = JsonRpcClient.getObjectMapper();
         for (String value : new String[]{"balanced", "Balance", "unknown"}) {
+            var tier = AutoTier.fromValue(value);
+            assertEquals(value, tier.getValue());
+            assertEquals(value, mapper.valueToTree(tier).asText());
+            assertEquals(tier, mapper.readValue("\"" + value + "\"", AutoTier.class));
+        }
+        for (String value : new String[]{"", "two words", "\n"}) {
             assertThrows(IllegalArgumentException.class, () -> AutoTier.fromValue(value));
         }
         assertNull(AutoTier.fromValue(null));
+    }
+
+    private static Stream<Arguments> canonicalAutoTiers() {
+        return Stream.of(Arguments.of(AutoTier.EFFICIENCY, "efficiency"), Arguments.of(AutoTier.BALANCE, "balance"),
+                Arguments.of(AutoTier.INTELLIGENCE, "intelligence"), Arguments.of(AutoTier.FAST, "fast"));
     }
 
     @Test

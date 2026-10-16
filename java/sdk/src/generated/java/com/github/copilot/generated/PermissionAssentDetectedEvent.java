@@ -10,12 +10,16 @@ package com.github.copilot.generated;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
- * Session event "permission.assentDetected". Records that deterministic text recognition found likely assent in the human turn immediately following a root Autopilot permission request that was blocked because no interactive response was available. This event grants no authority; its model-facing projection only suggests retrying the unchanged operation.
+ * Session event "permission.assentDetected". Historical decode-only contextual-assent marker. Current runtimes do not project it into the conversation or permission flow.
+ *
+ * @apiNote This event type is experimental and may change in a future version.
  * @since 1.0.0
  */
+@CopilotExperimental
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
@@ -31,12 +35,15 @@ public final class PermissionAssentDetectedEvent extends SessionEvent {
     public void setData(PermissionAssentDetectedEventData data) { this.data = data; }
 
     /** Data payload for {@link PermissionAssentDetectedEvent}. */
+    @CopilotExperimental
     @JsonIgnoreProperties(ignoreUnknown = true)
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record PermissionAssentDetectedEventData(
         /** Permission request the likely assent may refer to. The runtime derives this from the preceding durable blocker; the human message and extraction model do not choose it. */
+        @CopilotExperimental
         @JsonProperty("requestId") String requestId,
         /** Human turn whose text triggered the deterministic assent recognizer. */
+        @CopilotExperimental
         @JsonProperty("turnIndex") Long turnIndex
     ) {
     }

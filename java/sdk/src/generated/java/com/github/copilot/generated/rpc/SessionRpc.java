@@ -29,16 +29,18 @@ public final class SessionRpc {
     private final RpcCaller caller;
     private final String sessionId;
 
+    /** API methods for the {@code providers} namespace. */
+    public final SessionProvidersApi providers;
     /** API methods for the {@code sandbox} namespace. */
     public final SessionSandboxApi sandbox;
     /** API methods for the {@code gitHubAuth} namespace. */
     public final SessionGitHubAuthApi gitHubAuth;
+    /** API methods for the {@code accounts} namespace. */
+    public final SessionAccountsApi accounts;
     /** API methods for the {@code debug} namespace. */
     public final SessionDebugApi debug;
     /** API methods for the {@code canvas} namespace. */
     public final SessionCanvasApi canvas;
-    /** API methods for the {@code factory} namespace. */
-    public final SessionFactoryApi factory;
     /** API methods for the {@code workflow} namespace. */
     public final SessionWorkflowApi workflow;
     /** API methods for the {@code model} namespace. */
@@ -57,6 +59,8 @@ public final class SessionRpc {
     public final SessionCompletionsApi completions;
     /** API methods for the {@code instructions} namespace. */
     public final SessionInstructionsApi instructions;
+    /** API methods for the {@code customizations} namespace. */
+    public final SessionCustomizationsApi customizations;
     /** API methods for the {@code fleet} namespace. */
     public final SessionFleetApi fleet;
     /** API methods for the {@code agent} namespace. */
@@ -67,6 +71,8 @@ public final class SessionRpc {
     public final SessionSkillsApi skills;
     /** API methods for the {@code mcp} namespace. */
     public final SessionMcpApi mcp;
+    /** API methods for the {@code diagnostics} namespace. */
+    public final SessionDiagnosticsApi diagnostics;
     /** API methods for the {@code connectors} namespace. */
     public final SessionConnectorsApi connectors;
     /** API methods for the {@code managedSettings} namespace. */
@@ -94,7 +100,7 @@ public final class SessionRpc {
     /** API methods for the {@code metadata} namespace. */
     public final SessionMetadataApi metadata;
     /** API methods for the {@code settings} namespace. */
-    public final SessionSettingsApi settings;
+    final SessionSettingsApi settings;
     /** API methods for the {@code contentExclusion} namespace. */
     public final SessionContentExclusionApi contentExclusion;
     /** API methods for the {@code shell} namespace. */
@@ -107,6 +113,8 @@ public final class SessionRpc {
     public final SessionEventLogApi eventLog;
     /** API methods for the {@code usage} namespace. */
     public final SessionUsageApi usage;
+    /** API methods for the {@code quota} namespace. */
+    public final SessionQuotaApi quota;
     /** API methods for the {@code limitPrediction} namespace. */
     public final SessionLimitPredictionApi limitPrediction;
     /** API methods for the {@code remote} namespace. */
@@ -125,11 +133,12 @@ public final class SessionRpc {
     public SessionRpc(RpcCaller caller, String sessionId) {
         this.caller = caller;
         this.sessionId = sessionId;
+        this.providers = new SessionProvidersApi(caller, sessionId);
         this.sandbox = new SessionSandboxApi(caller, sessionId);
         this.gitHubAuth = new SessionGitHubAuthApi(caller, sessionId);
+        this.accounts = new SessionAccountsApi(caller, sessionId);
         this.debug = new SessionDebugApi(caller, sessionId);
         this.canvas = new SessionCanvasApi(caller, sessionId);
-        this.factory = new SessionFactoryApi(caller, sessionId);
         this.workflow = new SessionWorkflowApi(caller, sessionId);
         this.model = new SessionModelApi(caller, sessionId);
         this.mode = new SessionModeApi(caller, sessionId);
@@ -139,11 +148,13 @@ public final class SessionRpc {
         this.autopilotObjective = new SessionAutopilotObjectiveApi(caller, sessionId);
         this.completions = new SessionCompletionsApi(caller, sessionId);
         this.instructions = new SessionInstructionsApi(caller, sessionId);
+        this.customizations = new SessionCustomizationsApi(caller, sessionId);
         this.fleet = new SessionFleetApi(caller, sessionId);
         this.agent = new SessionAgentApi(caller, sessionId);
         this.tasks = new SessionTasksApi(caller, sessionId);
         this.skills = new SessionSkillsApi(caller, sessionId);
         this.mcp = new SessionMcpApi(caller, sessionId);
+        this.diagnostics = new SessionDiagnosticsApi(caller, sessionId);
         this.connectors = new SessionConnectorsApi(caller, sessionId);
         this.managedSettings = new SessionManagedSettingsApi(caller, sessionId);
         this.plugins = new SessionPluginsApi(caller, sessionId);
@@ -164,6 +175,7 @@ public final class SessionRpc {
         this.queue = new SessionQueueApi(caller, sessionId);
         this.eventLog = new SessionEventLogApi(caller, sessionId);
         this.usage = new SessionUsageApi(caller, sessionId);
+        this.quota = new SessionQuotaApi(caller, sessionId);
         this.limitPrediction = new SessionLimitPredictionApi(caller, sessionId);
         this.remote = new SessionRemoteApi(caller, sessionId);
         this.visibility = new SessionVisibilityApi(caller, sessionId);
@@ -171,7 +183,7 @@ public final class SessionRpc {
     }
 
     /**
-     * Identifies the target session.
+     * Suspends the session while preserving persisted state for later resume.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -182,7 +194,7 @@ public final class SessionRpc {
     }
 
     /**
-     * Parameters for sending a user message to the session
+     * Sends a user message to the session and returns its message ID.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -198,7 +210,7 @@ public final class SessionRpc {
     }
 
     /**
-     * Parameters for sending zero or more user messages to the session in a single turn. Remote-backed (Mission Control) sessions do not support this method and will return an error.
+     * Sends zero or more user messages to the session in a single turn and returns their message IDs. All provided messages are appended to the conversation in order, then exactly one agent turn runs over the resulting history. When the list is empty, one turn runs over the existing history with no new user message. Remote-backed (Mission Control) sessions do not support this method and will return an error.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -214,7 +226,7 @@ public final class SessionRpc {
     }
 
     /**
-     * Internal request for sending a system notification.
+     * Queues or sends an internal system notification to the session according to its passive policy.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -223,14 +235,14 @@ public final class SessionRpc {
      * @since 1.0.0
      */
     @CopilotExperimental
-    public CompletableFuture<Void> sendSystemNotification(SessionSendSystemNotificationParams params) {
+    CompletableFuture<Void> sendSystemNotification(SessionSendSystemNotificationParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
         return caller.invoke("session.sendSystemNotification", _p, Void.class);
     }
 
     /**
-     * Parameters for aborting the current turn
+     * Aborts the current agent turn.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -246,7 +258,7 @@ public final class SessionRpc {
     }
 
     /**
-     * Parameters for interrupting the main agent turn.
+     * Interrupts the current main agent turn while leaving running background work (subagents, sidekicks, and promoted attached shells) alive. No-op when the main loop is not processing.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -262,18 +274,18 @@ public final class SessionRpc {
     }
 
     /**
-     * Identifies the target session.
+     * Cancels every running background agent (task-registry subagents plus sidekick agents) without interrupting the main agent loop. Promoted attached shells are left running.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
     @CopilotExperimental
-    public CompletableFuture<Void> cancelAllBackgroundAgents() {
-        return caller.invoke("session.cancelAllBackgroundAgents", java.util.Map.of("sessionId", this.sessionId), Void.class);
+    public CompletableFuture<Long> cancelAllBackgroundAgents() {
+        return caller.invoke("session.cancelAllBackgroundAgents", java.util.Map.of("sessionId", this.sessionId), Long.class);
     }
 
     /**
-     * Parameters for shutting down the session
+     * Shuts down the session and persists its final state. Awaits any deferred sessionEnd hooks before resolving so user-supplied hook scripts complete before the runtime tears down.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -289,7 +301,7 @@ public final class SessionRpc {
     }
 
     /**
-     * Message text, optional severity level, persistence flag, optional follow-up URL, and optional tip.
+     * Emits a user-visible session log event.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.

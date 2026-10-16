@@ -25,7 +25,9 @@ public enum CatalogUnavailableReason {
     /** The {@code authority-not-configured} variant. */
     AUTHORITY_NOT_CONFIGURED("authority-not-configured"),
     /** The {@code disabled-by-policy} variant. */
-    DISABLED_BY_POLICY("disabled-by-policy");
+    DISABLED_BY_POLICY("disabled-by-policy"),
+    /** The {@code feed-not-found} variant. */
+    FEED_NOT_FOUND("feed-not-found");
 
     private final String value;
     CatalogUnavailableReason(String value) { this.value = value; }

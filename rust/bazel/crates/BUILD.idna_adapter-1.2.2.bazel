@@ -63,7 +63,7 @@ rust_library(
     }),
     version = "1.2.2",
     deps = [
-        "@sdk_vendor__icu_normalizer-2.2.0//:icu_normalizer",
-        "@sdk_vendor__icu_properties-2.2.0//:icu_properties",
+        "@sdk_vendor__icu_normalizer-2.3.0//:icu_normalizer",
+        "@sdk_vendor__icu_properties-2.3.0//:icu_properties",
     ],
 )

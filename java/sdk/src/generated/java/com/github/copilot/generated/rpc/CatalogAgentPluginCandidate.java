@@ -14,7 +14,7 @@ import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * An inert Agent Plugin catalog result. Its canonical catalog identity, declared version, repository source claim, and explicit compatibility tags are safe to correlate, while its descriptor, URL, raw data, and installed-plugin state remain runtime-private. This contract-only variant does not mint or expose a candidate handle.
+ * An inert Agent Plugin catalog result. Its canonical catalog identity, declared version, repository source claim, and explicit compatibility tags are safe to correlate, while its descriptor, URL, raw data, materialisation reference, and installed-plugin state remain runtime-private. A handle is minted only under agent-plugin-confirmed-installation, for a candidate with a complete materialisation reference.
  *
  * @since 1.0.0
  */
@@ -29,7 +29,7 @@ public final class CatalogAgentPluginCandidate extends CatalogCandidate {
     @Override
     public String getKind() { return kind; }
 
-    /** Canonical Agent Plugin media type. */
+    /** Media type naming the plugin's format. */
     @JsonProperty("mediaType")
     private CatalogAgentPluginMediaType mediaType;
 
@@ -53,7 +53,7 @@ public final class CatalogAgentPluginCandidate extends CatalogCandidate {
     @JsonProperty("publisher")
     private String publisher;
 
-    /** Bounded repository provenance declared through the catalog's sourceSet and repoPath metadata. It contains no descriptor URL. */
+    /** Bounded repository provenance declared through the catalog's sourceSet and repoPath metadata. It contains no descriptor URL. Always present, with a path, unless the caller requires agent-plugin-confirmed-installation. Such a caller also receives a repository-root plugin (sourceSet without repoPath) whose source has no path, and a plugin with no usable declaration (neither key, or repoPath alone) and no source; the latter carries a complete materialisation reference and a handle, and the verified descriptor supplies the repository, commit and root when it is planned. Never derived from the catalogue URL. */
     @JsonProperty("source")
     private CatalogPluginRepositorySource source;
 
@@ -61,9 +61,41 @@ public final class CatalogAgentPluginCandidate extends CatalogCandidate {
     @JsonProperty("compatibilityTags")
     private List<CatalogAgentPluginCompatibilityTag> compatibilityTags;
 
+    /** Whether this plugin can be installed in the selected session. Present only when the caller requires the agent-plugin-confirmed-installation capability. */
+    @JsonProperty("installability")
+    private CatalogAgentPluginInstallability installability;
+
+    /** Reviewable install plan built only from verified catalogue install data. Present exactly when installability is `installable`; the runtime never derives it from the repository source, display text, or identity. */
+    @JsonProperty("installPlan")
+    private CatalogAgentPluginInstallPlan installPlan;
+
+    /** Opaque, runtime-instance scoped, TTL-bound, single-use handle for planning this plugin's installation through plugins.planInstall. Present only when the caller requires the agent-plugin-confirmed-installation capability and the candidate carries a complete Agent Finder materialisation reference, which stays runtime-private. Never logged. */
+    @JsonProperty("handle")
+    private String handle;
+
+    /** ISO 8601 timestamp after which the handle is stale and will be rejected. Present exactly when handle is present. */
+    @JsonProperty("handleExpiresAt")
+    private String handleExpiresAt;
+
     /** Where the Agent Plugin catalog reference was observed, without its descriptor, URL, raw data, or content digest. */
     @JsonProperty("provenance")
     private CatalogAgentPluginCandidateProvenance provenance;
+
+    /** How many times the resource has been installed, as reported by the feed. Omitted when the feed reports no count or an invalid one. */
+    @JsonProperty("installCount")
+    private Long installCount;
+
+    /** HTTPS URL of the resource's icon on raw.githubusercontent.com, as reported by the feed. Untrusted external content: load it without credentials. Omitted when absent or outside the feed's icon host policy. */
+    @JsonProperty("iconUrl")
+    private String iconUrl;
+
+    /** Identifiers of the connectors the resource works with, as reported by the feed, without repeats. Inert untrusted text. Omitted when the feed reports none. */
+    @JsonProperty("connectorIds")
+    private List<String> connectorIds;
+
+    /** Category slugs reported by the feed, such as `build` or `review`, without repeats. Values are passed through, so clients must tolerate slugs they do not recognise. Inert untrusted text. Omitted when the feed reports none. */
+    @JsonProperty("categories")
+    private List<String> categories;
 
     /** Versioned trust metadata observed from the catalog authority. Optional for protocol-3 compatibility and emitted only when the caller also requires the trust-snapshot capability. */
     @JsonProperty("trust")
@@ -93,8 +125,32 @@ public final class CatalogAgentPluginCandidate extends CatalogCandidate {
     public List<CatalogAgentPluginCompatibilityTag> getCompatibilityTags() { return compatibilityTags; }
     public void setCompatibilityTags(List<CatalogAgentPluginCompatibilityTag> compatibilityTags) { this.compatibilityTags = compatibilityTags; }
 
+    public CatalogAgentPluginInstallability getInstallability() { return installability; }
+    public void setInstallability(CatalogAgentPluginInstallability installability) { this.installability = installability; }
+
+    public CatalogAgentPluginInstallPlan getInstallPlan() { return installPlan; }
+    public void setInstallPlan(CatalogAgentPluginInstallPlan installPlan) { this.installPlan = installPlan; }
+
+    public String getHandle() { return handle; }
+    public void setHandle(String handle) { this.handle = handle; }
+
+    public String getHandleExpiresAt() { return handleExpiresAt; }
+    public void setHandleExpiresAt(String handleExpiresAt) { this.handleExpiresAt = handleExpiresAt; }
+
     public CatalogAgentPluginCandidateProvenance getProvenance() { return provenance; }
     public void setProvenance(CatalogAgentPluginCandidateProvenance provenance) { this.provenance = provenance; }
+
+    public Long getInstallCount() { return installCount; }
+    public void setInstallCount(Long installCount) { this.installCount = installCount; }
+
+    public String getIconUrl() { return iconUrl; }
+    public void setIconUrl(String iconUrl) { this.iconUrl = iconUrl; }
+
+    public List<String> getConnectorIds() { return connectorIds; }
+    public void setConnectorIds(List<String> connectorIds) { this.connectorIds = connectorIds; }
+
+    public List<String> getCategories() { return categories; }
+    public void setCategories(List<String> categories) { this.categories = categories; }
 
     public CatalogTrustSnapshot getTrust() { return trust; }
     public void setTrust(CatalogTrustSnapshot trust) { this.trust = trust; }

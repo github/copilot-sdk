@@ -14,8 +14,10 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -53,6 +55,8 @@ class JsonRpcClient implements AutoCloseable {
     private final Map<Long, CompletableFuture<JsonNode>> pendingRequests = new ConcurrentHashMap<>();
     private final Map<String, BiConsumer<String, JsonNode>> notificationHandlers = new ConcurrentHashMap<>();
     private final ExecutorService readerExecutor;
+    private final CountDownLatch readerExited = new CountDownLatch(1);
+    private boolean peerEof;
     private final Object closeHandlerLock = new Object();
     private volatile boolean running = true;
     private boolean closeNotified;
@@ -213,12 +217,20 @@ class JsonRpcClient implements AutoCloseable {
      * Sends a JSON-RPC error response to a server request.
      */
     public void sendErrorResponse(Object id, int code, String message) throws IOException {
+        sendErrorResponse(id, code, message, null);
+    }
+
+    /**
+     * Sends a JSON-RPC error response to a server request with optional data.
+     */
+    public void sendErrorResponse(Object id, int code, String message, Object data) throws IOException {
         var response = new JsonRpcResponse();
         response.setJsonrpc("2.0");
         response.setId(id);
         var error = new JsonRpcError();
         error.setCode(code);
         error.setMessage(message);
+        error.setData(data);
         response.setError(error);
         sendMessage(response);
     }
@@ -284,6 +296,7 @@ class JsonRpcClient implements AutoCloseable {
                     while (inHeaders) {
                         int b = bis.read();
                         if (b == -1) {
+                            peerEof = true;
                             return;
                         }
 
@@ -319,6 +332,7 @@ class JsonRpcClient implements AutoCloseable {
                     while (read < contentLength) {
                         int result = bis.read(buffer, read, contentLength - read);
                         if (result == -1) {
+                            peerEof = true;
                             return;
                         }
                         read += result;
@@ -334,9 +348,17 @@ class JsonRpcClient implements AutoCloseable {
                     LOG.log(Level.SEVERE, "Error in JSON-RPC reader", e);
                 }
             } finally {
-                notifyClose();
+                try {
+                    notifyClose();
+                } finally {
+                    readerExited.countDown();
+                }
             }
         });
+    }
+
+    boolean awaitPeerEof(long timeout, TimeUnit unit) throws InterruptedException {
+        return readerExited.await(Math.max(0, timeout), unit) && peerEof;
     }
 
     void setCloseHandler(Runnable handler) {
@@ -385,7 +407,8 @@ class JsonRpcClient implements AutoCloseable {
                                 ? errorNode.get("message").asText()
                                 : "Unknown error";
                         int errorCode = errorNode.has("code") ? errorNode.get("code").asInt() : -1;
-                        future.completeExceptionally(new JsonRpcException(errorCode, errorMessage));
+                        future.completeExceptionally(
+                                new JsonRpcException(errorCode, errorMessage, errorNode.get("data")));
                     } else {
                         future.complete(node.get("result"));
                     }

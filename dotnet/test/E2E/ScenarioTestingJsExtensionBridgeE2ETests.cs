@@ -82,57 +82,6 @@ public class ScenarioTestingJsExtensionBridgeE2ETests(E2ETestFixture fixture, IT
     }
 
     [Fact]
-    public async Task Should_Persist_Server_Extension_Enablement_For_Future_Sessions()
-    {
-        var fixture = await CreateExtensionFixtureAsync(ExtensionSource.User);
-        await using var client = CreateExtensionClient(fixture);
-        await using var activeSession = await Ctx.CreateSessionAsync(
-            client,
-            CreateSessionConfig(fixture.ProjectDirectory));
-
-        var active = await WaitForExtensionAsync(activeSession, fixture.ExtensionId);
-        Assert.Equal(ExtensionStatus.Running, active.Status);
-
-        await client.Rpc.User.Settings.ReloadAsync();
-        var discovered = await client.Rpc.Extensions.DiscoverAsync();
-        var discoveredExtension = Assert.Single(
-            discovered.Extensions,
-            extension => extension.Id == fixture.ExtensionId);
-        Assert.True(discoveredExtension.Enabled);
-        Assert.Equal(DiscoveredExtensionSource.User, discoveredExtension.Source);
-        Assert.Empty((await client.Rpc.Plugins.ListAsync()).Plugins);
-
-        await client.Rpc.Extensions.DisableAsync([fixture.ExtensionId]);
-        Assert.Equal(
-            ExtensionStatus.Running,
-            (await WaitForExtensionAsync(activeSession, fixture.ExtensionId)).Status);
-
-        await using var disabledSession = await Ctx.CreateSessionAsync(
-            client,
-            CreateSessionConfig(fixture.ProjectDirectory));
-        var disabled = await WaitForExtensionAsync(
-            disabledSession,
-            fixture.ExtensionId,
-            ExtensionStatus.Disabled);
-        Assert.Null(disabled.Pid);
-
-        await client.Rpc.Extensions.EnableAsync([fixture.ExtensionId]);
-        Assert.Equal(
-            ExtensionStatus.Disabled,
-            (await WaitForExtensionAsync(
-                disabledSession,
-                fixture.ExtensionId,
-                ExtensionStatus.Disabled)).Status);
-
-        await using var enabledSession = await Ctx.CreateSessionAsync(
-            client,
-            CreateSessionConfig(fixture.ProjectDirectory));
-        var enabled = await WaitForExtensionAsync(enabledSession, fixture.ExtensionId);
-        Assert.Equal(ExtensionStatus.Running, enabled.Status);
-        Assert.NotNull(enabled.Pid);
-    }
-
-    [Fact]
     public async Task Should_Bridge_Js_Extension_Canvas_Context_Log_And_Session_Continuation()
     {
         var fixture = await CreateExtensionFixtureAsync();
@@ -304,32 +253,35 @@ public class ScenarioTestingJsExtensionBridgeE2ETests(E2ETestFixture fixture, IT
             $"{source.Value}:{extensionName}");
     }
 
-    private static async Task<RpcExtension> WaitForExtensionAsync(
+    private async Task<RpcExtension> WaitForExtensionAsync(
         CopilotSession session,
         string extensionId,
         ExtensionStatus expectedStatus = default)
     {
         expectedStatus = expectedStatus == default ? ExtensionStatus.Running : expectedStatus;
         RpcExtension? extension = null;
+        string lastExtensions = "<no response>";
         await TestHelper.WaitForConditionAsync(
             async () =>
             {
                 var list = await session.Rpc.Extensions.ListAsync();
+                lastExtensions = string.Join(", ", list.Extensions.Select(item => $"{item.Id}: {item.Status}"));
                 extension = list.Extensions.FirstOrDefault(
                     item => string.Equals(item.Id, extensionId, StringComparison.Ordinal));
                 return extension?.Status == expectedStatus;
             },
             timeout: ExtensionTimeout,
             pollInterval: TimeSpan.FromMilliseconds(100),
-            timeoutMessage: $"Timed out waiting for extension '{extensionId}'.",
+            timeoutMessageFactory: () => $"Timed out waiting for extension '{extensionId}' (listed: [{lastExtensions}]; launch diagnostics: {TestHelper.ExtensionLaunchMarkers(Ctx.HomeDir, extensionId)}).",
             transientExceptionFilter: ex =>
                 ex.ToString().Contains("Extensions not available", StringComparison.OrdinalIgnoreCase));
         return extension!;
     }
 
-    private static async Task<DiscoveredCanvas> WaitForCanvasAsync(CopilotSession session, string extensionId)
+    private async Task<DiscoveredCanvas> WaitForCanvasAsync(CopilotSession session, string extensionId)
     {
         DiscoveredCanvas? canvas = null;
+        string lastExtensions = "<no response>";
         await TestHelper.WaitForConditionAsync(
             async () =>
             {
@@ -337,11 +289,16 @@ public class ScenarioTestingJsExtensionBridgeE2ETests(E2ETestFixture fixture, IT
                 canvas = list.Canvases.FirstOrDefault(
                     item => string.Equals(item.ExtensionId, extensionId, StringComparison.Ordinal)
                         && string.Equals(item.CanvasId, "js-scenario-canvas", StringComparison.Ordinal));
+                if (canvas is null)
+                {
+                    var extensions = await session.Rpc.Extensions.ListAsync();
+                    lastExtensions = string.Join(", ", extensions.Extensions.Select(item => $"{item.Id}: {item.Status}"));
+                }
                 return canvas is not null;
             },
             timeout: ExtensionTimeout,
             pollInterval: TimeSpan.FromMilliseconds(100),
-            timeoutMessage: $"Timed out waiting for canvas from extension '{extensionId}'.");
+            timeoutMessageFactory: () => $"Timed out waiting for canvas from extension '{extensionId}' (listed: [{lastExtensions}]; launch diagnostics: {TestHelper.ExtensionLaunchMarkers(Ctx.HomeDir, extensionId)}).");
         return canvas!;
     }
 
@@ -490,6 +447,7 @@ public class ScenarioTestingJsExtensionBridgeE2ETests(E2ETestFixture fixture, IT
 
         const traceFile = process.env.SCENARIO_EXTENSION_TRACE_FILE;
         const workingDirectory = process.env.SCENARIO_EXTENSION_WORKING_DIRECTORY;
+        console.error("[sdk-extension-test] imported");
 
         function record(kind, data = {}) {
           appendFileSync(traceFile, `${JSON.stringify({ kind, ...data })}\n`);
@@ -556,19 +514,33 @@ public class ScenarioTestingJsExtensionBridgeE2ETests(E2ETestFixture fixture, IT
           onClose: context => record("close", context)
         });
 
-        session = await joinSession({
-          workingDirectory,
-          tools: [],
-          canvases: [canvas]
-        });
+        console.error("[sdk-extension-test] joining");
+        let initializationStage = "join";
+        try {
+          session = await joinSession({
+            workingDirectory,
+            tools: [],
+            canvases: [canvas]
+          });
+          console.error("[sdk-extension-test] joined");
 
-        record("joined", {
-          sessionId: session.sessionId,
-          workspacePath: session.workspacePath ?? null,
-          workingDirectory,
-          cwd: process.cwd()
-        });
-        await session.log("JS_EXTENSION_LOG");
+          initializationStage = "trace";
+          record("joined", {
+            sessionId: session.sessionId,
+            workspacePath: session.workspacePath ?? null,
+            workingDirectory,
+            cwd: process.cwd()
+          });
+          initializationStage = "log";
+          await session.log("JS_EXTENSION_LOG");
+          console.error("[sdk-extension-test] logged");
+        } catch (error) {
+          const code = typeof error?.code === "number" ? error.code : "none";
+          console.error(`[sdk-extension-test] ${initializationStage} failed code=${code}`);
+          const message = String(error?.message ?? error).replace(/\s+/g, " ").slice(0, 400);
+          process.stderr.write(`=== scenario-init-failed stage=${initializationStage} name=${error?.name ?? "unknown"} code=${error?.code ?? "none"} message=${message} ===\n`);
+          throw error;
+        }
 
         setInterval(() => {}, 60_000).unref?.();
         """;

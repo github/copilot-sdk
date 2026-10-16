@@ -44,6 +44,9 @@ public final class PermissionRequestResult {
     @JsonProperty("feedback")
     private String feedback;
 
+    @JsonProperty("directories")
+    private List<String> directories;
+
     /**
      * Optional provenance describing how and where this decision was made. Never
      * serialized inside the result — the SDK forwards it as a sibling of
@@ -61,6 +64,20 @@ public final class PermissionRequestResult {
      */
     public static PermissionRequestResult approveOnce() {
         return new PermissionRequestResult().setKind(PermissionRequestResultKind.APPROVED);
+    }
+
+    /**
+     * Creates a result that approves read access to the selected directories for
+     * the rest of the session.
+     *
+     * @param directories
+     *            the canonical directory candidates selected from the permission
+     *            request
+     * @return a new session-scoped read-only result
+     */
+    public static PermissionRequestResult approveReadOnlyForSession(List<String> directories) {
+        return new PermissionRequestResult().setKind(PermissionRequestResultKind.APPROVE_READ_ONLY_FOR_SESSION)
+                .setDirectories(directories);
     }
 
     /**
@@ -177,6 +194,28 @@ public final class PermissionRequestResult {
      */
     public PermissionRequestResult setFeedback(String feedback) {
         this.feedback = feedback;
+        return this;
+    }
+
+    /**
+     * Gets the directories selected for a read-only approval.
+     *
+     * @return the selected canonical directories, or {@code null}
+     */
+    public List<String> getDirectories() {
+        return directories;
+    }
+
+    /**
+     * Sets the directories selected for a read-only approval.
+     *
+     * @param directories
+     *            the canonical directory candidates selected from the permission
+     *            request
+     * @return this result for method chaining
+     */
+    public PermissionRequestResult setDirectories(List<String> directories) {
+        this.directories = directories;
         return this;
     }
 

@@ -119,8 +119,9 @@ public class E2ETestContext implements AutoCloseable {
         // individual_pro user at context creation.
         Map<String, Object> defaultUser = new HashMap<>();
         defaultUser.put("login", "e2e-test-user");
+        defaultUser.put("id", 12345);
         defaultUser.put("copilot_plan", "individual_pro");
-        defaultUser.put("endpoints", Map.of("api", proxyUrl, "telemetry", "https://localhost:1/telemetry"));
+        defaultUser.put("endpoints", Map.of("api", proxyUrl, "telemetry", proxyUrl));
         defaultUser.put("analytics_tracking_id", "e2e-test-tracking-id");
         proxy.setCopilotUserByToken(DEFAULT_GITHUB_TOKEN, defaultUser);
 
@@ -395,12 +396,12 @@ public class E2ETestContext implements AutoCloseable {
             env.put("REQUESTS_CA_BUNDLE", caFile);
             env.put("CURL_CA_BUNDLE", caFile);
             env.put("GIT_SSL_CAINFO", caFile);
-            env.put("GH_TOKEN", DEFAULT_GITHUB_TOKEN);
-            env.put("GITHUB_TOKEN", DEFAULT_GITHUB_TOKEN);
             env.put("GH_ENTERPRISE_TOKEN", "");
             env.put("GITHUB_ENTERPRISE_TOKEN", "");
         }
 
+        env.put("GH_TOKEN", DEFAULT_GITHUB_TOKEN);
+        env.put("GITHUB_TOKEN", DEFAULT_GITHUB_TOKEN);
         return env;
     }
 

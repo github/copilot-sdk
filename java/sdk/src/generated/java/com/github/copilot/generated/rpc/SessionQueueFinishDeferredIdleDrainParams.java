@@ -23,7 +23,7 @@ import javax.annotation.processing.Generated;
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record SessionQueueFinishDeferredIdleDrainParams(
+record SessionQueueFinishDeferredIdleDrainParams(
     /** Target session identifier */
     @JsonProperty("sessionId") String sessionId,
     /** Whether the host still has active background work. */

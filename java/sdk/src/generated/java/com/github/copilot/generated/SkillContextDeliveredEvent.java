@@ -10,12 +10,16 @@ package com.github.copilot.generated;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
  * Session event "skill.context_delivered". Exact skill context delivered to the model during a tool phase. This is not a user submission or another skill invocation.
+ *
+ * @apiNote This event type is experimental and may change in a future version.
  * @since 1.0.0
  */
+@CopilotExperimental
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
@@ -31,6 +35,7 @@ public final class SkillContextDeliveredEvent extends SessionEvent {
     public void setData(SkillContextDeliveredEventData data) { this.data = data; }
 
     /** Data payload for {@link SkillContextDeliveredEvent}. */
+    @CopilotExperimental
     @JsonIgnoreProperties(ignoreUnknown = true)
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record SkillContextDeliveredEventData(

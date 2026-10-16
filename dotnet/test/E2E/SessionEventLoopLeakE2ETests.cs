@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 using GitHub.Copilot.Test.Harness;
+using GitHub.Copilot.Rpc;
 using System.Collections;
 using System.Reflection;
 using Xunit;
@@ -48,51 +49,12 @@ public class SessionEventLoopLeakE2ETests(E2ETestFixture fixture, ITestOutputHel
         return completion.IsCompleted;
     }
 
-    /// <summary>
-    /// Continuously scans <see cref="CopilotClient"/>'s session dictionary on a dedicated,
-    /// tightly-spinning thread (not the thread pool, and no <c>await</c>-based yielding) so
-    /// that even a sub-millisecond in-flight registration window — as seen with a fast local
-    /// RPC failure like a nonexistent-session resume — is reliably observed.
-    /// </summary>
-    private sealed class SessionSniffer : IDisposable
+    private static SessionFsConfig CreateSessionFsConfig() => new()
     {
-        private readonly List<CopilotSession> _seen = [];
-        private readonly Thread _thread;
-        private volatile bool _stop;
-
-        public SessionSniffer(IDictionary sessions)
-        {
-            _thread = new Thread(() =>
-            {
-                var iterations = 0L;
-                while (!_stop)
-                {
-                    iterations++;
-                    foreach (CopilotSession s in sessions.Values)
-                    {
-                        lock (_seen)
-                        {
-                            if (!_seen.Contains(s)) _seen.Add(s);
-                        }
-                    }
-                }
-                Iterations = iterations;
-            })
-            { IsBackground = true };
-            _thread.Start();
-        }
-
-        public long Iterations { get; private set; }
-
-        public IReadOnlyList<CopilotSession> Stop()
-        {
-            _stop = true;
-            _thread.Join();
-            lock (_seen) return [.. _seen];
-        }
-
-        public void Dispose() => _stop = true;
-    }
+        InitialWorkingDirectory = "/",
+        SessionStatePath = "/session-state",
+        Conventions = SessionFsSetProviderConventions.Posix,
+    };
 
     [Fact]
     public async Task CreateSessionAsync_Failure_Does_Not_Leak_The_Session_Or_Its_Event_Loop()
@@ -104,7 +66,11 @@ public class SessionEventLoopLeakE2ETests(E2ETestFixture fixture, ITestOutputHel
         {
             ["COPILOT_DEBUG_GITHUB_API_URL"] = Ctx.ProxyUrl,
         };
-        var client = Ctx.CreateClient(environment: env, autoInjectGitHubToken: false);
+        var client = Ctx.CreateClient(
+            options: new CopilotClientOptions { SessionFs = CreateSessionFsConfig() },
+            environment: env,
+            autoInjectGitHubToken: false);
+        var seen = new List<CopilotSession>();
 
         async Task CreateFailingAsync()
         {
@@ -112,31 +78,29 @@ public class SessionEventLoopLeakE2ETests(E2ETestFixture fixture, ITestOutputHel
             {
                 GitHubToken = "invalid-token",
                 OnPermissionRequest = PermissionHandler.ApproveAll,
+                CreateSessionFsProvider = session =>
+                {
+                    seen.Add(session);
+                    return new MissingSessionFsProvider();
+                },
             }));
             Assert.Contains("401", ex.ToString(), StringComparison.OrdinalIgnoreCase);
         }
 
         // Warm up: the first call establishes the CLI connection.
         await CreateFailingAsync();
+        seen.Clear();
 
         var sessions = GetSessionsMap(client);
 
-        // The session is registered (and its event-loop consumer started) before the RPC
-        // completes, and is only ever removed inside CreateSessionAsync's own catch block —
-        // by the time a failed call *returns* to us, RemoveFromClient() has already run, so
-        // polling the dictionary after each await observes nothing. We must instead observe
-        // it concurrently, while each call is still in flight, to capture the real session
-        // object and verify its event channel actually got closed.
-        using var sniffer = new SessionSniffer(sessions);
-
+        // The public provider factory exposes each wrapper before its failing RPC,
+        // without depending on a polling thread observing a transient registration.
         for (var i = 0; i < 20; i++)
         {
             await CreateFailingAsync();
         }
 
-        var seen = sniffer.Stop();
-
-        Assert.True(seen.Count > 0, "Test did not observe any in-flight session registrations; cannot validate the fix.");
+        Assert.Equal(20, seen.Count);
         Assert.Empty(sessions);
 
         foreach (var s in seen)
@@ -154,26 +118,28 @@ public class SessionEventLoopLeakE2ETests(E2ETestFixture fixture, ITestOutputHel
         // pre-registered session would land in a different, short-lived client's dictionary
         // that we'd never get to observe. A single, reused client lets us watch one
         // dictionary across all 20 failed calls.
-        var client = Ctx.CreateClient();
+        var client = Ctx.CreateClient(options: new CopilotClientOptions { SessionFs = CreateSessionFsConfig() });
         var sessions = GetSessionsMap(client);
+        var seen = new List<CopilotSession>();
 
         async Task ResumeNonExistentAsync()
         {
-            await Assert.ThrowsAnyAsync<Exception>(() =>
+            var exception = await Assert.ThrowsAnyAsync<Exception>(() =>
                 Ctx.ResumeSessionAsync(client, "non-existent-leak-check-session", new ResumeSessionConfig
                 {
                     OnPermissionRequest = PermissionHandler.ApproveAll,
+                    CreateSessionFsProvider = session =>
+                    {
+                        seen.Add(session);
+                        return new MissingSessionFsProvider();
+                    },
                 }));
+            Assert.Contains("not found", exception.ToString(), StringComparison.OrdinalIgnoreCase);
         }
 
         // Warm up: the first call establishes the CLI connection.
         await ResumeNonExistentAsync();
-
-        // Same rationale as the CreateSessionAsync test above: the pre-registered session is
-        // already removed from the dictionary by the time a failed call returns, so we must
-        // observe it concurrently, while the call is still in flight, to actually validate
-        // that its event channel got closed rather than just that it got unregistered.
-        using var sniffer = new SessionSniffer(sessions);
+        seen.Clear();
 
         var baseline = sessions.Count;
         for (var i = 0; i < 20; i++)
@@ -181,9 +147,7 @@ public class SessionEventLoopLeakE2ETests(E2ETestFixture fixture, ITestOutputHel
             await ResumeNonExistentAsync();
         }
 
-        var seen = sniffer.Stop();
-
-        Assert.True(seen.Count > 0, $"Test did not observe any in-flight session registrations (sniffer ran {sniffer.Iterations} iterations); cannot validate the fix.");
+        Assert.Equal(20, seen.Count);
 
         Assert.True(
             sessions.Count == baseline,
@@ -194,5 +158,37 @@ public class SessionEventLoopLeakE2ETests(E2ETestFixture fixture, ITestOutputHel
         {
             Assert.True(IsEventChannelClosed(s), "A failed ResumeSessionAsync's session had its event channel left open, leaking its background event-processing task.");
         }
+    }
+
+    private sealed class MissingSessionFsProvider : SessionFsProvider
+    {
+        protected override Task<string> ReadFileAsync(string path, CancellationToken cancellationToken) =>
+            throw new FileNotFoundException("Session file does not exist.", path);
+
+        protected override Task<bool> ExistsAsync(string path, CancellationToken cancellationToken) => Task.FromResult(false);
+
+        protected override Task<SessionFsStatResult> StatAsync(string path, CancellationToken cancellationToken) =>
+            throw new FileNotFoundException("Session file does not exist.", path);
+
+        protected override Task<IList<string>> ReadDirectoryAsync(string path, CancellationToken cancellationToken) =>
+            Task.FromResult<IList<string>>([]);
+
+        protected override Task<IList<SessionFsReaddirWithTypesEntry>> ReadDirectoryWithTypesAsync(string path, CancellationToken cancellationToken) =>
+            Task.FromResult<IList<SessionFsReaddirWithTypesEntry>>([]);
+
+        protected override Task WriteFileAsync(string path, string content, int? mode, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        protected override Task AppendFileAsync(string path, string content, int? mode, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        protected override Task MakeDirectoryAsync(string path, bool recursive, int? mode, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        protected override Task RemoveAsync(string path, bool recursive, bool force, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        protected override Task RenameAsync(string src, string dest, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
     }
 }

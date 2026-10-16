@@ -95,7 +95,7 @@ public final class TestUtil {
         return output;
     }
 
-    private static String findExecutableInPath(String name) {
+    static String findExecutableInPath(String name) {
         var pathValue = System.getenv("PATH");
         if (pathValue == null || pathValue.isEmpty()) {
             return null;

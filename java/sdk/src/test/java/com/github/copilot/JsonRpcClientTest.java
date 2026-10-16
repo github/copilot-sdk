@@ -24,6 +24,8 @@ import org.junit.jupiter.api.Test;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.copilot.generated.rpc.ServerRpc;
+import com.github.copilot.generated.rpc.SandboxProxyCaCheckRelevanceParams;
 
 class JsonRpcClientTest {
 
@@ -103,6 +105,26 @@ class JsonRpcClientTest {
     }
 
     // ---- notify() ----
+
+    @Test
+    void testGeneratedProxyCaQueriesPreserveBooleanResponses() throws Exception {
+        try (var pair = createSocketPair()) {
+            var server = new ServerRpc(pair.client::invoke);
+            for (boolean expected : new boolean[]{true, false}) {
+                for (String method : new String[]{"sandbox.proxyCa.checkInstallationSupport",
+                        "sandbox.proxyCa.checkRelevance"}) {
+                    CompletableFuture<?> result = method.endsWith("checkInstallationSupport")
+                            ? server.sandbox.proxyCa.checkInstallationSupport()
+                            : server.sandbox.proxyCa.checkRelevance(new SandboxProxyCaCheckRelevanceParams(null));
+                    JsonNode request = MAPPER.readTree(readRpcMessage(pair.serverSide.getInputStream()));
+                    assertEquals(method, request.get("method").asText());
+                    writeRpcMessage(pair.serverSide.getOutputStream(),
+                            "{\"jsonrpc\":\"2.0\",\"id\":" + request.get("id") + ",\"result\":" + expected + "}");
+                    assertEquals(expected, result.get(5, TimeUnit.SECONDS));
+                }
+            }
+        }
+    }
 
     @Test
     void testNotify() throws Exception {

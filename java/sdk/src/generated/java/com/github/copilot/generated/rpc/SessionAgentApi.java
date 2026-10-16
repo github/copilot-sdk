@@ -31,7 +31,7 @@ public final class SessionAgentApi {
     }
 
     /**
-     * Controls whether built-in agents and authored prompt text are included.
+     * Lists agents available to the session. Defaults to custom agents only; pass includeBuiltInAgents to include the effective built-in agents.
      * <p>
      * Invokes the method with no params, applying the runtime defaults.
      *
@@ -44,7 +44,7 @@ public final class SessionAgentApi {
     }
 
     /**
-     * Controls whether built-in agents and authored prompt text are included.
+     * Lists agents available to the session. Defaults to custom agents only; pass includeBuiltInAgents to include the effective built-in agents.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -60,7 +60,7 @@ public final class SessionAgentApi {
     }
 
     /**
-     * An in-memory authored prompt override for an available agent.
+     * Sets an in-memory authored prompt override for an available agent. For built-in agents, this replaces only the static base prompt while preserving runtime-owned dynamic prompt composition and behavior. The special `general-purpose` agent is not overrideable. Overrides are not persisted; resumed and forked sessions start without them, so the host must re-apply them.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -76,7 +76,7 @@ public final class SessionAgentApi {
     }
 
     /**
-     * Identifies the target session.
+     * Gets the currently selected custom agent for the session.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -87,7 +87,7 @@ public final class SessionAgentApi {
     }
 
     /**
-     * Name of the custom agent to select for subsequent turns.
+     * Selects a custom agent for subsequent turns in the session.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -103,7 +103,7 @@ public final class SessionAgentApi {
     }
 
     /**
-     * Identifies the target session.
+     * Clears the selected custom agent and returns the session to the default agent.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -114,7 +114,7 @@ public final class SessionAgentApi {
     }
 
     /**
-     * Identifies the target session.
+     * Reloads custom agent definitions and returns the refreshed list.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0

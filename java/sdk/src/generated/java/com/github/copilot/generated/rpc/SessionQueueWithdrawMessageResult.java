@@ -14,7 +14,7 @@ import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
- * Result of removing a queued item.
+ * Result of withdrawing a user message.
  *
  * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
@@ -24,7 +24,9 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionQueueWithdrawMessageResult(
-    /** True when the addressed item was removed. */
-    @JsonProperty("removed") Boolean removed
+    /** True when the message left the queue or, for a running turn, history. */
+    @JsonProperty("removed") Boolean removed,
+    /** True when the running turn was interrupted to withdraw the message. With removed false, the turn was interrupted but its events could not be removed, for example because the model answered first, so the message stays in the interrupted turn. */
+    @JsonProperty("interrupted") Boolean interrupted
 ) {
 }

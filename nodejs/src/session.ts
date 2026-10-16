@@ -8,7 +8,7 @@
  */
 
 import { AsyncLocalStorage } from "node:async_hooks";
-import type { MessageConnection } from "vscode-jsonrpc/node.js";
+import type { CancellationToken, MessageConnection } from "vscode-jsonrpc/node.js";
 import { ConnectionError, ErrorCodes, ResponseError } from "vscode-jsonrpc/node.js";
 import { createInternalSessionRpc, createSessionRpc } from "./generated/rpc.js";
 import type {
@@ -16,8 +16,7 @@ import type {
     CanvasActionInvokeResult,
     CurrentToolMetadata,
     McpOauthPendingRequestResponse,
-    FactoryLogLine,
-    FactoryRunResult as WireFactoryRunResult,
+    ProtocolExternalToolDefinition,
     WorkflowLogLine,
     WorkflowRunResult as WireWorkflowRunResult,
     ModelSwitchAutoTierResult,
@@ -46,7 +45,9 @@ import type {
     McpAuthHandler,
     McpAuthRequest,
     PermissionHandler,
+    PermissionHandlerInvocation,
     PermissionRequest,
+    PermissionRequestedData,
     PermissionRequestResult,
     ContextTier,
     ReasoningEffort,
@@ -61,32 +62,20 @@ import type {
     SessionEventType,
     SessionHooks,
     SessionUiApi,
+    SkillProvider,
+    SkillProviderCallOptions,
+    SkillProviderDescriptor,
     Tool,
     ToolHandler,
     ToolResult,
     ToolResultObject,
     TraceContextProvider,
+    TranscriptRecovery,
     TypedSessionEventHandler,
     UserInputHandler,
     UserInputRequest,
     UserInputResponse,
 } from "./types.js";
-import {
-    FACTORY_AGENT_OPTION_KEYS,
-    getFactoryDefinition,
-    FactoryResumeError,
-    isFactoryRunTerminal,
-    type FactoryResumeErrorCode,
-    type FactoryListRunsOptions,
-    type FactoryRunResult,
-    type FactoryAgentOptions,
-    type RunOptions,
-    type SessionFactoryApi,
-    type FactoryContext,
-    type FactoryHandle,
-    type JsonValue,
-    type FactoryStepOptions,
-} from "./factory.js";
 import {
     WORKFLOW_AGENT_OPTION_KEYS,
     getWorkflowDefinition,
@@ -100,32 +89,9 @@ import {
     type SessionWorkflowApi,
     type WorkflowContext,
     type WorkflowHandle,
+    type JsonValue,
     type WorkflowStepOptions,
 } from "./workflow.js";
-
-function isFactoryResumeErrorCode(value: unknown): value is FactoryResumeErrorCode {
-    return (
-        value === "not_found" ||
-        value === "non_resumable" ||
-        value === "already_active" ||
-        value === "factory_already_running" ||
-        value === "factory_limits_invalid" ||
-        value === "factory_session_disposed" ||
-        value === "factory_storage_unavailable" ||
-        value === "factory_storage_corrupt"
-    );
-}
-
-function copyDefinedFactoryAgentOption<TKey extends keyof FactoryAgentOptions>(
-    source: FactoryAgentOptions,
-    target: FactoryAgentOptions,
-    key: TKey
-): void {
-    const value = source[key];
-    if (value !== undefined) {
-        target[key] = value;
-    }
-}
 
 function isWorkflowResumeErrorCode(value: unknown): value is WorkflowResumeErrorCode {
     return (
@@ -152,19 +118,21 @@ function copyDefinedWorkflowAgentOption<TKey extends keyof WorkflowAgentOptions>
     }
 }
 
-type FactoryExecutionContext = {
-    active: boolean;
-    helperScope?: "parallel" | "pipeline";
-};
-
-const factoryExecutionStore = new AsyncLocalStorage<FactoryExecutionContext>();
-
-function throwIfFactoryExecutionIsActive(): void {
-    if (factoryExecutionStore.getStore()?.active) {
-        throw new Error(
-            "factory.run, factory.resume, and factory.pause are not allowed while a factory body is running on this call path."
-        );
-    }
+/**
+ * The wire definition `session.tools.set` takes for a tool, matching what
+ * session creation and resumption send for the same tool.
+ */
+function toToolDefinition(tool: Tool): ProtocolExternalToolDefinition {
+    return {
+        name: tool.name,
+        description: tool.description ?? "",
+        parameters: toJsonSchema(tool.parameters) as ProtocolExternalToolDefinition["parameters"],
+        overridesBuiltInTool: tool.overridesBuiltInTool,
+        skipPermission: tool.skipPermission,
+        defer: tool.defer,
+        metadata: tool.metadata as ProtocolExternalToolDefinition["metadata"],
+        isTerminal: tool.isTerminal,
+    };
 }
 
 type WorkflowExecutionContext = {
@@ -188,14 +156,6 @@ function runInWorkflowHelperScope<TResult>(
 ): Promise<TResult> | TResult {
     const current = workflowExecutionStore.getStore();
     return workflowExecutionStore.run({ active: current?.active ?? false, helperScope }, callback);
-}
-
-function runInFactoryHelperScope<TResult>(
-    helperScope: "parallel" | "pipeline",
-    callback: () => Promise<TResult> | TResult
-): Promise<TResult> | TResult {
-    const current = factoryExecutionStore.getStore();
-    return factoryExecutionStore.run({ active: current?.active ?? false, helperScope }, callback);
 }
 
 /**
@@ -225,6 +185,27 @@ function deserializeHookInput(raw: unknown): unknown {
     };
 }
 
+/**
+ * The CLI sends the `error` of an errorOccurred or sessionEnd hook input as an
+ * error object (`{ name, message, stack }` or `{ message }`), where the hook
+ * input types declare a string. The object's message becomes the error, and an
+ * object without a string message becomes its JSON. Other values pass through.
+ */
+function normalizeHookError(hookType: string, input: unknown): unknown {
+    if (hookType !== "errorOccurred" && hookType !== "sessionEnd") {
+        return input;
+    }
+    if (!input || typeof input !== "object" || !("error" in input)) {
+        return input;
+    }
+    const { error } = input as { error: unknown };
+    if (!error || typeof error !== "object" || Array.isArray(error)) {
+        return input;
+    }
+    const { message } = error as { message?: unknown };
+    return { ...input, error: typeof message === "string" ? message : JSON.stringify(error) };
+}
+
 function isOpenCanvasInstance(value: unknown): value is OpenCanvasInstance {
     if (!value || typeof value !== "object") {
         return false;
@@ -240,83 +221,15 @@ function isOpenCanvasInstance(value: unknown): value is OpenCanvasInstance {
     );
 }
 
-const FACTORY_LOG_FLUSH_DELAY_MS = 10;
-const MAX_FACTORY_FANOUT_ITEMS = 4096;
+const WORKFLOW_LOG_FLUSH_DELAY_MS = 10;
+const MAX_WORKFLOW_FANOUT_ITEMS = 4096;
 
-function assertFactoryFanoutSize(kind: "parallel" | "pipeline", size: number): void {
-    if (size > MAX_FACTORY_FANOUT_ITEMS) {
+function assertWorkflowFanoutSize(kind: "parallel" | "pipeline", size: number): void {
+    if (size > MAX_WORKFLOW_FANOUT_ITEMS) {
         throw new Error(
-            `${kind}() accepts at most ${MAX_FACTORY_FANOUT_ITEMS} items; got ${size}.`
+            `${kind}() accepts at most ${MAX_WORKFLOW_FANOUT_ITEMS} items; got ${size}.`
         );
     }
-}
-
-async function runFactoryParallel<TResult>(
-    thunks: Array<() => Promise<TResult> | TResult>
-): Promise<Array<TResult | null>> {
-    if (!Array.isArray(thunks)) {
-        throw new Error(
-            "parallel() expects an array of functions, not promises. Wrap each call: () => agent(...)"
-        );
-    }
-    assertFactoryFanoutSize("parallel", thunks.length);
-    if (thunks.some((thunk) => typeof thunk !== "function")) {
-        throw new Error(
-            "parallel() expects an array of functions, not promises. Wrap each call: () => agent(...)"
-        );
-    }
-    return Promise.all(
-        thunks.map((thunk) =>
-            Promise.resolve()
-                .then(() => runInFactoryHelperScope("parallel", thunk))
-                .catch((error) => {
-                    // Cancellation and hard runtime failures must propagate out
-                    // of the combinator rather than be mapped to a successful
-                    // `null`; otherwise an aborted run, or one that hit a
-                    // resource ceiling or durable-state failure, could be
-                    // reported as completed. An ordinary subagent failure never
-                    // rejects — it already resolves `null`.
-                    if (isFactoryFatalError(error)) {
-                        throw error;
-                    }
-                    return null;
-                })
-        )
-    );
-}
-
-async function runFactoryPipeline(
-    items: unknown[],
-    ...stages: Array<
-        (previous: unknown, item: unknown, index: number) => Promise<unknown> | unknown
-    >
-): Promise<unknown[]> {
-    if (!Array.isArray(items)) {
-        throw new Error("pipeline(items, ...stages): items must be an array");
-    }
-    assertFactoryFanoutSize("pipeline", items.length);
-    return Promise.all(
-        items.map(async (item, index) => {
-            let previous = item;
-            for (const stage of stages) {
-                try {
-                    previous = await runInFactoryHelperScope("pipeline", () =>
-                        stage(previous, item, index)
-                    );
-                } catch (error) {
-                    // Propagate cancellation and hard runtime failures instead
-                    // of mapping them to `null`, so an aborted stage — or one
-                    // that hit a resource ceiling or durable-state failure —
-                    // does not let the run report success.
-                    if (isFactoryFatalError(error)) {
-                        throw error;
-                    }
-                    return null;
-                }
-            }
-            return previous;
-        })
-    );
 }
 
 async function runWorkflowParallel<TResult>(
@@ -327,7 +240,7 @@ async function runWorkflowParallel<TResult>(
             "parallel() expects an array of functions, not promises. Wrap each call: () => agent(...)"
         );
     }
-    assertFactoryFanoutSize("parallel", thunks.length);
+    assertWorkflowFanoutSize("parallel", thunks.length);
     if (thunks.some((thunk) => typeof thunk !== "function")) {
         throw new Error(
             "parallel() expects an array of functions, not promises. Wrap each call: () => agent(...)"
@@ -338,7 +251,7 @@ async function runWorkflowParallel<TResult>(
             Promise.resolve()
                 .then(() => runInWorkflowHelperScope("parallel", thunk))
                 .catch((error) => {
-                    if (isFactoryFatalError(error)) {
+                    if (isWorkflowFatalError(error)) {
                         throw error;
                     }
                     return null;
@@ -356,7 +269,7 @@ async function runWorkflowPipeline(
     if (!Array.isArray(items)) {
         throw new Error("pipeline(items, ...stages): items must be an array");
     }
-    assertFactoryFanoutSize("pipeline", items.length);
+    assertWorkflowFanoutSize("pipeline", items.length);
     return Promise.all(
         items.map(async (item, index) => {
             let previous = item;
@@ -366,7 +279,7 @@ async function runWorkflowPipeline(
                         stage(previous, item, index)
                     );
                 } catch (error) {
-                    if (isFactoryFatalError(error)) {
+                    if (isWorkflowFatalError(error)) {
                         throw error;
                     }
                     return null;
@@ -375,89 +288,6 @@ async function runWorkflowPipeline(
             return previous;
         })
     );
-}
-
-class FactoryProgressBuffer {
-    private nextSeq = 0;
-    private pending: FactoryLogLine[] = [];
-    private flushTimer?: ReturnType<typeof setTimeout>;
-    private flushTail: Promise<void> = Promise.resolve();
-    private flushError: unknown;
-    private flushFailed = false;
-    private closed = false;
-
-    constructor(private readonly send: (lines: FactoryLogLine[]) => Promise<void>) {}
-
-    enqueue(kind: FactoryLogLine["kind"], text: string): void {
-        if (this.closed) {
-            throw new Error("Cannot log after the factory run has settled");
-        }
-
-        this.pending.push({ seq: this.nextSeq++, kind, text });
-        this.scheduleFlush();
-    }
-
-    async flush(): Promise<void> {
-        this.clearFlushTimer();
-        const lines = this.pending.splice(0);
-        if (lines.length > 0) {
-            this.flushTail = this.flushTail.then(async () => {
-                try {
-                    await this.send(lines);
-                } catch (error) {
-                    if (!this.flushFailed) {
-                        this.flushFailed = true;
-                        this.flushError = error;
-                    }
-                }
-            });
-        }
-        await this.flushTail;
-        if (this.flushFailed) {
-            throw this.flushError;
-        }
-    }
-
-    async close(): Promise<void> {
-        this.closed = true;
-        this.clearFlushTimer();
-        const lines = this.pending.splice(0);
-        await this.flushTail;
-        if (this.flushFailed) {
-            console.warn(
-                "Ignoring a background factory progress flush failure after the factory body settled",
-                this.flushError
-            );
-        }
-        if (lines.length > 0) {
-            try {
-                await this.send(lines);
-            } catch (error) {
-                console.warn(
-                    "Failed to flush final factory progress after the factory body settled",
-                    error
-                );
-            }
-        }
-    }
-
-    private scheduleFlush(): void {
-        if (this.flushTimer !== undefined) {
-            return;
-        }
-        this.flushTimer = setTimeout(() => {
-            this.flushTimer = undefined;
-            void this.flush().catch(() => {});
-        }, FACTORY_LOG_FLUSH_DELAY_MS);
-        this.flushTimer.unref?.();
-    }
-
-    private clearFlushTimer(): void {
-        if (this.flushTimer !== undefined) {
-            clearTimeout(this.flushTimer);
-            this.flushTimer = undefined;
-        }
-    }
 }
 
 class WorkflowProgressBuffer {
@@ -530,7 +360,7 @@ class WorkflowProgressBuffer {
         this.flushTimer = setTimeout(() => {
             this.flushTimer = undefined;
             void this.flush().catch(() => {});
-        }, FACTORY_LOG_FLUSH_DELAY_MS);
+        }, WORKFLOW_LOG_FLUSH_DELAY_MS);
         this.flushTimer.unref?.();
     }
 
@@ -542,7 +372,7 @@ class WorkflowProgressBuffer {
     }
 }
 
-async function awaitFactoryOperation<TResult>(
+async function awaitWorkflowOperation<TResult>(
     operation: () => Promise<TResult>,
     signal: AbortSignal
 ): Promise<TResult> {
@@ -553,29 +383,16 @@ async function awaitFactoryOperation<TResult>(
         rejectAbort = reject;
     });
     const onAbort = () =>
-        rejectAbort?.(signal.reason ?? new DOMException("Factory run was aborted", "AbortError"));
+        rejectAbort?.(signal.reason ?? new DOMException("Workflow run was aborted", "AbortError"));
     // Register before the abort check and before dispatching, so an abort can
     // neither be missed by a not-yet-attached listener nor start work on an
     // already-cancelled run.
     signal.addEventListener("abort", onAbort, { once: true });
     try {
-        throwIfFactoryAborted(signal);
+        throwIfWorkflowAborted(signal);
         return await Promise.race([operation(), abortPromise]);
     } finally {
         signal.removeEventListener("abort", onAbort);
-    }
-}
-
-async function awaitWorkflowOperation<TResult>(
-    operation: () => Promise<TResult>,
-    signal: AbortSignal
-): Promise<TResult> {
-    return awaitFactoryOperation(operation, signal);
-}
-
-function throwIfFactoryAborted(signal: AbortSignal): void {
-    if (signal.aborted) {
-        throw signal.reason ?? new DOMException("Factory run was aborted", "AbortError");
     }
 }
 
@@ -586,11 +403,11 @@ function throwIfWorkflowAborted(signal: AbortSignal): void {
 }
 
 /**
- * Whether an error represents factory run cancellation (an `AbortError`-shaped
- * rejection from {@link awaitFactoryOperation}). Cancellation must bubble out of
+ * Whether an error represents workflow run cancellation (an `AbortError`-shaped
+ * rejection from {@link awaitWorkflowOperation}). Cancellation must bubble out of
  * `parallel`/`pipeline` rather than being flattened into a `null` result.
  */
-function isFactoryAbortError(error: unknown): boolean {
+function isWorkflowAbortError(error: unknown): boolean {
     return (
         typeof error === "object" &&
         error !== null &&
@@ -600,7 +417,7 @@ function isFactoryAbortError(error: unknown): boolean {
 }
 
 /**
- * Errors a factory combinator must never swallow into a `null` item.
+ * Errors a workflow combinator must never swallow into a `null` item.
  *
  * Cooperative cancellation aborts the run, and a rejected RPC is a hard
  * runtime failure — a reached limit, a durable-state failure, or a dropped
@@ -608,9 +425,9 @@ function isFactoryAbortError(error: unknown): boolean {
  * successfully-`null` item. An ordinary subagent failure does not reject; the
  * runtime already resolves it as `null`.
  */
-function isFactoryFatalError(error: unknown): boolean {
+function isWorkflowFatalError(error: unknown): boolean {
     return (
-        isFactoryAbortError(error) ||
+        isWorkflowAbortError(error) ||
         error instanceof ResponseError ||
         error instanceof ConnectionError
     );
@@ -653,16 +470,17 @@ const TOOL_SEARCH_TOOL_NAME = "tool_search_tool";
  */
 
 export class CopilotSession {
+    private _transcriptRecovery?: TranscriptRecovery;
     private eventHandlers: Set<SessionEventHandler> = new Set();
     private typedEventHandlers: Map<SessionEventType, Set<(event: SessionEvent) => void>> =
         new Map();
     private toolHandlers: Map<string, ToolHandler> = new Map();
+    /** Settles once every earlier `setTools` call has finished. */
+    private setToolsQueue: Promise<void> = Promise.resolve();
     private pendingExternalTools: Map<string, AbortController> = new Map();
     private canvases: Map<string, Canvas> = new Map();
     private bearerTokenProviders: Map<string, BearerTokenProvider> = new Map();
     private commandHandlers: Map<string, CommandHandler> = new Map();
-    private factories = new Map<string, ReturnType<typeof getFactoryDefinition>>();
-    private factoryAbortControllers = new Map<string, Map<string, AbortController>>();
     private workflows = new Map<string, ReturnType<typeof getWorkflowDefinition>>();
     private workflowAbortControllers = new Map<string, Map<string, AbortController>>();
     private permissionHandler?: PermissionHandler;
@@ -671,6 +489,7 @@ export class CopilotSession {
     private elicitationHandler?: ElicitationHandler;
     private exitPlanModeHandler?: ExitPlanModeHandler;
     private autoModeSwitchHandler?: AutoModeSwitchHandler;
+    private skillProvider?: SkillProvider;
     private hooks?: SessionHooks;
     private transformCallbacks?: Map<string, SectionTransformFn>;
     private _rpc: ReturnType<typeof createSessionRpc> | null = null;
@@ -680,6 +499,7 @@ export class CopilotSession {
     private _capabilities: SessionCapabilities = {};
     private openCanvasInstances: OpenCanvasInstance[] = [];
     private disconnected = false;
+    private readonly pendingResponseWaits = new Set<(error: Error) => void>();
     private readonly pendingStructuredWaits = new Set<(error: Error) => void>();
     private disconnecting = false;
     private onDisconnected?: () => void;
@@ -688,81 +508,11 @@ export class CopilotSession {
     clientSessionApis: ClientSessionApiHandlers = {};
 
     /**
-     * Friendly factory API for running registered factories by name or handle.
+     * Friendly workflow API for running registered workflows by name or handle.
      *
-     * @experimental Part of the experimental Agent Factories surface and may
+     * @experimental Part of the experimental Dynamic Workflows surface and may
      * change or be removed in future SDK or CLI releases.
      */
-    readonly factory: SessionFactoryApi = {
-        run: (async (
-            nameOrHandle: string | FactoryHandle,
-            options?: RunOptions
-        ): Promise<unknown> => {
-            throwIfFactoryExecutionIsActive();
-            const name =
-                typeof nameOrHandle === "string"
-                    ? nameOrHandle
-                    : getFactoryDefinition(nameOrHandle).meta.name;
-            if (options?.resumeFromRunId !== undefined) {
-                return this.factory.resume(options.resumeFromRunId, {
-                    limits: options.limits,
-                    notifyOnComplete: options.notifyOnComplete,
-                    logPhaseNames: options.logPhaseNames,
-                });
-            }
-            const envelope = await this.rpc.factory.run({
-                name,
-                args: options?.args === undefined ? {} : options.args,
-                options: {
-                    limits: options?.limits,
-                    notifyOnComplete: options?.notifyOnComplete,
-                    logPhaseNames: options?.logPhaseNames,
-                },
-            });
-
-            return this.settleFactoryRun(envelope);
-        }) as SessionFactoryApi["run"],
-        resume: (async (runId: string, options?: Parameters<SessionFactoryApi["resume"]>[1]) => {
-            throwIfFactoryExecutionIsActive();
-            let response;
-            try {
-                response = await this.rpc.factory.resume({
-                    runId,
-                    limits: options?.limits,
-                    notifyOnComplete: options?.notifyOnComplete,
-                    logPhaseNames: options?.logPhaseNames,
-                });
-            } catch (error) {
-                if (
-                    error instanceof ResponseError &&
-                    typeof error.data === "object" &&
-                    error.data !== null
-                ) {
-                    const code = (error.data as { code?: unknown }).code;
-                    if (isFactoryResumeErrorCode(code)) {
-                        throw new FactoryResumeError(code, error.message);
-                    }
-                }
-                throw error;
-            }
-            return this.settleFactoryRun(response.run);
-        }) as SessionFactoryApi["resume"],
-        getRun: async (runId) => this.rpc.factory.getRun({ runId }),
-        waitForRun: (runId, options) => this.waitForFactoryRun(runId, options?.signal),
-        listRuns: (async (options?: FactoryListRunsOptions) => {
-            const page = await this.rpc.factory.listRuns(options ?? {});
-            return options === undefined ? page.runs : page;
-        }) as SessionFactoryApi["listRuns"],
-        getRunDetail: (runId) => this.rpc.factory.getRunDetail({ runId }),
-        getRunProgress: (runId, options = {}) =>
-            this.rpc.factory.getRunProgress({ runId, ...options }),
-        pause: async (runId) => {
-            throwIfFactoryExecutionIsActive();
-            return this.rpc.factory.pause({ runId });
-        },
-        cancel: async (runId) => this.rpc.factory.cancel({ runId }),
-    };
-
     readonly workflow: SessionWorkflowApi = {
         run: (async (
             nameOrHandle: string | WorkflowHandle,
@@ -825,104 +575,6 @@ export class CopilotSession {
         },
         cancel: async (runId) => this.rpc.workflow.cancel({ runId }),
     };
-
-    /**
-     * Resolve a start/resume envelope into the terminal envelope callers expect.
-     *
-     * The CLI may answer `session.factory.run` and `session.factory.resume`
-     * before the run settles, so a non-terminal envelope is followed by a wait
-     * on the run's terminal state.
-     */
-    private settleFactoryRun(envelope: WireFactoryRunResult): Promise<FactoryRunResult> {
-        if (isFactoryRunTerminal(envelope.status)) {
-            return Promise.resolve(envelope);
-        }
-        return this.waitForFactoryRun(envelope.runId);
-    }
-
-    /**
-     * Resolve when a factory run reaches a terminal status.
-     *
-     * The subscription is installed *before* the first read so a transition
-     * landing between the two cannot be missed, and re-reads are serialized so
-     * overlapping invalidation events cannot interleave — the run's revision
-     * advances once per operation, so a burst of events is common and must
-     * collapse into a single in-flight read. A bounded periodic re-read keeps a
-     * dropped invalidation from leaving the wait pending forever.
-     */
-    private waitForFactoryRun(runId: string, signal?: AbortSignal): Promise<FactoryRunResult> {
-        const abortError = (): unknown =>
-            signal?.reason ?? new DOMException("Factory run wait was aborted", "AbortError");
-        if (signal?.aborted === true) {
-            return Promise.reject(abortError());
-        }
-
-        return new Promise<FactoryRunResult>((resolve, reject) => {
-            let settled = false;
-            let reading = false;
-            let rereadRequested = false;
-            let pollHandle: ReturnType<typeof setInterval> | undefined;
-            let unsubscribe: (() => void) | undefined;
-            let onAbort: (() => void) | undefined;
-
-            const finish = (complete: () => void): void => {
-                if (settled) {
-                    return;
-                }
-                settled = true;
-                if (pollHandle !== undefined) {
-                    clearInterval(pollHandle);
-                }
-                unsubscribe?.();
-                if (onAbort !== undefined) {
-                    signal?.removeEventListener("abort", onAbort);
-                }
-                complete();
-            };
-
-            const read = async (): Promise<void> => {
-                if (settled) {
-                    return;
-                }
-                if (reading) {
-                    rereadRequested = true;
-                    return;
-                }
-                reading = true;
-                try {
-                    do {
-                        rereadRequested = false;
-                        const envelope = await this.rpc.factory.getRun({ runId });
-                        if (isFactoryRunTerminal(envelope.status)) {
-                            finish(() => resolve(envelope));
-                            return;
-                        }
-                    } while (rereadRequested && !settled);
-                } catch (error) {
-                    finish(() => reject(error));
-                } finally {
-                    reading = false;
-                }
-            };
-
-            if (signal !== undefined) {
-                onAbort = (): void => finish(() => reject(abortError()));
-                signal.addEventListener("abort", onAbort, { once: true });
-            }
-
-            unsubscribe = this.on("factory.run_updated", (event) => {
-                if (event.data.runId === runId) {
-                    void read();
-                }
-            });
-
-            pollHandle = setInterval(() => void read(), 5_000);
-            // The re-read is a safety net, not work the process owes anyone: an
-            // outstanding wait must never keep Node alive on its own.
-            pollHandle.unref?.();
-            void read();
-        });
-    }
 
     private settleWorkflowRun(envelope: WireWorkflowRunResult): Promise<WorkflowRunResult> {
         if (isWorkflowRunTerminal(envelope.status)) {
@@ -1001,7 +653,7 @@ export class CopilotSession {
                 signal.addEventListener("abort", onAbort, { once: true });
             }
 
-            unsubscribe = this.on("factory.run_updated", (event) => {
+            unsubscribe = this.on("workflow.run_updated", (event) => {
                 if (event.data.runId === runId) {
                     void read();
                 }
@@ -1066,6 +718,16 @@ export class CopilotSession {
      */
     get workspacePath(): string | undefined {
         return this._workspacePath;
+    }
+
+    /** Recovery observed while loading this session; undefined on a clean resume. */
+    get transcriptRecovery(): TranscriptRecovery | undefined {
+        return this._transcriptRecovery;
+    }
+
+    /** @internal */
+    setTranscriptRecovery(recovery: TranscriptRecovery | undefined): void {
+        this._transcriptRecovery = recovery;
     }
 
     /**
@@ -1156,6 +818,7 @@ export class CopilotSession {
      * assistant has finished processing the message.
      *
      * Events are still delivered to handlers registered via {@link on} while waiting.
+     * Sub-agent events with a non-empty `agentId` do not complete the wait or supply its reply.
      * With a schema as the second argument, returns its parsed, validated result.
      * Structured waits select only root-agent output originating from this send;
      * other queued work may delay session.idle but cannot replace the result.
@@ -1238,6 +901,7 @@ export class CopilotSession {
         // Register event handler BEFORE calling send to avoid race condition
         // where session.idle fires before we start listening
         const unsubscribe = this.on((event) => {
+            if (event.agentId) return;
             if (event.type === "assistant.message") {
                 lastAssistantMessage = event;
             } else if (event.type === "session.idle" && event.data.mode !== "autopilot") {
@@ -1248,6 +912,8 @@ export class CopilotSession {
                 resolveOutcome({ kind: "error", error });
             }
         });
+        const fail = (error: Error) => resolveOutcome({ kind: "error", error });
+        this.pendingResponseWaits.add(fail);
 
         let timeoutId: ReturnType<typeof setTimeout> | undefined;
         try {
@@ -1275,6 +941,7 @@ export class CopilotSession {
                 clearTimeout(timeoutId);
             }
             unsubscribe();
+            this.pendingResponseWaits.delete(fail);
         }
     }
 
@@ -1376,12 +1043,22 @@ export class CopilotSession {
         }
     }
 
+    private assertConnected(): void {
+        if (this.disconnected) {
+            throw new Error("Session is disconnected");
+        }
+    }
+
     /** @internal */
     _markDisconnected(): void {
         if (this.disconnected) {
             return;
         }
         this.disconnected = true;
+        for (const fail of this.pendingResponseWaits) {
+            fail(new Error("Session disconnected while waiting for a response"));
+        }
+        this.pendingResponseWaits.clear();
         for (const fail of this.pendingStructuredWaits) {
             fail(new Error("Session disconnected while waiting for a structured response"));
         }
@@ -1390,24 +1067,21 @@ export class CopilotSession {
             controller.abort();
         }
         this.pendingExternalTools.clear();
-        this._runOnDisconnected();
         this.eventHandlers.clear();
         this.typedEventHandlers.clear();
         this.toolHandlers.clear();
         this.permissionHandler = undefined;
+        this.mcpAuthHandler = undefined;
         this.userInputHandler = undefined;
         this.elicitationHandler = undefined;
         this.exitPlanModeHandler = undefined;
         this.autoModeSwitchHandler = undefined;
+        this.skillProvider = undefined;
+        this.hooks = undefined;
+        this.traceContextProvider = undefined;
+        this.bearerTokenProviders.clear();
         this.commandHandlers.clear();
         this.canvases.clear();
-        this.factories.clear();
-        for (const controllersForRun of this.factoryAbortControllers.values()) {
-            for (const controller of controllersForRun.values()) {
-                controller.abort();
-            }
-        }
-        this.factoryAbortControllers.clear();
         this.workflows.clear();
         for (const controllersForRun of this.workflowAbortControllers.values()) {
             for (const controller of controllersForRun.values()) {
@@ -1415,17 +1089,24 @@ export class CopilotSession {
             }
         }
         this.workflowAbortControllers.clear();
-        this.transformCallbacks?.clear();
+        this.transformCallbacks = undefined;
+        delete this.clientSessionApis.providerToken;
+        delete this.clientSessionApis.canvas;
+        delete this.clientSessionApis.workflow;
+        delete this.clientSessionApis.sessionFs;
+        this._runOnDisconnected();
     }
 
     /** @internal */
     _runOnDisconnected(): void {
-        this.onDisconnected?.();
+        const callback = this.onDisconnected;
         this.onDisconnected = undefined;
+        callback?.();
     }
 
     /** @internal */
     _setOnDisconnected(callback: () => void): void {
+        this.assertConnected();
         this.onDisconnected = callback;
     }
 
@@ -1481,6 +1162,9 @@ export class CopilotSession {
         eventTypeOrHandler: K | SessionEventHandler,
         handler?: TypedSessionEventHandler<K>
     ): () => void {
+        if (this.disconnected) {
+            throw new Error("Session is disconnected");
+        }
         // Overload 1: on(eventType, handler) - typed event subscription
         if (typeof eventTypeOrHandler === "string" && handler) {
             const eventType = eventTypeOrHandler;
@@ -1570,7 +1254,8 @@ export class CopilotSession {
                     args,
                     handler,
                     traceparent,
-                    tracestate
+                    tracestate,
+                    event.agentId || undefined
                 );
             }
         } else if (event.type === "external_tool.completed") {
@@ -1583,16 +1268,13 @@ export class CopilotSession {
                 }
             }
         } else if (event.type === "permission.requested") {
-            const { requestId, permissionRequest, resolvedByHook } = event.data as {
-                requestId: string;
-                permissionRequest: PermissionRequest;
-                resolvedByHook?: boolean;
-            };
+            const { requestId, permissionRequest, promptRequest, resolvedByHook } =
+                event.data as PermissionRequestedData;
             if (resolvedByHook) {
                 return; // Already resolved by a permissionRequest hook; no client action needed.
             }
             if (this.permissionHandler) {
-                void this._executePermissionAndRespond(requestId, permissionRequest);
+                void this._executePermissionAndRespond(requestId, permissionRequest, promptRequest);
             }
         } else if (event.type === "mcp.oauth_required") {
             const data = event.data as McpAuthRequest | undefined;
@@ -1689,7 +1371,8 @@ export class CopilotSession {
         args: unknown,
         handler: ToolHandler,
         traceparent?: string,
-        tracestate?: string
+        tracestate?: string,
+        agentId?: string
     ): Promise<void> {
         const controller = new AbortController();
         if (this.disconnected || this.pendingExternalTools.has(requestId)) {
@@ -1735,6 +1418,8 @@ export class CopilotSession {
                 traceparent,
                 tracestate,
                 signal: controller.signal,
+                agentId,
+                requestId,
             });
             let result: ToolResult;
             if (rawResult == null) {
@@ -1785,13 +1470,16 @@ export class CopilotSession {
      */
     private async _executePermissionAndRespond(
         requestId: string,
-        permissionRequest: PermissionRequest
+        permissionRequest: PermissionRequest,
+        promptRequest?: PermissionRequestedData["promptRequest"]
     ): Promise<void> {
         try {
-            const handlerResult = await this.permissionHandler!(permissionRequest, {
+            const invocation: PermissionHandlerInvocation = {
                 sessionId: this.sessionId,
                 managedSettingsEnabled: this.managedSettingsEnabled,
-            });
+                ...(promptRequest === undefined ? {} : { promptRequest }),
+            };
+            const handlerResult = await this.permissionHandler!(permissionRequest, invocation);
             const isAttributed = isAttributedPermissionResult(handlerResult);
             const result: PermissionRequestResult = isAttributed
                 ? handlerResult.result
@@ -1918,6 +1606,7 @@ export class CopilotSession {
      * @internal This method is typically called internally when creating a session with tools.
      */
     registerTools(tools?: Tool[]): void {
+        this.assertConnected();
         this.toolHandlers.clear();
         if (!tools) {
             return;
@@ -1925,7 +1614,29 @@ export class CopilotSession {
 
         for (const tool of tools) {
             if (tool.handler) {
-                this.toolHandlers.set(tool.name, tool.handler);
+                const handler = tool.handler;
+                if (
+                    tool.name === "apply_patch" &&
+                    tool.overridesBuiltInTool &&
+                    toJsonSchema(tool.parameters)?.type === "string"
+                ) {
+                    this.toolHandlers.set(tool.name, (args, invocation) => {
+                        if (typeof args === "string") {
+                            return handler(args, invocation);
+                        }
+                        if (
+                            typeof args === "object" &&
+                            args !== null &&
+                            "input" in args &&
+                            typeof args.input === "string"
+                        ) {
+                            return handler(args.input, invocation);
+                        }
+                        throw new TypeError("apply_patch string override requires a string input");
+                    });
+                } else {
+                    this.toolHandlers.set(tool.name, handler);
+                }
             }
         }
     }
@@ -1948,6 +1659,7 @@ export class CopilotSession {
      * @internal Called by the SDK when creating/resuming a session with `canvases`.
      */
     registerCanvases(canvases?: Canvas[]): void {
+        this.assertConnected();
         this.canvases.clear();
         if (!canvases || canvases.length === 0) {
             delete this.clientSessionApis.canvas;
@@ -1999,219 +1711,13 @@ export class CopilotSession {
     }
 
     /**
-     * Registers factory closures and reverse-RPC handlers for this session.
-     *
-     * @param factories - Factory handles declared by the joining extension.
-     * @internal Called by the SDK when an extension joins a session.
-     */
-    registerFactories(factories?: FactoryHandle[]): void {
-        this.factories.clear();
-        if (!factories || factories.length === 0) {
-            delete this.clientSessionApis.factory;
-            return;
-        }
-
-        for (const handle of factories) {
-            const definition = getFactoryDefinition(handle);
-            if (this.factories.has(definition.meta.name)) {
-                throw new Error(
-                    `Duplicate factory name "${definition.meta.name}". Factory names must be unique within a joinSession call.`
-                );
-            }
-            this.factories.set(definition.meta.name, definition);
-        }
-
-        const self = this;
-        this.clientSessionApis.factory = {
-            async execute(params) {
-                const definition = self.factories.get(params.name);
-                if (!definition) {
-                    const message = `No factory registered with name "${params.name}"`;
-                    throw new ResponseError(ErrorCodes.InvalidParams, message, {
-                        code: "factory_not_found",
-                        name: params.name,
-                    });
-                }
-
-                const controller = new AbortController();
-                // Keyed by execution token as well as run ID so overlapping
-                // attempts for one run stay individually addressable.
-                let controllersForRun = self.factoryAbortControllers.get(params.runId);
-                if (controllersForRun === undefined) {
-                    controllersForRun = new Map();
-                    self.factoryAbortControllers.set(params.runId, controllersForRun);
-                }
-                controllersForRun.set(params.executionToken, controller);
-                const progress = new FactoryProgressBuffer(async (lines) => {
-                    await self.rpc.factory.log({
-                        runId: params.runId,
-                        executionToken: params.executionToken,
-                        lines,
-                    });
-                });
-                try {
-                    const context: FactoryContext = {
-                        runId: params.runId,
-                        args: params.args,
-                        session: self,
-                        signal: controller.signal,
-                        phase: (title: string) => {
-                            throwIfFactoryAborted(controller.signal);
-                            progress.enqueue("phase", title);
-                        },
-                        log: (message: string) => {
-                            throwIfFactoryAborted(controller.signal);
-                            progress.enqueue("log", message);
-                        },
-                        agent: async (prompt, options = {}) => {
-                            await progress.flush();
-                            const opts: FactoryAgentOptions = {};
-                            for (const key of FACTORY_AGENT_OPTION_KEYS) {
-                                copyDefinedFactoryAgentOption(options, opts, key);
-                            }
-                            const response = await awaitFactoryOperation(
-                                () =>
-                                    self.rpc.factory.agent({
-                                        factoryRunId: params.runId,
-                                        executionToken: params.executionToken,
-                                        prompt,
-                                        opts,
-                                    }),
-                                controller.signal
-                            );
-                            return response.result ?? null;
-                        },
-                        step: async (
-                            key: string,
-                            producer: () => Promise<JsonValue> | JsonValue,
-                            options: FactoryStepOptions = {}
-                        ): Promise<JsonValue> => {
-                            await progress.flush();
-                            if (options.volatile) {
-                                // The flush above is an await point, so an abort can land
-                                // between entering step() and running the producer. The
-                                // journaled branch is covered by awaitFactoryOperation;
-                                // this one has to check for itself, or a cancelled run
-                                // would still start new extension work.
-                                throwIfFactoryAborted(controller.signal);
-                                return producer();
-                            }
-                            const cached = await awaitFactoryOperation(
-                                () =>
-                                    self.rpc.factory.journal.get({
-                                        runId: params.runId,
-                                        executionToken: params.executionToken,
-                                        key,
-                                    }),
-                                controller.signal
-                            );
-                            if (cached.hit) {
-                                if (cached.resultJson === undefined) {
-                                    throw new Error(
-                                        `step("${key}") journal returned a hit without a result`
-                                    );
-                                }
-                                assertFactoryStepResult(cached.resultJson, key);
-                                return cached.resultJson;
-                            }
-
-                            // Producers are best-effort at-least-once across crashes or
-                            // concurrent callers, so authors must make side effects idempotent.
-                            const result = await producer();
-                            assertFactoryStepResult(result, key);
-                            await awaitFactoryOperation(
-                                () =>
-                                    self.rpc.factory.journal.put({
-                                        runId: params.runId,
-                                        executionToken: params.executionToken,
-                                        key,
-                                        resultJson: result,
-                                    }),
-                                controller.signal
-                            );
-                            return result;
-                        },
-                        pause: async (key: string): Promise<void> => {
-                            if (typeof key !== "string" || key.length === 0) {
-                                throw new Error("Factory pause checkpoint key must not be empty");
-                            }
-                            const helperScope = factoryExecutionStore.getStore()?.helperScope;
-                            if (helperScope !== undefined) {
-                                throw new Error(
-                                    `Factory pause checkpoints are not allowed inside ${helperScope}() branches`
-                                );
-                            }
-                            await progress.flush();
-                            const response = await awaitFactoryOperation(
-                                () =>
-                                    self.internalRpc.factory.pauseAtCheckpoint({
-                                        runId: params.runId,
-                                        executionToken: params.executionToken,
-                                        key,
-                                    }),
-                                controller.signal
-                            );
-                            switch (response.action) {
-                                case "continue":
-                                    return;
-                                case "pause":
-                                    await awaitFactoryOperation(
-                                        () => new Promise<never>(() => {}),
-                                        controller.signal
-                                    );
-                            }
-                        },
-                        parallel: runFactoryParallel,
-                        pipeline: runFactoryPipeline,
-                        factory: async () => {
-                            throw new Error("nested factories are not supported");
-                        },
-                    };
-                    const execution = { active: true };
-                    const result = await factoryExecutionStore.run(execution, async () => {
-                        try {
-                            return await definition.run(context);
-                        } finally {
-                            execution.active = false;
-                        }
-                    });
-                    if (result === undefined) {
-                        return {};
-                    }
-                    assertFactoryResult(result);
-                    return { result };
-                } finally {
-                    try {
-                        await progress.close();
-                    } finally {
-                        const controllersForRun = self.factoryAbortControllers.get(params.runId);
-                        if (controllersForRun?.get(params.executionToken) === controller) {
-                            controllersForRun.delete(params.executionToken);
-                            if (controllersForRun.size === 0) {
-                                self.factoryAbortControllers.delete(params.runId);
-                            }
-                        }
-                    }
-                }
-            },
-            async abort(params) {
-                const controllersForRun = self.factoryAbortControllers.get(params.runId);
-                const controller = controllersForRun?.get(params.executionToken);
-                if (controller !== undefined) {
-                    controller.abort(new DOMException("Factory run was aborted", "AbortError"));
-                }
-                return {};
-            },
-        };
-    }
-
-    /**
      * Registers workflow closures and reverse-RPC handlers for this session.
      *
      * @param workflows - Workflow handles declared by the joining extension.
      * @internal Called by the SDK when an extension joins a session.
      */
     registerWorkflows(workflows?: WorkflowHandle[]): void {
+        this.assertConnected();
         this.workflows.clear();
         if (!workflows || workflows.length === 0) {
             delete this.clientSessionApis.workflow;
@@ -2425,6 +1931,7 @@ export class CopilotSession {
      * @internal This method is called internally when creating/resuming a session.
      */
     registerBearerTokenProviders(providers?: Map<string, BearerTokenProvider>): void {
+        this.assertConnected();
         this.bearerTokenProviders.clear();
         if (!providers || providers.size === 0) {
             delete this.clientSessionApis.providerToken;
@@ -2437,6 +1944,7 @@ export class CopilotSession {
         const self = this;
         this.clientSessionApis.providerToken = {
             async getToken(params) {
+                self.assertConnected();
                 const callback = self.bearerTokenProviders.get(params.providerName);
                 if (!callback) {
                     throw new Error(
@@ -2459,6 +1967,7 @@ export class CopilotSession {
      * @internal This method is typically called internally when creating/resuming a session.
      */
     registerCommands(commands?: { name: string; handler: CommandHandler }[]): void {
+        this.assertConnected();
         this.commandHandlers.clear();
         if (!commands) {
             return;
@@ -2475,6 +1984,7 @@ export class CopilotSession {
      * @internal This method is typically called internally when creating/resuming a session.
      */
     registerElicitationHandler(handler?: ElicitationHandler): void {
+        this.assertConnected();
         this.elicitationHandler = handler;
     }
 
@@ -2485,6 +1995,7 @@ export class CopilotSession {
      * @internal This method is typically called internally when creating/resuming a session.
      */
     registerExitPlanModeHandler(handler?: ExitPlanModeHandler): void {
+        this.assertConnected();
         this.exitPlanModeHandler = handler;
     }
 
@@ -2495,6 +2006,7 @@ export class CopilotSession {
      * @internal This method is typically called internally when creating/resuming a session.
      */
     registerAutoModeSwitchHandler(handler?: AutoModeSwitchHandler): void {
+        this.assertConnected();
         this.autoModeSwitchHandler = handler;
     }
 
@@ -2537,6 +2049,7 @@ export class CopilotSession {
      * @internal
      */
     async _handleExitPlanModeRequest(request: ExitPlanModeRequest): Promise<ExitPlanModeResult> {
+        this.assertConnected();
         if (!this.exitPlanModeHandler) {
             return { approved: true };
         }
@@ -2551,6 +2064,7 @@ export class CopilotSession {
     async _handleAutoModeSwitchRequest(
         request: AutoModeSwitchRequest
     ): Promise<AutoModeSwitchResponse> {
+        this.assertConnected();
         if (!this.autoModeSwitchHandler) {
             return "no";
         }
@@ -2674,6 +2188,7 @@ export class CopilotSession {
      * @internal This method is typically called internally when creating a session.
      */
     registerPermissionHandler(handler?: PermissionHandler): void {
+        this.assertConnected();
         this.permissionHandler = handler;
     }
 
@@ -2687,7 +2202,86 @@ export class CopilotSession {
      * @internal This method is typically called internally when creating a session.
      */
     registerUserInputHandler(handler?: UserInputHandler): void {
+        this.assertConnected();
         this.userInputHandler = handler;
+    }
+
+    /**
+     * Registers the session's skill provider.
+     *
+     * @param provider - The skill provider, or undefined to remove it
+     * @internal This method is typically called internally when creating a session.
+     */
+    registerSkillProvider(provider?: SkillProvider): void {
+        this.assertConnected();
+        this.skillProvider = provider;
+    }
+
+    /**
+     * Handles a `skillProvider.list` request from the runtime.
+     *
+     * @internal This method is for internal use by the SDK.
+     */
+    async _handleSkillProviderList(
+        token?: CancellationToken
+    ): Promise<{ skills: SkillProviderDescriptor[] }> {
+        const provider = this.requireSkillProvider();
+        return await this.callSkillProvider("listSkills", token, async (options) => ({
+            skills: (await provider.listSkills(options)) ?? [],
+        }));
+    }
+
+    /**
+     * Handles a `skillProvider.read` request from the runtime.
+     *
+     * @internal This method is for internal use by the SDK.
+     */
+    async _handleSkillProviderRead(
+        name: string,
+        token?: CancellationToken
+    ): Promise<{ markdown: string | null }> {
+        const provider = this.requireSkillProvider();
+        return await this.callSkillProvider("readSkill", token, async (options) => ({
+            markdown: (await provider.readSkill(name, options)) ?? null,
+        }));
+    }
+
+    private requireSkillProvider(): SkillProvider {
+        this.assertConnected();
+        if (!this.skillProvider) {
+            throw new Error(`No skill provider for session: ${this.sessionId}`);
+        }
+        return this.skillProvider;
+    }
+
+    /**
+     * Runs a provider call with an abort signal tied to the runtime's request
+     * cancellation. Failures are logged locally and reported generically.
+     */
+    private async callSkillProvider<T>(
+        operation: string,
+        token: CancellationToken | undefined,
+        call: (options: SkillProviderCallOptions) => Promise<T>
+    ): Promise<T> {
+        const controller = new AbortController();
+        const subscription = token?.onCancellationRequested(() => controller.abort());
+        if (token?.isCancellationRequested) {
+            controller.abort();
+        }
+        try {
+            return await call({ signal: controller.signal });
+        } catch (error) {
+            if (controller.signal.aborted) {
+                throw new ResponseError(-32800, `Skill provider ${operation} cancelled`);
+            }
+            console.error(`Skill provider ${operation} failed`, {
+                sessionId: this.sessionId,
+                error,
+            });
+            throw skillProviderFailure(operation);
+        } finally {
+            subscription?.dispose();
+        }
     }
 
     /**
@@ -2700,6 +2294,7 @@ export class CopilotSession {
      * @internal This method is typically called internally when creating a session.
      */
     registerHooks(hooks?: SessionHooks): void {
+        this.assertConnected();
         this.hooks = hooks;
     }
 
@@ -2710,6 +2305,7 @@ export class CopilotSession {
      * @internal This method is typically called internally when creating a session.
      */
     registerTransformCallbacks(callbacks?: Map<string, SectionTransformFn>): void {
+        this.assertConnected();
         this.transformCallbacks = callbacks;
     }
 
@@ -2724,6 +2320,7 @@ export class CopilotSession {
     async _handleSystemMessageTransform(
         sections: Record<string, { content: string }>
     ): Promise<{ sections: Record<string, { content: string }> }> {
+        this.assertConnected();
         const result: Record<string, { content: string }> = {};
 
         for (const [sectionId, { content }] of Object.entries(sections)) {
@@ -2753,6 +2350,7 @@ export class CopilotSession {
      * @internal This method is for internal use by the SDK.
      */
     async _handleUserInputRequest(request: unknown): Promise<UserInputResponse> {
+        this.assertConnected();
         if (!this.userInputHandler) {
             // No handler registered, throw error
             throw new Error("User input requested but no handler registered");
@@ -2778,6 +2376,7 @@ export class CopilotSession {
      * @internal This method is for internal use by the SDK.
      */
     async _handleHooksInvoke(hookType: string, input: unknown): Promise<unknown> {
+        this.assertConnected();
         if (!this.hooks) {
             return undefined;
         }
@@ -2788,7 +2387,7 @@ export class CopilotSession {
         // is left alone — the user-facing handler types still cast unknown to the
         // specific HookInput, so a runtime type mismatch surfaces as a normal
         // TypeError in user code rather than being silently masked.
-        const normalized = deserializeHookInput(input);
+        const normalized = normalizeHookError(hookType, deserializeHookInput(input));
 
         type GenericHandler = (
             input: unknown,
@@ -2806,6 +2405,8 @@ export class CopilotSession {
             sessionEnd: this.hooks.onSessionEnd as GenericHandler | undefined,
             errorOccurred: this.hooks.onErrorOccurred as GenericHandler | undefined,
             agentStop: this.hooks.onAgentStop as GenericHandler | undefined,
+            subagentStart: this.hooks.onSubagentStart as GenericHandler | undefined,
+            subagentStop: this.hooks.onSubagentStop as GenericHandler | undefined,
         };
 
         const handler = handlerMap[hookType];
@@ -3001,6 +2602,63 @@ export class CopilotSession {
     }
 
     /**
+     * Replace the tools this client supplies to the session.
+     *
+     * `tools` becomes the complete set of tools this client implements,
+     * replacing the ones it supplied when the session was created or resumed,
+     * or in an earlier call. Built-in, MCP, and plugin tools, and tools other
+     * connected clients supply, are unaffected. Pass an empty array to remove
+     * all of this client's tools.
+     *
+     * Tools are defined the same way as for `createSession`: calls to tools
+     * with a `handler` are dispatched to it, and tools without one are
+     * declaration-only. Once the runtime accepts the replacement, every tool
+     * call this session dispatches uses the new handlers; calls already
+     * running finish on their original handlers. If the runtime rejects the
+     * replacement, this rejects and the previous tools and handlers stay in
+     * place. Concurrent calls on the same session are applied one at a time,
+     * in the order they are made.
+     *
+     * The agent sees the new tools from its next model request, which can fall
+     * within a turn in progress. A model request already in flight was made
+     * with the previous tools, so the agent can still call a tool you removed.
+     * This session doesn't answer that call, and it can stay pending until the
+     * turn is aborted. If a running turn might still call a tool you remove,
+     * replace tools while the session is idle.
+     *
+     * @param tools - The complete set of tools this client supplies
+     * @throws Error if the session disconnects before the replacement is applied
+     *
+     * @experimental Wraps the experimental `session.tools.set` RPC and may change
+     * or be removed in a future release.
+     *
+     * @example
+     * ```typescript
+     * await session.setTools([
+     *     defineTool("search_issues", {
+     *         description: "Search the issues shown on the current page",
+     *         parameters: z.object({ query: z.string() }),
+     *         handler: async ({ query }) => searchIssues(query),
+     *     }),
+     * ]);
+     * ```
+     */
+    async setTools(tools: Tool[]): Promise<void> {
+        this.assertConnected();
+        const definitions = tools.map(toToolDefinition);
+        const replacement = this.setToolsQueue.then(async () => {
+            this.assertConnected();
+            await this.rpc.tools.set({ tools: definitions });
+            this.registerTools(tools);
+        });
+        this.setToolsQueue = replacement.then(
+            () => undefined,
+            () => undefined
+        );
+        await replacement;
+    }
+
+    /**
      * Log a message to the session timeline.
      * The message appears in the session event stream and is visible to SDK consumers
      * and (for non-ephemeral messages) persisted to the session event log on disk.
@@ -3063,7 +2721,12 @@ function toCanvasRpcError(error: unknown): ResponseError<unknown> {
     return new ResponseError(ErrorCodes.InternalError, message, { code, message });
 }
 
-type FactoryResultValidationCategory =
+// The provider's own error text is deliberately not forwarded to the runtime.
+function skillProviderFailure(operation: string): ResponseError<undefined> {
+    return new ResponseError(ErrorCodes.InternalError, `Skill provider ${operation} failed`);
+}
+
+type WorkflowResultValidationCategory =
     | "unsupported_type"
     | "non_finite_number"
     | "negative_zero"
@@ -3072,21 +2735,17 @@ type FactoryResultValidationCategory =
     | "unsupported_object";
 
 interface StrictJsonValidationContext {
-    code:
-        | "factory_result_not_json"
-        | "factory_step_not_json"
-        | "workflow_result_not_json"
-        | "workflow_step_not_json";
+    code: "workflow_result_not_json" | "workflow_step_not_json";
     label: string;
     allowTopLevelUndefined: boolean;
 }
 
 function strictJsonValidationError(
     context: StrictJsonValidationContext,
-    category: FactoryResultValidationCategory,
+    category: WorkflowResultValidationCategory,
     message: string,
     path: string
-): ResponseError<{ code: string; category: FactoryResultValidationCategory; path: string }> {
+): ResponseError<{ code: string; category: WorkflowResultValidationCategory; path: string }> {
     return new ResponseError(ErrorCodes.InternalError, message, {
         code: context.code,
         category,
@@ -3247,22 +2906,6 @@ function assertStrictJson(
     };
 
     visit(value, "$", context.allowTopLevelUndefined);
-}
-
-function assertFactoryResult(value: unknown): asserts value is JsonValue | undefined {
-    assertStrictJson(value, {
-        code: "factory_result_not_json",
-        label: "Factory result",
-        allowTopLevelUndefined: true,
-    });
-}
-
-function assertFactoryStepResult(value: unknown, key: string): asserts value is JsonValue {
-    assertStrictJson(value, {
-        code: "factory_step_not_json",
-        label: `Factory step "${key}" result`,
-        allowTopLevelUndefined: false,
-    });
 }
 
 function assertWorkflowResult(value: unknown): asserts value is JsonValue | undefined {

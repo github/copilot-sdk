@@ -47,16 +47,26 @@ public final class SessionStartEvent extends SessionEvent {
         @JsonProperty("startTime") OffsetDateTime startTime,
         /** Model selected at session creation time, if any */
         @JsonProperty("selectedModel") String selectedModel,
+        /** Provider of selectedModel at creation time, when explicitly selected. */
+        @JsonProperty("providerId") String providerId,
         /** Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh", "max") */
         @JsonProperty("reasoningEffort") String reasoningEffort,
+        /** Model that owns effort embedded in an authored model selection. Omitted for independent reasoning-effort overrides and legacy events. */
+        @JsonProperty("reasoningEffortModel") String reasoningEffortModel,
+        /** True when the reasoning effort is a managed-policy default bound to reasoningEffortModel. Omitted for agent-authored, user-authored, independent, and legacy effort. */
+        @JsonProperty("reasoningEffortManaged") Boolean reasoningEffortManaged,
         /** Reasoning summary mode used for model calls, if applicable (e.g. "none", "concise", "detailed") */
         @JsonProperty("reasoningSummary") ReasoningSummary reasoningSummary,
         /** Output verbosity level used for model calls, if applicable (e.g. "low", "medium", "high") */
         @JsonProperty("verbosity") Verbosity verbosity,
         /** Context tier selected at session creation time for models with tiered context pricing; null when no tier is selected (e.g., non-tiered model) */
         @JsonProperty("contextTier") ContextTier contextTier,
+        /** True when contextTier is a managed-policy default. Omitted for user-authored and legacy values. */
+        @JsonProperty("contextTierManaged") Boolean contextTierManaged,
         /** Auto routing preference selected at session creation time */
         @JsonProperty("autoTier") AutoTier autoTier,
+        /** True when autoTier is a managed-policy default. Omitted for user-authored and legacy values. */
+        @JsonProperty("autoTierManaged") Boolean autoTierManaged,
         /** Session limits configured at session creation time, if any */
         @JsonProperty("sessionLimits") SessionLimitsConfig sessionLimits,
         /** Working directory and git context at session start */
@@ -70,5 +80,31 @@ public final class SessionStartEvent extends SessionEvent {
         /** When set, identifies a parent session whose context this session continues — e.g., a detached headless rem-agent run launched on the parent's interactive shutdown. Telemetry from this session is reported under the parent's session_id. */
         @JsonProperty("detachedFromSpawningParentSessionId") String detachedFromSpawningParentSessionId
     ) {
+
+        /**
+         * Creates event data with the components it had before later optional fields were added.
+         */
+        public SessionStartEventData(
+            String sessionId,
+            Long version,
+            String producer,
+            String copilotVersion,
+            OffsetDateTime startTime,
+            String selectedModel,
+            String reasoningEffort,
+            String reasoningEffortModel,
+            ReasoningSummary reasoningSummary,
+            Verbosity verbosity,
+            ContextTier contextTier,
+            AutoTier autoTier,
+            SessionLimitsConfig sessionLimits,
+            WorkingDirectoryContext context,
+            GitHubMcpToolConfig gitHubMcpToolConfig,
+            Boolean alreadyInUse,
+            Boolean remoteSteerable,
+            String detachedFromSpawningParentSessionId
+        ) {
+            this(sessionId, version, producer, copilotVersion, startTime, selectedModel, null, reasoningEffort, reasoningEffortModel, null, reasoningSummary, verbosity, contextTier, null, autoTier, null, sessionLimits, context, gitHubMcpToolConfig, alreadyInUse, remoteSteerable, detachedFromSpawningParentSessionId);
+        }
     }
 }

@@ -16,6 +16,63 @@ public sealed class CopilotRequestHandlerProtocolTests
 {
     private static readonly TimeSpan s_timeout = TimeSpan.FromSeconds(5);
 
+    [Theory]
+    [InlineData("logical-invocation")]
+    [InlineData(null)]
+    [InlineData("")]
+    public async Task HttpRequest_PreservesInvocationIdentityAcrossPhysicalRetries(string? invocationId)
+    {
+        var handler = new MetadataRequestHandler();
+        await using var peer = await ProtocolPeer.StartAsync(handler);
+        foreach (var requestId in new[] { "physical-first", "physical-retry" })
+        {
+            await peer.BeginRequestAsync(requestId, invocationId, body: "request-body");
+            await peer.AcknowledgeAsync(await peer.NextMethodAsync());
+            var end = await peer.NextMethodAsync();
+            Assert.True(end.GetProperty("params").GetProperty("end").GetBoolean());
+            Assert.False(end.GetProperty("params").TryGetProperty("error", out _));
+            await peer.AcknowledgeAsync(end);
+            var ctx = handler.Contexts[^1];
+            Assert.Equal(invocationId, ctx.AgentInvocationId);
+            Assert.Equal(invocationId, new CopilotRequestContext(ctx).AgentInvocationId);
+            Assert.Equal(requestId, ctx.RequestId);
+            Assert.Equal("session", ctx.SessionId);
+            Assert.Equal("trajectory", ctx.AgentId);
+            Assert.Equal("parent", ctx.ParentAgentId);
+            Assert.Equal("conversation-agent", ctx.InteractionType);
+            Assert.Equal(["one", "two"], ctx.Headers["x-multiple"]);
+        }
+        Assert.Equal(2, handler.Contexts.Count);
+    }
+
+    [Fact]
+    public async Task WebSocketRequest_PreservesPerMessageInvocationIdentityWithoutStaleFallback()
+    {
+        var handler = new MetadataRequestHandler();
+        await using var peer = await ProtocolPeer.StartAsync(handler);
+        await peer.BeginRequestAsync("reused-socket", "opening-invocation", websocket: true);
+        var head = await peer.NextMethodAsync();
+        Assert.Equal(101, head.GetProperty("params").GetProperty("status").GetInt32());
+        await peer.AcknowledgeAsync(head);
+
+        string?[] ids = ["opening-invocation", "later-invocation", "later-invocation", null, ""];
+        foreach (var id in ids)
+        {
+            await peer.SendMessageAsync("reused-socket", "message", id);
+            var message = await handler.Messages.Reader.ReadAsync().AsTask().WaitAsync(s_timeout);
+            Assert.Equal(id, message.AgentInvocationId);
+            Assert.Equal("message", message.GetText());
+            Assert.False(message.IsBinary);
+        }
+        await peer.SendMessageAsync("reused-socket", "", null, end: true);
+        var end = await peer.NextMethodAsync();
+        Assert.True(end.GetProperty("params").GetProperty("end").GetBoolean());
+        Assert.False(end.GetProperty("params").TryGetProperty("error", out _));
+        await peer.AcknowledgeAsync(end);
+        Assert.Equal("opening-invocation", handler.Contexts[0].AgentInvocationId);
+        Assert.Equal("opening-invocation", new CopilotRequestContext(handler.Contexts[0]).AgentInvocationId);
+    }
+
     [Fact]
     public async Task HttpResponse_ReadsAheadAndCoalescesUnderOneOutstandingDataRpc()
     {
@@ -217,6 +274,35 @@ public sealed class CopilotRequestHandlerProtocolTests
             {
                 Content = new StreamContent(source),
             };
+    }
+
+    private sealed class MetadataRequestHandler : CopilotRequestHandler
+    {
+        internal List<CopilotRequestContext> Contexts { get; } = [];
+        internal Channel<CopilotWebSocketMessage> Messages { get; } = Channel.CreateUnbounded<CopilotWebSocketMessage>();
+
+        protected override async Task<HttpResponseMessage> SendRequestAsync(HttpRequestMessage request, CopilotRequestContext ctx)
+        {
+            Contexts.Add(ctx);
+            Assert.Equal("request-body", await request.Content!.ReadAsStringAsync(ctx.CancellationToken));
+            return new HttpResponseMessage(HttpStatusCode.OK);
+        }
+
+        protected override Task<CopilotWebSocketHandler> OpenWebSocketAsync(CopilotRequestContext ctx)
+        {
+            Contexts.Add(ctx);
+            return Task.FromResult<CopilotWebSocketHandler>(new MetadataSocket(ctx, Messages));
+        }
+    }
+
+    private sealed class MetadataSocket(CopilotRequestContext ctx, Channel<CopilotWebSocketMessage> messages)
+        : CopilotWebSocketHandler(ctx)
+    {
+        public override Task SendRequestMessageAsync(CopilotWebSocketMessage message)
+        {
+            Assert.True(messages.Writer.TryWrite(message));
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class ControlledResponseStream : Stream
@@ -427,27 +513,53 @@ public sealed class CopilotRequestHandlerProtocolTests
             return new ProtocolPeer(client, tcpClient);
         }
 
-        internal async Task BeginRequestAsync()
+        internal async Task BeginRequestAsync(string requestId = "test", string? invocationId = null, bool websocket = false, string? body = null)
         {
             await WriteRequestAsync(
                 "llmInference.httpRequestStart",
                 writer =>
                 {
-                    writer.WriteString("requestId", "test");
-                    writer.WriteString("method", "GET");
+                    writer.WriteString("requestId", requestId);
+                    writer.WriteString("method", body is null ? "GET" : "POST");
                     writer.WriteString("url", "http://unused.test");
                     writer.WriteStartObject("headers");
+                    writer.WriteStartArray("x-multiple");
+                    writer.WriteStringValue("one");
+                    writer.WriteStringValue("two");
+                    writer.WriteEndArray();
                     writer.WriteEndObject();
+                    writer.WriteString("sessionId", "session");
+                    writer.WriteString("agentId", "trajectory");
+                    writer.WriteString("parentAgentId", "parent");
+                    writer.WriteString("interactionType", "conversation-agent");
+                    if (invocationId is not null)
+                    {
+                        writer.WriteString("agentInvocationId", invocationId);
+                    }
+                    if (websocket)
+                    {
+                        writer.WriteString("transport", "websocket");
+                    }
                 });
-            await WriteRequestAsync(
+            if (!websocket)
+            {
+                await SendMessageAsync(requestId, body ?? "", null, end: true);
+            }
+        }
+
+        internal Task SendMessageAsync(string requestId, string data, string? invocationId, bool end = false) =>
+            WriteRequestAsync(
                 "llmInference.httpRequestChunk",
                 writer =>
                 {
-                    writer.WriteString("requestId", "test");
-                    writer.WriteString("data", string.Empty);
-                    writer.WriteBoolean("end", true);
+                    writer.WriteString("requestId", requestId);
+                    writer.WriteString("data", data);
+                    writer.WriteBoolean("end", end);
+                    if (invocationId is not null)
+                    {
+                        writer.WriteString("agentInvocationId", invocationId);
+                    }
                 });
-        }
 
         internal Task CancelRequestAsync() =>
             WriteRequestAsync(

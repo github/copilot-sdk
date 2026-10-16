@@ -18,7 +18,52 @@ const wrapperContent = 'wrapper content';
 const stagingSchema = 'hostless-runtime-v3';
 const scriptPath = fileURLToPath(new URL('./fetch-native.mjs', import.meta.url));
 
-for (const classifier of ['linux-x64', 'linux-arm64', 'linuxmusl-x64', 'win32-x64', 'win32-arm64', 'darwin-x64', 'darwin-arm64']) {
+test('stages verified unstable runtime assets downloaded from the SDK release', (t) => {
+  const fixture = createFixture(t, 'linux-x64');
+  const unstableVersion = '1.2.3-4.unstable.r123.gabcdef0';
+  fs.writeFileSync(path.join(fixture.repoRoot, 'nodejs', 'package.json'),
+    JSON.stringify({ copilotCliVersion: unstableVersion }));
+  const prebuild = path.join(fixture.root, 'package', 'prebuilds', fixture.classifier);
+  fs.mkdirSync(prebuild, { recursive: true });
+  fs.writeFileSync(path.join(prebuild, 'runtime.node'), 'unstable runtime');
+  fs.writeFileSync(path.join(prebuild, 'copilot-runtime'), 'unstable wrapper');
+  const tarball = path.join(fixture.root, 'runtime.tgz');
+  execFileSync('tar', ['-czf', 'runtime.tgz', 'package'], { cwd: fixture.root });
+  const hash = createHash('sha256').update(fs.readFileSync(tarball)).digest('hex');
+  const asset = `github-copilot-${unstableVersion}-${fixture.classifier}.tgz`;
+  const releaseUrl = `https://github.com/github/copilot-sdk/releases/download/runtime-${unstableVersion}`;
+  const mockFetch = `data:text/javascript,${encodeURIComponent(`
+    import fs from 'node:fs';
+    globalThis.fetch = async (url) => {
+      if (url === ${JSON.stringify(`${releaseUrl}/SHA256SUMS.txt`)})
+        return new Response(${JSON.stringify(`${hash}  ${asset}\n`)});
+      if (url === ${JSON.stringify(`${releaseUrl}/${asset}`)})
+        return new Response(fs.readFileSync(${JSON.stringify(tarball)}));
+      throw new Error('Unexpected download: ' + url);
+    };
+  `)}`;
+  const result = runScript(fixture, {
+    COPILOT_CLI_RELEASE_TARBALL: undefined,
+    COPILOT_CLI_DOWNLOAD_BASE_URL: undefined,
+    NODE_OPTIONS: `--import=${mockFetch}`,
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(fs.readFileSync(fixture.runtimePath, 'utf8'), 'unstable runtime');
+  assert.equal(fs.readFileSync(fixture.wrapperPath, 'utf8'), 'unstable wrapper');
+  assert.equal(fs.readFileSync(fixture.platformPropertiesPath, 'utf8'),
+    `classifier=linux-x64\nversion=${unstableVersion}\n`);
+});
+
+for (const classifier of [
+  'linux-x64',
+  'linux-arm64',
+  'linuxmusl-x64',
+  'linuxmusl-arm64',
+  'win32-x64',
+  'win32-arm64',
+  'darwin-x64',
+  'darwin-arm64',
+]) {
   test(`${classifier}: complete hostless artifacts use incremental fast path without a CLI`, (t) => {
     const fixture = createFixture(t, classifier);
 
@@ -75,7 +120,7 @@ for (const classifier of ['linux-x64', 'linux-arm64', 'linuxmusl-x64', 'win32-x6
   });
 }
 
-test('stages retained package assets and excludes CLI-only content', (t) => {
+test('stages retained package assets with a bounded number of archive passes', (t) => {
   const classifier = 'linux-x64';
   const fixture = createFixture(t, classifier);
   const packageRoot = path.join(fixture.repoRoot, 'package-root', 'package');
@@ -88,7 +133,13 @@ test('stages retained package assets and excludes CLI-only content', (t) => {
   fs.writeFileSync(path.join(packageRoot, 'ripgrep', 'bin', classifier, 'rg'), 'ripgrep content');
   fs.chmodSync(path.join(packageRoot, 'ripgrep', 'bin', classifier, 'rg'), 0o755);
   fs.writeFileSync(path.join(packageRoot, 'definitions', 'future.json'), '{}');
+  const longName = `${'long-name-'.repeat(9)}with spaces.json`;
+  fs.writeFileSync(path.join(packageRoot, 'definitions', longName), 'long name content');
+  for (let i = 0; i < 32; i++) {
+    fs.writeFileSync(path.join(packageRoot, 'definitions', `${i}.json`), `${i}`);
+  }
   fs.writeFileSync(path.join(packageRoot, 'app.js'), 'excluded');
+  fs.writeFileSync(path.join(packageRoot, 'cli-main.js'), 'excluded');
   fs.writeFileSync(path.join(packageRoot, 'LICENSE.md'), 'excluded');
   fs.writeFileSync(path.join(packageRoot, 'README.md'), 'excluded');
   const tarball = path.join(fixture.repoRoot, 'fixture.tgz');
@@ -102,21 +153,91 @@ test('stages retained package assets and excludes CLI-only content', (t) => {
   );
   fs.rmSync(path.join(fixture.stagingDir, classifier), { recursive: true, force: true });
 
+  const trace = `data:text/javascript,${encodeURIComponent(`
+    import childProcess from 'node:child_process';
+    import { syncBuiltinESMExports } from 'node:module';
+    import path from 'node:path';
+    const original = childProcess.execFileSync;
+    childProcess.execFileSync = (file, ...args) => {
+      if (file === 'tar') {
+        console.log('archive-pass');
+        // Match the BusyBox tar interface used by musl CI.
+        if (args[0].includes('--null')) throw new Error('tar: unrecognized option: null');
+        if (args[0].some((arg) => path.isAbsolute(arg))) {
+          throw new Error('tar: native absolute paths are not portable');
+        }
+      }
+      return original(file, ...args);
+    };
+    syncBuiltinESMExports();
+  `)}`;
   const result = runScript(fixture, {
     COPILOT_CLI_RELEASE_TARBALL: tarball,
     COPILOT_CLI_RELEASE_SHA256: packageChecksum,
+    NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ''} --import=${trace}`,
   });
 
   assert.equal(result.status, 0, result.stderr);
   const resourceDir = path.join(fixture.stagingDir, classifier, 'native', classifier);
   assert.equal(fs.readFileSync(path.join(resourceDir, 'ripgrep', 'bin', classifier, 'rg'), 'utf8'), 'ripgrep content');
   assert.equal(fs.readFileSync(path.join(resourceDir, 'definitions', 'future.json'), 'utf8'), '{}');
+  assert.equal(fs.readFileSync(path.join(resourceDir, 'definitions', longName), 'utf8'), 'long name content');
+  for (let i = 0; i < 32; i++) {
+    assert.equal(fs.readFileSync(path.join(resourceDir, 'definitions', `${i}.json`), 'utf8'), `${i}`);
+  }
+  assert.equal(fs.readFileSync(fixture.runtimePath, 'utf8'), runtimeContent);
+  assert.equal(fs.readFileSync(fixture.wrapperPath, 'utf8'), wrapperContent);
   assert.equal(fs.existsSync(path.join(resourceDir, 'app.js')), false);
+  assert.equal(fs.existsSync(path.join(resourceDir, 'cli-main.js')), false);
   assert.equal(fs.existsSync(path.join(resourceDir, 'copilot')), false);
   assert.equal(fs.existsSync(path.join(resourceDir, 'LICENSE.md')), false);
   assert.equal(fs.existsSync(path.join(resourceDir, 'README.md')), false);
   assert.match(fs.readFileSync(path.join(resourceDir, 'runtime-assets.list'), 'utf8'), /ripgrep\/bin\/linux-x64\/rg/);
+  if (process.platform !== 'win32') {
+    assert.match(fs.readFileSync(path.join(resourceDir, 'runtime-assets.list'), 'utf8'), /755\tripgrep\/bin\/linux-x64\/rg/);
+    assert.equal(fs.statSync(path.join(resourceDir, 'ripgrep', 'bin', classifier, 'rg')).mode & 0o777, 0o755);
+  }
+  const passes = result.stdout.split(/\r?\n/).filter((line) => line === 'archive-pass').length;
+  assert.ok(passes <= 3, `Expected at most three archive passes, received ${passes}`);
+  assert.deepEqual(fs.readdirSync(path.join(fixture.stagingDir, classifier)).sort(), ['.version', 'native']);
 });
+
+for (const listingFormat of ['host', 'busybox']) {
+  test(`rejects retained hard links with ${listingFormat} listings instead of extracting them`, (t) => {
+    const fixture = createFixture(t, 'linux-x64');
+    const packageRoot = path.join(fixture.repoRoot, 'package');
+    fs.mkdirSync(path.join(packageRoot, 'definitions'), { recursive: true });
+    const original = path.join(packageRoot, 'definitions', 'original.json');
+    fs.writeFileSync(original, '{}');
+    fs.linkSync(original, path.join(packageRoot, 'definitions', 'linked.json'));
+    const tarball = path.join(fixture.repoRoot, 'fixture.tgz');
+    execFileSync('tar', ['-czf', path.basename(tarball), 'package'], { cwd: fixture.repoRoot });
+    const busyboxListing = `data:text/javascript,${encodeURIComponent(`
+      import childProcess from 'node:child_process';
+      import { syncBuiltinESMExports } from 'node:module';
+      const original = childProcess.execFileSync;
+      childProcess.execFileSync = (file, args, options) => {
+        const result = original(file, args, options);
+        // BusyBox uses a regular-file mode and an arrow for hard links.
+        return file === 'tar' && args.includes('-tvzf')
+          ? result.replace(/^h(.*) link to /gm, '-$1 -> ')
+          : result;
+      };
+      syncBuiltinESMExports();
+    `)}`;
+    const result = runScript(fixture, {
+      COPILOT_CLI_RELEASE_TARBALL: tarball,
+      COPILOT_CLI_RELEASE_SHA256: createHash('sha256').update(fs.readFileSync(tarball)).digest('hex'),
+      ...(listingFormat === 'busybox'
+        ? { NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ''} --import=${busyboxListing}` }
+        : {}),
+    });
+
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /Unsupported runtime package entry: package\/definitions\//);
+    assert.deepEqual(fs.readdirSync(path.join(fixture.stagingDir, fixture.classifier)), ['native']);
+  });
+}
 
 test('stages a same-checkout runtime without downloading a release', (t) => {
   const classifier = 'darwin-arm64';

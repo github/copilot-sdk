@@ -37,7 +37,9 @@ public final class AssistantTurnEndEvent extends SessionEvent {
         /** Identifier of the turn that has ended, matching the corresponding assistant.turn_start event */
         @JsonProperty("turnId") String turnId,
         /** Model identifier used for this turn, when known */
-        @JsonProperty("model") String model
+        @JsonProperty("model") String model,
+        /** Parent task tool call ID when this turn belongs to a sub-agent */
+        @JsonProperty("parentToolCallId") String parentToolCallId
     ) {
     }
 }

@@ -9,10 +9,22 @@
  */
 
 export { CopilotClient } from "./client.js";
+export type {
+    HostLocalServerOptions,
+    HostGitHubEnvironmentOptions,
+    ModelGetReasoningSummariesRequest,
+    ModelGetReasoningSummariesResult,
+} from "./generated/rpc.js";
+export {
+    AhpHost,
+    type AhpHostExit,
+    type AhpHostOptions,
+    type AhpSessionCreateRequest,
+    type AhpSessionResumeRequest,
+} from "./host.js";
 export { DisableBypassPermissionsModes, RuntimeConnection } from "./types.js";
 export { BuiltInTools, ToolSet } from "./toolSet.js";
 export { CopilotSession, type AssistantMessageEvent } from "./session.js";
-export { defineFactory, FactoryResumeError, isFactoryRunTerminal } from "./factory.js";
 export { defineWorkflow, WorkflowResumeError, isWorkflowRunTerminal } from "./workflow.js";
 export {
     Canvas,
@@ -36,6 +48,7 @@ export {
     CopilotWebSocketCloseStatus,
     CopilotWebSocketForwarder,
     SessionFsSqliteTransactionFailure,
+    SessionFsWriteFailure,
     SYSTEM_MESSAGE_SECTIONS,
 } from "./types.js";
 // Re-export the generated session-event types (every *Event interface and
@@ -48,7 +61,7 @@ export {
 // `PermissionRequest` (re-exported below from `./types.js`),
 // `PermissionRequestedData`/`PermissionRequestedEvent` (also re-exported below
 // from `./types.js`), `AssistantMessageEvent` (re-exported above from
-// `./session.js`), and `JsonValue` (re-exported below from `./factory.js`).
+// `./session.js`), and `JsonValue` (re-exported below from `./workflow.js`).
 // Per the ECMAScript module spec, the explicit named re-exports
 // shadow the names arriving via `export type *`, so the hand-authored public API
 // surface for those six identifiers is preserved unchanged.
@@ -61,18 +74,48 @@ export type {
     CanvasProviderIdentity,
     CloudSessionOptions,
     CloudSessionRepository,
+    AuthIdentityMetadata,
+    AuthInfoType,
+    ConnectorAccountRequest,
+    ConnectorAvailability,
+    ConnectorCapabilities,
+    ConnectorCatalogEntry,
+    ConnectorCatalogResult,
+    ConnectorCatalogStatus,
+    ConnectorConnectRequest,
+    ConnectorConnectResult,
+    ConnectorContinueRequest,
+    ConnectorDisconnectResult,
+    ConnectorMcpStatus,
+    ConnectorReconcileRequest,
+    ConnectorRuntimeStatus,
+    ConnectorSessionAccount,
+    ConnectorSessionAccountResult,
+    ConnectorStatus,
     AutoModeSwitchHandler,
     AutoModeSwitchRequest,
     AutoModeSwitchResponse,
     AgentStopHandler,
     AgentStopHookInput,
     AgentStopHookOutput,
+    SubagentStartHandler,
+    SubagentStartHookInput,
+    SubagentStartHookOutput,
+    SubagentStopHandler,
+    SubagentStopHookInput,
+    SubagentStopHookOutput,
     UserPromptTransformedHandler,
     UserPromptTransformedHookInput,
     UserPromptTransformedHookOutput,
     CopilotClientInfo,
     CopilotClientMode,
     CopilotClientOptions,
+    InstallationConfirmationHandler,
+    InstallationConfirmationRequest,
+    InstallationConfirmationResponse,
+    InstallationDecision,
+    InstallationReview,
+    McpInstallationReview,
     CopilotExpAssignmentResponse,
     StdioRuntimeConnection,
     InProcessRuntimeConnection,
@@ -113,8 +156,6 @@ export type {
     LargeToolOutputConfig,
     MemoryConfiguration,
     UiInputOptions,
-    FactoryLimits,
-    FactoryMeta,
     MCPStdioServerConfig,
     MCPHTTPServerConfig,
     MCPServerConfig,
@@ -151,10 +192,13 @@ export type {
     PermissionDecisionSurface,
     PermissionResponseCapability,
     ProviderConfig,
+    ProviderConfigModelProvider,
     ProviderModelConfig,
     ProviderTokenArgs,
     RemoteSessionMode,
+    SandboxConfigSource,
     ResumeSessionConfig,
+    TranscriptRecovery,
     SectionOverride,
     SectionOverrideAction,
     SectionTransformFn,
@@ -187,6 +231,9 @@ export type {
     SessionFsSqliteProvider,
     SessionFsSqliteStatement,
     SessionFsSqliteTransactionErrorClass,
+    SkillProvider,
+    SkillProviderCallOptions,
+    SkillProviderDescriptor,
     CopilotRequestContext,
     SystemMessageAppendConfig,
     SystemMessageConfig,
@@ -203,37 +250,13 @@ export type {
     ToolTelemetry,
     ToolResultObject,
     ToolSearchConfig,
+    ImageGenerationConfig,
     TypedSessionEventHandler,
     TypedSessionLifecycleHandler,
     ZodSchema,
 } from "./types.js";
 export type {
-    RunOptions,
-    ResumeOptions,
-    FactoryLimitOverrides,
-    FactoryResumeErrorCode,
-    SessionFactoryApi,
-    FactoryAgentOptions,
-    FactoryContext,
-    FactoryDefinition,
-    FactoryHandle,
-    FactoryJsonSchema,
     JsonValue,
-    FactoryPipelineStage,
-    FactoryStepOptions,
-    FactoryRunResult,
-    FactoryRunStatus,
-    FactoryRunSummary,
-    FactoryListRunsOptions,
-    FactoryRunsPage,
-    FactoryRunDetail,
-    FactoryProgressPage,
-    FactoryProgressLine,
-    FactoryPhaseObservation,
-    FactoryPhaseStatus,
-    FactoryAgentSummary,
-} from "./factory.js";
-export type {
     WorkflowRunOptions,
     WorkflowResumeOptions,
     WorkflowLimitOverrides,

@@ -10,13 +10,17 @@ package com.github.copilot.generated;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.github.copilot.CopilotExperimental;
 import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
  * Session event "skill.invoked_ref". Internal durable skill invocation receipt whose content resolves from an earlier inline skill event in the same session.
+ *
+ * @apiNote This event type is experimental and may change in a future version.
  * @since 1.0.0
  */
+@CopilotExperimental
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
@@ -32,6 +36,7 @@ public final class SkillInvokedRefEvent extends SessionEvent {
     public void setData(SkillInvokedRefEventData data) { this.data = data; }
 
     /** Data payload for {@link SkillInvokedRefEvent}. */
+    @CopilotExperimental
     @JsonIgnoreProperties(ignoreUnknown = true)
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record SkillInvokedRefEventData(

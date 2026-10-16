@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation. All rights reserved.
+
 [package]
 name = "github-copilot-sdk"
 version = "0.0.0-dev"
@@ -29,8 +31,9 @@ name = "github_copilot_sdk"
 
 [features]
 default = ["bundled-cli"]
-bundled-cli = ["dep:tar", "dep:flate2", "dep:zip"]
-in-process = ["dep:libloading"]
+runtime = []
+bundled-cli = ["runtime", "dep:tar", "dep:flate2", "dep:zip"]
+in-process = ["runtime", "dep:libloading"]
 local-runtime = ["in-process"]
 bundled-in-process = ["bundled-cli", "in-process"]
 derive = ["dep:schemars"]
@@ -43,48 +46,80 @@ test-support = []
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
+[lints.clippy]
+# Threshold lives in clippy.toml; consumers run on 2 MiB Tokio worker stacks.
+large_futures = "warn"
+
 [dependencies]
 async-trait = "0.1"
 indexmap = { version = "2", features = ["serde"] }
 schemars = { version = "1", optional = true }
 serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+serde_json = { version = "1", features = ["preserve_order"] }
 tokio = { version = "1", features = ["io-util", "sync", "rt", "process", "net", "time", "macros"] }
 tokio-stream = { version = "0.1", features = ["sync"] }
 tokio-util = { version = "0.7", default-features = false }
 tracing = "0.1"
-dirs = "5"
-libloading = { version = "0.8", optional = true }
+dirs = "7"
+libloading = { version = "0.9", optional = true }
 parking_lot = "0.12"
 regex = "1"
-getrandom = "0.2"
+getrandom = "0.4"
 uuid = { version = "1", default-features = false, features = ["v4"] }
 flate2 = { version = "1", optional = true }
 tar = { version = "0.4", optional = true }
 # LLM inference callback transport: idiomatic HTTP/WebSocket forwarding for the
 # `CopilotRequestHandler`, plus base64/byte/stream plumbing for the chunk protocol.
-base64 = "0.22"
+base64 = "0.23"
 bytes = "1"
 http = "1"
 futures-util = "0.3"
-reqwest = { version = "0.12", default-features = false, features = ["stream", "http2", "default-tls"] }
-tokio-tungstenite = { version = "0.24", default-features = false, features = ["connect", "native-tls"] }
+native-tls = "0.2"
+reqwest = { version = "0.13", default-features = false, features = ["stream", "http2", "native-tls"] }
+tokio-tungstenite = { version = "0.30", default-features = false, features = ["connect", "native-tls"] }
+
+# Linux has no universal OS TLS provider. Bundle the same OpenSSL implementation
+# for Cargo consumers, including musl, instead of requiring system development
+# files or a deployed shared libssl. Bazel uses its existing static OpenSSL.
+[target.'cfg(target_os = "linux")'.dependencies]
+native-tls = { version = "0.2", features = ["vendored"] }
 
 [target.'cfg(windows)'.dependencies]
-zip = { version = "2", default-features = false, features = ["deflate"], optional = true }
+# Archive acquisition only needs flate2; don't compile the Zopfli compressor
+# and second flate2 backend that zip's umbrella `deflate` feature enables.
+zip = { version = "9", default-features = false, features = ["deflate-flate2"], optional = true }
 windows-sys = { version = "0.61", default-features = false, features = [
     "Win32_Foundation",
+    "Win32_System_Diagnostics_Debug",
+    "Win32_System_Diagnostics_ProcessSnapshotting",
     "Win32_System_Diagnostics_ToolHelp",
     "Win32_System_JobObjects",
+    "Win32_System_Kernel",
     "Win32_System_Threading",
 ] }
 
+[target.'cfg(windows)'.dev-dependencies]
+windows-sys = { version = "0.61", default-features = false, features = ["Win32_Security"] }
+
 [dev-dependencies]
+flate2 = "1"
+# Share the runtime/host's 0.13 crypto generation rather than adding HPKE 0.14's
+# second X25519/Curve25519 generation merely for these authentication fixtures.
+hpke = { version = "0.13", default-features = false, features = ["alloc", "x25519"] }
+rand_chacha = { version = "0.9", default-features = false }
+rand_core = { version = "0.6", features = ["getrandom"] }
+ahp = { git = "https://github.com/microsoft/agent-host-protocol", tag = "rust/v0.9.0" }
+ahp-types = { git = "https://github.com/microsoft/agent-host-protocol", tag = "rust/v0.9.0" }
+ahp-ws = { git = "https://github.com/microsoft/agent-host-protocol", tag = "rust/v0.9.0", default-features = false }
 rusqlite = { version = "0.40", features = ["bundled"] }
 schemars = "1"
-serial_test = "3"
+serial_test = "4"
+sha2 = "0.10"
+tar = "0.4"
 tempfile = "3"
 tokio = { version = "1", features = ["rt-multi-thread"] }
+ureq = { version = "3", default-features = false, features = ["native-tls"] }
+zip = { version = "9", default-features = false, features = ["deflate-flate2"] }
 
 # Integration tests that call test-support-only Client methods (e.g.
 # `from_streams_with_connection_token`, `from_streams_with_trace_provider`)
@@ -95,11 +130,19 @@ name = "session_test"
 required-features = ["test-support"]
 
 [[test]]
+name = "runtime_host_e2e"
+required-features = ["runtime", "test-support"]
+
+[[test]]
 name = "protocol_version_test"
 required-features = ["test-support"]
 
 [[test]]
 name = "extension_launch_provider_test"
+required-features = ["test-support"]
+
+[[test]]
+name = "installation_confirmation_test"
 required-features = ["test-support"]
 
 [[test]]
@@ -120,15 +163,27 @@ required-features = ["test-support"]
 test = false
 bench = false
 
+[[bin]]
+name = "copilot-connectors-runtime-fixture"
+path = "tests/fixtures/connector-runtime/src/main.rs"
+required-features = ["test-support", "in-process"]
+test = false
+bench = false
+
 [[test]]
 name = "prepared_session_test"
 required-features = ["test-support"]
+
+[[test]]
+name = "skill_provider_test"
+required-features = ["test-support"]
 [build-dependencies]
-dirs = "5"
+dirs = "7"
 flate2 = "1"
+native-tls = "0.2"
 serde_json = "1"
+# 0.11 adds a second digest/block-buffer stack beside the SDK's transitive 0.10.
 sha2 = "0.10"
 tar = "0.4"
-ureq = { version = "2", default-features = false, features = ["native-tls"] }
-native-tls = "0.2"
-zip = { version = "2", default-features = false, features = ["deflate"] }
+ureq = { version = "3", default-features = false, features = ["native-tls"] }
+zip = { version = "9", default-features = false, features = ["deflate-flate2"] }

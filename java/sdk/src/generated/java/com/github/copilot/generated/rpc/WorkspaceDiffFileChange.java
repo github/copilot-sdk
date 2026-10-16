@@ -30,6 +30,27 @@ public record WorkspaceDiffFileChange(
     /** Original file path for renamed files. */
     @JsonProperty("oldPath") String oldPath,
     /** Whether the diff content was omitted because it exceeded the per-file size limit. */
-    @JsonProperty("isTruncated") Boolean isTruncated
+    @JsonProperty("isTruncated") Boolean isTruncated,
+    /** Full text used for this patch, only when includeContents was requested for session mode. Omitted for binary, oversized or unavailable contents, and for fallback results. Read isFallback and isTruncated before treating an absent value as a missing file. */
+    @JsonProperty("contents") WorkspaceDiffContents contents
 ) {
+
+    /**
+     * Creates a record with the components it had before later optional fields were added.
+     *
+     * @param path Path to the changed file, relative to the workspace root when the file lives under it. A file changed outside the workspace root keeps a `../`-relative path, or an absolute path when no relative path exists (for example a different Windows drive).
+     * @param diff Unified diff content for the file. Empty when the diff was truncated.
+     * @param changeType Type of change represented by this file diff.
+     * @param oldPath Original file path for renamed files.
+     * @param isTruncated Whether the diff content was omitted because it exceeded the per-file size limit.
+     */
+    public WorkspaceDiffFileChange(
+        String path,
+        String diff,
+        WorkspaceDiffFileChangeType changeType,
+        String oldPath,
+        Boolean isTruncated
+    ) {
+        this(path, diff, changeType, oldPath, isTruncated, null);
+    }
 }

@@ -30,7 +30,7 @@ public record SessionPermissionsSetModeParams(
     @JsonProperty("mode") PermissionMode mode,
     /** Optional judge model id for assisted mode. When omitted, the session resolves the provider default: `gpt-5.5` for CAPI sessions and the active session model for BYOK sessions. */
     @JsonProperty("assistedApprovalModel") String assistedApprovalModel,
-    /** Optional source for permission-mode telemetry. Defaults to `rpc` when omitted for SDK callers. */
+    /** Optional source for permission-mode telemetry. `organization_targeting` is reserved for startup selection after the authenticated account matches an organization targeting policy; SDK callers default to `rpc` and cannot claim targeting provenance. */
     @JsonProperty("source") PermissionModeSource source
 ) {
 }

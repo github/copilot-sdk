@@ -22,7 +22,7 @@ crates_vendor(
         # workspace graph, but required by the Bazel all-features build.
         "sdk-libloading": crate.spec(
             package = "libloading",
-            version = "=0.8.9",
+            version = "=0.9.0",
         ),
     },
     repository_name = "sdk_vendor",

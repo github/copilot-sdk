@@ -23,6 +23,8 @@ import com.github.copilot.generated.rpc.LlmInferenceHttpResponseChunkParams;
 import com.github.copilot.generated.rpc.LlmInferenceHttpResponseStartParams;
 import com.github.copilot.generated.rpc.ServerLlmInferenceApi;
 
+import edu.umd.cs.findbugs.annotations.Nullable;
+
 /**
  * One intercepted request in flight. Carries the request context plus the body
  * byte stream the runtime feeds in via {@code httpRequestChunk} frames, and
@@ -46,15 +48,17 @@ final class LlmInferenceExchange {
      * @param binary
      *            {@code true} when delivered as binary, {@code false} for UTF-8
      *            text
+     * @param agentInvocationId
+     *            the runtime-provided invocation identity, or {@code null}
      */
-    record BodyFrame(byte[] data, boolean binary) {
+    record BodyFrame(byte[] data, boolean binary, @Nullable String agentInvocationId) {
     }
 
     private enum ItemKind {
         CHUNK, END, CANCEL
     }
 
-    private record BodyItem(ItemKind kind, byte[] data, boolean binary) {
+    private record BodyItem(ItemKind kind, byte[] data, boolean binary, @Nullable String agentInvocationId) {
     }
 
     private final String requestId;
@@ -120,12 +124,12 @@ final class LlmInferenceExchange {
 
     // --- Request body feed (driven by the adapter as chunk frames arrive) ---
 
-    void pushChunk(byte[] data, boolean binary) {
-        body.add(new BodyItem(ItemKind.CHUNK, data, binary));
+    void pushChunk(byte[] data, boolean binary, @Nullable String agentInvocationId) {
+        body.add(new BodyItem(ItemKind.CHUNK, data, binary, agentInvocationId));
     }
 
     void pushEnd() {
-        body.add(new BodyItem(ItemKind.END, null, false));
+        body.add(new BodyItem(ItemKind.END, null, false, null));
     }
 
     void pushCancel() {
@@ -135,7 +139,7 @@ final class LlmInferenceExchange {
         if (!cancellation.isDone()) {
             cancellation.complete(null);
         }
-        body.add(new BodyItem(ItemKind.CANCEL, null, false));
+        body.add(new BodyItem(ItemKind.CANCEL, null, false, null));
     }
 
     /**
@@ -160,7 +164,7 @@ final class LlmInferenceExchange {
                 return null;
             }
             default -> {
-                return new BodyFrame(item.data(), item.binary());
+                return new BodyFrame(item.data(), item.binary(), item.agentInvocationId());
             }
         }
     }

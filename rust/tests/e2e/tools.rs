@@ -1,3 +1,5 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+
 use std::sync::Arc;
 
 use github_copilot_sdk::handler::{ApproveAllHandler, PermissionHandler, PermissionResult};
@@ -10,6 +12,54 @@ use serde_json::json;
 use tokio::sync::{Mutex, mpsc};
 
 use super::support::{assistant_message_content, recv_with_timeout};
+
+#[cfg(feature = "derive")]
+#[tokio::test]
+async fn string_schema_apply_patch_override_binds_patch_input() {
+    super::support::with_shared_e2e_context(
+        &E2E,
+        "tools",
+        "string_schema_apply_patch_override_binds_patch_input",
+        |ctx| {
+            Box::pin(async move {
+                ctx.set_default_copilot_user();
+                let client = ctx.start_client().await;
+                let (tx, mut rx) = mpsc::unbounded_channel();
+                let tool = github_copilot_sdk::tool::define_tool::<String, _, _>(
+                    "apply_patch",
+                    "Apply a patch",
+                    move |_invocation, input| {
+                        let tx = tx.clone();
+                        async move {
+                            tx.send(input).expect("capture patch");
+                            Ok(ToolResult::Text("HOST_PATCH_HANDLED".to_owned()))
+                        }
+                    },
+                )
+                .with_overrides_built_in_tool(true);
+                let session = client
+                    .create_session(ctx.approve_all_session_config().with_tools(vec![tool]))
+                    .await
+                    .expect("create session");
+                let response = session
+                    .send_and_wait("Use apply_patch to apply the supplied patch.")
+                    .await
+                    .expect("send")
+                    .expect("assistant message");
+
+                assert_eq!(
+                    recv_with_timeout(&mut rx, "string-schema patch").await,
+                    "*** Begin Patch\n*** Add File: override-marker.txt\n+from-native\n*** End Patch"
+                );
+                assert_eq!(assistant_message_content(&response), "Host override completed.");
+                assert!(!ctx.work_dir().join("override-marker.txt").exists());
+                session.disconnect().await.expect("disconnect session");
+                client.stop().await.expect("stop client");
+            })
+        },
+    )
+    .await;
+}
 
 #[tokio::test]
 async fn invokes_built_in_tools() {
@@ -880,4 +930,7 @@ impl ToolHandler for DbQueryTool {
         ))
     }
 }
-static E2E: super::support::SharedE2eGroup = super::support::SharedE2eGroup::standard("tools", 11);
+static E2E: super::support::SharedE2eGroup = super::support::SharedE2eGroup::standard(
+    "tools",
+    if cfg!(feature = "derive") { 12 } else { 11 },
+);

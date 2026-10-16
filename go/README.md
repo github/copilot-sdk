@@ -17,11 +17,7 @@ go get github.com/github/copilot-sdk/go
 
 ## Run the Sample
 
-Try the interactive chat sample from the SDK root (`src/sdk` when nested).
-In the runtime repository, first run `pnpm run build:cli` from the runtime root
-to prepare the same-checkout executable, then return to `src/sdk`.
-Building the Go SDK alone does not build the runtime. For dependency
-prerequisites, see [development setup](#development).
+Try the interactive chat sample (from the repo root):
 
 ```bash
 cd nodejs
@@ -38,6 +34,24 @@ go run ./manual_tool_resume
 ```
 
 ## Quick Start
+
+For experimental in-process AHP hosting, use `client.StartAhpHost(ctx, &copilot.AhpHostOptions{...})`.
+Select at least one explicit transport: `LocalServer: &rpc.HostLocalServerOptions{}`
+enables a local listener; `GitHubEnvironment: &rpc.HostGitHubEnvironmentOptions{Name: "My host", ComputeID: "my-compute"}`
+registers a Mission Control environment. Both can be enabled. Import `rpc` from
+`github.com/github/copilot-sdk/go/rpc`. No transport is enabled by default.
+Local hostname, port, token, and authentication settings belong inside `LocalServer`.
+The returned handle's `URL`, `Token`, `PID`, and `EnvironmentID` are optional pointers;
+Mission Control-only hosting has no local URL. These APIs are experimental.
+Call `host.ListSessions(ctx)` to read the complete advertised catalog of live and
+dormant sessions.
+Set top-level `ComputeID` to reuse the durable catalog across local and Mission
+Control hosting; it must agree with `GitHubEnvironment.ComputeID` when both are
+supplied. The runtime persists an omitted local-only identity. Publication
+survives host shutdown; dormant application sessions require your resume callback.
+Use the generated `client.RPC.Environments` namespace for environment list/get/delete operations.
+See [runtime-supervised AHP hosting](../docs/runtime-supervised-host.md) for creation
+and resume callbacks, resident-session publication, ownership, and shared-snapshot E2Es.
 
 ```go
 package main
@@ -100,6 +114,143 @@ tool name is `<server-key>-<tool-name>`. For `AvailableTools` and
 `ExcludedTools`, prefer the source-qualified form
 `mcp:<server-key>-<tool-name>`. For `CustomAgents[].Tools` and
 `DefaultAgent.ExcludedTools`, use `<server-key>-<tool-name>` directly.
+
+## Untyped JSON numbers
+
+Only `ContentExclusionValidatePoliciesResult` decodes untyped JSON numbers as `json.Number` to preserve policy values without precision loss.
+Existing RPC results, requests, callbacks, and session events keep their existing numeric representation, including `float64` for untyped numbers.
+Typed numeric fields keep their declared Go types.
+Use `json.Number.Int64()` or `json.Number.Float64()` when you need a numeric conversion, and handle the returned error.
+
+## JSON-RPC errors
+
+Use `errors.As` to inspect a runtime error without parsing its message, including
+errors wrapped by SDK operations:
+
+```go
+var rpcErr *copilot.RPCError
+if errors.As(err, &rpcErr) {
+    fmt.Printf("RPC error %d: %s\n", rpcErr.Code, rpcErr.Message)
+    if rpcErr.Data != nil {
+        // Decode into an application-specific type when the payload schema is known.
+        var details map[string]json.RawMessage
+        if err := json.Unmarshal(rpcErr.Data, &details); err != nil {
+            // The payload may be an array or scalar rather than an object.
+            log.Printf("Error data is not an object: %v", err)
+        }
+    }
+}
+```
+
+This example uses the standard `errors`, `encoding/json`, `fmt`, and `log` packages.
+`RPCError.Data` is a `json.RawMessage` containing the original JSON value:
+objects, arrays, strings, numbers, and booleans are preserved. Omitted `data`
+is `nil`; explicit JSON null is the non-nil JSON text `null`. Empty values,
+zero, and false are not treated as absent. Ordinary connection and local
+precondition failures do not match `*copilot.RPCError`. The transport also uses
+this type for locally synthesized inline-response callback failures, so matching
+it does not prove that the runtime sent an error response.
+
+`RPCError` aliases the existing transport error, so error identity, wrapping,
+and `Error()` messages are unchanged. The error string does not include the
+payload; accessing or logging it is an explicit application choice.
+Avoid logging it indiscriminately: server-provided data may contain sensitive
+information. Its fields and data bytes are shared with the wrapped error; copy
+them before mutation.
+
+## Skill providers (experimental)
+
+Use `SessionConfig.SkillProvider` or `ResumeSessionConfig.SkillProvider` to
+serve session-scoped skills from your application instead of from `SKILL.md`
+files on disk. The provider is ephemeral: it is not serialized or persisted, so
+re-supply it on every resume. Resuming without a provider unbinds any previous
+provider for that session.
+
+<!-- docs-validate: skip -->
+
+```go
+type memorySkillProvider struct{}
+
+func (memorySkillProvider) ListSkills(ctx context.Context) ([]rpc.SkillProviderDescriptor, error) {
+    return []rpc.SkillProviderDescriptor{{
+        Name:        "review",
+        Description: "Review code using the host application's policy",
+    }}, nil
+}
+
+func (memorySkillProvider) ReadSkill(ctx context.Context, name string) (string, error) {
+    if name != "review" {
+        return "", copilot.ErrSkillNotFound
+    }
+    return "Review the changes and call out policy violations.", nil
+}
+
+session, err := client.CreateSession(ctx, &copilot.SessionConfig{
+    SkillProvider: memorySkillProvider{},
+    // Required only when ClientOptions.Mode is ModeEmpty.
+    // EnableSkills: copilot.Bool(true),
+})
+```
+
+`ReadSkill` returns an error for which
+`errors.Is(err, copilot.ErrSkillNotFound)` is true when a listed skill no
+longer exists. Other errors are reported to the runtime as generic provider
+failures so provider error text is not exposed to the model.
+
+Skill providers are not supported for cloud sessions. Creating a cloud session
+with a provider fails before the client connects with:
+`Skill providers are not supported for cloud sessions.`
+
+Provider methods can be called concurrently by the runtime, including from
+sub-agents that inherit the root session binding. Implementations must be safe
+for concurrent calls and should observe the `context.Context`. The context is
+cancelled when the runtime abandons the request: the call times out, the
+session disconnects or is deleted, or a resume replaces the provider. It is not
+cancelled when the connection closes or the client is force-stopped.
+
+## Installation confirmation (experimental)
+
+Set `ClientOptions.InstallationConfirmationHandler` to receive the runtime's
+`installations.confirm` callback through `InstallationConfirmationHandler`. The
+handler receives the generated `InstallationConfirmationRequest` and an
+`InstallationConfirmationContext`, a `context.Context` cancelled when the review
+is retired or the original connection closes. It returns only an explicit
+`InstallationConfirmationDecision`: `confirm`, `decline` or `cancel`. The SDK
+echoes the original challenge and review fingerprint; it never infers approval.
+
+Match `OperationID` and `PolicySessionID` against the original action on this
+exact connection before presenting the complete review. Missing legacy session
+metadata does not select a default session. Refuse unknown operations or
+incomplete reviews. Concurrent reviews are independent and do not block other
+RPCs on the connection.
+
+The callback context follows the runtime's numeric `$/cancelRequest`, including
+runtime-enforced expiry, and is also cancelled for loss of the original
+connection or client stop. Any separately spawned UI work must observe that
+single context. Dropping an outbound installation or OAuth future does not
+cancel that operation.
+
+Call `client.RPC.MCP.PrepareInstall(...)` before `ApplyInstall(...)`. Register
+its inert runtime-issued `OperationID`, original expiry and captured session on
+this client before applying. Removal uses `PlanUninstall(...)` then
+`ApplyUninstall(...)`; its `OperationID` identifies the operation, while
+`PlanHandle` is the one-use removal input. Never interchange them. The
+`Installations` namespace exposes `List`, `Recover`, `Status` and `Cancel`.
+Control uncertain work using its original connection and operation ID, without
+selecting a replacement session or replaying apply.
+
+Owned OAuth uses `session.RPC.MCP.Oauth().PrepareLogin(...)` to return `LoginID`
+before browser, network or cached-reconnect work. Keep that ID with the original
+session and `ExpectedInstallationID` for `Login(...)` and `CancelLogin(...)`.
+Preparation freezes reauthentication and display options. Dropping the login
+future is not a substitute for `CancelLogin(...)`. Manual MCP OAuth retains its
+direct `Login(...)` path.
+
+These methods require a matching runtime and available owned-lifecycle support.
+Capability negotiation does not promise availability; preserve typed refusals
+instead of falling back to raw configuration writes. Generated presence and
+transport tests do not establish live OAuth, activation or cross-process
+recovery.
 
 ## Distributing your application with an embedded GitHub Copilot CLI
 
@@ -168,8 +319,9 @@ Implemented with pure-Go FFI (via [purego](https://github.com/ebitengine/purego)
 
 - `NewClient(options *ClientOptions) *Client` - Create a new client
 - `Start(ctx context.Context) error` - Start the CLI server
-- `Stop() error` - Stop the CLI server
-- `ForceStop()` - Forcefully stop without graceful cleanup
+- `Stop() error` - Gracefully stop the CLI server. For an owned stdio process, requests runtime shutdown, closes stdin, and waits up to 10 seconds for host cleanup (including telemetry) and natural exit before falling back to a forced termination.
+- `ForceStop()` - Forcefully stop without graceful RPC cleanup. Retires local event subscriptions and session callbacks, including entries held by dispatch snapshots or unsubscribe handles. Pending response waits fail without waiting for idle or their context deadlines; already-dispatched handlers are not joined. Late event registration is logged and returns a no-op unsubscribe, and a late tool-replacement acknowledgment cannot restore retired handlers.
+- A plain `SendAndWait` that has already received its terminal idle or error preserves that result when local session retirement races the wait. An earlier event handler may also call `Disconnect` on the terminal event without losing that result. Without retirement, the wait still lets earlier synchronous handlers finish; a forced stop does not join those handlers or complete waits whose terminal dispatch they are still blocking.
 - `CreateSession(ctx context.Context, config *SessionConfig) (*Session, error)` - Create a new session
 - `ResumeSession(ctx context.Context, sessionID string, config *ResumeSessionConfig) (*Session, error)` - Resume an existing session
 - `ResumeSessionWithOptions(ctx context.Context, sessionID string, config *ResumeSessionConfig) (*Session, error)` - Resume with additional configuration
@@ -214,12 +366,26 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
 - `WorkingDirectory` (string): Working directory for the runtime process (default: current process working directory)
 - `BaseDirectory` (string): Base directory for Copilot data (session state, config, etc.). Sets `COPILOT_HOME` on the spawned runtime. When empty, the runtime defaults to `~/.copilot`. Ignored with `URIConnection`. This does **not** affect where the Go SDK extracts the embedded CLI binary; use `embeddedcli.Config.Dir` for the extraction/cache location.
 - `ExtensionLaunchProvider` (ExtensionLaunchProvider): Experimental connection-level resolver for extension launch profiles. `Start` installs the reverse-RPC handler and registers the provider before sessions can be created.
+- `InstallationConfirmationHandler` (InstallationConfirmationHandler): Experimental connection-global human review for `installations.confirm`. Receives the typed request, a per-request cancellation context and a separate connection-closed signal, then returns an explicit decision. Does not enable installation capabilities.
 - `LogLevel` (string): Log level. When empty (default), the runtime uses its own default level (the SDK does not pass `--log-level`).
 - `Env` ([]string): Environment variables for the runtime process (default: inherits from current process)
+
+  For the native standalone runtime, include
+  `"COPILOT_GITHUB_TELEMETRY_DISABLED=true"` in `Env` before startup to disable
+  direct GitHub telemetry uploads for the entire host, including sessionless
+  events. Authentication, `OnGitHubTelemetry` forwarding, and user-configured
+  OpenTelemetry export remain unchanged. This is separate from
+  `EnableSessionTelemetry: copilot.Bool(false)`, which disables only a session's
+  pipeline. The value must be exactly `"true"`; changing it requires a runtime
+  restart. The Node CLI host does not use this variable. In-process connections
+  reject per-client `Env`; set the variable in the host process environment
+  before starting the runtime instead.
+
 - `GitHubToken` (string): GitHub token for authentication. When provided, takes priority over other auth methods.
 - `UseLoggedInUser` (\*bool): Whether to use logged-in user for authentication (default: true, but false when `GitHubToken` is provided). Cannot be used with `URIConnection`.
 - `EnableRemoteSessions` (bool): Enable remote session support (Mission Control integration). Ignored with `URIConnection`.
 - `Telemetry` (\*TelemetryConfig): OpenTelemetry configuration for the runtime. Providing this enables telemetry — no separate flag needed. See [Telemetry](#telemetry) below.
+- `SessionFS` (\*SessionFSConfig): Custom session filesystem provider configuration. For the `view` tool to read provider-only images, set `Capabilities.Binary` and return a provider implementing `SessionFSBinaryProvider` (`ReadFileBytes` and `WriteFileBytes`) from `CreateSessionFSProvider`. Image reads do not fall back to local files. Binary reads and writes are limited to 50,330,880 bytes before encoding or decoding.
 
 **SessionConfig:**
 
@@ -236,10 +402,13 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
 - `InfiniteSessions` (\*InfiniteSessionConfig): Automatic context compaction configuration
 - `WorkingDirectory` (string): Working directory for the session (default: runtime process working directory)
 - `EnableSessionStore` (\*bool): Enables the cross-session store for search and retrieval across sessions. When unset in `ModeCopilotCli`, the runtime default applies (enabled). In `ModeEmpty`, defaults to disabled.
+- `EnableGitHubCacheStore` (\*bool): Requests the read-only GitHub cache store (`github-cache-store` capability) on create or resume. The runtime registers the `github_sql` tool only when its `GITHUB_CACHE_STORE` feature flag is also on. Defaults to disabled in every mode.
 - `GitHubTokenProvider` (GitHubTokenProvider): Acquires session-scoped GitHub tokens on demand. Return `GitHubTokenResult` with a positive `ExpiresIn` value (production GitHub tokens typically use `8 * 60 * 60` seconds), or `GitHubTokenCancelled`. Cannot be combined with `GitHubToken`.
 - `OnPermissionRequest` (PermissionHandlerFunc): Optional handler called before each tool execution to approve or deny it. When nil, permission requests are emitted as events and left pending for manual resolution. `copilot.PermissionHandler.ApproveAll` approves requests when managed settings are disabled and returns an error when `EnableManagedSettings` is true. Custom handlers can inspect `RequiresManagedApproval()` for human-facing confirmation logic. See [Permission Handling](#permission-handling) section.
+- `OnPermissionRequestWithPrompt` (PermissionHandlerWithPromptFunc): Optional compatibility-preserving alternative that also receives the derived user-facing prompt. Takes precedence when both permission handlers are set. See [Permission Handling](#permission-handling) section.
 - `OnUserInputRequest` (UserInputHandler): Handler for legacy question-and-answer requests from the agent. Enables the legacy `ask_user` tool. See [User Input Requests](#user-input-requests) section.
 - `AskUserVariant` (AskUserVariant): Selects the model-facing shape of the `ask_user` tool. The zero value preserves legacy behavior; use `AskUserVariantElicitation` with `OnElicitationRequest`.
+- `InteractiveUser` (\*bool): Declares that a person types this session's messages, as in an editor chat panel. Enables the runtime's user-message analysis telemetry for user-authored messages; automated messages stay excluded. Nil or false keeps the SDK default of off. Ignored for cloud sessions.
 - `Hooks` (\*SessionHooks): Hook handlers for session lifecycle events. See [Session Hooks](#session-hooks) section.
 - `Commands` ([]CommandDefinition): Slash-commands registered for this session. See [Commands](#commands) section.
 - `OnElicitationRequest` (ElicitationHandler): Handler for elicitation requests from the server. See [Elicitation Requests](#elicitation-requests-serverclient) section.
@@ -247,6 +416,7 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
 **ResumeSessionConfig:**
 
 - `OnPermissionRequest` (PermissionHandlerFunc): Optional handler called before each tool execution to approve or deny it. See [Permission Handling](#permission-handling) section.
+- `OnPermissionRequestWithPrompt` (PermissionHandlerWithPromptFunc): Optional alternative that also receives the derived user-facing prompt. Takes precedence when both permission handlers are set.
 - `Tools` ([]Tool): Tools to expose when resuming
 - `ReasoningEffort` (string): Reasoning effort level for models that support it
 - `Provider` (\*ProviderConfig): Custom API provider configuration (BYOK). See [Custom Providers](#custom-providers) section.
@@ -254,6 +424,7 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
 - `Commands` ([]CommandDefinition): Slash-commands. See [Commands](#commands) section.
 - `OnElicitationRequest` (ElicitationHandler): Elicitation handler. See [Elicitation Requests](#elicitation-requests-serverclient) section.
 - `AskUserVariant` (AskUserVariant): Selects the model-facing shape of the `ask_user` tool on cold resume. Re-supply `AskUserVariantElicitation` with `OnElicitationRequest`; the zero value preserves legacy behavior.
+- `InteractiveUser` (\*bool): Re-supplies the interactive-user declaration on cold resume. It is ignored when resuming a session that is already active.
 - `GitHubTokenProvider` (GitHubTokenProvider): Replaces the session-scoped token provider when resuming. Cannot be combined with `GitHubToken`.
 
 ```go
@@ -278,6 +449,7 @@ Initial acquisition runs during session creation or resume. Cancellation, provid
 - `Send(ctx context.Context, options MessageOptions) (string, error)` - Send a message
 - `On(handler SessionEventHandler) func()` - Subscribe to events (returns unsubscribe function)
 - `Abort(ctx context.Context) error` - Abort the currently processing message
+- `SetTools(ctx context.Context, tools []Tool) error` - Replace this client's live custom tools and handlers for the session. See [changing tools](../docs/features/changing-tools.md) for shared behavior and active-turn limitations.
 - `GetEvents(ctx context.Context) ([]SessionEvent, error)` - Get event history
 - `Disconnect() error` - Disconnect the session (releases in-memory resources, preserves disk state)
 - `UI() *SessionUI` - Interactive UI API for elicitation dialogs
@@ -306,6 +478,8 @@ whitespace, change case, or remove an existing prefix.
 Source is independent of delivery `Mode` and `AgentMode`; it does not replace the
 session's `SystemMessage` configuration. `SendAndWait` accepts the same options
 and still waits for session idle, returning `nil` if no assistant message arrives.
+Sub-agent events remain visible to listeners but do not complete the wait or
+supply its reply.
 
 ### Helper Functions
 
@@ -353,6 +527,8 @@ session, err := client.CreateSession(ctx, &copilot.SessionConfig{
 Available section constants: `SectionPreamble`, `SectionIdentity`, `SectionTone`, `SectionToolEfficiency`, `SectionEnvironmentContext`, `SectionCodeChangeRules`, `SectionGuidelines`, `SectionSafety`, `SectionToolInstructions`, `SectionCustomInstructions`, `SectionRuntimeInstructions`, `SectionLastInstructions`.
 
 `SectionIdentity` and `SectionToolInstructions` are section _groups_ that target a collection of related sub-sections as a unit. Use `SectionPreamble` to target just the identity preamble without affecting its sibling sub-sections.
+
+`SectionLastInstructions` (`last_instructions`) includes configured subagent-model guidance when the `task` tool is available. Removing or replacing this section also removes that guidance; a `SectionOverride.Transform` callback receives the complete section, including the guidance, and its returned content is authoritative. Append, prepend, and preserve retain their usual section semantics. These overrides change prompt prose only, not configured subagent models, tool availability, or runtime dispatch policy. `SectionRuntimeInstructions` is a separate section: removing it does not remove `SectionLastInstructions`.
 
 Each section override supports five actions:
 
@@ -509,6 +685,26 @@ editFile := copilot.DefineTool("edit_file", "Custom file editor with project-spe
     })
 editFile.OverridesBuiltInTool = true
 ```
+
+An explicit `apply_patch` override can declare a root string schema by using a
+`string` parameter with `DefineTool`. The model sees a required `input` property,
+but the runtime restores the scalar patch text before dispatch. Both the typed
+parameter and `ToolInvocation.Arguments` receive a string, not an
+`{"input": ...}` object. This example returns trimmed patch text; replace the
+handler body with your own patch implementation:
+
+```go
+import "strings"
+
+applyPatch := copilot.DefineTool("apply_patch", "Apply a patch",
+    func(patch string, inv copilot.ToolInvocation) (string, error) {
+        return strings.TrimSpace(patch), nil
+    })
+applyPatch.OverridesBuiltInTool = true
+```
+
+String-schema `apply_patch` overrides cannot contain JSON Schema references;
+use an object schema if references are needed.
 
 #### Skipping Permission Prompts
 
@@ -796,7 +992,9 @@ Dependency: `go.opentelemetry.io/otel`
 
 ## Permission Handling
 
-An `OnPermissionRequest` handler is optional when you create or resume a session. When provided, it is called before the agent executes each tool (file writes, shell commands, custom tools, etc.) and returns a decision. When nil, permission requests are emitted as events and left pending for the consumer to resolve with the pending permission RPC.
+Permission handlers are optional when you create or resume a session. When provided, the selected handler is called before the agent executes each tool (file writes, shell commands, custom tools, etc.) and returns a decision. When both handlers are nil, permission requests are emitted as events and left pending for the consumer to resolve with the pending permission RPC.
+
+Use `OnPermissionRequestWithPrompt` when the callback needs optional derived prompt context as `invocation.PromptRequest`, matching `PermissionRequestedData.PromptRequest`. The existing `OnPermissionRequest` callback remains available with its original two-field `PermissionInvocation` for source compatibility. The raw request's managed-approval marker remains managed-policy provenance and enforces one-shot restrictions. Only derived `commands`, `read`, `write`, `url`, and `workflow` prompts can clear the human requirement after Assisted approval; for missing or other prompt kinds, keep the raw marker authoritative.
 
 ### Approve All (simplest)
 
@@ -813,7 +1011,7 @@ When `EnableManagedSettings` is true for the session, `ApproveAll` returns an er
 
 ### Custom Permission Handler
 
-Provide your own `PermissionHandlerFunc` to inspect each request and apply custom logic. Check `RequiresManagedApproval()` before any automatic approval:
+Provide your own `PermissionHandlerWithPromptFunc` to inspect each request and the optional derived prompt. Check the raw managed requirement before any automatic approval, and clear it only from a supported derived prompt:
 
 ```go
 import (
@@ -825,8 +1023,21 @@ import (
 
 session, err := client.CreateSession(context.Background(), &copilot.SessionConfig{
     Model: "gpt-5",
-    OnPermissionRequest: func(request copilot.PermissionRequest, invocation copilot.PermissionInvocation) (rpc.PermissionDecision, error) {
-        if request.RequiresManagedApproval() {
+    OnPermissionRequestWithPrompt: func(request copilot.PermissionRequest, invocation copilot.PermissionHandlerInvocation) (rpc.PermissionDecision, error) {
+        assistedApprovalClearsManagedRequirement := false
+        switch prompt := invocation.PromptRequest.(type) {
+        case *rpc.PermissionPromptRequestCommands:
+            assistedApprovalClearsManagedRequirement = prompt.ManagedApprovalRequired == nil || !*prompt.ManagedApprovalRequired
+        case *rpc.PermissionPromptRequestRead:
+            assistedApprovalClearsManagedRequirement = prompt.ManagedApprovalRequired == nil || !*prompt.ManagedApprovalRequired
+        case *rpc.PermissionPromptRequestWrite:
+            assistedApprovalClearsManagedRequirement = prompt.ManagedApprovalRequired == nil || !*prompt.ManagedApprovalRequired
+        case *rpc.PermissionPromptRequestURL:
+            assistedApprovalClearsManagedRequirement = prompt.ManagedApprovalRequired == nil || !*prompt.ManagedApprovalRequired
+        case *rpc.PermissionPromptRequestWorkflow:
+            assistedApprovalClearsManagedRequirement = prompt.ManagedApprovalRequired == nil || !*prompt.ManagedApprovalRequired
+        }
+        if request.RequiresManagedApproval() && !assistedApprovalClearsManagedRequirement {
             return &rpc.PermissionDecisionNoResult{}, nil
         }
 
@@ -856,13 +1067,24 @@ Richer decisions (`PermissionDecisionApproveForSession`, `PermissionDecisionAppr
 
 ### Resuming Sessions
 
-You may pass `OnPermissionRequest` when resuming a session too:
+You may pass either permission handler when resuming a session too:
 
 ```go
 session, err := client.ResumeSession(context.Background(), sessionID, &copilot.ResumeSessionConfig{
     OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 })
 ```
+
+`AllowTranscriptRecovery` controls transcript repair on resume. A nil value omits
+the wire field and uses the runtime default (true) in all modes.
+Set `copilot.Bool(false)` to reject recovery.
+`session.TranscriptRecovery()` returns repair details or nil. The report's
+`InvalidLineNumbers` includes any discarded torn-tail lines. On rejection,
+use `errors.As(err, &rpcErr)` with `var rpcErr *copilot.RPCError` to inspect
+`rpcErr.Code` and `rpcErr.Data` (`invalidLineNumbers`, `sessionStartMoved`);
+the original error message remains available.
+Disabling recovery still permits adding a missing newline after an intact final
+record; it rejects torn tails.
 
 ### Per-Tool Skip Permission
 
@@ -954,6 +1176,22 @@ session, err := client.CreateSession(context.Background(), &copilot.SessionConfi
             return nil, nil
         },
 
+        // Called before a subagent's first turn; context is prepended to its prompt
+        OnSubagentStart: func(input copilot.SubagentStartHookInput, invocation copilot.HookInvocation) (*copilot.SubagentStartHookOutput, error) {
+            fmt.Printf("Starting subagent %s\n", input.AgentName)
+            return &copilot.SubagentStartHookOutput{
+                AdditionalContext: "Focus on the requested file.",
+            }, nil
+        },
+
+        // Called after a subagent finishes a turn
+        OnSubagentStop: func(input copilot.SubagentStopHookInput, invocation copilot.HookInvocation) (*copilot.SubagentStopHookOutput, error) {
+            fmt.Printf("Subagent %s finished: %s\n", input.AgentType, input.StopReason)
+            return &copilot.SubagentStopHookOutput{
+                ModifiedResponse: copilot.String("Verified: " + input.Response),
+            }, nil
+        },
+
         // Called when an error occurs
         OnErrorOccurred: func(input copilot.ErrorOccurredHookInput, invocation copilot.HookInvocation) (*copilot.ErrorOccurredHookOutput, error) {
             fmt.Printf("Error in %s: %s\n", input.ErrorContext, input.Error)
@@ -970,10 +1208,15 @@ session, err := client.CreateSession(context.Background(), &copilot.SessionConfi
 - `OnPreToolUse` - Intercept tool calls before execution. Can allow/deny or modify arguments.
 - `OnPostToolUse` - Process tool results after successful execution. Can modify results or add context.
 - `OnPostToolUseFailure` - Observe failed tool executions and inject extra context to guide the model's next step.
-- `OnUserPromptSubmitted` - Intercept user prompts. Can modify the prompt before processing.
+- `OnUserPromptSubmitted` - Intercept user prompts. Can modify the prompt before processing, or return `Decision: "block"` with a non-empty `Reason` to refuse it: no model turn runs, no user message is recorded, and the session emits an ephemeral `session.warning` (`warningType: "policy_blocked"`) carrying the reason.
 - `OnSessionStart` - Run logic when a session starts or resumes.
 - `OnSessionEnd` - Cleanup or logging when session ends.
+- `OnSubagentStart` - Observe a subagent before its first turn and optionally prepend `AdditionalContext` to its prompt.
+- `OnSubagentStop` - Observe a completed subagent turn. Return `Decision: "block"` with a non-empty `Reason` to request another turn, **or** `ModifiedResponse: copilot.String("replacement")` to replace its response (including an intentional empty string).
+- `OnAgentStop` - Intercept the parent agent's stop; distinct from `OnSubagentStop`.
 - `OnErrorOccurred` - Handle errors with retry/skip/abort strategies.
+
+Subagent hook inputs identify the **parent** session in `SessionID` and `HookInvocation.SessionID`. Both include a `time.Time` timestamp, `WorkingDirectory` (`cwd`), `TranscriptPath`, and `AgentName`. `AgentDisplayName` and `AgentDescription` may be empty. Stop inputs additionally include an optional `AgentID`, `AgentType`, `StopReason` (`"end_turn"`), and the subagent's `Response`. Registering either hook alone enables hook callbacks for both new and resumed sessions.
 
 ## Commands
 
@@ -1099,21 +1342,20 @@ Communicates with CLI via TCP socket. Useful for distributed scenarios.
 
 ## Development
 
-Follow [SDK development setup](../CONTRIBUTING.md#developing-an-sdk) for Go,
-golangci-lint, and the Node/replay-harness dependencies. From the SDK root
-(`src/sdk` in the runtime repository, or the standalone repository root):
+Tests require a supported [Node.js version](../nodejs/README.md#prerequisites). From the repository root:
 
 ```bash
-npm run build:go
-npm run test:go
-npm run check:go
+cd nodejs
+npm ci
 ```
 
-For focused tests, use `go test` selectors from `go/` after
-[preparing the runtime](../CONTRIBUTING.md#testing-an-unreleased-runtime-api).
-The existing race-enabled native test script is also available there:
+```bash
+cd test/harness
+npm ci
+```
 
 ```bash
+cd go
 ./test.sh
 ```
 

@@ -16,6 +16,29 @@ namespace GitHub.Copilot.Test.E2E;
 public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
     : E2ETestBase(fixture, "client_options", output)
 {
+    [Theory]
+    [InlineData("", "fallback.ghe.example", "https://fallback.ghe.example")]
+    [InlineData("tenant.ghe.example", "fallback.ghe.example", "https://tenant.ghe.example")]
+    [InlineData("", "", "https://github.com")]
+    public async Task Should_Use_Configured_GitHub_Host_For_Authentication(string copilotHost, string ghHost, string expectedHost)
+    {
+        var environment = Ctx.GetEnvironment();
+        environment["COPILOT_GH_HOST"] = copilotHost;
+        environment["GH_HOST"] = ghHost;
+
+        await using var client = Ctx.CreateClient(
+            options: new CopilotClientOptions
+            {
+                GitHubToken = environment["GITHUB_TOKEN"],
+                UseLoggedInUser = false,
+            },
+            environment: environment);
+
+        var status = await client.GetAuthStatusAsync();
+        Assert.True(status.IsAuthenticated, status.StatusMessage);
+        Assert.Equal(expectedHost, status.Host);
+    }
+
     [Fact]
     public async Task Should_Listen_On_Configured_Tcp_Port()
     {
@@ -66,6 +89,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         var copilotHomeFromOption = Path.Join(Ctx.WorkDir, "copilot-home-from-option");
         var clientEnv = Ctx.GetEnvironment().ToDictionary(pair => pair.Key, pair => pair.Value);
         clientEnv["COPILOT_HOME"] = copilotHomeFromEnv;
+        clientEnv["COPILOT_RUNTIME_PROCESS_FILE_LOGGING"] = "0";
         await File.WriteAllTextAsync(cliPath, FakeStdioCliScript);
 
         await using var client = Ctx.CreateClient(options: new CopilotClientOptions
@@ -103,6 +127,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
 
         Assert.Equal(copilotHomeFromOption, capturedEnv.GetProperty("COPILOT_HOME").GetString());
         Assert.Equal("process-option-token", capturedEnv.GetProperty("COPILOT_SDK_AUTH_TOKEN").GetString());
+        Assert.Equal("1", capturedEnv.GetProperty("COPILOT_RUNTIME_PROCESS_FILE_LOGGING").GetString());
         Assert.Equal("true", capturedEnv.GetProperty("COPILOT_OTEL_ENABLED").GetString());
         Assert.Equal("http://127.0.0.1:4318", capturedEnv.GetProperty("OTEL_EXPORTER_OTLP_ENDPOINT").GetString());
         Assert.Equal("http/protobuf", capturedEnv.GetProperty("OTEL_EXPORTER_OTLP_PROTOCOL").GetString());
@@ -253,6 +278,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
 
         var session = await Ctx.CreateSessionAsync(client, new SessionConfig
         {
+            Name = "named at create",
             SkipEmbeddingRetrieval = false,
             OrganizationCustomInstructions = "Follow org policy.",
             EnableOnDemandInstructionDiscovery = true,
@@ -266,6 +292,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
 
         using var capture = JsonDocument.Parse(await File.ReadAllTextAsync(capturePath));
         var createRequest = GetCapturedRequestParams(capture.RootElement, "session.create");
+        Assert.Equal("named at create", createRequest.GetProperty("name").GetString());
         Assert.False(createRequest.GetProperty("skipEmbeddingRetrieval").GetBoolean());
         Assert.Equal("Follow org policy.", createRequest.GetProperty("organizationCustomInstructions").GetString());
         Assert.True(createRequest.GetProperty("enableOnDemandInstructionDiscovery").GetBoolean());
@@ -512,6 +539,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         Assert.False(createRequest.GetProperty("enableSkills").GetBoolean());
         Assert.True(createRequest.GetProperty("customAgentsLocalOnly").GetBoolean());
         Assert.False(createRequest.TryGetProperty("organizationCustomInstructions", out _));
+        Assert.False(createRequest.TryGetProperty("name", out _));
 
         await session.DisposeAsync();
     }
@@ -758,6 +786,8 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
     public async Task Should_Apply_Empty_Mode_Defaults_To_ResumeSession_Wire_Request()
     {
         var (cliPath, capturePath) = await CreateFakeCliCaptureAsync();
+        var clientEnv = Ctx.GetEnvironment().ToDictionary(pair => pair.Key, pair => pair.Value);
+        clientEnv["COPILOT_RUNTIME_PROCESS_FILE_LOGGING"] = "0";
 
         await using var client = Ctx.CreateClient(options: new CopilotClientOptions
         {
@@ -765,7 +795,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
             Mode = CopilotClientMode.Empty,
             BaseDirectory = Ctx.WorkDir,
             UseLoggedInUser = false,
-        });
+        }, environment: clientEnv);
 
         await client.StartAsync();
 
@@ -776,6 +806,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         });
 
         using var capture = JsonDocument.Parse(await File.ReadAllTextAsync(capturePath));
+        Assert.Equal("0", capture.RootElement.GetProperty("env").GetProperty("COPILOT_RUNTIME_PROCESS_FILE_LOGGING").GetString());
         var resumeRequest = GetCapturedRequestParams(capture.RootElement, "session.resume");
         Assert.False(resumeRequest.GetProperty("enableSessionTelemetry").GetBoolean());
         Assert.True(resumeRequest.GetProperty("skipEmbeddingRetrieval").GetBoolean());
@@ -986,6 +1017,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
             env: {
               COPILOT_HOME: process.env.COPILOT_HOME,
               COPILOT_SDK_AUTH_TOKEN: process.env.COPILOT_SDK_AUTH_TOKEN,
+              COPILOT_RUNTIME_PROCESS_FILE_LOGGING: process.env.COPILOT_RUNTIME_PROCESS_FILE_LOGGING,
               COPILOT_OTEL_ENABLED: process.env.COPILOT_OTEL_ENABLED,
               OTEL_EXPORTER_OTLP_ENDPOINT: process.env.OTEL_EXPORTER_OTLP_ENDPOINT,
               OTEL_EXPORTER_OTLP_PROTOCOL: process.env.OTEL_EXPORTER_OTLP_PROTOCOL,

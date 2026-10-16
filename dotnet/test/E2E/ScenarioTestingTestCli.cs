@@ -201,12 +201,12 @@ internal static class ScenarioTestingTestCli
             return;
           }
 
-          if (message.method === "session.factory.listRuns") {
+          if (message.method === "session.workflow.listRuns") {
             writeResponse(message.id, {
               runs: [{
-                runId: "factory-run-1",
-                factoryName: "scenario-factory",
-                description: "Scenario factory",
+                runId: "workflow-run-1",
+                workflowName: "scenario-workflow",
+                description: "Scenario workflow",
                 status: "running",
                 revision: 4,
                 createdAt: 1000,
@@ -224,11 +224,11 @@ internal static class ScenarioTestingTestCli
             return;
           }
 
-          if (message.method === "session.factory.getRunDetail") {
+          if (message.method === "session.workflow.getRunDetail") {
             writeResponse(message.id, {
-              runId: "factory-run-1",
-              factoryName: "scenario-factory",
-              description: "Scenario factory",
+              runId: "workflow-run-1",
+              workflowName: "scenario-workflow",
+              description: "Scenario workflow",
               status: "running",
               revision: 4,
               createdAt: 1000,
@@ -247,7 +247,7 @@ internal static class ScenarioTestingTestCli
             return;
           }
 
-          if (message.method === "session.factory.getRunProgress") {
+          if (message.method === "session.workflow.getRunProgress") {
             writeResponse(message.id, {
               records: [{
                 seq: 12,
@@ -266,9 +266,9 @@ internal static class ScenarioTestingTestCli
             return;
           }
 
-          if (message.method === "session.factory.cancel") {
+          if (message.method === "session.workflow.cancel") {
             writeResponse(message.id, {
-              runId: "factory-run-1",
+              runId: "workflow-run-1",
               status: "cancelled",
               reason: "cancelled by user",
               attempt: 1

@@ -18,6 +18,7 @@
 //!
 //! [`Instant`]: std::time::Instant
 
+#[cfg(any(feature = "runtime", test))]
 use std::time::Duration;
 
 /// Millisecond breakdown of the phases of [`Client::start`](crate::Client::start).
@@ -73,33 +74,11 @@ pub struct StartupTimings {
 
 impl StartupTimings {
     /// Whole milliseconds of `duration`, saturating at [`u64::MAX`].
+    #[cfg(any(feature = "runtime", test))]
     pub(crate) fn millis(duration: Duration) -> u64 {
         u64::try_from(duration.as_millis()).unwrap_or(u64::MAX)
     }
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn millis_truncates_to_whole_milliseconds() {
-        assert_eq!(StartupTimings::millis(Duration::from_micros(1_999)), 1);
-        assert_eq!(StartupTimings::millis(Duration::from_millis(250)), 250);
-        assert_eq!(StartupTimings::millis(Duration::ZERO), 0);
-    }
-
-    #[test]
-    fn default_leaves_every_phase_unset() {
-        let timings = StartupTimings::default();
-        assert_eq!(timings, StartupTimings::default());
-        assert!(timings.program_resolve_ms.is_none());
-        assert!(timings.process_spawn_ms.is_none());
-        assert!(timings.port_wait_ms.is_none());
-        assert_eq!(timings.transport_setup_ms, 0);
-        assert_eq!(timings.handshake_ms, 0);
-        assert!(timings.session_fs_ms.is_none());
-        assert!(timings.llm_handler_ms.is_none());
-        assert_eq!(timings.total_ms, 0);
-    }
-}
+mod tests;

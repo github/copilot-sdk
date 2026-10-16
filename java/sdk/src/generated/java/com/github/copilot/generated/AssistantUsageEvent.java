@@ -10,6 +10,7 @@ package com.github.copilot.generated;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.github.copilot.CopilotExperimental;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
@@ -37,8 +38,16 @@ public final class AssistantUsageEvent extends SessionEvent {
     @JsonIgnoreProperties(ignoreUnknown = true)
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record AssistantUsageEventData(
+        /** Availability of this call's reported AI-credit amount. Missing billing is unavailable, not a zero charge. */
+        @JsonProperty("aiCreditsStatus") AiCreditsStatus aiCreditsStatus,
         /** Model identifier used for this API call */
         @JsonProperty("model") String model,
+        /** Provider identity and product label captured by the actual call's dispatch path. */
+        @JsonProperty("provider") ModelProviderRef provider,
+        /** Model display name captured for this call, not derived from the current selection. */
+        @JsonProperty("modelDisplayName") String modelDisplayName,
+        /** Runtime-owned identity shared with the durable accounting receipt. */
+        @JsonProperty("accounting") UsageAccountingIdentity accounting,
         /** Number of input tokens consumed */
         @JsonProperty("inputTokens") Long inputTokens,
         /** Number of output tokens produced */
@@ -56,6 +65,7 @@ public final class AssistantUsageEvent extends SessionEvent {
         /** Recognized provider-reported reasons for dropped thinking blocks, in response order */
         @JsonProperty("thinkingDroppedReasons") List<String> thinkingDroppedReasons,
         /** Model multiplier cost for billing purposes */
+        @CopilotExperimental
         @JsonProperty("cost") Double cost,
         /** Duration of the API call in milliseconds */
         @JsonProperty("duration") Long duration,
@@ -71,6 +81,10 @@ public final class AssistantUsageEvent extends SessionEvent {
         @JsonProperty("interactionType") String interactionType,
         /** Whether this model call used a bring-your-own-key provider */
         @JsonProperty("isByok") Boolean isByok,
+        /** Where the bring-your-own-key model runs and who manages it: "local_managed" (on the device, managed by Copilot), "local_user" (on the device, managed by the user), or "remote_user" (off the device, managed by the user). Absent for Copilot-served models. */
+        @JsonProperty("byokKind") String byokKind,
+        /** Fixed-set provider family serving the bring-your-own-key model (for example "openai", "anthropic", "azure_openai", "ollama", "llama_cpp", or "other"). Never the caller-supplied provider name. Absent for Copilot-served models. */
+        @JsonProperty("modelProvider") String modelProvider,
         /** Whether Auto mode was selected for this model call */
         @JsonProperty("isAuto") Boolean isAuto,
         /** Effective maximum prompt-token limit used for this model call */
@@ -83,6 +97,26 @@ public final class AssistantUsageEvent extends SessionEvent {
         @JsonProperty("rejectedPredictionTokens") Long rejectedPredictionTokens,
         /** Transport used for this model call (http or websocket) */
         @JsonProperty("transport") AssistantUsageTransport transport,
+        /** Serialized (uncompressed) byte length of the request body, before any Content-Encoding. A content-free size signal. */
+        @JsonProperty("requestBodyBytes") Long requestBodyBytes,
+        /** Byte length of the request body actually sent on the wire for the attempt that produced this outcome, after any Content-Encoding. Equals requestBodyBytes when the body was not compressed. */
+        @JsonProperty("requestBodyWireBytes") Long requestBodyWireBytes,
+        /** Content-Encoding applied to the request body of the attempt that produced this outcome; identity when uncompressed */
+        @JsonProperty("requestBodyEncoding") ModelCallRequestBodyEncoding requestBodyEncoding,
+        /** Why the call was carried by the HTTP fallback of a WebSocket-capable dispatcher; absent when no fallback occurred */
+        @JsonProperty("websocketFallbackReason") ModelCallWebSocketFallbackReason websocketFallbackReason,
+        /** Milliseconds spent on the WebSocket attempt before falling back to HTTP */
+        @JsonProperty("websocketFallbackAfterMs") Long websocketFallbackAfterMs,
+        /** Normalized cause of the WebSocket failure that triggered the HTTP fallback; absent when no fallback occurred or the cause is unknown */
+        @JsonProperty("websocketFallbackErrorKind") ModelCallWebSocketFallbackErrorKind websocketFallbackErrorKind,
+        /** HTTP status of the WebSocket upgrade rejection or WebSocket API error that triggered the HTTP fallback */
+        @JsonProperty("websocketFallbackStatusCode") Long websocketFallbackStatusCode,
+        /** WebSocket close code received before the HTTP fallback */
+        @JsonProperty("websocketFallbackCloseCode") Long websocketFallbackCloseCode,
+        /** Whether a WebSocket reconnect was attempted before falling back to HTTP */
+        @JsonProperty("websocketFallbackReconnectAttempted") Boolean websocketFallbackReconnectAttempted,
+        /** Whether the HTTP fallback started during this model call, rather than being inherited from an earlier call */
+        @JsonProperty("websocketFallbackStartedThisCall") Boolean websocketFallbackStartedThisCall,
         /** Completion ID from the model provider (e.g., chatcmpl-abc123) */
         @JsonProperty("apiCallId") String apiCallId,
         /** GitHub request tracing ID (x-github-request-id header) for server-side log correlation */
@@ -122,6 +156,7 @@ public final class AssistantUsageEvent extends SessionEvent {
         /** Whether the model response was blocked or truncated by content filtering (finish_reason === 'content_filter'). For Anthropic models this corresponds to a 'refusal' stop reason. */
         @JsonProperty("contentFilterTriggered") Boolean contentFilterTriggered,
         /** Experimental HydraFusion attribution for this concrete model call's usage. */
+        @CopilotExperimental
         @JsonProperty("fusion") FusionAttribution fusion
     ) {
     }

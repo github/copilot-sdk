@@ -30,6 +30,8 @@ public record SessionQueuePendingItemsResult(
     /** Display text for messages currently in the immediate steering queue (interjections sent during a running turn). */
     @JsonProperty("steeringMessages") List<String> steeringMessages,
     /** How many leading entries of `steeringMessages` have already been folded into the running turn (and so have an emitted `user.message`), as opposed to still waiting for one. Absent for hosts that do not distinguish the two. */
-    @JsonProperty("inFlightSteeringCount") Long inFlightSteeringCount
+    @JsonProperty("inFlightSteeringCount") Long inFlightSteeringCount,
+    /** ID of the running turn's user message while the model has not answered it, so `withdrawMessage` can still take it back once nothing sent after it is pending. A message leaves `items` when its turn starts, before its `user.message` is recorded; this tells that message apart from one that was removed. Absent when no turn prompt can be taken back. */
+    @JsonProperty("withdrawableTurnMessageId") String withdrawableTurnMessageId
 ) {
 }

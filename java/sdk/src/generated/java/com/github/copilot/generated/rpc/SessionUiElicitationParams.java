@@ -34,7 +34,7 @@ public record SessionUiElicitationParams(
     /** JSON Schema describing the form fields to present to the user */
     @JsonProperty("requestedSchema") UIElicitationSchema requestedSchema,
     /** MCP request metadata. */
-    @JsonProperty("_meta") Map<String, Map<String, Object>> meta,
+    @JsonProperty("_meta") Map<String, Object> meta,
     /** MCP task metadata. */
     @JsonProperty("task") McpTaskMetadata task
 ) {

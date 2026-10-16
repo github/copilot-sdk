@@ -10,6 +10,6 @@ package(default_visibility = ["//visibility:public"])
 
 alias(
     name = "futures-util",
-    actual = "@sdk_vendor__futures-util-0.3.32//:futures_util",
+    actual = "@sdk_vendor__futures-util-0.3.34//:futures_util",
     tags = ["manual"],
 )

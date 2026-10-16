@@ -2,6 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+using System.Text.RegularExpressions;
+
 namespace GitHub.Copilot.Test.Harness;
 
 public static class TestHelper
@@ -72,7 +74,8 @@ public static class TestHelper
         TimeSpan? timeout = null,
         string? timeoutMessage = null,
         Func<Exception, bool>? transientExceptionFilter = null,
-        TimeSpan? pollInterval = null)
+        TimeSpan? pollInterval = null,
+        Func<string>? timeoutMessageFactory = null)
     {
         using var cts = new CancellationTokenSource(timeout ?? DefaultEventTimeout);
         Exception? lastTransientException = null;
@@ -115,11 +118,134 @@ public static class TestHelper
             lastTransientException = ex;
         }
 
+        var message = timeoutMessageFactory?.Invoke() ?? timeoutMessage ?? "Timed out waiting for condition.";
         throw lastTransientException is null
-            ? new TimeoutException(timeoutMessage ?? "Timed out waiting for condition.")
-            : new TimeoutException(timeoutMessage ?? "Timed out waiting for condition.", lastTransientException);
+            ? new TimeoutException(message)
+            : new TimeoutException(message, lastTransientException);
     }
 
     public static bool IsTransientFileSystemException(Exception exception)
         => exception is IOException or UnauthorizedAccessException;
+
+    public static string ExtensionLaunchMarkers(string homeDir, string extensionId)
+    {
+        try
+        {
+            var logsDir = Path.Join(homeDir, "logs");
+            if (!Directory.Exists(logsDir))
+            {
+                return "<no process logs>";
+            }
+
+            var extensionName = extensionId[(extensionId.LastIndexOf(':') + 1)..];
+            var launches = new List<string>();
+            foreach (var path in Directory.EnumerateFiles(logsDir, "process-*.log"))
+            {
+                using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+                using var reader = new StreamReader(stream);
+                if (reader.ReadLine()?.Contains(extensionName, StringComparison.Ordinal) != true)
+                {
+                    continue;
+                }
+
+                var markers = new List<string>();
+                var errors = new HashSet<string>(StringComparer.Ordinal);
+                var recentLines = new Queue<string>();
+                while (reader.ReadLine() is { } line)
+                {
+                    if (recentLines.Count == 20)
+                    {
+                        recentLines.Dequeue();
+                    }
+                    recentLines.Enqueue(line);
+
+                    if (line.StartsWith("=== ", StringComparison.Ordinal))
+                    {
+                        if (line is "=== initializing ===" or "=== ready ===" or "=== peer-registration-failed ==="
+                            or "=== exited-before-ready ===" or "=== startup-timeout ==="
+                            or "=== peer-closed-before-ready ===")
+                        {
+                            markers.Add(line);
+                        }
+                        var exit = Regex.Match(line, @"^=== exit code=(-?\d+|signal) disposition=(startup-failure|crash|stopped-normally|termination-failure) ===$");
+                        if (exit.Success)
+                        {
+                            var code = exit.Groups[1].Value;
+                            markers.Add($"=== exit code={(code is "0" or "1" or "signal" ? code : "other")} disposition={exit.Groups[2].Value} ===");
+                        }
+                        continue;
+                    }
+
+                    if (line.StartsWith("[extension-bootstrap] Failed to load extension:", StringComparison.Ordinal))
+                    {
+                        errors.Add("bootstrap import failed");
+                        var joinError = Regex.Match(
+                            line,
+                            @"Request (session\.(?:resume|options\.update)) failed with message: (.*)$");
+                        if (joinError.Success)
+                        {
+                            // Only emit fixed vocabulary, never the exception's paths, IDs, or credentials.
+                            var terms = Regex.Matches(
+                                joinError.Groups[2].Value,
+                                @"\b(?:access|already|authentication|callback|cancelled|closed|connection|context|duplicate|event|failed|file|found|hook|invalid|lock|missing|model|not|owner|path|permission|policy|provider|register|registration|rejected|response|resume|session|stale|state|timeout|tool|unavailable|unknown|workspace)\b",
+                                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)
+                                .Cast<Match>()
+                                .Select(match => match.Value.ToLowerInvariant())
+                                .Take(20);
+                            errors.Add($"{joinError.Groups[1].Value} reason terms: {string.Join(" ", terms)}");
+                        }
+                    }
+
+                    if (line is "[sdk-extension-test] imported" or "[sdk-extension-test] joining"
+                        or "[sdk-extension-test] joined" or "[sdk-extension-test] logged")
+                    {
+                        markers.Add(line);
+                    }
+                    else if (Regex.IsMatch(line, @"^\[sdk-extension-test\] join failed code=(?:-?\d+|none)$"))
+                    {
+                        markers.Add("[sdk-extension-test] join failed");
+                    }
+
+                    AddErrorCategories(line, errors);
+                }
+                var summary = string.Join("; ", markers);
+                if (errors.Count > 0)
+                {
+                    summary += $"; error categories: {string.Join(", ", errors.OrderBy(error => error, StringComparer.Ordinal))}";
+                }
+                var recentErrors = new HashSet<string>(StringComparer.Ordinal);
+                foreach (var line in recentLines)
+                {
+                    AddErrorCategories(line, recentErrors);
+                }
+                if (recentErrors.Count > 0)
+                {
+                    summary += $"; recent error categories: {string.Join(", ", recentErrors.OrderBy(error => error, StringComparer.Ordinal))}";
+                }
+                launches.Add(summary.Length == 0 ? "<no lifecycle markers>" : summary);
+            }
+
+            return launches.Count == 0 ? "<no matching launch logs>" : string.Join(" | ", launches);
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            return $"<launch logs unavailable: {error.GetType().Name}>";
+        }
+    }
+
+    private static void AddErrorCategories(string line, HashSet<string> errors)
+    {
+        var code = Regex.Match(line, @"\b(?:ERR_[A-Z0-9_]+|ECONNRESET|ECONNREFUSED|EPIPE|ENOENT|ETIMEDOUT)\b");
+        if (code.Success)
+        {
+            errors.Add(code.Value.StartsWith("ERR_", StringComparison.Ordinal) && code.Value != "ERR_INVALID_ARG_TYPE"
+                ? "Node.js error"
+                : code.Value);
+        }
+        var type = Regex.Match(line, @"(?<![\w.])(?:TypeError|ReferenceError|SyntaxError|RangeError|AggregateError|AssertionError|Error)(?=:| \[)");
+        if (type.Success)
+        {
+            errors.Add(type.Value);
+        }
+    }
 }

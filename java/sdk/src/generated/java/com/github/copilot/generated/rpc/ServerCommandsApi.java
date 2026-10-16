@@ -27,7 +27,7 @@ public final class ServerCommandsApi {
     }
 
     /**
-     * Slash commands available in the session, after applying any include/exclude filters.
+     * Lists the well-known built-in slash commands that work as the first message in a new session (e.g. /plan, /env), without requiring an active session. Commands that depend on session state, authentication, or a synced session are omitted.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0

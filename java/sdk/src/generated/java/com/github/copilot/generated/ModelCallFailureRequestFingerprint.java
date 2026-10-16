@@ -33,6 +33,12 @@ public record ModelCallFailureRequestFingerprint(
     @JsonProperty("imagePartCount") Long imagePartCount,
     /** Image parts whose media type cannot be determined (rejected by strict providers) */
     @JsonProperty("imagePartsMissingMediaType") Long imagePartsMissingMediaType,
+    /** Summed byte length of inline image payloads (data URLs and base64 sources) */
+    @JsonProperty("imageBytes") Long imageBytes,
+    /** Number of messages carrying opaque or encrypted reasoning */
+    @JsonProperty("reasoningItemCount") Long reasoningItemCount,
+    /** Summed byte length of opaque or encrypted reasoning payloads */
+    @JsonProperty("encryptedContentBytes") Long encryptedContentBytes,
     /** Role of the final message in the request */
     @JsonProperty("lastMessageRole") String lastMessageRole
 ) {

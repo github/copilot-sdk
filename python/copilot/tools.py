@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation. All rights reserved.
+
 """
 Tool definition utilities for the Copilot SDK.
 
@@ -70,6 +72,18 @@ class ToolInvocation:
     tool-search tool (``tool_search_tool``), so a tool-search override can
     rank/filter the live catalog -- including MCP tools configured in settings --
     without issuing its own RPC. ``None`` for every other tool invocation.
+    """
+    agent_id: str | None = None
+    """**Experimental.** Sub-agent instance that issued this call (the ``agent_id``
+    of its session events). ``None`` for a root-agent call, and for every call
+    when the runtime does not attribute sub-agent tool calls.
+    """
+    request_id: str | None = None
+    """**Experimental.** Runtime request id of this call: the key
+    ``session.tools.handlePendingToolCall`` and ``session.tools.listPendingRequests``
+    use. A root-agent call stays answerable after the session is resumed with
+    pending work continued; a sub-agent's call can be answered only while that
+    sub-agent is still running.
     """
 
 
@@ -253,7 +267,7 @@ def define_tool(
                 # Build args based on detected signature
                 call_args = []
                 if takes_params:
-                    args = invocation.arguments or {}
+                    args = invocation.arguments if invocation.arguments is not None else {}
                     if ptype is not None and _is_pydantic_model(ptype):
                         try:
                             call_args.append(ptype.model_validate(args))

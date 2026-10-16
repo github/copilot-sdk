@@ -10,17 +10,23 @@ package com.github.copilot.generated;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
  * Experimental attribution linking an ordinary event to the HydraFusion turn, phase, and concrete source that produced it.
  *
+ * @apiNote This type is experimental and may change in a future version.
+ *
  * @since 1.0.0
  */
+@CopilotExperimental
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record FusionAttribution(
+    /** Whether this model request consumed a user steering message rather than only internal Fusion work. */
+    @JsonProperty("hasUserSteering") Boolean hasUserSteering,
     /** Stable identifier for the HydraFusion turn that produced the event. */
     @JsonProperty("fusionId") String fusionId,
     /** Idempotency identifier for the authoritative commit, when the event belongs to the selected output. */

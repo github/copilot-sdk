@@ -11,14 +11,23 @@ import java.util.concurrent.CompletableFuture;
  * <p>
  * When the assistant needs permission to perform certain actions (such as
  * executing tools or accessing resources), this handler is invoked to approve
- * or deny the request.
+ * or deny the request. The raw request's managed-approval marker preserves
+ * policy provenance and one-shot restrictions. Newer runtimes also expose the
+ * derived {@code promptRequest} through {@link PermissionInvocation}; handlers
+ * should prefer that prompt when deciding whether Assisted approval still
+ * requires a human response and remain conservative when it is absent.
  *
  * <h2>Example Implementation</h2>
  *
  * <pre>{@code
  * PermissionHandler handler = (request, invocation) -> {
- * 	if (Boolean.TRUE.equals(request.getManagedApprovalRequired())) {
- * 		// Obtain an explicit human decision before approving this request.
+ * 	var prompt = invocation.getPromptRequest();
+ * 	var assistedApprovalClearsManagedRequirement = prompt != null
+ * 			&& ("commands".equals(prompt.getKind()) || "read".equals(prompt.getKind())
+ * 					|| "write".equals(prompt.getKind()) || "url".equals(prompt.getKind())
+ * 					|| "workflow".equals(prompt.getKind()))
+ * 			&& !Boolean.TRUE.equals(prompt.getManagedApprovalRequired());
+ * 	if (Boolean.TRUE.equals(request.getManagedApprovalRequired()) && !assistedApprovalClearsManagedRequirement) {
  * 		return requestHumanApproval(request);
  * 	}
  *

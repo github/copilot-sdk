@@ -4,6 +4,10 @@
 
 package com.github.copilot.rpc;
 
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
@@ -26,6 +30,30 @@ public class AgentInfo {
 
     @JsonProperty("model")
     private String model;
+
+    @JsonProperty("hooks")
+    private Map<String, List<Map<String, Object>>> hooks;
+
+    /**
+     * Gets declarative hook actions executed only while this agent is active.
+     *
+     * @return actions keyed by event name, or {@code null} if unset
+     */
+    public Map<String, List<Map<String, Object>>> getHooks() {
+        return hooks == null ? null : Collections.unmodifiableMap(hooks);
+    }
+
+    /**
+     * Sets declarative hook actions scoped to this agent.
+     *
+     * @param hooks
+     *            actions keyed by event name
+     * @return this instance for chaining
+     */
+    public AgentInfo setHooks(Map<String, List<Map<String, Object>>> hooks) {
+        this.hooks = hooks;
+        return this;
+    }
 
     /**
      * Gets the unique identifier of the agent.

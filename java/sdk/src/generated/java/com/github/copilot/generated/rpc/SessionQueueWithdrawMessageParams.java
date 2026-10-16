@@ -14,7 +14,7 @@ import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
- * Conditional withdrawal of a single user message, before the runtime claims it for delivery.
+ * Conditional withdrawal of a single user message, from its queue or from the running turn it started.
  *
  * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0

@@ -7,6 +7,7 @@ using System.Globalization;
 using System.Text.Json;
 using GitHub.Copilot.Rpc;
 using GitHub.Copilot.Test.Harness;
+using Microsoft.Extensions.Logging;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -127,13 +128,25 @@ public class ScenarioTestingRuntimeE2ETests(E2ETestFixture fixture, ITestOutputH
                 args: ["--capture-file", capturePath, "--pid-file", pidPath, "--behavior", "hang-connect"]),
             UseLoggedInUser = false,
         });
-        using var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(500));
+        using var cancellation = new CancellationTokenSource();
+        var start = client.StartAsync(cancellation.Token);
+        try
+        {
+            using var capture = await WaitForCaptureAsync(
+                capturePath,
+                root => root.GetProperty("requests").EnumerateArray()
+                    .Any(request => request.GetProperty("method").GetString() == "connect"));
+            cancellation.Cancel();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => start.WaitAsync(TestTimeout));
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => client.StartAsync(cancellation.Token));
-
-        var pid = int.Parse(await File.ReadAllTextAsync(pidPath), CultureInfo.InvariantCulture);
-        await AssertProcessExitedAsync(pid);
-        await client.ForceStopAsync();
+            var pid = int.Parse(await File.ReadAllTextAsync(pidPath), CultureInfo.InvariantCulture);
+            await AssertProcessExitedAsync(pid);
+        }
+        finally
+        {
+            cancellation.Cancel();
+            await client.ForceStopAsync();
+        }
     }
 
     [Fact]
@@ -194,17 +207,19 @@ public class ScenarioTestingRuntimeE2ETests(E2ETestFixture fixture, ITestOutputH
     [Fact]
     public async Task Should_Fail_Fast_After_Transport_Failure()
     {
-        var (cliPath, capturePath, pidPath) = await CreateFakeRuntimeAsync("exit-after-create");
+        var (cliPath, capturePath, pidPath) = await CreateFakeRuntimeAsync("normal");
         await using var client = Ctx.CreateClient(options: new CopilotClientOptions
         {
             Connection = RuntimeConnection.ForStdio(
                 path: cliPath,
-                args: ["--capture-file", capturePath, "--pid-file", pidPath, "--behavior", "exit-after-create"]),
+                args: ["--capture-file", capturePath, "--pid-file", pidPath, "--behavior", "normal"]),
             UseLoggedInUser = false,
         });
         await using var session = await Ctx.CreateSessionAsync(client);
 
         var pid = int.Parse(await File.ReadAllTextAsync(pidPath), CultureInfo.InvariantCulture);
+        using var process = Process.GetProcessById(pid);
+        process.Kill();
         await AssertProcessExitedAsync(pid);
 
         Exception sendException;
@@ -417,9 +432,6 @@ public class ScenarioTestingRuntimeE2ETests(E2ETestFixture fixture, ITestOutputH
           if (message.method === "session.create") {
             const sessionId = message.params?.sessionId ?? "fake-session";
             respond(message.id, { sessionId, workspacePath: null, capabilities: null });
-            if (behavior === "exit-after-create") {
-              setTimeout(() => process.exit(17), 25);
-            }
             return;
           }
 

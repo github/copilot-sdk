@@ -15,7 +15,9 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import com.github.copilot.CopilotExperimental;
+import com.github.copilot.SkillProvider;
 import com.github.copilot.generated.SessionEvent;
+import com.github.copilot.generated.rpc.DiagnosticsConfiguration;
 import com.github.copilot.generated.rpc.SessionLimitsConfig;
 
 /**
@@ -56,6 +58,8 @@ public class ResumeSessionConfig {
     private Boolean enableFileChangeTracking;
     private SessionLimitsConfig sessionLimits;
     private Boolean enableExperimentalMode;
+    private Boolean continuePendingWork;
+    private Boolean allowTranscriptRecovery;
     private Boolean skipCustomInstructions;
     private Boolean customAgentsLocalOnly;
     private Boolean coauthorEnabled;
@@ -79,23 +83,29 @@ public class ResumeSessionConfig {
     private Boolean enableFileHooks;
     private Boolean enableHostGitOperations;
     private Boolean enableSessionStore;
+    private Boolean enableGitHubCacheStore;
     private Boolean enableSkills;
+    private SkillProvider skillProvider;
     private String embeddingCacheStorage;
     private boolean disableResume;
     private boolean streaming;
     private Boolean includeSubAgentStreamingEvents;
     private Map<String, McpServerConfig> mcpServers;
+    private DiagnosticsConfiguration diagnostics;
     private String mcpOAuthTokenStorage;
     private String authClientIdMetadataUrl;
     private List<CustomAgentConfig> customAgents;
     private DefaultAgentConfig defaultAgent;
     private String agent;
     private List<String> skillDirectories;
+    private List<String> agentDirectories;
+    private List<String> hookDirectories;
     private List<String> includedBuiltinSkills;
     private List<String> instructionDirectories;
     private List<String> pluginDirectories;
     private LargeToolOutputConfig largeOutput;
     private ToolSearchConfig toolSearch;
+    private ImageGenerationConfig imageGeneration;
     private MemoryConfiguration memory;
     private List<String> disabledSkills;
     private List<String> disabledMcpServers;
@@ -113,6 +123,8 @@ public class ResumeSessionConfig {
     private String remoteSession;
     private CopilotExpAssignmentResponse expAssignments;
     private Boolean enableManagedSettings;
+    private Boolean enforceManagedModelDefaults;
+    private Boolean interactiveUser;
     private Map<String, Boolean> featureFlags;
     private ManagedSettings managedSettings;
 
@@ -136,6 +148,72 @@ public class ResumeSessionConfig {
      */
     public ResumeSessionConfig setModel(String model) {
         this.model = model;
+        return this;
+    }
+
+    /**
+     * Gets whether pending work should continue after resuming the session.
+     *
+     * @return the explicit choice, or empty to use the runtime default
+     */
+    @JsonIgnore
+    public Optional<Boolean> getContinuePendingWork() {
+        return Optional.ofNullable(continuePendingWork);
+    }
+
+    /**
+     * Sets whether to continue pending work when resuming the session.
+     *
+     * @param continuePendingWork
+     *            whether to continue pending work
+     * @return this config for method chaining
+     */
+    public ResumeSessionConfig setContinuePendingWork(boolean continuePendingWork) {
+        this.continuePendingWork = continuePendingWork;
+        return this;
+    }
+
+    /**
+     * Clears the pending-work choice so the runtime default applies.
+     *
+     * @return this config for method chaining
+     */
+    public ResumeSessionConfig clearContinuePendingWork() {
+        this.continuePendingWork = null;
+        return this;
+    }
+
+    /**
+     * Gets the explicit transcript repair choice on resume.
+     *
+     * @return the choice, or empty for the runtime default (true in all modes)
+     */
+    @JsonIgnore
+    public Optional<Boolean> getAllowTranscriptRecovery() {
+        return Optional.ofNullable(allowTranscriptRecovery);
+    }
+
+    /**
+     * Sets whether to repair a damaged transcript on resume. Defaults to true in
+     * all modes. Set false to reject recovery. Recovery can discard a torn tail;
+     * inspect the returned session's report.
+     *
+     * @param allowTranscriptRecovery
+     *            whether repair is allowed
+     * @return this config
+     */
+    public ResumeSessionConfig setAllowTranscriptRecovery(boolean allowTranscriptRecovery) {
+        this.allowTranscriptRecovery = allowTranscriptRecovery;
+        return this;
+    }
+
+    /**
+     * Clears the transcript repair choice so the runtime default (true) applies.
+     *
+     * @return this config for method chaining
+     */
+    public ResumeSessionConfig clearAllowTranscriptRecovery() {
+        this.allowTranscriptRecovery = null;
         return this;
     }
 
@@ -1103,7 +1181,9 @@ public class ResumeSessionConfig {
     }
 
     /**
-     * Gets whether file-based hooks are enabled.
+     * Gets whether repository-origin file hooks from {@code .github/hooks/} and
+     * trusted repository-configured roots are enabled. Does not control explicit
+     * {@link #getHookDirectories()} or callback hooks.
      *
      * @return an {@link java.util.Optional} containing {@code true} to enable file
      *         hooks or {@code false} to disable them, or
@@ -1208,6 +1288,45 @@ public class ResumeSessionConfig {
     }
 
     /**
+     * Gets whether the read-only GitHub cache store is requested.
+     *
+     * @return an {@link java.util.Optional} containing {@code true} to request the
+     *         {@code github-cache-store} capability or {@code false} to decline it,
+     *         or {@link java.util.Optional#empty()} to use the default behavior
+     *         (disabled)
+     */
+    @JsonIgnore
+    public Optional<Boolean> getEnableGitHubCacheStore() {
+        return Optional.ofNullable(enableGitHubCacheStore);
+    }
+
+    /**
+     * Sets whether the read-only GitHub cache store is requested.
+     * <p>
+     * The runtime registers the {@code github_sql} tool only when its
+     * {@code GITHUB_CACHE_STORE} feature flag is also on.
+     *
+     * @param enableGitHubCacheStore
+     *            {@code true} to request the {@code github-cache-store} capability,
+     *            {@code false} to decline it
+     * @return this config for method chaining
+     */
+    public ResumeSessionConfig setEnableGitHubCacheStore(boolean enableGitHubCacheStore) {
+        this.enableGitHubCacheStore = enableGitHubCacheStore;
+        return this;
+    }
+
+    /**
+     * Clears the enableGitHubCacheStore setting, reverting to the default behavior.
+     *
+     * @return this instance for method chaining
+     */
+    public ResumeSessionConfig clearEnableGitHubCacheStore() {
+        this.enableGitHubCacheStore = null;
+        return this;
+    }
+
+    /**
      * Gets whether skill loading is enabled.
      *
      * @return an {@link java.util.Optional} containing {@code true} to enable skill
@@ -1238,6 +1357,35 @@ public class ResumeSessionConfig {
      */
     public ResumeSessionConfig clearEnableSkills() {
         this.enableSkills = null;
+        return this;
+    }
+
+    /**
+     * Gets the session-scoped skill provider for the resumed session.
+     *
+     * @return the skill provider, or {@code null} when not configured
+     * @apiNote This API is experimental and may change in a future version.
+     */
+    @CopilotExperimental
+    @JsonIgnore
+    public SkillProvider getSkillProvider() {
+        return skillProvider;
+    }
+
+    /**
+     * Sets the session-scoped skill provider for the resumed session.
+     * <p>
+     * Skill provider registrations are not persisted; re-supply the provider when
+     * resuming.
+     *
+     * @param skillProvider
+     *            the skill provider to expose to the runtime
+     * @return this config for method chaining
+     * @apiNote This API is experimental and may change in a future version.
+     */
+    @CopilotExperimental
+    public ResumeSessionConfig setSkillProvider(SkillProvider skillProvider) {
+        this.skillProvider = skillProvider;
         return this;
     }
 
@@ -1342,6 +1490,18 @@ public class ResumeSessionConfig {
     }
 
     /**
+     * Controls whether persisted pending work may continue on resume.
+     *
+     * @param continuePendingWork
+     *            explicit setting, or {@code null} for the default
+     * @return this config instance
+     */
+    public ResumeSessionConfig setContinuePendingWork(Boolean continuePendingWork) {
+        this.continuePendingWork = continuePendingWork;
+        return this;
+    }
+
+    /**
      * Sets whether to disable the session.resume event.
      * <p>
      * When true, the session.resume event is not emitted.
@@ -1394,6 +1554,28 @@ public class ResumeSessionConfig {
      */
     public ResumeSessionConfig setMcpServers(Map<String, McpServerConfig> mcpServers) {
         this.mcpServers = mcpServers;
+        return this;
+    }
+
+    /**
+     * Gets the session-scoped diagnostics configuration.
+     *
+     * @return the diagnostic level, or {@code null} to preserve the current level
+     */
+    public DiagnosticsConfiguration getDiagnostics() {
+        return diagnostics;
+    }
+
+    /**
+     * Sets the session-scoped diagnostics configuration. Leave it unset when
+     * resuming a resident session to preserve its current diagnostic level.
+     *
+     * @param diagnostics
+     *            the diagnostic level
+     * @return this config for method chaining
+     */
+    public ResumeSessionConfig setDiagnostics(DiagnosticsConfiguration diagnostics) {
+        this.diagnostics = diagnostics;
         return this;
     }
 
@@ -1523,7 +1705,11 @@ public class ResumeSessionConfig {
     }
 
     /**
-     * Gets the skill directories.
+     * Gets explicit discovery-only skill roots, not general filesystem grants.
+     * Available without configuration discovery, subject to skill/managed disables.
+     * Relative paths resolve once when supplied against the request's effective
+     * working directory; retained roots do not move when it changes. Null and
+     * omission are equivalent; an empty list clears only the SDK contribution.
      *
      * @return the list of skill directory paths
      */
@@ -1540,6 +1726,59 @@ public class ResumeSessionConfig {
      */
     public ResumeSessionConfig setSkillDirectories(List<String> skillDirectories) {
         this.skillDirectories = skillDirectories;
+        return this;
+    }
+
+    /**
+     * Gets explicit discovery-only agent roots, separate from custom agent objects.
+     * No general filesystem grant. Available without configuration discovery,
+     * subject to source/managed disables. Relative paths resolve once when supplied
+     * against the request's effective working directory; retained roots do not
+     * move. Null and omission are equivalent; an empty list clears only the SDK
+     * contribution.
+     *
+     * @return the agent directory paths
+     */
+    public List<String> getAgentDirectories() {
+        return agentDirectories == null ? null : Collections.unmodifiableList(agentDirectories);
+    }
+
+    /**
+     * Sets explicit discovery-only agent roots. See {@link #getAgentDirectories()}.
+     *
+     * @param agentDirectories
+     *            the agent directory paths
+     * @return this config for method chaining
+     */
+    public ResumeSessionConfig setAgentDirectories(List<String> agentDirectories) {
+        this.agentDirectories = agentDirectories == null ? null : new ArrayList<>(agentDirectories);
+        return this;
+    }
+
+    /**
+     * Gets explicit discovery-only file-hook roots, separate from callback hooks.
+     * No general filesystem grant. Available without configuration discovery or
+     * file-hook enablement (repository-origin hooks only), subject to hook/managed
+     * disables. Relative paths resolve once when supplied against the request's
+     * effective working directory; retained roots do not move. Null and omission
+     * are equivalent; an empty list clears only the SDK contribution.
+     *
+     * @return the file-hook directory paths
+     */
+    public List<String> getHookDirectories() {
+        return hookDirectories == null ? null : Collections.unmodifiableList(hookDirectories);
+    }
+
+    /**
+     * Sets explicit discovery-only file-hook roots. See
+     * {@link #getHookDirectories()}.
+     *
+     * @param hookDirectories
+     *            the file-hook directory paths
+     * @return this config for method chaining
+     */
+    public ResumeSessionConfig setHookDirectories(List<String> hookDirectories) {
+        this.hookDirectories = hookDirectories == null ? null : new ArrayList<>(hookDirectories);
         return this;
     }
 
@@ -1566,7 +1805,12 @@ public class ResumeSessionConfig {
     }
 
     /**
-     * Gets the additional directories to search for custom instruction files.
+     * Gets explicit discovery-only instruction roots using existing SDK formats. No
+     * general filesystem grant. Available without configuration discovery, subject
+     * to instruction/managed disables. Relative paths resolve once when supplied
+     * against the request's effective working directory; retained roots do not
+     * move. Null and omission are equivalent; an empty list clears only the SDK
+     * contribution.
      *
      * @return the list of instruction directory paths
      */
@@ -1635,6 +1879,29 @@ public class ResumeSessionConfig {
      */
     public ToolSearchConfig getToolSearch() {
         return toolSearch;
+    }
+
+    /**
+     * Gets the non-persisted image generation opt-in.
+     *
+     * @return the image generation config, or null when unset
+     */
+    @CopilotExperimental
+    public ImageGenerationConfig getImageGeneration() {
+        return imageGeneration;
+    }
+
+    /**
+     * Sets the image generation opt-in. Re-supply after runtime restart.
+     *
+     * @param imageGeneration
+     *            the image generation config
+     * @return this config for method chaining
+     */
+    @CopilotExperimental
+    public ResumeSessionConfig setImageGeneration(ImageGenerationConfig imageGeneration) {
+        this.imageGeneration = imageGeneration;
+        return this;
     }
 
     /**
@@ -2067,6 +2334,49 @@ public class ResumeSessionConfig {
         return this;
     }
 
+    /**
+     * Gets whether locked managed model controls are enforced on resume.
+     *
+     * @return the explicit choice, or empty to use the runtime default
+     */
+    @JsonIgnore
+    public Optional<Boolean> getEnforceManagedModelDefaults() {
+        return Optional.ofNullable(enforceManagedModelDefaults);
+    }
+
+    /**
+     * Sets whether locked managed model controls are enforced after resume.
+     *
+     * @param enforceManagedModelDefaults
+     *            whether to enforce locked managed model controls
+     * @return this config for method chaining
+     */
+    public ResumeSessionConfig setEnforceManagedModelDefaults(boolean enforceManagedModelDefaults) {
+        this.enforceManagedModelDefaults = enforceManagedModelDefaults;
+        return this;
+    }
+
+    /** @return optional declaration that this session is human-driven */
+    @JsonIgnore
+    public Optional<Boolean> getInteractiveUser() {
+        return Optional.ofNullable(interactiveUser);
+    }
+
+    /**
+     * Re-supplies that a human drives this session so a session loaded from storage
+     * keeps the declaration. It is not persisted and is ignored if the session is
+     * already active in the runtime process.
+     *
+     * @param interactiveUser
+     *            {@code true} for interactive hosts such as editors or IDE chat
+     *            panels
+     * @return this config for method chaining
+     */
+    public ResumeSessionConfig setInteractiveUser(boolean interactiveUser) {
+        this.interactiveUser = interactiveUser;
+        return this;
+    }
+
     /** @return host-injected managed settings, or {@code null} when unset */
     public ManagedSettings getManagedSettings() {
         return managedSettings;
@@ -2117,6 +2427,8 @@ public class ResumeSessionConfig {
         copy.enableFileChangeTracking = this.enableFileChangeTracking;
         copy.sessionLimits = this.sessionLimits;
         copy.enableExperimentalMode = this.enableExperimentalMode;
+        copy.continuePendingWork = this.continuePendingWork;
+        copy.allowTranscriptRecovery = this.allowTranscriptRecovery;
         copy.reasoningEffort = this.reasoningEffort;
         copy.reasoningSummary = this.reasoningSummary;
         copy.contextTier = this.contextTier;
@@ -2137,18 +2449,23 @@ public class ResumeSessionConfig {
         copy.enableFileHooks = this.enableFileHooks;
         copy.enableHostGitOperations = this.enableHostGitOperations;
         copy.enableSessionStore = this.enableSessionStore;
+        copy.enableGitHubCacheStore = this.enableGitHubCacheStore;
         copy.enableSkills = this.enableSkills;
+        copy.skillProvider = this.skillProvider;
         copy.embeddingCacheStorage = this.embeddingCacheStorage;
         copy.disableResume = this.disableResume;
         copy.streaming = this.streaming;
         copy.includeSubAgentStreamingEvents = this.includeSubAgentStreamingEvents;
         copy.mcpServers = this.mcpServers != null ? new java.util.HashMap<>(this.mcpServers) : null;
+        copy.diagnostics = this.diagnostics;
         copy.mcpOAuthTokenStorage = this.mcpOAuthTokenStorage;
         copy.authClientIdMetadataUrl = this.authClientIdMetadataUrl;
         copy.customAgents = this.customAgents != null ? new ArrayList<>(this.customAgents) : null;
         copy.defaultAgent = this.defaultAgent;
         copy.agent = this.agent;
         copy.skillDirectories = this.skillDirectories != null ? new ArrayList<>(this.skillDirectories) : null;
+        copy.agentDirectories = this.agentDirectories != null ? new ArrayList<>(this.agentDirectories) : null;
+        copy.hookDirectories = this.hookDirectories != null ? new ArrayList<>(this.hookDirectories) : null;
         copy.includedBuiltinSkills = this.includedBuiltinSkills != null
                 ? new ArrayList<>(this.includedBuiltinSkills)
                 : null;
@@ -2158,6 +2475,7 @@ public class ResumeSessionConfig {
         copy.pluginDirectories = this.pluginDirectories != null ? new ArrayList<>(this.pluginDirectories) : null;
         copy.largeOutput = this.largeOutput;
         copy.toolSearch = this.toolSearch;
+        copy.imageGeneration = this.imageGeneration;
         copy.memory = this.memory;
         copy.disabledSkills = this.disabledSkills != null ? new ArrayList<>(this.disabledSkills) : null;
         copy.disabledMcpServers = this.disabledMcpServers != null ? new ArrayList<>(this.disabledMcpServers) : null;
@@ -2176,6 +2494,8 @@ public class ResumeSessionConfig {
         copy.featureFlags = this.featureFlags != null ? new java.util.HashMap<>(this.featureFlags) : null;
         copy.expAssignments = this.expAssignments;
         copy.enableManagedSettings = this.enableManagedSettings;
+        copy.enforceManagedModelDefaults = this.enforceManagedModelDefaults;
+        copy.interactiveUser = this.interactiveUser;
         copy.managedSettings = this.managedSettings;
         return copy;
     }

@@ -6,6 +6,9 @@ package com.github.copilot;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.util.List;
+import java.util.Map;
+
 import org.junit.jupiter.api.Test;
 
 import com.github.copilot.rpc.AgentInfo;
@@ -22,6 +25,7 @@ class AgentInfoTest {
         assertNull(agent.getDisplayName());
         assertNull(agent.getDescription());
         assertNull(agent.getModel());
+        assertNull(agent.getHooks());
     }
 
     @Test
@@ -53,6 +57,21 @@ class AgentInfoTest {
     }
 
     @Test
+    void hooksGetterSetterAndJsonRoundTrip() throws Exception {
+        Map<String, List<Map<String, Object>>> hooks = Map.of("preToolUse",
+                List.of(Map.of("type", "command", "bash", "echo scoped-hook", "timeoutSec", 10)));
+        var agent = new AgentInfo().setName("coder").setHooks(hooks);
+        assertEquals(hooks, agent.getHooks());
+
+        var mapper = JsonRpcClient.getObjectMapper();
+        var json = mapper.valueToTree(agent);
+        assertEquals(mapper.valueToTree(hooks), json.get("hooks"));
+        var restored = mapper.treeToValue(json, AgentInfo.class);
+        assertEquals(hooks, restored.getHooks());
+        assertNull(mapper.readValue("{\"name\":\"plain-agent\"}", AgentInfo.class).getHooks());
+    }
+
+    @Test
     void fluentChainingReturnsThis() {
         var agent = new AgentInfo().setName("coder").setDisplayName("Code Assistant")
                 .setDescription("Helps with coding tasks").setModel("alpha/sonnet");
@@ -70,5 +89,6 @@ class AgentInfoTest {
         assertSame(agent, agent.setDisplayName("Test"));
         assertSame(agent, agent.setDescription("A test agent"));
         assertSame(agent, agent.setModel("alpha/sonnet"));
+        assertSame(agent, agent.setHooks(Map.of()));
     }
 }

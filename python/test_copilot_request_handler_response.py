@@ -7,6 +7,7 @@ import pytest
 from copilot.copilot_request_handler import (
     CopilotRequestContext,
     CopilotRequestHandler,
+    CopilotWebSocketHandler,
     _CopilotRequestAdapterHandler,
     _CopilotRequestExchange,
     _stream_response_to_exchange,
@@ -15,7 +16,129 @@ from copilot.copilot_request_handler import (
 from copilot.generated.rpc import (
     LlmInferenceHTTPRequestChunkRequest,
     LlmInferenceHTTPRequestStartRequest,
+    LlmInferenceHTTPRequestStartTransport,
 )
+
+
+@pytest.mark.parametrize("agent_invocation_id", ["logical-invocation", None, ""])
+async def test_http_start_invocation_identity_survives_physical_retries(agent_invocation_id):
+    contexts = []
+
+    class Handler(CopilotRequestHandler):
+        async def send_request(self, request, ctx):
+            contexts.append(ctx)
+            assert request.content == b"request-body"
+            return httpx.Response(200)
+
+    for request_id in ["physical-first", "physical-retry"]:
+        rpc = _WithheldAckRpc()
+        adapter = create_copilot_request_adapter(Handler(), lambda: rpc)
+        await adapter.http_request_start(
+            LlmInferenceHTTPRequestStartRequest(
+                request_id=request_id,
+                agent_invocation_id=agent_invocation_id,
+                session_id="session",
+                agent_id="trajectory",
+                parent_agent_id="parent",
+                interaction_type="conversation-agent",
+                method="POST",
+                url="https://example.test",
+                headers={"x-multiple": ["one", "two"]},
+            )
+        )
+        task = adapter._pending[request_id].task
+        await adapter.http_request_chunk(
+            LlmInferenceHTTPRequestChunkRequest(
+                request_id=request_id,
+                data=base64.b64encode(b"request-body").decode("ascii"),
+                binary=True,
+                end=True,
+            )
+        )
+        await asyncio.wait_for(task, timeout=2)
+        ctx = contexts[-1]
+        assert ctx.agent_invocation_id == agent_invocation_id
+        assert ctx.request_id == request_id
+        assert (ctx.session_id, ctx.agent_id, ctx.parent_agent_id) == (
+            "session",
+            "trajectory",
+            "parent",
+        )
+        assert ctx.interaction_type == "conversation-agent"
+        assert ctx.headers == {"x-multiple": ["one", "two"]}
+        assert rpc.chunks[-1].error is None
+    assert len(contexts) == 2
+
+
+@pytest.mark.parametrize("legacy", [False, True])
+async def test_websocket_invocation_identity_is_per_queued_message(legacy):
+    messages = []
+    connection_contexts = []
+
+    class LegacySocket(CopilotWebSocketHandler):
+        async def send_request_message(self, data):
+            messages.append((data, None))
+
+    class Socket(LegacySocket):
+        async def send_request_message_with_context(self, data, ctx):
+            messages.append((data, ctx))
+
+    class Handler(CopilotRequestHandler):
+        async def open_websocket(self, ctx):
+            connection_contexts.append(ctx)
+            return LegacySocket(ctx) if legacy else Socket(ctx)
+
+    rpc = _WithheldAckRpc()
+    adapter = create_copilot_request_adapter(Handler(), lambda: rpc)
+    ids = ["opening-invocation", "later-invocation", "later-invocation", None, ""]
+    for index, invocation_id in enumerate(ids[:2]):
+        await adapter.http_request_chunk(
+            LlmInferenceHTTPRequestChunkRequest(
+                request_id="reused-socket",
+                data=f"message-{index}",
+                agent_invocation_id=invocation_id,
+            )
+        )
+    await adapter.http_request_start(
+        LlmInferenceHTTPRequestStartRequest(
+            request_id="reused-socket",
+            agent_invocation_id="opening-invocation",
+            session_id="session",
+            agent_id="trajectory",
+            transport=LlmInferenceHTTPRequestStartTransport.WEBSOCKET,
+            method="GET",
+            url="wss://example.test",
+            headers={},
+        )
+    )
+    task = adapter._pending["reused-socket"].task
+    await _wait_for(lambda: len(messages) == 2)
+    for index in range(2, len(ids)):
+        await adapter.http_request_chunk(
+            LlmInferenceHTTPRequestChunkRequest(
+                request_id="reused-socket", data=f"message-{index}", agent_invocation_id=ids[index]
+            )
+        )
+    await adapter.http_request_chunk(
+        LlmInferenceHTTPRequestChunkRequest(request_id="reused-socket", data="", end=True)
+    )
+    await asyncio.wait_for(task, timeout=2)
+
+    assert [data for data, _ in messages] == [f"message-{i}" for i in range(len(ids))]
+    assert rpc.starts[0].status == 101
+    assert rpc.chunks[-1].error is None
+    if not legacy:
+        connection_ctx = connection_contexts[0]
+        assert connection_ctx.agent_invocation_id == "opening-invocation"
+        assert [ctx.agent_invocation_id for _, ctx in messages] == ids
+        for _, ctx in messages:
+            assert ctx is not connection_ctx
+            assert (ctx.request_id, ctx.session_id, ctx.agent_id) == (
+                "reused-socket",
+                "session",
+                "trajectory",
+            )
+            assert ctx.cancel_event is connection_ctx.cancel_event
 
 
 async def _wait_for(predicate, timeout: float = 2.0) -> None:

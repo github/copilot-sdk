@@ -1,10 +1,22 @@
+exports_files(
+    ["test/harness/sdk-diagnostics.mjs"],
+    visibility = ["//src/runtime-bin:__pkg__"],
+)
+
 SHARED_CODEGEN_INPUTS = [
     "nodejs/scripts/releaseArtifacts.ts",
     "nodejs/src/cliVersion.ts",
+    "scripts/codegen/legacy-parameters.ts",
+    "scripts/codegen/node-stream/index.cjs",
+    "scripts/codegen/node-stream/package.json",
     "scripts/codegen/package-lock.json",
     "scripts/codegen/package.json",
+    "scripts/codegen/extensible-enums.ts",
     "scripts/codegen/utils.ts",
     "scripts/runtime-layout.mjs",
+    "scripts/runtime-release.mjs",
+    "//third_party/build-tools:prettier",
+    "//third_party/build-tools:tsx_codegen",
 ]
 
 HAND_WRITTEN_DOTNET_INPUTS = glob(
@@ -221,7 +233,10 @@ genrule(
         "java/scripts/codegen/package-lock.json",
         "java/scripts/codegen/package.json",
         "nodejs/package.json",
+        "scripts/codegen/legacy-parameters.ts",
         "scripts/runtime-layout.mjs",
+        "scripts/runtime-release.mjs",
+        "//third_party/build-tools:tsx_java",
     ],
     outs = ["projections/java.tar"],
     cmd = """

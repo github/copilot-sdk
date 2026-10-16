@@ -25,7 +25,9 @@ public enum RemediationAction {
     /** The {@code review_sandbox_policy} variant. */
     REVIEW_SANDBOX_POLICY("review_sandbox_policy"),
     /** The {@code allow_sandbox_outbound} variant. */
-    ALLOW_SANDBOX_OUTBOUND("allow_sandbox_outbound");
+    ALLOW_SANDBOX_OUTBOUND("allow_sandbox_outbound"),
+    /** The {@code rewind_conversation} variant. */
+    REWIND_CONVERSATION("rewind_conversation");
 
     private final String value;
     RemediationAction(String value) { this.value = value; }

@@ -32,7 +32,7 @@ public final class SessionMcpAppsApi {
     }
 
     /**
-     * MCP server and resource URI to fetch.
+     * Fetch an MCP resource (typically a `ui://` MCP App bundle, per SEP-1865) from a connected server. Requires the `mcp-apps` session capability.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -48,7 +48,7 @@ public final class SessionMcpAppsApi {
     }
 
     /**
-     * MCP server to list app-callable tools for.
+     * List tools that an MCP App view is allowed to call (SEP-1865 visibility filter). Returns tools whose `_meta.ui.visibility` is unset (default `["model","app"]`) or includes `"app"`.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -64,7 +64,7 @@ public final class SessionMcpAppsApi {
     }
 
     /**
-     * MCP server, tool name, and arguments to invoke from an MCP App view.
+     * Call an MCP tool from an MCP App view (SEP-1865). Enforces the visibility check that prevents an app iframe from invoking model-only tools. Returns the standard MCP `CallToolResult`.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -80,7 +80,7 @@ public final class SessionMcpAppsApi {
     }
 
     /**
-     * Host context to advertise to MCP App guests.
+     * Replace the host context returned to MCP App guests on `ui/initialize`. Hosts use this to advertise theme, locale, or other metadata to the guest UI.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -96,7 +96,7 @@ public final class SessionMcpAppsApi {
     }
 
     /**
-     * Identifies the target session.
+     * Read the current host context advertised to MCP App guests.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -107,7 +107,7 @@ public final class SessionMcpAppsApi {
     }
 
     /**
-     * MCP server to diagnose MCP Apps wiring for.
+     * Diagnose MCP Apps wiring for a specific MCP server. Reports the session capability, feature-flag state, advertised extension, and how many tools have `_meta.ui` populated.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.

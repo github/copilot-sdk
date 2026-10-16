@@ -23,12 +23,13 @@ import javax.annotation.processing.Generated;
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record SessionWorkflowRunFromToolParams(
+record SessionWorkflowRunFromToolParams(
     /** Target session identifier */
     @JsonProperty("sessionId") String sessionId,
     /** Registered workflow name. */
     @JsonProperty("name") String name,
     /** Workflow input value. */
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("args") Object args,
     /** Tool-originated workflow invocation options. */
     @JsonProperty("options") WorkflowToolRunOptions options,

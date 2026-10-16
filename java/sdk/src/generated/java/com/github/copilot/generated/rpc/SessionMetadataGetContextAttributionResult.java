@@ -40,11 +40,11 @@ public record SessionMetadataGetContextAttributionResult(
         @JsonProperty("modelId") String modelId,
         /** How `modelId` was chosen. Not a closed set — tolerate unknown values. Known values today: `autoResolved` (the model Auto resolved to), `selected` (the user's explicitly selected model), `default` (a fallback before any model is known). */
         @JsonProperty("modelSource") String modelSource,
-        /** Maximum prompt tokens the resolved model accepts — the denominator for a `##k/###k` context-usage display. Mirrors `SessionContextInfo.promptTokenLimit`. */
+        /** Effective input budget after reserving requested output against the combined context ceiling. Mirrors `SessionContextInfo.promptTokenLimit`. */
         @JsonProperty("promptTokenLimit") Long promptTokenLimit,
-        /** Prompt limit plus the model's output reserve: the full context window `categories.freeSpace` and `categories.buffer` are measured against. Mirrors `SessionContextInfo.limit`. */
+        /** Advertised prompt allowance for the selected context tier: the denominator for context-usage displays and capacity for `categories.freeSpace` and `categories.buffer`. Mirrors `SessionContextInfo.limit`. */
         @JsonProperty("limit") Long limit,
-        /** Output reserve plus the tokens past the buffer-exhaustion blocking threshold. Mirrors `SessionContextInfo.bufferTokens`. */
+        /** Output reservation overlapping the displayed prompt allowance plus the tokens past the effective input budget's buffer-exhaustion blocking threshold. Mirrors `SessionContextInfo.bufferTokens`. */
         @JsonProperty("bufferTokens") Long bufferTokens,
         /** Token count at which background compaction starts. Mirrors `SessionContextInfo.compactionThreshold`. */
         @JsonProperty("compactionThreshold") Long compactionThreshold,
@@ -72,7 +72,7 @@ public record SessionMetadataGetContextAttributionResult(
             @JsonProperty("messages") Long messages,
             /** Remaining unused window capacity (clamped at 0). */
             @JsonProperty("freeSpace") Long freeSpace,
-            /** Output reserve plus post-blocking-threshold buffer. */
+            /** Overlapping output reservation plus post-blocking-threshold buffer. */
             @JsonProperty("buffer") Long buffer
         ) {
         }

@@ -27,6 +27,7 @@ public record SessionToolsTaskCompleteEventDataParams(
     /** Target session identifier */
     @JsonProperty("sessionId") String sessionId,
     /** Arguments supplied to the completed task_complete tool call. */
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("toolArgs") Object toolArgs,
     /** Final expanded result returned by the task_complete tool. */
     @JsonProperty("finalResult") ToolResultExpanded finalResult

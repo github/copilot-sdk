@@ -1,9 +1,11 @@
+# Copyright (c) Microsoft Corporation. All rights reserved.
+
 """Unit tests for define_tool"""
 
 import json
 
 import pytest
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, RootModel, field_validator
 
 from copilot import define_tool
 from copilot.generated.rpc import ExternalToolTextResultForLlm
@@ -18,6 +20,27 @@ from copilot.tools import (
 
 
 class TestDefineTool:
+    @pytest.mark.parametrize("patch", ["", "*** Begin Patch\n*** End Patch"])
+    async def test_string_schema_handler_preserves_scalar_arguments(self, patch: str):
+        calls = []
+
+        @define_tool("apply_patch", description="Apply a patch", overrides_built_in_tool=True)
+        def apply_patch(params: RootModel[str], invocation: ToolInvocation) -> str:
+            calls.append((params.root, invocation.arguments))
+            return "accepted"
+
+        result = await apply_patch.handler(
+            ToolInvocation(
+                session_id="session-1",
+                tool_call_id="call-1",
+                tool_name="apply_patch",
+                arguments=patch,
+            )
+        )
+
+        assert result.result_type == "success", result.error
+        assert calls == [(patch, patch)]
+
     def test_creates_tool_with_correct_name_and_description(self):
         class Params(BaseModel):
             query: str

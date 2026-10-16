@@ -23,7 +23,7 @@ import javax.annotation.processing.Generated;
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record SessionModelApplyStartupOverlayParams(
+record SessionModelApplyStartupOverlayParams(
     /** Target session identifier */
     @JsonProperty("sessionId") String sessionId,
     /** Model required by device-managed policy, when configured. */
@@ -36,6 +36,8 @@ public record SessionModelApplyStartupOverlayParams(
     @JsonProperty("autoTier") AutoTier autoTier,
     /** Model selected by repository settings, when configured. */
     @JsonProperty("repoModel") String repoModel,
+    /** Provider owning the repository-selected model. Omitted repository provider identity retains legacy bare-model behavior. */
+    @JsonProperty("repoModelProviderId") String repoModelProviderId,
     /** Reasoning effort selected by repository settings, when configured. */
     @JsonProperty("repoReasoningEffort") String repoReasoningEffort,
     /** Context tier selected by repository settings, when configured. */
@@ -45,6 +47,10 @@ public record SessionModelApplyStartupOverlayParams(
     /** Model explicitly selected by the CLI, when provided. */
     @JsonProperty("cliModel") String cliModel,
     /** Whether the overlay is being applied while resuming a deferred session. */
-    @JsonProperty("deferredResume") Boolean deferredResume
+    @JsonProperty("deferredResume") Boolean deferredResume,
+    /** Reasoning effort paired with the effective organization-managed model. Applies only when that concrete managed model is selected; it is ignored for Auto and for CLI, resume, or user overrides. */
+    @JsonProperty("managedReasoningEffort") String managedReasoningEffort,
+    /** Context tier paired with the effective organization-managed model. Applies only when that concrete managed model is selected; it is ignored for Auto and for CLI, resume, or user overrides. */
+    @JsonProperty("managedContextTier") String managedContextTier
 ) {
 }

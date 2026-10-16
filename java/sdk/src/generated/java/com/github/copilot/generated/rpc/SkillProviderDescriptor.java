@@ -13,14 +13,14 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Catalog-only metadata for one SDK-provided skill. The complete SKILL.md is fetched separately and lazily.
+ * Authoritative catalog metadata for one SDK-provided skill. The skill's SKILL.md text is fetched separately and lazily.
  *
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record SkillProviderDescriptor(
+record SkillProviderDescriptor(
     /** Invocation and display name. */
     @JsonProperty("name") String name,
     /** Description used in skill catalogs without fetching content. */

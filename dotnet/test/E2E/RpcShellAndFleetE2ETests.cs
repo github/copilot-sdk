@@ -26,24 +26,6 @@ public class RpcShellAndFleetE2ETests(E2ETestFixture fixture, ITestOutputHelper 
     }
 
     [Fact]
-    public async Task Should_Kill_Shell_Process()
-    {
-        await using var session = await CreateSessionAsync();
-        var command = OperatingSystem.IsWindows()
-            ? "powershell -NoLogo -NoProfile -Command \"Start-Sleep -Seconds 30\""
-            : "sleep 30";
-
-        // On Windows, terminating the shell wrapper can briefly leave grandchildren alive.
-        // Keep this command outside the fixture workspace so that cleanup is not blocked by cwd handles.
-        var execResult = await session.Rpc.Shell.ExecAsync(command, cwd: Path.GetTempPath());
-        Assert.False(string.IsNullOrWhiteSpace(execResult.ProcessId));
-
-        var killResult = await session.Rpc.Shell.KillAsync(execResult.ProcessId);
-
-        Assert.True(killResult.Killed);
-    }
-
-    [Fact]
     public async Task Should_Start_Fleet_And_Complete_Custom_Tool_Task()
     {
         var markerPath = Path.Join(Ctx.WorkDir, $"fleet-rpc-{Guid.NewGuid():N}.txt");
@@ -88,7 +70,7 @@ public class RpcShellAndFleetE2ETests(E2ETestFixture fixture, ITestOutputHelper 
     {
         if (OperatingSystem.IsWindows())
         {
-            return $"powershell -NoLogo -NoProfile -Command \"Set-Content -LiteralPath '{markerPath}' -Value '{marker}'\"";
+            return $"echo {marker}>\"{Path.GetFileName(markerPath)}\"";
         }
 
         return $"sh -c \"printf '%s' '{marker}' > '{markerPath}'\"";

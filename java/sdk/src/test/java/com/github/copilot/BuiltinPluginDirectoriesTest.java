@@ -90,15 +90,16 @@ class BuiltinPluginDirectoriesTest {
         private void acceptLoop() {
             try {
                 Socket socket = serverSocket.accept();
-                JsonRpcClient server = JsonRpcClient.fromSocket(socket);
-                server.registerMethodHandler("ping", (id, params) -> respond(server, id,
-                        Map.of("message", "pong", "timestamp", "2026-09-21T00:00:00Z", "protocolVersion", 3)));
-                server.registerMethodHandler("connect", (id, params) -> respond(server, id,
-                        Map.of("ok", true, "protocolVersion", 3, "version", "test")));
-                server.registerMethodHandler("plugins.builtin.set", (id, params) -> {
-                    builtinSetCount.incrementAndGet();
-                    builtinParams.complete(params);
-                    respond(server, id, Map.of());
+                JsonRpcClient server = JsonRpcClient.fromSocket(socket, rpc -> {
+                    rpc.registerMethodHandler("ping", (id, params) -> respond(rpc, id,
+                            Map.of("message", "pong", "timestamp", "2026-09-21T00:00:00Z", "protocolVersion", 3)));
+                    rpc.registerMethodHandler("connect", (id, params) -> respond(rpc, id,
+                            Map.of("ok", true, "protocolVersion", 3, "version", "test")));
+                    rpc.registerMethodHandler("plugins.builtin.set", (id, params) -> {
+                        builtinSetCount.incrementAndGet();
+                        builtinParams.complete(params);
+                        respond(rpc, id, Map.of());
+                    });
                 });
                 ready.complete(server);
             } catch (IOException e) {

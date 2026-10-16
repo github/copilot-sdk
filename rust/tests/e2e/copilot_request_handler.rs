@@ -15,6 +15,9 @@
 //!   transport error rather than hanging the turn.
 //! - `observes_runtime_driven_cancel` — a handler that blocks until the consumer
 //!   aborts observes the runtime-driven cancellation via `ctx.cancel`.
+//! - `withdrawn_running_turn_prompt_leaves_persisted_history` — taking back
+//!   the prompt of a turn the model has not answered removes it from the
+//!   persisted session, so a resume does not bring it back.
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
@@ -24,7 +27,7 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use futures_util::{SinkExt, StreamExt};
 use github_copilot_sdk::handler::ApproveAllHandler;
-use github_copilot_sdk::rpc::{SendMode, SendRequest};
+use github_copilot_sdk::rpc::{QueueWithdrawMessageRequest, SendMode, SendRequest};
 use github_copilot_sdk::session_events::{AssistantMessageData, UserMessageData};
 use github_copilot_sdk::{
     CopilotHttpRequest, CopilotHttpResponse, CopilotRequestContext, CopilotRequestError,
@@ -486,7 +489,7 @@ async fn start_ws_upstream(counters: HandlerCounters) -> String {
                             counters.upstream_ws_requests.fetch_add(1, Ordering::SeqCst);
                             for event in responses_events(HANDLER_WS_TEXT, "resp_stub_ws") {
                                 let raw = serde_json::to_string(&event).unwrap();
-                                if write.send(Message::Text(raw)).await.is_err() {
+                                if write.send(Message::Text(raw.into())).await.is_err() {
                                     return;
                                 }
                             }
@@ -943,6 +946,106 @@ async fn observes_runtime_driven_cancel() {
             );
 
             client.stop().await.expect("stop client");
+        })
+    })
+    .await;
+}
+
+// ---------------------------------------------------------------------------
+// Scenario 3c: take-back of a running turn's prompt. While the handler holds
+// the only model request, the withdrawal interrupts the turn and must remove
+// its events from the persisted session, not only from the live one.
+// ---------------------------------------------------------------------------
+
+/// Event types a withdrawn turn records before any model output, all of which
+/// the removal must take with the prompt.
+const WITHDRAWN_TURN_EVENT_TYPES: &[&str] = &[
+    "user.message",
+    "assistant.turn_start",
+    "assistant.turn_end",
+    "abort",
+];
+
+#[tokio::test]
+async fn withdrawn_running_turn_prompt_leaves_persisted_history() {
+    if super::support::skip_inprocess("LLM inference providers are process-global in-process") {
+        return;
+    }
+    with_e2e_context_no_snapshot(|ctx| {
+        Box::pin(async move {
+            ctx.set_default_copilot_user();
+            let handler = Arc::new(CancellingHandler::default());
+            let client = ctx.start_llm_client(handler.clone(), &[]).await;
+            let session = client
+                .create_session(ctx.approve_all_session_config())
+                .await
+                .expect("create session");
+            let session_id = session.id().clone();
+
+            let options = say_ok();
+            let prompt = options.prompt.clone();
+            let message_id = session.send(options).await.expect("send");
+            wait_for_flag(&handler.inference_entered, "inference entered").await;
+            let result = session
+                .rpc()
+                .queue()
+                .withdraw_message(QueueWithdrawMessageRequest {
+                    message_id,
+                    expected_prompt: prompt.clone(),
+                })
+                .await
+                .expect("withdraw the running turn's prompt");
+            assert!(
+                result.removed && result.interrupted,
+                "expected the running turn's prompt to be withdrawn, got {result:?}"
+            );
+            let live_prompts = session
+                .get_events()
+                .await
+                .expect("live events")
+                .iter()
+                .filter_map(|event| event.typed_data::<UserMessageData>())
+                .map(|data| data.content)
+                .collect::<Vec<_>>();
+            assert!(
+                !live_prompts.contains(&prompt),
+                "the withdrawn prompt is still in the live session"
+            );
+            session.disconnect().await.expect("disconnect session");
+            client.stop().await.expect("stop client");
+
+            // A resume replays this log, so the prompt must not be in it.
+            let log_path = ctx
+                .home_dir()
+                .join("session-state")
+                .join(session_id.as_str())
+                .join("events.jsonl");
+            let log = std::fs::read_to_string(&log_path).expect("read persisted events");
+            let persisted = log
+                .lines()
+                .map(|line| serde_json::from_str::<Value>(line).expect("persisted event JSON"))
+                .collect::<Vec<_>>();
+            assert!(
+                persisted
+                    .iter()
+                    .any(|event| event["type"] == "session.start"),
+                "expected {} to hold the session",
+                log_path.display()
+            );
+            // The whole turn is removed, not only its prompt: an orphaned turn
+            // event left behind would be replayed by a resume too.
+            let persisted_turn_events = persisted
+                .iter()
+                .filter(|event| {
+                    event["type"]
+                        .as_str()
+                        .is_some_and(|kind| WITHDRAWN_TURN_EVENT_TYPES.contains(&kind))
+                })
+                .collect::<Vec<_>>();
+            assert!(
+                persisted_turn_events.is_empty(),
+                "the withdrawn turn is still persisted: {persisted_turn_events:?}"
+            );
         })
     })
     .await;

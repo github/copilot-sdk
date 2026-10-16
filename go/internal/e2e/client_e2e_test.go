@@ -162,6 +162,45 @@ func TestClientE2E(t *testing.T) {
 		client.Stop()
 	})
 
+	t.Run("should use configured github host for authentication", func(t *testing.T) {
+		for _, testCase := range []struct {
+			name, copilotHost, ghHost, expectedHost string
+		}{
+			{"precedence", "tenant.ghe.example", "fallback.ghe.example", "https://tenant.ghe.example"},
+			{"fallback", "", "fallback.ghe.example", "https://fallback.ghe.example"},
+			{"default", "", "", "https://github.com"},
+		} {
+			t.Run(testCase.name, func(t *testing.T) {
+				if testharness.RunInIsolatedProcess(t) {
+					return
+				}
+				ctx := testharness.NewTestContext(t)
+				ctx.ConfigureWithoutSnapshot(t)
+				client := ctx.NewClient(func(options *copilot.ClientOptions) {
+					options.Env = append(options.Env,
+						"COPILOT_GH_HOST="+testCase.copilotHost,
+						"GH_HOST="+testCase.ghHost,
+					)
+				})
+				t.Cleanup(func() { client.ForceStop() })
+
+				if err := client.Start(t.Context()); err != nil {
+					t.Fatalf("Failed to start client: %v", err)
+				}
+				status, err := client.GetAuthStatus(t.Context())
+				if err != nil {
+					t.Fatalf("Failed to get auth status: %v", err)
+				}
+				if !status.IsAuthenticated {
+					t.Fatalf("Expected authenticated status, got %+v", status)
+				}
+				if status.Host == nil || *status.Host != testCase.expectedHost {
+					t.Errorf("Expected %s auth host, got %v", testCase.expectedHost, status.Host)
+				}
+			})
+		}
+	})
+
 	t.Run("should list models when authenticated", func(t *testing.T) {
 		client := copilot.NewClient(&copilot.ClientOptions{
 			Connection: copilot.StdioConnection{Path: cliPath},

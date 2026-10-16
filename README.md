@@ -57,6 +57,32 @@ Your Application
 
 The SDK manages the CLI process lifecycle automatically. You can also connect to an external CLI server—see the [Getting Started Guide](./docs/getting-started.md#connecting-to-an-external-cli-server) for details on running the CLI in server mode.
 
+### Portable elicitation schemas
+
+For form elicitation callbacks, the portable schema contract is an object form
+with modeled `properties` and optional `required` fields (`type: "object"` on
+the wire; an SDK may represent the object type implicitly). Applications that
+support multiple SDK languages must use the modeled property definitions and
+must not depend on additional schema metadata (such as a top-level `title`) or
+on the insertion order of `properties`.
+
+Node.js and Rust pass through the wire schema, including additional metadata
+and property order. Python, Go, .NET, and Java reconstruct the callback schema
+from the modeled fields and do not offer that same preservation guarantee.
+Treat wire-schema preservation as a language-specific capability, not a
+cross-language requirement.
+
+### Agent Finder Skill installation APIs
+
+Runtimes that grant `skill-confirmed-installation` expose
+`skills.planInstall`, `skills.applyInstall`, `skills.planUninstall`,
+`skills.applyUninstall`, `skills.installations.list/recover/status/cancel`,
+and `skills.installations.setEnabled`. Skill install reviews include the full
+verified `SKILL.md` content up to 256 KiB, catalogue identity, file manifest,
+and non-absolute personal target location. Summaries report `ownershipState`,
+`configuredEnabled`, `sessionState`, retained catalogue identity and
+`installedAt`.
+
 ## FAQ
 
 ### Do I need a GitHub Copilot subscription to use the SDK?
@@ -145,10 +171,6 @@ Please use the [GitHub Issues](https://github.com/github/copilot-sdk/issues) pag
 
 [sdk-cpp]: https://github.com/0xeb/copilot-sdk-cpp
 [sdk-clojure]: https://github.com/copilot-community-sdk/copilot-sdk-clojure
-
-## Contributing
-
-See [CONTRIBUTING.md](./CONTRIBUTING.md) for contribution guidelines.
 
 ## License
 

@@ -21,6 +21,38 @@ pub struct HookContext {
     pub session_id: SessionId,
 }
 
+/// Runtime-provided actor metadata for a hook invocation.
+///
+/// Available through [`SessionHooks::on_hook_with_actor`] without changing
+/// legacy hook input structs or their construction patterns.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HookActor {
+    #[serde(default)]
+    agent_id: Option<String>,
+    #[serde(default)]
+    agent_type: Option<String>,
+    #[serde(default)]
+    parent_agent_id: Option<String>,
+}
+
+impl HookActor {
+    /// Subagent actor ID, absent for root hooks and older runtimes.
+    pub fn agent_id(&self) -> Option<&str> {
+        self.agent_id.as_deref()
+    }
+
+    /// Subagent type, when supplied by the runtime.
+    pub fn agent_type(&self) -> Option<&str> {
+        self.agent_type.as_deref()
+    }
+
+    /// Immediate parent actor ID, when supplied by the runtime.
+    pub fn parent_agent_id(&self) -> Option<&str> {
+        self.parent_agent_id.as_deref()
+    }
+}
+
 /// Input for the `preToolUse` hook — received before a tool executes.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -197,6 +229,16 @@ pub struct UserPromptSubmittedOutput {
     /// Suppress the hook's output from the session log.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub suppress_output: Option<bool>,
+    /// Set to `"block"` to refuse the prompt. A block needs a `reason`: the
+    /// runtime then runs no model turn, records no user message, and emits an
+    /// ephemeral `session.warning` with `warningType` `"policy_blocked"`
+    /// whose message is the reason. It takes precedence over the other fields.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub decision: Option<String>,
+    /// Why the prompt is blocked. Required with a `"block"` decision: without
+    /// it the runtime ignores the decision and the prompt proceeds.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
 }
 
 /// Input for the `userPromptTransformed` hook.
@@ -271,8 +313,9 @@ pub struct SessionEndInput {
     /// The last assistant message.
     #[serde(default)]
     pub final_message: Option<String>,
-    /// Error message, if the session ended due to an error.
-    #[serde(default)]
+    /// Error message, if the session ended due to an error. The CLI sends an
+    /// error object here (`{"message"}`); see `HookErrorWire`.
+    #[serde(default, deserialize_with = "optional_hook_error_text")]
     pub error: Option<String>,
 }
 
@@ -302,12 +345,54 @@ pub struct ErrorOccurredInput {
     /// Working directory.
     #[serde(rename = "cwd")]
     pub working_directory: PathBuf,
-    /// The error message.
+    /// The error message. The CLI sends an error object here
+    /// (`{"name", "message", "stack"}`); see `HookErrorWire`.
+    #[serde(deserialize_with = "hook_error_text")]
     pub error: String,
     /// Context where the error occurred: `"model_call"`, `"tool_execution"`, `"system"`, `"user_input"`.
     pub error_context: String,
     /// Whether the error is recoverable.
     pub recoverable: bool,
+}
+
+/// The two wire shapes of a hook input's `error` field.
+///
+/// The CLI sends the `error` of the `errorOccurred` and `sessionEnd` inputs as
+/// an error object (`{"name", "message", "stack"}`), while the public fields
+/// stay strings. A string is the text, an object's string `message` is the
+/// text, and an object without one keeps its compact JSON form.
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum HookErrorWire {
+    Text(String),
+    Object(serde_json::Map<String, Value>),
+}
+
+impl HookErrorWire {
+    fn into_text(self) -> String {
+        match self {
+            Self::Text(text) => text,
+            Self::Object(mut object) => match object.get_mut("message") {
+                Some(Value::String(message)) => std::mem::take(message),
+                _ => Value::Object(object).to_string(),
+            },
+        }
+    }
+}
+
+fn hook_error_text<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    HookErrorWire::deserialize(deserializer).map(HookErrorWire::into_text)
+}
+
+fn optional_hook_error_text<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    Option::<HookErrorWire>::deserialize(deserializer)
+        .map(|wire| wire.map(HookErrorWire::into_text))
 }
 
 /// Output for the `errorOccurred` hook.
@@ -360,6 +445,86 @@ pub struct AgentStopOutput {
     /// Follow-up instruction supplied when the stop is blocked.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reason: Option<String>,
+}
+
+/// Input for `subagentStart`, received before a subagent's first turn.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SubagentStartInput {
+    /// The parent session ID.
+    pub session_id: String,
+    /// Unix timestamp in ms.
+    pub timestamp: f64,
+    /// Working directory of the parent session.
+    #[serde(rename = "cwd")]
+    pub working_directory: PathBuf,
+    /// Path to the parent session transcript.
+    pub transcript_path: PathBuf,
+    /// Name of the subagent definition.
+    pub agent_name: String,
+    /// Display name, when the definition provides one.
+    #[serde(default)]
+    pub agent_display_name: Option<String>,
+    /// Description, when the definition provides one.
+    #[serde(default)]
+    pub agent_description: Option<String>,
+}
+
+/// Output for `subagentStart`.
+#[derive(Debug, Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SubagentStartOutput {
+    /// Context prepended to the subagent's first prompt.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub additional_context: Option<String>,
+}
+
+/// Input for `subagentStop`, received after a subagent's turn.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SubagentStopInput {
+    /// The parent session ID.
+    pub session_id: String,
+    /// Unix timestamp in ms.
+    pub timestamp: f64,
+    /// Working directory of the parent session.
+    #[serde(rename = "cwd")]
+    pub working_directory: PathBuf,
+    /// Path to the parent session transcript.
+    pub transcript_path: PathBuf,
+    /// Name of the subagent definition.
+    pub agent_name: String,
+    /// Type of the subagent.
+    pub agent_type: String,
+    /// Agent ID, when available.
+    #[serde(default)]
+    pub agent_id: Option<String>,
+    /// Display name, when the definition provides one.
+    #[serde(default)]
+    pub agent_display_name: Option<String>,
+    /// Description, when the definition provides one.
+    #[serde(default)]
+    pub agent_description: Option<String>,
+    /// Reason the subagent stopped (normally `"end_turn"`).
+    pub stop_reason: String,
+    /// The subagent's last assistant response.
+    pub response: String,
+}
+
+/// Output for `subagentStop`.
+#[derive(Debug, Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SubagentStopOutput {
+    /// Set to `"block"` to run another subagent turn; only `"allow"` and `"block"` are valid.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub decision: Option<String>,
+    /// Nonempty follow-up instruction required when blocking; without a block
+    /// decision this is an error, not an instruction to the child.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+    /// Replacement final response when the stop is allowed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub modified_response: Option<String>,
 }
 
 /// Events dispatched to [`SessionHooks::on_hook`] at CLI lifecycle points.
@@ -442,6 +607,20 @@ pub enum HookEvent {
         /// Session context.
         ctx: HookContext,
     },
+    /// Fired before a subagent's first turn.
+    SubagentStart {
+        /// Typed input data.
+        input: SubagentStartInput,
+        /// Session context.
+        ctx: HookContext,
+    },
+    /// Fired after a subagent's turn.
+    SubagentStop {
+        /// Typed input data.
+        input: SubagentStopInput,
+        /// Session context.
+        ctx: HookContext,
+    },
 }
 
 /// Response from [`SessionHooks::on_hook`] back to the SDK.
@@ -473,6 +652,10 @@ pub enum HookOutput {
     ErrorOccurred(ErrorOccurredOutput),
     /// Response for an agent-stop hook.
     AgentStop(AgentStopOutput),
+    /// Response for a subagent-start hook.
+    SubagentStart(SubagentStartOutput),
+    /// Response for a subagent-stop hook.
+    SubagentStop(SubagentStopOutput),
 }
 
 impl HookOutput {
@@ -489,6 +672,8 @@ impl HookOutput {
             Self::SessionEnd(_) => "SessionEnd",
             Self::ErrorOccurred(_) => "ErrorOccurred",
             Self::AgentStop(_) => "AgentStop",
+            Self::SubagentStart(_) => "SubagentStart",
+            Self::SubagentStop(_) => "SubagentStop",
         }
     }
 }
@@ -512,6 +697,14 @@ impl HookOutput {
 /// sets automatically).
 #[async_trait]
 pub trait SessionHooks: Send + Sync + 'static {
+    /// Receives typed hook input and runtime-provided actor metadata.
+    ///
+    /// The default delegates to [`Self::on_hook`], preserving existing
+    /// whole-event and per-hook implementations.
+    async fn on_hook_with_actor(&self, event: HookEvent, _actor: HookActor) -> HookOutput {
+        self.on_hook(event).await
+    }
+
     /// Top-level dispatch. The default implementation fans out to the
     /// per-hook methods below; override this only if you want a single
     /// matching point across all hook types.
@@ -567,6 +760,16 @@ pub trait SessionHooks: Send + Sync + 'static {
                 .await
                 .map(HookOutput::AgentStop)
                 .unwrap_or(HookOutput::None),
+            HookEvent::SubagentStart { input, ctx } => self
+                .on_subagent_start(input, ctx)
+                .await
+                .map(HookOutput::SubagentStart)
+                .unwrap_or(HookOutput::None),
+            HookEvent::SubagentStop { input, ctx } => self
+                .on_subagent_stop(input, ctx)
+                .await
+                .map(HookOutput::SubagentStop)
+                .unwrap_or(HookOutput::None),
         }
     }
 
@@ -614,7 +817,8 @@ pub trait SessionHooks: Send + Sync + 'static {
     }
 
     /// Called when the user submits a prompt. Return `Some(output)` to
-    /// rewrite the prompt or inject extra context; `None` (default) passes
+    /// rewrite the prompt or inject extra context, or to block it with a
+    /// `decision` of `"block"` and a `reason`; `None` (default) passes
     /// through unchanged.
     async fn on_user_prompt_submitted(
         &self,
@@ -673,6 +877,25 @@ pub trait SessionHooks: Send + Sync + 'static {
     ) -> Option<AgentStopOutput> {
         None
     }
+
+    /// Called before a subagent runs. Return context to prepend to its prompt.
+    async fn on_subagent_start(
+        &self,
+        _input: SubagentStartInput,
+        _ctx: HookContext,
+    ) -> Option<SubagentStartOutput> {
+        None
+    }
+
+    /// Called when a subagent stops. Return a block decision with a reason
+    /// to continue it, or a replacement for its final response.
+    async fn on_subagent_stop(
+        &self,
+        _input: SubagentStopInput,
+        _ctx: HookContext,
+    ) -> Option<SubagentStopOutput> {
+        None
+    }
 }
 
 /// Dispatches a `hooks.invoke` request to [`SessionHooks::on_hook`].
@@ -689,6 +912,7 @@ pub(crate) async fn dispatch_hook(
     let ctx = HookContext {
         session_id: session_id.clone(),
     };
+    let actor_input = raw_input.clone();
 
     let event = match hook_type {
         "preToolUse" => {
@@ -731,6 +955,14 @@ pub(crate) async fn dispatch_hook(
             let input: AgentStopInput = serde_json::from_value(raw_input)?;
             HookEvent::AgentStop { input, ctx }
         }
+        "subagentStart" => {
+            let input: SubagentStartInput = serde_json::from_value(raw_input)?;
+            HookEvent::SubagentStart { input, ctx }
+        }
+        "subagentStop" => {
+            let input: SubagentStopInput = serde_json::from_value(raw_input)?;
+            HookEvent::SubagentStop { input, ctx }
+        }
         _ => {
             tracing::warn!(
                 hook_type = hook_type,
@@ -742,7 +974,8 @@ pub(crate) async fn dispatch_hook(
     };
 
     let dispatch_start = Instant::now();
-    let output = hooks.on_hook(event).await;
+    let actor = serde_json::from_value(actor_input)?;
+    let output = hooks.on_hook_with_actor(event, actor).await;
     tracing::debug!(
         elapsed_ms = dispatch_start.elapsed().as_millis(),
         session_id = %session_id,
@@ -770,6 +1003,8 @@ pub(crate) async fn dispatch_hook(
         ("sessionEnd", HookOutput::SessionEnd(o)) => Some(serde_json::to_value(o)?),
         ("errorOccurred", HookOutput::ErrorOccurred(o)) => Some(serde_json::to_value(o)?),
         ("agentStop", HookOutput::AgentStop(o)) => Some(serde_json::to_value(o)?),
+        ("subagentStart", HookOutput::SubagentStart(o)) => Some(serde_json::to_value(o)?),
+        ("subagentStop", HookOutput::SubagentStop(o)) => Some(serde_json::to_value(o)?),
         _ => {
             tracing::warn!(
                 hook_type = hook_type,
@@ -785,400 +1020,4 @@ pub(crate) async fn dispatch_hook(
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    struct TestHooks;
-
-    #[async_trait]
-    impl SessionHooks for TestHooks {
-        async fn on_hook(&self, event: HookEvent) -> HookOutput {
-            match event {
-                HookEvent::PreToolUse { input, .. } => {
-                    if input.tool_name == "dangerous_tool" {
-                        HookOutput::PreToolUse(PreToolUseOutput {
-                            permission_decision: Some("deny".to_string()),
-                            permission_decision_reason: Some("blocked by policy".to_string()),
-                            ..Default::default()
-                        })
-                    } else {
-                        HookOutput::None
-                    }
-                }
-                HookEvent::UserPromptSubmitted { input, .. } => {
-                    HookOutput::UserPromptSubmitted(UserPromptSubmittedOutput {
-                        modified_prompt: Some(format!("[prefixed] {}", input.prompt)),
-                        ..Default::default()
-                    })
-                }
-                HookEvent::UserPromptTransformed { input, .. } => {
-                    HookOutput::UserPromptTransformed(UserPromptTransformedOutput {
-                        modified_transformed_prompt: Some(format!(
-                            "[transformed] {}",
-                            input.transformed_prompt
-                        )),
-                    })
-                }
-                _ => HookOutput::None,
-            }
-        }
-    }
-
-    #[tokio::test]
-    async fn dispatch_pre_tool_use_deny() {
-        let hooks = TestHooks;
-        let input = serde_json::json!({
-            "sessionId": "sess-1",
-            "timestamp": 1234567890,
-            "cwd": "/tmp",
-            "toolName": "dangerous_tool",
-            "toolArgs": {}
-        });
-        let result = dispatch_hook(&hooks, &SessionId::new("sess-1"), "preToolUse", input)
-            .await
-            .unwrap();
-        let output = &result["output"];
-        assert_eq!(output["permissionDecision"], "deny");
-        assert_eq!(output["permissionDecisionReason"], "blocked by policy");
-    }
-
-    #[tokio::test]
-    async fn dispatch_pre_tool_use_passthrough() {
-        let hooks = TestHooks;
-        let input = serde_json::json!({
-            "sessionId": "sess-1",
-            "timestamp": 1234567890,
-            "cwd": "/tmp",
-            "toolName": "safe_tool",
-            "toolArgs": {"key": "value"}
-        });
-        let result = dispatch_hook(&hooks, &SessionId::new("sess-1"), "preToolUse", input)
-            .await
-            .unwrap();
-        // No hook registered for this tool — output should be empty object
-        assert_eq!(result["output"], serde_json::json!({}));
-    }
-
-    #[tokio::test]
-    async fn dispatch_user_prompt_submitted() {
-        let hooks = TestHooks;
-        let input = serde_json::json!({
-            "sessionId": "sess-1",
-            "timestamp": 1234567890,
-            "cwd": "/tmp",
-            "prompt": "hello world"
-        });
-        let result = dispatch_hook(
-            &hooks,
-            &SessionId::new("sess-1"),
-            "userPromptSubmitted",
-            input,
-        )
-        .await
-        .unwrap();
-        assert_eq!(result["output"]["modifiedPrompt"], "[prefixed] hello world");
-    }
-
-    #[tokio::test]
-    async fn dispatch_user_prompt_transformed() {
-        let hooks = TestHooks;
-        let input = serde_json::json!({
-            "sessionId": "sess-1",
-            "timestamp": 1234567890,
-            "cwd": "/tmp",
-            "prompt": "hello world",
-            "transformedPrompt": "<current_datetime>now</current_datetime>\nhello world"
-        });
-        let result = dispatch_hook(
-            &hooks,
-            &SessionId::new("sess-1"),
-            "userPromptTransformed",
-            input,
-        )
-        .await
-        .unwrap();
-        assert_eq!(
-            result["output"]["modifiedTransformedPrompt"],
-            "[transformed] <current_datetime>now</current_datetime>\nhello world"
-        );
-    }
-
-    #[tokio::test]
-    async fn dispatch_unregistered_hook_returns_empty() {
-        let hooks = TestHooks;
-        let input = serde_json::json!({
-            "sessionId": "sess-1",
-            "timestamp": 1234567890,
-            "cwd": "/tmp",
-            "reason": "complete"
-        });
-        // TestHooks doesn't handle SessionEnd
-        let result = dispatch_hook(&hooks, &SessionId::new("sess-1"), "sessionEnd", input)
-            .await
-            .unwrap();
-        assert_eq!(result["output"], serde_json::json!({}));
-    }
-
-    #[tokio::test]
-    async fn dispatch_unknown_hook_type() {
-        let hooks = TestHooks;
-        let input = serde_json::json!({});
-        let result = dispatch_hook(&hooks, &SessionId::new("sess-1"), "unknownHook", input)
-            .await
-            .unwrap();
-        assert_eq!(result["output"], serde_json::json!({}));
-    }
-
-    #[tokio::test]
-    async fn dispatch_mismatched_output_returns_empty() {
-        struct MismatchHooks;
-        #[async_trait]
-        impl SessionHooks for MismatchHooks {
-            async fn on_hook(&self, _event: HookEvent) -> HookOutput {
-                // Always return SessionEnd output regardless of event type
-                HookOutput::SessionEnd(SessionEndOutput {
-                    session_summary: Some("oops".to_string()),
-                    ..Default::default()
-                })
-            }
-        }
-
-        let hooks = MismatchHooks;
-        let input = serde_json::json!({
-            "sessionId": "sess-1",
-            "timestamp": 1234567890,
-            "cwd": "/tmp",
-            "toolName": "some_tool",
-            "toolArgs": {}
-        });
-        // preToolUse event gets a SessionEnd output — should be treated as empty
-        let result = dispatch_hook(&hooks, &SessionId::new("sess-1"), "preToolUse", input)
-            .await
-            .unwrap();
-        assert_eq!(result["output"], serde_json::json!({}));
-    }
-
-    #[tokio::test]
-    async fn dispatch_post_tool_use_default() {
-        let hooks = TestHooks;
-        let input = serde_json::json!({
-            "sessionId": "sess-1",
-            "timestamp": 1234567890,
-            "cwd": "/tmp",
-            "toolName": "some_tool",
-            "toolArgs": {},
-            "toolResult": "success"
-        });
-        let result = dispatch_hook(&hooks, &SessionId::new("sess-1"), "postToolUse", input)
-            .await
-            .unwrap();
-        assert_eq!(result["output"], serde_json::json!({}));
-    }
-
-    #[tokio::test]
-    async fn dispatch_post_tool_use_failure_default() {
-        // No handler override — should return an empty output object.
-        let hooks = TestHooks;
-        let input = serde_json::json!({
-            "sessionId": "sess-1",
-            "timestamp": 1234567890,
-            "cwd": "/tmp",
-            "toolName": "some_tool",
-            "toolArgs": {"key": "value"},
-            "error": "boom"
-        });
-        let result = dispatch_hook(
-            &hooks,
-            &SessionId::new("sess-1"),
-            "postToolUseFailure",
-            input,
-        )
-        .await
-        .unwrap();
-        assert_eq!(result["output"], serde_json::json!({}));
-    }
-
-    #[tokio::test]
-    async fn dispatch_post_tool_use_failure_returns_additional_context() {
-        struct FailureHooks;
-        #[async_trait]
-        impl SessionHooks for FailureHooks {
-            async fn on_post_tool_use_failure(
-                &self,
-                input: PostToolUseFailureInput,
-                _ctx: HookContext,
-            ) -> Option<PostToolUseFailureOutput> {
-                assert_eq!(input.session_id, "sess-1");
-                assert_eq!(input.tool_name, "some_tool");
-                assert_eq!(input.error, "boom");
-                assert_eq!(input.working_directory, PathBuf::from("/tmp"));
-                Some(PostToolUseFailureOutput {
-                    additional_context: Some(format!(
-                        "tool {} failed: {}",
-                        input.tool_name, input.error
-                    )),
-                })
-            }
-        }
-
-        let input = serde_json::json!({
-            "sessionId": "sess-1",
-            "timestamp": 1234567890,
-            "cwd": "/tmp",
-            "toolName": "some_tool",
-            "toolArgs": {},
-            "error": "boom"
-        });
-        let result = dispatch_hook(
-            &FailureHooks,
-            &SessionId::new("sess-1"),
-            "postToolUseFailure",
-            input,
-        )
-        .await
-        .unwrap();
-        assert_eq!(
-            result["output"]["additionalContext"],
-            "tool some_tool failed: boom"
-        );
-    }
-
-    #[tokio::test]
-    async fn dispatch_post_tool_use_failure_invalid_input_errors() {
-        // Missing required `error` field — dispatcher should surface the
-        // deserialization error rather than dispatching with empty input.
-        let hooks = TestHooks;
-        let input = serde_json::json!({
-            "sessionId": "sess-1",
-            "timestamp": 1234567890,
-            "cwd": "/tmp",
-            "toolName": "some_tool",
-            "toolArgs": {}
-        });
-        let err = dispatch_hook(
-            &hooks,
-            &SessionId::new("sess-1"),
-            "postToolUseFailure",
-            input,
-        )
-        .await
-        .unwrap_err();
-        let msg = err.to_string().to_ascii_lowercase();
-        assert!(
-            msg.contains("error") || msg.contains("missing field"),
-            "unexpected error: {msg}"
-        );
-    }
-
-    #[tokio::test]
-    async fn dispatch_session_start() {
-        struct StartHooks;
-        #[async_trait]
-        impl SessionHooks for StartHooks {
-            async fn on_hook(&self, event: HookEvent) -> HookOutput {
-                match event {
-                    HookEvent::SessionStart { .. } => {
-                        HookOutput::SessionStart(SessionStartOutput {
-                            additional_context: Some("extra context".to_string()),
-                            ..Default::default()
-                        })
-                    }
-                    _ => HookOutput::None,
-                }
-            }
-        }
-
-        let hooks = StartHooks;
-        let input = serde_json::json!({
-            "sessionId": "sess-1",
-            "timestamp": 1234567890,
-            "cwd": "/tmp",
-            "source": "new"
-        });
-        let result = dispatch_hook(&hooks, &SessionId::new("sess-1"), "sessionStart", input)
-            .await
-            .unwrap();
-        assert_eq!(result["output"]["additionalContext"], "extra context");
-    }
-
-    #[tokio::test]
-    async fn dispatch_error_occurred() {
-        struct ErrorHooks;
-        #[async_trait]
-        impl SessionHooks for ErrorHooks {
-            async fn on_hook(&self, event: HookEvent) -> HookOutput {
-                match event {
-                    HookEvent::ErrorOccurred { .. } => {
-                        HookOutput::ErrorOccurred(ErrorOccurredOutput {
-                            error_handling: Some("retry".to_string()),
-                            retry_count: Some(3),
-                            ..Default::default()
-                        })
-                    }
-                    _ => HookOutput::None,
-                }
-            }
-        }
-
-        let hooks = ErrorHooks;
-        let input = serde_json::json!({
-            "sessionId": "sess-1",
-            "timestamp": 1234567890,
-            "cwd": "/tmp",
-            "error": "model timeout",
-            "errorContext": "model_call",
-            "recoverable": true
-        });
-        let result = dispatch_hook(&hooks, &SessionId::new("sess-1"), "errorOccurred", input)
-            .await
-            .unwrap();
-        assert_eq!(result["output"]["errorHandling"], "retry");
-        assert_eq!(result["output"]["retryCount"], 3);
-    }
-
-    #[tokio::test]
-    async fn dispatch_agent_stop_block() {
-        struct AgentStopHooks;
-        #[async_trait]
-        impl SessionHooks for AgentStopHooks {
-            async fn on_agent_stop(
-                &self,
-                input: AgentStopInput,
-                ctx: HookContext,
-            ) -> Option<AgentStopOutput> {
-                assert_eq!(ctx.session_id, SessionId::new("sess-1"));
-                assert_eq!(input.session_id, "sess-1");
-                assert_eq!(input.stop_reason.as_deref(), Some("end_turn"));
-                assert_eq!(
-                    input.transcript_path,
-                    Some(PathBuf::from("/tmp/transcript.jsonl"))
-                );
-                assert_eq!(input.stop_hook_active, Some(true));
-                Some(AgentStopOutput {
-                    decision: Some("block".to_string()),
-                    reason: Some("finish the remaining work".to_string()),
-                })
-            }
-        }
-
-        let input = serde_json::json!({
-            "sessionId": "sess-1",
-            "timestamp": 1234567890,
-            "cwd": "/tmp",
-            "stopReason": "end_turn",
-            "transcriptPath": "/tmp/transcript.jsonl",
-            "stop_hook_active": true
-        });
-        let result = dispatch_hook(
-            &AgentStopHooks,
-            &SessionId::new("sess-1"),
-            "agentStop",
-            input,
-        )
-        .await
-        .unwrap();
-
-        assert_eq!(result["output"]["decision"], "block");
-        assert_eq!(result["output"]["reason"], "finish the remaining work");
-    }
-}
+mod tests;

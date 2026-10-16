@@ -67,6 +67,8 @@ public final class PromptCacheBreakEvent extends SessionEvent {
         @JsonProperty("toolsRemovedRaw") List<String> toolsRemovedRaw,
         /** Raw names of tools redefined since the prior call, restricted because a tool name can be user-authored */
         @JsonProperty("toolsRedefinedRaw") List<String> toolsRedefinedRaw,
+        /** Changed definition parts of redefined tools, as `tool:part` entries; property-level parts only for telemetry-safe tools, whose other names are hashed */
+        @JsonProperty("toolsRedefinedParts") List<String> toolsRedefinedParts,
         /** Whether the tool list kept its members but changed their order */
         @JsonProperty("toolsReordered") Boolean toolsReordered,
         /** Names of the system-prompt segments whose content changed */

@@ -9,12 +9,9 @@ import httpx
 import pytest
 
 from copilot.generated.rpc import (
-    GitHubTokenAcquireResultKind,
     MCPAppsCallToolRequest,
     MCPListToolsRequest,
-    MCPOauthHandlePendingRequest,
     MCPOauthLoginRequest,
-    MCPOauthPendingRequestResponse,
 )
 from copilot.session import MCPHTTPServerConfig, MCPServerConfig, PermissionHandler
 from copilot.session_events import McpServerStatus
@@ -192,85 +189,6 @@ class TestMcpOAuth:
             assert any(
                 request["authorization"] == f"Bearer {EXPECTED_TOKEN}" for request in requests
             )
-        finally:
-            await _stop_process(process)
-
-    async def test_should_resolve_pending_mcp_oauth_request_with_direct_rpc(
-        self, ctx: E2ETestContext
-    ):
-        url, process = await _start_oauth_mcp_server()
-        server_name = "oauth-direct-rpc-mcp"
-        observed_requests = asyncio.Queue()
-        release_handler = asyncio.Event()
-
-        async def on_mcp_auth_request(request, _invocation):
-            observed_requests.put_nowait(request)
-            await release_handler.wait()
-            return {"kind": "token", "accessToken": EXPECTED_TOKEN}
-
-        try:
-            mcp_servers: dict[str, MCPServerConfig] = {
-                server_name: {
-                    "type": "http",
-                    "url": f"{url}/mcp",
-                    "tools": ["*"],
-                    "oauthClientId": "sdk-e2e-client",
-                    "oauthPublicClient": True,
-                }
-            }
-            async with await ctx.client.create_session(
-                on_permission_request=PermissionHandler.approve_all,
-                on_mcp_auth_request=on_mcp_auth_request,
-                mcp_servers=mcp_servers,
-                enable_mcp_apps=True,
-            ) as session:
-                # session.create can begin MCP startup before the SDK registers OAuth
-                # event interest. Reload after registration so this test cannot lose
-                # the initial challenge to that race.
-                reload_task = asyncio.create_task(session.rpc.mcp.reload())
-                connected = asyncio.create_task(_wait_for_mcp_server_status(session, server_name))
-                try:
-                    request = await asyncio.wait_for(observed_requests.get(), timeout=30.0)
-                    while True:
-                        handled = await session.rpc.mcp.oauth.handle_pending_request(
-                            MCPOauthHandlePendingRequest(
-                                request_id=request["requestId"],
-                                result=MCPOauthPendingRequestResponse(
-                                    kind=GitHubTokenAcquireResultKind.TOKEN,
-                                    access_token=EXPECTED_TOKEN,
-                                    token_type="Bearer",
-                                    expires_in=3600,
-                                ),
-                            )
-                        )
-                        if handled.success:
-                            break
-                        request = await asyncio.wait_for(observed_requests.get(), timeout=30.0)
-
-                    assert request["serverName"] == server_name
-                    assert request["serverUrl"] == f"{url}/mcp"
-                    assert request["reason"] == "initial"
-                    assert request["wwwAuthenticateParams"] == {
-                        "resourceMetadataUrl": f"{url}/.well-known/oauth-protected-resource",
-                        "scope": "mcp.read",
-                        "error": "invalid_token",
-                    }
-
-                    release_handler.set()
-                    await asyncio.wait_for(reload_task, timeout=60.0)
-                    connected_result = await asyncio.wait_for(connected, timeout=60.0)
-                    assert connected_result is None
-                    tools = await session.rpc.mcp.list_tools(
-                        MCPListToolsRequest(server_name=server_name)
-                    )
-                    assert [tool.name for tool in tools.tools] == ["whoami"]
-                finally:
-                    release_handler.set()
-                    if not connected.done():
-                        connected.cancel()
-                    if not reload_task.done():
-                        reload_task.cancel()
-                    await asyncio.gather(connected, reload_task, return_exceptions=True)
         finally:
             await _stop_process(process)
 

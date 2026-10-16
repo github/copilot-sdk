@@ -14,7 +14,7 @@ import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
- * Shell command to run, with optional working directory and timeout in milliseconds.
+ * Shell command to run, with optional working directory and timeout in milliseconds. Spawn failures return an RPC error.
  *
  * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0

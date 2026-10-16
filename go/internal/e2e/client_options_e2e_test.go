@@ -412,6 +412,7 @@ func TestClientOptionsE2E(t *testing.T) {
 		extensionSDKPath := filepath.Join(ctx.WorkDir, "extension-sdk")
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			SessionID:                          sessionID,
+			Name:                               "go named at create",
 			ClientName:                         "go-sdk-e2e-client",
 			Model:                              "claude-sonnet-5",
 			ReasoningEffort:                    "low",
@@ -471,6 +472,7 @@ func TestClientOptionsE2E(t *testing.T) {
 		}
 		expectedValues := map[string]any{
 			"sessionId":                          sessionID,
+			"name":                               "go named at create",
 			"clientName":                         "go-sdk-e2e-client",
 			"model":                              "claude-sonnet-5",
 			"reasoningEffort":                    "low",

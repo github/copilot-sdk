@@ -6,6 +6,8 @@ package com.github.copilot;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.util.List;
+
 import org.junit.jupiter.api.Test;
 
 import com.github.copilot.generated.PermissionRequestedEvent;
@@ -30,6 +32,18 @@ public class PermissionRequestResultTest {
         var result = PermissionRequestResult.approveOnce();
         assertEquals("approve-once", result.getKind());
         assertNull(result.getFeedback());
+    }
+
+    @Test
+    void testApproveReadOnlyForSession() throws Exception {
+        var result = PermissionRequestResult.approveReadOnlyForSession(List.of("/outside/reference"));
+        var json = MAPPER.readTree(MAPPER.writeValueAsString(result));
+
+        assertEquals("approve-read-only-for-session", result.getKind());
+        assertEquals(List.of("/outside/reference"), result.getDirectories());
+        assertEquals("approve-read-only-for-session", json.get("kind").asText());
+        assertEquals("/outside/reference", json.get("directories").get(0).asText());
+        assertFalse(json.has("locationKey"));
     }
 
     @Test
@@ -81,11 +95,13 @@ public class PermissionRequestResultTest {
                 {
                     "kind": "read",
                     "path": "/workspace/file.txt",
-                    "managedApprovalRequired": true
+                    "managedApprovalRequired": true,
+                    "readOnlyDirectories": ["/outside/reference"]
                 }
                 """, PermissionRequest.class);
 
         assertTrue(request.getManagedApprovalRequired());
+        assertEquals(List.of("/outside/reference"), request.getReadOnlyDirectories());
     }
 
     @Test

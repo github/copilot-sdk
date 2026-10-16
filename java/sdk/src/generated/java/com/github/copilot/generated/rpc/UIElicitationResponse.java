@@ -27,6 +27,6 @@ public record UIElicitationResponse(
     /** The form values submitted by the user (present when action is 'accept') */
     @JsonProperty("content") Map<String, Object> content,
     /** MCP response metadata. */
-    @JsonProperty("_meta") Map<String, Map<String, Object>> meta
+    @JsonProperty("_meta") Map<String, Object> meta
 ) {
 }

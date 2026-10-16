@@ -31,7 +31,7 @@ public final class SessionQueueApi {
     }
 
     /**
-     * Identifies the target session.
+     * Returns the local session's pending user-facing queued items and steering messages.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -42,18 +42,18 @@ public final class SessionQueueApi {
     }
 
     /**
-     * Identifies the target session.
+     * Returns the internal native queue snapshot for in-process session orchestration.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
     @CopilotExperimental
-    public CompletableFuture<SessionQueueSnapshotResult> snapshot() {
-        return caller.invoke("session.queue.snapshot", java.util.Map.of("sessionId", this.sessionId), SessionQueueSnapshotResult.class);
+    CompletableFuture<QueueSnapshotResult> snapshot() {
+        return caller.invoke("session.queue.snapshot", java.util.Map.of("sessionId", this.sessionId), QueueSnapshotResult.class);
     }
 
     /**
-     * Parameters for moving a queued item by stable id.
+     * Moves an addressable queued item to a public visible position.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -69,7 +69,7 @@ public final class SessionQueueApi {
     }
 
     /**
-     * Parameters for inserting a queued message at a public visible position.
+     * Inserts a new queued message at a public visible position.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -85,7 +85,7 @@ public final class SessionQueueApi {
     }
 
     /**
-     * Parameters for removing a queued item by stable id.
+     * Removes an addressable queued item by its stable id.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -101,7 +101,7 @@ public final class SessionQueueApi {
     }
 
     /**
-     * Parameters for editing a single queued message.
+     * Updates the text of an addressable single-message queue item.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -117,7 +117,7 @@ public final class SessionQueueApi {
     }
 
     /**
-     * Conditional withdrawal of a single user message, before the runtime claims it for delivery.
+     * Atomically withdraws an unchanged user message of a local session: from the queued or steering lane while unconsumed, or from the running turn it started while the model has not answered it and nothing the user sent after it is pending. Withdrawing from the running turn interrupts that turn and removes its events from history. A client retaining the original draft may restore it only when removed is true.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -133,7 +133,7 @@ public final class SessionQueueApi {
     }
 
     /**
-     * Append to one pending steering message without changing its identity or delivery position.
+     * Atomically appends text and attachments to an unchanged, unconsumed local steering message. Returns updated=false if delivery or withdrawal already claimed the message.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -149,7 +149,7 @@ public final class SessionQueueApi {
     }
 
     /**
-     * Parameters for duplicating a queued item.
+     * Duplicates an addressable queued item immediately after its source.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -165,7 +165,7 @@ public final class SessionQueueApi {
     }
 
     /**
-     * Parameters for acquiring or releasing the queued-lane drain pause. Acquisition is exclusive and non-idempotent: `paused: true` against an already-paused session fails with `queue_already_paused`. The pause is never released automatically — it is not tied to the caller's lifetime, so a client that exits without sending `paused: false` leaves the lane frozen. Release is unowned: `paused: false` clears the pause for any caller, including one that never acquired it.
+     * Acquires or releases the queued-lane drain pause.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -181,7 +181,7 @@ public final class SessionQueueApi {
     }
 
     /**
-     * Parameters for steering a queued message into a live turn.
+     * Moves an addressable queued message into the live turn's steering lane.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -197,18 +197,18 @@ public final class SessionQueueApi {
     }
 
     /**
-     * Identifies the target session.
+     * Reports whether the local session has native queued work pending.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
     @CopilotExperimental
-    public CompletableFuture<SessionQueueHasPendingResult> hasPending() {
-        return caller.invoke("session.queue.hasPending", java.util.Map.of("sessionId", this.sessionId), SessionQueueHasPendingResult.class);
+    CompletableFuture<QueueHasPendingResult> hasPending() {
+        return caller.invoke("session.queue.hasPending", java.util.Map.of("sessionId", this.sessionId), QueueHasPendingResult.class);
     }
 
     /**
-     * Inputs for starting a deferred-idle drain.
+     * Begins a native deferred-idle drain when background work has quiesced.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -217,14 +217,14 @@ public final class SessionQueueApi {
      * @since 1.0.0
      */
     @CopilotExperimental
-    public CompletableFuture<SessionQueueBeginDeferredIdleDrainResult> beginDeferredIdleDrain(SessionQueueBeginDeferredIdleDrainParams params) {
+    CompletableFuture<QueueBeginDeferredIdleDrainResult> beginDeferredIdleDrain(SessionQueueBeginDeferredIdleDrainParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
-        return caller.invoke("session.queue.beginDeferredIdleDrain", _p, SessionQueueBeginDeferredIdleDrainResult.class);
+        return caller.invoke("session.queue.beginDeferredIdleDrain", _p, QueueBeginDeferredIdleDrainResult.class);
     }
 
     /**
-     * Inputs for completing a deferred-idle drain.
+     * Finishes a native deferred-idle drain and reports whether to drain queue work or emit idle.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -233,14 +233,14 @@ public final class SessionQueueApi {
      * @since 1.0.0
      */
     @CopilotExperimental
-    public CompletableFuture<SessionQueueFinishDeferredIdleDrainResult> finishDeferredIdleDrain(SessionQueueFinishDeferredIdleDrainParams params) {
+    CompletableFuture<QueueFinishDeferredIdleDrainResult> finishDeferredIdleDrain(SessionQueueFinishDeferredIdleDrainParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
-        return caller.invoke("session.queue.finishDeferredIdleDrain", _p, SessionQueueFinishDeferredIdleDrainResult.class);
+        return caller.invoke("session.queue.finishDeferredIdleDrain", _p, QueueFinishDeferredIdleDrainResult.class);
     }
 
     /**
-     * Inputs for marking session.idle deferred in native state.
+     * Marks session.idle as deferred by native background work state.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -249,14 +249,14 @@ public final class SessionQueueApi {
      * @since 1.0.0
      */
     @CopilotExperimental
-    public CompletableFuture<Void> deferSessionIdle(SessionQueueDeferSessionIdleParams params) {
+    CompletableFuture<Void> deferSessionIdle(SessionQueueDeferSessionIdleParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
         return caller.invoke("session.queue.deferSessionIdle", _p, Void.class);
     }
 
     /**
-     * Identifies the target session.
+     * Removes the most recently queued user-facing item (LIFO).
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -267,7 +267,7 @@ public final class SessionQueueApi {
     }
 
     /**
-     * Identifies the target session.
+     * Clears all pending queued items on the local session.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -278,7 +278,7 @@ public final class SessionQueueApi {
     }
 
     /**
-     * Internal filter for consuming queued system notifications.
+     * Consumes queued native system notifications matching an internal filter.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -287,31 +287,31 @@ public final class SessionQueueApi {
      * @since 1.0.0
      */
     @CopilotExperimental
-    public CompletableFuture<SessionQueueConsumeSystemNotificationsResult> consumeSystemNotifications(SessionQueueConsumeSystemNotificationsParams params) {
+    CompletableFuture<QueueRemoveMostRecentResult> consumeSystemNotifications(SessionQueueConsumeSystemNotificationsParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
-        return caller.invoke("session.queue.consumeSystemNotifications", _p, SessionQueueConsumeSystemNotificationsResult.class);
+        return caller.invoke("session.queue.consumeSystemNotifications", _p, QueueRemoveMostRecentResult.class);
     }
 
     /**
-     * Identifies the target session.
+     * Enqueues the internal resume-pending wake item when orphan handling needs a follow-up turn.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
     @CopilotExperimental
-    public CompletableFuture<SessionQueueEnqueueResumePendingResult> enqueueResumePending() {
-        return caller.invoke("session.queue.enqueueResumePending", java.util.Map.of("sessionId", this.sessionId), SessionQueueEnqueueResumePendingResult.class);
+    CompletableFuture<QueueEnqueueResumePendingResult> enqueueResumePending() {
+        return caller.invoke("session.queue.enqueueResumePending", java.util.Map.of("sessionId", this.sessionId), QueueEnqueueResumePendingResult.class);
     }
 
     /**
-     * Identifies the target session.
+     * Drains the native local-session work queue for in-process session orchestration.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
     @CopilotExperimental
-    public CompletableFuture<Void> process() {
+    CompletableFuture<Void> process() {
         return caller.invoke("session.queue.process", java.util.Map.of("sessionId", this.sessionId), Void.class);
     }
 

@@ -56,6 +56,9 @@ type CopilotRequestContext struct {
 	AgentID         string
 	ParentAgentID   string
 	InteractionType string
+	// AgentInvocationID is the runtime-provided logical invocation identity,
+	// unchanged across physical retries. Nil when the runtime omits it.
+	AgentInvocationID *string
 	// Transport is "http" (covering plain HTTP and SSE) or "websocket".
 	Transport string
 	Method    string
@@ -89,6 +92,10 @@ type CopilotWebSocketCloseStatus struct {
 type CopilotWebSocketMessage struct {
 	Data   []byte
 	Binary bool
+	// AgentInvocationID identifies this runtime request message's invocation,
+	// which may differ from the invocation that opened the connection.
+	// Nil when the runtime omits it, including upstream response messages.
+	AgentInvocationID *string
 }
 
 // Text decodes the frame payload as a UTF-8 string.
@@ -628,17 +635,18 @@ func (a *copilotRequestAdapter) HttpRequestStart(params *rpc.LlmInferenceHTTPReq
 	}
 
 	rctx := &CopilotRequestContext{
-		RequestID:       params.RequestID,
-		SessionID:       sessionID,
-		AgentID:         stringOrEmpty(params.AgentID),
-		ParentAgentID:   stringOrEmpty(params.ParentAgentID),
-		InteractionType: stringOrEmpty(params.InteractionType),
-		Method:          params.Method,
-		URL:             params.URL,
-		Headers:         headers,
-		Transport:       transport,
-		body:            bodyCh,
-		Context:         ctx,
+		RequestID:         params.RequestID,
+		SessionID:         sessionID,
+		AgentID:           stringOrEmpty(params.AgentID),
+		AgentInvocationID: params.AgentInvocationID,
+		ParentAgentID:     stringOrEmpty(params.ParentAgentID),
+		InteractionType:   stringOrEmpty(params.InteractionType),
+		Method:            params.Method,
+		URL:               params.URL,
+		Headers:           headers,
+		Transport:         transport,
+		body:              bodyCh,
+		Context:           ctx,
 	}
 	sink := &responseSink{requestID: params.RequestID, adapter: a, exchange: exchange}
 	go a.runHandler(rctx, sink, exchange)
@@ -662,7 +670,9 @@ func (a *copilotRequestAdapter) routeChunk(exchange *pendingExchange, params *rp
 	if params.Data != "" {
 		binary := params.Binary != nil && *params.Binary
 		if data, err := decodeChunkData(params.Data, binary); err == nil {
-			exchange.queue.push(CopilotWebSocketMessage{Data: data, Binary: binary})
+			exchange.queue.push(CopilotWebSocketMessage{
+				Data: data, Binary: binary, AgentInvocationID: params.AgentInvocationID,
+			})
 		}
 	}
 	if params.End != nil && *params.End {

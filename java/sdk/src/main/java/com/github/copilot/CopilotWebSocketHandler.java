@@ -54,6 +54,22 @@ public abstract class CopilotWebSocketHandler implements AutoCloseable {
     public abstract void sendRequestMessage(CopilotWebSocketMessage message) throws Exception;
 
     /**
+     * Sends a message with its own invocation identity, which may differ from the
+     * identity that opened a reused connection. The default calls the existing
+     * single-argument hook so existing handlers remain compatible.
+     *
+     * @param message
+     *            the message to forward upstream
+     * @param ctx
+     *            the per-message context
+     * @throws Exception
+     *             if the message could not be forwarded
+     */
+    public void sendRequestMessage(CopilotWebSocketMessage message, CopilotRequestContext ctx) throws Exception {
+        sendRequestMessage(message);
+    }
+
+    /**
      * Sends a message from the upstream connection back to the runtime. Override to
      * mutate or duplicate messages; call {@code super} to emit.
      *

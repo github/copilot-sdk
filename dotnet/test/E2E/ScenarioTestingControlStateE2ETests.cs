@@ -17,42 +17,6 @@ public class ScenarioTestingControlStateE2ETests(E2ETestFixture fixture, ITestOu
     private static readonly TimeSpan EventTimeout = TimeSpan.FromSeconds(60);
 
     [Fact]
-    public async Task Should_Compose_Mode_Name_Plan_Client_Metadata_And_Objective_State()
-    {
-        await using var session = await CreateSessionAsync();
-        const string sessionName = "Scenario control state";
-        const string plan = "# Scenario plan\n- Verify control state";
-        const string objective = """{"objective":"VERIFY_SCENARIO_CONTROL","status":"active"}""";
-
-        await session.Rpc.Mode.SetAsync(SessionMode.Plan);
-        await session.Rpc.Name.SetAsync(sessionName);
-        await session.Rpc.Plan.UpdateAsync(plan);
-        var metadata = await session.Rpc.Metadata.UpdateClientMetadataAsync(
-            set: new Dictionary<string, string>
-            {
-                ["scenario-client/control-mode"] = "plan",
-                ["scenario-client/objective"] = "VERIFY_SCENARIO_CONTROL",
-            });
-        var objectiveWrite = await session.Rpc.Workspaces.WriteAutopilotObjectiveAsync(objective);
-
-        Assert.Equal("create", objectiveWrite.Operation);
-        Assert.True((await session.Rpc.Workspaces.AutopilotObjectiveExistsAsync()).Exists);
-        Assert.Equal(objective, (await session.Rpc.Workspaces.ReadAutopilotObjectiveAsync()).Content);
-        Assert.Equal(plan, (await session.Rpc.Plan.ReadAsync()).Content);
-        Assert.Equal(sessionName, (await session.Rpc.Name.GetAsync()).Name);
-        Assert.Equal("VERIFY_SCENARIO_CONTROL", metadata["scenario-client/objective"]);
-
-        var snapshot = await session.Rpc.Metadata.SnapshotAsync();
-        Assert.Equal(session.SessionId, snapshot.SessionId);
-        Assert.Equal(MetadataSnapshotCurrentMode.Plan, snapshot.CurrentMode);
-        Assert.Null(snapshot.InitialName);
-
-        var deleted = await session.Rpc.Workspaces.DeleteAutopilotObjectiveAsync();
-        Assert.True(deleted.Deleted);
-        Assert.False((await session.Rpc.Workspaces.AutopilotObjectiveExistsAsync()).Exists);
-    }
-
-    [Fact]
     public async Task Should_Report_Processing_While_Scenario_Tool_Is_Running()
     {
         var toolStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);

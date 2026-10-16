@@ -10,6 +10,6 @@ package(default_visibility = ["//visibility:public"])
 
 alias(
     name = "bytes",
-    actual = "@sdk_vendor__bytes-1.11.1//:bytes",
+    actual = "@sdk_vendor__bytes-1.12.1//:bytes",
     tags = ["manual"],
 )

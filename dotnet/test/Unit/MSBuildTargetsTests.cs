@@ -115,14 +115,17 @@ public class MSBuildTargetsTests
         Assert.True(File.Exists(sandbox.ExpectedOutputBinary()), result.FailureMessage());
     }
 
-    [Fact]
-    public async Task ReleaseAsset_IsDownloadedVerifiedExtractedAndCached()
+    [Theory]
+    [InlineData("0.0.0-test", "v0.0.0-test")]
+    [InlineData("1.2.3-unstable.r123.gabcdef0", "runtime-1.2.3-unstable.r123.gabcdef0")]
+    [InlineData("1.2.3-4.unstable.r123.gabcdef0", "runtime-1.2.3-4.unstable.r123.gabcdef0")]
+    public async Task ReleaseAsset_IsDownloadedVerifiedExtractedAndCached(string version, string tag)
     {
-        using var sandbox = MSBuildSandbox.Create();
+        using var sandbox = MSBuildSandbox.Create(version: version);
         var archive = sandbox.CreateReleaseArchive("release-runtime-wrapper");
-        var assetName = $"github-copilot-0.0.0-test-{GetReleasePlatform()}.tgz";
-        var assetPath = $"/v0.0.0-test/{assetName}";
-        var checksumsPath = "/v0.0.0-test/SHA256SUMS.txt";
+        var assetName = $"github-copilot-{version}-{GetReleasePlatform()}.tgz";
+        var assetPath = $"/{tag}/{assetName}";
+        var checksumsPath = $"/{tag}/SHA256SUMS.txt";
         var checksum = ComputeSha256(archive);
         using var server = new ReleaseServer(new Dictionary<string, byte[]>
         {
@@ -150,6 +153,27 @@ public class MSBuildTargetsTests
 
         Assert.True(secondBuild.Succeeded, secondBuild.FailureMessage());
         Assert.Equal(2, server.RequestPaths.Count);
+    }
+
+    [Theory]
+    [InlineData("1.2.3", "copilot-cli", "v1.2.3")]
+    [InlineData("1.2.3-4.unstable.r123.gabcdef0", "copilot-sdk", "runtime-1.2.3-4.unstable.r123.gabcdef0")]
+    [InlineData("0.0.0-0.unstable.r1.g0000000", "copilot-sdk", "runtime-0.0.0-0.unstable.r1.g0000000")]
+    [InlineData("01.2.3-unstable.r123.gabcdef0", "copilot-cli", "v01.2.3-unstable.r123.gabcdef0")]
+    [InlineData("1.02.3-unstable.r123.gabcdef0", "copilot-cli", "v1.02.3-unstable.r123.gabcdef0")]
+    [InlineData("1.2.03-unstable.r123.gabcdef0", "copilot-cli", "v1.2.03-unstable.r123.gabcdef0")]
+    [InlineData("1.2.3-04.unstable.r123.gabcdef0", "copilot-cli", "v1.2.3-04.unstable.r123.gabcdef0")]
+    public async Task PinnedRuntime_DefaultReleaseLocationMatchesChannel(string version, string repository, string tag)
+    {
+        using var sandbox = MSBuildSandbox.Create(version: version);
+        sandbox.WriteRuntimeCacheAsset("prebuilds", GetReleasePlatform(), RuntimeWrapperName, "cached");
+        sandbox.WriteRuntimeCacheAsset("prebuilds", GetReleasePlatform(), "runtime.node", "cached");
+        sandbox.WriteRuntimeCacheAsset(".copilot-runtime-complete", version);
+        var result = await sandbox.EvaluateDownloadAsync();
+        Assert.True(result.Succeeded, result.FailureMessage());
+        var releaseUrl = $"https://github.com/github/{repository}/releases/download/{tag}";
+        Assert.Contains($"{releaseUrl}/SHA256SUMS.txt", result.StandardOutput);
+        Assert.Contains($"{releaseUrl}/github-copilot-{version}-{GetReleasePlatform()}.tgz", result.StandardOutput);
     }
 
     [Fact]
@@ -221,6 +245,7 @@ public class MSBuildTargetsTests
         sandbox.WriteRuntimeCacheAsset("preloads", "extension_bootstrap.mjs", "preload");
         sandbox.WriteRuntimeCacheAsset("sdk", "factory.js", "factory");
         sandbox.WriteRuntimeCacheAsset("app.js", "excluded");
+        sandbox.WriteRuntimeCacheAsset("cli-main.js", "excluded");
         sandbox.WriteRuntimeCacheAsset("LICENSE.md", "excluded");
         sandbox.WriteRuntimeCacheAsset("README.md", "excluded");
         sandbox.WriteStaleOutputRuntimeAsset("obsolete", "tool", "stale");
@@ -237,6 +262,7 @@ public class MSBuildTargetsTests
         Assert.Equal("preload", File.ReadAllText(sandbox.ExpectedRuntimeAsset("preloads", "extension_bootstrap.mjs")));
         Assert.Equal("factory", File.ReadAllText(sandbox.ExpectedRuntimeAsset("sdk", "factory.js")));
         Assert.False(File.Exists(sandbox.ExpectedRuntimeAsset("app.js")));
+        Assert.False(File.Exists(sandbox.ExpectedRuntimeAsset("cli-main.js")));
         Assert.False(File.Exists(sandbox.ExpectedRuntimeAsset("LICENSE.md")));
         Assert.False(File.Exists(sandbox.ExpectedRuntimeAsset("README.md")));
         Assert.False(File.Exists(sandbox.ExpectedRuntimeAsset("obsolete", "tool")));
@@ -250,6 +276,8 @@ public class MSBuildTargetsTests
         sandbox.WriteRuntimeCacheAsset("prebuilds", GetReleasePlatform(), "runtime.node", "runtime");
         sandbox.WriteRuntimeCacheAsset("prebuilds", GetReleasePlatform(), RuntimeWrapperName, "wrapper");
         sandbox.WriteRuntimeCacheAsset("ripgrep", "bin", GetReleasePlatform(), "rg", "ripgrep");
+        sandbox.WriteRuntimeCacheAsset("app.js", "excluded");
+        sandbox.WriteRuntimeCacheAsset("cli-main.js", "excluded");
 
         var result = await sandbox.PackNoBuildAsync(new Dictionary<string, string>
         {
@@ -266,6 +294,8 @@ public class MSBuildTargetsTests
         Assert.Contains($"{nativePath}/runtime.node", entries);
         Assert.Contains($"{nativePath}/{RuntimeLibraryName}", entries);
         Assert.Contains($"{nativePath}/ripgrep/bin/{GetReleasePlatform()}/rg", entries);
+        Assert.DoesNotContain($"{nativePath}/app.js", entries);
+        Assert.DoesNotContain($"{nativePath}/cli-main.js", entries);
     }
 
     [Fact]
@@ -374,13 +404,15 @@ public class MSBuildTargetsTests
     private sealed class MSBuildSandbox : IDisposable
     {
         public string ProjectDir { get; }
+        private readonly string _version;
 
-        private MSBuildSandbox(string projectDir)
+        private MSBuildSandbox(string projectDir, string version)
         {
             ProjectDir = projectDir;
+            _version = version;
         }
 
-        public static MSBuildSandbox Create(bool packAsTool = false)
+        public static MSBuildSandbox Create(bool packAsTool = false, string version = "0.0.0-test")
         {
             var dir = Path.Combine(Path.GetTempPath(), "copilot-sdk-targets-test-" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(dir);
@@ -411,20 +443,25 @@ public class MSBuildTargetsTests
                     <TargetFramework>net8.0</TargetFramework>
                     <RuntimeIdentifier>{GetPortableRid()}</RuntimeIdentifier>
                     <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
-                    <CopilotCliVersion>0.0.0-test</CopilotCliVersion>
+                    <CopilotCliVersion>{version}</CopilotCliVersion>
                     <EnableDefaultCompileItems>true</EnableDefaultCompileItems>{toolProperties}
                   </PropertyGroup>
                   <Import Project="{TargetsFilePath}" />
                 </Project>
                 """;
             File.WriteAllText(Path.Combine(dir, "App.csproj"), csproj);
+            File.WriteAllText(Path.Combine(dir, "NuGet.Config"),
+                "<configuration><packageSources><clear /></packageSources></configuration>");
+            // Match the SDK used by setup restore, which provisioned the offline framework packs.
+            File.Copy(Path.Combine(Path.GetDirectoryName(TargetsFilePath)!, "..", "..", "global.json"),
+                Path.Combine(dir, "global.json"));
             File.WriteAllText(
                 Path.Combine(dir, "Stub.cs"),
                 packAsTool
                     ? "namespace CopilotSdkTargetsTest { internal static class Stub { private static void Main() { } } }\n"
                     : "namespace CopilotSdkTargetsTest { internal static class Stub { } }\n");
 
-            return new MSBuildSandbox(dir);
+            return new MSBuildSandbox(dir, version);
         }
 
         public string WritePreinstalledBinary(string contents, string? fileName = null)
@@ -484,7 +521,7 @@ public class MSBuildTargetsTests
 
         public string ExpectedCacheAsset(params string[] pathParts)
         {
-            var path = Path.Combine(ProjectDir, "obj", "Debug", "net8.0", "copilot-cli", "0.0.0-test",
+            var path = Path.Combine(ProjectDir, "obj", "Debug", "net8.0", "copilot-cli", _version,
                 GetReleasePlatform());
             foreach (var part in pathParts)
             {
@@ -533,6 +570,10 @@ public class MSBuildTargetsTests
 
         public async Task<BuildResult> BuildAsync(IDictionary<string, string> properties) =>
             await RunAsync("build --nologo -clp:NoSummary", properties);
+
+        public async Task<BuildResult> EvaluateDownloadAsync() =>
+            await RunAsync("msbuild --nologo -t:_DownloadCopilotCli -getProperty:_CopilotDownloadUrl,_CopilotChecksumsUrl",
+                new Dictionary<string, string>());
 
         /// <summary>
         /// Builds, publishes, then packs without rebuilding — the tool packaging sequence
@@ -590,6 +631,7 @@ public class MSBuildTargetsTests
             // RID that matches ExpectedOutputBinary().
             psi.Environment.Remove("MSBuildSDKsPath");
             psi.Environment.Remove("RuntimeIdentifier");
+            psi.Environment.Remove("COPILOT_CLI_DOWNLOAD_BASE_URL");
 
             using var process = Process.Start(psi) ?? throw new InvalidOperationException("Failed to start dotnet build subprocess.");
 

@@ -9,6 +9,7 @@ download — callers must set an explicit path or COPILOT_CLI_PATH.
 from __future__ import annotations
 
 import platform
+import re
 import sys
 
 # Sentinel: None means "no pinned version" (dev/editable install).
@@ -16,7 +17,10 @@ import sys
 # DO NOT reformat this line — the inject script matches it exactly.
 CLI_VERSION: str | None = None
 
-_DOWNLOAD_BASE_URL = "https://github.com/github/copilot-cli/releases/download"
+_UNSTABLE_VERSION = re.compile(
+    r"^(?:0|[1-9][0-9]*)(?:\.(?:0|[1-9][0-9]*)){2}"
+    r"(?:-unstable|-(?:0|[1-9][0-9]*)\.unstable)\.r[1-9][0-9]*\.g[0-9a-f]{7}$"
+)
 
 # Maps (sys.platform, platform.machine()) to the platform segment used by release assets.
 RUNTIME_PLATFORMS: dict[tuple[str, str], str] = {
@@ -61,16 +65,19 @@ def get_download_url(version: str, archive_name: str) -> str:
     """Return the download URL for a given version and archive."""
     import os
 
-    base = os.environ.get("COPILOT_CLI_DOWNLOAD_BASE_URL", _DOWNLOAD_BASE_URL).rstrip("/")
-    return f"{base}/v{version}/{archive_name}"
+    unstable = _UNSTABLE_VERSION.fullmatch(version) is not None
+    repository = "copilot-sdk" if unstable else "copilot-cli"
+    tag = f"runtime-{version}" if unstable else f"v{version}"
+    base = os.environ.get(
+        "COPILOT_CLI_DOWNLOAD_BASE_URL",
+        f"https://github.com/github/{repository}/releases/download",
+    ).rstrip("/")
+    return f"{base}/{tag}/{archive_name}"
 
 
 def get_checksums_url(version: str) -> str:
     """Return the URL for the SHA256SUMS.txt file."""
-    import os
-
-    base = os.environ.get("COPILOT_CLI_DOWNLOAD_BASE_URL", _DOWNLOAD_BASE_URL).rstrip("/")
-    return f"{base}/v{version}/SHA256SUMS.txt"
+    return get_download_url(version, "SHA256SUMS.txt")
 
 
 def get_runtime_platform() -> str:

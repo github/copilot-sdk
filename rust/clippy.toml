@@ -6,3 +6,7 @@ await-holding-invalid-types = [
 disallowed-macros = [
   { path = "tracing::instrument", reason = "tracing::instrument is error-prone. Use tracing::error_span! in the method body instead." },
 ]
+
+# Matches the GitHub Copilot app, which vendors this crate and runs on 2 MiB
+# Tokio worker stacks; enforced through `large_futures` in Cargo.toml.
+future-size-threshold = 16384

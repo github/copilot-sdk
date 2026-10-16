@@ -3,7 +3,9 @@ package jsonrpc2
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"sync"
 	"testing"
@@ -15,6 +17,10 @@ type writeCloser struct {
 }
 
 func (w writeCloser) Close() error { return nil }
+
+type writeFunc func([]byte) (int, error)
+
+func (w writeFunc) Write(data []byte) (int, error) { return w(data) }
 
 func TestOnCloseCalledOnUnexpectedExit(t *testing.T) {
 	stdinR, stdinW := io.Pipe()
@@ -107,6 +113,135 @@ func TestRequestReturnsWhenConnectionCloses(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("Request did not return when the connection closed")
+	}
+}
+
+func TestRequestUnacknowledgedShutdown(t *testing.T) {
+	for _, shutdown := range []string{"stop", "connection closed", "process exited", "process error"} {
+		t.Run(shutdown, func(t *testing.T) {
+			stdinR, stdinW := io.Pipe()
+			defer stdinR.Close()
+			defer stdinW.Close()
+			client := NewClient(stdinW, io.NopCloser(bytes.NewReader(nil)))
+			done := make(chan struct{})
+			var processErr error
+			if shutdown == "process error" {
+				processErr = errors.New("CLI process exited: exit status 1")
+			}
+			if shutdown == "process exited" || shutdown == "process error" {
+				client.SetProcessDone(done, &processErr)
+			}
+			ctx, cancel := context.WithCancel(t.Context())
+			finished := make(chan struct{})
+			t.Cleanup(func() {
+				cancel()
+				stdinR.Close()
+				select {
+				case <-finished:
+				case <-time.After(time.Second):
+					t.Error("request did not finish during cleanup")
+				}
+			})
+			result := make(chan error, 1)
+			go func() {
+				defer close(finished)
+				_, err := client.Request(ctx, "test.method", nil)
+				result <- err
+			}()
+			if _, err := newHeaderReader(stdinR).Read(); err != nil {
+				t.Fatalf("Read request failed: %v", err)
+			}
+			var expected string
+			switch shutdown {
+			case "stop":
+				close(client.stopChan)
+				expected = "client stopped"
+			case "connection closed":
+				close(client.connectionClosed)
+				expected = "connection closed"
+			case "process exited":
+				close(done)
+				expected = "process exited unexpectedly"
+			case "process error":
+				close(done)
+				expected = processErr.Error()
+			}
+			select {
+			case err := <-result:
+				if err == nil || err.Error() != expected {
+					t.Fatalf("unacknowledged request error = %v, want %s", err, expected)
+				}
+			case <-time.After(time.Second):
+				t.Fatal("unacknowledged request did not stop")
+			}
+			client.mu.Lock()
+			pending, callbacks := len(client.pendingRequests), len(client.pendingInlineCallbacks)
+			client.mu.Unlock()
+			if pending != 0 || callbacks != 0 {
+				t.Fatalf("request cleanup left %d pending requests and %d callbacks", pending, callbacks)
+			}
+		})
+	}
+}
+
+func TestRequestAdmittedResponseSurvivesShutdown(t *testing.T) {
+	for _, shutdown := range []string{"stop", "connection closed", "process exited", "process error"} {
+		t.Run(shutdown, func(t *testing.T) {
+			for _, rpcError := range []bool{false, true} {
+				for iteration := range 32 {
+					t.Run(fmt.Sprintf("RPC_error=%t/%d", rpcError, iteration), func(t *testing.T) {
+						expected := json.RawMessage(`{"messageId":"acknowledged-message"}`)
+						var expectedErr *Error
+						if rpcError {
+							expectedErr = &Error{Code: -32001, Message: "acknowledged failure", Data: json.RawMessage(`{"detail":"original"}`)}
+						}
+						done := make(chan struct{})
+						var client *Client
+						writer := writeFunc(func(data []byte) (int, error) {
+							if bytes.HasPrefix(data, []byte("Content-Length:")) {
+								return len(data), nil
+							}
+							var request Request
+							if err := json.Unmarshal(data, &request); err != nil {
+								return 0, err
+							}
+							// Both outcomes are ready before Request reaches its response select.
+							client.handleResponse(&Response{ID: request.ID, Result: expected, Error: expectedErr})
+							switch shutdown {
+							case "stop":
+								close(client.stopChan)
+							case "connection closed":
+								close(client.connectionClosed)
+							default:
+								close(done)
+							}
+							return len(data), nil
+						})
+						client = NewClient(writeCloser{Writer: writer}, io.NopCloser(bytes.NewReader(nil)))
+						if shutdown == "process exited" || shutdown == "process error" {
+							var processErr error
+							if shutdown == "process error" {
+								processErr = errors.New("CLI process exited: exit status 1")
+							}
+							client.SetProcessDone(done, &processErr)
+						}
+
+						result, err := client.Request(t.Context(), "test.method", nil)
+
+						if expectedErr != nil {
+							if result != nil || err != expectedErr {
+								t.Fatalf("admitted error = (%s, %v), want original RPC error %v", result, err, expectedErr)
+							}
+						} else if err != nil || !bytes.Equal(result, expected) {
+							t.Fatalf("admitted response = (%s, %v), want (%s, nil)", result, err, expected)
+						}
+						if len(client.pendingRequests) != 0 || len(client.pendingInlineCallbacks) != 0 {
+							t.Fatal("completed request retained its pending response or callback")
+						}
+					})
+				}
+			}
+		})
 	}
 }
 

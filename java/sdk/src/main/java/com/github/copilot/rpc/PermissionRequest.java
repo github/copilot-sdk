@@ -6,6 +6,7 @@ package com.github.copilot.rpc;
 
 import java.io.IOException;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 import com.fasterxml.jackson.annotation.JsonAnySetter;
@@ -44,6 +45,9 @@ public class PermissionRequest {
     @JsonProperty("managedApprovalRequired")
     @JsonDeserialize(using = ManagedApprovalRequiredDeserializer.class)
     private Boolean managedApprovalRequired;
+
+    @JsonProperty("readOnlyDirectories")
+    private List<String> readOnlyDirectories;
 
     private Map<String, Object> extensionData;
 
@@ -144,6 +148,28 @@ public class PermissionRequest {
      */
     public void setManagedApprovalRequired(Boolean managedApprovalRequired) {
         this.managedApprovalRequired = managedApprovalRequired;
+    }
+
+    /**
+     * Gets the canonical directory candidates that may be approved for read-only
+     * access.
+     *
+     * @return the read-only directory candidates, or {@code null} when this request
+     *         does not offer directory-scoped read authority
+     */
+    public List<String> getReadOnlyDirectories() {
+        return readOnlyDirectories;
+    }
+
+    /**
+     * Sets the canonical directory candidates that may be approved for read-only
+     * access.
+     *
+     * @param readOnlyDirectories
+     *            the read-only directory candidates
+     */
+    public void setReadOnlyDirectories(List<String> readOnlyDirectories) {
+        this.readOnlyDirectories = readOnlyDirectories;
     }
 
     /**

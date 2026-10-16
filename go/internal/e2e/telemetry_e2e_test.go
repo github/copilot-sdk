@@ -174,6 +174,163 @@ func TestTelemetryE2E(t *testing.T) {
 			t.Errorf("Expected gen_ai.tool.call.result=%q, got %q", marker, got)
 		}
 	})
+
+	t.Run("should export per request subagent chat spans", func(t *testing.T) {
+		ctx := testharness.NewTestContext(t)
+		ctx.ConfigureForTest(t)
+		telemetryPath := filepath.Join(ctx.WorkDir, fmt.Sprintf("telemetry-%s.jsonl", randomHex(t)))
+		const sourceName = "go-sdk-subagent-telemetry-e2e"
+		const prompt = "Use the task tool in sync mode to ask a task agent to read subagent-otel.txt with the view tool. Then reply with SUBAGENT_OTEL_DONE."
+		if err := os.WriteFile(filepath.Join(ctx.WorkDir, "subagent-otel.txt"), []byte("SUBAGENT_OTEL_FILE_CONTENT"), 0600); err != nil {
+			t.Fatalf("WriteFile failed: %v", err)
+		}
+		client := ctx.NewClient(func(opts *copilot.ClientOptions) {
+			opts.Telemetry = &copilot.TelemetryConfig{
+				FilePath: telemetryPath, ExporterType: "file", SourceName: sourceName,
+				CaptureContent: copilot.Bool(true),
+			}
+		})
+		t.Cleanup(func() { client.ForceStop() })
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+		})
+		if err != nil {
+			t.Fatalf("CreateSession failed: %v", err)
+		}
+		sessionID := session.SessionID
+		finalMessage := testharness.SubscribeToFinalAssistantMessage(session)
+		defer finalMessage.Close()
+		if _, err := session.Send(t.Context(), copilot.MessageOptions{Prompt: prompt}); err != nil {
+			t.Fatalf("Send failed: %v", err)
+		}
+		final, err := finalMessage.Wait(t.Context())
+		if err != nil {
+			t.Fatalf("Wait failed: %v", err)
+		}
+		assistant, ok := final.Data.(*copilot.AssistantMessageData)
+		if !ok || !strings.Contains(assistant.Content, "SUBAGENT_OTEL_DONE") {
+			t.Fatalf("Expected final response with SUBAGENT_OTEL_DONE, got %v", final.Data)
+		}
+		session.Disconnect()
+		if err := client.Stop(); err != nil {
+			t.Fatalf("Stop failed: %v", err)
+		}
+
+		entries, err := readTelemetryEntries(t, telemetryPath)
+		if err != nil {
+			t.Fatalf("readTelemetryEntries failed: %v", err)
+		}
+		var spans []map[string]any
+		for _, entry := range entries {
+			if telemetryType(entry) == "span" {
+				spans = append(spans, entry)
+			}
+		}
+		for _, span := range spans {
+			if instrumentationScopeName(span) != sourceName || statusCode(span) == 2 {
+				t.Errorf("Unexpected source or error span: %v", span)
+			}
+		}
+		invocations := spansWithOperation(spans, "invoke_agent")
+		if len(invocations) != 2 {
+			t.Fatalf("Expected two invocation spans, got %d: %v", len(invocations), invocations)
+		}
+		var roots []map[string]any
+		for _, span := range invocations {
+			if isRootSpan(span) {
+				roots = append(roots, span)
+			}
+		}
+		root := requireSingleSpan(t, roots, "root invocation")
+		if got := stringAttr(root, "gen_ai.conversation.id"); got != sessionID {
+			t.Errorf("Expected conversation id %q, got %q", sessionID, got)
+		}
+		rootID, traceID := stringProp(root, "spanId"), stringProp(root, "traceId")
+		if rootID == "" || traceID == "" {
+			t.Fatalf("Root missing span/trace id: %v", root)
+		}
+		var tasks []map[string]any
+		for _, span := range spansWithOperation(spans, "execute_tool") {
+			if stringAttr(span, "gen_ai.tool.name") == "task" {
+				tasks = append(tasks, span)
+			}
+		}
+		task := requireSingleSpan(t, tasks, "task tool")
+		if stringProp(task, "parentSpanId") != rootID {
+			t.Errorf("Task parent is not root: %v", task)
+		}
+		var children []map[string]any
+		for _, span := range invocations {
+			if stringProp(span, "parentSpanId") == stringProp(task, "spanId") {
+				children = append(children, span)
+			}
+		}
+		child := requireSingleSpan(t, children, "child invocation")
+		if stringProp(task, "traceId") != traceID || stringProp(child, "traceId") != traceID {
+			t.Errorf("Task/child must share root trace: %v %v", task, child)
+		}
+
+		chats := spansWithOperation(spans, "chat")
+		if len(chats) != 4 {
+			t.Fatalf("Expected four chat spans, got %d: %v", len(chats), chats)
+		}
+		var parentChats, childChats []map[string]any
+		for _, chat := range chats {
+			switch stringProp(chat, "parentSpanId") {
+			case rootID:
+				parentChats = append(parentChats, chat)
+			case stringProp(child, "spanId"):
+				childChats = append(childChats, chat)
+			}
+		}
+		if len(parentChats) != 2 || len(childChats) != 2 {
+			t.Fatalf("Expected two chats per agent, got parent=%d child=%d: %v", len(parentChats), len(childChats), chats)
+		}
+		for _, chat := range parentChats {
+			if stringProp(chat, "traceId") != traceID {
+				t.Errorf("Parent chat must share root trace: %v", chat)
+			}
+		}
+		var viewCount, finalCount int
+		for _, chat := range childChats {
+			if stringProp(chat, "traceId") != traceID || stringAttr(chat, "github.copilot.initiator") != "sub-agent" {
+				t.Errorf("Child chat missing trace or initiator: %v", chat)
+			}
+			if strings.Contains(stringAttr(chat, "gen_ai.output.messages"), `"view"`) {
+				viewCount++
+				if strings.Contains(stringAttr(chat, "gen_ai.input.messages"), "SUBAGENT_OTEL_FILE_CONTENT") {
+					t.Errorf("Requesting child chat contains the later tool result: %v", chat)
+				}
+			}
+			if strings.Contains(stringAttr(chat, "gen_ai.output.messages"), "SUBAGENT_OTEL_CHILD_DONE") {
+				finalCount++
+				if !strings.Contains(stringAttr(chat, "gen_ai.input.messages"), "SUBAGENT_OTEL_FILE_CONTENT") {
+					t.Errorf("Final child chat missing tool result: %v", chat)
+				}
+			}
+		}
+		if viewCount != 1 || finalCount != 1 {
+			t.Errorf("Expected distinct view and final child requests, got view=%d final=%d", viewCount, finalCount)
+		}
+	})
+}
+
+func spansWithOperation(spans []map[string]any, operation string) []map[string]any {
+	var matching []map[string]any
+	for _, span := range spans {
+		if stringAttr(span, "gen_ai.operation.name") == operation {
+			matching = append(matching, span)
+		}
+	}
+	return matching
+}
+
+func requireSingleSpan(t *testing.T, spans []map[string]any, description string) map[string]any {
+	t.Helper()
+	if len(spans) != 1 {
+		t.Fatalf("Expected exactly one %s span, got %d: %v", description, len(spans), spans)
+	}
+	return spans[0]
 }
 
 func readTelemetryEntries(t *testing.T, path string) ([]map[string]any, error) {

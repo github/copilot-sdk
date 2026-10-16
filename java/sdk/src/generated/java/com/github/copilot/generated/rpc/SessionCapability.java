@@ -34,6 +34,8 @@ public enum SessionCapability {
     ELICITATION("elicitation"),
     /** The {@code session-store} variant. */
     SESSION_STORE("session-store"),
+    /** The {@code github-cache-store} variant. */
+    GITHUB_CACHE_STORE("github-cache-store"),
     /** The {@code mcp-apps} variant. */
     MCP_APPS("mcp-apps"),
     /** The {@code canvas-renderer} variant. */

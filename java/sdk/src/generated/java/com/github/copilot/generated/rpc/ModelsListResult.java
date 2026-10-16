@@ -26,6 +26,12 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record ModelsListResult(
     /** List of available models with full metadata */
-    @JsonProperty("models") List<Model> models
+    @JsonProperty("models") List<Model> models,
+    /** Ordered Auto routing preferences discovered for the resolved account. Present only
+when the runtime runs with `DYNAMIC_AUTO_TIERS` enabled and CAPI returned Auto
+metadata; same shape and semantics as `SessionModelList.auto`. */
+    @JsonProperty("auto") AutoTierMetadata auto,
+    /** The runtime's default image model, separate from conversation models, with its availability for the resolved account. The default is reported even when unavailable; clients choose whether to display it. These entries must not be selected as chat models. Absent on runtimes that do not expose this catalog. */
+    @JsonProperty("imageModels") List<ImageToolModel> imageModels
 ) {
 }

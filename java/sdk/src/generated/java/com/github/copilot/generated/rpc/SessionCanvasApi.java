@@ -27,7 +27,7 @@ public final class SessionCanvasApi {
     /** API methods for the {@code canvas.action} sub-namespace. */
     public final SessionCanvasActionApi action;
     /** API methods for the {@code canvas.provider} sub-namespace. */
-    public final SessionCanvasProviderApi provider;
+    final SessionCanvasProviderApi provider;
 
     /** @param caller the RPC transport function */
     SessionCanvasApi(RpcCaller caller, String sessionId) {
@@ -38,7 +38,7 @@ public final class SessionCanvasApi {
     }
 
     /**
-     * Identifies the target session.
+     * Lists canvases declared for the session.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -49,7 +49,7 @@ public final class SessionCanvasApi {
     }
 
     /**
-     * Identifies the target session.
+     * Lists currently open canvas instances for the live session.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -60,7 +60,7 @@ public final class SessionCanvasApi {
     }
 
     /**
-     * Canvas open parameters.
+     * Opens or focuses a canvas instance.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -76,7 +76,7 @@ public final class SessionCanvasApi {
     }
 
     /**
-     * Canvas close parameters.
+     * Closes an open canvas instance.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.

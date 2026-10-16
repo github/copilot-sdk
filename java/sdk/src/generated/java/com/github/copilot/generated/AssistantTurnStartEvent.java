@@ -39,7 +39,9 @@ public final class AssistantTurnStartEvent extends SessionEvent {
         /** Model identifier used for this turn, when known */
         @JsonProperty("model") String model,
         /** CAPI interaction ID for correlating this turn with upstream telemetry */
-        @JsonProperty("interactionId") String interactionId
+        @JsonProperty("interactionId") String interactionId,
+        /** Parent task tool call ID when this turn belongs to a sub-agent */
+        @JsonProperty("parentToolCallId") String parentToolCallId
     ) {
     }
 }

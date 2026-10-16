@@ -15,7 +15,9 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import com.github.copilot.CopilotExperimental;
+import com.github.copilot.SkillProvider;
 import com.github.copilot.generated.SessionEvent;
+import com.github.copilot.generated.rpc.DiagnosticsConfiguration;
 import com.github.copilot.generated.rpc.SessionLimitsConfig;
 
 /**
@@ -41,6 +43,7 @@ import com.github.copilot.generated.rpc.SessionLimitsConfig;
 public class SessionConfig {
 
     private String sessionId;
+    private String name;
     private String clientName;
     private String model;
     private String reasoningEffort;
@@ -74,6 +77,7 @@ public class SessionConfig {
     private boolean streaming;
     private Boolean includeSubAgentStreamingEvents;
     private Map<String, McpServerConfig> mcpServers;
+    private DiagnosticsConfiguration diagnostics;
     private String mcpOAuthTokenStorage;
     private String authClientIdMetadataUrl;
     private List<CustomAgentConfig> customAgents;
@@ -81,11 +85,14 @@ public class SessionConfig {
     private String agent;
     private InfiniteSessionConfig infiniteSessions;
     private List<String> skillDirectories;
+    private List<String> agentDirectories;
+    private List<String> hookDirectories;
     private List<String> includedBuiltinSkills;
     private List<String> instructionDirectories;
     private List<String> pluginDirectories;
     private LargeToolOutputConfig largeOutput;
     private ToolSearchConfig toolSearch;
+    private ImageGenerationConfig imageGeneration;
     private MemoryConfiguration memory;
     private List<String> disabledSkills;
     private List<String> disabledMcpServers;
@@ -94,10 +101,13 @@ public class SessionConfig {
     private Boolean skipEmbeddingRetrieval;
     private String organizationCustomInstructions;
     private Boolean enableOnDemandInstructionDiscovery;
+    private Boolean refreshCustomInstructions;
     private Boolean enableFileHooks;
     private Boolean enableHostGitOperations;
     private Boolean enableSessionStore;
+    private Boolean enableGitHubCacheStore;
     private Boolean enableSkills;
+    private SkillProvider skillProvider;
     private String embeddingCacheStorage;
     private ModelCapabilitiesOverride modelCapabilities;
     private Consumer<SessionEvent> onEvent;
@@ -114,6 +124,8 @@ public class SessionConfig {
     private CloudSessionOptions cloud;
     private CopilotExpAssignmentResponse expAssignments;
     private Boolean enableManagedSettings;
+    private Boolean enforceManagedModelDefaults;
+    private Boolean interactiveUser;
     private Map<String, Boolean> featureFlags;
     private ManagedSettings managedSettings;
 
@@ -137,6 +149,31 @@ public class SessionConfig {
      */
     public SessionConfig setSessionId(String sessionId) {
         this.sessionId = sessionId;
+        return this;
+    }
+
+    /**
+     * Gets the create-time session name.
+     *
+     * @return the session name, or {@code null} if the session is unnamed
+     */
+    public String getName() {
+        return name;
+    }
+
+    /**
+     * Names the session at creation, as {@code session.name.set} would, and is
+     * validated the same way: non-empty, no leading or trailing whitespace, at most
+     * 100 UTF-16 units, no control characters, and no double quotes. A name also
+     * makes the session persist from the start, so it can be listed and resumed
+     * without ever running a turn. Local sessions only: cloud creation rejects it.
+     *
+     * @param name
+     *            the session name
+     * @return this config instance for method chaining
+     */
+    public SessionConfig setName(String name) {
+        this.name = name;
         return this;
     }
 
@@ -1051,6 +1088,30 @@ public class SessionConfig {
     }
 
     /**
+     * Gets the session-scoped diagnostics configuration.
+     *
+     * @return the diagnostic level, or {@code null} when diagnostics are disabled
+     */
+    public DiagnosticsConfiguration getDiagnostics() {
+        return diagnostics;
+    }
+
+    /**
+     * Sets the session-scoped diagnostics configuration. Diagnostics are off by
+     * default. Debug and trace entries can contain MCP payloads, tool arguments,
+     * paths, and server stderr. Do not upload entries as telemetry or export them
+     * without deliberate host action.
+     *
+     * @param diagnostics
+     *            the diagnostic level
+     * @return this config for method chaining
+     */
+    public SessionConfig setDiagnostics(DiagnosticsConfiguration diagnostics) {
+        this.diagnostics = diagnostics;
+        return this;
+    }
+
+    /**
      * Gets the MCP OAuth token storage mode.
      *
      * @return the storage mode, or {@code null} if not set
@@ -1205,7 +1266,11 @@ public class SessionConfig {
     }
 
     /**
-     * Gets the skill directories.
+     * Gets explicit discovery-only skill roots, not general filesystem grants.
+     * Available without configuration discovery, subject to skill/managed disables.
+     * Relative paths resolve once when supplied against the request's effective
+     * working directory; retained roots do not move when it changes. Null and
+     * omission are equivalent; an empty list clears only the SDK contribution.
      *
      * @return the list of skill directory paths
      */
@@ -1226,6 +1291,59 @@ public class SessionConfig {
      */
     public SessionConfig setSkillDirectories(List<String> skillDirectories) {
         this.skillDirectories = skillDirectories;
+        return this;
+    }
+
+    /**
+     * Gets explicit discovery-only agent roots, separate from custom agent objects.
+     * No general filesystem grant. Available without configuration discovery,
+     * subject to source/managed disables. Relative paths resolve once when supplied
+     * against the request's effective working directory; retained roots do not
+     * move. Null and omission are equivalent; an empty list clears only the SDK
+     * contribution.
+     *
+     * @return the agent directory paths
+     */
+    public List<String> getAgentDirectories() {
+        return agentDirectories == null ? null : Collections.unmodifiableList(agentDirectories);
+    }
+
+    /**
+     * Sets explicit discovery-only agent roots. See {@link #getAgentDirectories()}.
+     *
+     * @param agentDirectories
+     *            the agent directory paths
+     * @return this config for method chaining
+     */
+    public SessionConfig setAgentDirectories(List<String> agentDirectories) {
+        this.agentDirectories = agentDirectories == null ? null : new ArrayList<>(agentDirectories);
+        return this;
+    }
+
+    /**
+     * Gets explicit discovery-only file-hook roots, separate from callback hooks.
+     * No general filesystem grant. Available without configuration discovery or
+     * file-hook enablement (repository-origin hooks only), subject to hook/managed
+     * disables. Relative paths resolve once when supplied against the request's
+     * effective working directory; retained roots do not move. Null and omission
+     * are equivalent; an empty list clears only the SDK contribution.
+     *
+     * @return the file-hook directory paths
+     */
+    public List<String> getHookDirectories() {
+        return hookDirectories == null ? null : Collections.unmodifiableList(hookDirectories);
+    }
+
+    /**
+     * Sets explicit discovery-only file-hook roots. See
+     * {@link #getHookDirectories()}.
+     *
+     * @param hookDirectories
+     *            the file-hook directory paths
+     * @return this config for method chaining
+     */
+    public SessionConfig setHookDirectories(List<String> hookDirectories) {
+        this.hookDirectories = hookDirectories == null ? null : new ArrayList<>(hookDirectories);
         return this;
     }
 
@@ -1252,7 +1370,12 @@ public class SessionConfig {
     }
 
     /**
-     * Gets the additional directories to search for custom instruction files.
+     * Gets explicit discovery-only instruction roots using existing SDK formats. No
+     * general filesystem grant. Available without configuration discovery, subject
+     * to instruction/managed disables. Relative paths resolve once when supplied
+     * against the request's effective working directory; retained roots do not
+     * move. Null and omission are equivalent; an empty list clears only the SDK
+     * contribution.
      *
      * @return the list of instruction directory paths
      */
@@ -1321,6 +1444,29 @@ public class SessionConfig {
      */
     public ToolSearchConfig getToolSearch() {
         return toolSearch;
+    }
+
+    /**
+     * Gets the non-persisted image generation opt-in.
+     *
+     * @return the image generation config, or null when unset
+     */
+    @CopilotExperimental
+    public ImageGenerationConfig getImageGeneration() {
+        return imageGeneration;
+    }
+
+    /**
+     * Sets the image generation opt-in. Re-supply after runtime restart.
+     *
+     * @param imageGeneration
+     *            the image generation config
+     * @return this config for method chaining
+     */
+    @CopilotExperimental
+    public SessionConfig setImageGeneration(ImageGenerationConfig imageGeneration) {
+        this.imageGeneration = imageGeneration;
+        return this;
     }
 
     /**
@@ -1557,7 +1703,46 @@ public class SessionConfig {
     }
 
     /**
-     * Gets whether file-based hooks are enabled.
+     * Gets whether to invalidate process-wide instruction discovery caches before
+     * constructing the new session.
+     *
+     * @return an optional flag; {@code false} or empty reuses cached discovery
+     */
+    @JsonIgnore
+    public Optional<Boolean> getRefreshCustomInstructions() {
+        return Optional.ofNullable(refreshCustomInstructions);
+    }
+
+    /**
+     * Sets whether to invalidate process-wide instruction discovery caches before
+     * constructing the new session. Defaults to {@code false}, reusing cached
+     * discovery. Other sessions in this runtime may observe updated instructions on
+     * later turns or discovery. This does not watch files or override instruction
+     * loading policy.
+     *
+     * @param refreshCustomInstructions
+     *            {@code true} to invalidate caches, {@code false} to reuse them
+     * @return this config instance for method chaining
+     */
+    public SessionConfig setRefreshCustomInstructions(boolean refreshCustomInstructions) {
+        this.refreshCustomInstructions = refreshCustomInstructions;
+        return this;
+    }
+
+    /**
+     * Clears the refreshCustomInstructions setting, restoring default cache reuse.
+     *
+     * @return this config instance for method chaining
+     */
+    public SessionConfig clearRefreshCustomInstructions() {
+        this.refreshCustomInstructions = null;
+        return this;
+    }
+
+    /**
+     * Gets whether repository-origin file hooks from {@code .github/hooks/} and
+     * trusted repository-configured roots are enabled. Does not control explicit
+     * {@link #getHookDirectories()} or callback hooks.
      *
      * @return an {@link java.util.Optional} containing {@code true} to enable file
      *         hooks or {@code false} to disable them, or
@@ -1662,6 +1847,45 @@ public class SessionConfig {
     }
 
     /**
+     * Gets whether the read-only GitHub cache store is requested.
+     *
+     * @return an {@link java.util.Optional} containing {@code true} to request the
+     *         {@code github-cache-store} capability or {@code false} to decline it,
+     *         or {@link java.util.Optional#empty()} to use the default behavior
+     *         (disabled)
+     */
+    @JsonIgnore
+    public Optional<Boolean> getEnableGitHubCacheStore() {
+        return Optional.ofNullable(enableGitHubCacheStore);
+    }
+
+    /**
+     * Sets whether the read-only GitHub cache store is requested.
+     * <p>
+     * The runtime registers the {@code github_sql} tool only when its
+     * {@code GITHUB_CACHE_STORE} feature flag is also on.
+     *
+     * @param enableGitHubCacheStore
+     *            {@code true} to request the {@code github-cache-store} capability,
+     *            {@code false} to decline it
+     * @return this config instance for method chaining
+     */
+    public SessionConfig setEnableGitHubCacheStore(boolean enableGitHubCacheStore) {
+        this.enableGitHubCacheStore = enableGitHubCacheStore;
+        return this;
+    }
+
+    /**
+     * Clears the enableGitHubCacheStore setting, reverting to the default behavior.
+     *
+     * @return this instance for method chaining
+     */
+    public SessionConfig clearEnableGitHubCacheStore() {
+        this.enableGitHubCacheStore = null;
+        return this;
+    }
+
+    /**
      * Gets whether skill loading is enabled.
      *
      * @return an {@link java.util.Optional} containing {@code true} to enable skill
@@ -1692,6 +1916,35 @@ public class SessionConfig {
      */
     public SessionConfig clearEnableSkills() {
         this.enableSkills = null;
+        return this;
+    }
+
+    /**
+     * Gets the session-scoped skill provider.
+     *
+     * @return the skill provider, or {@code null} when not configured
+     * @apiNote This API is experimental and may change in a future version.
+     */
+    @CopilotExperimental
+    @JsonIgnore
+    public SkillProvider getSkillProvider() {
+        return skillProvider;
+    }
+
+    /**
+     * Sets the session-scoped skill provider.
+     * <p>
+     * Re-supply this provider when resuming a session. Skill providers are not
+     * supported for cloud sessions.
+     *
+     * @param skillProvider
+     *            the skill provider to expose to the runtime
+     * @return this config instance for method chaining
+     * @apiNote This API is experimental and may change in a future version.
+     */
+    @CopilotExperimental
+    public SessionConfig setSkillProvider(SkillProvider skillProvider) {
+        this.skillProvider = skillProvider;
         return this;
     }
 
@@ -2199,6 +2452,55 @@ public class SessionConfig {
     }
 
     /**
+     * Gets whether locked managed model controls are enforced.
+     *
+     * @return the explicit choice, or empty to use the runtime default
+     */
+    @JsonIgnore
+    public Optional<Boolean> getEnforceManagedModelDefaults() {
+        return Optional.ofNullable(enforceManagedModelDefaults);
+    }
+
+    /**
+     * Sets whether locked managed model controls are enforced for this session.
+     * Conflicting model changes are rejected; overridable defaults remain mutable.
+     *
+     * @param enforceManagedModelDefaults
+     *            whether to enforce locked managed model controls
+     * @return this config instance for method chaining
+     */
+    public SessionConfig setEnforceManagedModelDefaults(boolean enforceManagedModelDefaults) {
+        this.enforceManagedModelDefaults = enforceManagedModelDefaults;
+        return this;
+    }
+
+    /**
+     * Gets whether this session is human-driven.
+     *
+     * @return an optional containing the declaration, or empty when unset
+     */
+    @JsonIgnore
+    public Optional<Boolean> getInteractiveUser() {
+        return Optional.ofNullable(interactiveUser);
+    }
+
+    /**
+     * Declares that a human drives this session's conversation, enabling
+     * user-message analysis telemetry for user-authored messages. Automated
+     * messages remain excluded. Defaults to false for SDK sessions. Ignored for
+     * cloud sessions.
+     *
+     * @param interactiveUser
+     *            {@code true} for interactive hosts such as editors or IDE chat
+     *            panels
+     * @return this config instance for method chaining
+     */
+    public SessionConfig setInteractiveUser(boolean interactiveUser) {
+        this.interactiveUser = interactiveUser;
+        return this;
+    }
+
+    /**
      * Gets host-injected managed settings for this session.
      *
      * @return the managed settings, or {@code null} when unset
@@ -2272,6 +2574,7 @@ public class SessionConfig {
         copy.streaming = this.streaming;
         copy.includeSubAgentStreamingEvents = this.includeSubAgentStreamingEvents;
         copy.mcpServers = this.mcpServers != null ? new java.util.HashMap<>(this.mcpServers) : null;
+        copy.diagnostics = this.diagnostics;
         copy.mcpOAuthTokenStorage = this.mcpOAuthTokenStorage;
         copy.authClientIdMetadataUrl = this.authClientIdMetadataUrl;
         copy.customAgents = this.customAgents != null ? new ArrayList<>(this.customAgents) : null;
@@ -2279,6 +2582,8 @@ public class SessionConfig {
         copy.agent = this.agent;
         copy.infiniteSessions = this.infiniteSessions;
         copy.skillDirectories = this.skillDirectories != null ? new ArrayList<>(this.skillDirectories) : null;
+        copy.agentDirectories = this.agentDirectories != null ? new ArrayList<>(this.agentDirectories) : null;
+        copy.hookDirectories = this.hookDirectories != null ? new ArrayList<>(this.hookDirectories) : null;
         copy.includedBuiltinSkills = this.includedBuiltinSkills != null
                 ? new ArrayList<>(this.includedBuiltinSkills)
                 : null;
@@ -2288,6 +2593,7 @@ public class SessionConfig {
         copy.pluginDirectories = this.pluginDirectories != null ? new ArrayList<>(this.pluginDirectories) : null;
         copy.largeOutput = this.largeOutput;
         copy.toolSearch = this.toolSearch;
+        copy.imageGeneration = this.imageGeneration;
         copy.memory = this.memory;
         copy.disabledSkills = this.disabledSkills != null ? new ArrayList<>(this.disabledSkills) : null;
         copy.disabledMcpServers = this.disabledMcpServers != null ? new ArrayList<>(this.disabledMcpServers) : null;
@@ -2296,10 +2602,13 @@ public class SessionConfig {
         copy.skipEmbeddingRetrieval = this.skipEmbeddingRetrieval;
         copy.organizationCustomInstructions = this.organizationCustomInstructions;
         copy.enableOnDemandInstructionDiscovery = this.enableOnDemandInstructionDiscovery;
+        copy.refreshCustomInstructions = this.refreshCustomInstructions;
         copy.enableFileHooks = this.enableFileHooks;
         copy.enableHostGitOperations = this.enableHostGitOperations;
         copy.enableSessionStore = this.enableSessionStore;
+        copy.enableGitHubCacheStore = this.enableGitHubCacheStore;
         copy.enableSkills = this.enableSkills;
+        copy.skillProvider = this.skillProvider;
         copy.embeddingCacheStorage = this.embeddingCacheStorage;
         copy.modelCapabilities = this.modelCapabilities;
         copy.onEvent = this.onEvent;
@@ -2317,6 +2626,8 @@ public class SessionConfig {
         copy.featureFlags = this.featureFlags != null ? new java.util.HashMap<>(this.featureFlags) : null;
         copy.expAssignments = this.expAssignments;
         copy.enableManagedSettings = this.enableManagedSettings;
+        copy.enforceManagedModelDefaults = this.enforceManagedModelDefaults;
+        copy.interactiveUser = this.interactiveUser;
         copy.managedSettings = this.managedSettings;
         return copy;
     }

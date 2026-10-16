@@ -20,7 +20,10 @@ pytestmark = pytest.mark.asyncio(loop_scope="module")
 
 
 class TestInProcessFfi:
-    async def test_should_start_and_connect_over_in_process_ffi(self, ctx: E2ETestContext):
+    @pytest.mark.parametrize("shutdown_method", ["stop", "force_stop"])
+    async def test_should_start_and_connect_over_in_process_ffi(
+        self, ctx: E2ETestContext, shutdown_method: str
+    ):
         # In-process hosting loads runtime.node directly. ``ping`` is a purely local
         # RPC round-trip, so no auth or replay proxy is involved.
         client = CopilotClient(connection=RuntimeConnection.for_inprocess())
@@ -31,4 +34,4 @@ class TestInProcessFfi:
             assert pong.message == "pong: ffi message"
             assert pong.timestamp is not None
         finally:
-            await client.stop()
+            await getattr(client, shutdown_method)()

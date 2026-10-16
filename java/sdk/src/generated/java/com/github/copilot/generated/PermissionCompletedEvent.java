@@ -10,6 +10,7 @@ package com.github.copilot.generated;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
@@ -45,6 +46,7 @@ public final class PermissionCompletedEvent extends SessionEvent {
         /** The result of the permission request */
         @JsonProperty("result") Object result,
         /** Who decided this permission request. Absent on completions recorded before this field existed, which consumers must treat as "not a human decision" rather than assuming one. Authorization records are minted only for `human_response`; an assisted-approval verdict, a host policy, an unattended fallback, and a hook resolution all produce the same `result` a person does, so this is the only field that distinguishes them. */
+        @CopilotExperimental
         @JsonProperty("decisionSource") PermissionDecisionSource decisionSource
     ) {
     }

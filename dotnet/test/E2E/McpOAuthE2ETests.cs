@@ -23,6 +23,38 @@ public class McpOAuthE2ETests(E2ETestFixture fixture, ITestOutputHelper output) 
     private const string CimdUrl = "https://github.com/copilot/cli/client-metadata.json";
 
     [Fact]
+    public async Task Should_Reclaim_Server_Process_When_Startup_Is_Canceled()
+    {
+        using var process = Process.Start(new ProcessStartInfo("node")
+        {
+            Arguments = "-e \"console.log('started'); setInterval(() => {}, 1000)\"",
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true,
+        })!;
+        using var observer = Process.GetProcessById(process.Id);
+        using var cancellation = new CancellationTokenSource();
+        try
+        {
+            Assert.Equal("started", await process.StandardOutput.ReadLineAsync().WaitAsync(TimeSpan.FromSeconds(10)));
+            var startup = OAuthMcpServer.WaitForListeningAsync(process, cancellation.Token);
+            cancellation.Cancel();
+
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => startup);
+            Assert.True(observer.HasExited, "Canceled startup retained the OAuth server process.");
+        }
+        finally
+        {
+            if (!observer.HasExited)
+            {
+                observer.Kill(entireProcessTree: true);
+                await observer.WaitForExitAsync();
+            }
+        }
+    }
+
+    [Fact]
     public async Task Should_Use_Cimd_Url_Instead_Of_Dynamic_Registration()
     {
         await using var oauthServer = await OAuthMcpServer.StartAsync(ExpectedToken, cimdSupported: true);
@@ -324,23 +356,53 @@ public class McpOAuthE2ETests(E2ETestFixture fixture, ITestOutputHelper output) 
 
             var process = Process.Start(startInfo)
                 ?? throw new InvalidOperationException("Failed to start OAuth MCP server.");
-            var stderrTask = process.StandardError.ReadToEndAsync();
-
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-            while (!cts.IsCancellationRequested)
+            return await WaitForListeningAsync(process, cts.Token);
+        }
+
+        public static async Task<OAuthMcpServer> WaitForListeningAsync(Process process, CancellationToken cancellationToken)
+        {
+#if NET
+            var stderrTask = process.StandardError.ReadToEndAsync(CancellationToken.None);
+#else
+            var stderrTask = process.StandardError.ReadToEndAsync();
+#endif
+            try
             {
-                var line = await process.StandardOutput.ReadLineAsync(cts.Token);
-                if (line is null)
+                while (true)
                 {
-                    throw new InvalidOperationException($"OAuth MCP server exited before listening: {await stderrTask}");
-                }
-                if (line.StartsWith("Listening: ", StringComparison.Ordinal))
-                {
-                    return new OAuthMcpServer(process, line["Listening: ".Length..]);
+                    var line = await process.StandardOutput.ReadLineAsync(cancellationToken);
+                    if (line is null)
+                    {
+                        throw new InvalidOperationException($"OAuth MCP server exited before listening: {await stderrTask}");
+                    }
+                    if (line.StartsWith("Listening: ", StringComparison.Ordinal))
+                    {
+                        return new OAuthMcpServer(process, line["Listening: ".Length..]);
+                    }
                 }
             }
-
-            throw new TimeoutException($"Timed out waiting for OAuth MCP server: {await stderrTask}");
+            catch (Exception startupError)
+            {
+                try
+                {
+                    if (!process.HasExited)
+                    {
+                        process.Kill(entireProcessTree: true);
+                    }
+                    await process.WaitForExitAsync(CancellationToken.None);
+                    await stderrTask;
+                }
+                catch (Exception cleanupError)
+                {
+                    throw new AggregateException(startupError, cleanupError);
+                }
+                finally
+                {
+                    process.Dispose();
+                }
+                throw;
+            }
         }
 
         public async Task<List<OAuthMcpRequest>> GetRequestsAsync()

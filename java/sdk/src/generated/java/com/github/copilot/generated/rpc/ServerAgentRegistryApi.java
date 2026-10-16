@@ -27,7 +27,7 @@ public final class ServerAgentRegistryApi {
     }
 
     /**
-     * Inputs to spawn a managed-server child via the controller's spawn delegate.
+     * Spawns a managed-server child with the supplied configuration and returns a discriminated-union result. The caller (typically the CLI controller) is responsible for attaching to the spawned child and sending any follow-up prompt. When the controller-local spawn gate is closed the server returns JSON-RPC MethodNotFound.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0

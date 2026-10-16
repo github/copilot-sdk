@@ -10,6 +10,6 @@ package(default_visibility = ["//visibility:public"])
 
 alias(
     name = "serial_test",
-    actual = "@sdk_vendor__serial_test-3.4.0//:serial_test",
+    actual = "@sdk_vendor__serial_test-4.0.1//:serial_test",
     tags = ["manual"],
 )

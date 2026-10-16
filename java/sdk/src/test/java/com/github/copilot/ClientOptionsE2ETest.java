@@ -14,6 +14,9 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -28,6 +31,47 @@ class ClientOptionsE2ETest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
+    @ParameterizedTest
+    @NullSource
+    @ValueSource(booleans = {true, false})
+    void testShouldForwardRefreshCustomInstructionsOnlyOnSessionCreation(Boolean refresh) throws Exception {
+        try (var fake = FakeStdioCli.create()) {
+            var config = new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL);
+            if (refresh != null) {
+                config.setRefreshCustomInstructions(refresh);
+            }
+
+            try (var client = fake.createClient()) {
+                var session = client.createSession(config).get(30, TimeUnit.SECONDS);
+                session.close();
+                var resumed = client
+                        .resumeSession(session.getSessionId(),
+                                new ResumeSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
+                        .get(30, TimeUnit.SECONDS);
+                resumed.close();
+            }
+
+            var create = fake.capturedRequest("session.create").path("params");
+            if (refresh == null) {
+                assertFalse(create.has("refreshCustomInstructions"), create.toString());
+            } else {
+                assertEquals(MAPPER.valueToTree(refresh), create.get("refreshCustomInstructions"));
+            }
+            var resume = fake.capturedRequest("session.resume").path("params");
+            assertFalse(resume.has("refreshCustomInstructions"), resume.toString());
+        }
+    }
+
+    @Test
+    void testRefreshCustomInstructionsIsNotExposedOnResumeConfig() {
+        assertThrows(NoSuchMethodException.class,
+                () -> ResumeSessionConfig.class.getMethod("getRefreshCustomInstructions"));
+        assertThrows(NoSuchMethodException.class,
+                () -> ResumeSessionConfig.class.getMethod("setRefreshCustomInstructions", boolean.class));
+        assertThrows(NoSuchMethodException.class,
+                () -> ResumeSessionConfig.class.getMethod("clearRefreshCustomInstructions"));
+    }
+
     @Test
     void testShouldForwardAdvancedSessionCreationOptionsToTheCli() throws Exception {
         try (var fake = FakeStdioCli.create()) {
@@ -36,8 +80,8 @@ class ClientOptionsE2ETest {
 
             try (var client = fake.createClient()) {
                 var session = client.createSession(new SessionConfig().setSessionId("java-create-session")
-                        .setClientName("java-e2e-client").setModel("gpt-5-mini").setReasoningEffort("low")
-                        .setReasoningSummary("none").setContextTier("long_context")
+                        .setName("java named at create").setClientName("java-e2e-client").setModel("gpt-5-mini")
+                        .setReasoningEffort("low").setReasoningSummary("none").setContextTier("long_context")
                         .setAvailableTools(java.util.List.of("bash")).setExcludedTools(java.util.List.of("grep"))
                         .setExcludedBuiltInAgents(java.util.List.of("explore")).setEnableSessionTelemetry(true)
                         .setEnableCitations(true).setSessionLimits(new SessionLimitsConfig(42.0))
@@ -56,6 +100,7 @@ class ClientOptionsE2ETest {
 
             var create = fake.capturedRequest("session.create").path("params");
             assertEquals("java-create-session", create.path("sessionId").asText());
+            assertEquals("java named at create", create.path("name").asText());
             assertEquals("java-e2e-client", create.path("clientName").asText());
             assertEquals("gpt-5-mini", create.path("model").asText());
             assertEquals("low", create.path("reasoningEffort").asText());

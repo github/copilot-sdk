@@ -192,6 +192,7 @@ func NewTestContext(t *testing.T) *TestContext {
 func defaultCopilotUser(proxyURL string) map[string]interface{} {
 	return map[string]interface{}{
 		"login":        "e2e-test-user",
+		"id":           12345,
 		"copilot_plan": "individual_pro",
 		"endpoints": map[string]interface{}{
 			"api":       proxyURL,
@@ -255,6 +256,14 @@ func (c *TestContext) ConfigureWithoutSnapshot(t *testing.T) {
 	dummySnapshotPath := filepath.Join(c.WorkDir, "__no_snapshot__.yaml")
 	if err := c.proxy.Configure(dummySnapshotPath, c.WorkDir); err != nil {
 		t.Fatalf("Failed to configure proxy without snapshot: %v", err)
+	}
+}
+
+// ConfigureSnapshot selects an existing cross-language replay fixture.
+func (c *TestContext) ConfigureSnapshot(t *testing.T, name string) {
+	t.Helper()
+	if err := c.proxy.Configure(RepoPath("test", "snapshots", name+".yaml"), c.WorkDir); err != nil {
+		t.Fatalf("Failed to configure shared snapshot: %v", err)
 	}
 }
 

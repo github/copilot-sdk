@@ -4,6 +4,7 @@
 
 using System.Collections.Concurrent;
 using System.Net.Http;
+using System.Text.Json;
 using GitHub.Copilot.Test.Harness;
 using Xunit;
 using Xunit.Abstractions;
@@ -15,11 +16,21 @@ namespace GitHub.Copilot.Test.E2E;
 public class SubagentHooksE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
     : E2ETestBase(fixture, "subagent_hooks", output)
 {
+    private const string ChildContext = "Subagent start hook verified: read the requested file.";
+    private const string StopResponsePrefix = "Subagent stop hook verified: ";
+
     [Fact]
-    public async Task Should_Invoke_PreToolUse_And_PostToolUse_Hooks_For_Sub_Agent_Tool_Calls()
+    public async Task Should_Apply_Subagent_Lifecycle_Hook_Outputs()
     {
         var hookLog = new ConcurrentBag<(string Kind, string ToolName, string SessionId)>();
+        var lifecycle = new ConcurrentQueue<string>();
+        var starts = new ConcurrentQueue<(SubagentStartHookInput Input, string InvocationSessionId)>();
+        var stops = new ConcurrentQueue<(SubagentStopHookInput Input, string InvocationSessionId)>();
         var requestHandler = new RecordingForwardingRequestHandler();
+        const string waitingText = "I've launched an explore agent to read subagent-test.txt. Waiting for it to complete...";
+        const string finalText = "The explore agent successfully read the file. The contents of **subagent-test.txt** are:\n\n```\nHello from subagent test!\n```";
+        var parentSessionId = Guid.NewGuid().ToString();
+        var parentWaiting = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         // Create a client with the session-based subagents feature flag
         var env = new Dictionary<string, string>(Ctx.GetEnvironment());
@@ -32,6 +43,7 @@ public class SubagentHooksE2ETests(E2ETestFixture fixture, ITestOutputHelper out
 
         var session = await Ctx.CreateSessionAsync(client, new SessionConfig
         {
+            SessionId = parentSessionId,
             OnPermissionRequest = PermissionHandler.ApproveAll,
             Hooks = new SessionHooks
             {
@@ -43,10 +55,33 @@ public class SubagentHooksE2ETests(E2ETestFixture fixture, ITestOutputHelper out
                         PermissionDecision = "allow"
                     });
                 },
-                OnPostToolUse = (input, invocation) =>
+                OnPostToolUse = async (input, invocation) =>
                 {
                     hookLog.Add(("post", input.ToolName, input.SessionId));
-                    return Task.FromResult<PostToolUseHookOutput?>(null);
+                    // A fast child can inject its result before the fixture's waiting reply is requested.
+                    if (input.ToolName == "view" && input.SessionId != parentSessionId)
+                    {
+                        await parentWaiting.Task;
+                    }
+                    return null;
+                },
+                OnSubagentStart = (input, invocation) =>
+                {
+                    starts.Enqueue((input, invocation.SessionId));
+                    lifecycle.Enqueue("start");
+                    return Task.FromResult<SubagentStartHookOutput?>(new SubagentStartHookOutput
+                    {
+                        AdditionalContext = ChildContext
+                    });
+                },
+                OnSubagentStop = (input, invocation) =>
+                {
+                    stops.Enqueue((input, invocation.SessionId));
+                    lifecycle.Enqueue("stop");
+                    return Task.FromResult<SubagentStopHookOutput?>(new SubagentStopHookOutput
+                    {
+                        ModifiedResponse = StopResponsePrefix + input.Response
+                    });
                 },
             },
         });
@@ -54,14 +89,64 @@ public class SubagentHooksE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         // Create a file for the sub-agent to read
         await File.WriteAllTextAsync(Path.Join(Ctx.WorkDir, "subagent-test.txt"), "Hello from subagent test!");
 
-        await session.SendAndWaitAsync(
-            new MessageOptions
+        using var subscription = session.On<AssistantMessageEvent>(message =>
+        {
+            if (string.IsNullOrEmpty(message.AgentId) && message.Data.Content == waitingText)
             {
-                Prompt = "Use the task tool to spawn an explore agent that reads the file "
-                    + "subagent-test.txt in the current directory and reports its contents. "
-                    + "You must use the task tool."
-            },
-            timeout: TimeSpan.FromSeconds(120));
+                parentWaiting.TrySetResult(true);
+            }
+        });
+        try
+        {
+            var response = await session.SendAndWaitAsync(
+                new MessageOptions
+                {
+                    Prompt = "Use the task tool to spawn an explore agent that reads the file "
+                        + "subagent-test.txt in the current directory and reports its contents. "
+                        + "You must use the task tool."
+                },
+                timeout: TimeSpan.FromSeconds(120));
+            Assert.NotNull(response);
+            Assert.True(string.IsNullOrEmpty(response.AgentId));
+            Assert.Equal(finalText, response.Data.Content);
+            var replies = (await session.GetEventsAsync()).OfType<AssistantMessageEvent>()
+                .Where(message => string.IsNullOrEmpty(message.AgentId))
+                .Select(message => message.Data.Content)
+                .Where(content => content == waitingText || content == finalText);
+            Assert.Equal([waitingText, finalText], replies);
+        }
+        finally
+        {
+            parentWaiting.TrySetResult(true);
+        }
+
+        Assert.Collection(lifecycle,
+            kind => Assert.Equal("start", kind),
+            kind => Assert.Equal("stop", kind));
+
+        var start = Assert.Single(starts);
+        Assert.Equal(session.SessionId, start.InvocationSessionId);
+        Assert.Equal(session.SessionId, start.Input.SessionId);
+        Assert.True(start.Input.Timestamp > DateTimeOffset.UnixEpoch);
+        Assert.Equal(Path.GetFullPath(Ctx.WorkDir), Path.GetFullPath(start.Input.WorkingDirectory));
+        Assert.Equal("explore", start.Input.AgentName);
+        Assert.Null(start.Input.AgentDisplayName);
+        Assert.Null(start.Input.AgentDescription);
+
+        var stop = Assert.Single(stops);
+        Assert.Equal(session.SessionId, stop.InvocationSessionId);
+        Assert.Equal(session.SessionId, stop.Input.SessionId);
+        Assert.True(stop.Input.Timestamp > DateTimeOffset.UnixEpoch);
+        Assert.True(stop.Input.Timestamp >= start.Input.Timestamp);
+        Assert.Equal(Path.GetFullPath(Ctx.WorkDir), Path.GetFullPath(stop.Input.WorkingDirectory));
+        Assert.Equal(start.Input.TranscriptPath, stop.Input.TranscriptPath);
+        Assert.Equal(start.Input.AgentName, stop.Input.AgentName);
+        Assert.Equal(start.Input.AgentDisplayName, stop.Input.AgentDisplayName);
+        Assert.Equal(start.Input.AgentDescription, stop.Input.AgentDescription);
+        Assert.False(string.IsNullOrEmpty(stop.Input.AgentId));
+        Assert.Equal("explore", stop.Input.AgentType);
+        Assert.Equal("end_turn", stop.Input.StopReason);
+        Assert.Contains("Hello from subagent test!", stop.Input.Response);
 
         var log = hookLog.ToArray();
 
@@ -78,6 +163,40 @@ public class SubagentHooksE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         // input.SessionId distinguishes parent from sub-agent
         Assert.NotEqual(viewPre[0].SessionId, taskPre[0].SessionId);
         AssertSubagentRequestMetadata(requestHandler.InferenceRequests);
+        Assert.Contains(requestHandler.InferenceRequests, r =>
+        {
+            if (string.IsNullOrEmpty(r.ParentAgentId)) return false;
+            using var body = JsonDocument.Parse(r.Body);
+            return HasChildContext(body.RootElement);
+        });
+        Assert.Contains(requestHandler.InferenceRequests, r =>
+            string.IsNullOrEmpty(r.ParentAgentId)
+            && r.Body.Contains(StopResponsePrefix, StringComparison.Ordinal));
+    }
+
+    internal static bool HasChildContext(JsonElement body)
+    {
+        const string expected = ChildContext + "\n\nRead the file \"subagent-test.txt\"";
+        if (body.TryGetProperty("input", out var input) && input.ValueKind == JsonValueKind.String)
+            return input.GetString()!.Contains(expected, StringComparison.Ordinal);
+        if (!body.TryGetProperty("messages", out var messages) || messages.ValueKind == JsonValueKind.Null)
+            messages = input;
+        return messages.ValueKind == JsonValueKind.Array && messages.EnumerateArray().Any(message =>
+            message.ValueKind == JsonValueKind.Object
+            && message.TryGetProperty("role", out var role)
+            && role.ValueKind == JsonValueKind.String
+            && role.GetString() == "user"
+            && message.TryGetProperty("content", out var content)
+            && (content.ValueKind == JsonValueKind.String
+                ? content.GetString()!.Contains(expected, StringComparison.Ordinal)
+                : content.ValueKind == JsonValueKind.Array && content.EnumerateArray().Any(part =>
+                    part.ValueKind == JsonValueKind.Object
+                    && part.TryGetProperty("type", out var type)
+                    && type.ValueKind == JsonValueKind.String
+                    && (type.GetString() == "text" || type.GetString() == "input_text")
+                    && part.TryGetProperty("text", out var text)
+                    && text.ValueKind == JsonValueKind.String
+                    && text.GetString()!.Contains(expected, StringComparison.Ordinal))));
     }
 
     private static void AssertSubagentRequestMetadata(IReadOnlyCollection<RequestRecord> records)
@@ -99,14 +218,18 @@ public class SubagentHooksE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         public IReadOnlyCollection<RequestRecord> InferenceRequests =>
             [.. _records.Where(r => RecordingRequestHandler.IsInferenceUrl(r.Url))];
 
-        protected override Task<HttpResponseMessage> SendRequestAsync(HttpRequestMessage request, CopilotRequestContext ctx)
+        protected override async Task<HttpResponseMessage> SendRequestAsync(HttpRequestMessage request, CopilotRequestContext ctx)
         {
+            var body = RecordingRequestHandler.IsInferenceUrl(request.RequestUri!.ToString())
+                ? await request.Content!.ReadAsStringAsync()
+                : string.Empty;
             _records.Add(new RequestRecord(
                 request.RequestUri!.ToString(),
                 ctx.AgentId,
                 ctx.ParentAgentId,
-                ctx.InteractionType));
-            return base.SendRequestAsync(request, ctx);
+                ctx.InteractionType,
+                body));
+            return await base.SendRequestAsync(request, ctx);
         }
     }
 
@@ -114,5 +237,36 @@ public class SubagentHooksE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         string Url,
         string? AgentId,
         string? ParentAgentId,
-        string? InteractionType);
+        string? InteractionType,
+        string Body);
+}
+
+public class SubagentRequestObserverTests
+{
+    [Fact]
+    public void Recognizes_User_Context_Across_Request_Formats()
+    {
+        var encoded = "\"" + JsonEncodedText.Encode("Subagent start hook verified: read the requested file.\n\nRead the file \"subagent-test.txt\"") + "\"";
+        var user = "{\"role\":\"user\",\"content\":" + encoded + "}";
+        foreach (var json in new[]
+        {
+            "{\"messages\":[" + user + "]}",
+            "{\"input\":" + encoded + "}",
+            "{\"input\":[" + user + "]}",
+            "{\"input\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":" + encoded + "}]}]}",
+            "{\"input\":[{\"role\":\"user\",\"content\":[{\"type\":\"input_text\",\"text\":" + encoded + "}]}]}",
+        })
+        {
+            using var body = JsonDocument.Parse(json);
+            Assert.True(SubagentHooksE2ETests.HasChildContext(body.RootElement), json);
+        }
+        using var ignored = JsonDocument.Parse("{\"input\":["
+            + "{\"role\":\"assistant\",\"content\":" + encoded + "},"
+            + "{\"type\":\"function_call_output\",\"output\":" + encoded + "},"
+            + "{\"role\":\"user\",\"content\":[null,\"ignored\","
+            + "{\"type\":\"input_text\",\"text\":42},{\"type\":\"input_image\",\"text\":" + encoded + "}]}]}");
+        Assert.False(SubagentHooksE2ETests.HasChildContext(ignored.RootElement));
+        using var empty = JsonDocument.Parse("{}");
+        Assert.False(SubagentHooksE2ETests.HasChildContext(empty.RootElement));
+    }
 }

@@ -27,7 +27,7 @@ public final class ServerSecretsApi {
     }
 
     /**
-     * Secret values to add to the redaction filter.
+     * Registers secret values for redaction in session logs and exports. The SDK calls this to inject dynamically generated secret values (e.g., OIDC tokens).
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0

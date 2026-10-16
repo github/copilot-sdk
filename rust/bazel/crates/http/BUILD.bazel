@@ -10,6 +10,6 @@ package(default_visibility = ["//visibility:public"])
 
 alias(
     name = "http",
-    actual = "@sdk_vendor__http-1.4.2//:http",
+    actual = "@sdk_vendor__http-1.5.0//:http",
     tags = ["manual"],
 )

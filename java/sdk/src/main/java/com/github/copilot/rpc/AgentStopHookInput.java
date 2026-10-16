@@ -15,6 +15,42 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class AgentStopHookInput {
 
+    @JsonProperty("agentId")
+    private String agentId;
+
+    public String getAgentId() {
+        return agentId;
+    }
+
+    public AgentStopHookInput setAgentId(String agentId) {
+        this.agentId = agentId;
+        return this;
+    }
+
+    @JsonProperty("agentType")
+    private String agentType;
+
+    public String getAgentType() {
+        return agentType;
+    }
+
+    public AgentStopHookInput setAgentType(String agentType) {
+        this.agentType = agentType;
+        return this;
+    }
+
+    @JsonProperty("parentAgentId")
+    private String parentAgentId;
+
+    public String getParentAgentId() {
+        return parentAgentId;
+    }
+
+    public AgentStopHookInput setParentAgentId(String parentAgentId) {
+        this.parentAgentId = parentAgentId;
+        return this;
+    }
+
     @JsonProperty("sessionId")
     private String sessionId;
 

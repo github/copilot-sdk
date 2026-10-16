@@ -31,6 +31,8 @@ public record Model(
     @JsonProperty("capabilities") ModelCapabilities capabilities,
     /** Provider-supplied model metadata. Keys and JSON-compatible values are preserved unchanged. This is factual metadata published by the model provider; it carries no picker or UX semantics. */
     @JsonProperty("metadata") Map<String, Object> metadata,
+    /** Model vendor as the Copilot API reports it, for example "Anthropic" or "Azure OpenAI". Open vocabulary, passed through unchanged. It can name the vendor that serves the model instead of the one that built it, or a label that is not a vendor, such as "Experimental". Absent when the Copilot API reports no vendor. */
+    @JsonProperty("vendor") String vendor,
     /** Policy state (if applicable) */
     @JsonProperty("policy") ModelPolicy policy,
     /** Billing information */
@@ -50,6 +52,8 @@ public record Model(
     /** Informational notices the service published for this model, such as an upcoming change or a recommended alternative. Present only when the service published at least one notice. Hosts should surface these without implying anything is wrong with the model. */
     @JsonProperty("infoMessages") List<ModelMessage> infoMessages,
     /** Warnings the service published for this model, such as a deprecated client version. Present only when the service published at least one warning. The model remains usable; hosts should surface these as advisory rather than blocking. */
-    @JsonProperty("warningMessages") List<ModelMessage> warningMessages
+    @JsonProperty("warningMessages") List<ModelMessage> warningMessages,
+    /** The model provider that produced this model, as a neutral reference (opaque id, human-readable label, and provider kind). Present on models returned by `session.model.list`, which resolves provider attribution from the session's account roster; absent on the flat `server.models.list`, which does not resolve a session roster. The model picker groups by this reference. */
+    @JsonProperty("provider") ModelProviderRef provider
 ) {
 }

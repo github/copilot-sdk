@@ -32,6 +32,7 @@ const MUSL_ARCHITECTURES = {
 
 const MUSL_CLASSIFIERS = {
   "linuxmusl-x64": MUSL_ARCHITECTURES.x64,
+  "linuxmusl-arm64": MUSL_ARCHITECTURES.arm64,
 };
 
 function readSafeInteger(buffer, offset, label) {

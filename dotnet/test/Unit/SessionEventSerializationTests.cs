@@ -360,6 +360,7 @@ public class SessionEventSerializationTests
                         ClientSecret = "static-secret",
                         GrantType = "client_credentials",
                         PublicClient = false,
+                        Scope = "configured.read",
                     },
                     WwwAuthenticateParams = new McpOauthWWWAuthenticateParams
                     {
@@ -494,6 +495,12 @@ public class SessionEventSerializationTests
                     root.GetProperty("data")
                         .GetProperty("staticClientConfig")
                         .GetProperty("clientSecret")
+                        .GetString());
+                Assert.Equal(
+                    "configured.read",
+                    root.GetProperty("data")
+                        .GetProperty("staticClientConfig")
+                        .GetProperty("scope")
                         .GetString());
                 Assert.Equal(
                     """{"resource":"https://example.com/mcp"}""",

@@ -10,6 +10,7 @@ package com.github.copilot.generated;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
@@ -44,12 +45,19 @@ public final class PermissionRequestedEvent extends SessionEvent {
         @JsonProperty("permissionMode") PermissionMode permissionMode,
         /** Agent mode captured from the owning turn when permission evaluation began. */
         @JsonProperty("agentMode") SessionMode agentMode,
+        /** Execution session that owns permission recovery for this request. Absent on historical events. */
+        @JsonProperty("ownerSessionId") String ownerSessionId,
+        /** Delegated agent that owns permission recovery when the owner session multiplexes remote agents. Absent otherwise. */
+        @JsonProperty("ownerAgentId") String ownerAgentId,
         /** Neutral risk metadata supplied by the tool host. Consumers may display this value but must not use it to bypass the permission decision. */
         @JsonProperty("riskAssessment") Object riskAssessment,
         /** When true, this permission was already resolved by a permissionRequest hook and requires no client action */
         @JsonProperty("resolvedByHook") Boolean resolvedByHook,
         /** Permission-recovery episode that authorized this request to surface for interactive attention */
-        @JsonProperty("recoveryEpisodeId") String recoveryEpisodeId
+        @JsonProperty("recoveryEpisodeId") String recoveryEpisodeId,
+        /** Experimental HydraFusion attribution of the staged phase whose tool call raised this request. Absent outside a staged phase. */
+        @CopilotExperimental
+        @JsonProperty("fusion") FusionAttribution fusion
     ) {
     }
 }

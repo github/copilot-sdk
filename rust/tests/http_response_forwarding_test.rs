@@ -1,15 +1,17 @@
 #![allow(clippy::unwrap_used)]
 
+use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
 use base64::Engine;
 use bytes::Bytes;
-use futures_util::{StreamExt, stream};
+use futures_util::{SinkExt, StreamExt, stream};
 use github_copilot_sdk::{
     Client, ClientOptions, CopilotHttpRequest, CopilotHttpResponse, CopilotHttpResponseBody,
-    CopilotRequestContext, CopilotRequestError, CopilotRequestHandler, SDK_PROTOCOL_VERSION,
-    Transport,
+    CopilotRequestContext, CopilotRequestError, CopilotRequestHandler, CopilotWebSocketForwarder,
+    CopilotWebSocketHandler, CopilotWebSocketMessage, CopilotWebSocketResponse,
+    SDK_PROTOCOL_VERSION, Transport,
 };
 use http::HeaderMap;
 use parking_lot::Mutex;
@@ -197,6 +199,344 @@ fn data(message: &Value) -> Vec<u8> {
         .unwrap();
     assert!(!decoded.is_empty() && decoded.len() <= CHUNK_SIZE);
     decoded
+}
+
+struct MetadataHandler {
+    contexts: mpsc::UnboundedSender<CopilotRequestContext>,
+    messages: mpsc::UnboundedSender<(CopilotWebSocketMessage, Option<CopilotRequestContext>)>,
+    legacy: bool,
+}
+
+#[async_trait]
+impl CopilotRequestHandler for MetadataHandler {
+    async fn send_request(
+        &self,
+        request: CopilotHttpRequest,
+        context: &CopilotRequestContext,
+    ) -> Result<CopilotHttpResponse, CopilotRequestError> {
+        assert_eq!(request.body, b"request-body");
+        self.contexts.send(context.clone()).unwrap();
+        Ok(CopilotHttpResponse::new(
+            200,
+            None,
+            HeaderMap::new(),
+            Box::pin(stream::empty()),
+        ))
+    }
+
+    async fn open_websocket(
+        &self,
+        context: &CopilotRequestContext,
+        _response: CopilotWebSocketResponse,
+    ) -> Result<Box<dyn CopilotWebSocketHandler>, CopilotRequestError> {
+        self.contexts.send(context.clone()).unwrap();
+        let socket = LegacyMetadataSocket(self.messages.clone());
+        if self.legacy {
+            Ok(Box::new(socket))
+        } else {
+            Ok(Box::new(ContextMetadataSocket(socket)))
+        }
+    }
+}
+
+struct LegacyMetadataSocket(
+    mpsc::UnboundedSender<(CopilotWebSocketMessage, Option<CopilotRequestContext>)>,
+);
+
+#[async_trait]
+impl CopilotWebSocketHandler for LegacyMetadataSocket {
+    async fn send_request_message(
+        &self,
+        message: CopilotWebSocketMessage,
+    ) -> Result<(), CopilotRequestError> {
+        self.0.send((message, None)).unwrap();
+        Ok(())
+    }
+
+    async fn close(&self) -> Result<(), CopilotRequestError> {
+        Ok(())
+    }
+}
+
+struct ContextMetadataSocket(LegacyMetadataSocket);
+
+#[async_trait]
+impl CopilotWebSocketHandler for ContextMetadataSocket {
+    async fn send_request_message(
+        &self,
+        message: CopilotWebSocketMessage,
+    ) -> Result<(), CopilotRequestError> {
+        self.0.send_request_message(message).await
+    }
+
+    async fn send_request_message_with_context(
+        &self,
+        message: CopilotWebSocketMessage,
+        context: &CopilotRequestContext,
+    ) -> Result<(), CopilotRequestError> {
+        self.0.0.send((message, Some(context.clone()))).unwrap();
+        Ok(())
+    }
+
+    async fn close(&self) -> Result<(), CopilotRequestError> {
+        Ok(())
+    }
+}
+
+async fn begin_metadata_request(
+    peer: &mut Peer,
+    request_id: &str,
+    invocation_id: Option<&str>,
+    websocket: bool,
+) {
+    let mut params = json!({
+        "requestId": request_id, "method": if websocket { "GET" } else { "POST" },
+        "url": "http://unused.test", "headers": {"x-multiple": ["one", "two"]},
+        "sessionId": "session", "agentId": "trajectory", "parentAgentId": "parent",
+        "interactionType": "conversation-agent", "transport": if websocket { "websocket" } else { "http" },
+    });
+    if let Some(id) = invocation_id {
+        params["agentInvocationId"] = json!(id);
+    }
+    write_frame(&mut peer.write, json!({
+        "jsonrpc": "2.0", "id": 100000, "method": "llmInference.httpRequestStart", "params": params
+    })).await;
+}
+
+#[tokio::test]
+async fn invocation_metadata_http_survives_physical_retries() {
+    for invocation_id in [Some("logical-invocation"), None, Some("")] {
+        let (contexts, mut received) = mpsc::unbounded_channel();
+        let (messages, _received_messages) = mpsc::unbounded_channel();
+        let mut peer = Peer::start(Arc::new(MetadataHandler {
+            contexts,
+            messages,
+            legacy: false,
+        }))
+        .await;
+        for request_id in ["physical-first", "physical-retry"] {
+            begin_metadata_request(&mut peer, request_id, invocation_id, false).await;
+            peer.request_chunk(json!({
+                "requestId": request_id, "data": base64::engine::general_purpose::STANDARD.encode(b"request-body"),
+                "binary": true, "end": true,
+            })).await;
+            let head = peer.next().await;
+            assert_eq!(head["params"]["status"], 200);
+            peer.ack(&head).await;
+            let end = peer.next().await;
+            assert_eq!(end["params"]["end"], true);
+            assert!(end["params"].get("error").is_none(), "{end}");
+            peer.ack(&end).await;
+            let ctx = timeout(DEADLINE, received.recv()).await.unwrap().unwrap();
+            assert_eq!(ctx.agent_invocation_id.as_deref(), invocation_id);
+            assert_eq!(ctx.clone().agent_invocation_id, ctx.agent_invocation_id);
+            assert_eq!(ctx.request_id, request_id);
+            assert_eq!(ctx.session_id.as_deref(), Some("session"));
+            assert_eq!(ctx.agent_id.as_deref(), Some("trajectory"));
+            assert_eq!(ctx.parent_agent_id.as_deref(), Some("parent"));
+            assert_eq!(ctx.interaction_type.as_deref(), Some("conversation-agent"));
+            assert_eq!(
+                ctx.headers
+                    .get_all("x-multiple")
+                    .iter()
+                    .map(|v| v.to_str().unwrap())
+                    .collect::<Vec<_>>(),
+                ["one", "two"]
+            );
+        }
+        peer.stop().await;
+    }
+}
+
+#[tokio::test]
+async fn invocation_metadata_websocket_is_per_message_and_legacy_hooks_still_run() {
+    for legacy in [false, true] {
+        let (contexts, mut received_contexts) = mpsc::unbounded_channel();
+        let (messages, mut received_messages) = mpsc::unbounded_channel();
+        let mut peer = Peer::start(MetadataHandler {
+            contexts,
+            messages,
+            legacy,
+        })
+        .await;
+        // A frame racing ahead of start must retain its own invocation metadata.
+        peer.request_chunk(json!({
+            "requestId": "reused-socket", "data": "queued", "agentInvocationId": "queued-invocation"
+        }))
+        .await;
+        begin_metadata_request(&mut peer, "reused-socket", Some("opening-invocation"), true).await;
+        let head = peer.next().await;
+        assert_eq!(head["params"]["status"], 101);
+        peer.ack(&head).await;
+        let connection = timeout(DEADLINE, received_contexts.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            connection.agent_invocation_id.as_deref(),
+            Some("opening-invocation")
+        );
+        let (queued, ctx) = timeout(DEADLINE, received_messages.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(queued.data, b"queued");
+        if !legacy {
+            assert_eq!(
+                ctx.unwrap().agent_invocation_id.as_deref(),
+                Some("queued-invocation")
+            );
+        }
+
+        for id in [
+            Some("later-invocation"),
+            Some("later-invocation"),
+            None,
+            Some(""),
+        ] {
+            let mut params = json!({"requestId": "reused-socket", "data": "message"});
+            if let Some(id) = id {
+                params["agentInvocationId"] = json!(id);
+            }
+            peer.request_chunk(params).await;
+            let (message, ctx) = timeout(DEADLINE, received_messages.recv())
+                .await
+                .unwrap()
+                .unwrap();
+            assert_eq!(message.data, b"message");
+            assert!(!message.binary);
+            if legacy {
+                assert!(ctx.is_none());
+            } else {
+                let ctx = ctx.unwrap();
+                assert_eq!(ctx.agent_invocation_id.as_deref(), id);
+                assert_eq!(ctx.request_id, connection.request_id);
+                assert_eq!(ctx.session_id, connection.session_id);
+                assert_eq!(ctx.agent_id, connection.agent_id);
+            }
+        }
+        assert_eq!(
+            connection.agent_invocation_id.as_deref(),
+            Some("opening-invocation")
+        );
+        peer.request_chunk(json!({"requestId": "reused-socket", "data": "", "end": true}))
+            .await;
+        let end = peer.next().await;
+        assert_eq!(end["params"]["end"], true);
+        assert!(end["params"].get("error").is_none(), "{end}");
+        peer.ack(&end).await;
+        peer.stop().await;
+    }
+}
+
+struct ForwardingMetadataHandler {
+    url: String,
+    transform: bool,
+    contexts: mpsc::UnboundedSender<CopilotRequestContext>,
+}
+
+#[async_trait]
+impl CopilotRequestHandler for ForwardingMetadataHandler {
+    async fn open_websocket(
+        &self,
+        _context: &CopilotRequestContext,
+        response: CopilotWebSocketResponse,
+    ) -> Result<Box<dyn CopilotWebSocketHandler>, CopilotRequestError> {
+        let mut builder = CopilotWebSocketForwarder::builder(self.url.clone(), HeaderMap::new());
+        if self.transform {
+            let contexts = self.contexts.clone();
+            builder = builder
+                .on_send_request_message_with_context(Arc::new(move |mut message, ctx| {
+                    contexts.send(ctx.clone()).unwrap();
+                    if message.data == b"drop" {
+                        return None;
+                    }
+                    message.data.extend_from_slice(
+                        format!(":{:?}", ctx.agent_invocation_id.as_deref()).as_bytes(),
+                    );
+                    Some(message)
+                }))
+                .on_send_request_message(Arc::new(|mut message| {
+                    message.data.extend_from_slice(b":legacy");
+                    Some(message)
+                }));
+        }
+        Ok(Box::new(builder.connect(response).await?))
+    }
+}
+
+#[tokio::test]
+async fn invocation_metadata_forwarder_transforms_and_pass_through_preserve_messages() {
+    for transform in [true, false] {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("ws://{}", listener.local_addr().unwrap());
+        let upstream = tokio::spawn(async move {
+            let (socket, _) = listener.accept().await.unwrap();
+            let mut socket = tokio_tungstenite::accept_async(socket).await.unwrap();
+            let mut messages = Vec::new();
+            while let Some(message) = socket.next().await {
+                match message.unwrap() {
+                    tokio_tungstenite::tungstenite::Message::Text(text) => {
+                        messages.push(text.to_string());
+                    }
+                    tokio_tungstenite::tungstenite::Message::Close(_) => {
+                        socket.flush().await.unwrap();
+                        return messages;
+                    }
+                    other => panic!("unexpected upstream message: {other:?}"),
+                }
+            }
+            panic!("upstream ended without close")
+        });
+        let (contexts, mut received_contexts) = mpsc::unbounded_channel();
+        let mut peer = Peer::start(ForwardingMetadataHandler {
+            url,
+            transform,
+            contexts,
+        })
+        .await;
+        begin_metadata_request(&mut peer, "forwarded-socket", Some("opening"), true).await;
+        let head = peer.next().await;
+        assert_eq!(head["params"]["status"], 101);
+        peer.ack(&head).await;
+
+        let mut expected = Vec::new();
+        for (text, id) in [
+            ("first", Some("later")),
+            ("drop", Some("dropped")),
+            ("missing", None),
+            ("empty", Some("")),
+        ] {
+            let mut params = json!({"requestId": "forwarded-socket", "data": text});
+            if let Some(id) = id {
+                params["agentInvocationId"] = json!(id);
+            }
+            peer.request_chunk(params).await;
+            if transform {
+                let ctx = timeout(DEADLINE, received_contexts.recv())
+                    .await
+                    .unwrap()
+                    .unwrap();
+                assert_eq!(ctx.agent_invocation_id.as_deref(), id);
+                if text != "drop" {
+                    expected.push(format!("{text}:{id:?}:legacy"));
+                }
+            } else {
+                expected.push(text.to_string());
+            }
+        }
+        peer.request_chunk(json!({"requestId": "forwarded-socket", "data": "", "end": true}))
+            .await;
+        let end = peer.next().await;
+        assert_eq!(end["params"]["end"], true);
+        assert!(end["params"].get("error").is_none(), "{end}");
+        peer.ack(&end).await;
+        assert_eq!(
+            timeout(DEADLINE, upstream).await.unwrap().unwrap(),
+            expected
+        );
+        peer.stop().await;
+    }
 }
 
 #[tokio::test]

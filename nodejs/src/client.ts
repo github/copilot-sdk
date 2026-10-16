@@ -17,7 +17,9 @@ import { existsSync } from "node:fs";
 import { isIPv6, Socket } from "node:net";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import {
-    createMessageConnection,
+    type CancellationToken,
+    createMessageConnection as createRpcMessageConnection,
+    type DataCallback,
     ErrorCodes,
     type Message,
     MessageConnection,
@@ -36,17 +38,23 @@ import type {
     GitHubTelemetryNotification,
     GitHubTokenAcquireRequest,
     GitHubTokenAcquireResult,
+    InstallationConfirmationRequest,
     OpenCanvasInstance,
     SessionUpdateOptionsParams,
     TaskKind,
 } from "./generated/rpc.js";
 import { getSdkProtocolVersion } from "./sdkProtocolVersion.js";
 import { CopilotSession } from "./session.js";
+import { AhpHost, type AhpHostExit, type AhpHostOptions } from "./host.js";
 import type { FfiRuntimeHost } from "./ffiRuntimeHost.js";
 import { ensureRuntimeBundle } from "./runtimeArtifacts.js";
 import { COPILOT_CLI_VERSION } from "./cliVersion.js";
 import { createSessionFsAdapter, type SessionFsProvider } from "./sessionFsProvider.js";
 import { createCopilotRequestAdapter } from "./copilotRequestHandler.js";
+import {
+    createInstallationConfirmationAdapter,
+    type InstallationConfirmationHandler,
+} from "./installationConfirmation.js";
 import type { CopilotRequestHandler } from "./copilotRequestHandler.js";
 import { getTraceContext } from "./telemetry.js";
 import { toJsonSchema } from "./schema.js";
@@ -90,14 +98,13 @@ import type {
     SystemMessageCustomizeConfig,
     TelemetryConfig,
     TraceContextProvider,
+    TranscriptRecovery,
     TypedSessionLifecycleHandler,
 } from "./types.js";
 import { defaultJoinSessionPermissionHandler } from "./types.js";
-import type { FactoryHandle } from "./factory.js";
 import type { WorkflowHandle } from "./workflow.js";
 
 interface ExtensionOrchestrationContributions {
-    factories?: FactoryHandle[];
     workflows?: WorkflowHandle[];
 }
 
@@ -107,6 +114,66 @@ interface ExtensionOrchestrationContributions {
  */
 const MIN_PROTOCOL_VERSION = 3;
 const RUNTIME_SHUTDOWN_TIMEOUT_MS = 10_000;
+const CLOUD_SESSION_CLEANUP_TIMEOUT_MS = 10_000;
+
+type DrainingMessageConnection = MessageConnection & { drain: () => Promise<void> };
+
+function createMessageConnection(
+    reader: StreamMessageReader,
+    writer: StreamMessageWriter
+): DrainingMessageConnection {
+    let dispatch: DataCallback | undefined;
+    let finishDrain: (() => void) | undefined;
+    let drained: Promise<void> | undefined;
+    let disposed = false;
+    const barrier = { jsonrpc: "2.0", method: "$/sdkDrain" };
+    const connection = createRpcMessageConnection(
+        {
+            onError: reader.onError,
+            onClose: reader.onClose,
+            onPartialMessage: reader.onPartialMessage,
+            listen: (callback) => {
+                dispatch = callback;
+                return reader.listen(callback);
+            },
+            dispose: () => reader.dispose(),
+        },
+        writer,
+        undefined,
+        {
+            messageStrategy: {
+                handleMessage: (message, next) => {
+                    if (message === barrier) {
+                        finishDrain?.();
+                    } else {
+                        next(message);
+                    }
+                },
+            },
+        }
+    );
+    connection.onDispose(() => {
+        disposed = true;
+        finishDrain?.();
+    });
+    return Object.assign(connection, {
+        drain: () => {
+            if (!drained) {
+                drained = new Promise<void>((resolve) => {
+                    finishDrain = resolve;
+                    if (disposed || !dispatch) {
+                        resolve();
+                    } else {
+                        // A local queue barrier preserves every message parsed before EOF.
+                        // It is never sent on the wire or exposed to notification handlers.
+                        dispatch(barrier);
+                    }
+                });
+            }
+            return drained;
+        },
+    });
+}
 
 async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
     let timeout: ReturnType<typeof setTimeout> | undefined;
@@ -396,8 +463,8 @@ function getBundledRuntimePath(): Promise<string> {
  * A {@link StreamMessageWriter} that suppresses write failures while the client
  * is tearing down its transport.
  *
- * During `stop()`/`forceStop()` the runtime's end of the pipe can close while
- * vscode-jsonrpc still has an in-flight write — most commonly the
+ * During `stop()`/`forceStop()` or transport EOF the runtime's end of the pipe
+ * can close while vscode-jsonrpc still has an in-flight write — most commonly the
  * auto-generated response to a server→client request (tool/hook/userInput/LLM
  * inference handler) that resolved just before teardown. That write rejects
  * with `ERR_STREAM_DESTROYED`, and because the response write is internal to
@@ -425,10 +492,11 @@ export class CopilotClient {
     private cliStartTimeout: ReturnType<typeof setTimeout> | null = null;
     private cliProcess: ChildProcess | null = null;
     private ffiHost: FfiRuntimeHost | null = null;
-    private connection: MessageConnection | null = null;
+    private connection: DrainingMessageConnection | null = null;
     private requestAdapter: ReturnType<typeof createCopilotRequestAdapter> | null = null;
     private messageWriter: TeardownResilientStreamMessageWriter | null = null;
     private connectionClosed: boolean = false;
+    private connectionEpoch = 0;
     private socket: Socket | null = null;
     private runtimePort: number | null = null;
     private actualHost: string = "localhost";
@@ -436,6 +504,20 @@ export class CopilotClient {
     /** Shared in-flight start; concurrent callers await it instead of spawning another CLI. */
     private startPromise: Promise<void> | null = null;
     private sessions: Map<string, CopilotSession> = new Map();
+    private hostExitCallbacks = new Map<string, (exit: AhpHostExit) => void>();
+    private hostSessionFactories = new Map<string, AhpHostOptions>();
+    private hostHandoffs = new Map<
+        string,
+        {
+            hostId: string;
+            requestedSessionId?: string;
+            controller: AbortController;
+            configs: Map<CopilotSession, SessionConfig>;
+            session?: CopilotSession;
+            released: boolean;
+            onReleased?: AhpHostOptions["onSessionReleased"];
+        }
+    >();
     private stderrBuffer: string = ""; // Captures CLI stderr for error messages
     /** Resolved connection mode chosen in the constructor. */
     private connectionConfig: InternalRuntimeConnection;
@@ -477,6 +559,7 @@ export class CopilotClient {
     private sessionFsConfig: SessionFsConfig | null = null;
     private requestHandler: CopilotRequestHandler | null = null;
     private extensionLaunchProvider?: ExtensionLaunchProvider;
+    private installationConfirmationHandler?: InstallationConfirmationHandler;
     private builtinPluginDirectories: string[] = [];
     private onGitHubTelemetry?: (notification: GitHubTelemetryNotification) => void | Promise<void>;
     private clientGlobalHandlers: import("./generated/rpc.js").ClientGlobalApiHandlers = {};
@@ -676,6 +759,7 @@ export class CopilotClient {
         this.sessionFsConfig = options.sessionFs ?? null;
         this.requestHandler = options.requestHandler ?? null;
         this.extensionLaunchProvider = options.extensionLaunchProvider;
+        this.installationConfirmationHandler = options.installationConfirmationHandler;
         this.onGitHubTelemetry = options.onGitHubTelemetry;
         this.setupClientGlobalHandlers();
 
@@ -816,11 +900,24 @@ export class CopilotClient {
                 "SessionFsConfig declares capabilities.sqlite but the provider does not implement sqlite."
             );
         }
+        if (
+            this.sessionFsConfig.capabilities?.binary &&
+            (!provider.readFileBytes || !provider.writeFileBytes)
+        ) {
+            throw new Error(
+                "SessionFsConfig declares capabilities.binary but the provider does not implement readFileBytes and writeFileBytes."
+            );
+        }
         session.clientSessionApis.sessionFs = createSessionFsAdapter(provider);
     }
 
     private setupClientGlobalHandlers(): void {
         const handlers: import("./generated/rpc.js").ClientGlobalApiHandlers = {};
+        handlers.host = {
+            exited: async (exit) => {
+                this.handleHostExit(exit);
+            },
+        };
         handlers.extensionLaunchProvider = this.extensionLaunchProvider;
         if (this.requestHandler) {
             this.requestAdapter = createCopilotRequestAdapter(this.requestHandler, () => {
@@ -941,6 +1038,7 @@ export class CopilotClient {
 
     private async doStart(): Promise<void> {
         this.forceStopping = false;
+        this.connectionEpoch++;
         this.connectionClosed = false;
         this.processTransportError = null;
         this.state = "connecting";
@@ -991,6 +1089,9 @@ export class CopilotClient {
                 await this.connection!.sendRequest("llmInference.setProvider", {});
             }
 
+            if (this.connectionClosed) {
+                throw new Error("CLI server connection closed during startup");
+            }
             this.state = "connected";
         } catch (error) {
             const startupError = this.processTransportError ?? error;
@@ -1007,7 +1108,8 @@ export class CopilotClient {
      * 1. Closes all active sessions (releases in-memory resources)
      * 2. Requests runtime shutdown for SDK-owned CLI processes
      * 3. Closes the JSON-RPC connection
-     * 4. Terminates the CLI server process (if spawned by this client)
+     * 4. Signals EOF to an owned stdio process and waits for host cleanup, then
+     *    terminates the process if it does not exit within the shutdown timeout
      *
      * Note: session data on disk is preserved, so sessions can be resumed later.
      * To permanently remove session data before stopping, call
@@ -1146,10 +1248,24 @@ export class CopilotClient {
             this.socket = null;
             try {
                 if (!socket.destroyed) {
-                    await new Promise<void>((resolve) => {
-                        socket.once("close", () => resolve());
-                        socket.end();
-                    });
+                    let timeout: ReturnType<typeof setTimeout> | undefined;
+                    try {
+                        await new Promise<void>((resolve) => {
+                            socket.once("close", () => resolve());
+                            if (this.connectionClosed) {
+                                // An exited child may leave a TCP peer that never finishes closing.
+                                socket.destroy();
+                            } else {
+                                timeout = setTimeout(
+                                    () => socket.destroy(),
+                                    RUNTIME_SHUTDOWN_TIMEOUT_MS
+                                );
+                                socket.end();
+                            }
+                        });
+                    } finally {
+                        if (timeout !== undefined) clearTimeout(timeout);
+                    }
                 }
             } catch (error) {
                 errors.push(
@@ -1160,15 +1276,33 @@ export class CopilotClient {
             }
         }
 
-        // The runtime completes all cleanup before responding to
-        // runtime.shutdown and then leaves termination to us; it deliberately
-        // keeps its JSON-RPC server alive to send the response and never
-        // self-exits. Waiting a grace window for a self-exit that will never
-        // come just wastes time, so terminate the child immediately and only
-        // wait to reap it.
         if (this.cliProcess && !this.isExternalServer) {
             const child = this.cliProcess;
-            this.cliProcess = null;
+            if (
+                this.connectionConfig.kind === "stdio" &&
+                child.stdin &&
+                child.exitCode == null &&
+                child.signalCode == null
+            ) {
+                const gracefulExitStart = Date.now();
+                try {
+                    // Host telemetry is finalized after transport EOF, not the shutdown RPC.
+                    child.stdin.end();
+                    const exited = await waitForChildExit(child, RUNTIME_SHUTDOWN_TIMEOUT_MS);
+                    this.logDebugTiming(
+                        exited
+                            ? "CopilotClient.stop graceful stdio exit complete"
+                            : "CopilotClient.stop graceful stdio exit timed out; terminating child",
+                        gracefulExitStart
+                    );
+                } catch (error) {
+                    errors.push(
+                        new Error(
+                            `Failed to close CLI stdin: ${error instanceof Error ? error.message : String(error)}`
+                        )
+                    );
+                }
+            }
             try {
                 if (child.exitCode == null && child.signalCode == null) {
                     child.kill();
@@ -1186,6 +1320,10 @@ export class CopilotClient {
                         `Failed to kill CLI process: ${error instanceof Error ? error.message : String(error)}`
                     )
                 );
+            } finally {
+                if (this.cliProcess === child) {
+                    this.cliProcess = null;
+                }
             }
         }
         // Tear down the in-process FFI host (closes the native connection and
@@ -1212,6 +1350,7 @@ export class CopilotClient {
         this.runtimePort = null;
         this.stderrBuffer = "";
         this.processExitPromise = null;
+        this.disconnectHosts();
 
         return errors;
     }
@@ -1259,6 +1398,7 @@ export class CopilotClient {
      */
     async forceStop(): Promise<void> {
         this.forceStopping = true;
+        this.disconnectHosts();
 
         // Clear sessions immediately without trying to destroy them
         for (const session of this.sessions.values()) {
@@ -1522,6 +1662,9 @@ export class CopilotClient {
         if (config.gitHubToken !== undefined && config.gitHubTokenProvider !== undefined) {
             throw new Error("gitHubToken and gitHubTokenProvider are mutually exclusive");
         }
+        if (config.cloud != null && config.skillProvider) {
+            throw new Error("Skill providers are not supported for cloud sessions.");
+        }
         if (!this.connection) {
             await this.start();
         }
@@ -1605,19 +1748,25 @@ export class CopilotClient {
             if (config.hooks) {
                 s.registerHooks(config.hooks);
             }
+            if (config.skillProvider) {
+                s.registerSkillProvider(config.skillProvider);
+            }
             if (transformCallbacks) {
                 s.registerTransformCallbacks(transformCallbacks);
             }
             if (config.onEvent) {
                 s.on(config.onEvent);
             }
-            this.sessions.set(sessionId, s);
+            // Session-FS setup can throw, so finish it before the session
+            // becomes routable; a failed open must not leave handlers behind.
             this.setupSessionFs(s, config);
+            this.sessions.set(sessionId, s);
             return s;
         };
 
         let session: CopilotSession | undefined;
         let registeredId: string | undefined;
+        let uninitializedCloudSessionId: string | undefined;
 
         // Pre-register non-cloud sessions BEFORE issuing the RPC so any
         // session-scoped requests the CLI emits during `session.create`
@@ -1639,7 +1788,9 @@ export class CopilotClient {
             const response = await this.connection!.sendRequest("session.create", {
                 ...(await getTraceContext(this.onGetTraceContext)),
                 model: config.model,
+                allowedModels: config.allowedModels,
                 sessionId: localSessionId,
+                name: config.name,
                 clientName: config.clientName,
                 reasoningEffort: config.reasoningEffort,
                 reasoningSummary: config.reasoningSummary,
@@ -1656,6 +1807,7 @@ export class CopilotClient {
                     isTerminal: tool.isTerminal,
                 })),
                 toolSearch: config.toolSearch,
+                imageGeneration: config.imageGeneration,
                 canvases: config.canvases?.map((canvas) => canvas.declaration),
                 requestCanvasRenderer: config.requestCanvasRenderer,
                 requestExtensions: config.requestExtensions,
@@ -1700,6 +1852,7 @@ export class CopilotClient {
                     ? { enableGitHubTelemetryForwarding: true }
                     : {}),
                 mcpServers: toWireMcpServers(config.mcpServers),
+                ...(config.diagnostics !== undefined ? { diagnostics: config.diagnostics } : {}),
                 mcpOAuthTokenStorage: config.mcpOAuthTokenStorage,
                 authClientIdMetadataUrl: config.authClientIdMetadataUrl,
                 envValueMode: "direct",
@@ -1709,6 +1862,7 @@ export class CopilotClient {
                 agent: config.agent,
                 configDir: config.configDirectory,
                 enableConfigDiscovery: config.enableConfigDiscovery,
+                refreshCustomInstructions: config.refreshCustomInstructions,
                 skipEmbeddingRetrieval: config.skipEmbeddingRetrieval,
                 embeddingCacheStorage: config.embeddingCacheStorage,
                 organizationCustomInstructions: config.organizationCustomInstructions,
@@ -1716,8 +1870,12 @@ export class CopilotClient {
                 enableFileHooks: config.enableFileHooks,
                 enableHostGitOperations: config.enableHostGitOperations,
                 enableSessionStore: config.enableSessionStore,
+                enableGitHubCacheStore: config.enableGitHubCacheStore,
                 enableSkills: config.enableSkills,
                 skillDirectories: config.skillDirectories,
+                ...(config.skillProvider ? { hasSkillProvider: true } : {}),
+                agentDirectories: config.agentDirectories,
+                hookDirectories: config.hookDirectories,
                 pluginDirectories: config.pluginDirectories,
                 instructionDirectories: config.instructionDirectories,
                 disabledSkills: config.disabledSkills,
@@ -1731,6 +1889,8 @@ export class CopilotClient {
                 featureFlags: config.featureFlags,
                 expAssignments: config.expAssignments,
                 enableManagedSettings: config.enableManagedSettings,
+                enforceManagedModelDefaults: config.enforceManagedModelDefaults,
+                interactiveUser: config.interactiveUser,
                 managedSettings: config.managedSettings,
             });
 
@@ -1754,7 +1914,9 @@ export class CopilotClient {
             if (session === undefined) {
                 // Cloud / server-assigned path: register the session now that
                 // the CLI has told us which id it chose.
+                uninitializedCloudSessionId = returnedSessionId;
                 session = initializeSession(returnedSessionId);
+                uninitializedCloudSessionId = undefined;
                 registeredId = returnedSessionId;
             }
             this.assignGitHubTokenProvider(gitHubTokenProviderRegistrationId, returnedSessionId);
@@ -1777,9 +1939,28 @@ export class CopilotClient {
             if (gitHubTokenProviderRegistrationId !== undefined) {
                 this.githubTokenProviders.delete(gitHubTokenProviderRegistrationId);
             }
+            if (uninitializedCloudSessionId !== undefined) {
+                try {
+                    await withTimeout(
+                        this.deleteSession(uninitializedCloudSessionId),
+                        CLOUD_SESSION_CLEANUP_TIMEOUT_MS,
+                        `session.delete timed out after ${CLOUD_SESSION_CLEANUP_TIMEOUT_MS}ms`
+                    );
+                } catch (cleanupError) {
+                    throw new AggregateError(
+                        [e, cleanupError],
+                        "Failed to initialize and delete cloud session"
+                    );
+                }
+            }
             throw e;
         }
 
+        for (const entry of this.hostHandoffs.values()) {
+            if (entry.requestedSessionId === session.sessionId) {
+                entry.configs.set(session, config);
+            }
+        }
         return session;
     }
 
@@ -1815,20 +1996,7 @@ export class CopilotClient {
     async resumeSessionForExtension(
         sessionId: string,
         config: ResumeSessionConfig,
-        factories?: FactoryHandle[],
-        extensionOptions?: ExtensionJoinOptions
-    ): Promise<CopilotSession>;
-    /** @internal */
-    async resumeSessionForExtension(
-        sessionId: string,
-        config: ResumeSessionConfig,
-        contributions?: ExtensionOrchestrationContributions,
-        extensionOptions?: ExtensionJoinOptions
-    ): Promise<CopilotSession>;
-    async resumeSessionForExtension(
-        sessionId: string,
-        config: ResumeSessionConfig,
-        contributions: FactoryHandle[] | ExtensionOrchestrationContributions = {},
+        contributions: ExtensionOrchestrationContributions = {},
         extensionOptions?: ExtensionJoinOptions
     ): Promise<CopilotSession> {
         return this.resumeSessionInternal(sessionId, config, contributions, extensionOptions);
@@ -1837,15 +2005,10 @@ export class CopilotClient {
     private async resumeSessionInternal(
         sessionId: string,
         config: ResumeSessionConfig,
-        contributions: FactoryHandle[] | ExtensionOrchestrationContributions = {},
+        contributions: ExtensionOrchestrationContributions = {},
         extensionOptions?: ExtensionJoinOptions
     ): Promise<CopilotSession> {
-        const { factories, workflows } = Array.isArray(contributions)
-            ? { factories: contributions, workflows: undefined }
-            : contributions;
-        if (factories !== undefined && workflows !== undefined) {
-            throw new Error("Session configuration cannot include both factories and workflows");
-        }
+        const { workflows } = contributions;
         if (config.gitHubToken !== undefined && config.gitHubTokenProvider !== undefined) {
             throw new Error("gitHubToken and gitHubTokenProvider are mutually exclusive");
         }
@@ -1869,7 +2032,6 @@ export class CopilotClient {
         session.registerTools(config.tools);
         session.registerCanvases(config.canvases);
         session.registerCommands(config.commands);
-        session.registerFactories(factories);
         session.registerWorkflows(workflows);
         const {
             wireProvider: bearerWireProvider,
@@ -1895,6 +2057,9 @@ export class CopilotClient {
         if (config.hooks) {
             session.registerHooks(config.hooks);
         }
+        if (config.skillProvider) {
+            session.registerSkillProvider(config.skillProvider);
+        }
 
         const modeDefaults = this.configDefaultsForMode();
         config = { ...modeDefaults, ...config };
@@ -1911,10 +2076,13 @@ export class CopilotClient {
         if (config.onEvent) {
             session.on(config.onEvent);
         }
-        this.sessions.set(sessionId, session);
-        this.setupSessionFs(session, config);
-
+        // Validation and session-FS setup can throw, so finish them before the
+        // replacement session becomes routable over any resident one.
         const toolFilterOptions = this.resolveToolFilterOptions(config);
+        this.setupSessionFs(session, config);
+        const replacedSession = this.sessions.get(sessionId);
+        this.sessions.set(sessionId, session);
+
         const gitHubTokenProviderRegistrationId = this.registerGitHubTokenProvider(
             config.gitHubTokenProvider,
             sessionId
@@ -1927,8 +2095,10 @@ export class CopilotClient {
 
         try {
             const response = await this.connection!.sendRequest("session.resume", {
+                allowedModels: config.allowedModels,
                 ...(await getTraceContext(this.onGetTraceContext)),
                 sessionId,
+                allowTranscriptRecovery: config.allowTranscriptRecovery,
                 clientName: config.clientName,
                 model: config.model,
                 reasoningEffort: config.reasoningEffort,
@@ -1955,8 +2125,8 @@ export class CopilotClient {
                     isTerminal: tool.isTerminal,
                 })),
                 toolSearch: config.toolSearch,
+                imageGeneration: config.imageGeneration,
                 canvases: config.canvases?.map((canvas) => canvas.declaration),
-                factories: factories?.map((factory) => factory.meta),
                 workflows: workflows?.map((workflow) => workflow.meta),
                 requestCanvasRenderer: config.requestCanvasRenderer,
                 requestExtensions: config.requestExtensions,
@@ -1996,6 +2166,7 @@ export class CopilotClient {
                 enableFileHooks: config.enableFileHooks,
                 enableHostGitOperations: config.enableHostGitOperations,
                 enableSessionStore: config.enableSessionStore,
+                enableGitHubCacheStore: config.enableGitHubCacheStore,
                 enableSkills: config.enableSkills,
                 streaming: config.streaming,
                 includeSubAgentStreamingEvents: config.includeSubAgentStreamingEvents ?? true,
@@ -2003,6 +2174,7 @@ export class CopilotClient {
                     ? { enableGitHubTelemetryForwarding: true }
                     : {}),
                 mcpServers: toWireMcpServers(config.mcpServers),
+                ...(config.diagnostics !== undefined ? { diagnostics: config.diagnostics } : {}),
                 mcpOAuthTokenStorage: config.mcpOAuthTokenStorage,
                 authClientIdMetadataUrl: config.authClientIdMetadataUrl,
                 envValueMode: "direct",
@@ -2011,6 +2183,9 @@ export class CopilotClient {
                 defaultAgent: config.defaultAgent,
                 agent: config.agent,
                 skillDirectories: config.skillDirectories,
+                ...(config.skillProvider ? { hasSkillProvider: true } : {}),
+                agentDirectories: config.agentDirectories,
+                hookDirectories: config.hookDirectories,
                 pluginDirectories: config.pluginDirectories,
                 instructionDirectories: config.instructionDirectories,
                 disabledSkills: config.disabledSkills,
@@ -2026,6 +2201,8 @@ export class CopilotClient {
                 featureFlags: config.featureFlags,
                 expAssignments: config.expAssignments,
                 enableManagedSettings: config.enableManagedSettings,
+                enforceManagedModelDefaults: config.enforceManagedModelDefaults,
+                interactiveUser: config.interactiveUser,
                 managedSettings: config.managedSettings,
                 ...(extensionOptions?.requestedEnvironmentVariables
                     ? {
@@ -2052,15 +2229,17 @@ export class CopilotClient {
                 }
             }
 
-            const { workspacePath, capabilities, openCanvases } = response as {
+            const { workspacePath, capabilities, openCanvases, transcriptRecovery } = response as {
                 sessionId: string;
                 workspacePath?: string;
                 capabilities?: SessionCapabilities;
                 openCanvases?: OpenCanvasInstance[];
+                transcriptRecovery?: TranscriptRecovery;
             };
             session["_workspacePath"] = workspacePath;
             session.setCapabilities(capabilities);
             session.setOpenCanvases(openCanvases ?? []);
+            session.setTranscriptRecovery(transcriptRecovery);
             if (config.onMcpAuthRequest) {
                 await this.connection!.sendRequest("session.eventLog.registerInterest", {
                     sessionId,
@@ -2072,14 +2251,262 @@ export class CopilotClient {
             this.commitGitHubTokenProvider(sessionId, gitHubTokenProviderRegistrationId);
         } catch (e) {
             session._markDisconnected();
-            this.sessions.delete(sessionId);
+            // The runtime keeps the resident session's bindings when a resume
+            // fails, so its callbacks must keep reaching the replaced session.
+            if (this.sessions.get(sessionId) === session) {
+                if (replacedSession) {
+                    this.sessions.set(sessionId, replacedSession);
+                } else {
+                    this.sessions.delete(sessionId);
+                }
+            }
             if (gitHubTokenProviderRegistrationId !== undefined) {
                 this.githubTokenProviders.delete(gitHubTokenProviderRegistrationId);
             }
             throw e;
         }
 
+        for (const entry of this.hostHandoffs.values()) {
+            if (entry.requestedSessionId === session.sessionId) {
+                entry.configs.set(session, { ...config, sessionId });
+            }
+        }
         return session;
+    }
+
+    /**
+     * Start a complete AHP listener hosted in-process by this runtime.
+     *
+     * This connection owns the host. Disposing it or disconnecting the client
+     * stops the listener without deleting sessions. The host uses a separate
+     * SDK connection to the same runtime, not another runtime process.
+     * Only one AHP host may own a compute-scoped catalog in an effective Copilot home
+     * at a time. Other SDK clients and sessions remain usable in that home.
+     * Select localServer, githubEnvironment, or both. An empty localServer
+     * selects 127.0.0.1 on an available port. `onExit` runs at most once; owner disconnection cannot
+     * acknowledge listener cleanup over the disconnected transport.
+     *
+     * @experimental
+     */
+    async startAhpHost(options: AhpHostOptions): Promise<AhpHost> {
+        if (!options?.localServer && !options?.githubEnvironment) {
+            throw new Error("At least one of localServer or githubEnvironment is required");
+        }
+        if (this.state !== "connected") {
+            await this.start();
+        }
+        const rpc = this.rpc;
+        const hostId = randomUUID();
+        const {
+            computeId,
+            localServer,
+            githubEnvironment,
+            onExit,
+            createSession,
+            resumeSession,
+            onSessionReleased,
+        } = options;
+        if (createSession || resumeSession) {
+            this.hostSessionFactories.set(hostId, {
+                createSession,
+                resumeSession,
+                onSessionReleased,
+            });
+        }
+        if (onExit) {
+            this.hostExitCallbacks.set(hostId, onExit);
+        }
+        try {
+            const info = await rpc.host.start({
+                hostId,
+                computeId,
+                localServer,
+                githubEnvironment,
+                sessionFactory: createSession ? true : undefined,
+                resumeFactory: resumeSession ? true : undefined,
+            });
+            return new AhpHost(
+                info,
+                async () => {
+                    await rpc.host.dispose({ hostId });
+                },
+                (sessionId) => rpc.host.publishSession({ hostId, sessionId }),
+                () => rpc.host.listSessions({ hostId }),
+                (sessionId) => rpc.host.unpublishSession({ hostId, sessionId })
+            );
+        } catch (error) {
+            this.hostExitCallbacks.delete(hostId);
+            this.releaseHostSessions(hostId);
+            throw error;
+        }
+    }
+
+    private handleHostExit(exit: AhpHostExit): void {
+        this.releaseHostSessions(exit.hostId);
+        const onExit = this.hostExitCallbacks.get(exit.hostId);
+        if (onExit) {
+            this.hostExitCallbacks.delete(exit.hostId);
+            const reportError = (error: unknown) => {
+                console.error("AHP host exit callback failed", { hostId: exit.hostId, error });
+            };
+            try {
+                void Promise.resolve(onExit(exit)).catch(reportError);
+            } catch (error) {
+                reportError(error);
+            }
+        }
+    }
+
+    private disconnectHosts(): void {
+        for (const hostId of new Set([
+            ...this.hostExitCallbacks.keys(),
+            ...this.hostSessionFactories.keys(),
+        ])) {
+            this.handleHostExit({
+                hostId,
+                reason: "ownerDisconnected",
+                error: "Owner connection closed; runtime cleanup cannot be acknowledged on this connection.",
+            });
+        }
+    }
+
+    private releaseHostSessions(hostId: string): void {
+        this.hostSessionFactories.delete(hostId);
+        for (const [handoffId, entry] of this.hostHandoffs) {
+            if (entry.hostId === hostId) this.releaseHostSession(handoffId);
+        }
+    }
+
+    private releaseHostSession(handoffId: string): void {
+        const entry = this.hostHandoffs.get(handoffId);
+        if (!entry) return;
+        this.hostHandoffs.delete(handoffId);
+        entry.released = true;
+        entry.configs.clear();
+        entry.controller.abort();
+        if (entry.session) this.notifyHostSessionReleased(entry);
+    }
+
+    private notifyHostSessionReleased(entry: {
+        session?: CopilotSession;
+        onReleased?: AhpHostOptions["onSessionReleased"];
+    }): void {
+        const { session, onReleased } = entry;
+        entry.session = undefined;
+        if (session && onReleased) {
+            try {
+                void Promise.resolve(onReleased(session)).catch(() => {
+                    console.error("AHP session release callback failed");
+                });
+            } catch {
+                console.error("AHP session release callback failed");
+            }
+        }
+    }
+
+    private async createHostSession(params: {
+        hostId: string;
+        handoffId: string;
+        resume?: boolean;
+        config: Omit<SessionConfig, "onPermissionRequest"> & { configDir?: string };
+    }): Promise<{ sessionId: string }> {
+        const options = this.hostSessionFactories.get(params.hostId);
+        if (
+            !(params.resume ? options?.resumeSession : options?.createSession) ||
+            this.hostHandoffs.has(params.handoffId)
+        ) {
+            throw new Error("AHP session factory is unavailable or handoff already exists");
+        }
+        const entry: {
+            hostId: string;
+            requestedSessionId?: string;
+            controller: AbortController;
+            configs: Map<CopilotSession, SessionConfig>;
+            session?: CopilotSession;
+            released: boolean;
+            onReleased?: AhpHostOptions["onSessionReleased"];
+        } = {
+            hostId: params.hostId,
+            requestedSessionId: params.config.sessionId,
+            controller: new AbortController(),
+            configs: new Map(),
+            released: false,
+            onReleased: options!.onSessionReleased,
+        };
+        this.hostHandoffs.set(params.handoffId, entry);
+        const { configDir, ...config } = params.config;
+        if (configDir !== undefined) config.configDirectory = configDir;
+        const expected = structuredClone(config);
+        const cancelled = new Promise<never>((_resolve, reject) => {
+            entry.controller.signal.addEventListener(
+                "abort",
+                () => {
+                    reject(new Error("AHP session handoff ended"));
+                },
+                { once: true }
+            );
+        });
+        const materialized = Promise.resolve()
+            .then(() => {
+                if (params.resume) {
+                    const { sessionId, ...resumeConfig } = config;
+                    if (!sessionId) throw new Error("AHP resume requires sessionId");
+                    return options!.resumeSession!({
+                        sessionId,
+                        config: resumeConfig,
+                        signal: entry.controller.signal,
+                    });
+                }
+                return options!.createSession!({
+                    config,
+                    signal: entry.controller.signal,
+                });
+            })
+            .then((session) => {
+                entry.session = session;
+                const actual = entry.configs.get(session);
+                entry.configs.clear();
+                if (entry.released) {
+                    this.notifyHostSessionReleased(entry);
+                    throw new Error("AHP session handoff ended");
+                }
+                if (
+                    this.sessions.get(session.sessionId) !== session ||
+                    session.sessionId !== expected.sessionId
+                ) {
+                    throw new Error(
+                        "AHP callback must return the requested session from this client"
+                    );
+                }
+                // Only host-selected keys constrain materialization. App prompt,
+                // filters and tools remain untouched when the host did not select them.
+                const contains = (value: unknown, required: unknown): boolean => {
+                    if (required && typeof required === "object" && !Array.isArray(required)) {
+                        return (
+                            !!value &&
+                            typeof value === "object" &&
+                            Object.entries(required).every(([key, child]) =>
+                                contains((value as Record<string, unknown>)[key], child)
+                            )
+                        );
+                    }
+                    return JSON.stringify(value) === JSON.stringify(required);
+                };
+                // Retained originals have no new materialization snapshot. Their
+                // resident workspace is checked by the runtime; do not reconfigure them.
+                if ((!params.resume || actual !== undefined) && !contains(actual, expected)) {
+                    throw new Error(
+                        "AHP callback must preserve the supplied session configuration"
+                    );
+                }
+                return { sessionId: session.sessionId };
+            });
+        try {
+            return await Promise.race([materialized, cancelled]);
+        } catch (error) {
+            this.releaseHostSession(params.handoffId);
+            throw error;
+        }
     }
 
     /**
@@ -2608,6 +3035,9 @@ export class CopilotClient {
         if (this.options.mode === "empty") {
             env.COPILOT_DISABLE_KEYTAR = "1";
         }
+        if (this.options.mode !== "empty") {
+            env.COPILOT_RUNTIME_PROCESS_FILE_LOGGING = "1";
+        }
         if (this.options.telemetry) {
             const t = this.options.telemetry;
             env.COPILOT_OTEL_ENABLED = "true";
@@ -2822,14 +3252,21 @@ export class CopilotClient {
             case "inprocess":
                 return this.connectViaFfi();
             case "tcp":
-            case "uri":
                 return this.connectViaTcp();
+            case "uri": {
+                const { host, port } = this.parseCliUrl(this.connectionConfig.url);
+                this.actualHost = host;
+                this.runtimePort = port;
+                return this.connectViaTcp();
+            }
         }
     }
 
     /** Starts the in-process FFI runtime with SDK-managed typed options. */
     private async startInProcessFfi(): Promise<void> {
         const explicitEntrypoint = this.resolvedEnv.COPILOT_CLI_PATH;
+        const cliLoginSyncIntegrationId =
+            this.resolvedEnv.GITHUB_COPILOT_INTEGRATION_ID?.trim() || undefined;
         let runtimeLibrary: string;
         if (explicitEntrypoint) {
             const entrypointDirectory = dirname(resolve(explicitEntrypoint));
@@ -2843,7 +3280,8 @@ export class CopilotClient {
                       "runtime.node"
                   );
         } else {
-            runtimeLibrary = join(dirname(await getBundledRuntimePath()), "runtime.node");
+            const bundledRuntimePath = await getBundledRuntimePath();
+            runtimeLibrary = join(dirname(bundledRuntimePath), "runtime.node");
         }
         // Load the FFI host lazily so the native `koffi` addon (and its
         // platform-specific `koffi.node`) is only loaded on the in-process path;
@@ -2877,6 +3315,9 @@ export class CopilotClient {
         }
         if (this.options.enableRemoteSessions) {
             args.push("--remote");
+        }
+        if (cliLoginSyncIntegrationId) {
+            args.push(`--cli-login-sync-integration-id=${cliLoginSyncIntegrationId}`);
         }
 
         const host = FfiRuntimeHost.create(runtimeLibrary, explicitEntrypoint, environment, args);
@@ -3084,6 +3525,29 @@ export class CopilotClient {
         // same connection. These methods carry no implicit sessionId dispatch
         // — the runtime calls into a single handler for the whole connection.
         registerClientGlobalApiHandlers(this.connection, this.clientGlobalHandlers);
+        if (this.installationConfirmationHandler) {
+            // Registered directly so the review receives the transport's request cancellation.
+            const confirmation = createInstallationConfirmationAdapter(
+                this.connection,
+                this.installationConfirmationHandler
+            );
+            this.connection.onRequest(
+                "installations.confirm",
+                (params: InstallationConfirmationRequest, token: CancellationToken) =>
+                    confirmation.confirm(params, token)
+            );
+        }
+        this.connection.onRequest("host.materializeSession", (params) =>
+            this.createHostSession(params)
+        );
+        this.connection.onNotification(
+            "host.sessionReleased",
+            (params: { hostId: string; handoffId: string }) => {
+                if (this.hostHandoffs.get(params.handoffId)?.hostId === params.hostId) {
+                    this.releaseHostSession(params.handoffId);
+                }
+            }
+        );
 
         // `hooks.invoke` is an internal RPC method: the runtime calls it to
         // invoke a hook callback on the client. Route each call to the matching
@@ -3096,23 +3560,96 @@ export class CopilotClient {
             }
         );
 
+        // Internal experimental callbacks backing `SessionConfigBase.skillProvider`.
+        this.connection.onRequest(
+            "skillProvider.list",
+            async (params: { sessionId: string }, token: CancellationToken) =>
+                await this.resolveSkillProviderSession(params)._handleSkillProviderList(token)
+        );
+        this.connection.onRequest(
+            "skillProvider.read",
+            async (params: { sessionId: string; name: string }, token: CancellationToken) => {
+                const session = this.resolveSkillProviderSession(params);
+                if (typeof params.name !== "string") {
+                    throw new Error("Invalid skillProvider.read payload");
+                }
+                return await session._handleSkillProviderRead(params.name, token);
+            }
+        );
+
         const connection = this.connection;
+        const messageWriter = this.messageWriter;
+        const cliProcess = this.isExternalServer ? null : this.cliProcess;
+        const connectionEpoch = this.connectionEpoch;
+        const isCurrentConnection = () =>
+            connectionEpoch === this.connectionEpoch &&
+            this.connection === connection &&
+            (cliProcess === null || this.cliProcess === cliProcess);
+        let disconnecting = false;
+        let exitFallback: ReturnType<typeof setTimeout> | undefined;
         const markDisconnected = () => {
-            if (this.connection !== connection) {
+            if (!isCurrentConnection()) {
+                connection.dispose();
                 return;
             }
             this.connectionClosed = true;
             this.state = "disconnected";
+            this.disconnectHosts();
             for (const session of this.sessions.values()) {
                 session._markDisconnected();
             }
             this.sessions.clear();
             this.githubTokenProviders.clear();
             this.requestAdapter?.cancelPending();
+            connection.dispose();
+            this.socket?.destroy();
+            this.connection = null;
+            this.messageWriter = null;
+            this._rpc = null;
+            this._internalRpc = null;
+            this.modelsCache = null;
         };
-        this.connection.onClose(markDisconnected);
+        const disconnectAfterDrain = () => {
+            if (exitFallback !== undefined) {
+                clearTimeout(exitFallback);
+                exitFallback = undefined;
+            }
+            if (!isCurrentConnection()) {
+                connection.dispose();
+                return;
+            }
+            if (disconnecting) return;
+            disconnecting = true;
+            this.connectionClosed = true;
+            if (messageWriter) messageWriter.suppressWriteErrors = true;
+            // jsonrpc dispatches parsed messages asynchronously, one per event-loop
+            // turn. Drain them before clearing callbacks and rejecting unanswered RPCs.
+            void connection.drain().then(markDisconnected);
+        };
+        this.connection.onClose(disconnectAfterDrain);
+        // Descendants can retain inherited output pipes after the runtime exits.
+        // Observe the owned process without waiting for those pipes to reach EOF.
+        if (cliProcess) {
+            cliProcess.once("exit", () => {
+                if (!isCurrentConnection()) {
+                    connection.dispose();
+                    return;
+                }
+                if (disconnecting) return;
+                if (this.socket) {
+                    disconnectAfterDrain();
+                    return;
+                }
+                this.connectionClosed = true;
+                if (messageWriter) messageWriter.suppressWriteErrors = true;
+                // Reader EOF is authoritative for messages still buffered after process exit.
+                // A descendant can keep stdout open, so bound the fallback.
+                exitFallback = setTimeout(disconnectAfterDrain, RUNTIME_SHUTDOWN_TIMEOUT_MS);
+                exitFallback.unref();
+            });
+        }
         this.connection.onError(() => {
-            if (this.connection === connection) {
+            if (connectionEpoch === this.connectionEpoch && this.connection === connection) {
                 this.state = "disconnected";
             }
         });
@@ -3261,6 +3798,17 @@ export class CopilotClient {
             retryAfterSeconds: params.retryAfterSeconds,
         });
         return { response };
+    }
+
+    private resolveSkillProviderSession(params: { sessionId: string }): CopilotSession {
+        if (!params || typeof params.sessionId !== "string") {
+            throw new Error("Invalid skillProvider payload");
+        }
+        const session = this.sessions.get(params.sessionId);
+        if (!session) {
+            throw new Error(`Session not found: ${params.sessionId}`);
+        }
+        return session;
     }
 
     private async handleHooksInvoke(params: {

@@ -10,6 +10,6 @@ package(default_visibility = ["//visibility:public"])
 
 alias(
     name = "regex",
-    actual = "@sdk_vendor__regex-1.12.3//:regex",
+    actual = "@sdk_vendor__regex-1.13.1//:regex",
     tags = ["manual"],
 )

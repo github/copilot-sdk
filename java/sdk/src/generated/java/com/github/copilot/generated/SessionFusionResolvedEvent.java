@@ -10,13 +10,17 @@ package com.github.copilot.generated;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.github.copilot.CopilotExperimental;
 import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
  * Session event "session.fusion_resolved". Experimental durable validated HydraFusion route and turn policy.
+ *
+ * @apiNote This event type is experimental and may change in a future version.
  * @since 1.0.0
  */
+@CopilotExperimental
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
@@ -32,6 +36,7 @@ public final class SessionFusionResolvedEvent extends SessionEvent {
     public void setData(SessionFusionResolvedEventData data) { this.data = data; }
 
     /** Data payload for {@link SessionFusionResolvedEvent}. */
+    @CopilotExperimental
     @JsonIgnoreProperties(ignoreUnknown = true)
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record SessionFusionResolvedEventData(
@@ -55,6 +60,9 @@ public final class SessionFusionResolvedEvent extends SessionEvent {
         @JsonProperty("modelUniverseVersion") String modelUniverseVersion,
         /** Identifier of the local policy rule that matched. */
         @JsonProperty("ruleId") String ruleId,
+        /** Identifier of the server policy rule whose workflow the plan's steps describe, when CAPI's sticky root routing replaced the workflow of `ruleId`'s rule to keep the previous turn's root model. Absent when no substitution occurred. */
+        @CopilotExperimental
+        @JsonProperty("selectedRuleId") String selectedRuleId,
         /** Zero-based index of the local policy rule that matched. */
         @JsonProperty("ruleIndex") Long ruleIndex,
         /** Human-readable name of the local policy rule that matched. */
@@ -64,13 +72,24 @@ public final class SessionFusionResolvedEvent extends SessionEvent {
         /** Validated orchestration pattern selected for the turn. */
         @JsonProperty("pattern") FusionPattern pattern,
         /** Short human-readable summary of the selected workflow, suitable for immediate client display after routing. May be absent in older durable events; omit the explanation or derive one from pattern and phasePlan. Display text, not a stable machine-readable value. */
+        @CopilotExperimental
         @JsonProperty("hint") String hint,
         /** Presentation-neutral phase plan for clients that render workflow progress. */
+        @CopilotExperimental
         @JsonProperty("phasePlan") List<FusionPhasePlanStep> phasePlan,
         /** Concrete model selected for the primary solver phase. */
         @JsonProperty("primaryModel") String primaryModel,
-        /** Concrete model selected for the review or judge phase, when required. */
+        /** Concrete model selected for Critique review, or the legacy Cascade judge/repair model when role-specific fields are absent. */
         @JsonProperty("secondaryModel") String secondaryModel,
+        /** Concrete model selected for Cascade escalation-gate calls, when required. */
+        @CopilotExperimental
+        @JsonProperty("judgeModel") String judgeModel,
+        /** Concrete model selected for Cascade repair, when required. */
+        @CopilotExperimental
+        @JsonProperty("repairModel") String repairModel,
+        /** Planned Critique phase identities, including independent critics with repeated model IDs. May be absent in older events; consumers then use secondaryModel for the legacy critic. */
+        @CopilotExperimental
+        @JsonProperty("critics") List<FusionCritic> critics,
         /** Concrete model used when the planned primary model cannot execute. */
         @JsonProperty("fallbackModel") String fallbackModel,
         /** Concrete model recommended for eligible follow-up turns. */

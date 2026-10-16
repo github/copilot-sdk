@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Original request-level and effective conversation reasoning effort for a Responses history boundary
+ * Original request-level and effective conversation reasoning effort for a provider history boundary; the historical type name is retained for compatibility
  *
  * @since 1.0.0
  */

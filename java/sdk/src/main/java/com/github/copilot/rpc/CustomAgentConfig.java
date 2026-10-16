@@ -36,6 +36,30 @@ import java.util.Optional;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class CustomAgentConfig {
 
+    @JsonProperty("hooks")
+    private Map<String, List<Map<String, Object>>> hooks;
+
+    /**
+     * Gets declarative hooks scoped to this agent.
+     *
+     * @return actions keyed by event name, or null when unset
+     */
+    public Map<String, List<Map<String, Object>>> getHooks() {
+        return hooks == null ? null : Collections.unmodifiableMap(hooks);
+    }
+
+    /**
+     * Sets declarative hooks scoped to this agent.
+     *
+     * @param hooks
+     *            actions keyed by event name
+     * @return this config for method chaining
+     */
+    public CustomAgentConfig setHooks(Map<String, List<Map<String, Object>>> hooks) {
+        this.hooks = hooks;
+        return this;
+    }
+
     @JsonProperty("name")
     private String name;
 

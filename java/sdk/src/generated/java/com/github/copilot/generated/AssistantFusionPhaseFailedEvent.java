@@ -10,12 +10,16 @@ package com.github.copilot.generated;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
  * Session event "assistant.fusion_phase_failed". Experimental durable typed HydraFusion phase failure and degradation transition.
+ *
+ * @apiNote This event type is experimental and may change in a future version.
  * @since 1.0.0
  */
+@CopilotExperimental
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
@@ -31,6 +35,7 @@ public final class AssistantFusionPhaseFailedEvent extends SessionEvent {
     public void setData(AssistantFusionPhaseFailedEventData data) { this.data = data; }
 
     /** Data payload for {@link AssistantFusionPhaseFailedEvent}. */
+    @CopilotExperimental
     @JsonIgnoreProperties(ignoreUnknown = true)
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record AssistantFusionPhaseFailedEventData(
@@ -46,6 +51,9 @@ public final class AssistantFusionPhaseFailedEvent extends SessionEvent {
         @JsonProperty("conversationScope") FusionConversationScope conversationScope,
         /** Concrete model that attempted the phase. */
         @JsonProperty("model") String model,
+        /** Explicit reasoning effort selected for this phase, if supplied. */
+        @CopilotExperimental
+        @JsonProperty("reasoningEffort") String reasoningEffort,
         /** Durable outcome status of the phase. */
         @JsonProperty("status") FusionPhaseStatus status,
         /** Stable machine-readable reason for the phase failure. */

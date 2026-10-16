@@ -19,7 +19,9 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.copilot.AllowCopilotExperimental;
 import com.github.copilot.TestUtil;
+import com.github.copilot.generated.SessionManagedSettingsResolvedEvent.SessionManagedSettingsResolvedEventData;
 
 /**
  * Tests for generated RPC param and result record types. Exercises
@@ -27,6 +29,27 @@ import com.github.copilot.TestUtil;
  * of the generated code without requiring network access.
  */
 class GeneratedRpcRecordsCoverageTest {
+
+    @Test
+    @AllowCopilotExperimental
+    void managedPermissions_reuses_event_context_and_evaluated_operations() throws Exception {
+        var mapper = new ObjectMapper();
+        var eventJson = mapper.readTree("""
+                {"permissionsContext":{"permissions":{"_limitToLists":[["https://example.com"]]},"failClosed":false}}
+                """);
+        var eventData = mapper.treeToValue(eventJson, SessionManagedSettingsResolvedEventData.class);
+        var evaluation = mapper.readValue("""
+                {"operation":{"kind":"url","url":"https://example.com/a"},"verdict":"allow"}
+                """, ManagedPermissionEvaluation.class);
+        var params = new ManagedSettingsPermissionsEvaluateParams(eventData.permissionsContext(),
+                List.of(evaluation.operation()));
+        var paramsJson = mapper.valueToTree(params);
+        assertEquals(eventJson.get("permissionsContext"), paramsJson.get("context"));
+        assertEquals("url", paramsJson.get("operations").get(0).get("kind").asText());
+        assertEquals("https://example.com/a", paramsJson.get("operations").get(0).get("url").asText());
+        assertEquals(ManagedPermissionOperation.ManagedPermissionOperationKind.URL, evaluation.operation().kind());
+        assertEquals(params, mapper.treeToValue(paramsJson, ManagedSettingsPermissionsEvaluateParams.class));
+    }
 
     // ── Params records ─────────────────────────────────────────────────────
 
@@ -223,6 +246,52 @@ class GeneratedRpcRecordsCoverageTest {
     }
 
     @Test
+    void sessionFsSetProviderCapabilities_preserves_legacy_constructor_and_binary_wire_field() throws Exception {
+        var mapper = new ObjectMapper();
+        var legacy = new SessionFsSetProviderCapabilities(true);
+        var legacyJson = mapper.readTree(mapper.writeValueAsString(legacy));
+        assertTrue(legacyJson.get("sqlite").asBoolean());
+        assertFalse(legacyJson.has("binary"));
+        assertEquals(legacy, mapper.treeToValue(legacyJson, SessionFsSetProviderCapabilities.class));
+
+        var binary = new SessionFsSetProviderCapabilities(false, true);
+        var binaryJson = mapper.readTree(mapper.writeValueAsString(binary));
+        assertFalse(binaryJson.get("sqlite").asBoolean());
+        assertTrue(binaryJson.get("binary").asBoolean());
+        assertEquals(binary, mapper.treeToValue(binaryJson, SessionFsSetProviderCapabilities.class));
+    }
+
+    @Test
+    @AllowCopilotExperimental
+    void sessionFsReadFileBytes_preserves_base64_wire_content() throws Exception {
+        var mapper = new ObjectMapper();
+        var params = new SessionFsReadFileBytesParams("sess-15", "/image.png");
+        var paramsJson = mapper.readTree(mapper.writeValueAsString(params));
+        assertEquals("sess-15", paramsJson.get("sessionId").asText());
+        assertEquals("/image.png", paramsJson.get("path").asText());
+        assertEquals(params, mapper.treeToValue(paramsJson, SessionFsReadFileBytesParams.class));
+
+        var result = new SessionFsReadFileBytesResult("AAECAw==", null);
+        var resultJson = mapper.readTree(mapper.writeValueAsString(result));
+        assertEquals("AAECAw==", resultJson.get("content").asText());
+        assertFalse(resultJson.has("error"));
+        assertEquals(result, mapper.treeToValue(resultJson, SessionFsReadFileBytesResult.class));
+    }
+
+    @Test
+    @AllowCopilotExperimental
+    void sessionFsWriteFileBytes_preserves_base64_wire_content_and_mode() throws Exception {
+        var mapper = new ObjectMapper();
+        var params = new SessionFsWriteFileBytesParams("sess-15", "/image.png", "AP/+AQ==", 384L);
+        var json = mapper.readTree(mapper.writeValueAsString(params));
+        assertEquals("sess-15", json.get("sessionId").asText());
+        assertEquals("/image.png", json.get("path").asText());
+        assertEquals("AP/+AQ==", json.get("content").asText());
+        assertEquals(384L, json.get("mode").asLong());
+        assertEquals(params, mapper.treeToValue(json, SessionFsWriteFileBytesParams.class));
+    }
+
+    @Test
     void sessionFsStatParams_record() {
         var params = new SessionFsStatParams("sess-20", "/etc/hosts");
         assertEquals("sess-20", params.sessionId());
@@ -288,12 +357,6 @@ class GeneratedRpcRecordsCoverageTest {
     }
 
     @Test
-    void sessionMcpListParams_record() {
-        var params = new SessionMcpListParams("sess-27");
-        assertEquals("sess-27", params.sessionId());
-    }
-
-    @Test
     void sessionMcpReloadParams_record() {
         var params = new SessionMcpReloadParams("sess-28");
         assertEquals("sess-28", params.sessionId());
@@ -308,7 +371,7 @@ class GeneratedRpcRecordsCoverageTest {
     @Test
     void sessionModeSetParams_record() {
         var params = new SessionModeSetParams("sess-30", SessionMode.PLAN, null, null, null, null, null, null, null,
-                null, null, null, null);
+                null, null, null, null, null);
         assertEquals("sess-30", params.sessionId());
         assertEquals(SessionMode.PLAN, params.mode());
     }
@@ -428,6 +491,7 @@ class GeneratedRpcRecordsCoverageTest {
         var switchTo = mapper.valueToTree(new SessionModelSwitchToParams("sess-32", "auto", null, null, null, null,
                 null, null, null, null, null, null, null, null, null, null));
         assertFalse(switchTo.has("autoTier"));
+        assertFalse(switchTo.has("providerId"));
     }
 
     @Test
@@ -659,7 +723,7 @@ class GeneratedRpcRecordsCoverageTest {
     @Test
     void sessionAgentListResult_with_items() {
         var item = new AgentInfo("name1", "Name One", "Desc 1", "/path/to/agent1", null, null, null, null, null, null,
-                null, null, null, null, null, null);
+                null, null, null, null, null, null, null);
         var result = new SessionAgentListResult(List.of(item));
         assertEquals(1, result.agents().size());
         assertEquals("name1", result.agents().get(0).name());
@@ -671,7 +735,7 @@ class GeneratedRpcRecordsCoverageTest {
     @Test
     void sessionAgentGetCurrentResult_nested() {
         var agent = new AgentInfo("agent-1", "Agent One", "Does things", null, null, null, null, null, null, null, null,
-                null, null, null, null, null);
+                null, null, null, null, null, null);
         var result = new SessionAgentGetCurrentResult(agent);
         assertEquals("agent-1", result.agent().name());
         assertEquals("Agent One", result.agent().displayName());
@@ -688,18 +752,25 @@ class GeneratedRpcRecordsCoverageTest {
     @Test
     void sessionAgentReloadResult_with_items() {
         var item = new AgentInfo("a", "A", "Desc", "/path/to/a", null, null, null, null, null, null, null, null, null,
-                null, null, null);
+                null, null, null, null);
         var result = new SessionAgentReloadResult(List.of(item));
         assertEquals(1, result.agents().size());
         assertEquals("a", result.agents().get(0).name());
     }
 
     @Test
-    void sessionAgentSelectResult_nested() {
+    void sessionAgentSelectResult_nested() throws Exception {
+        Map<String, List<Object>> hooks = Map.of("Stop",
+                List.of(Map.of("type", "command", "command", "echo scoped-stop")));
         var agent = new AgentInfo("selected", "Selected", "The selected agent", "/path/to/selected", null, null, null,
-                null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, hooks);
         var result = new SessionAgentSelectResult(agent);
         assertEquals("selected", result.agent().name());
+        var mapper = new ObjectMapper();
+        var json = mapper.writeValueAsString(result);
+        assertEquals("echo scoped-stop",
+                mapper.readTree(json).get("agent").get("hooks").get("Stop").get(0).get("command").asText());
+        assertEquals(hooks, mapper.readValue(json, SessionAgentSelectResult.class).agent().hooks());
     }
 
     @Test
@@ -850,8 +921,10 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionModelGetCurrentResult_record() {
-        var result = new SessionModelGetCurrentResult("claude-sonnet-5", null, null, null, null, null);
+        var result = new SessionModelGetCurrentResult("claude-sonnet-5", null, "claude-sonnet-4.5", null, null, null,
+                null, null, null);
         assertEquals("claude-sonnet-5", result.modelId());
+        assertEquals("claude-sonnet-4.5", result.planBaseModelId());
     }
 
     @Test
@@ -960,8 +1033,8 @@ class GeneratedRpcRecordsCoverageTest {
     @Test
     void sessionUsageGetMetricsResult_nested() {
         var changes = new UsageMetricsCodeChanges(100L, 50L, 5L, null);
-        var result = new SessionUsageGetMetricsResult(0.5, 10L, null, null, 2000L, null, changes, null, null, "gpt-5",
-                1000L, 500L);
+        var result = new SessionUsageGetMetricsResult(null, 0.5, 10L, null, null, 2000L, null, changes, null, null,
+                null, "gpt-5", 1000L, 500L);
         assertEquals(0.5, result.totalPremiumRequestCost());
         assertEquals(10L, result.totalUserRequests());
         assertNotNull(result.codeChanges());
@@ -1015,19 +1088,22 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void modelsListResult_nested() {
-        var supports = new ModelCapabilitiesSupports(true, null, false, null);
+        var supports = new ModelCapabilitiesSupports(false, true, null, false, null);
         var limits = new ModelCapabilitiesLimits(100000L, 8192L, 128000L, null);
         var capabilities = new ModelCapabilities(supports, limits);
         var policy = new ModelPolicy(ModelPolicyState.ENABLED, null);
         var promo = new ModelBillingPromo("summer-2026", 25.0, "2026-08-01T00:00:00Z", "Summer discount", true);
         var billing = new ModelBilling(1.0, null, null, promo);
-        var modelItem = new Model("gpt-5", "GPT-5", capabilities, null, policy, billing, null, null, null, null, null,
-                null, null, null);
-        var result = new ModelsListResult(List.of(modelItem));
+        var modelItem = new Model("gpt-5", "GPT-5", capabilities, null, null, policy, billing, null, null, null, null,
+                null, null, null, null, null);
+        var result = new ModelsListResult(List.of(modelItem), null, null);
 
+        assertNull(result.auto());
         assertEquals(1, result.models().size());
+        assertNull(result.imageModels());
         assertEquals("gpt-5", result.models().get(0).id());
         assertEquals("GPT-5", result.models().get(0).name());
+        assertFalse(result.models().get(0).capabilities().supports().thinking());
         assertTrue(result.models().get(0).capabilities().supports().vision());
         assertFalse(result.models().get(0).capabilities().supports().reasoningEffort());
         assertEquals(100000L, result.models().get(0).capabilities().limits().maxPromptTokens());
@@ -1038,6 +1114,33 @@ class GeneratedRpcRecordsCoverageTest {
         assertEquals("2026-08-01T00:00:00Z", result.models().get(0).billing().promo().endsAt());
         assertEquals("Summer discount", result.models().get(0).billing().promo().message());
         assertTrue(result.models().get(0).billing().promo().showBanner());
+    }
+
+    @Test
+    void modelsListResult_deserializesAutoTierMetadata() throws Exception {
+        var result = new ObjectMapper().readValue("""
+                {
+                  "models": [],
+                  "auto": {
+                    "defaultTier": "balance",
+                    "tiers": [
+                      {"id": "balance", "displayName": "Balance", "description": "Balanced", "type": "auto",
+                       "status": {"enabled": true}},
+                      {"id": "hydrafusion", "displayName": "High", "description": "Fusion", "type": "fusion",
+                       "status": {"enabled": false, "reason": "policy", "message": "Contact admin"}}
+                    ]
+                  }
+                }
+                """, ModelsListResult.class);
+
+        assertEquals("balance", result.auto().defaultTier());
+        assertNull(result.auto().providerId());
+        assertEquals(List.of("balance", "hydrafusion"),
+                result.auto().tiers().stream().map(AutoTierDescriptor::id).toList());
+        var fusion = result.auto().tiers().get(1);
+        assertEquals("High", fusion.displayName());
+        assertEquals("fusion", fusion.type());
+        assertEquals(new AutoTierStatus(false, "policy", "Contact admin"), fusion.status());
     }
 
     @Test

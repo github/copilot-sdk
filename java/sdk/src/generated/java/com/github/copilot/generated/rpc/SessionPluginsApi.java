@@ -35,7 +35,7 @@ public final class SessionPluginsApi {
     }
 
     /**
-     * Identifies the target session.
+     * Lists globally installed, live, built-in, and enterprise-managed desired plugins using the live session's authoritative account, working directory, and retained managed policy.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -46,7 +46,7 @@ public final class SessionPluginsApi {
     }
 
     /**
-     * Plugin source resolved relative to the session's authoritative working directory.
+     * Installs a plugin using the live session's authoritative account, working directory, and retained managed policy.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -62,7 +62,7 @@ public final class SessionPluginsApi {
     }
 
     /**
-     * Name (or spec) of the plugin to uninstall.
+     * Uninstalls a plugin when permitted by the live session's retained managed policy.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -78,7 +78,7 @@ public final class SessionPluginsApi {
     }
 
     /**
-     * Name (or spec) of the plugin to update.
+     * Updates an installed plugin using the live session's authoritative account, working directory, and retained managed policy.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -94,7 +94,7 @@ public final class SessionPluginsApi {
     }
 
     /**
-     * Plugin names (or specs) to enable in the session's authoritative working directory.
+     * Enables installed plugins when permitted by the live session's retained managed policy.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -110,7 +110,7 @@ public final class SessionPluginsApi {
     }
 
     /**
-     * Plugin names (or specs) to disable in the session's authoritative working directory.
+     * Disables installed plugins when permitted by the live session's retained managed policy.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -126,7 +126,7 @@ public final class SessionPluginsApi {
     }
 
     /**
-     * Optional flags controlling which side effects the reload performs.
+     * Reloads the session's plugin set, refreshing MCP servers, custom agents, hooks, and skills cache so SDK-driven changes via `server.plugins.*` take effect immediately.
      * <p>
      * Invokes the method with no params, applying the runtime defaults.
      *
@@ -139,7 +139,7 @@ public final class SessionPluginsApi {
     }
 
     /**
-     * Optional flags controlling which side effects the reload performs.
+     * Reloads the session's plugin set, refreshing MCP servers, custom agents, hooks, and skills cache so SDK-driven changes via `server.plugins.*` take effect immediately.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -152,6 +152,35 @@ public final class SessionPluginsApi {
         com.fasterxml.jackson.databind.node.ObjectNode _p = params == null ? MAPPER.createObjectNode() : MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
         return caller.invoke("session.plugins.reload", _p, Void.class);
+    }
+
+    /**
+     * Installs or updates the plugins the session's managed settings require now, without waiting for the next automatic attempt after a failure, then reloads plugins. Reports progress and failures with the same `session.info` and `session.warning` events as automatic preparation. Fails when the runtime does not prepare managed plugins for the session.
+     * <p>
+     * Invokes the method with no params, applying the runtime defaults.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionPluginsRetryManagedResult> retryManaged() {
+        return retryManaged(null);
+    }
+
+    /**
+     * Installs or updates the plugins the session's managed settings require now, without waiting for the next automatic attempt after a failure, then reloads plugins. Reports progress and failures with the same `session.info` and `session.warning` events as automatic preparation. Fails when the runtime does not prepare managed plugins for the session.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionPluginsRetryManagedResult> retryManaged(SessionPluginsRetryManagedParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = params == null ? MAPPER.createObjectNode() : MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.plugins.retryManaged", _p, SessionPluginsRetryManagedResult.class);
     }
 
 }

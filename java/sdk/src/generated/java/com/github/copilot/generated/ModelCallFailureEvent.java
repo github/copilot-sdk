@@ -10,6 +10,7 @@ package com.github.copilot.generated;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.github.copilot.CopilotExperimental;
 import java.util.Map;
 import javax.annotation.processing.Generated;
 
@@ -37,6 +38,8 @@ public final class ModelCallFailureEvent extends SessionEvent {
     public record ModelCallFailureEventData(
         /** Model identifier used for the failed API call */
         @JsonProperty("model") String model,
+        /** Parent task tool call ID when this failed model call belongs to a sub-agent */
+        @JsonProperty("parentToolCallId") String parentToolCallId,
         /** What initiated this API call (e.g., "sub-agent", "mcp-sampling"); absent for user-initiated calls */
         @JsonProperty("initiator") String initiator,
         /** Completion ID from the model provider (e.g., chatcmpl-abc123) */
@@ -57,12 +60,38 @@ public final class ModelCallFailureEvent extends SessionEvent {
         @JsonProperty("transport") ModelCallFailureTransport transport,
         /** Whether the failure originated from an API response or the request transport */
         @JsonProperty("failureKind") ModelCallFailureKind failureKind,
+        /** Serialized (uncompressed) byte length of the failed request body, before any Content-Encoding. A content-free size signal. */
+        @JsonProperty("requestBodyBytes") Long requestBodyBytes,
+        /** Byte length of the failed request body actually sent on the wire, after any Content-Encoding. Equals requestBodyBytes when the body was not compressed. */
+        @JsonProperty("requestBodyWireBytes") Long requestBodyWireBytes,
+        /** Content-Encoding applied to the failed request body; identity when uncompressed */
+        @JsonProperty("requestBodyEncoding") ModelCallRequestBodyEncoding requestBodyEncoding,
+        /** Zero-based orchestrator retry index of the failed attempt */
+        @JsonProperty("retryAttempt") Long retryAttempt,
+        /** Why the failed call was carried by the HTTP fallback of a WebSocket-capable dispatcher; absent when no fallback occurred */
+        @JsonProperty("websocketFallbackReason") ModelCallWebSocketFallbackReason websocketFallbackReason,
+        /** Milliseconds spent on the WebSocket attempt before falling back to HTTP */
+        @JsonProperty("websocketFallbackAfterMs") Long websocketFallbackAfterMs,
+        /** Normalized cause of the WebSocket failure that triggered the HTTP fallback; absent when no fallback occurred or the cause is unknown */
+        @JsonProperty("websocketFallbackErrorKind") ModelCallWebSocketFallbackErrorKind websocketFallbackErrorKind,
+        /** HTTP status of the WebSocket upgrade rejection or WebSocket API error that triggered the HTTP fallback */
+        @JsonProperty("websocketFallbackStatusCode") Long websocketFallbackStatusCode,
+        /** WebSocket close code received before the HTTP fallback */
+        @JsonProperty("websocketFallbackCloseCode") Long websocketFallbackCloseCode,
+        /** Whether a WebSocket reconnect was attempted before falling back to HTTP */
+        @JsonProperty("websocketFallbackReconnectAttempted") Boolean websocketFallbackReconnectAttempted,
+        /** Whether the HTTP fallback started during this model call, rather than being inherited from an earlier call */
+        @JsonProperty("websocketFallbackStartedThisCall") Boolean websocketFallbackStartedThisCall,
         /** Effective maximum prompt-token limit for the failed call */
         @JsonProperty("maxPromptTokens") Long maxPromptTokens,
         /** Effective maximum output-token limit for the failed call */
         @JsonProperty("maxOutputTokens") Long maxOutputTokens,
         /** Whether the failed call used a bring-your-own-key provider */
         @JsonProperty("isByok") Boolean isByok,
+        /** Where the bring-your-own-key model for the failed call runs and who manages it: "local_managed" (on the device, managed by Copilot), "local_user" (on the device, managed by the user), or "remote_user" (off the device, managed by the user). Absent for Copilot-served models. */
+        @JsonProperty("byokKind") String byokKind,
+        /** Fixed-set provider family serving the bring-your-own-key model for the failed call (for example "openai", "anthropic", "azure_openai", "ollama", "llama_cpp", or "other"). Never the caller-supplied provider name. Absent for Copilot-served models. */
+        @JsonProperty("modelProvider") String modelProvider,
         /** Whether the session selected Auto mode for the failed call */
         @JsonProperty("isAuto") Boolean isAuto,
         /** Reasoning effort level used for the failed model call, if applicable */
@@ -84,6 +113,7 @@ public final class ModelCallFailureEvent extends SessionEvent {
         /** Content-free structural summary of the failing request. Contains only counts and shape flags (no prompt content), so it is safe for unrestricted telemetry. Populated only for client-error (4xx) failures. */
         @JsonProperty("requestFingerprint") ModelCallFailureRequestFingerprint requestFingerprint,
         /** Experimental HydraFusion attribution for this failed concrete model call. */
+        @CopilotExperimental
         @JsonProperty("fusion") FusionAttribution fusion
     ) {
     }

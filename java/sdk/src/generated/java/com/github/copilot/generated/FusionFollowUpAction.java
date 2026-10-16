@@ -7,13 +7,17 @@
 
 package com.github.copilot.generated;
 
+import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
  * Server-recommended routing behavior for a later HydraFusion turn.
  *
+ * @apiNote This type is experimental and may change in a future version.
+ *
  * @since 1.0.0
  */
+@CopilotExperimental
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 public enum FusionFollowUpAction {
     /** The {@code reuse_primary} variant. */

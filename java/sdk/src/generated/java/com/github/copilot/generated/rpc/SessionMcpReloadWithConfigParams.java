@@ -23,7 +23,7 @@ import javax.annotation.processing.Generated;
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record SessionMcpReloadWithConfigParams(
+record SessionMcpReloadWithConfigParams(
     /** Target session identifier */
     @JsonProperty("sessionId") String sessionId,
     /** Opaque runtime MCP reload configuration. Marked internal: an in-process runtime shape (reloadMcpServers throws over the wire). */

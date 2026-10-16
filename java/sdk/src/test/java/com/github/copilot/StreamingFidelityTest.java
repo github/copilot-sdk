@@ -8,8 +8,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.AfterAll;
@@ -64,7 +64,7 @@ public class StreamingFidelityTest {
             CopilotSession session = client.createSession(
                     new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setStreaming(true)).get();
 
-            List<SessionEvent> events = new ArrayList<>();
+            List<SessionEvent> events = new CopyOnWriteArrayList<>();
             session.on(events::add);
 
             session.sendAndWait(new MessageOptions().setPrompt("Count from 1 to 5, separated by commas.")).get(60,
@@ -111,7 +111,7 @@ public class StreamingFidelityTest {
                     new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setStreaming(false))
                     .get();
 
-            List<SessionEvent> events = new ArrayList<>();
+            List<SessionEvent> events = new CopyOnWriteArrayList<>();
             session.on(events::add);
 
             session.sendAndWait(new MessageOptions().setPrompt("Say 'hello world'.")).get(60, TimeUnit.SECONDS);
@@ -158,7 +158,7 @@ public class StreamingFidelityTest {
                 CopilotSession session2 = newClient.resumeSession(sessionId, new ResumeSessionConfig()
                         .setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setStreaming(true)).get();
 
-                List<SessionEvent> events = new ArrayList<>();
+                List<SessionEvent> events = new CopyOnWriteArrayList<>();
                 session2.on(events::add);
 
                 AssistantMessageEvent answer = session2
@@ -212,7 +212,7 @@ public class StreamingFidelityTest {
                 CopilotSession session2 = newClient.resumeSession(sessionId, new ResumeSessionConfig()
                         .setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setStreaming(false)).get();
 
-                List<SessionEvent> events = new ArrayList<>();
+                List<SessionEvent> events = new CopyOnWriteArrayList<>();
                 session2.on(events::add);
 
                 AssistantMessageEvent answer = session2
@@ -259,7 +259,7 @@ public class StreamingFidelityTest {
                                 .setModel("gpt-5.4").setStreaming(true).setReasoningEffort("high"))
                         .get();
 
-                List<SessionEvent> events = new ArrayList<>();
+                List<SessionEvent> events = new CopyOnWriteArrayList<>();
                 session.on(events::add);
 
                 session.sendAndWait(new MessageOptions().setPrompt("What is 15 * 17?")).get(60, TimeUnit.SECONDS);

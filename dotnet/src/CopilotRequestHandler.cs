@@ -51,6 +51,7 @@ public sealed class CopilotRequestContext
     {
         SessionId = original.SessionId;
         AgentId = original.AgentId;
+        AgentInvocationId = original.AgentInvocationId;
         ParentAgentId = original.ParentAgentId;
         InteractionType = original.InteractionType;
         Transport = original.Transport;
@@ -73,6 +74,9 @@ public sealed class CopilotRequestContext
 
     /// <summary>Stable per-agent-instance id for the agent trajectory that issued this request.</summary>
     public string? AgentId { get; init; }
+
+    /// <summary>Runtime-provided logical invocation identity, unchanged across physical retries.</summary>
+    public string? AgentInvocationId { get; init; }
 
     /// <summary>Id of the parent agent when this request was issued by a subagent.</summary>
     public string? ParentAgentId { get; init; }
@@ -108,6 +112,13 @@ public readonly struct CopilotWebSocketMessage(ReadOnlyMemory<byte> data, bool i
 
     /// <summary>True for a binary frame; false for a UTF-8 text frame.</summary>
     public bool IsBinary { get; } = isBinary;
+
+    /// <summary>
+    /// Invocation identity of this runtime request message, which may differ from
+    /// the identity that opened the connection. Null when omitted by the runtime,
+    /// including upstream response messages.
+    /// </summary>
+    public string? AgentInvocationId { get; init; }
 
     /// <summary>Decodes the payload as UTF-8 text.</summary>
     public string GetText() => Encoding.UTF8.GetString(Data.Span);
@@ -619,7 +630,7 @@ public class CopilotRequestHandler
             {
                 await foreach (var chunk in exchange.RequestBody.WithCancellation(ctx.CancellationToken).ConfigureAwait(false))
                 {
-                    await handler.SendRequestMessageAsync(new CopilotWebSocketMessage(chunk, isBinary: false)).ConfigureAwait(false);
+                    await handler.SendRequestMessageAsync(chunk).ConfigureAwait(false);
                 }
             }, ctx.CancellationToken);
 
@@ -649,14 +660,14 @@ public class CopilotRequestHandler
         }
     }
 
-    private static async Task<byte[]> DrainAsync(IAsyncEnumerable<ReadOnlyMemory<byte>> stream)
+    private static async Task<byte[]> DrainAsync(IAsyncEnumerable<CopilotWebSocketMessage> stream)
     {
         using var buffer = new MemoryStream();
         await foreach (var chunk in stream.ConfigureAwait(false))
         {
-            if (chunk.Length > 0)
+            if (chunk.Data.Length > 0)
             {
-                buffer.Write(chunk.Span);
+                buffer.Write(chunk.Data.Span);
             }
         }
 
@@ -908,7 +919,8 @@ internal sealed class LlmInferenceExchange
 
     // --- Request body feed (driven by the adapter as chunk frames arrive) ---
 
-    internal void PushChunk(byte[] data) => _body.Writer.TryWrite(new BodyItem { Chunk = data });
+    internal void PushChunk(byte[] data, string? agentInvocationId) =>
+        _body.Writer.TryWrite(new BodyItem { Chunk = data, AgentInvocationId = agentInvocationId });
 
     internal void PushEnd() => _body.Writer.TryWrite(new BodyItem { End = true });
 
@@ -924,9 +936,9 @@ internal sealed class LlmInferenceExchange
     /// <see cref="OperationCanceledException"/> so the consumer's upstream call
     /// is torn down.
     /// </summary>
-    internal IAsyncEnumerable<ReadOnlyMemory<byte>> RequestBody => ReadBodyAsync(Abort.Token);
+    internal IAsyncEnumerable<CopilotWebSocketMessage> RequestBody => ReadBodyAsync(Abort.Token);
 
-    private async IAsyncEnumerable<ReadOnlyMemory<byte>> ReadBodyAsync(
+    private async IAsyncEnumerable<CopilotWebSocketMessage> ReadBodyAsync(
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         while (await _body.Reader.WaitToReadAsync(cancellationToken).ConfigureAwait(false))
@@ -950,7 +962,10 @@ internal sealed class LlmInferenceExchange
 
                 if (item.Chunk is { Length: > 0 })
                 {
-                    yield return item.Chunk;
+                    yield return new CopilotWebSocketMessage(item.Chunk, isBinary: false)
+                    {
+                        AgentInvocationId = item.AgentInvocationId,
+                    };
                 }
             }
         }
@@ -1061,6 +1076,7 @@ internal sealed class LlmInferenceExchange
     private struct BodyItem
     {
         public byte[]? Chunk;
+        public string? AgentInvocationId;
         public bool End;
         public bool Cancel;
         public string? CancelReason;
@@ -1098,6 +1114,7 @@ internal sealed class LlmInferenceAdapter(CopilotRequestHandler handler, Func<Se
         {
             SessionId = request.SessionId,
             AgentId = request.AgentId,
+            AgentInvocationId = request.AgentInvocationId,
             ParentAgentId = request.ParentAgentId,
             InteractionType = request.InteractionType,
             Transport = transport,
@@ -1197,7 +1214,7 @@ internal sealed class LlmInferenceAdapter(CopilotRequestHandler handler, Func<Se
 
         if (!string.IsNullOrEmpty(chunk.Data))
         {
-            exchange.PushChunk(DecodeChunkData(chunk.Data, chunk.Binary == true));
+            exchange.PushChunk(DecodeChunkData(chunk.Data, chunk.Binary == true), chunk.AgentInvocationId);
         }
 
         if (chunk.End == true)

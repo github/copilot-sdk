@@ -1,3 +1,5 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+
 package e2e
 
 import (
@@ -17,6 +19,53 @@ func TestToolsE2E(t *testing.T) {
 	ctx := testharness.NewTestContext(t)
 	client := ctx.NewClient()
 	t.Cleanup(func() { client.ForceStop() })
+
+	t.Run("string schema apply_patch override binds patch input", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+		const patch = "*** Begin Patch\n*** Add File: override-marker.txt\n+from-native\n*** End Patch"
+		type capturedPatch struct {
+			patch     string
+			arguments any
+		}
+		calls := make(chan capturedPatch, 1)
+		tool := copilot.DefineTool("apply_patch", "Apply a patch",
+			func(input string, invocation copilot.ToolInvocation) (string, error) {
+				calls <- capturedPatch{input, invocation.Arguments}
+				return "HOST_PATCH_HANDLED", nil
+			})
+		tool.OverridesBuiltInTool = true
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			Tools:               []copilot.Tool{tool},
+		})
+		if err != nil {
+			t.Fatalf("Failed to create session: %v", err)
+		}
+		finalMessage := testharness.SubscribeToFinalAssistantMessage(session)
+		defer finalMessage.Close()
+		_, err = session.Send(t.Context(), copilot.MessageOptions{Prompt: "Use apply_patch to apply the supplied patch."})
+		if err != nil {
+			t.Fatalf("Failed to send message: %v", err)
+		}
+		answer, err := finalMessage.Wait(t.Context())
+		if err != nil {
+			t.Fatalf("Failed to get assistant message: %v", err)
+		}
+		select {
+		case call := <-calls:
+			if call.patch != patch || call.arguments != patch {
+				t.Fatalf("Expected scalar patch %q, got %+v", patch, call)
+			}
+		default:
+			t.Fatal("String-schema handler was not invoked")
+		}
+		if message, ok := answer.Data.(*copilot.AssistantMessageData); !ok || message.Content != "Host override completed." {
+			t.Fatalf("Unexpected final response: %v", answer.Data)
+		}
+		if _, err := os.Stat(filepath.Join(ctx.WorkDir, "override-marker.txt")); !os.IsNotExist(err) {
+			t.Fatalf("Native apply_patch must not create the file: %v", err)
+		}
+	})
 
 	t.Run("invokes built-in tools", func(t *testing.T) {
 		ctx.ConfigureForTest(t)

@@ -29,6 +29,7 @@ public record SessionToolsExecuteParams(
     /** Name of the currently offered tool to execute. */
     @JsonProperty("name") String name,
     /** Arguments supplied to the tool. */
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("arguments") Object arguments,
     /** Optional identifier used to correlate this invocation with its tool call. */
     @JsonProperty("toolCallId") String toolCallId

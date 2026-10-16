@@ -47,6 +47,9 @@ public class ProviderConfig {
     @JsonProperty("transport")
     private String transport;
 
+    @JsonProperty("modelProvider")
+    private String modelProvider;
+
     @JsonProperty("baseUrl")
     private String baseUrl;
 
@@ -150,6 +153,30 @@ public class ProviderConfig {
      */
     public ProviderConfig setTransport(String transport) {
         this.transport = transport;
+        return this;
+    }
+
+    /**
+     * Gets the product serving the model.
+     *
+     * @return the model provider, such as "ollama" or "lm_studio"
+     */
+    public String getModelProvider() {
+        return modelProvider;
+    }
+
+    /**
+     * Sets the product serving the model, reported in telemetry as
+     * {@code model_provider}. Allowed values are "openai", "anthropic",
+     * "azure_openai", "ollama", "lm_studio", "foundry_local", and "llama_cpp"; only
+     * affects telemetry.
+     *
+     * @param modelProvider
+     *            the model provider
+     * @return this config for method chaining
+     */
+    public ProviderConfig setModelProvider(String modelProvider) {
+        this.modelProvider = modelProvider;
         return this;
     }
 

@@ -22,11 +22,13 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { findRuntimeRoot } from '../../../scripts/runtime-layout.mjs';
+import { runtimeReleaseUrl } from '../../../scripts/runtime-release.mjs';
 
 const excludedTopLevel = new Set([
   'app.js',
   'assets',
   'changelog.json',
+  'cli-main.js',
   'copilot',
   'copilot.exe',
   'foundry-local-sdk',
@@ -123,27 +125,11 @@ if (process.env.COPILOT_CLI_RELEASE_TARBALL) {
   stageDirectory(localPackageRoot);
 } else {
   console.log(`Downloading ${assetName} ...`);
-  const releaseBase = (
-    process.env.COPILOT_CLI_DOWNLOAD_BASE_URL ??
-    'https://github.com/github/copilot-cli/releases/download'
-  ).replace(/\/+$/, '');
-  const releaseUrl = `${releaseBase}/v${version}`;
+  const releaseUrl = runtimeReleaseUrl(version);
   const checksums = (await download(`${releaseUrl}/SHA256SUMS.txt`)).toString('utf8');
   expectedHash = findChecksum(checksums, assetName);
   const archive = await download(`${releaseUrl}/${assetName}`);
   stageArchive(archive);
-}
-
-function stageResource(destinationRelative, content, mode) {
-  const destination = path.resolve(resourceDir, destinationRelative);
-  const resourceRoot = `${path.resolve(resourceDir)}${path.sep}`;
-  if (!destination.startsWith(resourceRoot)) {
-    throw new Error(`Runtime package entry escapes staging directory: ${destinationRelative}`);
-  }
-  fs.mkdirSync(path.dirname(destination), { recursive: true });
-  fs.writeFileSync(destination, content);
-  fs.chmodSync(destination, mode);
-  inventory.push(`${mode.toString(8)}\t${destinationRelative.split(path.sep).join('/')}`);
 }
 
 function stageResourceFile(destinationRelative, source, mode) {
@@ -171,27 +157,49 @@ function stageArchive(archive) {
   const members = execFileSync('tar', ['-tzf', '-'], { encoding: 'utf8', input: archive })
     .split(/\r?\n/)
     .filter(Boolean);
-  for (const member of members) {
+  const listings = execFileSync('tar', ['-tvzf', '-'], { encoding: 'utf8', input: archive })
+    .split(/\r?\n/)
+    .filter(Boolean);
+  if (members.length !== listings.length) {
+    throw new Error(`Inconsistent archive listings for ${assetName}`);
+  }
+  const files = [];
+  for (const [index, member] of members.entries()) {
     const destinationRelative = hostlessRuntimePath(member, classifier);
     if (destinationRelative === null) {
       continue;
     }
-    const listing = execFileSync('tar', ['-tvzf', '-', member], {
-      encoding: 'utf8',
-      input: archive,
-    }).trim();
+    const listing = listings[index];
     if (listing.startsWith('d')) {
       continue;
     }
-    if (!listing.startsWith('-')) {
+    // BusyBox renders hard links as regular files with an appended arrow.
+    if (!listing.startsWith('-') || listing.includes(`${member} -> `)) {
       throw new Error(`Unsupported runtime package entry: ${member}`);
     }
-    const content = execFileSync('tar', ['-xOzf', '-', member], {
-      encoding: null,
-      input: archive,
-      maxBuffer: 512 * 1024 * 1024,
+    files.push({
+      member,
+      destinationRelative,
+      mode: listing.slice(0, 10).includes('x') ? 0o755 : 0o644,
     });
-    stageResource(destinationRelative, content, listing.slice(0, 10).includes('x') ? 0o755 : 0o644);
+  }
+
+  const scratch = fs.mkdtempSync(path.resolve(outDir, '.archive-'));
+  try {
+    const extracted = path.join(scratch, 'files');
+    const selection = path.join(scratch, 'members');
+    fs.mkdirSync(extracted);
+    // Newline-delimited lists work with BusyBox tar and avoid Windows' command-line limit.
+    fs.writeFileSync(selection, files.map(({ member }) => `${member}\n`).join(''));
+    if (files.length > 0) {
+      // Pass native Windows paths through cwd rather than tar's argument parser.
+      execFileSync('tar', ['-xzf', '-', '-T', '../members'], { input: archive, cwd: extracted });
+    }
+    for (const { member, destinationRelative, mode } of files) {
+      stageResourceFile(destinationRelative, path.join(extracted, member), mode);
+    }
+  } finally {
+    fs.rmSync(scratch, { recursive: true, force: true });
   }
 }
 

@@ -103,6 +103,41 @@ async fn should_get_authenticated_status() {
 }
 
 #[tokio::test]
+async fn should_use_configured_github_host_for_authentication() {
+    with_e2e_context("client", "should_get_authenticated_status", |ctx| {
+        Box::pin(async move {
+            for (copilot_host, gh_host, expected_host) in [
+                (
+                    "tenant.ghe.example",
+                    "fallback.ghe.example",
+                    "https://tenant.ghe.example",
+                ),
+                ("", "fallback.ghe.example", "https://fallback.ghe.example"),
+                ("", "", "https://github.com"),
+            ] {
+                let _host_env = super::support::set_inprocess_host_for_test(copilot_host, gh_host);
+                let mut options =
+                    ctx.client_options_with_github_token(super::support::DEFAULT_TEST_TOKEN);
+                if !is_inprocess_default() {
+                    options.env.extend([
+                        ("COPILOT_GH_HOST".into(), copilot_host.into()),
+                        ("GH_HOST".into(), gh_host.into()),
+                    ]);
+                }
+                let client = Client::start(options).await.expect("start client");
+                let status = client.get_auth_status().await.expect("auth status");
+
+                assert!(status.is_authenticated, "{status:?}");
+                assert_eq!(status.host.as_deref(), Some(expected_host));
+
+                client.stop().await.expect("stop client");
+            }
+        })
+    })
+    .await;
+}
+
+#[tokio::test]
 async fn should_list_models_when_authenticated() {
     // TODO(cli-1.0.81-2): CLI 1.0.81-2 stopped honoring client-level GitHub tokens over the
     // in-process (FFI) host, which resolves auth from the ambient environment instead.

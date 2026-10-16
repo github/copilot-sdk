@@ -39,7 +39,11 @@ public final class SessionMcpServerStatusChangedEvent extends SessionEvent {
         /** Connection status: connected, failed, needs-auth, pending, disabled, stopped, or not_configured */
         @JsonProperty("status") McpServerStatus status,
         /** Error message if the server entered a failed state */
-        @JsonProperty("error") String error
+        @JsonProperty("error") String error,
+        /** Runtime-produced classification for the final failed connection; unclassified means no classification was supplied. Additional string values may be introduced. */
+        @JsonProperty("errorClassification") String errorClassification,
+        /** Runtime configuration provenance for a connected or failed server, or unknown when unavailable. Additional string values may be introduced. */
+        @JsonProperty("configSource") String configSource
     ) {
     }
 }

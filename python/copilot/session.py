@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import functools
 import inspect
+import json
 import logging
 import os
 import pathlib
@@ -21,7 +22,18 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import Enum
 from types import TracebackType
-from typing import TYPE_CHECKING, Any, Literal, NotRequired, Required, TypedDict, TypeVar, cast
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Literal,
+    NotRequired,
+    Protocol,
+    Required,
+    TypedDict,
+    TypeVar,
+    cast,
+    runtime_checkable,
+)
 
 from pydantic import BaseModel
 
@@ -45,6 +57,7 @@ from .generated.rpc import (
     LogRequest,
     MCPOauthHandlePendingRequest,
     MCPOauthPendingRequestResponse,
+    MCPServerConfigDeferTools,
     ModelSwitchAutoTierResult,
     ModelSwitchToRequest,
     PermissionDecision,
@@ -52,10 +65,13 @@ from .generated.rpc import (
     PermissionDecisionContext,
     PermissionDecisionRequest,
     PermissionDecisionUserNotAvailable,
+    ProtocolExternalToolDefinition,
     ProviderTokenAcquireRequest,
     ProviderTokenAcquireResult,
     SessionLogLevel,
     SessionRpc,
+    SkillProviderDescriptor,
+    ToolsSetRequest,
     UIElicitationRequest,
     UIElicitationResponse,
     UIElicitationResponseAction,
@@ -63,6 +79,8 @@ from .generated.rpc import (
     UIElicitationSchemaProperty,
     UIElicitationSchemaPropertyType,
     UIHandlePendingElicitationRequest,
+    _SkillProviderListResult,
+    _SkillProviderReadResult,
 )
 from .generated.rpc import (
     CanvasHandler as RpcCanvasHandler,
@@ -79,6 +97,7 @@ from .generated.session_events import (
     ExternalToolCompletedData,
     ExternalToolRequestedData,
     McpOauthRequiredData,
+    PermissionPromptRequest,
     PermissionRequest,
     PermissionRequestedData,
     SessionCanvasClosedData,
@@ -184,7 +203,7 @@ def _capabilities_to_dict(caps: ModelCapabilitiesOverride) -> dict:
 ReasoningEffort = Literal["low", "medium", "high", "xhigh", "max"]
 ReasoningSummary = Literal["none", "concise", "detailed"]
 ContextTier = Literal["default", "long_context"]
-AutoTier = Literal["efficiency", "balance", "intelligence", "fast"]
+AutoTier = str
 SessionFsConventions = Literal["posix", "windows"]
 
 
@@ -215,8 +234,54 @@ def _auto_tier_to_wire(auto_tier: AutoTier | _RpcAutoTier | None) -> str | None:
     return auto_tier
 
 
+def _tool_to_wire_definition(tool: Tool) -> ProtocolExternalToolDefinition:
+    defer = MCPServerConfigDeferTools(tool.defer) if tool.defer is not None else None
+    return ProtocolExternalToolDefinition(
+        name=tool.name,
+        description=tool.description or "",
+        parameters=tool.parameters or None,
+        overrides_built_in_tool=True if tool.overrides_built_in_tool else None,
+        skip_permission=True if tool.skip_permission else None,
+        defer=defer,
+        metadata=tool.metadata,
+        is_terminal=True if tool.is_terminal else None,
+    )
+
+
+def _tools_to_wire_definitions(tools: list[Tool] | None) -> list[ProtocolExternalToolDefinition]:
+    return [_tool_to_wire_definition(tool) for tool in tools or []]
+
+
+def _tool_handlers_for(tools: list[Tool] | None) -> dict[str, ToolHandler]:
+    return {
+        tool.name: tool.handler for tool in tools or [] if tool.name and tool.handler is not None
+    }
+
+
+def _hook_error_text(error: Any) -> Any:
+    """Decode the ``error`` of an errorOccurred or sessionEnd hook input.
+
+    The CLI sends an error object (``{"name", "message", "stack"}`` or
+    ``{"message"}``) where the hook input types declare a string: its message
+    becomes the error, and an object without a string message becomes its
+    compact JSON. Other values pass through.
+    """
+    if isinstance(error, dict):
+        message = error.get("message")
+        if isinstance(message, str):
+            return message
+        return json.dumps(error, separators=(",", ":"), ensure_ascii=False)
+    return error
+
+
+def _consume_task_exception(task: asyncio.Task[Any]) -> None:
+    if not task.cancelled():
+        task.exception()
+
+
 class SessionFsCapabilities(TypedDict, total=False):
     sqlite: bool
+    binary: bool
 
 
 class SessionFsConfig(TypedDict):
@@ -384,12 +449,13 @@ SYSTEM_MESSAGE_SECTIONS: dict[SystemMessageSection, str] = {
     "tool_instructions": "Per-tool usage instructions",
     "custom_instructions": "Repository and organization custom instructions",
     "runtime_instructions": (
-        "Runtime-provided context and instructions"
-        " (e.g. system notifications, memories, workspace context,"
-        " mode-specific instructions, content-exclusion policy)"
+        "Runtime-provided system-prompt context and instructions, such as system"
+        " notifications, memories, workspace context, and content-exclusion policy."
+        " Mode-specific instructions can travel in transition messages instead."
     ),
     "last_instructions": (
-        "End-of-prompt instructions: parallel tool calling, persistence, task completion"
+        "End-of-prompt instructions: parallel tool calling, persistence, task completion,"
+        " and configured subagent-model guidance when the task tool is available"
     ),
 }
 
@@ -484,6 +550,9 @@ def create_attributed_permission_result(
 class PermissionInvocation(TypedDict, total=False):
     session_id: Required[str]
     managed_settings_enabled: NotRequired[bool]
+    # Only standard prompt kinds can clear a raw managed-approval requirement.
+    # Missing and other prompt kinds must remain conservative.
+    prompt_request: NotRequired[PermissionPromptRequest]
 
 
 _PermissionHandlerFn = Callable[
@@ -526,6 +595,7 @@ class McpAuthStaticClientConfig(TypedDict, total=False):
     clientSecret: str
     grantType: Literal["client_credentials"]
     publicClient: bool
+    scope: str
 
 
 class McpAuthRequest(TypedDict, total=False):
@@ -945,6 +1015,10 @@ class PreToolUseHookInput(TypedDict):
     toolName: str
     toolArgs: Any
 
+    agentId: NotRequired[str]
+    agentType: NotRequired[str]
+    parentAgentId: NotRequired[str]
+
 
 class PreToolUseHookOutput(TypedDict, total=False):
     """Output for pre-tool-use hook"""
@@ -974,6 +1048,10 @@ class PreMcpToolCallHookInput(TypedDict):
     toolCallId: NotRequired[str]
     _meta: NotRequired[dict[str, Any]]
 
+    agentId: NotRequired[str]
+    agentType: NotRequired[str]
+    parentAgentId: NotRequired[str]
+
 
 class PreMcpToolCallHookOutput(TypedDict, total=False):
     """Output for pre-MCP-tool-call hook.
@@ -1002,6 +1080,10 @@ class PostToolUseHookInput(TypedDict):
     toolName: str
     toolArgs: Any
     toolResult: Any
+
+    agentId: NotRequired[str]
+    agentType: NotRequired[str]
+    parentAgentId: NotRequired[str]
 
 
 class PostToolUseHookOutput(TypedDict, total=False):
@@ -1033,6 +1115,10 @@ class PostToolUseFailureHookInput(TypedDict):
     toolArgs: Any
     error: str
 
+    agentId: NotRequired[str]
+    agentType: NotRequired[str]
+    parentAgentId: NotRequired[str]
+
 
 class PostToolUseFailureHookOutput(TypedDict, total=False):
     """Output for post-tool-use-failure hook.
@@ -1058,13 +1144,24 @@ class UserPromptSubmittedHookInput(TypedDict):
     workingDirectory: str
     prompt: str
 
+    agentId: NotRequired[str]
+    agentType: NotRequired[str]
+    parentAgentId: NotRequired[str]
+
 
 class UserPromptSubmittedHookOutput(TypedDict, total=False):
-    """Output for user-prompt-submitted hook"""
+    """Output for user-prompt-submitted hook.
+
+    A ``decision`` of ``"block"`` refuses the prompt: no model turn runs, no
+    user message is recorded, and the session emits an ephemeral
+    ``session.warning`` (``warningType: "policy_blocked"``) carrying ``reason``.
+    """
 
     modifiedPrompt: str
     additionalContext: str
     suppressOutput: bool
+    decision: Literal["block"]
+    reason: str
 
 
 UserPromptSubmittedHandler = Callable[
@@ -1081,6 +1178,10 @@ class UserPromptTransformedHookInput(TypedDict):
     workingDirectory: str
     prompt: str
     transformedPrompt: str
+
+    agentId: NotRequired[str]
+    agentType: NotRequired[str]
+    parentAgentId: NotRequired[str]
 
 
 class UserPromptTransformedHookOutput(TypedDict, total=False):
@@ -1103,6 +1204,10 @@ class SessionStartHookInput(TypedDict):
     workingDirectory: str
     source: Literal["startup", "resume", "new"]
     initialPrompt: NotRequired[str]
+
+    agentId: NotRequired[str]
+    agentType: NotRequired[str]
+    parentAgentId: NotRequired[str]
 
 
 class SessionStartHookOutput(TypedDict, total=False):
@@ -1128,6 +1233,10 @@ class SessionEndHookInput(TypedDict):
     finalMessage: NotRequired[str]
     error: NotRequired[str]
 
+    agentId: NotRequired[str]
+    agentType: NotRequired[str]
+    parentAgentId: NotRequired[str]
+
 
 class SessionEndHookOutput(TypedDict, total=False):
     """Output for session-end hook"""
@@ -1152,6 +1261,10 @@ class ErrorOccurredHookInput(TypedDict):
     error: str
     errorContext: Literal["model_call", "tool_execution", "system", "user_input"]
     recoverable: bool
+
+    agentId: NotRequired[str]
+    agentType: NotRequired[str]
+    parentAgentId: NotRequired[str]
 
 
 class ErrorOccurredHookOutput(TypedDict, total=False):
@@ -1179,6 +1292,10 @@ class AgentStopHookInput(TypedDict):
     transcriptPath: NotRequired[str]
     stopHookActive: NotRequired[bool]
 
+    agentId: NotRequired[str]
+    agentType: NotRequired[str]
+    parentAgentId: NotRequired[str]
+
 
 class AgentStopHookOutput(TypedDict, total=False):
     """Output for the agent-stop hook."""
@@ -1190,6 +1307,73 @@ class AgentStopHookOutput(TypedDict, total=False):
 AgentStopHandler = Callable[
     [AgentStopHookInput, dict[str, str]],
     AgentStopHookOutput | None | Awaitable[AgentStopHookOutput | None],
+]
+
+
+class SubagentStartHookInput(TypedDict):
+    """Input when a subagent starts; session metadata belongs to its parent."""
+
+    sessionId: str
+    timestamp: datetime
+    workingDirectory: str
+    transcriptPath: str
+    agentName: str
+    agentDisplayName: NotRequired[str]
+    agentDescription: NotRequired[str]
+
+    agentId: NotRequired[str]
+    agentType: NotRequired[str]
+    parentAgentId: NotRequired[str]
+
+
+class SubagentStartHookOutput(TypedDict, total=False):
+    """Context prepended to the subagent's initial prompt."""
+
+    additionalContext: str
+
+
+SubagentStartHandler = Callable[
+    [SubagentStartHookInput, dict[str, str]],
+    SubagentStartHookOutput | None | Awaitable[SubagentStartHookOutput | None],
+]
+
+
+class SubagentStopHookInput(TypedDict):
+    """Input after a subagent turn completes; session metadata belongs to its parent."""
+
+    sessionId: str
+    timestamp: datetime
+    workingDirectory: str
+    transcriptPath: str
+    agentName: str
+    agentType: str
+    stopReason: Literal["end_turn"]
+    response: str
+    agentId: NotRequired[str]
+    agentDisplayName: NotRequired[str]
+    agentDescription: NotRequired[str]
+
+    parentAgentId: NotRequired[str]
+
+
+class _SubagentStopBlockHookOutput(TypedDict):
+    decision: Literal["block"]
+    reason: str
+    modifiedResponse: NotRequired[str]
+
+
+class _SubagentStopAllowHookOutput(TypedDict, total=False):
+    decision: Literal["allow"]
+    modifiedResponse: str
+
+
+SubagentStopHookOutput = _SubagentStopBlockHookOutput | _SubagentStopAllowHookOutput
+"""Block with a nonempty reason, or allow with an optional response rewrite."""
+
+
+SubagentStopHandler = Callable[
+    [SubagentStopHookInput, dict[str, str]],
+    SubagentStopHookOutput | None | Awaitable[SubagentStopHookOutput | None],
 ]
 
 
@@ -1206,6 +1390,8 @@ class SessionHooks(TypedDict, total=False):
     on_session_end: SessionEndHandler
     on_error_occurred: ErrorOccurredHandler
     on_agent_stop: AgentStopHandler
+    on_subagent_start: SubagentStartHandler
+    on_subagent_stop: SubagentStopHandler
 
 
 # ============================================================================
@@ -1261,6 +1447,7 @@ class GitHubMcpToolConfig(TypedDict, total=False):
 class CustomAgentConfig(TypedDict, total=False):
     """Configuration for a custom agent."""
 
+    hooks: NotRequired[dict[str, list[dict[str, Any]]]]
     name: str  # Unique name of the custom agent
     display_name: NotRequired[str]  # Display name for UI purposes
     description: NotRequired[str]  # Description of what the agent does
@@ -1336,6 +1523,20 @@ class LargeToolOutputConfig(TypedDict, total=False):
     output_directory: str
 
 
+class ImageGenerationConfig(TypedDict, total=False):
+    """**Experimental.** Opt in to an authorized Copilot image model.
+
+    This API may change or be removed in a future release.
+
+    Omission disables on create/cold resume and preserves resident state on
+    resume. Not persisted: re-supply after runtime restart. Policy, permissions,
+    offline mode, and tool filters still apply. BYOK is not supported.
+    """
+
+    enabled: bool
+    """True opts in; False disables image generation."""
+
+
 class ToolSearchConfig(TypedDict, total=False):
     """
     Override for the runtime's built-in tool-search behavior.
@@ -1409,6 +1610,46 @@ class ProviderTokenArgs(TypedDict):
 BearerTokenProvider = Callable[[ProviderTokenArgs], str | Awaitable[str]]
 
 
+@runtime_checkable
+class SkillProvider(Protocol):
+    """**Experimental.** Provides session-scoped skills from SDK-owned storage.
+
+    Providers are ephemeral and must be supplied again when resuming a session.
+    The runtime may call providers concurrently, so implementations must be
+    concurrency-safe. Synchronous providers run on the event loop like other
+    Python SDK callbacks; keep them fast or make them async. When the runtime
+    cancels a call, for example after its 30-second limit or when the session
+    disconnects, an async provider's task is cancelled with
+    :class:`asyncio.CancelledError`.
+    """
+
+    def list_skills(
+        self,
+    ) -> list[SkillProviderDescriptor] | None | Awaitable[list[SkillProviderDescriptor] | None]:
+        """Return skill catalog descriptors, or ``None`` for an empty catalog."""
+        ...
+
+    def read_skill(self, name: str) -> str | None | Awaitable[str | None]:
+        """Return SKILL.md markdown for ``name``, or ``None`` when not found."""
+        ...
+
+
+def _skill_provider_failure_error(method_name: Literal["listSkills", "readSkill"]) -> JsonRpcError:
+    return JsonRpcError(-32603, f"Skill provider {method_name} failed")
+
+
+ProviderConfigModelProvider = Literal[
+    "openai",
+    "anthropic",
+    "azure_openai",
+    "ollama",
+    "lm_studio",
+    "foundry_local",
+    "llama_cpp",
+]
+"""Product serving a configured provider's model."""
+
+
 class ProviderConfig(TypedDict, total=False):
     """Configuration for a custom API provider"""
 
@@ -1419,6 +1660,9 @@ class ProviderConfig(TypedDict, total=False):
     # connection instead of HTTP. Applies to OpenAI-compatible providers using
     # wire_api "responses".
     transport: Literal["http", "websockets"]
+    # Product serving the model, such as "ollama" or "lm_studio", reported in
+    # telemetry as model_provider. Only affects telemetry.
+    model_provider: ProviderConfigModelProvider
     base_url: str
     api_key: str
     # Bearer token for authentication. Sets the Authorization header directly.
@@ -1472,6 +1716,9 @@ class NamedProviderConfig(TypedDict, total=False):
     name: str
     type: Literal["openai", "azure", "anthropic"]
     wire_api: Literal["completions", "responses"]
+    # Product serving this provider's models, such as "ollama" or "lm_studio",
+    # reported in telemetry as model_provider. Only affects telemetry.
+    model_provider: ProviderConfigModelProvider
     base_url: str
     api_key: str
     # Bearer token for authentication. Sets the Authorization header directly.
@@ -1589,6 +1836,15 @@ class _BearerTokenProviderAdapter:
         return ProviderTokenAcquireResult(token=cast(str, result))
 
 
+@dataclass(frozen=True)
+class TranscriptRecoveryReport:
+    """Repair details returned by ``session.resume`` when transcript recovery ran."""
+
+    planned_backup_path: str
+    invalid_line_numbers: list[int]
+    session_start_moved: bool
+
+
 class CopilotSession:
     """
     Represents a single conversation session with the Copilot CLI.
@@ -1641,6 +1897,7 @@ class CopilotSession:
                 creating or resuming the session.
         """
         self.session_id = session_id
+        self.transcript_recovery: TranscriptRecoveryReport | None = None
         self._managed_settings_enabled = managed_settings_enabled
         self._client = client
         self._workspace_path = os.fsdecode(workspace_path) if workspace_path is not None else None
@@ -1648,6 +1905,7 @@ class CopilotSession:
         self._event_handlers_lock = threading.Lock()
         self._tool_handlers: dict[str, ToolHandler] = {}
         self._tool_handlers_lock = threading.Lock()
+        self._set_tools_lock = asyncio.Lock()
         self._pending_external_tools: dict[str, asyncio.Task[None]] = {}
         self._permission_handler: _PermissionHandlerFn | None = None
         self._permission_handler_lock = threading.Lock()
@@ -1665,6 +1923,8 @@ class CopilotSession:
         self._transform_callbacks_lock = threading.Lock()
         self._command_handlers: dict[str, CommandHandler] = {}
         self._command_handlers_lock = threading.Lock()
+        self._skill_provider: SkillProvider | None = None
+        self._skill_provider_lock = threading.Lock()
         self._bearer_token_providers: dict[str, BearerTokenProvider] = {}
         self._bearer_token_providers_lock = threading.Lock()
         self._elicitation_handler: ElicitationHandler | None = None
@@ -1677,6 +1937,7 @@ class CopilotSession:
         self._open_canvases_lock = threading.Lock()
         self._rpc: SessionRpc | None = None
         self._destroyed = False
+        self._response_waits: set[Callable[[], None]] = set()
         self._structured_waits: set[asyncio.Future[SessionEvent]] = set()
         self._disconnect_lock = asyncio.Lock()
         self._on_disconnect = on_disconnect
@@ -1700,9 +1961,44 @@ class CopilotSession:
                 task.cancel()
 
     def _mark_disconnected(self) -> None:
-        self._destroyed = True
+        with self._event_handlers_lock:
+            if self._destroyed:
+                return
+            self._destroyed = True
+            self._event_handlers.clear()
+        for fail in tuple(self._response_waits):
+            fail()
+        self._response_waits.clear()
         self._fail_structured_waits()
         self._cancel_pending_external_tools()
+        with self._tool_handlers_lock:
+            self._tool_handlers.clear()
+        self._clear_skill_provider()
+        with self._permission_handler_lock:
+            self._permission_handler = None
+        with self._mcp_auth_handler_lock:
+            self._mcp_auth_handler = None
+        with self._user_input_handler_lock:
+            self._user_input_handler = None
+        with self._exit_plan_mode_handler_lock:
+            self._exit_plan_mode_handler = None
+        with self._auto_mode_switch_handler_lock:
+            self._auto_mode_switch_handler = None
+        with self._hooks_lock:
+            self._hooks = None
+        with self._transform_callbacks_lock:
+            self._transform_callbacks = None
+        with self._command_handlers_lock:
+            self._command_handlers.clear()
+        with self._bearer_token_providers_lock:
+            self._bearer_token_providers.clear()
+        with self._elicitation_handler_lock:
+            self._elicitation_handler = None
+        with self._canvas_handler_lock:
+            self._canvas_handler = None
+        with self._open_canvases_lock:
+            self._open_canvases.clear()
+        self._client_session_apis = ClientSessionApiHandlers()
         self._run_disconnect_callback()
 
     def _fail_structured_waits(self) -> None:
@@ -1846,6 +2142,62 @@ class CopilotSession:
         )
         return message_id
 
+    async def set_tools(self, tools: list[Tool]) -> None:
+        """
+        **Experimental.** Replace this client's live external tools for the session.
+
+        This is a complete replacement of the tools supplied by this client
+        connection only; built-in tools, MCP/plugin tools, and tools supplied by
+        other connections are unaffected. Pass the same tool definitions accepted
+        by ``CopilotClient.create_session`` and ``CopilotClient.resume_session``.
+        An empty list removes all tools supplied by this client.
+
+        The local handlers switch only after the runtime accepts the replacement.
+        Running tool calls finish on the handlers they already captured. If the
+        runtime rejects the replacement, the existing handlers are left unchanged
+        and the error is raised. Concurrent ``set_tools`` calls on the same
+        session are applied in order. Cancelling the call while an earlier
+        replacement is still in flight sends nothing. Once the request is sent,
+        cancelling only stops the wait: an accepted replacement still installs
+        its handlers while the session remains connected. Disconnecting the
+        session rejects queued replacements and prevents late acknowledgements
+        from reinstalling handlers.
+
+        The agent sees the new tools from its next model request, which can fall
+        within a turn in progress. A model request already in flight was made
+        with the previous tools, so the agent can still call a tool you removed.
+        This session doesn't answer that call, and it can stay pending until the
+        turn is aborted. If a running turn might still call a tool you remove,
+        replace tools while the session is idle.
+        """
+        if self._destroyed:
+            raise RuntimeError("Session is disconnected")
+        definitions = _tools_to_wire_definitions(tools)
+        handlers = _tool_handlers_for(tools)
+        # Cancelling while an earlier call holds the lock sends nothing. Once
+        # this call holds it, the request runs to completion in its own task,
+        # so an accepted replacement still installs its handlers.
+        await self._set_tools_lock.acquire()
+        task = asyncio.create_task(self._replace_tools(definitions, handlers))
+        task.add_done_callback(_consume_task_exception)
+        await asyncio.shield(task)
+
+    async def _replace_tools(
+        self,
+        definitions: list[ProtocolExternalToolDefinition],
+        handlers: dict[str, ToolHandler],
+    ) -> None:
+        try:
+            if self._destroyed:
+                raise RuntimeError("Session is disconnected")
+            await self.rpc.tools.set(ToolsSetRequest(tools=definitions))
+            with self._tool_handlers_lock:
+                if self._destroyed:
+                    raise RuntimeError("Session is disconnected")
+                self._tool_handlers = handlers
+        finally:
+            self._set_tools_lock.release()
+
     async def send_and_wait(
         self,
         prompt: str,
@@ -1867,6 +2219,11 @@ class CopilotSession:
         has finished processing the message.
 
         Events are still delivered to handlers registered via :meth:`on` while waiting.
+        Synchronous handlers registered before this call finish processing the
+        completing root session.idle event before it returns successfully.
+        This does not wait for asynchronous work started by a handler.
+        Sub-agent events with a non-empty ``agent_id`` do not complete the wait
+        or supply its reply.
 
         Args:
             prompt: The message text to send.
@@ -1923,6 +2280,8 @@ class CopilotSession:
 
         def handler(event: SessionEventTypeAlias) -> None:
             nonlocal first_assistant_message_logged, last_assistant_message, error_event
+            if event.agent_id:
+                return
             match event.data:
                 case AssistantMessageData():
                     last_assistant_message = event
@@ -1948,7 +2307,14 @@ class CopilotSession:
                     error_event = Exception(f"Session error: {data.message or str(data)}")
                     idle_event.set()
 
+        def fail_disconnected() -> None:
+            nonlocal error_event
+            if not idle_event.is_set():
+                error_event = RuntimeError("Session closed before response completed")
+                idle_event.set()
+
         unsubscribe = self.on(handler)
+        self._response_waits.add(fail_disconnected)
         try:
             await self.send(
                 prompt,
@@ -1992,6 +2358,7 @@ class CopilotSession:
             raise TimeoutError(f"Timeout after {timeout}s waiting for session.idle")
         finally:
             unsubscribe()
+            self._response_waits.discard(fail_disconnected)
 
     async def send_and_wait_typed(
         self,
@@ -2140,6 +2507,8 @@ class CopilotSession:
             >>> unsubscribe()
         """
         with self._event_handlers_lock:
+            if self._destroyed:
+                raise RuntimeError("Session is disconnected")
             self._event_handlers.add(handler)
 
         def unsubscribe():
@@ -2161,6 +2530,9 @@ class CopilotSession:
         Args:
             event: The session event to dispatch to all handlers.
         """
+        with self._event_handlers_lock:
+            if self._destroyed:
+                return
         dispatch_start = time.perf_counter()
         # Handle broadcast request events (protocol v3) before dispatching to user handlers.
         # Fire-and-forget: the response is sent asynchronously via RPC.
@@ -2170,6 +2542,9 @@ class CopilotSession:
             handlers = list(self._event_handlers)
 
         for handler in handlers:
+            with self._event_handlers_lock:
+                if self._destroyed:
+                    break
             try:
                 handler(event)
             except Exception:
@@ -2206,7 +2581,14 @@ class CopilotSession:
                 ts = getattr(data, "tracestate", None)
                 task = asyncio.create_task(
                     self._execute_tool_and_respond(
-                        request_id, tool_name, tool_call_id, arguments, handler, tp, ts
+                        request_id,
+                        tool_name,
+                        tool_call_id,
+                        arguments,
+                        handler,
+                        tp,
+                        ts,
+                        event.agent_id or None,
                     )
                 )
                 if request_id in self._pending_external_tools:
@@ -2250,7 +2632,7 @@ class CopilotSession:
 
                 asyncio.ensure_future(
                     self._execute_permission_and_respond(
-                        request_id, permission_request, perm_handler
+                        request_id, permission_request, perm_handler, data.prompt_request
                     )
                 )
 
@@ -2303,6 +2685,8 @@ class CopilotSession:
                         static_client_config["publicClient"] = (
                             data.static_client_config.public_client
                         )
+                    if data.static_client_config.scope is not None:
+                        static_client_config["scope"] = data.static_client_config.scope
                     request["staticClientConfig"] = static_client_config
                 asyncio.ensure_future(self._execute_mcp_auth_and_respond(request, handler))
 
@@ -2375,6 +2759,7 @@ class CopilotSession:
         handler: ToolHandler,
         traceparent: str | None = None,
         tracestate: str | None = None,
+        agent_id: str | None = None,
     ) -> None:
         """Execute a tool handler and send the result back via HandlePendingToolCall RPC."""
         try:
@@ -2397,6 +2782,8 @@ class CopilotSession:
                 tool_name=tool_name,
                 arguments=arguments,
                 available_tools=available_tools,
+                agent_id=agent_id,
+                request_id=request_id,
             )
 
             with trace_context(traceparent, tracestate):
@@ -2499,17 +2886,18 @@ class CopilotSession:
         request_id: str,
         permission_request: Any,
         handler: _PermissionHandlerFn,
+        prompt_request: PermissionPromptRequest | None = None,
     ) -> None:
         """Execute a permission handler and respond via RPC."""
         try:
             handler_start = time.perf_counter()
-            result = handler(
-                permission_request,
-                {
-                    "session_id": self.session_id,
-                    "managed_settings_enabled": self._managed_settings_enabled,
-                },
-            )
+            invocation: PermissionInvocation = {
+                "session_id": self.session_id,
+                "managed_settings_enabled": self._managed_settings_enabled,
+            }
+            if prompt_request is not None:
+                invocation["prompt_request"] = prompt_request
+            result = handler(permission_request, invocation)
             if inspect.isawaitable(result):
                 result = await result
             log_timing(
@@ -2878,13 +3266,7 @@ class CopilotSession:
                 all registered tools.
         """
         with self._tool_handlers_lock:
-            self._tool_handlers.clear()
-            if not tools:
-                return
-            for tool in tools:
-                if not tool.name or not tool.handler:
-                    continue
-                self._tool_handlers[tool.name] = tool.handler
+            self._tool_handlers = _tool_handlers_for(tools)
 
     def _get_tool_handler(self, name: str) -> ToolHandler | None:
         """
@@ -2902,6 +3284,77 @@ class CopilotSession:
         """
         with self._tool_handlers_lock:
             return self._tool_handlers.get(name)
+
+    def _register_skill_provider(self, provider: SkillProvider | None) -> None:
+        """Register or clear the session-scoped skill provider."""
+        with self._skill_provider_lock:
+            self._skill_provider = provider
+
+    def _clear_skill_provider(self) -> None:
+        self._register_skill_provider(None)
+
+    async def _handle_skill_provider_list(self) -> dict:
+        provider = self._require_skill_provider()
+        skills = await self._call_skill_provider("listSkills", provider.list_skills)
+        resolved_skills = cast(list[SkillProviderDescriptor] | None, skills)
+        try:
+            return _SkillProviderListResult(
+                skills=[] if resolved_skills is None else list(resolved_skills)
+            ).to_dict()
+        except Exception:
+            self._log_skill_provider_failure("listSkills")
+            raise _skill_provider_failure_error("listSkills") from None
+
+    async def _handle_skill_provider_read(self, name: str) -> dict:
+        provider = self._require_skill_provider()
+        markdown = await self._call_skill_provider(
+            "readSkill", functools.partial(provider.read_skill, name)
+        )
+        return _SkillProviderReadResult(markdown=cast(str | None, markdown)).to_dict()
+
+    def _require_skill_provider(self) -> SkillProvider:
+        with self._skill_provider_lock:
+            provider = self._skill_provider
+        if provider is None:
+            raise JsonRpcError(-32603, f"No skill provider for session: {self.session_id}")
+        return provider
+
+    async def _call_skill_provider(
+        self, operation: Literal["listSkills", "readSkill"], call: Callable[[], Any]
+    ) -> Any:
+        """Run a provider callback, reporting any failure to the runtime generically."""
+        provider_start = time.perf_counter()
+        try:
+            result = call()
+            if inspect.isawaitable(result):
+                result = await result
+        except asyncio.CancelledError:
+            # Only a cancellation of this dispatch task propagates; one raised by
+            # the provider itself is an ordinary provider failure.
+            task = asyncio.current_task()
+            if task is not None and task.cancelling():
+                raise
+            self._log_skill_provider_failure(operation)
+            raise _skill_provider_failure_error(operation) from None
+        except Exception:
+            self._log_skill_provider_failure(operation)
+            raise _skill_provider_failure_error(operation) from None
+        log_timing(
+            logger,
+            logging.DEBUG,
+            f"CopilotSession skill provider {operation} dispatch",
+            provider_start,
+            session_id=self.session_id,
+        )
+        return result
+
+    def _log_skill_provider_failure(self, operation: Literal["listSkills", "readSkill"]) -> None:
+        logger.warning(
+            "Skill provider %s failed",
+            operation,
+            extra={"session_id": self.session_id},
+            exc_info=True,
+        )
 
     def _register_permission_handler(self, handler: _PermissionHandlerFn | None) -> None:
         """
@@ -3174,6 +3627,8 @@ class CopilotSession:
             "sessionEnd": hooks.get("on_session_end"),
             "errorOccurred": hooks.get("on_error_occurred"),
             "agentStop": hooks.get("on_agent_stop"),
+            "subagentStart": hooks.get("on_subagent_start"),
+            "subagentStop": hooks.get("on_subagent_stop"),
         }
 
         handler = handler_map.get(hook_type)
@@ -3195,6 +3650,10 @@ class CopilotSession:
             timestamp = transformed.get("timestamp")
             if isinstance(timestamp, (int, float)):
                 transformed["timestamp"] = datetime.fromtimestamp(timestamp / 1000, tz=UTC)
+            # The CLI sends errorOccurred's and sessionEnd's ``error`` as an
+            # error object; the hook input types declare a string.
+            if hook_type in ("errorOccurred", "sessionEnd") and "error" in transformed:
+                transformed["error"] = _hook_error_text(transformed["error"])
             # Each per-hook-type TypedDict is structurally compatible with the
             # normalized dict; cast to ``Any`` so ty doesn't try to narrow the
             # specific TypedDict variant from the runtime ``dict``.
@@ -3279,24 +3738,7 @@ class CopilotSession:
                 detail = response.get("error") or "unknown error"
                 raise RuntimeError(f"Failed to detach session {self.session_id}: {detail}")
 
-            self._cancel_pending_external_tools()
-            self._run_disconnect_callback()
-            with self._event_handlers_lock:
-                self._destroyed = True
-                self._fail_structured_waits()
-                self._event_handlers.clear()
-            with self._tool_handlers_lock:
-                self._tool_handlers.clear()
-            with self._permission_handler_lock:
-                self._permission_handler = None
-            with self._command_handlers_lock:
-                self._command_handlers.clear()
-            with self._elicitation_handler_lock:
-                self._elicitation_handler = None
-            with self._exit_plan_mode_handler_lock:
-                self._exit_plan_mode_handler = None
-            with self._auto_mode_switch_handler_lock:
-                self._auto_mode_switch_handler = None
+            self._mark_disconnected()
 
     async def __aenter__(self) -> CopilotSession:
         """Enable use as an async context manager."""

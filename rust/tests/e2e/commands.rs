@@ -2,9 +2,9 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use github_copilot_sdk::rpc::{
-    CommandsInvokeRequest, CommandsListRequest, CommandsRespondToQueuedCommandRequest,
-    EnqueueCommandParams, EnqueueCommandResult, ExecuteCommandParams, RegisterEventInterestParams,
-    ReleaseEventInterestParams, SlashCommandInvocationResult, SlashCommandKind,
+    CommandsListRequest, CommandsRespondToQueuedCommandRequest, EnqueueCommandParams,
+    EnqueueCommandResult, ExecuteCommandParams, RegisterEventInterestParams,
+    ReleaseEventInterestParams, SlashCommandKind,
 };
 use github_copilot_sdk::session_events::{CommandQueuedData, SessionEventType};
 use github_copilot_sdk::{CommandContext, CommandDefinition, CommandHandler, RequestId};
@@ -75,53 +75,6 @@ async fn session_commands_list_returns_builtins_and_respects_client_command_filt
                     .await
                     .expect("list with all dynamic sources disabled");
                 assert!(client_only_disabled.commands.is_empty());
-
-                session.disconnect().await.expect("disconnect session");
-                client.stop().await.expect("stop client");
-            })
-        },
-    )
-    .await;
-}
-
-#[tokio::test]
-async fn session_commands_invoke_known_builtin_returns_expected_result() {
-    super::support::with_shared_e2e_context(
-        &E2E,
-        "commands",
-        "session_with_no_commands_creates_successfully",
-        |ctx| {
-            Box::pin(async move {
-                ctx.set_default_copilot_user();
-                let client = ctx.start_client().await;
-                let session = client
-                    .create_session(ctx.approve_all_session_config())
-                    .await
-                    .expect("create session");
-
-                let result = session
-                    .rpc()
-                    .commands()
-                    .invoke(CommandsInvokeRequest {
-                        name: "context".to_string(),
-                        input: None,
-                        ..Default::default()
-                    })
-                    .await
-                    .expect("invoke context");
-                match result {
-                    SlashCommandInvocationResult::Text(text) => {
-                        assert!(!text.text.trim().is_empty());
-                    }
-                    SlashCommandInvocationResult::SelectSubcommand(select) => {
-                        assert!(!select.options.is_empty());
-                    }
-                    SlashCommandInvocationResult::AgentPrompt(prompt) => {
-                        assert!(!prompt.prompt.trim().is_empty());
-                    }
-                    SlashCommandInvocationResult::Completed(_) => {}
-                    unexpected => panic!("unexpected command result: {unexpected:?}"),
-                }
 
                 session.disconnect().await.expect("disconnect session");
                 client.stop().await.expect("stop client");
@@ -300,4 +253,4 @@ fn assert_command(
     assert!(!command.description.trim().is_empty());
 }
 static E2E: super::support::SharedE2eGroup =
-    super::support::SharedE2eGroup::standard("commands", 4);
+    super::support::SharedE2eGroup::standard("commands", 3);

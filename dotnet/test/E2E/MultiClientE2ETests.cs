@@ -33,7 +33,10 @@ public class MultiClientTestFixture : IAsyncLifetime
 
     public async Task DisposeAsync()
     {
-        await Ctx.DisposeAsync();
+        if (Ctx is not null)
+        {
+            await Ctx.DisposeAsync();
+        }
     }
 }
 

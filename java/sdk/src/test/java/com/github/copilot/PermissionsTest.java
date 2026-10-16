@@ -207,6 +207,7 @@ public class PermissionsTest {
                     .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
             String sessionId = session1.getSessionId();
             session1.sendAndWait(new MessageOptions().setPrompt("What is 1+1?")).get(60, TimeUnit.SECONDS);
+            session1.close();
 
             // Resume with permission handler
             var resumeConfig = new ResumeSessionConfig().setOnPermissionRequest((request, invocation) -> {
@@ -342,6 +343,7 @@ public class PermissionsTest {
             CopilotSession session1 = client.createSession(config).get();
             String sessionId = session1.getSessionId();
             session1.sendAndWait(new MessageOptions().setPrompt("What is 1+1?")).get(60, TimeUnit.SECONDS);
+            session1.close();
 
             CopilotSession session2 = client.resumeSession(sessionId, new ResumeSessionConfig()
                     .setOnPermissionRequest((request, invocation) -> CompletableFuture.completedFuture(

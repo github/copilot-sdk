@@ -3,6 +3,204 @@
 use github_copilot_sdk::Client;
 use tokio::io::{AsyncReadExt, AsyncWrite, AsyncWriteExt, duplex};
 
+#[tokio::test]
+async fn dropping_external_client_closes_its_streams() {
+    let (client_write, mut server_read) = duplex(8192);
+    let (_server_write, client_read) = duplex(8192);
+    let client = Client::from_streams(client_read, client_write, std::env::temp_dir()).unwrap();
+    client
+        .register_request_handler("host.shutdown", |_, client| async move {
+            client.call("ping", None).await
+        })
+        .unwrap();
+    drop(client);
+    let mut byte = [0];
+    let count = tokio::time::timeout(
+        std::time::Duration::from_secs(2),
+        server_read.read(&mut byte),
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    assert_eq!(count, 0);
+}
+
+#[tokio::test]
+async fn connection_handler_can_await_sdk_replies_before_responding() {
+    let (client_write, mut server_read) = duplex(8192);
+    let (mut server_write, client_read) = duplex(8192);
+    let client = Client::from_streams(client_read, client_write, std::env::temp_dir()).unwrap();
+    client
+        .register_request_handler("host.shutdown", |_, client| async move {
+            client.call("ping", None).await
+        })
+        .unwrap();
+    let request = serde_json::json!({"jsonrpc":"2.0","id":41,"method":"host.shutdown","params":{}});
+    write_framed(&mut server_write, &serde_json::to_vec(&request).unwrap()).await;
+    let ping = tokio::time::timeout(
+        std::time::Duration::from_secs(2),
+        read_framed(&mut server_read),
+    )
+    .await
+    .unwrap();
+    assert_eq!(ping["method"], "ping");
+    let response = serde_json::json!({"jsonrpc":"2.0","id":ping["id"],"result":{"drained":true}});
+    write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
+    let shutdown = tokio::time::timeout(
+        std::time::Duration::from_secs(2),
+        read_framed(&mut server_read),
+    )
+    .await
+    .unwrap();
+    assert_eq!(shutdown["id"], 41);
+    assert_eq!(shutdown["result"], serde_json::json!({"drained":true}));
+    drop(client);
+    let mut byte = [0];
+    assert_eq!(
+        tokio::time::timeout(
+            std::time::Duration::from_secs(2),
+            server_read.read(&mut byte),
+        )
+        .await
+        .unwrap()
+        .unwrap(),
+        0
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn synchronous_handler_setup_does_not_block_the_reader() {
+    let (client_write, mut server_read) = duplex(8192);
+    let (mut server_write, client_read) = duplex(8192);
+    let client = Client::from_streams(client_read, client_write, ".".into()).unwrap();
+    let (started_tx, mut started) = tokio::sync::mpsc::unbounded_channel();
+    let (unblock, gate) = std::sync::mpsc::channel();
+    let gate = std::sync::Mutex::new(gate);
+    client
+        .register_request_handler("blocking.setup", move |_, _| {
+            started_tx.send(()).unwrap();
+            gate.lock()
+                .unwrap()
+                .recv_timeout(std::time::Duration::from_secs(10))
+                .unwrap();
+            async { Ok(serde_json::json!({})) }
+        })
+        .unwrap();
+    let request = serde_json::json!({"jsonrpc":"2.0","id":44,"method":"blocking.setup"});
+    write_framed(&mut server_write, &serde_json::to_vec(&request).unwrap()).await;
+    tokio::time::timeout(std::time::Duration::from_secs(2), started.recv())
+        .await
+        .unwrap()
+        .unwrap();
+    let ping = tokio::spawn({
+        let client = client.clone();
+        async move { client.call("ping", None).await }
+    });
+    let request = read_framed(&mut server_read).await;
+    let response = serde_json::json!({"jsonrpc":"2.0","id":request["id"],"result":{}});
+    write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
+    tokio::time::timeout(std::time::Duration::from_secs(2), ping)
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap();
+    unblock.send(()).unwrap();
+    assert_eq!(read_framed(&mut server_read).await["id"], 44);
+    client.force_stop();
+}
+
+#[tokio::test]
+async fn connection_handlers_reject_duplicate_registration_and_report_errors() {
+    let (client_write, mut server_read) = duplex(8192);
+    let (mut server_write, client_read) = duplex(8192);
+    let client = Client::from_streams(client_read, client_write, std::env::temp_dir()).unwrap();
+    client
+        .register_request_handler("host.shutdown", |_, _| async {
+            Err(github_copilot_sdk::Error::with_message(
+                github_copilot_sdk::ErrorKind::InvalidConfig,
+                "drain failed",
+            ))
+        })
+        .unwrap();
+    assert!(
+        client
+            .register_request_handler("host.shutdown", |_, _| async { Ok(serde_json::json!({})) })
+            .is_err()
+    );
+    assert!(
+        client
+            .register_request_handler("", |_, _| async { Ok(serde_json::json!({})) })
+            .is_err()
+    );
+    let request = serde_json::json!({"jsonrpc":"2.0","id":42,"method":"host.shutdown","params":{}});
+    write_framed(&mut server_write, &serde_json::to_vec(&request).unwrap()).await;
+    let response = tokio::time::timeout(
+        std::time::Duration::from_secs(2),
+        read_framed(&mut server_read),
+    )
+    .await
+    .unwrap();
+    assert_eq!(response["error"]["code"], -32603);
+    assert_eq!(response["error"]["message"], "drain failed");
+    client.force_stop();
+}
+
+#[tokio::test]
+async fn connection_eof_cancels_inbound_handlers() {
+    use std::sync::Arc;
+
+    use tokio::sync::Notify;
+
+    struct OnDrop(Arc<Notify>);
+    impl Drop for OnDrop {
+        fn drop(&mut self) {
+            self.0.notify_one();
+        }
+    }
+    let (client_write, _server_read) = duplex(8192);
+    let (mut server_write, client_read) = duplex(8192);
+    let client = Client::from_streams(client_read, client_write, std::env::temp_dir()).unwrap();
+    let started = Arc::new(Notify::new());
+    let cancelled = Arc::new(Notify::new());
+    let callback_started = started.clone();
+    let callback_cancelled = cancelled.clone();
+    client
+        .register_request_handler("host.shutdown", move |_, client| {
+            let started = callback_started.clone();
+            let cancelled = callback_cancelled.clone();
+            async move {
+                let _guard = OnDrop(cancelled);
+                let _client = client;
+                started.notify_one();
+                std::future::pending().await
+            }
+        })
+        .unwrap();
+    let request = serde_json::json!({"jsonrpc":"2.0","id":43,"method":"host.shutdown","params":{}});
+    write_framed(&mut server_write, &serde_json::to_vec(&request).unwrap()).await;
+    tokio::time::timeout(std::time::Duration::from_secs(2), started.notified())
+        .await
+        .unwrap();
+    drop(client);
+    server_write.shutdown().await.unwrap();
+    tokio::time::timeout(std::time::Duration::from_secs(2), cancelled.notified())
+        .await
+        .unwrap();
+}
+
+#[cfg(not(feature = "runtime"))]
+#[tokio::test]
+async fn external_stream_build_cannot_launch_or_discover_a_runtime() {
+    let error = Client::start(github_copilot_sdk::ClientOptions::default())
+        .await
+        .unwrap_err();
+    assert!(
+        error
+            .to_string()
+            .contains("requires the `runtime` Cargo feature")
+    );
+}
+
 async fn write_framed(writer: &mut (impl AsyncWrite + Unpin), body: &[u8]) {
     let header = format!("Content-Length: {}\r\n\r\n", body.len());
     writer.write_all(header.as_bytes()).await.unwrap();

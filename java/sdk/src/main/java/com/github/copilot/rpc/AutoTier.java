@@ -12,26 +12,26 @@ import com.fasterxml.jackson.annotation.JsonValue;
  *
  * @see CapiSessionOptions#setAutoTier(AutoTier)
  */
-public enum AutoTier {
+public final class AutoTier {
 
     /** Prioritize efficiency. */
-    EFFICIENCY("efficiency"),
+    public static final AutoTier EFFICIENCY = new AutoTier("efficiency");
 
     /** Balance efficiency and intelligence. */
-    BALANCE("balance"),
+    public static final AutoTier BALANCE = new AutoTier("balance");
 
     /** Prioritize intelligence. */
-    INTELLIGENCE("intelligence"),
+    public static final AutoTier INTELLIGENCE = new AutoTier("intelligence");
 
     /**
      * Integrator-only preset that optimizes for latency. Not a first-party GitHub
      * Copilot product preference.
      */
-    FAST("fast");
+    public static final AutoTier FAST = new AutoTier("fast");
 
     private final String value;
 
-    AutoTier(String value) {
+    private AutoTier(String value) {
         this.value = value;
     }
 
@@ -52,7 +52,7 @@ public enum AutoTier {
      *            the JSON string value
      * @return the matching tier, or {@code null} if value is {@code null}
      * @throws IllegalArgumentException
-     *             if the value does not match a known routing tier
+     *             if the value is not a routing identifier
      */
     @JsonCreator
     public static AutoTier fromValue(String value) {
@@ -64,6 +64,26 @@ public enum AutoTier {
                 return tier;
             }
         }
-        throw new IllegalArgumentException("Unknown AutoTier value: " + value);
+        return new AutoTier(com.github.copilot.generated.rpc.AutoTier.fromValue(value).getValue());
+    }
+
+    /** Returns the known convenience values. @return known routing tiers */
+    public static AutoTier[] values() {
+        return new AutoTier[]{EFFICIENCY, BALANCE, INTELLIGENCE, FAST};
+    }
+
+    @Override
+    public boolean equals(Object other) {
+        return other instanceof AutoTier tier && value.equals(tier.value);
+    }
+
+    @Override
+    public int hashCode() {
+        return value.hashCode();
+    }
+
+    @Override
+    public String toString() {
+        return value;
     }
 }

@@ -38,6 +38,10 @@ rust_library(
             "WORKSPACE.bazel",
         ],
     ),
+    crate_features = [
+        "openssl-src",
+        "vendored",
+    ],
     crate_root = "src/lib.rs",
     edition = "2021",
     rustc_env_files = [
@@ -65,7 +69,7 @@ rust_library(
     version = "0.9.117",
     deps = [
         ":build_script_main",
-        "@sdk_vendor__libc-0.2.186//:libc",
+        "@sdk_vendor__libc-0.2.190//:libc",
     ],
 )
 
@@ -96,6 +100,10 @@ cargo_build_script(
             "WORKSPACE.bazel",
         ],
     ),
+    crate_features = [
+        "openssl-src",
+        "vendored",
+    ],
     crate_name = "build_script_main",
     crate_root = "build/main.rs",
     data = glob(
@@ -132,8 +140,9 @@ cargo_build_script(
     version = "0.9.117",
     visibility = ["//visibility:private"],
     deps = [
-        "@sdk_vendor__cc-1.2.61//:cc",
-        "@sdk_vendor__pkg-config-0.3.33//:pkg_config",
+        "@sdk_vendor__cc-1.8.0//:cc",
+        "@sdk_vendor__openssl-src-300.6.1-3.6.3//:openssl_src",
+        "@sdk_vendor__pkg-config-0.3.34//:pkg_config",
         "@sdk_vendor__vcpkg-0.2.15//:vcpkg",
     ],
 )

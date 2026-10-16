@@ -9,14 +9,18 @@ use github_copilot_sdk::session_events::{
 };
 use github_copilot_sdk::{
     AgentMode, Attachment, AttachmentLineRange, AttachmentSelectionPosition,
-    AttachmentSelectionRange, CliProgram, Client, ClientOptions, CloudSessionOptions,
+    AttachmentSelectionRange, CliProgram, Client, ClientMode, ClientOptions, CloudSessionOptions,
     CloudSessionRepository, CopilotExpAssignmentResponse, DeliveryMode, ExtensionInfo,
     GitHubReferenceType, MessageOptions, MessageSource, ProviderConfig, ResumeSessionConfig,
-    SessionConfig, SessionId, Transport,
+    SessionConfig, SessionId, TranscriptRecovery, Transport,
 };
 use serde::Deserialize;
 use serde_json::{Value, json};
 use tempfile::TempDir;
+
+#[cfg(windows)]
+#[path = "client_options/windows_process_tree.rs"]
+mod windows_process_tree;
 
 #[tokio::test]
 async fn should_forward_advanced_session_creation_options_to_the_cli() {
@@ -32,6 +36,7 @@ async fn should_forward_advanced_session_creation_options_to_the_cli() {
         .create_session(
             SessionConfig::default()
                 .with_session_id("advanced-session-id")
+                .with_name("advanced session")
                 .with_client_name("rust-sdk-e2e-client")
                 .with_model("claude-sonnet-5")
                 .with_reasoning_effort("low")
@@ -46,6 +51,7 @@ async fn should_forward_advanced_session_creation_options_to_the_cli() {
                 .with_enable_file_hooks(false)
                 .with_enable_host_git_operations(false)
                 .with_enable_session_store(false)
+                .with_enable_github_cache_store(true)
                 .with_enable_skills(false)
                 .with_working_directory(working_dir.clone())
                 .with_streaming(true)
@@ -95,6 +101,7 @@ async fn should_forward_advanced_session_creation_options_to_the_cli() {
         params,
         [
             ("sessionId", json!("advanced-session-id")),
+            ("name", json!("advanced session")),
             ("clientName", json!("rust-sdk-e2e-client")),
             ("model", json!("claude-sonnet-5")),
             ("reasoningEffort", json!("low")),
@@ -112,6 +119,7 @@ async fn should_forward_advanced_session_creation_options_to_the_cli() {
             ("enableFileHooks", json!(false)),
             ("enableHostGitOperations", json!(false)),
             ("enableSessionStore", json!(false)),
+            ("enableGitHubCacheStore", json!(true)),
             ("enableSkills", json!(false)),
             ("workingDirectory", json!(path_string(&working_dir))),
             ("streaming", json!(true)),
@@ -213,6 +221,50 @@ async fn should_forward_singular_provider_configuration_on_session_creation() {
         ],
     );
     assert_eq!(provider["headers"]["x-provider"], json!("rust"));
+}
+
+#[tokio::test]
+async fn resume_transcript_recovery_defaults_overrides_and_projection() {
+    for mode in [ClientMode::Empty, ClientMode::CopilotCli] {
+        for choice in [None, Some(false), Some(true)] {
+            let fake = FakeCli::new();
+            let reports_recovery = choice.unwrap_or(true);
+            let behavior = if reports_recovery {
+                "transcript-recovery"
+            } else {
+                "normal"
+            };
+            let client = Client::start(
+                fake.client_options_with_behavior("recovery-client-token", behavior)
+                    .with_mode(mode)
+                    .with_base_directory(fake.path("state")),
+            )
+            .await
+            .expect("start fake CLI client");
+            let mut config = ResumeSessionConfig::new("recovery-session".into())
+                .with_available_tools(Vec::<String>::new());
+            if let Some(allow) = choice {
+                config = config.with_allow_transcript_recovery(allow);
+            }
+            let session = client.resume_session(config).await.expect("resume session");
+            session.disconnect().await.expect("disconnect session");
+            client.stop().await.expect("stop client");
+
+            let request = fake.captured_request("session.resume");
+            let expected = choice.map(Value::Bool);
+            assert_eq!(
+                request.params.get("allowTranscriptRecovery"),
+                expected.as_ref(),
+                "mode: {mode:?}, choice: {choice:?}"
+            );
+            let recovery = reports_recovery.then(|| TranscriptRecovery {
+                planned_backup_path: "recovery-backup.jsonl".into(),
+                invalid_line_numbers: vec![3, 5],
+                session_start_moved: true,
+            });
+            assert_eq!(session.transcript_recovery(), recovery.as_ref());
+        }
+    }
 }
 
 #[tokio::test]
@@ -651,6 +703,252 @@ async fn remote_resource_mismatch_is_observable_before_resume() {
     );
 }
 
+#[tokio::test]
+async fn stdio_stop_waits_for_eof_cleanup() {
+    let fake = ShutdownCli::new("stop");
+    let client = Client::start(fake.options()).await.expect("start fake CLI");
+    let pid = client.pid().expect("owned child");
+    tokio::time::timeout(Duration::from_secs(40), client.stop())
+        .await
+        .expect("shutdown RPC, graceful exit, and reap must be bounded")
+        .expect("stop client");
+    assert_eq!(
+        std::fs::read_to_string(&fake.marker).expect("EOF cleanup"),
+        "{\"type\":\"span\"}\n"
+    );
+    assert!(!process_is_alive(pid).await);
+    client.stop().await.expect("repeated stop");
+}
+
+#[tokio::test]
+async fn stdio_stop_drains_stdout_during_eof_cleanup() {
+    let fake = FakeCli::new();
+    let client = Client::start(fake.client_options_with_behavior("token", "shutdown-output"))
+        .await
+        .expect("start fake CLI");
+    tokio::time::timeout(Duration::from_secs(40), client.stop())
+        .await
+        .expect("shutdown RPC, graceful exit, and reap must be bounded")
+        .expect("stop client");
+    assert_eq!(
+        std::fs::read_to_string(fake.capture_path.with_extension("cleanup"))
+            .expect("cleanup after draining final stdout"),
+        "flushed"
+    );
+}
+
+#[tokio::test]
+async fn stdio_stop_preserves_shutdown_error_after_eof_cleanup() {
+    let fake = FakeCli::new();
+    let client = Client::start(fake.client_options_with_behavior("token", "shutdown-error"))
+        .await
+        .expect("start fake CLI");
+    let errors = tokio::time::timeout(Duration::from_secs(40), client.stop())
+        .await
+        .expect("shutdown RPC, graceful exit, and reap must be bounded")
+        .expect_err("shutdown error must be returned");
+    assert!(errors.to_string().contains("shutdown rejected"), "{errors}");
+    assert_eq!(
+        std::fs::read_to_string(fake.capture_path.with_extension("cleanup"))
+            .expect("EOF cleanup despite RPC failure"),
+        "flushed"
+    );
+}
+
+#[tokio::test]
+async fn stdio_stop_bounds_unresponsive_shutdown_and_eof() {
+    let fake = FakeCli::new();
+    let client = Client::start(fake.client_options_with_behavior("token", "ignore-shutdown"))
+        .await
+        .expect("start fake CLI");
+    let pid = client.pid().expect("owned child");
+    let start = std::time::Instant::now();
+    let errors = tokio::time::timeout(Duration::from_secs(40), client.stop())
+        .await
+        .expect("10s RPC + 10s graceful exit + 10s reap must be bounded")
+        .expect_err("unanswered shutdown must report its timeout");
+    assert!(errors.to_string().contains("timed out"), "{errors}");
+    assert!(start.elapsed() >= Duration::from_secs(20));
+    assert!(!process_is_alive(pid).await);
+    assert!(!fake.capture_path.with_extension("cleanup").exists());
+}
+
+#[tokio::test]
+async fn stdio_stop_terminates_child_that_does_not_exit_after_eof() {
+    let fake = ShutdownCli::new("fallback");
+    let client = Client::start(fake.options()).await.expect("start fake CLI");
+    let pid = client.pid().expect("owned child");
+    let start = std::time::Instant::now();
+    tokio::time::timeout(Duration::from_secs(40), client.stop())
+        .await
+        .expect("shutdown RPC, graceful exit, and reap must be bounded")
+        .expect("fallback termination succeeds");
+    assert!(start.elapsed() >= Duration::from_secs(10));
+    assert!(!process_is_alive(pid).await);
+    assert!(
+        fake.marker.exists(),
+        "fixture must observe shutdown and EOF"
+    );
+    assert_eq!(
+        std::fs::read_to_string(&fake.marker).expect("EOF cleanup"),
+        "{\"type\":\"span\"}\n"
+    );
+}
+
+#[tokio::test]
+async fn stdio_force_stop_interrupts_graceful_exit_wait() {
+    let fake = ShutdownCli::new("fallback");
+    let client = Client::start(fake.options()).await.expect("start fake CLI");
+    let pid = client.pid().expect("owned child");
+    let stopping = tokio::spawn({
+        let client = client.clone();
+        async move { client.stop().await }
+    });
+    wait_for_cleanup_marker(&fake.marker).await;
+
+    client.force_stop();
+    tokio::time::timeout(Duration::from_secs(5), async {
+        stopping.await.expect("stop task").expect("stop client");
+        wait_for_process_exit(pid).await;
+    })
+    .await
+    .expect("force stop must interrupt grace before its 10-second deadline");
+}
+
+#[tokio::test]
+async fn stdio_cancelled_graceful_exit_wait_terminates_child() {
+    let fake = ShutdownCli::new("fallback");
+    let client = Client::start(fake.options()).await.expect("start fake CLI");
+    let pid = client.pid().expect("owned child");
+    let stopping = tokio::spawn({
+        let client = client.clone();
+        async move { client.stop().await }
+    });
+    wait_for_cleanup_marker(&fake.marker).await;
+
+    stopping.abort();
+    assert!(
+        stopping
+            .await
+            .expect_err("stop task cancelled")
+            .is_cancelled()
+    );
+    wait_for_process_exit(pid).await;
+    assert!(client.pid().is_none());
+}
+
+async fn wait_for_cleanup_marker(path: &std::path::Path) {
+    tokio::time::timeout(Duration::from_secs(5), async {
+        loop {
+            match std::fs::read_to_string(path) {
+                Ok(content) if content == "{\"type\":\"span\"}\n" => return,
+                Ok(_) => {}
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                Err(error) => panic!("read cleanup marker: {error}"),
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("fixture must reach EOF cleanup during graceful shutdown");
+}
+
+#[tokio::test]
+async fn stdio_force_stop_and_drop_remain_immediate() {
+    for force in [true, false] {
+        let fake = ShutdownCli::new("force");
+        let client = Client::start(fake.options()).await.expect("start fake CLI");
+        let pid = client.pid().expect("owned child");
+        if force {
+            client.force_stop();
+            assert!(client.pid().is_none());
+        }
+        drop(client);
+        wait_for_process_exit(pid).await;
+        assert!(!fake.marker.exists());
+    }
+}
+
+#[tokio::test]
+async fn stdio_startup_failure_terminates_owned_child() {
+    let fake = ShutdownCli::new("start-failure");
+    let result = tokio::time::timeout(Duration::from_secs(5), Client::start(fake.options()))
+        .await
+        .expect("startup failure must not await graceful shutdown");
+    assert!(result.is_err());
+    let pid = std::fs::read_to_string(&fake.pid_file)
+        .expect("read child PID")
+        .parse()
+        .expect("parse child PID");
+    wait_for_process_exit(pid).await;
+    assert!(!fake.marker.exists());
+}
+
+struct ShutdownCli {
+    dir: TempDir,
+    marker: PathBuf,
+    pid_file: PathBuf,
+    mode: &'static str,
+}
+
+impl ShutdownCli {
+    fn new(mode: &'static str) -> Self {
+        let dir = tempfile::tempdir().expect("create shutdown fixture directory");
+        Self {
+            marker: dir.path().join("cleanup.jsonl"),
+            pid_file: dir.path().join("child.pid"),
+            dir,
+            mode,
+        }
+    }
+
+    fn options(&self) -> ClientOptions {
+        let script = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../test/harness/stdio-shutdown-runtime.cjs");
+        ClientOptions::new()
+            .with_program(CliProgram::Path("node".into()))
+            .with_prefix_args([
+                script.into_os_string(),
+                self.marker.clone().into_os_string(),
+                self.mode.into(),
+                self.pid_file.clone().into_os_string(),
+            ])
+            .with_cwd(self.dir.path())
+            .with_use_logged_in_user(false)
+            .with_transport(Transport::Stdio)
+    }
+}
+
+async fn process_is_alive(pid: u32) -> bool {
+    let output = tokio::process::Command::new("node")
+        .args([
+            "-e",
+            "try { process.kill(Number(process.argv[1]), 0); } catch (e) { if (e.code === 'ESRCH') process.exit(3); throw e; }",
+            &pid.to_string(),
+        ])
+        .output()
+        .await
+        .expect("query child process");
+    match output.status.code() {
+        Some(0) => true,
+        Some(3) => false,
+        _ => panic!(
+            "query child process: {}",
+            String::from_utf8_lossy(&output.stderr)
+        ),
+    }
+}
+
+async fn wait_for_process_exit(pid: u32) {
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while process_is_alive(pid).await {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("owned child must exit promptly");
+}
+
 struct FakeCli {
     _dir: TempDir,
     script_path: PathBuf,
@@ -776,6 +1074,29 @@ process.stdin.on("data", chunk => {
   processBuffer();
 });
 process.stdin.resume();
+if (["ignore-shutdown", "shutdown-error", "shutdown-output"].includes(behavior)) {
+  const keepAlive = setInterval(() => {}, 1000);
+  process.stdin.on("end", () => {
+    if (behavior === "ignore-shutdown") return;
+    if (behavior === "shutdown-output") {
+      const body = JSON.stringify({
+        jsonrpc: "2.0",
+        method: "shutdown.output",
+        params: { output: "x".repeat(1024 * 1024) },
+      });
+      process.stdout.write(`Content-Length: ${Buffer.byteLength(body)}\r\n\r\n${body}`, error => {
+        if (error) throw error;
+        fs.writeFileSync(captureFile.replace(/\.json$/, ".cleanup"), "flushed");
+        clearInterval(keepAlive);
+      });
+      return;
+    }
+    setTimeout(() => {
+      fs.writeFileSync(captureFile.replace(/\.json$/, ".cleanup"), "flushed");
+      clearInterval(keepAlive);
+    }, 100);
+  });
+}
 
 function processBuffer() {
   while (true) {
@@ -802,6 +1123,11 @@ function handleMessage(message) {
   saveCapture();
   if (message.method === "connect") {
     writeResponse(message.id, { ok: true, protocolVersion: 3, version: "fake" });
+    return;
+  }
+  if (message.method === "runtime.shutdown" && behavior === "ignore-shutdown") return;
+  if (message.method === "runtime.shutdown" && behavior === "shutdown-error") {
+    writeMessage({ jsonrpc: "2.0", id: message.id, error: { code: -32000, message: "shutdown rejected" } });
     return;
   }
   if (message.method === "ping") {
@@ -864,7 +1190,15 @@ function handleMessage(message) {
   }
   if (message.method === "session.resume") {
     const sessionId = (message.params && message.params.sessionId) || "fake-session";
-    writeResponse(message.id, { sessionId, workspacePath: null, capabilities: null, openCanvases: [] });
+    const result = { sessionId, workspacePath: null, capabilities: null, openCanvases: [] };
+    if (behavior === "transcript-recovery") {
+      result.transcriptRecovery = {
+        plannedBackupPath: "recovery-backup.jsonl",
+        invalidLineNumbers: [3, 5],
+        sessionStartMoved: true,
+      };
+    }
+    writeResponse(message.id, result);
     return;
   }
   if (message.method === "session.options.update") {

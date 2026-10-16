@@ -30,7 +30,10 @@ public class MultiClientCommandsElicitationFixture : IAsyncLifetime
 
     public async Task DisposeAsync()
     {
-        await Ctx.DisposeAsync();
+        if (Ctx is not null)
+        {
+            await Ctx.DisposeAsync();
+        }
     }
 }
 
@@ -259,4 +262,3 @@ public class MultiClientCommandsElicitationE2ETests
             "After elicitation provider disconnects, capability should be removed");
     }
 }
-

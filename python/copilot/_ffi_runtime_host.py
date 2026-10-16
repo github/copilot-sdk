@@ -493,7 +493,8 @@ class FfiRuntimeHost:
         """Close the FFI connection, shut down the native host, release resources.
 
         Idempotent. Callback state remains rooted until connection_close reports
-        that native callbacks are quiescent.
+        that native callbacks are quiescent. Native shutdown may block; async
+        callers must run this method off the event loop.
         """
         with self._dispose_lock:
             if self._disposed:

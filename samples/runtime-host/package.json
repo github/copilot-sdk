@@ -1,0 +1,5 @@
+{
+  "name": "runtime-host-source-smoke",
+  "private": true,
+  "type": "module"
+}

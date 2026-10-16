@@ -35,6 +35,55 @@ All hooks are **optional**—register only the ones you need. Returning `null` (
 
 ## Registering hooks
 
+Callback `hooks` remain separate from file-backed `hookDirectories`. For packaged hook configurations and adjacent resources, see [customization discovery locations](./customization-locations.md).
+
+### Agent-scoped declarative hooks
+
+Custom agents can declare a `hooks` event map in `.agent.md` frontmatter or in
+the SDK's custom-agent configuration. These are declarative command or HTTP
+actions, not SDK callback functions. They run only while that agent is selected,
+in addition to applicable session, user, repository, plugin, and managed-policy
+hooks. Changing or clearing the selected agent changes the scoped hooks for the
+next invocation without changing other sessions or concurrent subagents.
+
+```yaml
+---
+name: formatter
+description: Formats changed files
+hooks:
+  PostToolUse:
+    - type: command
+      command: ./scripts/format-changed-files.sh
+      windows: ./scripts/format-changed-files.ps1
+---
+Format the files you change.
+```
+
+Both runtime event names such as `postToolUse` and supported VS Code aliases
+such as `PostToolUse` are accepted. `command` supplies the fallback shell command;
+`windows`, `linux`, and `osx` override it on the corresponding platform. Hook
+commands are relative to the executing session's repository root, unless they
+set an explicit working directory. Hook payloads and decisions follow the
+runtime's existing hook contracts.
+
+When a local agent runs as a subagent, its scoped `Stop` (`agentStop`) actions
+run at `SubagentStop` instead of ordinary turn stop. An explicit `SubagentStop`
+action on that agent still observes its own children. Stop callbacks receive
+`stop_hook_active: true` after a prior block. After eight consecutive scoped
+Stop continuations, the runtime ignores further scoped blocks and accepts the
+child's final response unless a parent lifecycle hook still blocks completion.
+
+Repository and inherited-agent hooks require workspace admission. Agent
+discovery or selection does not itself grant trust. Existing hook-disable
+settings, enterprise restrictions, sandbox permissions, and timeouts also apply
+to scoped actions. SDK-provided agents cannot claim managed-plugin privileges.
+Remote or organization-hosted agent definitions do not execute scoped hooks,
+and scoped Stop dispatch is supported for local runtime subagents, not external
+AHP participants.
+
+Unsupported event names are reported before event selection. Action preparation
+errors affect only their declared event; shared and managed-policy hooks still run.
+
 Pass a `hooks` object when you create (or resume) a session. Every example below follows this pattern.
 
 <details open>

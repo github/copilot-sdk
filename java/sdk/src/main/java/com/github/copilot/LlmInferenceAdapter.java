@@ -71,6 +71,7 @@ final class LlmInferenceAdapter {
         String requestId = params.get("requestId").asText();
         String sessionId = textOrNull(params, "sessionId");
         String agentId = textOrNull(params, "agentId");
+        String agentInvocationId = textOrNull(params, "agentInvocationId");
         String parentAgentId = textOrNull(params, "parentAgentId");
         String interactionType = textOrNull(params, "interactionType");
         String method = textOrNull(params, "method");
@@ -82,8 +83,8 @@ final class LlmInferenceAdapter {
         // body — rather than dropping those frames.
         LlmInferenceExchange exchange = getOrCreateExchange(requestId);
         exchange.setMethod(method);
-        exchange.setContext(new CopilotRequestContext(requestId, sessionId, agentId, parentAgentId, interactionType,
-                transport, url, headers, exchange.cancellation()));
+        exchange.setContext(new CopilotRequestContext(requestId, sessionId, agentId, agentInvocationId, parentAgentId,
+                interactionType, transport, url, headers, exchange.cancellation()));
 
         // Return from httpRequestStart immediately (after registering state) so the
         // runtime's RPC reply is not gated on the consumer's I/O. The actual handler
@@ -111,7 +112,7 @@ final class LlmInferenceAdapter {
         boolean binary = boolOr(params, "binary");
         if (!data.isEmpty()) {
             byte[] bytes = binary ? Base64.getDecoder().decode(data) : data.getBytes(StandardCharsets.UTF_8);
-            exchange.pushChunk(bytes, binary);
+            exchange.pushChunk(bytes, binary, textOrNull(params, "agentInvocationId"));
         }
         if (boolOr(params, "end")) {
             exchange.pushEnd();

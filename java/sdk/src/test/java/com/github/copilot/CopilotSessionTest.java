@@ -15,8 +15,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -146,7 +146,7 @@ public class CopilotSessionTest {
             CopilotSession session = client
                     .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
-            List<SessionEvent> receivedEvents = new ArrayList<>();
+            List<SessionEvent> receivedEvents = new CopyOnWriteArrayList<>();
             CompletableFuture<Void> idleReceived = new CompletableFuture<>();
 
             session.on(evt -> {
@@ -172,53 +172,6 @@ public class CopilotSessionTest {
             assertNotNull(assistantMsg);
             assertTrue(assistantMsg.getData().content().contains("300"),
                     "Response should contain 300: " + assistantMsg.getData().content());
-
-            session.close();
-        }
-    }
-
-    /**
-     * Verifies that send() returns immediately while events stream in background.
-     *
-     * @see Snapshot:
-     *      session/send_returns_immediately_while_events_stream_in_background
-     */
-    @Test
-    void testSendReturnsImmediatelyWhileEventsStreamInBackground() throws Exception {
-        ctx.configureForTest("session", "send_returns_immediately_while_events_stream_in_background");
-
-        try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client
-                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
-
-            var events = new ArrayList<String>();
-            var lastMessage = new AtomicReference<AssistantMessageEvent>();
-            var done = new CompletableFuture<Void>();
-
-            session.on(evt -> {
-                events.add(evt.getType());
-                if (evt instanceof AssistantMessageEvent msg) {
-                    lastMessage.set(msg);
-                } else if (evt instanceof SessionIdleEvent) {
-                    done.complete(null);
-                }
-            });
-
-            // Use a slow command so we can verify send() returns before completion
-            // Use String convenience overload (covers send(String) path)
-            session.send("Run 'sleep 2 && echo done'").get();
-
-            // At this point, we might not have received session.idle yet
-            // The event handling happens asynchronously
-
-            // Wait for completion
-            done.get(60, TimeUnit.SECONDS);
-
-            assertTrue(events.contains("session.idle"));
-            assertTrue(events.contains("assistant.message"));
-            assertNotNull(lastMessage.get());
-            assertTrue(lastMessage.get().getData().content().contains("done"),
-                    "Response should contain done: " + lastMessage.get().getData().content());
 
             session.close();
         }

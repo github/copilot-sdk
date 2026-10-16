@@ -106,6 +106,7 @@ public class SerializationTests
             Headers = new Dictionary<string, string> { ["Authorization"] = "Bearer provider-token" },
             ModelId = "gpt-4o",
             WireModel = "my-finetune-v3",
+            ModelProvider = "lm_studio",
             MaxPromptTokens = 100_000,
             MaxOutputTokens = 4096,
             Transport = "websockets"
@@ -118,6 +119,7 @@ public class SerializationTests
         Assert.Equal("Bearer provider-token", root.GetProperty("headers").GetProperty("Authorization").GetString());
         Assert.Equal("gpt-4o", root.GetProperty("modelId").GetString());
         Assert.Equal("my-finetune-v3", root.GetProperty("wireModel").GetString());
+        Assert.Equal("lm_studio", root.GetProperty("modelProvider").GetString());
         Assert.Equal(100_000, root.GetProperty("maxPromptTokens").GetInt32());
         Assert.Equal(4096, root.GetProperty("maxOutputTokens").GetInt32());
         Assert.Equal("websockets", root.GetProperty("transport").GetString());
@@ -128,9 +130,33 @@ public class SerializationTests
         Assert.Equal("Bearer provider-token", deserialized.Headers!["Authorization"]);
         Assert.Equal("gpt-4o", deserialized.ModelId);
         Assert.Equal("my-finetune-v3", deserialized.WireModel);
+        Assert.Equal("lm_studio", deserialized.ModelProvider);
         Assert.Equal(100_000, deserialized.MaxPromptTokens);
         Assert.Equal(4096, deserialized.MaxOutputTokens);
         Assert.Equal("websockets", deserialized.Transport);
+    }
+
+    [Fact]
+    public void NamedProviderConfig_CanSerializeModelProvider_WithSdkOptions()
+    {
+        var options = GetSerializerOptions();
+        var original = new NamedProviderConfig
+        {
+            Name = "local",
+            Type = "openai",
+            BaseUrl = "http://localhost:11434/v1",
+            ModelProvider = "ollama"
+        };
+
+        var json = JsonSerializer.Serialize(original, options);
+        using var document = JsonDocument.Parse(json);
+        var root = document.RootElement;
+        Assert.Equal("local", root.GetProperty("name").GetString());
+        Assert.Equal("ollama", root.GetProperty("modelProvider").GetString());
+
+        var deserialized = JsonSerializer.Deserialize<NamedProviderConfig>(json, options);
+        Assert.NotNull(deserialized);
+        Assert.Equal("ollama", deserialized.ModelProvider);
     }
 
     [Fact]
@@ -987,6 +1013,7 @@ public class SerializationTests
             OauthClientId = "client-id",
             OauthPublicClient = false,
             OauthGrantType = McpHttpServerConfigOauthGrantType.ClientCredentials,
+            OauthScopes = ["configured.read", "configured.write"],
             Tools = ["*"],
             Timeout = 3000
         };
@@ -1000,6 +1027,9 @@ public class SerializationTests
         Assert.Equal("client-id", root.GetProperty("oauthClientId").GetString());
         Assert.False(root.GetProperty("oauthPublicClient").GetBoolean());
         Assert.Equal("client_credentials", root.GetProperty("oauthGrantType").GetString());
+        Assert.Equal(
+            ["configured.read", "configured.write"],
+            root.GetProperty("oauthScopes").EnumerateArray().Select(scope => scope.GetString()));
         Assert.Equal("*", root.GetProperty("tools")[0].GetString());
         Assert.Equal(3000, root.GetProperty("timeout").GetInt32());
 
@@ -1010,6 +1040,7 @@ public class SerializationTests
         Assert.Equal("client-id", httpConfig.OauthClientId);
         Assert.False(httpConfig.OauthPublicClient);
         Assert.Equal(McpHttpServerConfigOauthGrantType.ClientCredentials, httpConfig.OauthGrantType);
+        Assert.Equal(["configured.read", "configured.write"], httpConfig.OauthScopes);
         Assert.Equal("*", Assert.Single(httpConfig.Tools!));
         Assert.Equal(3000, httpConfig.Timeout);
     }
@@ -1074,6 +1105,42 @@ public class SerializationTests
         Assert.Equal(DateTimeOffset.FromUnixTimeMilliseconds(1700000000000), input.Timestamp);
     }
 
+    [Theory]
+    [InlineData("""{"name":"Error","message":"model timeout","stack":"Error: model timeout"}""", "model timeout")]
+    [InlineData("\"boom\"", "boom")]
+    [InlineData("""{"code":7}""", """{"code":7}""")]
+    public void ErrorOccurredHookInput_DecodesCliErrorShapes(string error, string expected)
+    {
+        var options = GetSerializerOptions();
+        var input = JsonSerializer.Deserialize<ErrorOccurredHookInput>(
+            $$"""{"sessionId":"session-1","timestamp":1700000000000,"cwd":"/repo","error":{{error}},"errorContext":"model_call","recoverable":true}""",
+            options);
+
+        Assert.NotNull(input);
+        Assert.Equal(expected, input.Error);
+        Assert.Equal("model_call", input.ErrorContext);
+        Assert.True(input.Recoverable);
+    }
+
+    [Theory]
+    [InlineData("""{"message":"model timeout"}""", "model timeout")]
+    [InlineData("\"boom\"", "boom")]
+    [InlineData("null", null)]
+    [InlineData(null, null)]
+    [InlineData("""{"code":7}""", """{"code":7}""")]
+    public void SessionEndHookInput_DecodesCliErrorShapes(string? error, string? expected)
+    {
+        var options = GetSerializerOptions();
+        var errorField = error is null ? string.Empty : $",\"error\":{error}";
+        var input = JsonSerializer.Deserialize<SessionEndHookInput>(
+            $$"""{"sessionId":"session-1","timestamp":1700000000000,"cwd":"/repo","reason":"error"{{errorField}}}""",
+            options);
+
+        Assert.NotNull(input);
+        Assert.Equal(expected, input.Error);
+        Assert.Equal("error", input.Reason);
+    }
+
     [Fact]
     public void AgentStopHookOutput_SerializesBlockDecision_WithSdkOptions()
     {
@@ -1088,6 +1155,39 @@ public class SerializationTests
 
         Assert.Equal("block", json.GetProperty("decision").GetString());
         Assert.Equal("finish the remaining work", json.GetProperty("reason").GetString());
+    }
+
+    [Fact]
+    public void HooksInvokeResponse_SerializesUserPromptSubmittedBlock_WithSdkOptions()
+    {
+        var options = GetSerializerOptions();
+        var hookOutput = new UserPromptSubmittedHookOutput
+        {
+            Decision = "block",
+            Reason = "Prompts may not mention launch codes."
+        };
+
+        // The exact path SendResultResponseAsync takes: the internal HooksInvokeResponse wraps the output.
+        var responseType = GetNestedType(typeof(CopilotClient), "HooksInvokeResponse");
+        var response = CreateInternalRequest(responseType, ("Output", hookOutput));
+        var json = JsonSerializer.SerializeToElement(response, options.GetTypeInfo(response.GetType()));
+
+        var output = json.GetProperty("output");
+        Assert.Equal("block", output.GetProperty("decision").GetString());
+        Assert.Equal("Prompts may not mention launch codes.", output.GetProperty("reason").GetString());
+        Assert.False(output.TryGetProperty("modifiedPrompt", out _));
+    }
+
+    [Fact]
+    public void UserPromptSubmittedHookOutput_OmitsUnsetBlockFields_WithSdkOptions()
+    {
+        var options = GetSerializerOptions();
+        var output = new UserPromptSubmittedHookOutput { AdditionalContext = "Be brief." };
+        var json = JsonSerializer.SerializeToElement(output, options);
+
+        Assert.Equal("Be brief.", json.GetProperty("additionalContext").GetString());
+        Assert.False(json.TryGetProperty("decision", out _));
+        Assert.False(json.TryGetProperty("reason", out _));
     }
 
     [Fact]
@@ -1252,7 +1352,7 @@ public class SerializationTests
         Assert.True(switchAutoTierDocument.RootElement.TryGetProperty("autoTier", out var requiredAutoTier));
         Assert.Equal(JsonValueKind.Null, requiredAutoTier.ValueKind);
 
-        var switchToType = assembly.GetType("GitHub.Copilot.Rpc.ModelSwitchToRequest");
+        var switchToType = assembly.GetType("GitHub.Copilot.Rpc.ModelSwitchToRequestWithSession");
         Assert.NotNull(switchToType);
         var switchToRequest = CreateInternalRequest(
             switchToType!,

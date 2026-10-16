@@ -23,7 +23,7 @@ import javax.annotation.processing.Generated;
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record SessionConnectorsReconcileForStartupParams(
+record SessionConnectorsReconcileForStartupParams(
     /** Target session identifier */
     @JsonProperty("sessionId") String sessionId,
     /** Opaque account selection ID previously returned by an account discovery API. */
