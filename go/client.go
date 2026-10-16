@@ -2350,6 +2350,7 @@ func (c *Client) startCLIServer(ctx context.Context) error {
 
 		// Create JSON-RPC client immediately
 		c.client = jsonrpc2.NewClient(stdin, stdout)
+		c.client.SetLogger(c.options.ProtocolLogger)
 		c.client.SetProcessDone(c.processDone, c.processErrorPtr)
 		c.client.SetOnClose(c.handleConnectionClose)
 		c.RPC = rpc.NewServerRPC(c.client)
@@ -2468,6 +2469,7 @@ func (c *Client) startInProcess(ctx context.Context) error {
 	}
 
 	c.client = jsonrpc2.NewClient(host.Writer(), host.Reader())
+	c.client.SetLogger(c.options.ProtocolLogger)
 	c.client.SetOnClose(c.handleConnectionClose)
 	c.RPC = rpc.NewServerRPC(c.client)
 	c.internalRPC = rpc.NewInternalServerRPC(c.client)
@@ -2622,6 +2624,7 @@ func (c *Client) connectViaTCP(ctx context.Context) error {
 
 	// Create JSON-RPC client with the connection
 	c.client = jsonrpc2.NewClient(conn, conn)
+	c.client.SetLogger(c.options.ProtocolLogger)
 	if c.processDone != nil {
 		c.client.SetProcessDone(c.processDone, c.processErrorPtr)
 	}
