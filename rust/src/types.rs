@@ -3708,6 +3708,20 @@ impl SessionConfig {
 pub struct ResumeSessionConfig {
     /// ID of the session to resume.
     pub session_id: SessionId,
+    /// Whether the SDK automatically reloads skills after the runtime resumes.
+    ///
+    /// Unset or `true` preserves the awaited, best-effort
+    /// `session.skills.reload` call: returned errors are logged, but an
+    /// unanswered request still delays resume completion. Set `false` only
+    /// when the caller owns any required skill reconciliation before
+    /// skill-dependent work.
+    ///
+    /// This SDK-local option is not sent to the runtime. It does not disable
+    /// skills or imply that the catalog or disabled-skill preferences are
+    /// current. It does not gate continued pending work or work already
+    /// running on another connection, nor cancel or settle an already-issued
+    /// reload.
+    pub reload_skills: Option<bool>,
     /// Model to use for this session (e.g. `"gpt-4"`, `"claude-sonnet-4"`).
     /// Can change the model when resuming.
     pub model: Option<String>,
@@ -4035,6 +4049,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ResumeSessionConfig")
             .field("session_id", &self.session_id)
+            .field("reload_skills", &self.reload_skills)
             .field("model", &self.model)
             .field("allowed_models", &self.allowed_models)
             .field("client_name", &self.client_name)
@@ -4349,6 +4364,7 @@ impl ResumeSessionConfig {
     pub fn new(session_id: SessionId) -> Self {
         Self {
             session_id,
+            reload_skills: None,
             model: None,
             allowed_models: None,
             client_name: None,
@@ -4447,6 +4463,12 @@ impl ResumeSessionConfig {
             manage_schedule_enabled: None,
             event_buffer_capacity: None,
         }
+    }
+
+    /// Set [`Self::reload_skills`], controlling the SDK's automatic skill reload.
+    pub fn with_reload_skills(mut self, reload_skills: bool) -> Self {
+        self.reload_skills = Some(reload_skills);
+        self
     }
 
     /// Install a [`PermissionHandler`] for the resumed session.
