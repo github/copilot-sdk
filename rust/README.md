@@ -130,6 +130,9 @@ ordinary-spawn retry after terminating the original. This logged fallback uses
 best-effort Job assignment: early descendants can escape, and assignment failure
 leaves only direct-child cleanup, without crash-safe SDK-host-exit ownership.
 
+Descendants explicitly launched with `CREATE_BREAKAWAY_FROM_JOB` can leave the
+SDK-owned Job and survive its cleanup.
+
 **`ClientOptions`:**
 
 | Field               | Type                        | Description                                                       |

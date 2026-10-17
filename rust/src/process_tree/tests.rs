@@ -23,7 +23,11 @@ use windows_sys::Win32::Security::{
 use windows_sys::Win32::System::Diagnostics::ToolHelp::{
     CreateToolhelp32Snapshot, TH32CS_SNAPTHREAD, THREADENTRY32, Thread32First, Thread32Next,
 };
-use windows_sys::Win32::System::JobObjects::IsProcessInJob;
+use windows_sys::Win32::System::JobObjects::{
+    IsProcessInJob, JOB_OBJECT_LIMIT_BREAKAWAY_OK, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+    JOB_OBJECT_LIMIT_SILENT_BREAKAWAY_OK, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
+    JobObjectExtendedLimitInformation, QueryInformationJobObject,
+};
 use windows_sys::Win32::System::Threading::{
     GetCurrentProcess, GetCurrentProcessId, GetCurrentThread, GetCurrentThreadId, OpenProcess,
     OpenProcessToken, OpenThread, OpenThreadToken, PROCESS_SYNCHRONIZE, SetThreadToken,
@@ -776,6 +780,53 @@ async fn initial_thread_executes_only_after_private_job_assignment() {
         "ready"
     );
     drop(tree);
+}
+
+#[tokio::test]
+async fn private_job_allows_only_explicit_breakaway() {
+    let _reset = ResetHooks;
+    BEFORE_RESUME.with_borrow_mut(|hook| {
+        *hook = Some(Box::new(|_, job| {
+            let mut limits = JOBOBJECT_EXTENDED_LIMIT_INFORMATION::default();
+            // SAFETY: the Job remains owned and `limits` matches the requested information class.
+            let queried = unsafe {
+                QueryInformationJobObject(
+                    job,
+                    JobObjectExtendedLimitInformation,
+                    ptr::from_mut(&mut limits).cast(),
+                    std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
+                    ptr::null_mut(),
+                )
+            };
+            assert_ne!(queried, 0, "{}", io::Error::last_os_error());
+            let flags = limits.BasicLimitInformation.LimitFlags;
+            let required = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE | JOB_OBJECT_LIMIT_BREAKAWAY_OK;
+            assert_eq!(
+                flags & required,
+                required,
+                "private Job must retain kill-on-close and permit explicit breakaway"
+            );
+            assert_eq!(
+                flags & JOB_OBJECT_LIMIT_SILENT_BREAKAWAY_OK,
+                0,
+                "ordinary descendants must not silently escape the private Job"
+            );
+            Ok(())
+        }));
+    });
+    let mut command = command();
+    command.args(["exit", "/b", "0"]);
+    let (mut child, tree) = super::spawn(&mut command).expect("spawn owned child");
+    assert!(
+        BEFORE_RESUME.with_borrow(Option::is_none),
+        "job policy must be checked before resume"
+    );
+    let status = tokio::time::timeout(Duration::from_secs(5), child.wait())
+        .await
+        .expect("child must exit")
+        .expect("reap child");
+    drop(tree);
+    assert!(status.success());
 }
 
 #[tokio::test]
