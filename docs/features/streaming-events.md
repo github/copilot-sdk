@@ -1017,7 +1017,7 @@ This table lists key `data` payload fields. Common envelope fields are documente
 | `assistant.message` | | Assistant | `messageId`, `content`, `toolRequests?`, `outputTokens?`, `phase?` |
 | `assistant.message_delta` | ✅ | Assistant | `messageId`, `deltaContent` |
 | `assistant.turn_end` | | Assistant | `turnId` |
-| `assistant.usage` | ✅ | Assistant | `model`, `apiEndpoint?`, `inputTokens?`, `outputTokens?`, `cost?`, `duration?` |
+| `assistant.usage` | ✅ | Assistant | `model`, `apiEndpoint?`, `inputTokens?`, `outputTokens?`, `cacheReadTokens?`, `cacheWriteTokens?`, `cost?`, `duration?` |
 | `tool.user_requested` | | Tool | `toolCallId`, `toolName`, `arguments?` |
 | `tool.execution_start` | | Tool | `toolCallId`, `toolName`, `arguments?`, `mcpServerName?` |
 | `tool.execution_partial_result` | ✅ | Tool | `toolCallId`, `partialOutput` |
