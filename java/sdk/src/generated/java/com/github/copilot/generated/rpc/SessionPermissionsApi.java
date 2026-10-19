@@ -8,6 +8,7 @@
 package com.github.copilot.generated.rpc;
 
 import com.github.copilot.CopilotExperimental;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.processing.Generated;
 
@@ -55,6 +56,21 @@ public final class SessionPermissionsApi {
     @CopilotExperimental
     public CompletableFuture<SessionPermissionsConfigureResult> configure(SessionPermissionsConfigureParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.permissions.configure", _p, SessionPermissionsConfigureResult.class);
+    }
+
+    /**
+     * Replaces selected permission policy fields (rules, paths, URLs, exclusions, allow-all flags) on the session.
+     * <p>
+     * Accepts the extensible request, including inputs added after the params record.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionPermissionsConfigureResult> configure(SessionPermissionsConfigureRequest request) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(Objects.requireNonNull(request, "request"));
         _p.put("sessionId", this.sessionId);
         return caller.invoke("session.permissions.configure", _p, SessionPermissionsConfigureResult.class);
     }

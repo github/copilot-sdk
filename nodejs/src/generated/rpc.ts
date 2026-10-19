@@ -5482,8 +5482,6 @@ export type SessionCapability =
   | "elicitation"
   /** Cross-session history tools and session-store SQL prompt/tool metadata. */
   | "session-store"
-  /** Read-only GitHub cache SQL tool (github_sql). */
-  | "github-cache-store"
   /** MCP Apps UI passthrough. */
   | "mcp-apps"
   /** Host-provided canvas rendering support. */
@@ -9156,6 +9154,49 @@ export interface AutopilotObjectiveState {
   creditLimit?: AutopilotObjectiveCreditLimit;
 }
 /**
+ * Billing information for a server-advertised routing preference.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AutoTierBilling".
+ */
+/** @experimental */
+export interface AutoTierBilling {
+  promo?: AutoTierBillingPromo;
+}
+/**
+ * Server-driven promotion for an Auto routing preference. It can be announced before it starts.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AutoTierBillingPromo".
+ */
+/** @experimental */
+export interface AutoTierBillingPromo {
+  /**
+   * Stable identifier for the promotion campaign.
+   */
+  id?: string;
+  /**
+   * Percentage discount (0-100) while the promotion is active. Absent or 0 means the promotion is an announcement only: do not present a discount.
+   */
+  discountPercent?: number;
+  /**
+   * UTC ISO 8601 timestamp marking when the promotion starts. The service can announce a promotion before it starts, so do not present the discount as active before this time. Absent means it has already started.
+   */
+  startsAt?: string;
+  /**
+   * UTC ISO 8601 timestamp marking when the promotion ends. Absent means open-ended. The runtime omits promotions that have already ended.
+   */
+  endsAt?: string;
+  /**
+   * Human-readable promotion message. Does not include the start or end timestamps.
+   */
+  message?: string;
+  /**
+   * Whether the service asked hosts to give this promotion a prominent surface, such as a banner. Absent means the service expressed no preference, so hosts should apply their own default rather than read it as `false`.
+   */
+  showBanner?: boolean;
+}
+/**
  * A server-advertised routing preference. Identifiers and execution types are extensible.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -9180,6 +9221,7 @@ export interface AutoTierDescriptor {
    */
   type: string;
   status: AutoTierStatus;
+  billing?: AutoTierBilling;
 }
 /**
  * Availability of a server-advertised routing preference.
@@ -9193,6 +9235,10 @@ export interface AutoTierStatus {
    * Whether the provider permits selecting this preference.
    */
   enabled: boolean;
+  /**
+   * Whether hosts should list this preference in a picker. Absent means visible. A hidden preference can still be requested explicitly through the SDK.
+   */
+  pickerVisible?: boolean;
   /**
    * Extensible machine-readable unavailability reason.
    */
@@ -24151,6 +24197,10 @@ export interface PermissionsConfigureParams {
    * If specified, replaces the host-supplied GitHub Content Exclusion policies on the session (combined with natively-discovered policies when evaluating tool/file access). Omit to leave the current policies unchanged.
    */
   additionalContentExclusionPolicies?: PermissionsConfigureAdditionalContentExclusionPolicy[];
+  /**
+   * User-authored instructions appended verbatim to the assisted-approval judge's system prompt. Applies to subsequent judge requests in this local session without changing permission mode, pre-judge gates, or the coding agent's prompt. Omit to leave unchanged; an empty or whitespace-only string clears the instructions. Hosts must reapply their configuration after resuming a session. Remote sessions are not supported.
+   */
+  assistedApprovalInstructions?: string;
 }
 /**
  * If specified, replaces the session's URL-permission policy. The runtime constructs a fresh DefaultUrlManager based on these inputs. Omit to leave the current URL policy unchanged.
@@ -25096,6 +25146,24 @@ export interface ProtocolExternalToolDefinition {
   metadata?: {
     [k: string]: JsonValue | undefined;
   };
+  namespace?: ProtocolExternalToolNamespace;
+}
+/**
+ * Namespace that groups related caller-implemented tools for model tool discovery.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ProtocolExternalToolNamespace".
+ */
+/** @experimental */
+export interface ProtocolExternalToolNamespace {
+  /**
+   * Namespace name: 1-64 ASCII letters, digits, underscores, or hyphens.
+   */
+  name: string;
+  /**
+   * Optional model-visible explanation of the tools in this namespace.
+   */
+  description?: string;
 }
 /**
  * Opt into native CAPI image generation.
@@ -25109,6 +25177,16 @@ export interface ProtocolImageGenerationOptions {
    * Disabled by default for SDK sessions. CAPI model access and permissions still apply.
    */
   enabled?: boolean;
+  /**
+   * Experimental. Request a visible "Made with AI" label on generated and edited images.
+   * This option may change or be removed in a future release.
+   * Overrides the user's imageGenerationWatermark preference for this session;
+   * otherwise that preference applies, defaulting to false. Re-supply after a
+   * cold resume. Does not enable image generation or enforce enterprise policy.
+   *
+   * @experimental
+   */
+  watermark?: boolean;
 }
 /**
  * BYOK providers and/or models to add to the session's registry at runtime. Both fields are optional; provide providers, models, or both.
@@ -25159,6 +25237,10 @@ export interface ProviderConfig {
    * API key. Optional for local providers like Ollama.
    */
   apiKey?: string;
+  /**
+   * Command run by the runtime before each provider request to obtain a fresh API key. Credential-command failures fail the turn without sending a model request. Bearer authentication takes precedence.
+   */
+  apiKeyCommand?: string;
   /**
    * Bearer token for authentication. Sets the Authorization header directly. Takes precedence over apiKey when both are set.
    */

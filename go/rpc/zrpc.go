@@ -1837,10 +1837,44 @@ type AutopilotObjectiveState struct {
 	TurnCount int64 `json:"turnCount"`
 }
 
+// Billing information for a server-advertised routing preference.
+// Experimental: AutoTierBilling is part of an experimental API and may change or be removed.
+type AutoTierBilling struct {
+	// Promotion the service attached to this preference, if any.
+	Promo *AutoTierBillingPromo `json:"promo,omitempty"`
+}
+
+// Server-driven promotion for an Auto routing preference. It can be announced before it
+// starts.
+// Experimental: AutoTierBillingPromo is part of an experimental API and may change or be
+// removed.
+type AutoTierBillingPromo struct {
+	// Percentage discount (0-100) while the promotion is active. Absent or 0 means the
+	// promotion is an announcement only: do not present a discount.
+	DiscountPercent *float64 `json:"discountPercent,omitempty"`
+	// UTC ISO 8601 timestamp marking when the promotion ends. Absent means open-ended. The
+	// runtime omits promotions that have already ended.
+	EndsAt *string `json:"endsAt,omitempty"`
+	// Stable identifier for the promotion campaign.
+	ID *string `json:"id,omitempty"`
+	// Human-readable promotion message. Does not include the start or end timestamps.
+	Message *string `json:"message,omitempty"`
+	// Whether the service asked hosts to give this promotion a prominent surface, such as a
+	// banner. Absent means the service expressed no preference, so hosts should apply their own
+	// default rather than read it as `false`.
+	ShowBanner *bool `json:"showBanner,omitempty"`
+	// UTC ISO 8601 timestamp marking when the promotion starts. The service can announce a
+	// promotion before it starts, so do not present the discount as active before this time.
+	// Absent means it has already started.
+	StartsAt *string `json:"startsAt,omitempty"`
+}
+
 // A server-advertised routing preference. Identifiers and execution types are extensible.
 // Experimental: AutoTierDescriptor is part of an experimental API and may change or be
 // removed.
 type AutoTierDescriptor struct {
+	// Billing information for this preference, such as an announced or active promotion.
+	Billing *AutoTierBilling `json:"billing,omitempty"`
 	// Description displayed beside the preference.
 	Description string `json:"description"`
 	// Human-readable label, not a routing identifier.
@@ -1872,6 +1906,9 @@ type AutoTierStatus struct {
 	Enabled bool `json:"enabled"`
 	// Human-readable explanation of availability.
 	Message *string `json:"message,omitempty"`
+	// Whether hosts should list this preference in a picker. Absent means visible. A hidden
+	// preference can still be requested explicitly through the SDK.
+	PickerVisible *bool `json:"pickerVisible,omitempty"`
 	// Extensible machine-readable unavailability reason.
 	Reason *string `json:"reason,omitempty"`
 }
@@ -14650,6 +14687,12 @@ type PermissionsConfigureParams struct {
 	// If specified, sets whether tool permission requests are auto-approved without prompting.
 	// Omit to leave the current value unchanged.
 	ApproveAllToolPermissionRequests *bool `json:"approveAllToolPermissionRequests,omitempty"`
+	// User-authored instructions appended verbatim to the assisted-approval judge's system
+	// prompt. Applies to subsequent judge requests in this local session without changing
+	// permission mode, pre-judge gates, or the coding agent's prompt. Omit to leave unchanged;
+	// an empty or whitespace-only string clears the instructions. Hosts must reapply their
+	// configuration after resuming a session. Remote sessions are not supported.
+	AssistedApprovalInstructions *string `json:"assistedApprovalInstructions,omitempty"`
 	// If specified, replaces the session's path-permission policy. The runtime constructs the
 	// appropriate PathManager based on these inputs (rooted at the session's working
 	// directory). Omit to leave the current path policy unchanged.
@@ -15811,6 +15854,11 @@ type ProtocolExternalToolDefinition struct {
 	Metadata map[string]any `json:"metadata,omitzero"`
 	// Unique model-visible tool name.
 	Name string `json:"name"`
+	// Optional namespace grouping this tool with related tools. Where the model
+	// provider supports native tool namespaces, deferred tools sharing a namespace
+	// are presented to the model as one group; elsewhere the tool stays flat. The
+	// tool's `name` remains its unique invocation name either way.
+	Namespace *ProtocolExternalToolNamespace `json:"namespace,omitempty"`
 	// Whether this definition replaces a built-in tool with the same name.
 	OverridesBuiltInTool *bool `json:"overridesBuiltInTool,omitempty"`
 	// JSON Schema describing the tool's input arguments.
@@ -15821,12 +15869,29 @@ type ProtocolExternalToolDefinition struct {
 	Title *string `json:"title,omitempty"`
 }
 
+// Namespace that groups related caller-implemented tools for model tool discovery.
+// Experimental: ProtocolExternalToolNamespace is part of an experimental API and may change
+// or be removed.
+type ProtocolExternalToolNamespace struct {
+	// Optional model-visible explanation of the tools in this namespace.
+	Description *string `json:"description,omitempty"`
+	// Namespace name: 1-64 ASCII letters, digits, underscores, or hyphens.
+	Name string `json:"name"`
+}
+
 // Opt into native CAPI image generation.
 // Experimental: ProtocolImageGenerationOptions is part of an experimental API and may
 // change or be removed.
 type ProtocolImageGenerationOptions struct {
 	// Disabled by default for SDK sessions. CAPI model access and permissions still apply.
 	Enabled *bool `json:"enabled,omitempty"`
+	// Experimental. Request a visible "Made with AI" label on generated and edited images.
+	// This option may change or be removed in a future release.
+	// Overrides the user's imageGenerationWatermark preference for this session;
+	// otherwise that preference applies, defaulting to false. Re-supply after a
+	// cold resume. Does not enable image generation or enforce enterprise policy.
+	// Experimental: Watermark is part of an experimental API and may change or be removed.
+	Watermark *bool `json:"watermark,omitempty"`
 }
 
 // Experimental: ProtocolMarkerSectionOverride is part of an experimental API and may change
@@ -15950,6 +16015,10 @@ type ProviderAddResult struct {
 type ProviderConfig struct {
 	// API key. Optional for local providers like Ollama.
 	APIKey *string `json:"apiKey,omitempty"`
+	// Command run by the runtime before each provider request to obtain a fresh API key.
+	// Credential-command failures fail the turn without sending a model request. Bearer
+	// authentication takes precedence.
+	APIKeyCommand *string `json:"apiKeyCommand,omitempty"`
 	// Azure-specific provider options.
 	Azure *ProviderConfigAzure `json:"azure,omitempty"`
 	// API endpoint URL.
@@ -31307,8 +31376,6 @@ const (
 	SessionCapabilityCLIDocumentation SessionCapability = "cli-documentation"
 	// SDK elicitation support.
 	SessionCapabilityElicitation SessionCapability = "elicitation"
-	// Read-only GitHub cache SQL tool (github_sql).
-	SessionCapabilityGitHubCacheStore SessionCapability = "github-cache-store"
 	// Interactive CLI identity and behavior.
 	SessionCapabilityInteractiveMode SessionCapability = "interactive-mode"
 	// MCP Apps UI passthrough.
@@ -42751,6 +42818,9 @@ func (a *PermissionsAPI) Configure(ctx context.Context, params *PermissionsConfi
 		}
 		if params.ApproveAllToolPermissionRequests != nil {
 			req["approveAllToolPermissionRequests"] = *params.ApproveAllToolPermissionRequests
+		}
+		if params.AssistedApprovalInstructions != nil {
+			req["assistedApprovalInstructions"] = *params.AssistedApprovalInstructions
 		}
 		if params.Paths != nil {
 			req["paths"] = *params.Paths

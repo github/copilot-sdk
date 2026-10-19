@@ -4186,6 +4186,53 @@ pub struct AutopilotObjectiveGetStateResult {
     pub state: Option<AutopilotObjectiveState>,
 }
 
+/// Server-driven promotion for an Auto routing preference. It can be announced before it starts.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AutoTierBillingPromo {
+    /// Percentage discount (0-100) while the promotion is active. Absent or 0 means the promotion is an announcement only: do not present a discount.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub discount_percent: Option<f64>,
+    /// UTC ISO 8601 timestamp marking when the promotion ends. Absent means open-ended. The runtime omits promotions that have already ended.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ends_at: Option<String>,
+    /// Stable identifier for the promotion campaign.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+    /// Human-readable promotion message. Does not include the start or end timestamps.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
+    /// Whether the service asked hosts to give this promotion a prominent surface, such as a banner. Absent means the service expressed no preference, so hosts should apply their own default rather than read it as `false`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub show_banner: Option<bool>,
+    /// UTC ISO 8601 timestamp marking when the promotion starts. The service can announce a promotion before it starts, so do not present the discount as active before this time. Absent means it has already started.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub starts_at: Option<String>,
+}
+
+/// Billing information for a server-advertised routing preference.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AutoTierBilling {
+    /// Promotion the service attached to this preference, if any.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub promo: Option<AutoTierBillingPromo>,
+}
+
 /// Availability of a server-advertised routing preference.
 ///
 /// <div class="warning">
@@ -4202,6 +4249,9 @@ pub struct AutoTierStatus {
     /// Human-readable explanation of availability.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub message: Option<String>,
+    /// Whether hosts should list this preference in a picker. Absent means visible. A hidden preference can still be requested explicitly through the SDK.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub picker_visible: Option<bool>,
     /// Extensible machine-readable unavailability reason.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reason: Option<String>,
@@ -4218,6 +4268,9 @@ pub struct AutoTierStatus {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AutoTierDescriptor {
+    /// Billing information for this preference, such as an announced or active promotion.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub billing: Option<AutoTierBilling>,
     /// Description displayed beside the preference.
     pub description: String,
     /// Human-readable label, not a routing identifier.
@@ -21501,6 +21554,94 @@ pub struct PermissionsConfigureParams {
     pub urls: Option<PermissionUrlsConfig>,
 }
 
+/// Extensible [`PermissionsConfigureParams`], including inputs added after it was published.
+///
+/// Required inputs are [`PermissionsConfigureOptions::new`] arguments; optional inputs have fluent setters.
+/// Input-only: it serialises to the flat wire request and is not deserialisable.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PermissionsConfigureOptions {
+    #[serde(flatten)]
+    legacy: PermissionsConfigureParams,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    assisted_approval_instructions: Option<String>,
+}
+
+impl PermissionsConfigureOptions {
+    /// Creates options with the required inputs.
+    pub fn new() -> Self {
+        Self {
+            legacy: PermissionsConfigureParams {
+                approve_all_tool_permission_requests: None,
+                approve_all_read_permission_requests: None,
+                rules: None,
+                paths: None,
+                urls: None,
+                additional_content_exclusion_policies: None,
+            },
+            assisted_approval_instructions: None,
+        }
+    }
+
+    /// If specified, sets whether tool permission requests are auto-approved without prompting. Omit to leave the current value unchanged.
+    pub fn approve_all_tool_permission_requests(mut self, value: bool) -> Self {
+        self.legacy.approve_all_tool_permission_requests = Some(value);
+        self
+    }
+
+    /// If specified, sets whether path/URL read permission requests are auto-approved. Omit to leave the current value unchanged.
+    pub fn approve_all_read_permission_requests(mut self, value: bool) -> Self {
+        self.legacy.approve_all_read_permission_requests = Some(value);
+        self
+    }
+
+    /// If specified, replaces the session's approved/denied permission rules. Omit to leave the current rules unchanged.
+    pub fn rules(mut self, value: PermissionRulesSet) -> Self {
+        self.legacy.rules = Some(value);
+        self
+    }
+
+    /// If specified, replaces the session's path-permission policy. The runtime constructs the appropriate PathManager based on these inputs (rooted at the session's working directory). Omit to leave the current path policy unchanged.
+    pub fn paths(mut self, value: PermissionPathsConfig) -> Self {
+        self.legacy.paths = Some(value);
+        self
+    }
+
+    /// If specified, replaces the session's URL-permission policy. The runtime constructs a fresh DefaultUrlManager based on these inputs. Omit to leave the current URL policy unchanged.
+    pub fn urls(mut self, value: PermissionUrlsConfig) -> Self {
+        self.legacy.urls = Some(value);
+        self
+    }
+
+    /// If specified, replaces the host-supplied GitHub Content Exclusion policies on the session (combined with natively-discovered policies when evaluating tool/file access). Omit to leave the current policies unchanged.
+    pub fn additional_content_exclusion_policies(
+        mut self,
+        value: Vec<PermissionsConfigureAdditionalContentExclusionPolicy>,
+    ) -> Self {
+        self.legacy.additional_content_exclusion_policies = Some(value);
+        self
+    }
+
+    /// User-authored instructions appended verbatim to the assisted-approval judge's system prompt. Applies to subsequent judge requests in this local session without changing permission mode, pre-judge gates, or the coding agent's prompt. Omit to leave unchanged; an empty or whitespace-only string clears the instructions. Hosts must reapply their configuration after resuming a session. Remote sessions are not supported.
+    pub fn assisted_approval_instructions(mut self, value: impl Into<String>) -> Self {
+        self.assisted_approval_instructions = Some(value.into());
+        self
+    }
+}
+
+impl Default for PermissionsConfigureOptions {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// Indicates whether the operation succeeded.
 ///
 /// <div class="warning">
@@ -22622,6 +22763,24 @@ pub struct PluginUpdateResult {
     pub skills_installed: i64,
 }
 
+/// Namespace that groups related caller-implemented tools for model tool discovery.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProtocolExternalToolNamespace {
+    /// Optional model-visible explanation of the tools in this namespace.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Namespace name: 1-64 ASCII letters, digits, underscores, or hyphens.
+    pub name: String,
+}
+
 /// Serializable definition of a caller-implemented tool whose execution is handled over the SDK connection.
 ///
 /// <div class="warning">
@@ -22646,6 +22805,12 @@ pub struct ProtocolExternalToolDefinition {
     pub metadata: Option<HashMap<String, serde_json::Value>>,
     /// Unique model-visible tool name.
     pub name: String,
+    /// Optional namespace grouping this tool with related tools. Where the model
+    /// provider supports native tool namespaces, deferred tools sharing a namespace
+    /// are presented to the model as one group; elsewhere the tool stays flat. The
+    /// tool's `name` remains its unique invocation name either way.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub namespace: Option<ProtocolExternalToolNamespace>,
     /// Whether this definition replaces a built-in tool with the same name.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub overrides_built_in_tool: Option<bool>,
@@ -22674,6 +22839,20 @@ pub struct ProtocolImageGenerationOptions {
     /// Disabled by default for SDK sessions. CAPI model access and permissions still apply.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enabled: Option<bool>,
+    /// Experimental. Request a visible "Made with AI" label on generated and edited images.
+    /// This option may change or be removed in a future release.
+    /// Overrides the user's imageGenerationWatermark preference for this session;
+    /// otherwise that preference applies, defaulting to false. Re-supply after a
+    /// cold resume. Does not enable image generation or enforce enterprise policy.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub watermark: Option<bool>,
 }
 
 ///
@@ -22818,6 +22997,9 @@ pub struct ProviderConfig {
     /// API key. Optional for local providers like Ollama.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub api_key: Option<String>,
+    /// Command run by the runtime before each provider request to obtain a fresh API key. Credential-command failures fail the turn without sending a model request. Bearer authentication takes precedence.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub api_key_command: Option<String>,
     /// Azure-specific provider options.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub azure: Option<ProviderConfigAzure>,
@@ -52486,9 +52668,6 @@ pub enum SessionCapability {
     /// Cross-session history tools and session-store SQL prompt/tool metadata.
     #[serde(rename = "session-store")]
     SessionStore,
-    /// Read-only GitHub cache SQL tool (github_sql).
-    #[serde(rename = "github-cache-store")]
-    GitHubCacheStore,
     /// MCP Apps UI passthrough.
     #[serde(rename = "mcp-apps")]
     McpApps,

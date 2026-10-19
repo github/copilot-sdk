@@ -3082,6 +3082,44 @@ public sealed class HooksDiscoverRequest
     public IList<string>? ProjectPaths { get; set; }
 }
 
+/// <summary>Server-driven promotion for an Auto routing preference. It can be announced before it starts.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class AutoTierBillingPromo
+{
+    /// <summary>Percentage discount (0-100) while the promotion is active. Absent or 0 means the promotion is an announcement only: do not present a discount.</summary>
+    [JsonPropertyName("discountPercent")]
+    public double? DiscountPercent { get; set; }
+
+    /// <summary>UTC ISO 8601 timestamp marking when the promotion ends. Absent means open-ended. The runtime omits promotions that have already ended.</summary>
+    [JsonPropertyName("endsAt")]
+    public string? EndsAt { get; set; }
+
+    /// <summary>Stable identifier for the promotion campaign.</summary>
+    [JsonPropertyName("id")]
+    public string? Id { get; set; }
+
+    /// <summary>Human-readable promotion message. Does not include the start or end timestamps.</summary>
+    [JsonPropertyName("message")]
+    public string? Message { get; set; }
+
+    /// <summary>Whether the service asked hosts to give this promotion a prominent surface, such as a banner. Absent means the service expressed no preference, so hosts should apply their own default rather than read it as `false`.</summary>
+    [JsonPropertyName("showBanner")]
+    public bool? ShowBanner { get; set; }
+
+    /// <summary>UTC ISO 8601 timestamp marking when the promotion starts. The service can announce a promotion before it starts, so do not present the discount as active before this time. Absent means it has already started.</summary>
+    [JsonPropertyName("startsAt")]
+    public string? StartsAt { get; set; }
+}
+
+/// <summary>Billing information for a server-advertised routing preference.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class AutoTierBilling
+{
+    /// <summary>Promotion the service attached to this preference, if any.</summary>
+    [JsonPropertyName("promo")]
+    public AutoTierBillingPromo? Promo { get; set; }
+}
+
 /// <summary>Availability of a server-advertised routing preference.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public sealed class AutoTierStatus
@@ -3094,6 +3132,10 @@ public sealed class AutoTierStatus
     [JsonPropertyName("message")]
     public string? Message { get; set; }
 
+    /// <summary>Whether hosts should list this preference in a picker. Absent means visible. A hidden preference can still be requested explicitly through the SDK.</summary>
+    [JsonPropertyName("pickerVisible")]
+    public bool? PickerVisible { get; set; }
+
     /// <summary>Extensible machine-readable unavailability reason.</summary>
     [JsonPropertyName("reason")]
     public string? Reason { get; set; }
@@ -3103,6 +3145,10 @@ public sealed class AutoTierStatus
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public sealed class AutoTierDescriptor
 {
+    /// <summary>Billing information for this preference, such as an announced or active promotion.</summary>
+    [JsonPropertyName("billing")]
+    public AutoTierBilling? Billing { get; set; }
+
     /// <summary>Description displayed beside the preference.</summary>
     [JsonPropertyName("description")]
     public string Description { get; set; } = string.Empty;
@@ -24572,6 +24618,17 @@ public sealed class ProtocolImageGenerationOptions
     /// <summary>Disabled by default for SDK sessions. CAPI model access and permissions still apply.</summary>
     [JsonPropertyName("enabled")]
     public bool? Enabled { get; set; }
+
+    /// <summary>
+    /// Experimental. Request a visible "Made with AI" label on generated and edited images.
+    /// This option may change or be removed in a future release.
+    /// Overrides the user's imageGenerationWatermark preference for this session;
+    /// otherwise that preference applies, defaulting to false. Re-supply after a
+    /// cold resume. Does not enable image generation or enforce enterprise policy.
+    /// </summary>
+    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+    [JsonPropertyName("watermark")]
+    public bool? Watermark { get; set; }
 }
 
 /// <summary>Installed plugin record for a session, with marketplace, version, install time, enabled state, cache path, and source.</summary>
@@ -24622,6 +24679,10 @@ public sealed class ProviderConfig
     /// <summary>API key. Optional for local providers like Ollama.</summary>
     [JsonPropertyName("apiKey")]
     public string? ApiKey { get; set; }
+
+    /// <summary>Command run by the runtime before each provider request to obtain a fresh API key. Credential-command failures fail the turn without sending a model request. Bearer authentication takes precedence.</summary>
+    [JsonPropertyName("apiKeyCommand")]
+    public string? ApiKeyCommand { get; set; }
 
     /// <summary>Azure-specific provider options.</summary>
     [JsonPropertyName("azure")]
@@ -26408,6 +26469,19 @@ public sealed class ToolsSetResult
 {
 }
 
+/// <summary>Namespace that groups related caller-implemented tools for model tool discovery.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class ProtocolExternalToolNamespace
+{
+    /// <summary>Optional model-visible explanation of the tools in this namespace.</summary>
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
+
+    /// <summary>Namespace name: 1-64 ASCII letters, digits, underscores, or hyphens.</summary>
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+}
+
 /// <summary>Serializable definition of a caller-implemented tool whose execution is handled over the SDK connection.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public sealed class ProtocolExternalToolDefinition
@@ -26431,6 +26505,15 @@ public sealed class ProtocolExternalToolDefinition
     /// <summary>Unique model-visible tool name.</summary>
     [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Optional namespace grouping this tool with related tools. Where the model
+    /// provider supports native tool namespaces, deferred tools sharing a namespace
+    /// are presented to the model as one group; elsewhere the tool stays flat. The
+    /// tool's `name` remains its unique invocation name either way.
+    /// </summary>
+    [JsonPropertyName("namespace")]
+    public ProtocolExternalToolNamespace? Namespace { get; set; }
 
     /// <summary>Whether this definition replaces a built-in tool with the same name.</summary>
     [JsonPropertyName("overridesBuiltInTool")]
@@ -27501,7 +27584,7 @@ public sealed class PermissionUrlsConfig
 
 /// <summary>Patch of permission policy fields to apply (omit a field to leave it unchanged).</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class PermissionsConfigureParams
+public sealed class PermissionsConfigureParams
 {
     /// <summary>If specified, replaces the host-supplied GitHub Content Exclusion policies on the session (combined with natively-discovered policies when evaluating tool/file access). Omit to leave the current policies unchanged.</summary>
     [JsonPropertyName("additionalContentExclusionPolicies")]
@@ -27514,6 +27597,43 @@ internal sealed class PermissionsConfigureParams
     /// <summary>If specified, sets whether tool permission requests are auto-approved without prompting. Omit to leave the current value unchanged.</summary>
     [JsonPropertyName("approveAllToolPermissionRequests")]
     public bool? ApproveAllToolPermissionRequests { get; set; }
+
+    /// <summary>User-authored instructions appended verbatim to the assisted-approval judge's system prompt. Applies to subsequent judge requests in this local session without changing permission mode, pre-judge gates, or the coding agent's prompt. Omit to leave unchanged; an empty or whitespace-only string clears the instructions. Hosts must reapply their configuration after resuming a session. Remote sessions are not supported.</summary>
+    [JsonPropertyName("assistedApprovalInstructions")]
+    public string? AssistedApprovalInstructions { get; set; }
+
+    /// <summary>If specified, replaces the session's path-permission policy. The runtime constructs the appropriate PathManager based on these inputs (rooted at the session's working directory). Omit to leave the current path policy unchanged.</summary>
+    [JsonPropertyName("paths")]
+    public PermissionPathsConfig? Paths { get; set; }
+
+    /// <summary>If specified, replaces the session's approved/denied permission rules. Omit to leave the current rules unchanged.</summary>
+    [JsonPropertyName("rules")]
+    public PermissionRulesSet? Rules { get; set; }
+
+    /// <summary>If specified, replaces the session's URL-permission policy. The runtime constructs a fresh DefaultUrlManager based on these inputs. Omit to leave the current URL policy unchanged.</summary>
+    [JsonPropertyName("urls")]
+    public PermissionUrlsConfig? Urls { get; set; }
+}
+
+/// <summary>Patch of permission policy fields to apply (omit a field to leave it unchanged).</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class PermissionsConfigureParamsWithSession
+{
+    /// <summary>If specified, replaces the host-supplied GitHub Content Exclusion policies on the session (combined with natively-discovered policies when evaluating tool/file access). Omit to leave the current policies unchanged.</summary>
+    [JsonPropertyName("additionalContentExclusionPolicies")]
+    public IList<PermissionsConfigureAdditionalContentExclusionPolicy>? AdditionalContentExclusionPolicies { get; set; }
+
+    /// <summary>If specified, sets whether path/URL read permission requests are auto-approved. Omit to leave the current value unchanged.</summary>
+    [JsonPropertyName("approveAllReadPermissionRequests")]
+    public bool? ApproveAllReadPermissionRequests { get; set; }
+
+    /// <summary>If specified, sets whether tool permission requests are auto-approved without prompting. Omit to leave the current value unchanged.</summary>
+    [JsonPropertyName("approveAllToolPermissionRequests")]
+    public bool? ApproveAllToolPermissionRequests { get; set; }
+
+    /// <summary>User-authored instructions appended verbatim to the assisted-approval judge's system prompt. Applies to subsequent judge requests in this local session without changing permission mode, pre-judge gates, or the coding agent's prompt. Omit to leave unchanged; an empty or whitespace-only string clears the instructions. Hosts must reapply their configuration after resuming a session. Remote sessions are not supported.</summary>
+    [JsonPropertyName("assistedApprovalInstructions")]
+    public string? AssistedApprovalInstructions { get; set; }
 
     /// <summary>If specified, replaces the session's path-permission policy. The runtime constructs the appropriate PathManager based on these inputs (rooted at the session's working directory). Omit to leave the current path policy unchanged.</summary>
     [JsonPropertyName("paths")]
@@ -46881,9 +47001,6 @@ public readonly struct SessionCapability : IEquatable<SessionCapability>
     /// <summary>Cross-session history tools and session-store SQL prompt/tool metadata.</summary>
     public static SessionCapability SessionStore { get; } = new("session-store");
 
-    /// <summary>Read-only GitHub cache SQL tool (github_sql).</summary>
-    public static SessionCapability GitHubCacheStore { get; } = new("github-cache-store");
-
     /// <summary>MCP Apps UI passthrough.</summary>
     public static SessionCapability McpApps { get; } = new("mcp-apps");
 
@@ -58829,8 +58946,20 @@ public sealed class PermissionsApi
     {
         _session.ThrowIfDisposed();
 
-        var request = new PermissionsConfigureParams { SessionId = _session.SessionId, ApproveAllToolPermissionRequests = approveAllToolPermissionRequests, ApproveAllReadPermissionRequests = approveAllReadPermissionRequests, Rules = rules, Paths = paths, Urls = urls, AdditionalContentExclusionPolicies = additionalContentExclusionPolicies };
+        var request = new PermissionsConfigureParamsWithSession { SessionId = _session.SessionId, ApproveAllToolPermissionRequests = approveAllToolPermissionRequests, ApproveAllReadPermissionRequests = approveAllReadPermissionRequests, Rules = rules, Paths = paths, Urls = urls, AdditionalContentExclusionPolicies = additionalContentExclusionPolicies };
         return await CopilotClient.InvokeRpcAsync<PermissionsConfigureResult>(_session.Rpc, "session.permissions.configure", [request], cancellationToken);
+    }
+
+    /// <summary>Replaces selected permission policy fields (rules, paths, URLs, exclusions, allow-all flags) on the session.</summary>
+    /// <param name="request">Patch of permission policy fields to apply (omit a field to leave it unchanged).</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Indicates whether the operation succeeded.</returns>
+    public async Task<PermissionsConfigureResult> ConfigureAsync(PermissionsConfigureParams request, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        _session.ThrowIfDisposed();
+        var wireRequest = new PermissionsConfigureParamsWithSession { SessionId = _session.SessionId, ApproveAllToolPermissionRequests = request.ApproveAllToolPermissionRequests, ApproveAllReadPermissionRequests = request.ApproveAllReadPermissionRequests, Rules = request.Rules, Paths = request.Paths, Urls = request.Urls, AdditionalContentExclusionPolicies = request.AdditionalContentExclusionPolicies, AssistedApprovalInstructions = request.AssistedApprovalInstructions };
+        return await CopilotClient.InvokeRpcAsync<PermissionsConfigureResult>(_session.Rpc, "session.permissions.configure", [wireRequest], cancellationToken);
     }
 
     /// <summary>Provides a decision for a pending tool permission request.</summary>
@@ -61246,6 +61375,8 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(AuthValidationError))]
 [JsonSerializable(typeof(AuthWrite))]
 [JsonSerializable(typeof(AuthWriteResult))]
+[JsonSerializable(typeof(AutoTierBilling))]
+[JsonSerializable(typeof(AutoTierBillingPromo))]
 [JsonSerializable(typeof(AutoTierDescriptor))]
 [JsonSerializable(typeof(AutoTierMetadata))]
 [JsonSerializable(typeof(AutoTierStatus))]
@@ -61872,6 +62003,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(PermissionsConfigureAdditionalContentExclusionPolicyRule))]
 [JsonSerializable(typeof(PermissionsConfigureAdditionalContentExclusionPolicyRuleSource))]
 [JsonSerializable(typeof(PermissionsConfigureParams))]
+[JsonSerializable(typeof(PermissionsConfigureParamsWithSession))]
 [JsonSerializable(typeof(PermissionsConfigureResult))]
 [JsonSerializable(typeof(PermissionsEvaluateManagedPolicyParams))]
 [JsonSerializable(typeof(PermissionsEvaluateManagedPolicyResult))]
@@ -61942,6 +62074,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(PluginsUpdateRequest))]
 [JsonSerializable(typeof(PluginsUpdateRequestWithSession))]
 [JsonSerializable(typeof(ProtocolExternalToolDefinition))]
+[JsonSerializable(typeof(ProtocolExternalToolNamespace))]
 [JsonSerializable(typeof(ProtocolImageGenerationOptions))]
 [JsonSerializable(typeof(ProtocolMarkerSectionOverride))]
 [JsonSerializable(typeof(ProtocolSectionOverride))]

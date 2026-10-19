@@ -14550,6 +14550,44 @@ impl<'a> SessionRpcPermissions<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
+    /// Replaces selected permission policy fields (rules, paths, URLs, exclusions, allow-all flags) on the session.
+    ///
+    /// Wire method: `session.permissions.configure`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Patch of permission policy fields to apply (omit a field to leave it unchanged).
+    ///
+    /// # Returns
+    ///
+    /// Indicates whether the operation succeeded.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    ///
+    /// Accepts [`PermissionsConfigureOptions`], including inputs added after [`PermissionsConfigureParams`].
+    pub async fn configure_with_options(
+        &self,
+        params: PermissionsConfigureOptions,
+    ) -> Result<PermissionsConfigureResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_PERMISSIONS_CONFIGURE,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
     /// Provides a decision for a pending tool permission request.
     ///
     /// Wire method: `session.permissions.handlePendingPermissionRequest`.
