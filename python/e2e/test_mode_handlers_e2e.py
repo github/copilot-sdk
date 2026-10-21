@@ -46,7 +46,7 @@ async def mode_ctx(ctx: E2ETestContext):
             "copilot_plan": "individual_pro",
             "endpoints": {
                 "api": proxy_url,
-                "telemetry": "https://localhost:1/telemetry",
+                "telemetry": "https://sdk-hydro-collector.example.com",
             },
             "analytics_tracking_id": "mode-handler-tracking-id",
         },

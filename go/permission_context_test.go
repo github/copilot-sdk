@@ -62,7 +62,8 @@ func runPermissionExchange(t *testing.T, handler PermissionHandlerFunc) (frame [
 
 	done := make(chan struct{})
 	go func() {
-		session.executePermissionAndRespond("permission-1", nil, handler)
+		session.registerPermissionHandler(handler)
+		session.executePermissionAndRespond("permission-1", nil, nil, session.getPermissionHandler())
 		close(done)
 	}()
 

@@ -34,6 +34,131 @@ func (b *ahpTestLog) text() string {
 	return b.String()
 }
 
+func TestAhpHostRequiresExplicitTransport(t *testing.T) {
+	for _, options := range []*AhpHostOptions{nil, {}} {
+		client := NewClient(nil)
+		if _, err := client.StartAhpHost(t.Context(), options); err == nil || !strings.Contains(err.Error(), "requires localServer or githubEnvironment") {
+			t.Fatalf("expected missing transport error, got %v", err)
+		}
+	}
+}
+
+func TestAhpHostTransportsAndOptionalResults(t *testing.T) {
+	for _, transport := range []string{"local", "github", "both"} {
+		t.Run(transport, func(t *testing.T) {
+			client, server, _ := ahpFixture(t)
+			options := &AhpHostOptions{ComputeID: String("compute")}
+			want := map[string]any{"computeId": "compute"}
+			if transport != "github" {
+				port := int32(0)
+				options.LocalServer = &rpc.HostLocalServerOptions{
+					Hostname: String("127.0.0.1"), Port: &port,
+					Token: String("secret"), RequireConnectionToken: Bool(true),
+				}
+				want["localServer"] = map[string]any{
+					"hostname": "127.0.0.1", "port": float64(0),
+					"token": "secret", "requireConnectionToken": true,
+				}
+			}
+			if transport != "local" {
+				options.GitHubEnvironment = &rpc.HostGitHubEnvironmentOptions{Name: "SDK host", ComputeID: "compute"}
+				want["githubEnvironment"] = map[string]any{"name": "SDK host", "computeId": "compute"}
+			}
+			server.SetRequestHandler("host.start", func(data json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+				var params map[string]any
+				if err := json.Unmarshal(data, &params); err != nil {
+					t.Error(err)
+				}
+				hostID := params["hostId"]
+				delete(params, "hostId")
+				got, _ := json.Marshal(params)
+				expected, _ := json.Marshal(want)
+				if !bytes.Equal(got, expected) {
+					t.Errorf("transport request = %s, want %s", got, expected)
+				}
+				result := map[string]any{"hostId": hostID}
+				if transport != "github" {
+					result["url"] = "ws://127.0.0.1:12345"
+				}
+				if transport != "local" {
+					result["environmentId"] = "environment"
+				}
+				response, _ := json.Marshal(result)
+				return response, nil
+			})
+			host, err := client.StartAhpHost(t.Context(), options)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if host.Token != nil || host.PID != nil {
+				t.Fatal("absent result fields must remain nil")
+			}
+			if transport == "github" {
+				if host.URL != nil {
+					t.Fatal("Mission Control-only host has a local URL")
+				}
+			} else if host.URL == nil || *host.URL != "ws://127.0.0.1:12345" {
+				t.Fatalf("incorrect local URL: %v", host.URL)
+			}
+			if transport == "local" {
+				if host.EnvironmentID != nil {
+					t.Fatal("local-only host has an environment ID")
+				}
+			} else if host.EnvironmentID == nil || *host.EnvironmentID != "environment" {
+				t.Fatalf("incorrect environment ID: %v", host.EnvironmentID)
+			}
+		})
+	}
+}
+
+func TestAhpHostListSessionsUsesOwningHost(t *testing.T) {
+	client, server, _ := ahpFixture(t)
+	host, err := client.StartAhpHost(t.Context(), &AhpHostOptions{LocalServer: &rpc.HostLocalServerOptions{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	server.SetRequestHandler("host.listSessions", jsonrpc2.RequestHandlerFor(func(params *rpc.HostListSessionsRequest) (*rpc.HostListSessionsResult, *jsonrpc2.Error) {
+		if params.HostID == nil || *params.HostID != host.HostID {
+			t.Errorf("hostId = %v, want %q", params.HostID, host.HostID)
+		}
+		return &rpc.HostListSessionsResult{Sessions: []rpc.HostSessionSummary{}}, nil
+	}))
+	result, err := host.ListSessions(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Sessions == nil || len(result.Sessions) != 0 {
+		t.Fatalf("sessions = %#v, want an empty catalog", result.Sessions)
+	}
+}
+
+func TestAhpHostUnpublishSessionForwardsOwningHostAndResults(t *testing.T) {
+	client, server, _ := ahpFixture(t)
+	host, err := client.StartAhpHost(t.Context(), &AhpHostOptions{LocalServer: &rpc.HostLocalServerOptions{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var calls atomic.Int32
+	server.SetRequestHandler("host.unpublishSession", jsonrpc2.RequestHandlerFor(func(params *rpc.HostUnpublishSessionRequest) (*rpc.HostUnpublishSessionResult, *jsonrpc2.Error) {
+		if params.HostID != host.HostID || params.SessionID != "dormant" {
+			t.Errorf("params = %#v, want host %q and session dormant", params, host.HostID)
+		}
+		return &rpc.HostUnpublishSessionResult{Unpublished: calls.Add(1) == 1}, nil
+	}))
+	for _, expected := range []bool{true, false} {
+		result, err := host.UnpublishSession(t.Context(), "dormant")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if result.Unpublished != expected {
+			t.Fatalf("unpublished = %v, want %v", result.Unpublished, expected)
+		}
+	}
+	if calls.Load() != 2 {
+		t.Fatalf("calls = %d, want 2", calls.Load())
+	}
+}
+
 func TestAhpFactoryCancellationLogging(t *testing.T) {
 	output := new(ahpTestLog)
 	previous := log.Writer()
@@ -44,6 +169,7 @@ func TestAhpFactoryCancellationLogging(t *testing.T) {
 		entered := make(chan struct{}, 1)
 		finish := make(chan struct{})
 		host, err := client.StartAhpHost(t.Context(), &AhpHostOptions{
+			LocalServer: &rpc.HostLocalServerOptions{},
 			CreateSession: func(ctx context.Context, _ AhpSessionCreateRequest) (*Session, error) {
 				entered <- struct{}{}
 				<-finish
@@ -91,7 +217,7 @@ func TestAhpCancelledStartupDisposesAfterStartCompletes(t *testing.T) {
 	server.SetRequestHandler("host.start", jsonrpc2.RequestHandlerFor(func(params *rpc.HostStartRequest) (*rpc.HostStartResult, *jsonrpc2.Error) {
 		entered <- params.HostID
 		<-finish
-		return &rpc.HostStartResult{HostID: params.HostID, URL: "ws://127.0.0.1:12345"}, nil
+		return &rpc.HostStartResult{HostID: params.HostID, URL: String("ws://127.0.0.1:12345")}, nil
 	}))
 	server.SetRequestHandler("host.dispose", jsonrpc2.RequestHandlerFor(func(params *rpc.HostDisposeRequest) (map[string]any, *jsonrpc2.Error) {
 		disposed <- params.HostID
@@ -99,7 +225,10 @@ func TestAhpCancelledStartupDisposesAfterStartCompletes(t *testing.T) {
 	}))
 	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan error, 1)
-	go func() { _, err := client.StartAhpHost(ctx, nil); done <- err }()
+	go func() {
+		_, err := client.StartAhpHost(ctx, &AhpHostOptions{LocalServer: &rpc.HostLocalServerOptions{}})
+		done <- err
+	}()
 	hostID := awaitAhpTest(t, entered)
 	cancel()
 	if err := awaitAhpTest(t, done); !errors.Is(err, context.Canceled) {
@@ -126,7 +255,7 @@ func ahpFixture(t *testing.T) (*Client, *jsonrpc2.Client, *atomic.Int32) {
 	t.Cleanup(func() { client.ForceStop(); server.Stop() })
 	disposals := new(atomic.Int32)
 	server.SetRequestHandler("host.start", jsonrpc2.RequestHandlerFor(func(params *rpc.HostStartRequest) (*rpc.HostStartResult, *jsonrpc2.Error) {
-		return &rpc.HostStartResult{HostID: params.HostID, URL: "ws://127.0.0.1:12345", Token: String("secret")}, nil
+		return &rpc.HostStartResult{HostID: params.HostID, URL: String("ws://127.0.0.1:12345"), Token: String("secret")}, nil
 	}))
 	server.SetRequestHandler("host.dispose", func(json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
 		disposals.Add(1)
@@ -170,7 +299,7 @@ func awaitAhpTest[T any](t *testing.T, values <-chan T) T {
 func TestAhpHostOriginalTransportAndExitOnce(t *testing.T) {
 	client, _, disposals := ahpFixture(t)
 	exits := make(chan AhpHostExit, 4)
-	host, err := client.StartAhpHost(t.Context(), &AhpHostOptions{OnExit: func(event AhpHostExit) error {
+	host, err := client.StartAhpHost(t.Context(), &AhpHostOptions{LocalServer: &rpc.HostLocalServerOptions{}, OnExit: func(event AhpHostExit) error {
 		exits <- event
 		return nil
 	}})
@@ -211,6 +340,7 @@ func TestAhpFactoriesPreserveSettingsAndReleaseExactOriginal(t *testing.T) {
 			original := make(chan *Session, 1)
 			factoryCtx := make(chan context.Context, 1)
 			host, err := client.StartAhpHost(t.Context(), &AhpHostOptions{
+				LocalServer: &rpc.HostLocalServerOptions{},
 				CreateSession: func(ctx context.Context, request AhpSessionCreateRequest) (*Session, error) {
 					factoryCtx <- ctx
 					session, err := client.CreateSession(ctx, request.Config)
@@ -274,6 +404,7 @@ func TestAhpRejectsChangedBooleanSettings(t *testing.T) {
 			t.Run(fmt.Sprintf("%s=%t", setting, expected), func(t *testing.T) {
 				client, server, _ := ahpFixture(t)
 				host, err := client.StartAhpHost(t.Context(), &AhpHostOptions{
+					LocalServer: &rpc.HostLocalServerOptions{},
 					ResumeSession: func(ctx context.Context, request AhpSessionResumeRequest) (*Session, error) {
 						switch setting {
 						case "streaming":
@@ -308,6 +439,7 @@ func TestAhpCancellationReleasesLateResultAndRejectsDuplicate(t *testing.T) {
 	released := make(chan *Session, 2)
 	late := &Session{SessionID: "late"}
 	host, err := client.StartAhpHost(t.Context(), &AhpHostOptions{
+		LocalServer: &rpc.HostLocalServerOptions{},
 		CreateSession: func(ctx context.Context, _ AhpSessionCreateRequest) (*Session, error) {
 			entered <- ctx
 			<-unblock
@@ -344,6 +476,7 @@ func TestAhpRejectsModifiedSettingsAndAllowsRetainedResume(t *testing.T) {
 	released := make(chan *Session, 1)
 	var original *Session
 	host, err := client.StartAhpHost(t.Context(), &AhpHostOptions{
+		LocalServer: &rpc.HostLocalServerOptions{},
 		CreateSession: func(ctx context.Context, request AhpSessionCreateRequest) (*Session, error) {
 			request.Config.WorkingDirectory = "/wrong"
 			session, err := client.CreateSession(ctx, request.Config)

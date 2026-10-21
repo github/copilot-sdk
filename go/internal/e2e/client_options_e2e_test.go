@@ -412,6 +412,7 @@ func TestClientOptionsE2E(t *testing.T) {
 		extensionSDKPath := filepath.Join(ctx.WorkDir, "extension-sdk")
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			SessionID:                          sessionID,
+			Name:                               "go named at create",
 			ClientName:                         "go-sdk-e2e-client",
 			Model:                              "claude-sonnet-5",
 			ReasoningEffort:                    "low",
@@ -423,7 +424,7 @@ func TestClientOptionsE2E(t *testing.T) {
 			EmbeddingCacheStorage:              &embeddingCacheStorage,
 			OrganizationCustomInstructions:     &organizationCustomInstructions,
 			EnableOnDemandInstructionDiscovery: copilot.Bool(true),
-			EnableFileHooks:                    copilot.Bool(false),
+			EnableFileHooks:                    copilot.Bool(true),
 			EnableHostGitOperations:            copilot.Bool(false),
 			EnableSessionStore:                 copilot.Bool(false),
 			EnableSkills:                       copilot.Bool(false),
@@ -471,6 +472,7 @@ func TestClientOptionsE2E(t *testing.T) {
 		}
 		expectedValues := map[string]any{
 			"sessionId":                          sessionID,
+			"name":                               "go named at create",
 			"clientName":                         "go-sdk-e2e-client",
 			"model":                              "claude-sonnet-5",
 			"reasoningEffort":                    "low",
@@ -482,7 +484,7 @@ func TestClientOptionsE2E(t *testing.T) {
 			"embeddingCacheStorage":              embeddingCacheStorage,
 			"organizationCustomInstructions":     organizationCustomInstructions,
 			"enableOnDemandInstructionDiscovery": true,
-			"enableFileHooks":                    false,
+			"enableFileHooks":                    true,
 			"enableHostGitOperations":            false,
 			"enableSessionStore":                 false,
 			"enableSkills":                       false,
@@ -630,6 +632,7 @@ func TestClientOptionsE2E(t *testing.T) {
 			WorkingDirectory:               workingDirectory,
 			ConfigDirectory:                configDirectory,
 			EnableConfigDiscovery:          copilot.Bool(false),
+			EnableFileHooks:                copilot.Bool(true),
 			SuppressResumeEvent:            true,
 			ContinuePendingWork:            &continuePendingWork,
 			Streaming:                      copilot.Bool(true),
@@ -669,6 +672,7 @@ func TestClientOptionsE2E(t *testing.T) {
 			"workingDirectory":               workingDirectory,
 			"configDir":                      configDirectory,
 			"enableConfigDiscovery":          false,
+			"enableFileHooks":                true,
 			"disableResume":                  true,
 			"continuePendingWork":            false,
 			"streaming":                      true,

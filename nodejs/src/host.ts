@@ -6,6 +6,10 @@ import type {
     HostExitedNotification,
     HostStartResult,
     HostPublishSessionResult,
+    HostUnpublishSessionResult,
+    HostListSessionsResult,
+    HostLocalServerOptions,
+    HostGitHubEnvironmentOptions,
 } from "./generated/rpc.js";
 import type { CopilotSession } from "./session.js";
 import type { SessionConfig, ResumeSessionConfig } from "./types.js";
@@ -36,19 +40,18 @@ export interface AhpSessionResumeRequest {
 export type AhpHostExit = HostExitedNotification;
 
 /**
- * Options for a runtime-supervised AHP listener. Callbacks are captured at startup;
+ * Options for runtime-supervised AHP hosting. Select at least one transport.
+ * Callbacks are captured at startup;
  * later changes to this options object do not reconfigure an existing host.
  * @experimental
  */
 export interface AhpHostOptions {
-    /** Listener hostname. The runtime defaults to 127.0.0.1. */
-    hostname?: string;
-    /** Listener port. Omitted or zero asks the runtime for an available port. */
-    port?: number;
-    /** Connection token. The runtime generates one when required and omitted. */
-    token?: string;
-    /** Whether the listener requires token authentication. */
-    requireConnectionToken?: boolean;
+    /** Stable catalog identity; must agree with githubEnvironment.computeId when both are supplied. */
+    computeId?: string;
+    /** Enable a local WebSocket listener; an empty object selects loopback defaults. */
+    localServer?: HostLocalServerOptions;
+    /** Register a Mission Control environment and enable remote WPS connections. */
+    githubEnvironment?: HostGitHubEnvironmentOptions;
     /** Called at most once when hosting ends, not on runtime process death. Local, never serialized. */
     onExit?: (exit: AhpHostExit) => void;
     /**
@@ -58,7 +61,7 @@ export interface AhpHostOptions {
      */
     createSession?: (request: AhpSessionCreateRequest) => Promise<CopilotSession>;
     /**
-     * Resume a durable session previously created by an application factory.
+     * Resume a durable application-owned session, including a previously published session.
      * Return the original object from this client's resumeSession, or an existing
      * attached original without reconfiguring it. Published resident sessions
      * attach directly and never invoke this callback.
@@ -78,13 +81,16 @@ export interface AhpHostOptions {
  * the owning client also stops the host; reconnecting does not reclaim it.
  * Stopping a host does not delete its underlying sessions.
  * Its durable AHP catalog is shared by successive hosts in the runtime's
- * effective Copilot home; a concurrent host for that catalog is rejected.
+ * effective Copilot home and compute identity; a concurrent host for that catalog is rejected.
  *
  * @experimental
  */
 export class AhpHost {
     readonly hostId: string;
-    readonly url: string;
+    /** Local WebSocket URL. Absent when only the GitHub environment is enabled. */
+    readonly url: string | undefined;
+    /** Mission Control environment ID, when GitHub hosting is enabled. */
+    readonly environmentId: string | undefined;
     /** Connection token, when required by the listener. Treat this value as a secret. */
     readonly token: string | undefined;
     /** Legacy separate host process ID. Absent for in-process listeners; use dispose() to stop. */
@@ -96,10 +102,15 @@ export class AhpHost {
         private readonly disposeHost: () => Promise<void>,
         private readonly publishHostSession: (
             sessionId: string
-        ) => Promise<HostPublishSessionResult>
+        ) => Promise<HostPublishSessionResult>,
+        private readonly listHostSessions: () => Promise<HostListSessionsResult>,
+        private readonly unpublishHostSession: (
+            sessionId: string
+        ) => Promise<HostUnpublishSessionResult>
     ) {
         this.hostId = info.hostId;
         this.url = info.url;
+        this.environmentId = info.environmentId;
         this.token = info.token;
         this.pid = info.pid;
     }
@@ -109,9 +120,23 @@ export class AhpHost {
         return this.disposeHost();
     }
 
-    /** Publish an existing session attached to this client, until this listener stops. */
+    /** Publish an attached application session into the durable compute-scoped host catalog. */
     publishSession(sessionId: string): Promise<HostPublishSessionResult> {
         return this.publishHostSession(sessionId);
+    }
+
+    /**
+     * Withdraw a live or dormant application publication and revoke AHP attachments.
+     * Preserves local history, worktrees and ongoing work; returns false when already absent.
+     * Rejects nonapplication publications. Does not stop the host.
+     */
+    unpublishSession(sessionId: string): Promise<HostUnpublishSessionResult> {
+        return this.unpublishHostSession(sessionId);
+    }
+
+    /** List all live and dormant catalog sessions advertised by this host. */
+    listSessions(): Promise<HostListSessionsResult> {
+        return this.listHostSessions();
     }
 
     async [Symbol.asyncDispose](): Promise<void> {

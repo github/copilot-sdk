@@ -75,25 +75,25 @@ rust_library(
         "@sdk_vendor__bytes-1.12.1//:bytes",
         "@sdk_vendor__futures-core-0.3.34//:futures_core",
         "@sdk_vendor__futures-util-0.3.34//:futures_util",
-        "@sdk_vendor__h2-0.4.19//:h2",
+        "@sdk_vendor__h2-0.4.20//:h2",
         "@sdk_vendor__http-1.5.0//:http",
         "@sdk_vendor__hyper-tls-0.6.0//:hyper_tls",
         "@sdk_vendor__native-tls-0.2.18//:native_tls",
         "@sdk_vendor__rustls-pki-types-1.15.1//:rustls_pki_types",
         "@sdk_vendor__sync_wrapper-1.0.2//:sync_wrapper",
         "@sdk_vendor__tokio-native-tls-0.3.1//:tokio_native_tls",
-        "@sdk_vendor__tokio-util-0.7.19//:tokio_util",
+        "@sdk_vendor__tokio-util-0.7.20//:tokio_util",
         "@sdk_vendor__url-2.5.8//:url",
     ] + select({
         "@rules_rust//rust/platform:aarch64-apple-darwin": [
             "@sdk_vendor__http-body-1.1.0//:http_body",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__http-body-util-0.1.5//:http_body_util",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
-            "@sdk_vendor__hyper-1.11.1//:hyper",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
-            "@sdk_vendor__hyper-util-0.1.20//:hyper_util",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
+            "@sdk_vendor__hyper-1.12.0//:hyper",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
+            "@sdk_vendor__hyper-util-0.1.21//:hyper_util",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__log-0.4.34//:log",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__percent-encoding-2.3.2//:percent_encoding",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__pin-project-lite-0.2.17//:pin_project_lite",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
-            "@sdk_vendor__tokio-1.53.1//:tokio",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
+            "@sdk_vendor__tokio-1.53.3//:tokio",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__tower-0.5.3//:tower",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__tower-http-0.6.11//:tower_http",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__tower-service-0.3.3//:tower_service",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
@@ -101,12 +101,12 @@ rust_library(
         "@rules_rust//rust/platform:aarch64-pc-windows-msvc": [
             "@sdk_vendor__http-body-1.1.0//:http_body",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__http-body-util-0.1.5//:http_body_util",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
-            "@sdk_vendor__hyper-1.11.1//:hyper",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
-            "@sdk_vendor__hyper-util-0.1.20//:hyper_util",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
+            "@sdk_vendor__hyper-1.12.0//:hyper",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
+            "@sdk_vendor__hyper-util-0.1.21//:hyper_util",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__log-0.4.34//:log",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__percent-encoding-2.3.2//:percent_encoding",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__pin-project-lite-0.2.17//:pin_project_lite",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
-            "@sdk_vendor__tokio-1.53.1//:tokio",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
+            "@sdk_vendor__tokio-1.53.3//:tokio",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__tower-0.5.3//:tower",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__tower-http-0.6.11//:tower_http",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__tower-service-0.3.3//:tower_service",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
@@ -114,12 +114,12 @@ rust_library(
         "@rules_rust//rust/platform:aarch64-unknown-linux-gnu": [
             "@sdk_vendor__http-body-1.1.0//:http_body",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__http-body-util-0.1.5//:http_body_util",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
-            "@sdk_vendor__hyper-1.11.1//:hyper",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
-            "@sdk_vendor__hyper-util-0.1.20//:hyper_util",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
+            "@sdk_vendor__hyper-1.12.0//:hyper",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
+            "@sdk_vendor__hyper-util-0.1.21//:hyper_util",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__log-0.4.34//:log",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__percent-encoding-2.3.2//:percent_encoding",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__pin-project-lite-0.2.17//:pin_project_lite",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
-            "@sdk_vendor__tokio-1.53.1//:tokio",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
+            "@sdk_vendor__tokio-1.53.3//:tokio",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__tower-0.5.3//:tower",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__tower-http-0.6.11//:tower_http",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__tower-service-0.3.3//:tower_service",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
@@ -127,12 +127,12 @@ rust_library(
         "@rules_rust//rust/platform:x86_64-apple-darwin": [
             "@sdk_vendor__http-body-1.1.0//:http_body",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__http-body-util-0.1.5//:http_body_util",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
-            "@sdk_vendor__hyper-1.11.1//:hyper",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
-            "@sdk_vendor__hyper-util-0.1.20//:hyper_util",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
+            "@sdk_vendor__hyper-1.12.0//:hyper",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
+            "@sdk_vendor__hyper-util-0.1.21//:hyper_util",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__log-0.4.34//:log",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__percent-encoding-2.3.2//:percent_encoding",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__pin-project-lite-0.2.17//:pin_project_lite",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
-            "@sdk_vendor__tokio-1.53.1//:tokio",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
+            "@sdk_vendor__tokio-1.53.3//:tokio",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__tower-0.5.3//:tower",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__tower-http-0.6.11//:tower_http",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__tower-service-0.3.3//:tower_service",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
@@ -140,12 +140,12 @@ rust_library(
         "@rules_rust//rust/platform:x86_64-pc-windows-msvc": [
             "@sdk_vendor__http-body-1.1.0//:http_body",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__http-body-util-0.1.5//:http_body_util",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
-            "@sdk_vendor__hyper-1.11.1//:hyper",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
-            "@sdk_vendor__hyper-util-0.1.20//:hyper_util",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
+            "@sdk_vendor__hyper-1.12.0//:hyper",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
+            "@sdk_vendor__hyper-util-0.1.21//:hyper_util",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__log-0.4.34//:log",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__percent-encoding-2.3.2//:percent_encoding",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__pin-project-lite-0.2.17//:pin_project_lite",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
-            "@sdk_vendor__tokio-1.53.1//:tokio",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
+            "@sdk_vendor__tokio-1.53.3//:tokio",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__tower-0.5.3//:tower",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__tower-http-0.6.11//:tower_http",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__tower-service-0.3.3//:tower_service",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
@@ -153,12 +153,12 @@ rust_library(
         "@rules_rust//rust/platform:x86_64-unknown-linux-gnu": [
             "@sdk_vendor__http-body-1.1.0//:http_body",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__http-body-util-0.1.5//:http_body_util",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
-            "@sdk_vendor__hyper-1.11.1//:hyper",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
-            "@sdk_vendor__hyper-util-0.1.20//:hyper_util",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
+            "@sdk_vendor__hyper-1.12.0//:hyper",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
+            "@sdk_vendor__hyper-util-0.1.21//:hyper_util",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__log-0.4.34//:log",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__percent-encoding-2.3.2//:percent_encoding",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__pin-project-lite-0.2.17//:pin_project_lite",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
-            "@sdk_vendor__tokio-1.53.1//:tokio",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
+            "@sdk_vendor__tokio-1.53.3//:tokio",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__tower-0.5.3//:tower",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__tower-http-0.6.11//:tower_http",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__tower-service-0.3.3//:tower_service",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))

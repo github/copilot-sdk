@@ -211,7 +211,8 @@ public class CopilotRequestHandler {
                 try {
                     LlmInferenceExchange.BodyFrame frame;
                     while ((frame = exchange.readFrame()) != null) {
-                        handler.sendRequestMessage(new CopilotWebSocketMessage(frame.data(), frame.binary()));
+                        handler.sendRequestMessage(new CopilotWebSocketMessage(frame.data(), frame.binary()),
+                                ctx.withAgentInvocationId(frame.agentInvocationId()));
                     }
                     pumpDone.complete(null);
                 } catch (Exception e) {

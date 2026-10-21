@@ -10,8 +10,12 @@ import java.io.OutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeUnit;
+import java.util.function.BiFunction;
 
 import org.junit.jupiter.api.Test;
 
@@ -22,7 +26,12 @@ import com.github.copilot.generated.McpOauthRequiredEvent;
 import com.github.copilot.rpc.CloudSessionOptions;
 import com.github.copilot.rpc.CloudSessionRepository;
 import com.github.copilot.rpc.CopilotClientOptions;
+import com.github.copilot.rpc.McpAuthHandler;
+import com.github.copilot.rpc.McpAuthInvocation;
+import com.github.copilot.rpc.McpAuthRequest;
+import com.github.copilot.rpc.McpAuthResponse;
 import com.github.copilot.rpc.McpAuthResult;
+import com.github.copilot.rpc.McpAuthToken;
 import com.github.copilot.rpc.PermissionHandler;
 import com.github.copilot.rpc.ResumeSessionConfig;
 import com.github.copilot.rpc.SessionConfig;
@@ -30,6 +39,17 @@ import com.github.copilot.rpc.SessionConfig;
 class McpAuthInterestRegistrationTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
+
+    @Test
+    void legacyRecordsKeepOriginalComponentLists() {
+        assertArrayEquals(new String[]{"isCancelled", "token"}, Arrays.stream(McpAuthResult.class.getRecordComponents())
+                .map(java.lang.reflect.RecordComponent::getName).toArray(String[]::new));
+        assertArrayEquals(
+                new String[]{"requestId", "serverName", "serverUrl", "reason", "wwwAuthenticateParams",
+                        "resourceMetadata", "staticClientConfig"},
+                Arrays.stream(McpAuthRequest.class.getRecordComponents())
+                        .map(java.lang.reflect.RecordComponent::getName).toArray(String[]::new));
+    }
 
     @Test
     void mcpOauthRequiredEventExposesOptionalResourceMetadata() throws Exception {
@@ -68,6 +88,140 @@ class McpAuthInterestRegistrationTest {
 
         assertNull(withoutMetadata.resourceMetadata());
         assertNull(withoutMetadata.wwwAuthenticateParams());
+        assertNull(withoutMetadata.runtimeRefreshSupported());
+        assertEquals(withoutMetadata.reason(), new McpAuthRequest("oauth-request", "oauth-server",
+                "https://example.com/mcp", withoutMetadata.reason(), null, null, null).reason());
+    }
+
+    @Test
+    void runtimeRefreshResultIsDistinctFromTokenAndCancellation() {
+        var handoff = McpAuthResponse.runtimeRefresh();
+        assertTrue(handoff.isRuntimeRefresh());
+        assertNull(handoff.legacyResult());
+        assertFalse(McpAuthResponse.legacy(new McpAuthResult(true, null)).isRuntimeRefresh());
+    }
+
+    @Test
+    void runtimeRefreshCallbackPreservesTheAdvertisedRequestOnWire() throws Exception {
+        var observedRequest = new CompletableFuture<McpAuthRequest>();
+        try (var server = new RecordingRuntime(true, true);
+                var client = new CopilotClient(new CopilotClientOptions().setCliUrl(server.url()));
+                var session = client
+                        .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+                                .setOnMcpAuthRequest(runtimeRefreshHandler((request, supported) -> {
+                                    assertTrue(supported);
+                                    observedRequest.complete(request);
+                                    return McpAuthResponse.runtimeRefresh();
+                                })))
+                        .get(5, TimeUnit.SECONDS)) {
+            var request = observedRequest.get(5, TimeUnit.SECONDS);
+            assertEquals("refresh", request.reason().getValue());
+            var response = server.mcpAuthResponse.get(5, TimeUnit.SECONDS);
+            assertEquals(session.getSessionId(), response.path("sessionId").asText());
+            assertEquals("oauth-request", response.path("requestId").asText());
+            assertEquals("runtimeRefresh", response.path("result").path("kind").asText());
+            assertEquals(1, response.path("result").size());
+        }
+    }
+
+    @Test
+    void runtimeRefreshWithoutAdvertisedCapabilitySendsCancelled() throws Exception {
+        for (Boolean supported : new Boolean[]{null, false}) {
+            try (var server = new RecordingRuntime(true, supported);
+                    var client = new CopilotClient(new CopilotClientOptions().setCliUrl(server.url()));
+                    var session = client
+                            .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+                                    .setOnMcpAuthRequest(runtimeRefreshHandler((request, capability) -> {
+                                        assertFalse(capability);
+                                        return McpAuthResponse.runtimeRefresh();
+                                    })))
+                            .get(5, TimeUnit.SECONDS)) {
+                var response = server.mcpAuthResponse.get(5, TimeUnit.SECONDS);
+                assertEquals("oauth-request", response.path("requestId").asText());
+                assertEquals("cancelled", response.path("result").path("kind").asText(),
+                        "runtimeRefreshSupported=" + supported);
+                assertEquals(1, response.path("result").size());
+            }
+
+        }
+    }
+
+    @Test
+    void tokenAndCancellationHaveTheSamePrecedenceForEveryCapability() throws Exception {
+        for (Boolean supported : new Boolean[]{null, false, true}) {
+            for (String responseKind : new String[]{"token", "cancelled", "cancelledWithToken", "emptyToken",
+                    "nullToken"}) {
+                var handlerResult = switch (responseKind) {
+                    case "token" -> new McpAuthResult(false, new McpAuthToken("host-token", null, null));
+                    case "cancelledWithToken" -> new McpAuthResult(true, new McpAuthToken("host-token", null, null));
+                    case "emptyToken" -> new McpAuthResult(false, new McpAuthToken("", null, null));
+                    case "nullToken" -> new McpAuthResult(false, new McpAuthToken(null, null, null));
+                    default -> McpAuthResult.cancelled();
+                };
+                String expected = responseKind.equals("token")
+                        ? "token"
+                        : (responseKind.equals("emptyToken") || responseKind.equals("nullToken"))
+                                && Boolean.TRUE.equals(supported) ? "runtimeRefresh" : "cancelled";
+                var server = new RecordingRuntime(true, supported);
+                try (server;
+                        var client = new CopilotClient(new CopilotClientOptions().setCliUrl(server.url()));
+                        var session = client
+                                .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+                                        .setOnMcpAuthRequest(runtimeRefreshHandler((request, capability) -> {
+                                            assertEquals(Boolean.TRUE.equals(supported), capability);
+                                            return new McpAuthResponse(handlerResult, true);
+                                        })))
+                                .get(5, TimeUnit.SECONDS)) {
+                    var response = server.mcpAuthResponse.get(5, TimeUnit.SECONDS);
+                    assertEquals(session.getSessionId(), response.path("sessionId").asText());
+                    assertEquals("oauth-request", response.path("requestId").asText());
+                    var result = response.path("result");
+                    assertEquals(expected, result.path("kind").asText(),
+                            "runtimeRefreshSupported=" + supported + ", response=" + responseKind);
+                    if (expected.equals("token")) {
+                        assertEquals("host-token", result.path("accessToken").asText());
+                    } else {
+                        assertEquals(1, result.size());
+                    }
+                } catch (java.util.concurrent.TimeoutException error) {
+                    throw new AssertionError("runtimeRefreshSupported=" + supported + ", response=" + responseKind
+                            + ", requests=" + server.requests(), error);
+                }
+            }
+        }
+    }
+
+    private static McpAuthHandler runtimeRefreshHandler(BiFunction<McpAuthRequest, Boolean, McpAuthResponse> callback) {
+        return new McpAuthHandler() {
+            @Override
+            public CompletableFuture<McpAuthResult> handle(McpAuthRequest request, McpAuthInvocation invocation) {
+                fail("Opt-in dispatch must run before the legacy handler");
+                return CompletableFuture.completedFuture(McpAuthResult.cancelled());
+            }
+
+            @Override
+            public CompletableFuture<McpAuthResponse> handleWithRuntimeRefresh(McpAuthRequest request,
+                    McpAuthInvocation invocation, boolean runtimeRefreshSupported) {
+                return CompletableFuture.completedFuture(callback.apply(request, runtimeRefreshSupported));
+            }
+        };
+    }
+
+    @Test
+    void legacyHandlerPreservesTokenOnAdvertisedRefresh() throws Exception {
+        try (var server = new RecordingRuntime(true, true);
+                var client = new CopilotClient(new CopilotClientOptions().setCliUrl(server.url()));
+                var session = client
+                        .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+                                .setOnMcpAuthRequest((request, invocation) -> CompletableFuture.completedFuture(
+                                        new McpAuthResult(false, new McpAuthToken("host-token", null, null)))))
+                        .get(5, TimeUnit.SECONDS)) {
+            var response = server.mcpAuthResponse.get(5, TimeUnit.SECONDS);
+            assertEquals(session.getSessionId(), response.path("sessionId").asText());
+            assertEquals("oauth-request", response.path("requestId").asText());
+            assertEquals("token", response.path("result").path("kind").asText());
+            assertEquals("host-token", response.path("result").path("accessToken").asText());
+        }
     }
 
     @Test
@@ -188,9 +342,18 @@ class McpAuthInterestRegistrationTest {
         private final ServerSocket listener;
         private final Thread thread;
         private final List<RpcRequest> requests = new CopyOnWriteArrayList<>();
+        private final boolean emitMcpAuthRequest;
+        private final Boolean runtimeRefreshSupported;
+        private final CompletableFuture<JsonNode> mcpAuthResponse = new CompletableFuture<>();
         private volatile boolean running = true;
 
         RecordingRuntime() throws Exception {
+            this(false, null);
+        }
+
+        RecordingRuntime(boolean emitMcpAuthRequest, Boolean runtimeRefreshSupported) throws Exception {
+            this.emitMcpAuthRequest = emitMcpAuthRequest;
+            this.runtimeRefreshSupported = runtimeRefreshSupported;
             listener = new ServerSocket(0);
             thread = new Thread(this::run, "mcp-auth-interest-test-runtime");
             thread.setDaemon(true);
@@ -228,10 +391,36 @@ class McpAuthInterestRegistrationTest {
                     String method = message.path("method").asText();
                     requests.add(new RpcRequest(method, message.path("params").deepCopy()));
                     sendResponse(out, message.path("id").asLong(), resultFor(method, message.path("params")));
+                    if ("session.mcp.oauth.handlePendingRequest".equals(method)) {
+                        mcpAuthResponse.complete(message.path("params").deepCopy());
+                    }
+                    if (emitMcpAuthRequest && "session.eventLog.registerInterest".equals(method)
+                            && "mcp.oauth_required".equals(message.path("params").path("eventType").asText())) {
+                        ObjectNode notification = MAPPER.createObjectNode();
+                        notification.put("jsonrpc", "2.0");
+                        notification.put("method", "session.event");
+                        var params = notification.putObject("params");
+                        params.put("sessionId", message.path("params").path("sessionId").asText());
+                        var event = params.putObject("event");
+                        event.put("type", "mcp.oauth_required");
+                        event.put("id", java.util.UUID.randomUUID().toString());
+                        event.put("timestamp", "2026-01-01T00:00:00Z");
+                        event.putNull("parentId");
+                        event.put("ephemeral", true);
+                        var data = event.putObject("data");
+                        data.put("requestId", "oauth-request");
+                        data.put("serverName", "oauth-server");
+                        data.put("serverUrl", "https://example.com/mcp");
+                        data.put("reason", "refresh");
+                        if (runtimeRefreshSupported != null) {
+                            data.put("runtimeRefreshSupported", runtimeRefreshSupported);
+                        }
+                        sendMessage(out, notification);
+                    }
                 }
             } catch (Exception ex) {
                 if (running) {
-                    throw new RuntimeException(ex);
+                    mcpAuthResponse.completeExceptionally(ex);
                 }
             }
         }
@@ -255,6 +444,7 @@ class McpAuthInterestRegistrationTest {
                 }
                 case "session.eventLog.registerInterest" -> result.put("id", "interest-1");
                 case "session.options.update" -> result.put("success", true);
+                case "session.mcp.oauth.handlePendingRequest" -> result.put("success", true);
                 case "session.skills.reload" -> {
                 }
                 case "session.detach" -> {
@@ -293,7 +483,11 @@ class McpAuthInterestRegistrationTest {
             response.put("jsonrpc", "2.0");
             response.put("id", id);
             response.set("result", result);
-            byte[] body = MAPPER.writeValueAsBytes(response);
+            sendMessage(out, response);
+        }
+
+        private static void sendMessage(OutputStream out, JsonNode message) throws Exception {
+            byte[] body = MAPPER.writeValueAsBytes(message);
             out.write(("Content-Length: " + body.length + "\r\n\r\n").getBytes(StandardCharsets.UTF_8));
             out.write(body);
             out.flush();

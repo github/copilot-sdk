@@ -39,7 +39,13 @@ public enum CatalogInvalidRequestField {
     /** The {@code selectionRef} variant. */
     SELECTIONREF("selectionRef"),
     /** The {@code outcome} variant. */
-    OUTCOME("outcome");
+    OUTCOME("outcome"),
+    /** The {@code feed} variant. */
+    FEED("feed"),
+    /** The {@code trustTiers} variant. */
+    TRUSTTIERS("trustTiers"),
+    /** The {@code categories} variant. */
+    CATEGORIES("categories");
 
     private final String value;
     CatalogInvalidRequestField(String value) { this.value = value; }

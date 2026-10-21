@@ -41,7 +41,9 @@ import com.github.copilot.generated.rpc.SessionMcpListToolsParams;
 import com.github.copilot.generated.rpc.SessionMcpOauthHandlePendingRequestParams;
 import com.github.copilot.generated.rpc.SessionMcpOauthLoginParams;
 import com.github.copilot.rpc.McpAuthInvocation;
+import com.github.copilot.rpc.McpAuthHandler;
 import com.github.copilot.rpc.McpAuthRequest;
+import com.github.copilot.rpc.McpAuthResponse;
 import com.github.copilot.rpc.McpAuthResult;
 import com.github.copilot.rpc.McpAuthToken;
 import com.github.copilot.rpc.McpHttpServerConfig;
@@ -98,21 +100,37 @@ public class McpOAuthE2ETest {
             var serverName = "oauth-protected-mcp";
             var observedRequest = new java.util.concurrent.atomic.AtomicReference<com.github.copilot.rpc.McpAuthRequest>();
             var observedInvocation = new java.util.concurrent.atomic.AtomicReference<McpAuthInvocation>();
+            var observedCapability = new AtomicReference<Boolean>();
 
             try (var client = ctx.createClient();
                     var session = client
                             .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
-                                    .setOnMcpAuthRequest((request, invocation) -> {
-                                        observedRequest.set(request);
-                                        observedInvocation.set(invocation);
-                                        return java.util.concurrent.CompletableFuture.completedFuture(
-                                                McpAuthResult.token(new McpAuthToken(EXPECTED_TOKEN, "Bearer", 3600L)));
+                                    .setOnMcpAuthRequest(new McpAuthHandler() {
+                                        @Override
+                                        public java.util.concurrent.CompletableFuture<McpAuthResult> handle(
+                                                McpAuthRequest request, McpAuthInvocation invocation) {
+                                            observedRequest.set(request);
+                                            observedInvocation.set(invocation);
+                                            return java.util.concurrent.CompletableFuture.completedFuture(McpAuthResult
+                                                    .token(new McpAuthToken(EXPECTED_TOKEN, "Bearer", 3600L)));
+                                        }
+
+                                        @Override
+                                        public java.util.concurrent.CompletableFuture<McpAuthResponse> handleWithRuntimeRefresh(
+                                                McpAuthRequest request, McpAuthInvocation invocation,
+                                                boolean supported) {
+                                            observedCapability.set(supported);
+                                            return McpAuthHandler.super.handleWithRuntimeRefresh(request, invocation,
+                                                    supported);
+                                        }
                                     }).setMcpServers(Map.of(serverName, new McpHttpServerConfig()
                                             .setUrl(oauthServer.url() + "/mcp").setTools(List.of("*")))))
                             .get()) {
                 waitForMcpServerStatus(session, serverName, McpServerStatus.CONNECTED, observedRequest);
                 assertNotNull(observedInvocation.get(), "MCP auth invocation should be provided");
                 assertEquals(session.getSessionId(), observedInvocation.get().getSessionId());
+                assertEquals(Boolean.FALSE, observedCapability.get(),
+                        "Initial authentication cannot advertise refresh");
                 var tools = session.getRpc().mcp.listTools(new SessionMcpListToolsParams(null, serverName)).get(30,
                         TimeUnit.SECONDS);
                 assertTrue(tools.tools().stream().anyMatch(tool -> "whoami".equals(tool.name())));
@@ -203,6 +221,7 @@ public class McpOAuthE2ETest {
         try (var oauthServer = OAuthMcpServer.start(ctx.getRepoRoot())) {
             var serverName = "oauth-cancelled-mcp";
             var observedRequest = new java.util.concurrent.atomic.AtomicReference<com.github.copilot.rpc.McpAuthRequest>();
+            var requestSeen = new CompletableFuture<McpAuthRequest>();
 
             try (var client = ctx.createClient();
                     var session = client
@@ -210,6 +229,7 @@ public class McpOAuthE2ETest {
                                     .setOnMcpAuthRequest((request, invocation) -> {
                                         assertNotNull(invocation);
                                         observedRequest.set(request);
+                                        requestSeen.complete(request);
                                         return java.util.concurrent.CompletableFuture
                                                 .completedFuture(McpAuthResult.cancelled());
                                     }).setMcpServers(Map.of(serverName, new McpHttpServerConfig()
@@ -224,7 +244,7 @@ public class McpOAuthE2ETest {
                 // retry (interest now registered) fires the callback with the same
                 // INITIAL reason. Wait for the callback instead of sampling it the
                 // instant `needs-auth` appears, which is what made this test flaky.
-                var request = waitForAuthRequest(observedRequest);
+                var request = requestSeen.get(30, TimeUnit.SECONDS);
                 assertEquals(serverName, request.serverName());
                 assertEquals(McpOauthRequestReason.INITIAL, request.reason());
             }
@@ -236,6 +256,8 @@ public class McpOAuthE2ETest {
         try (var oauthServer = OAuthMcpServer.start(ctx.getRepoRoot())) {
             var serverName = "oauth-direct-rpc-mcp";
             var observedRequest = new AtomicReference<McpAuthRequest>();
+            var observedRequestIds = new CopyOnWriteArrayList<String>();
+            var requestSeen = new CompletableFuture<McpAuthRequest>();
             var pendingHandlerResult = new CompletableFuture<McpAuthResult>();
 
             try (var client = ctx.createClient();
@@ -244,6 +266,8 @@ public class McpOAuthE2ETest {
                             .setOnMcpAuthRequest((request, invocation) -> {
                                 assertNotNull(invocation);
                                 observedRequest.set(request);
+                                observedRequestIds.add(request.requestId());
+                                requestSeen.complete(request);
                                 return pendingHandlerResult;
                             }).setMcpServers(Map.of(serverName, new McpHttpServerConfig()
                                     .setUrl(oauthServer.url() + "/mcp").setTools(List.of("*")))))
@@ -251,12 +275,13 @@ public class McpOAuthE2ETest {
                 var connected = CompletableFuture.runAsync(() -> {
                     try {
                         waitForMcpServerStatus(session, serverName, McpServerStatus.CONNECTED, observedRequest);
-                    } catch (Exception ex) {
+                    } catch (Exception | AssertionError ex) {
+                        ex.addSuppressed(new IllegalStateException("MCP OAuth request IDs: " + observedRequestIds));
                         throw new CompletionException(ex);
                     }
                 });
 
-                var request = waitForAuthRequest(observedRequest);
+                var request = requestSeen.get(30, TimeUnit.SECONDS);
                 assertEquals(serverName, request.serverName());
                 assertEquals(oauthServer.url() + "/mcp", request.serverUrl());
                 assertEquals(McpOauthRequestReason.INITIAL, request.reason());
@@ -301,11 +326,13 @@ public class McpOAuthE2ETest {
             throws Exception {
         var deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(60);
         var lastStatus = "<not listed>";
+        var lastServer = "<not listed>";
         while (System.nanoTime() < deadline) {
             var result = session.getRpc().mcp.list().get(5, TimeUnit.SECONDS);
             var server = result.servers().stream().filter(candidate -> serverName.equals(candidate.name())).findFirst();
             if (server.isPresent()) {
                 lastStatus = String.valueOf(server.get().status());
+                lastServer = server.get().toString();
             }
             if (server.isPresent() && status.equals(server.get().status())) {
                 return;
@@ -313,19 +340,8 @@ public class McpOAuthE2ETest {
             Thread.sleep(200);
         }
         fail(serverName + " did not reach " + status + "; last status was " + lastStatus + "; auth handler invoked="
-                + (observedRequest.get() != null));
-    }
-
-    private static McpAuthRequest waitForAuthRequest(AtomicReference<McpAuthRequest> observedRequest) throws Exception {
-        var deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
-        while (System.nanoTime() < deadline) {
-            var request = observedRequest.get();
-            if (request != null) {
-                return request;
-            }
-            Thread.sleep(100);
-        }
-        throw new AssertionError("Timed out waiting for MCP OAuth request");
+                + (observedRequest.get() != null) + "; last server=" + lastServer + "; last auth request="
+                + observedRequest.get());
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)

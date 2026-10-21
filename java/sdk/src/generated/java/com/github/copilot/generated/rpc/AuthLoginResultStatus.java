@@ -11,7 +11,7 @@ import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
- * Terminal disposition of a login persistence attempt.
+ * Disposition of a login attempt, including pending user decisions.
  *
  * @apiNote This type is experimental and may change in a future version.
  *
@@ -24,6 +24,8 @@ public enum AuthLoginResultStatus {
     COMPLETED("completed"),
     /** The {@code needs-plaintext-consent} variant. */
     NEEDS_PLAINTEXT_CONSENT("needs-plaintext-consent"),
+    /** The {@code needs-account-selection} variant. */
+    NEEDS_ACCOUNT_SELECTION("needs-account-selection"),
     /** The {@code declined} variant. */
     DECLINED("declined");
 

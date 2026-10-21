@@ -36,6 +36,13 @@ public final class AuthReadValueActiveAccount extends AuthReadValue {
     @JsonProperty("account")
     private AccountStatus account;
 
+    /** Credential-free identity metadata for the active account, including resolved Copilot user information when available. */
+    @JsonProperty("authInfo")
+    private AuthIdentity authInfo;
+
     public AccountStatus getAccount() { return account; }
     public void setAccount(AccountStatus account) { this.account = account; }
+
+    public AuthIdentity getAuthInfo() { return authInfo; }
+    public void setAuthInfo(AuthIdentity authInfo) { this.authInfo = authInfo; }
 }

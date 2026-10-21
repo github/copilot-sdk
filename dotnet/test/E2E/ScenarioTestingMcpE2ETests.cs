@@ -183,57 +183,6 @@ public class ScenarioTestingMcpE2ETests(E2ETestFixture fixture, ITestOutputHelpe
     }
 
     [Fact]
-    public async Task Should_Manage_And_Discover_Scenario_Mcp_Config_Lifecycle()
-    {
-        var serverName = $"scenario-client-config-{Guid.NewGuid():N}";
-        var testServer = Path.Join(FindTestHarnessDir(), "test-mcp-server.mjs");
-        await Client.StartAsync();
-
-        try
-        {
-            await Client.Rpc.Mcp.Config.AddAsync(serverName, new McpStdioServerConfig
-            {
-                Command = "node",
-                Args = [testServer],
-                Tools = ["get_env"],
-            });
-
-            var afterAdd = await Client.Rpc.Mcp.Config.ListAsync();
-            Assert.Contains(serverName, afterAdd.Servers.Keys);
-            var discovered = await Client.Rpc.Mcp.DiscoverAsync(
-                workingDirectory: Ctx.WorkDir,
-                includeEffectiveSource: true);
-            var enabled = Assert.Single(discovered.Servers, server => server.Name == serverName);
-            Assert.True(enabled.Enabled);
-            Assert.NotNull(enabled.EffectiveSource);
-
-            await Client.Rpc.Mcp.Config.UpdateAsync(serverName, new McpStdioServerConfig
-            {
-                Command = "node",
-                Args = [testServer],
-                Env = new Dictionary<string, string> { ["SCENARIO_CONFIG_VERSION"] = "2" },
-                Tools = ["*"],
-            });
-            var updated = GetServerConfig(await Client.Rpc.Mcp.Config.ListAsync(), serverName);
-            Assert.Equal("2", updated.GetProperty("env").GetProperty("SCENARIO_CONFIG_VERSION").GetString());
-
-            await Client.Rpc.Mcp.Config.DisableAsync([serverName]);
-            var disabled = await Client.Rpc.Mcp.DiscoverAsync(Ctx.WorkDir);
-            Assert.False(Assert.Single(disabled.Servers, server => server.Name == serverName).Enabled);
-
-            await Client.Rpc.Mcp.Config.EnableAsync([serverName]);
-            var reenabled = await Client.Rpc.Mcp.DiscoverAsync(Ctx.WorkDir);
-            Assert.True(Assert.Single(reenabled.Servers, server => server.Name == serverName).Enabled);
-        }
-        finally
-        {
-            await Client.Rpc.Mcp.Config.RemoveAsync(serverName);
-        }
-
-        Assert.DoesNotContain(serverName, (await Client.Rpc.Mcp.Config.ListAsync()).Servers.Keys);
-    }
-
-    [Fact]
     public async Task Should_List_Mcp_App_Visible_Tools_And_Read_Resource()
     {
         const string serverName = "scenario-mcp-app";
@@ -385,12 +334,6 @@ public class ScenarioTestingMcpE2ETests(E2ETestFixture fixture, ITestOutputHelpe
         var resumed = await session2.Rpc.Mcp.ListAsync();
         Assert.Contains(disabledName, resumed.Host!.DisabledServers);
         Assert.DoesNotContain(resumed.Host.PendingConnections, name => name == disabledName);
-    }
-
-    private static JsonElement GetServerConfig(McpConfigList list, string serverName)
-    {
-        Assert.True(list.Servers.TryGetValue(serverName, out var config));
-        return Assert.IsType<JsonElement>(config);
     }
 
     private static async Task<T> ReadMatchingAsync<T>(

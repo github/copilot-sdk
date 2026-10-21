@@ -11,12 +11,13 @@ namespace GitHub.Copilot.Test.Unit;
 public sealed class FfiRuntimeHostLifetimeTests
 {
     [Fact]
-    public void Dispose_Retains_Callback_Until_Connection_Close_Succeeds()
+    public async Task Dispose_Retains_Callback_Until_Connection_Close_Succeeds()
     {
         var allowClose = false;
         var closeCalls = 0;
         var shutdownCalls = 0;
         var callbackReleaseCalls = 0;
+        var cleanupCompleted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         Func<uint, bool> connectionClose = _ =>
         {
             Interlocked.Increment(ref closeCalls);
@@ -25,6 +26,7 @@ public sealed class FfiRuntimeHostLifetimeTests
         Func<uint, bool> hostShutdown = _ =>
         {
             Interlocked.Increment(ref shutdownCalls);
+            cleanupCompleted.TrySetResult();
             return true;
         };
         Action releaseCallback = () => Interlocked.Increment(ref callbackReleaseCalls);
@@ -55,16 +57,13 @@ public sealed class FfiRuntimeHostLifetimeTests
         Assert.Equal(0, Volatile.Read(ref shutdownCalls));
 
         Volatile.Write(ref allowClose, true);
-        Assert.True(
-            SpinWait.SpinUntil(
-                () => Volatile.Read(ref callbackReleaseCalls) == 1
-                    && Volatile.Read(ref shutdownCalls) == 1,
-                TimeSpan.FromSeconds(5)),
-            "Deferred native cleanup did not complete.");
+        await cleanupCompleted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(1, Volatile.Read(ref callbackReleaseCalls));
+        Assert.Equal(1, Volatile.Read(ref shutdownCalls));
 
         var closeCallsAfterCleanup = Volatile.Read(ref closeCalls);
         host.Dispose();
-        Thread.Sleep(50);
+        await Task.Delay(50);
 
         Assert.Equal(closeCallsAfterCleanup, Volatile.Read(ref closeCalls));
         Assert.Equal(1, Volatile.Read(ref callbackReleaseCalls));

@@ -49,8 +49,12 @@ public record SessionOpenOptions(
     @JsonProperty("expAssignments") Object expAssignments,
     /** Opt-in: self-fetch and enforce enterprise managed settings, including managed hook policies, at session bootstrap. */
     @JsonProperty("enableManagedSettings") Boolean enableManagedSettings,
+    /** Opt in to enforcing non-overridable managed model controls on session model, Auto-tier, reasoning-effort, and context-tier changes. Managed defaults still apply when omitted; this option only turns conflicting changes into errors. */
+    @JsonProperty("enforceManagedModelDefaults") Boolean enforceManagedModelDefaults,
     /** Permissions-only enterprise policy injected by the SDK host at session create or resume. Composes restrictively with self-fetched and device policy and is not persisted. */
     @JsonProperty("managedSettings") SessionManagedSettings managedSettings,
+    /** Declares that a human drives this session's conversation, enabling user-message analysis (sentiment, task completion criteria, and task analytics) for user-authored messages. Automated messages remain excluded. Defaults to false for SDK sessions. Applied when the session is created or loaded from storage; ignored when resuming a session that is already active, and for cloud sessions. */
+    @JsonProperty("interactiveUser") Boolean interactiveUser,
     /** Opt in to capturing file changes for session rewind and session diff. Capture cannot reconstruct changes made before it was enabled. On create it starts capture from the first turn. It is also honored on resume: for a session that already has tracked prior turns, tracking continues automatically even if this is omitted; passing it on resume additionally enables tracking for an eligible session that has no prior root turn yet. Resuming a session whose prior root turns were never tracked has no restorable baseline, so tracking stays disabled for it and rewind reports file change tracking as unavailable; the resume itself still succeeds, so sessions that predate tracking remain loadable. The opt-in is only rejected when the session can never track (a subagent session, or one without local session storage). It is intentionally absent from the mutable options update because enabling it after edits have occurred would create an incomplete, misleading baseline. Subagents share the parent session's capture store and are not tracked as separate rewind points: a file a subagent writes is attributed to whichever root user turn was open when the capture was staged, just before the tool body ran. A turn cannot open while a staged capture is still in flight, so a subagent tool that staged under the spawning turn stays attributed to it however late the write lands, while a capture it stages after the user's next message belongs to that later turn. Attribution decides which turn's rewind point counts and file preview include that write; it does not narrow which rewinds revert it, because a rewind restores every capture from the selected turn onward, so the earlier spawning turn reverts it as well. */
     @JsonProperty("enableFileChangeTracking") Boolean enableFileChangeTracking,
     /** Feature-flag values resolved by the host. */
@@ -63,6 +67,8 @@ public record SessionOpenOptions(
     @JsonProperty("provider") ProviderConfig provider,
     /** Options scoped to the built-in CAPI (Copilot API) provider. */
     @JsonProperty("capi") CapiSessionOptions capi,
+    /** Whether a CLI host explicitly requested the initial Auto preference. False preserves a settings-derived preference without validating availability during creation; execution still validates it. Defaults to true and is ignored for non-CLI callers. */
+    @JsonProperty("autoTierIsExplicit") Boolean autoTierIsExplicit,
     /** Named BYOK provider connections, additive to CAPI auth. Combining with `provider` is rejected. */
     @JsonProperty("providers") List<NamedProviderConfig> providers,
     /** BYOK model definitions added to the selectable model list, each referencing a provider name. */
@@ -113,11 +119,17 @@ public record SessionOpenOptions(
     @JsonProperty("managedMcpServers") Map<String, ManagedMcpServerConfig> managedMcpServers,
     /** Whether to include instructions from every MCP server in the system prompt instead of only allowlisted servers. */
     @JsonProperty("allowAllMcpServerInstructions") Boolean allowAllMcpServerInstructions,
-    /** Additional directories to search for skills. */
+    /** Explicit discovery-only skill roots, not filesystem grants. Available without enableConfigDiscovery, subject to skill/managed disables. Relative SDK paths resolve once when supplied against the request's effective workingDirectory; retained roots do not move on cwd changes. Null and omission are equivalent; [] clears only the explicit SDK contribution. */
     @JsonProperty("skillDirectories") List<String> skillDirectories,
+    /** Explicit discovery-only agent roots, separate from customAgents and filesystem grants. Available without enableConfigDiscovery, subject to managed/source disables. Relative SDK paths resolve once when supplied against the request's effective workingDirectory; retained roots do not move on cwd changes. Null and omission are equivalent; [] clears only the explicit SDK contribution. */
+    @JsonProperty("agentDirectories") List<String> agentDirectories,
+    /** Explicit discovery-only instruction roots using existing SDK instruction formats, not filesystem grants. Available without enableConfigDiscovery, subject to instruction/managed disables. Relative SDK paths resolve once when supplied against the request's effective workingDirectory; retained roots do not move on cwd changes. Null and omission are equivalent; [] clears only the explicit SDK contribution. */
+    @JsonProperty("instructionDirectories") List<String> instructionDirectories,
+    /** Explicit discovery-only file-hook roots, separate from callback hooks and filesystem grants. Available without enableConfigDiscovery or enableFileHooks, which controls repository-origin hooks only; hook/managed disables still apply. Relative SDK paths resolve once when supplied against the request's effective workingDirectory; retained roots do not move on cwd changes. Null and omission are equivalent; [] clears only the explicit SDK contribution. */
+    @JsonProperty("hookDirectories") List<String> hookDirectories,
     /** Skill scan directories and descendants excluded from discovery. Supports `~`-relative paths. */
     @JsonProperty("ignoredSkillsLocations") List<String> ignoredSkillsLocations,
-    /** Whether skill loading is enabled. When omitted, an SDK skill provider enables skills by default. */
+    /** Whether skill loading is enabled. When omitted, explicit SDK skill roots or an SDK skill provider enable skills independently of enableConfigDiscovery. */
     @JsonProperty("enableSkills") Boolean enableSkills,
     /** Whether the requesting SDK session has a skill provider. The provider remains ephemeral and is never persisted in session options or history. When enableSkills is false, it remains bound but dormant and receives no callbacks. Cloud, relay, handoff, and raw sessions.open flows reject it because they cannot safely pre-register the callback handler. */
     @JsonProperty("hasSkillProvider") Boolean hasSkillProvider,
@@ -159,6 +171,8 @@ public record SessionOpenOptions(
     @JsonProperty("modelCapabilitiesOverrides") ModelCapabilitiesOverride modelCapabilitiesOverrides,
     /** Initial session limits. */
     @JsonProperty("sessionLimits") SessionLimitsConfig sessionLimits,
+    /** Autopilot policy. Defaults to runtime-owned continuation with at most five automatic continuations. Does not change the session mode. */
+    @JsonProperty("autopilot") AutopilotOptions autopilot,
     /** Runtime context discriminator for agent filtering. */
     @JsonProperty("agentContext") String agentContext,
     /** Override directory for session event logs. */
@@ -169,6 +183,8 @@ public record SessionOpenOptions(
     @JsonProperty("configDir") String configDir,
     /** Additional content-exclusion policies to merge into the session policy set. */
     @JsonProperty("additionalContentExclusionPolicies") List<SessionOpenOptionsAdditionalContentExclusionPolicy> additionalContentExclusionPolicies,
+    /** Live gate for repository-origin file hooks, including the primary repository, trusted repository-configured roots, and accepted startup additional directories (including CLI --add-dir). False suppresses these hooks; explicit hookDirectories and SDK callbacks are independent. Additional-root eligibility and the DISABLE_ADDITIONAL_DIRECTORY_HOOKS escape hatch are captured at create/cold resume, not expanded by later grants or feature-flag changes. Discovery uses containing Git roots, so supply only trusted repositories: commands and prompts need no further approval. Policy, hook-disable settings, and sandbox rules still apply. Provider-backed sessions skip repository hooks with a warning on omission, skip silently on false, and reject explicit true. */
+    @JsonProperty("enableFileHooks") Boolean enableFileHooks,
     /** Memory configuration for this session. */
     @JsonProperty("memory") MemoryConfiguration memory,
     /** Capabilities enabled for this session. */

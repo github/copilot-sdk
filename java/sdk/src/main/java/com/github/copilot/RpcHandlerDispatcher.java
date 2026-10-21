@@ -8,9 +8,14 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Map;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.function.BiFunction;
+import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -48,6 +53,7 @@ import com.github.copilot.rpc.UserInputRequest;
  * <li>Lifecycle events</li>
  * </ul>
  */
+@AllowCopilotExperimental
 final class RpcHandlerDispatcher {
 
     private static final Logger LOG = Logger.getLogger(RpcHandlerDispatcher.class.getName());
@@ -57,6 +63,7 @@ final class RpcHandlerDispatcher {
     private final LifecycleEventDispatcher lifecycleDispatcher;
     private final Executor executor;
     private final GitHubTokenProviderRegistry gitHubTokenProviders;
+    private final Map<Long, CompletableFuture<Void>> skillProviderCancellations = new ConcurrentHashMap<>();
 
     /**
      * Creates a dispatcher with session registry and lifecycle dispatcher.
@@ -101,6 +108,144 @@ final class RpcHandlerDispatcher {
                 (requestId, params) -> handleProviderTokenGetToken(rpc, requestId, params));
         rpc.registerMethodHandler("gitHubToken.getToken",
                 (requestId, params) -> handleGitHubTokenGetToken(rpc, requestId, params));
+        rpc.registerMethodHandler("skillProvider.list",
+                (requestId, params) -> handleSkillProviderList(rpc, requestId, params));
+        rpc.registerMethodHandler("skillProvider.read",
+                (requestId, params) -> handleSkillProviderRead(rpc, requestId, params));
+    }
+
+    // The generated skillProvider.* records are package-private because the
+    // methods are internal, so these handlers read params as JSON.
+    private void handleSkillProviderList(JsonRpcClient rpc, String requestId, JsonNode params) {
+        handleSkillProviderRequest(rpc, requestId, params, "skillProvider.list", "listSkills",
+                (provider, request) -> provider.listSkills(),
+                skills -> Map.of("skills", skills != null ? skills : Collections.emptyList()));
+    }
+
+    private void handleSkillProviderRead(JsonRpcClient rpc, String requestId, JsonNode params) {
+        handleSkillProviderRequest(rpc, requestId, params, "skillProvider.read", "readSkill",
+                (provider, request) -> provider.readSkill(textParam(request, "name")), markdown -> {
+                    // Write an explicit null: the runtime requires the field and reads null as "not
+                    // found".
+                    var result = MAPPER.createObjectNode();
+                    if (markdown == null) {
+                        result.putNull("markdown");
+                    } else {
+                        result.put("markdown", markdown);
+                    }
+                    return result;
+                });
+    }
+
+    private static String textParam(JsonNode params, String field) {
+        JsonNode value = params != null ? params.get(field) : null;
+        return value != null && !value.isNull() ? value.asText() : null;
+    }
+
+    private <R> void handleSkillProviderRequest(JsonRpcClient rpc, String requestId, JsonNode params, String method,
+            String operation, BiFunction<SkillProvider, JsonNode, CompletableFuture<R>> call,
+            Function<R, Object> toResult) {
+        final long requestIdLong = parseRequestId(requestId, method);
+        if (requestIdLong == -1) {
+            return;
+        }
+        // Registered on the reader thread so a later $/cancelRequest always finds it.
+        var cancellation = new CompletableFuture<Void>();
+        skillProviderCancellations.put(requestIdLong, cancellation);
+        runAsync(() -> {
+            String failure = "Skill provider " + operation + " failed";
+            String sessionId = null;
+            try {
+                sessionId = textParam(params, "sessionId");
+                SkillProvider provider = findSkillProvider(sessionId);
+                if (provider == null) {
+                    skillProviderCancellations.remove(requestIdLong, cancellation);
+                    sendSkillProviderError(rpc, requestIdLong, "No skill provider for session: " + sessionId, sessionId,
+                            null);
+                    return;
+                }
+                CompletableFuture<R> future = cancellation.isDone()
+                        ? CompletableFuture.failedFuture(new CancellationException())
+                        : call.apply(provider, params);
+                if (future == null) {
+                    future = CompletableFuture
+                            .failedFuture(new IllegalStateException(operation + " returned a null future"));
+                }
+                final CompletableFuture<R> providerFuture = future;
+                final String callSessionId = sessionId;
+                cancellation.thenRun(() -> providerFuture.cancel(true));
+                providerFuture.whenComplete((value, error) -> {
+                    skillProviderCancellations.remove(requestIdLong, cancellation);
+                    if (cancellation.isDone()) {
+                        sendSkillProviderCancelled(rpc, requestIdLong);
+                    } else if (error != null) {
+                        sendSkillProviderError(rpc, requestIdLong, failure, callSessionId, error);
+                    } else {
+                        sendSkillProviderResult(rpc, requestIdLong, method, failure, callSessionId,
+                                () -> toResult.apply(value));
+                    }
+                });
+            } catch (Exception error) {
+                skillProviderCancellations.remove(requestIdLong, cancellation);
+                sendSkillProviderError(rpc, requestIdLong, failure, sessionId, error);
+            }
+        });
+    }
+
+    /**
+     * Cancels the skill provider call named by a {@code $/cancelRequest}
+     * notification, if it is still in flight.
+     */
+    void handleCancelRequest(JsonNode params) {
+        JsonNode id = params != null ? params.get("id") : null;
+        if (id == null || !id.isIntegralNumber() || !id.canConvertToLong()) {
+            return;
+        }
+        CompletableFuture<Void> cancellation = skillProviderCancellations.get(id.asLong());
+        if (cancellation != null) {
+            cancellation.complete(null);
+        }
+    }
+
+    /** Cancels every in-flight skill provider call when the connection closes. */
+    void cancelSkillProviderCalls() {
+        skillProviderCancellations.values().forEach(cancellation -> cancellation.complete(null));
+    }
+
+    private SkillProvider findSkillProvider(String sessionId) {
+        CopilotSession session = sessionId != null ? sessions.get(sessionId) : null;
+        return session != null ? session.getSkillProvider() : null;
+    }
+
+    private void sendSkillProviderResult(JsonRpcClient rpc, long requestId, String method, String failure,
+            String sessionId, Supplier<Object> result) {
+        try {
+            rpc.sendResponse(requestId, result.get());
+        } catch (IOException error) {
+            LOG.log(Level.SEVERE, "Error sending " + method + " response", error);
+        } catch (RuntimeException error) {
+            sendSkillProviderError(rpc, requestId, failure, sessionId, error);
+        }
+    }
+
+    private void sendSkillProviderCancelled(JsonRpcClient rpc, long requestId) {
+        try {
+            rpc.sendErrorResponse(requestId, -32800, "Request cancelled");
+        } catch (IOException error) {
+            LOG.log(Level.FINE, "Error sending skill provider cancellation", error);
+        }
+    }
+
+    private void sendSkillProviderError(JsonRpcClient rpc, long requestId, String message, String sessionId,
+            Throwable error) {
+        if (error != null) {
+            LOG.log(Level.WARNING, message + " (sessionId=" + sessionId + ")", error);
+        }
+        try {
+            rpc.sendErrorResponse(requestId, -32603, message);
+        } catch (IOException sendError) {
+            LOG.log(Level.SEVERE, "Error sending skill provider error", sendError);
+        }
     }
 
     private void handleGitHubTokenGetToken(JsonRpcClient rpc, String requestId, JsonNode params) {

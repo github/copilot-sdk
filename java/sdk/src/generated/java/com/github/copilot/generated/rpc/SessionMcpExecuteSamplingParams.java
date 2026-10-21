@@ -31,6 +31,7 @@ public record SessionMcpExecuteSamplingParams(
     /** Name of the MCP server that initiated the sampling request */
     @JsonProperty("serverName") String serverName,
     /** The original MCP JSON-RPC request ID (string or number). Used by the runtime to correlate the inference with the originating MCP request for telemetry; this is distinct from `requestId` (which is the schema-level cancellation handle). */
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("mcpRequestId") Object mcpRequestId,
     /** Raw MCP CreateMessageRequest params, as received in the `sampling.requested` event. Treated as opaque at the schema layer; the runtime converts the embedded MCP messages into the OpenAI chat-completion shape internally. */
     @JsonProperty("request") McpExecuteSamplingRequest request

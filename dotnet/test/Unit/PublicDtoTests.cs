@@ -37,6 +37,13 @@ public class PublicDtoTests
         var cancelled = McpAuthResult.Cancel();
         Assert.True(cancelled.Cancelled);
         Assert.Null(cancelled.Token);
+        Assert.False(cancelled.RuntimeRefresh);
+
+        var runtimeRefresh = McpAuthResult.RefreshInRuntime();
+        Assert.True(runtimeRefresh.RuntimeRefresh);
+        Assert.False(runtimeRefresh.Cancelled);
+        Assert.Null(runtimeRefresh.Token);
+        Assert.False(new McpAuthContext().RuntimeRefreshSupported);
     }
 
     [Fact]

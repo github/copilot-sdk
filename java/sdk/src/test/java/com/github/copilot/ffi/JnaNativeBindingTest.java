@@ -58,6 +58,9 @@ class JnaNativeBindingTest {
         byte connectionWriteReturn = 1;
         byte connectionCloseReturn = 1;
         RuntimeException connectionCloseFailure;
+        byte uiThreadReturn = 1;
+        byte lastUiThreadEnabled;
+        int lastActionId;
 
         byte[] lastArgvJson;
         int lastArgvJsonLen;
@@ -101,6 +104,20 @@ class JnaNativeBindingTest {
             }
             return connectionCloseReturn;
         }
+
+        @Override
+        public byte copilot_runtime_connection_set_ui_thread_handler(int connectionId, byte enabled) {
+            lastConnectionId = connectionId;
+            lastUiThreadEnabled = enabled;
+            return uiThreadReturn;
+        }
+
+        @Override
+        public byte copilot_runtime_connection_run_ui_action(int connectionId, int actionId) {
+            lastConnectionId = connectionId;
+            lastActionId = actionId;
+            return uiThreadReturn;
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -136,6 +153,24 @@ class JnaNativeBindingTest {
         assertEquals(77, result, "hostStart should return the stub's configured value");
         assertEquals(argv, stub.lastArgvJson, "argv bytes should be passed through unchanged");
         assertEquals(argv.length, stub.lastArgvJsonLen);
+    }
+
+    @Test
+    void uiThreadBindingsPreserveConnectionActionAndBooleanWidths() {
+        StubRuntimeLibrary stub = new StubRuntimeLibrary();
+        JnaNativeBinding binding = new JnaNativeBinding(stub);
+
+        assertTrue(binding.connectionSetUiThreadHandler(21, true));
+        assertEquals(21, stub.lastConnectionId);
+        assertEquals((byte) 1, stub.lastUiThreadEnabled);
+        assertTrue(binding.connectionRunUiAction(21, 42));
+        assertEquals(21, stub.lastConnectionId);
+        assertEquals(42, stub.lastActionId);
+
+        stub.uiThreadReturn = 0;
+        assertFalse(binding.connectionSetUiThreadHandler(21, false));
+        assertEquals((byte) 0, stub.lastUiThreadEnabled);
+        assertFalse(binding.connectionRunUiAction(21, 42));
     }
 
     @Test

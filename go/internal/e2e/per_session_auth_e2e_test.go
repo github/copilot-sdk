@@ -21,7 +21,7 @@ func TestPerSessionAuthE2E(t *testing.T) {
 	if err := ctx.SetCopilotUserByToken("token-alice", map[string]interface{}{
 		"login":                 "alice",
 		"copilot_plan":          "individual_pro",
-		"endpoints":             map[string]interface{}{"api": ctx.ProxyURL, "telemetry": "https://localhost:1/telemetry"},
+		"endpoints":             map[string]interface{}{"api": ctx.ProxyURL, "telemetry": "https://sdk-hydro-collector.example.com"},
 		"analytics_tracking_id": "alice-tracking-id",
 	}); err != nil {
 		t.Fatalf("Failed to set copilot user for alice: %v", err)
@@ -30,7 +30,7 @@ func TestPerSessionAuthE2E(t *testing.T) {
 	if err := ctx.SetCopilotUserByToken("token-bob", map[string]interface{}{
 		"login":                 "bob",
 		"copilot_plan":          "business",
-		"endpoints":             map[string]interface{}{"api": ctx.ProxyURL, "telemetry": "https://localhost:1/telemetry"},
+		"endpoints":             map[string]interface{}{"api": ctx.ProxyURL, "telemetry": "https://sdk-hydro-collector.example.com"},
 		"analytics_tracking_id": "bob-tracking-id",
 	}); err != nil {
 		t.Fatalf("Failed to set copilot user for bob: %v", err)

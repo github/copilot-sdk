@@ -4,21 +4,163 @@
 #![allow(clippy::unwrap_used)]
 
 use github_copilot_sdk::rpc::{
-    AcceptedEnqueueCommandResult, ConnectorAccountRequest, ConnectorCatalogStatus,
-    ConnectorConnectRequest, ConnectorContinueRequest, ConnectorReconcileRequest,
+    AcceptedEnqueueCommandResult, AuthIdentityMetadata, AuthInfoType, ConnectorAccountRequest,
+    ConnectorCapabilities, ConnectorCatalogEntry, ConnectorCatalogStatus, ConnectorConnectRequest,
+    ConnectorConnectResult, ConnectorContinueRequest, ConnectorReconcileOptions,
+    ConnectorReconcileRequest, ConnectorSessionAccount, ConnectorSessionAccountResult,
+    CustomizationReloadOutcome, CustomizationReloadStatus, CustomizationReloadSubsystem,
     EnqueueCommandResult, Extension, ExtensionList, ExtensionSource, ExtensionStatus,
     ExtensionsDisableRequest, ExtensionsEnableRequest, FleetStartRequest, FleetStartResult,
-    McpDisableRequest, McpEnableOptions, McpEnableRequest, McpInstallationOperationStatus,
-    McpOauthLoginOptions, McpOauthLoginRequest, McpServer, McpStopServerRequest,
-    ModelSetAllowedModelsRequest, ModelSetAllowedModelsResult, ModelSwitchAutoTierRequest,
-    ModelSwitchAutoTierResult, ModelSwitchAutoTierStatus, QueuePendingItems, QueuePendingItemsKind,
-    SandboxConfig, SendAgentMode, TasksStartAgentRequest, UnsupportedEnqueueCommandResult,
+    ManagedPermissionEvaluation, ManagedPermissionOperationKind, ManagedPermissionsEvaluateRequest,
+    McpConfiguredServer, McpConfiguredServerList, McpConfiguredServerState, McpDisableRequest,
+    McpEnableOptions, McpEnableRequest, McpInstallationOperationStatus, McpOauthLoginOptions,
+    McpOauthLoginRequest, McpServer, McpStopServerRequest, ModelSetAllowedModelsRequest,
+    ModelSetAllowedModelsResult, ModelSwitchAutoTierRequest, ModelSwitchAutoTierResult,
+    ModelSwitchAutoTierStatus, QueuePendingItems, QueuePendingItemsKind, SandboxConfig,
+    SendAgentMode, SessionMcpListConfiguredResult, TasksStartAgentRequest,
+    UnsupportedEnqueueCommandResult,
 };
 use github_copilot_sdk::session_events::{
-    McpServerStatus, PermissionRequest, PermissionRequestedData, SessionEventData,
-    TypedSessionEvent,
+    McpServerStatus, PermissionRequest, PermissionRequestedData, RecommendedAutoTier,
+    SessionEventData, TypedSessionEvent,
 };
 use github_copilot_sdk::{AutoTier, AutoTierPreference, SetModelOptions};
+
+#[test]
+fn managed_permission_results_reuse_operations_without_reconstruction() {
+    let evaluation: ManagedPermissionEvaluation = serde_json::from_value(serde_json::json!({
+        "operation": {"kind": "url", "url": "https://example.com/a"},
+        "verdict": "allow",
+    }))
+    .unwrap();
+    let request = ManagedPermissionsEvaluateRequest {
+        context: serde_json::from_value(serde_json::json!({"failClosed": false})).unwrap(),
+        operations: vec![evaluation.operation],
+    };
+    assert_eq!(
+        request.operations[0].kind,
+        ManagedPermissionOperationKind::Url
+    );
+    assert_eq!(
+        serde_json::to_value(request).unwrap(),
+        serde_json::json!({
+            "context": {"failClosed": false},
+            "operations": [{"kind": "url", "url": "https://example.com/a"}],
+        })
+    );
+}
+
+#[test]
+fn extensible_tier_unknown_literal_retains_its_provider_identity() {
+    let wire = serde_json::json!("Unknown");
+    let tier: AutoTier = serde_json::from_value(wire.clone()).unwrap();
+    assert_eq!(tier, AutoTier::Custom("Unknown".to_owned()));
+    assert_eq!(serde_json::to_value(tier).unwrap(), wire);
+    let recommendation: RecommendedAutoTier = serde_json::from_value(wire.clone()).unwrap();
+    assert_eq!(
+        recommendation,
+        RecommendedAutoTier::Custom("Unknown".to_owned())
+    );
+    assert_eq!(serde_json::to_value(recommendation).unwrap(), wire);
+}
+
+#[test]
+fn configured_mcp_servers_preserve_enablement_with_unmaterialized_state() {
+    for enabled in [false, true] {
+        let server = McpConfiguredServer {
+            name: "configured".to_string(),
+            enabled,
+            live: McpConfiguredServerState {
+                status: McpServerStatus::NotConfigured,
+                error: None,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let wire = serde_json::json!({
+            "servers": [{
+                "name": "configured",
+                "enabled": enabled,
+                "live": { "status": "not_configured" },
+            }],
+        });
+        assert_eq!(
+            serde_json::to_value(McpConfiguredServerList {
+                servers: vec![server],
+            })
+            .unwrap(),
+            wire
+        );
+        let result: SessionMcpListConfiguredResult = serde_json::from_value(wire.clone()).unwrap();
+        assert_eq!(
+            result.servers[0].live.status,
+            McpServerStatus::NotConfigured
+        );
+        assert_eq!(serde_json::to_value(result).unwrap(), wire);
+    }
+}
+
+#[test]
+fn configured_mcp_servers_preserve_live_observations_independently_of_enablement() {
+    for enabled in [false, true] {
+        let server = McpConfiguredServer {
+            name: "configured".to_string(),
+            enabled,
+            live: McpConfiguredServerState {
+                status: McpServerStatus::Stopped,
+                error: None,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        assert_eq!(
+            serde_json::to_value(server).unwrap(),
+            serde_json::json!({
+                "name": "configured",
+                "enabled": enabled,
+                "live": { "status": "stopped" },
+            })
+        );
+    }
+    let wire = serde_json::json!({
+        "servers": [{
+            "name": "configured",
+            "enabled": true,
+            "live": { "status": "failed", "error": "connection failed" },
+        }],
+    });
+    let result: SessionMcpListConfiguredResult = serde_json::from_value(wire.clone()).unwrap();
+    assert_eq!(serde_json::to_value(result).unwrap(), wire);
+}
+
+#[test]
+fn customization_reload_outcome_preserves_future_wire_values() {
+    let wire = serde_json::json!({
+        "status": "future-status",
+        "subsystem": "future-subsystem",
+        "detail": "new component",
+    });
+    let outcome: CustomizationReloadOutcome = serde_json::from_value(wire.clone()).unwrap();
+    assert_eq!(serde_json::to_value(outcome).unwrap(), wire);
+
+    assert_eq!(
+        serde_json::from_value::<CustomizationReloadStatus>(serde_json::json!("reloaded")).unwrap(),
+        CustomizationReloadStatus::Reloaded
+    );
+    assert_eq!(
+        serde_json::from_value::<CustomizationReloadSubsystem>(serde_json::json!("skills"))
+            .unwrap(),
+        CustomizationReloadSubsystem::Skills
+    );
+    assert_eq!(
+        serde_json::to_value(CustomizationReloadStatus::Reloaded).unwrap(),
+        serde_json::json!("reloaded")
+    );
+    assert_eq!(
+        serde_json::to_value(CustomizationReloadSubsystem::Skills).unwrap(),
+        serde_json::json!("skills")
+    );
+}
 
 #[test]
 fn operation_status_preserves_required_phases_and_original_identity() {
@@ -76,6 +218,45 @@ fn host_start_round_trips_absent_and_legacy_child_pid() {
         assert_eq!(host.pid, pid);
         assert_eq!(serde_json::to_value(host).unwrap(), wire);
     }
+}
+
+#[test]
+fn host_start_round_trips_optional_transport_results() {
+    for wire in [
+        serde_json::json!({"hostId": "host"}),
+        serde_json::json!({"hostId": "host", "environmentId": "environment"}),
+        serde_json::json!({
+            "hostId": "host", "environmentId": "environment",
+            "url": "ws://127.0.0.1:4321", "token": "secret"
+        }),
+    ] {
+        let host: github_copilot_sdk::rpc::HostStartResult =
+            serde_json::from_value(wire.clone()).unwrap();
+        assert_eq!(host.url.as_deref(), wire["url"].as_str());
+        assert_eq!(
+            host.environment_id.as_deref(),
+            wire["environmentId"].as_str()
+        );
+        assert_eq!(host.token.as_deref(), wire["token"].as_str());
+        assert_eq!(host.pid, None);
+        assert_eq!(serde_json::to_value(host).unwrap(), wire);
+    }
+}
+
+#[test]
+fn github_host_environment_requires_name_and_compute_id() {
+    use github_copilot_sdk::rpc::HostGitHubEnvironmentOptions;
+
+    for wire in [
+        serde_json::json!({}),
+        serde_json::json!({"name": "SDK host"}),
+        serde_json::json!({"computeId": "compute"}),
+    ] {
+        assert!(serde_json::from_value::<HostGitHubEnvironmentOptions>(wire).is_err());
+    }
+    let wire = serde_json::json!({"name": "SDK host", "computeId": "compute"});
+    let options: HostGitHubEnvironmentOptions = serde_json::from_value(wire.clone()).unwrap();
+    assert_eq!(serde_json::to_value(options).unwrap(), wire);
 }
 
 #[test]
@@ -168,6 +349,10 @@ fn session_events_deserialize_auto_tier() {
             (Some(AutoTier::Balance), Some("balance")),
             (Some(AutoTier::Intelligence), Some("intelligence")),
             (Some(AutoTier::Fast), Some("fast")),
+            (
+                Some(AutoTier::Custom("premium-v2".to_owned())),
+                Some("premium-v2"),
+            ),
             (None, None),
         ] {
             let mut wire = serde_json::json!({
@@ -186,6 +371,12 @@ fn session_events_deserialize_auto_tier() {
                 wire["data"]["autoTier"] = serde_json::json!(wire_tier);
             }
             let event: TypedSessionEvent = serde_json::from_value(wire).unwrap();
+            if let Some(wire_tier) = wire_tier {
+                assert_eq!(
+                    serde_json::to_value(&event).unwrap()["data"]["autoTier"],
+                    serde_json::json!(wire_tier),
+                );
+            }
             let actual: Option<AutoTier> = match event.payload {
                 SessionEventData::SessionStart(data) if event_type == "session.start" => {
                     data.auto_tier
@@ -324,6 +515,99 @@ fn connector_request_dtos_use_public_camel_case_wire_fields() {
             "refreshCatalog": true,
         })
     );
+
+    let targeted = ConnectorReconcileOptions::new("account-1").force_connector_name("github");
+    assert_eq!(
+        serde_json::to_value(targeted).unwrap(),
+        serde_json::json!({
+            "accountId": "account-1",
+            "forceConnectorName": "github",
+        })
+    );
+}
+
+#[test]
+fn connector_session_account_is_nullable_and_credential_free() {
+    let account = ConnectorSessionAccount {
+        account_id: "session-account-1".to_string(),
+        auth_info: AuthIdentityMetadata {
+            r#type: AuthInfoType::Token,
+            host: "github.com".to_string(),
+            login: "alice".to_string(),
+        },
+    };
+    let expected = serde_json::json!({
+        "accountId": "session-account-1",
+        "authInfo": { "type": "token", "host": "github.com", "login": "alice" },
+    });
+    assert_eq!(serde_json::to_value(&account).unwrap(), expected);
+    let decoded: ConnectorSessionAccountResult = serde_json::from_value(expected).unwrap();
+    assert_eq!(decoded.unwrap().account_id, account.account_id);
+    let unavailable: ConnectorSessionAccountResult =
+        serde_json::from_value(serde_json::Value::Null).unwrap();
+    assert!(unavailable.is_none());
+    assert_eq!(
+        serde_json::to_value(unavailable).unwrap(),
+        serde_json::Value::Null
+    );
+}
+
+#[test]
+fn connector_optional_capabilities_are_not_enabled_by_older_runtimes() {
+    for flag in [None, Some(false), Some(true)] {
+        let mut value = serde_json::json!({
+            "apiVersion": 1,
+            "availability": "enabled",
+            "consentContinuation": true,
+            "opaqueAccountSelection": true,
+            "maxPollAttempts": 10,
+            "maxPollIntervalMs": 5_000,
+            "maxDeadlineMs": 60_000,
+        });
+        if let Some(flag) = flag {
+            value["sessionAccountSelection"] = serde_json::json!(flag);
+            value["targetedReconcile"] = serde_json::json!(flag);
+        }
+        let capabilities: ConnectorCapabilities = serde_json::from_value(value).unwrap();
+        assert_eq!(capabilities.session_account_selection, flag);
+        assert_eq!(capabilities.targeted_reconcile, flag);
+        assert_eq!(
+            capabilities.session_account_selection == Some(true),
+            flag == Some(true)
+        );
+        assert_eq!(
+            capabilities.targeted_reconcile == Some(true),
+            flag == Some(true)
+        );
+    }
+}
+
+#[test]
+fn connector_catalog_presentation_metadata_is_optional() {
+    let legacy = serde_json::json!({
+        "name": "github",
+        "displayName": "GitHub",
+        "status": "connected",
+        "runtimeServerIds": ["connector-github"],
+    });
+    let entry: ConnectorCatalogEntry = serde_json::from_value(legacy.clone()).unwrap();
+    assert!(entry.logo.is_none());
+    assert!(entry.tier.is_none());
+    assert!(entry.release_tag.is_none());
+    assert_eq!(serde_json::to_value(entry).unwrap(), legacy);
+
+    let mut decorated = legacy;
+    decorated["logo"] = serde_json::json!("https://example.com/github.svg");
+    decorated["tier"] = serde_json::json!("standard");
+    decorated["releaseTag"] = serde_json::json!("preview");
+    let entry: ConnectorCatalogEntry = serde_json::from_value(decorated.clone()).unwrap();
+    assert_eq!(
+        entry.logo.as_deref(),
+        Some("https://example.com/github.svg")
+    );
+    assert_eq!(entry.tier.as_deref(), Some("standard"));
+    assert_eq!(entry.release_tag.as_deref(), Some("preview"));
+    assert_eq!(serde_json::to_value(entry).unwrap(), decorated);
 }
 
 #[test]
@@ -335,6 +619,23 @@ fn connector_catalog_unknown_wire_value_has_a_distinct_variant() {
 
     assert_eq!(service_unknown, ConnectorCatalogStatus::UnknownValue);
     assert_eq!(future_status, ConnectorCatalogStatus::Unknown);
+}
+
+#[test]
+fn connector_connect_results_do_not_treat_unknown_outcomes_as_connected() {
+    let future_result = serde_json::json!({
+        "kind": "future_outcome",
+        "continuationId": "continuation-1",
+        "consentUrl": "https://example.com/consent",
+        "status": {
+            "apiVersion": 1,
+            "availability": "enabled",
+            "runtimeServers": [],
+            "pendingConnections": 0
+        }
+    });
+
+    assert!(serde_json::from_value::<ConnectorConnectResult>(future_result).is_err());
 }
 
 #[test]
@@ -532,6 +833,7 @@ fn switch_auto_tier_request_serializes_each_tier() {
         (AutoTier::Balance, "balance"),
         (AutoTier::Intelligence, "intelligence"),
         (AutoTier::Fast, "fast"),
+        (AutoTier::Custom("premium-v2".to_owned()), "premium-v2"),
     ] {
         let request = ModelSwitchAutoTierRequest {
             auto_tier: Some(tier),

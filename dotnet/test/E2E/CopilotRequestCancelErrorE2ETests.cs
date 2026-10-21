@@ -89,31 +89,17 @@ public class CopilotRequestCancelErrorE2ETests(E2ETestFixture fixture, ITestOutp
         try
         {
             await session.SendAsync(new MessageOptions { Prompt = "Say OK." });
-            await WaitForAsync(() => handler.InferenceEntered, TimeSpan.FromSeconds(60));
+            await handler.InferenceEntered.Task.WaitAsync(TimeSpan.FromSeconds(60));
             await session.AbortAsync();
-            await WaitForAsync(() => handler.SawAbort, TimeSpan.FromSeconds(30));
+            await handler.SawAbort.Task.WaitAsync(TimeSpan.FromSeconds(30));
         }
         finally
         {
             await session.DisposeAsync();
         }
 
-        Assert.True(handler.InferenceEntered, "expected the inference callback to be entered");
-        Assert.True(handler.SawAbort, "expected the callback to observe runtime cancellation");
-    }
-
-    private static async Task WaitForAsync(Func<bool> predicate, TimeSpan timeout)
-    {
-        var deadline = DateTime.UtcNow + timeout;
-        while (!predicate())
-        {
-            if (DateTime.UtcNow > deadline)
-            {
-                throw new TimeoutException("WaitForAsync timed out");
-            }
-
-            await Task.Delay(50);
-        }
+        Assert.True(handler.InferenceEntered.Task.Status == TaskStatus.RanToCompletion, "expected the inference callback to be entered");
+        Assert.True(handler.SawAbort.Task.Status == TaskStatus.RanToCompletion, "expected the callback to observe runtime cancellation");
     }
 }
 
@@ -140,12 +126,8 @@ internal sealed class ThrowingRequestHandler : CopilotRequestHandler
 /// <summary>Blocks every inference request until the runtime cancels it.</summary>
 internal sealed class CancellingRequestHandler : CopilotRequestHandler
 {
-    private volatile bool _inferenceEntered;
-    private volatile bool _sawAbort;
-
-    public bool InferenceEntered => _inferenceEntered;
-
-    public bool SawAbort => _sawAbort;
+    public TaskCompletionSource InferenceEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    public TaskCompletionSource SawAbort { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     protected override async Task<HttpResponseMessage> SendRequestAsync(HttpRequestMessage request, CopilotRequestContext ctx)
     {
@@ -155,7 +137,7 @@ internal sealed class CancellingRequestHandler : CopilotRequestHandler
             return RecordingRequestHandler.BuildNonInferenceResponse(url);
         }
 
-        _inferenceEntered = true;
+        InferenceEntered.TrySetResult();
         try
         {
             // Never produce a response; wait for the runtime to cancel us.
@@ -163,7 +145,7 @@ internal sealed class CancellingRequestHandler : CopilotRequestHandler
         }
         catch (OperationCanceledException)
         {
-            _sawAbort = true;
+            SawAbort.TrySetResult();
             throw;
         }
 

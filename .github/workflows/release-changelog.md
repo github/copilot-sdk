@@ -37,6 +37,8 @@ Determine which type of release this is by inspecting the tag or fetching the re
 
 Use the GitHub API to fetch the release corresponding to `${{ github.event.inputs.tag }}` to get its name, publish date, prerelease status, and other metadata.
 
+Use only this public SDK repository's source, history, releases, and pull requests. Do not retrieve or link private runtime source/history. If the target is not a published SDK `v<semver>` release, stop without updating anything; `runtime-*` releases contain acquisition assets, not SDK release notes.
+
 ## Your Task
 
 ### Step 1: Identify the version range
@@ -49,6 +51,7 @@ Use the GitHub API to fetch the release corresponding to `${{ github.event.input
 2. The **new version** is the release tag: `${{ github.event.inputs.tag }}`
 3. Fetch the release metadata to determine if this is a **stable** or **prerelease** release.
 4. Determine the **previous version** to diff against:
+   - Consider only published, non-draft SDK `v<semver>` releases whose publication time precedes the target. Exclude `runtime-*` releases, even for prerelease comparisons.
    - **For stable releases**: list releases via the API and find the previous **stable** release (skip prereleases and the current release). Do not use the frozen `CHANGELOG.md` as the version baseline. Stable release notes include ALL changes since the last stable release, even if some were already mentioned in prerelease notes.
    - **For prerelease releases**: find the most recent release of **any kind** (stable or prerelease) that precedes this one. This way prerelease notes only cover what's new since the last release.
 5. If no previous release exists at all, use the first commit in the repo as the starting point.

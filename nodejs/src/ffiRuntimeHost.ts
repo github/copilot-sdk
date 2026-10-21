@@ -37,6 +37,8 @@ interface FfiLibrary {
     connectionOpen: KoffiFunction;
     connectionWrite: KoffiFunction;
     connectionClose: KoffiFunction;
+    connectionSetUiThreadHandler: KoffiFunction;
+    connectionRunUiAction: KoffiFunction;
     outboundCallbackType: KoffiType;
 }
 
@@ -90,6 +92,15 @@ function loadLibrary(libraryPath: string): FfiLibrary {
             "size_t",
         ]),
         connectionClose: lib.func(`${SYMBOL_PREFIX}connection_close`, "bool", ["uint32"]),
+        connectionSetUiThreadHandler: lib.func(
+            `${SYMBOL_PREFIX}connection_set_ui_thread_handler`,
+            "bool",
+            ["uint32", "bool"]
+        ),
+        connectionRunUiAction: lib.func(`${SYMBOL_PREFIX}connection_run_ui_action`, "bool", [
+            "uint32",
+            "uint32",
+        ]),
         outboundCallbackType,
     };
     loadedLibraryPath = libraryPath;
@@ -243,7 +254,7 @@ export class FfiRuntimeHost {
             );
             if (!this.connectionId) {
                 this.unregisterCallback();
-                this.lib.hostShutdown(this.serverId);
+                await this.shutdownHost();
                 this.serverId = 0;
                 throw new Error("copilot_runtime_connection_open failed.");
             }
@@ -256,7 +267,7 @@ export class FfiRuntimeHost {
         } finally {
             this.starting = false;
             if (this.disposed) {
-                void this.tryFinalizeCleanup();
+                await this.tryFinalizeCleanup();
             }
         }
     }
@@ -268,6 +279,24 @@ export class FfiRuntimeHost {
         const ok = this.lib.connectionWrite(this.connectionId, frame, frame.length);
         if (!ok) {
             throw new Error("Failed to write a frame to the in-process runtime connection.");
+        }
+    }
+
+    configureUiThread(enabled: boolean): void {
+        if (this.disposed || !this.lib.connectionSetUiThreadHandler(this.connectionId, enabled)) {
+            throw new Error("Failed to configure the in-process UI dispatcher.");
+        }
+    }
+
+    runUiAction(actionId: number): void {
+        if (!Number.isInteger(actionId) || actionId < 0 || actionId > 0xffffffff) {
+            throw new RangeError("UI action ID must be an unsigned 32-bit integer.");
+        }
+        // Deliberately synchronous: async FFI would run the action on a worker.
+        if (this.disposed || !this.lib.connectionRunUiAction(this.connectionId, actionId)) {
+            throw new Error(
+                "Native UI action is retired, already executed, or not running on the process main thread."
+            );
         }
     }
 
@@ -303,6 +332,19 @@ export class FfiRuntimeHost {
                 `In-process FFI inbound callback failed: ${error instanceof Error ? (error.stack ?? error.message) : String(error)}`
             );
         }
+    }
+
+    private shutdownHost(): Promise<boolean> {
+        // Native shutdown waits for probe reaping; keep the JS event loop free while it joins.
+        return new Promise<boolean>((resolvePromise, rejectPromise) => {
+            this.lib.hostShutdown.async(this.serverId, (error: Error | null, result: boolean) => {
+                if (error) {
+                    rejectPromise(error);
+                } else {
+                    resolvePromise(result);
+                }
+            });
+        });
     }
 
     private unregisterCallback(): boolean {
@@ -387,7 +429,7 @@ export class FfiRuntimeHost {
 
             if (this.serverId) {
                 try {
-                    if (!this.lib.hostShutdown(this.serverId)) {
+                    if (!(await this.shutdownHost())) {
                         console.error(
                             `In-process FFI host shutdown did not recognize server ${this.serverId}.`
                         );

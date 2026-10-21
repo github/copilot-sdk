@@ -95,6 +95,35 @@ public class CopilotToolTests
     }
 
     [Fact]
+    public void Namespace_Uses_Sdk_Facing_Type()
+    {
+        Assert.Equal("GitHub.Copilot.ToolNamespace",
+            typeof(CopilotToolOptions).GetProperty(nameof(CopilotToolOptions.Namespace))!.PropertyType.FullName);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("Edit Word documents")]
+    public void DefineTool_Sets_Namespace_In_Additional_Properties(string? description)
+    {
+        var toolNamespace = new ToolNamespace { Name = "word", Description = description };
+        var function = CopilotTool.DefineTool(
+            ReturnsOk,
+            new CopilotToolOptions { Namespace = toolNamespace });
+
+        Assert.Same(toolNamespace, function.AdditionalProperties["namespace"]);
+        Assert.False(function.AdditionalProperties.ContainsKey("defer"));
+    }
+
+    [Fact]
+    public void DefineTool_Omits_Namespace_When_Unset()
+    {
+        var function = CopilotTool.DefineTool(ReturnsOk);
+
+        Assert.False(function.AdditionalProperties.ContainsKey("namespace"));
+    }
+
+    [Fact]
     public void DefineTool_Accepts_Lambda_Handlers_Without_Casts()
     {
         var function = CopilotTool.DefineTool((string value) => value, factoryOptions: new() { Name = "echo", Description = "Echo a value" });

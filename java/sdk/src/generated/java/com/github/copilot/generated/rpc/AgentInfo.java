@@ -54,6 +54,8 @@ public record AgentInfo(
     /** Skill names preloaded into this agent's context. Omitted means none. */
     @JsonProperty("skills") List<String> skills,
     /** Authored base prompt for the agent. Runtime prompt assembly may add dynamic context at invocation time. Omitted from `session.agent.list` unless `includePrompt` is true. */
-    @JsonProperty("prompt") String prompt
+    @JsonProperty("prompt") String prompt,
+    /** Declarative hook actions keyed by event name, executed only while this agent is active. */
+    @JsonProperty("hooks") Map<String, List<Object>> hooks
 ) {
 }

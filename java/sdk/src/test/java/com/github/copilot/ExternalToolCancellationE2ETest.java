@@ -4,13 +4,15 @@
 
 package com.github.copilot;
 
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BooleanSupplier;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -41,11 +43,11 @@ public class ExternalToolCancellationE2ETest {
     void shouldCancelToolHandlerWhenSessionDisconnects() throws Exception {
         ctx.configureForTest("external_tool_cancellation", "should_cancel_tool_handler_when_session_disconnects");
 
-        var pendingTool = new AtomicReference<CompletableFuture<Object>>();
+        var pendingTool = new CompletableFuture<CompletableFuture<Object>>();
         ToolDefinition slowTool = ToolDefinition.create("slow_analysis",
                 "A slow analysis tool that blocks until released", slowAnalysisSchema(), invocation -> {
                     CompletableFuture<Object> pending = new CompletableFuture<>();
-                    pendingTool.set(pending);
+                    pendingTool.complete(pending);
                     return pending;
                 });
 
@@ -58,9 +60,10 @@ public class ExternalToolCancellationE2ETest {
                         .setPrompt("Use slow_analysis with value 'test_abort'. Wait for the result."))
                         .get(60, TimeUnit.SECONDS);
 
-                waitFor(() -> pendingTool.get() != null, 60_000);
+                var pending = pendingTool.get(60, TimeUnit.SECONDS);
                 session.close();
-                waitFor(() -> pendingTool.get() != null && pendingTool.get().isCancelled(), 60_000);
+                assertThrows(CancellationException.class, () -> pending.get(60, TimeUnit.SECONDS));
+                assertTrue(pending.isCancelled(), "Tool handler future should be cancelled");
             } finally {
                 if (session != null) {
                     session.close();
@@ -77,15 +80,5 @@ public class ExternalToolCancellationE2ETest {
         schema.put("properties", props);
         schema.put("required", List.of("value"));
         return schema;
-    }
-
-    private static void waitFor(BooleanSupplier predicate, long timeoutMillis) throws InterruptedException {
-        long deadline = System.currentTimeMillis() + timeoutMillis;
-        while (!predicate.getAsBoolean()) {
-            if (System.currentTimeMillis() > deadline) {
-                throw new AssertionError("waitFor timed out");
-            }
-            Thread.sleep(50);
-        }
     }
 }

@@ -5,6 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -20,6 +22,7 @@ import com.github.copilot.generated.rpc.ModelSwitchAutoTierStatus;
 import com.github.copilot.generated.rpc.SessionEventLogReadParams;
 import com.github.copilot.rpc.AutoTier;
 import com.github.copilot.rpc.CapiSessionOptions;
+import com.github.copilot.rpc.CopilotClientOptions;
 import com.github.copilot.rpc.MessageOptions;
 import com.github.copilot.rpc.PermissionHandler;
 import com.github.copilot.rpc.ResumeSessionConfig;
@@ -200,12 +203,19 @@ class AutoTierIT {
     void shouldCommitFastAutoTierAfterSuccessfulTurn() throws Exception {
         ctx.configureForTest("auto_tier", "should_commit_fast_auto_tier_after_successful_turn");
 
-        try (CopilotClient client = ctx.createClient();
+        // Keep this invocation's detach trace outside the home removed by context
+        // teardown.
+        Path logDirectory = Files.createTempDirectory(Files.createDirectories(Path.of("target", "failsafe-reports")),
+                "auto-tier-detach-").toAbsolutePath();
+        try (CopilotClient client = ctx.createClient(new CopilotClientOptions().setLogLevel("debug")
+                .setCliArgs(new String[]{"--log-dir", logDirectory.toString()}));
                 CopilotSession session = client
                         .createSession(new SessionConfig().setModel(MODEL_ID)
                                 .setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setCapi(new CapiSessionOptions()
                                         .setAutoTier(AutoTier.EFFICIENCY).setEnableWebSocketResponses(false)))
                         .get(30, TimeUnit.SECONDS)) {
+            System.err.println(
+                    "AutoTierIT detach diagnostics: session=" + session.getSessionId() + " logs=" + logDirectory);
             var modelChangedFuture = new CompletableFuture<SessionModelChangeEvent>();
             try (var subscription = session.on(SessionModelChangeEvent.class, event -> {
                 if (event.getData().autoTier() == com.github.copilot.generated.AutoTier.FAST) {

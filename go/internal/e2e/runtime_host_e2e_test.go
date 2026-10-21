@@ -13,6 +13,7 @@ import (
 
 	copilot "github.com/github/copilot-sdk/go"
 	"github.com/github/copilot-sdk/go/internal/e2e/testharness"
+	"github.com/github/copilot-sdk/go/rpc"
 )
 
 const ahpToolPrompt = "Use the magic_number tool with seed 'hello' and tell me the result"
@@ -48,7 +49,10 @@ func driveAhp(t *testing.T, ahp *testharness.AhpTestClient, command map[string]a
 
 func connectAhpTest(t *testing.T, ahp *testharness.AhpTestClient, host *copilot.AhpHost, clientID string) (string, func()) {
 	t.Helper()
-	command := map[string]any{"op": "connect", "url": host.URL, "githubToken": "fake-token-for-e2e-tests"}
+	if host.URL == nil {
+		t.Fatal("local host did not return a URL")
+	}
+	command := map[string]any{"op": "connect", "url": *host.URL, "githubToken": "fake-token-for-e2e-tests"}
 	if host.Token != nil {
 		command["token"] = *host.Token
 	}
@@ -68,6 +72,8 @@ type ahpApplication struct {
 	session  atomic.Pointer[copilot.Session]
 	creates  atomic.Int32
 	resumes  atomic.Int32
+	createID atomic.Value
+	resumeID atomic.Value
 	tools    atomic.Int32
 	hooks    atomic.Int32
 	released chan *copilot.Session
@@ -112,18 +118,27 @@ func (a *ahpApplication) createConfig(config *copilot.SessionConfig) {
 
 func (a *ahpApplication) options() *copilot.AhpHostOptions {
 	return &copilot.AhpHostOptions{
+		LocalServer: &rpc.HostLocalServerOptions{},
 		CreateSession: func(ctx context.Context, request copilot.AhpSessionCreateRequest) (*copilot.Session, error) {
 			a.creates.Add(1)
 			if ctx.Err() != nil || request.Config.WorkingDirectory != a.workDir {
 				return nil, fmt.Errorf("invalid create handoff")
 			}
+			if request.Config.SessionID == "" {
+				return nil, fmt.Errorf("create handoff omitted runtime session identity")
+			}
+			a.createID.Store(request.Config.SessionID)
 			a.createConfig(request.Config)
 			session, err := a.client.CreateSession(ctx, request.Config)
+			if err == nil && session.SessionID != request.Config.SessionID {
+				return nil, fmt.Errorf("create returned %q, requested %q", session.SessionID, request.Config.SessionID)
+			}
 			a.session.Store(session)
 			return session, err
 		},
 		ResumeSession: func(ctx context.Context, request copilot.AhpSessionResumeRequest) (*copilot.Session, error) {
 			a.resumes.Add(1)
+			a.resumeID.Store(request.SessionID)
 			config := request.Config
 			if ctx.Err() != nil || config.WorkingDirectory != a.workDir ||
 				config.ContinuePendingWork == nil || *config.ContinuePendingWork {
@@ -133,6 +148,9 @@ func (a *ahpApplication) options() *copilot.AhpHostOptions {
 			config.SystemMessage = &copilot.SystemMessageConfig{Mode: "append", Content: ahpPromptMarker}
 			config.Tools, config.Hooks = a.callbacks()
 			session, err := a.client.ResumeSessionWithOptions(ctx, request.SessionID, config)
+			if err == nil && session.SessionID != request.SessionID {
+				return nil, fmt.Errorf("resume returned %q, requested %q", session.SessionID, request.SessionID)
+			}
 			a.session.Store(session)
 			return session, err
 		},
@@ -223,7 +241,8 @@ func TestRuntimeHostE2E(t *testing.T) {
 				driveAhp(t, ahp, map[string]any{"op": "attach", "clientId": clientID, "sessionId": sessionID})
 			} else {
 				sessionID = driveAhp(t, ahp, map[string]any{"op": "create", "clientId": clientID, "workDir": ctx.WorkDir}).SessionID
-				if app.creates.Load() != 1 || app.session.Load().SessionID != sessionID {
+				if app.creates.Load() != 1 || app.session.Load().SessionID != app.createID.Load() ||
+					app.session.Load().SessionID == sessionID {
 					t.Fatal("create callback did not materialize the requested identity")
 				}
 			}
@@ -274,6 +293,10 @@ func TestRuntimeHostE2E(t *testing.T) {
 		}
 		clientID, closeFirst := connectAhpTest(t, ahp, host, "")
 		sessionID := driveAhp(t, ahp, map[string]any{"op": "create", "clientId": clientID, "workDir": ctx.WorkDir, "clientTools": true}).SessionID
+		runtimeID := first.session.Load().SessionID
+		if first.creates.Load() != 1 || first.createID.Load() != runtimeID || runtimeID == sessionID {
+			t.Fatal("create callback did not preserve its distinct runtime session identity")
+		}
 		answer := driveAhp(t, ahp, map[string]any{"op": "turn", "clientId": clientID, "sessionId": sessionID, "prompt": "What is 2+2?"})
 		if !strings.Contains(answer.Text, "4") {
 			t.Fatal(answer.Text)
@@ -305,7 +328,8 @@ func TestRuntimeHostE2E(t *testing.T) {
 			t.Fatalf("lost durable history: %+v", history)
 		}
 		if resumed.creates.Load() != 0 || resumed.resumes.Load() != 1 ||
-			resumed.session.Load() == first.session.Load() || resumed.session.Load().SessionID != sessionID {
+			resumed.resumeID.Load() != runtimeID ||
+			resumed.session.Load() == first.session.Load() || resumed.session.Load().SessionID != runtimeID {
 			t.Fatal("incorrect application resume callback or identity")
 		}
 		response := driveAhp(t, ahp, map[string]any{"op": "turn", "clientId": reconnected, "sessionId": sessionID, "prompt": ahpComposedPrompt, "clientTools": true})

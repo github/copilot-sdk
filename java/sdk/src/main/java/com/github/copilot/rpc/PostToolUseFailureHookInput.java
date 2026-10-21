@@ -20,6 +20,42 @@ import com.fasterxml.jackson.databind.JsonNode;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class PostToolUseFailureHookInput {
 
+    @JsonProperty("agentId")
+    private String agentId;
+
+    public String getAgentId() {
+        return agentId;
+    }
+
+    public PostToolUseFailureHookInput setAgentId(String agentId) {
+        this.agentId = agentId;
+        return this;
+    }
+
+    @JsonProperty("agentType")
+    private String agentType;
+
+    public String getAgentType() {
+        return agentType;
+    }
+
+    public PostToolUseFailureHookInput setAgentType(String agentType) {
+        this.agentType = agentType;
+        return this;
+    }
+
+    @JsonProperty("parentAgentId")
+    private String parentAgentId;
+
+    public String getParentAgentId() {
+        return parentAgentId;
+    }
+
+    public PostToolUseFailureHookInput setParentAgentId(String parentAgentId) {
+        this.parentAgentId = parentAgentId;
+        return this;
+    }
+
     @JsonProperty("sessionId")
     private String sessionId;
 

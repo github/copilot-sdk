@@ -36,9 +36,21 @@ class FfiRuntimeHostTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
+    private abstract static class TestBinding implements NativeBinding {
+        @Override
+        public boolean connectionSetUiThreadHandler(int connectionId, boolean enabled) {
+            throw new UnsupportedOperationException("UI scheduling is not exercised by this test");
+        }
+
+        @Override
+        public boolean connectionRunUiAction(int connectionId, int actionId) {
+            throw new UnsupportedOperationException("UI scheduling is not exercised by this test");
+        }
+    }
+
     @Test
     void startBuildsExpectedArgvAndEnvJson() throws Exception {
-        class RecordingBinding implements NativeBinding {
+        class RecordingBinding extends TestBinding {
             byte[] argv;
             byte[] env;
 
@@ -77,7 +89,7 @@ class FfiRuntimeHostTest {
                 .setRemote(true).setMode(CopilotClientMode.EMPTY).setCliArgs(new String[]{"--extra-flag"});
 
         FfiRuntimeHost host = new FfiRuntimeHost(binding, "/tmp/runtime.node");
-        host.start("/tmp/entrypoint.js", options);
+        host.start("/tmp/entrypoint.js", "github/github-app", options);
 
         List<String> argv = MAPPER.readValue(binding.argv, new TypeReference<List<String>>() {
         });
@@ -92,6 +104,7 @@ class FfiRuntimeHostTest {
         assertTrue(argv.contains("42"));
         assertTrue(argv.contains("--remote"));
         assertTrue(argv.contains("--extra-flag"));
+        assertTrue(argv.contains("--cli-login-sync-integration-id=github/github-app"));
 
         Map<String, String> env = MAPPER.readValue(binding.env, new TypeReference<Map<String, String>>() {
         });
@@ -103,7 +116,7 @@ class FfiRuntimeHostTest {
     @Test
     void startWithoutEntrypointPassesOnlyRuntimeOptions() throws Exception {
         AtomicReference<byte[]> argvJson = new AtomicReference<>();
-        NativeBinding binding = new NativeBinding() {
+        NativeBinding binding = new TestBinding() {
             @Override
             public int hostStart(byte[] argv, int argvLen, byte[] env, int envLen) {
                 argvJson.set(argv);
@@ -133,7 +146,7 @@ class FfiRuntimeHostTest {
         };
 
         try (FfiRuntimeHost host = new FfiRuntimeHost(binding, "/tmp/runtime.node")) {
-            host.start(null, new CopilotClientOptions().setLogLevel("debug"));
+            host.start(null, null, new CopilotClientOptions().setLogLevel("debug"));
         }
 
         List<String> argv = MAPPER.readValue(argvJson.get(), new TypeReference<List<String>>() {
@@ -144,7 +157,7 @@ class FfiRuntimeHostTest {
     @Test
     void callbackExceptionIsContainedAndDoesNotEscapeAcrossFfiBoundary() {
         AtomicBoolean callbackReturned = new AtomicBoolean(false);
-        NativeBinding binding = new NativeBinding() {
+        NativeBinding binding = new TestBinding() {
             @Override
             public int hostStart(byte[] argvJson, int argvJsonLen, byte[] envJson, int envJsonLen) {
                 return 1;
@@ -184,13 +197,13 @@ class FfiRuntimeHostTest {
         };
 
         FfiRuntimeHost host = new FfiRuntimeHost(binding, "test-lib", throwingStream);
-        assertDoesNotThrow(() -> host.start("/tmp/entrypoint", new CopilotClientOptions()));
+        assertDoesNotThrow(() -> host.start("/tmp/entrypoint", null, new CopilotClientOptions()));
         assertTrue(callbackReturned.get(), "callback should return normally even when enqueue throws");
     }
 
     @Test
     void closeNeverThrowsEvenWhenNativeCloseFails() {
-        NativeBinding binding = new NativeBinding() {
+        NativeBinding binding = new TestBinding() {
             @Override
             public int hostStart(byte[] argvJson, int argvJsonLen, byte[] envJson, int envJsonLen) {
                 return 5;
@@ -219,7 +232,7 @@ class FfiRuntimeHostTest {
         };
 
         FfiRuntimeHost host = new FfiRuntimeHost(binding, "test-lib");
-        host.start("/tmp/entrypoint", new CopilotClientOptions());
+        host.start("/tmp/entrypoint", null, new CopilotClientOptions());
         assertDoesNotThrow(host::close);
     }
 
@@ -227,7 +240,7 @@ class FfiRuntimeHostTest {
     void failedConnectionOpenReleasesHostForSequentialStartup() {
         AtomicInteger starts = new AtomicInteger();
         AtomicInteger shutdowns = new AtomicInteger();
-        NativeBinding binding = new NativeBinding() {
+        NativeBinding binding = new TestBinding() {
             @Override
             public int hostStart(byte[] argvJson, int argvJsonLen, byte[] envJson, int envJsonLen) {
                 return starts.incrementAndGet();
@@ -274,7 +287,7 @@ class FfiRuntimeHostTest {
         CountDownLatch allowWriteToFinish = new CountDownLatch(1);
         AtomicInteger writes = new AtomicInteger(0);
 
-        NativeBinding binding = new NativeBinding() {
+        NativeBinding binding = new TestBinding() {
             @Override
             public int hostStart(byte[] argvJson, int argvJsonLen, byte[] envJson, int envJsonLen) {
                 return 3;
@@ -310,7 +323,7 @@ class FfiRuntimeHostTest {
         };
 
         FfiRuntimeHost host = new FfiRuntimeHost(binding, "test-lib");
-        host.start("/tmp/entrypoint", new CopilotClientOptions());
+        host.start("/tmp/entrypoint", null, new CopilotClientOptions());
 
         CompletableFuture<Void> writer = CompletableFuture.runAsync(() -> {
             try {
@@ -341,7 +354,7 @@ class FfiRuntimeHostTest {
         AtomicInteger shutdownCalls = new AtomicInteger(0);
         AtomicReference<OutboundCallback> callbackRef = new AtomicReference<>();
 
-        NativeBinding binding = new NativeBinding() {
+        NativeBinding binding = new TestBinding() {
             @Override
             public int hostStart(byte[] argvJson, int argvJsonLen, byte[] envJson, int envJsonLen) {
                 return 7;
@@ -389,7 +402,7 @@ class FfiRuntimeHostTest {
         };
 
         FfiRuntimeHost host = new FfiRuntimeHost(binding, "test-lib", blockingStream);
-        host.start("/tmp/entrypoint", new CopilotClientOptions());
+        host.start("/tmp/entrypoint", null, new CopilotClientOptions());
         assertNotNull(callbackRef.get());
 
         ExecutorService executor = Executors.newFixedThreadPool(2);

@@ -17,6 +17,7 @@ public final class PermissionInvocation {
 
     private String sessionId;
     private boolean managedSettingsEnabled;
+    private PermissionRequest promptRequest;
 
     /**
      * Gets the session ID where the permission was requested.
@@ -57,6 +58,34 @@ public final class PermissionInvocation {
      */
     public PermissionInvocation setManagedSettingsEnabled(boolean managedSettingsEnabled) {
         this.managedSettingsEnabled = managedSettingsEnabled;
+        return this;
+    }
+
+    /**
+     * Gets the derived user-facing permission prompt supplied by newer runtimes.
+     * <p>
+     * The raw request retains managed-policy provenance. Only {@code commands},
+     * {@code read}, {@code write}, {@code url}, and {@code workflow} prompts can
+     * clear that human requirement after Assisted approval. For missing or other
+     * prompt kinds, keep the raw marker authoritative. Prompt-only fields such as
+     * {@code assistedApproval} are available through
+     * {@link PermissionRequest#getExtensionData()}.
+     *
+     * @return the derived prompt, or {@code null} when unavailable
+     */
+    public PermissionRequest getPromptRequest() {
+        return promptRequest;
+    }
+
+    /**
+     * Sets the derived user-facing permission prompt.
+     *
+     * @param promptRequest
+     *            the derived prompt, or {@code null}
+     * @return this invocation for method chaining
+     */
+    public PermissionInvocation setPromptRequest(PermissionRequest promptRequest) {
+        this.promptRequest = promptRequest;
         return this;
     }
 }

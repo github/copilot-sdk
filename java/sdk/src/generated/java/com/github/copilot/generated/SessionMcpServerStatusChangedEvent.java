@@ -42,7 +42,7 @@ public final class SessionMcpServerStatusChangedEvent extends SessionEvent {
         @JsonProperty("error") String error,
         /** Runtime-produced classification for the final failed connection; unclassified means no classification was supplied. Additional string values may be introduced. */
         @JsonProperty("errorClassification") String errorClassification,
-        /** Runtime configuration provenance for a failed connection, or unknown when unavailable. Additional string values may be introduced. */
+        /** Runtime configuration provenance for a connected or failed server, or unknown when unavailable. Additional string values may be introduced. */
         @JsonProperty("configSource") String configSource
     ) {
     }

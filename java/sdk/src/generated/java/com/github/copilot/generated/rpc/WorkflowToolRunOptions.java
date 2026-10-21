@@ -24,7 +24,7 @@ import javax.annotation.processing.Generated;
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record WorkflowToolRunOptions(
+record WorkflowToolRunOptions(
     /** Per-invocation resource ceiling overrides. */
     @JsonProperty("limits") WorkflowRunLimits limits,
     /** Run identifier whose journal and progress should seed this resumed run. */

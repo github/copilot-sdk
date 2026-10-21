@@ -132,6 +132,7 @@ public sealed partial class CopilotSession
 
         void ProcessEvent(SessionEvent evt)
         {
+            if (completion.Task.IsCompleted) return;
             switch (evt)
             {
                 case UserMessageEvent user when string.IsNullOrEmpty(user.AgentId) && user.Data.MessageId == messageId:
@@ -142,28 +143,46 @@ public sealed partial class CopilotSession
                     finalMessage = assistant.Data.ToolRequests is { Length: > 0 } ? null : assistant;
                     break;
                 case SessionIdleEvent idle when started && string.IsNullOrEmpty(idle.AgentId) && idle.Data.Mode != SessionMode.Autopilot:
-                    if (idle.Data.Aborted == true)
-                    {
-                        completion.TrySetException(new InvalidOperationException("The session was aborted before a final structured response was received."));
-                    }
-                    else if (finalMessage is null || string.IsNullOrWhiteSpace(finalMessage.Data.Content))
-                    {
-                        completion.TrySetException(new InvalidOperationException("The turn completed without a final structured response."));
-                    }
-                    else
-                    {
-                        completion.TrySetResult(finalMessage);
-                    }
+                    Complete(idle.Data.Aborted == true);
                     break;
-                case SessionErrorEvent error when started && string.IsNullOrEmpty(error.AgentId):
+                case SessionAutopilotStoppedEvent stopped when !string.IsNullOrEmpty(messageId)
+                    && string.IsNullOrEmpty(stopped.AgentId) && stopped.Data.RequestId == messageId:
+                    if (stopped.Data.Reason == "error")
+                        completion.TrySetException(new InvalidOperationException("Autopilot request failed"));
+                    else
+                        Complete(stopped.Data.Reason == "aborted");
+                    break;
+                case SessionErrorEvent error when string.IsNullOrEmpty(error.AgentId)
+                    && (string.IsNullOrEmpty(error.Data.OriginatingMessageId)
+                        ? started : error.Data.OriginatingMessageId == messageId):
                     completion.TrySetException(new InvalidOperationException($"Session error: {error.Data.Message}"));
                     break;
             }
         }
 
+        void Complete(bool aborted)
+        {
+            if (aborted)
+            {
+                completion.TrySetException(new InvalidOperationException("The session was aborted before a final structured response was received."));
+            }
+            else if (finalMessage is null || string.IsNullOrWhiteSpace(finalMessage.Data.Content))
+            {
+                completion.TrySetException(new InvalidOperationException("The turn completed without a final structured response."));
+            }
+            else
+            {
+                completion.TrySetResult(finalMessage);
+            }
+        }
+
         using var subscription = On<SessionEvent>(evt =>
         {
-            if (evt is not (UserMessageEvent or AssistantMessageEvent or SessionIdleEvent or SessionErrorEvent))
+            if (!string.IsNullOrEmpty(evt.AgentId))
+            {
+                return;
+            }
+            if (evt is not (UserMessageEvent or AssistantMessageEvent or SessionIdleEvent or SessionAutopilotStoppedEvent or SessionErrorEvent))
             {
                 return;
             }
@@ -192,10 +211,10 @@ public sealed partial class CopilotSession
                 }
                 pendingEvents.Clear();
             }
-            await Task.WhenAny(completion.Task, JsonRpc.Completion, _eventChannel.Reader.Completion);
+            await Task.WhenAny(completion.Task, _eventDispatchStopped.Task, JsonRpc.Completion, _eventChannel.Reader.Completion);
             if (!completion.Task.IsCompleted)
             {
-                throw new IOException("The session closed before a final structured response was received.");
+                completion.TrySetException(new IOException("The session closed before a final structured response was received."));
             }
             return await completion.Task;
         }

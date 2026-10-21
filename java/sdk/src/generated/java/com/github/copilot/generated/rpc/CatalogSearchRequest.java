@@ -43,13 +43,17 @@ public final class CatalogSearchRequest {
     @JsonProperty("kinds")
     private List<CatalogCandidateKind> kinds;
 
-    /** Numbered navigation using metadata from an earlier response. Requires catalog-search-pagination and the same query, kinds and effective limit. Omit for a fresh first-page search. */
+    /** Numbered navigation using metadata from an earlier response. Requires catalog-search-pagination and the same query, kinds, categories and effective limit. Omit for a fresh first-page search. */
     @JsonProperty("page")
     private CatalogSearchPage page;
 
     /** Select an existing attached local session. Requires authenticated, session-bound search. The runtime never creates, resumes or reconfigures a session to honour this selector. */
     @JsonProperty("policySessionId")
     private String policySessionId;
+
+    /** Restrict results to resources in at least one of these server-defined workflow categories, such as `design` or `test`. Requires the `catalog-search-categories` capability. Each value is a lowercase slug; the known set is not exhaustive, and a category the server does not recognise matches nothing. Omit to search every category. */
+    @JsonProperty("categories")
+    private List<String> categories;
 
     /**
      * Creates a request with its required inputs.
@@ -101,7 +105,7 @@ public final class CatalogSearchRequest {
     /**
      * Returns the {@code page} property.
      *
-     * @return Numbered navigation using metadata from an earlier response. Requires catalog-search-pagination and the same query, kinds and effective limit. Omit for a fresh first-page search.
+     * @return Numbered navigation using metadata from an earlier response. Requires catalog-search-pagination and the same query, kinds, categories and effective limit. Omit for a fresh first-page search.
      */
     public CatalogSearchPage getPage() {
         return page;
@@ -114,6 +118,15 @@ public final class CatalogSearchRequest {
      */
     public String getPolicySessionId() {
         return policySessionId;
+    }
+
+    /**
+     * Returns the {@code categories} property.
+     *
+     * @return Restrict results to resources in at least one of these server-defined workflow categories, such as `design` or `test`. Requires the `catalog-search-categories` capability. Each value is a lowercase slug; the known set is not exhaustive, and a category the server does not recognise matches nothing. Omit to search every category.
+     */
+    public List<String> getCategories() {
+        return categories;
     }
 
     /**
@@ -141,7 +154,7 @@ public final class CatalogSearchRequest {
     /**
      * Sets the {@code page} property.
      *
-     * @param value Numbered navigation using metadata from an earlier response. Requires catalog-search-pagination and the same query, kinds and effective limit. Omit for a fresh first-page search.
+     * @param value Numbered navigation using metadata from an earlier response. Requires catalog-search-pagination and the same query, kinds, categories and effective limit. Omit for a fresh first-page search.
      * @return this request
      */
     public CatalogSearchRequest setPage(CatalogSearchPage value) {
@@ -157,6 +170,17 @@ public final class CatalogSearchRequest {
      */
     public CatalogSearchRequest setPolicySessionId(String value) {
         this.policySessionId = value;
+        return this;
+    }
+
+    /**
+     * Sets the {@code categories} property.
+     *
+     * @param value Restrict results to resources in at least one of these server-defined workflow categories, such as `design` or `test`. Requires the `catalog-search-categories` capability. Each value is a lowercase slug; the known set is not exhaustive, and a category the server does not recognise matches nothing. Omit to search every category.
+     * @return this request
+     */
+    public CatalogSearchRequest setCategories(List<String> value) {
+        this.categories = value;
         return this;
     }
 }

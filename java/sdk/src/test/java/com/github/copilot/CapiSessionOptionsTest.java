@@ -14,7 +14,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
+import java.util.stream.Stream;
 
 import com.fasterxml.jackson.databind.JsonNode;
 
@@ -22,11 +24,38 @@ import com.github.copilot.rpc.AutoTier;
 import com.github.copilot.rpc.CapiSessionOptions;
 import com.github.copilot.rpc.ResumeSessionConfig;
 import com.github.copilot.rpc.SessionConfig;
+import com.github.copilot.rpc.WorkingDirectoryTrust;
 
 /**
  * Tests for CAPI provider-scoped session options.
  */
 class CapiSessionOptionsTest {
+
+    @Test
+    void workingDirectoryTrustRetainsTheStringApiAndAnUnambiguousNullSetter() throws Exception {
+        var config = new SessionConfig();
+        assertEquals(String.class, SessionConfig.class.getMethod("getTrustWorkingDirectory").getReturnType());
+        assertEquals(SessionConfig.class,
+                SessionConfig.class.getMethod("setTrustWorkingDirectory", String.class).getReturnType());
+        assertSame(config, config.setTrustWorkingDirectory("session"));
+        assertEquals("session", config.getTrustWorkingDirectory());
+        assertEquals(WorkingDirectoryTrust.SESSION, config.getWorkingDirectoryTrust());
+        assertEquals("session", SessionRequestBuilder.buildCreateRequest(config, "test").getTrustWorkingDirectory());
+        assertSame(config, config.setTrustWorkingDirectory(null));
+        assertNull(config.getTrustWorkingDirectory());
+        assertNull(config.getWorkingDirectoryTrust());
+        assertNull(SessionRequestBuilder.buildCreateRequest(config, "test").getTrustWorkingDirectory());
+        assertSame(config, config.setWorkingDirectoryTrust(WorkingDirectoryTrust.USER));
+        assertEquals("user", config.getTrustWorkingDirectory());
+        assertEquals("user", SessionRequestBuilder.buildCreateRequest(config, "test").getTrustWorkingDirectory());
+        var copy = config.clone();
+        assertEquals(WorkingDirectoryTrust.USER, copy.getWorkingDirectoryTrust());
+        var mapper = JsonRpcClient.getObjectMapper();
+        JsonNode serialized = mapper.valueToTree(config);
+        assertEquals("user", serialized.get("trustWorkingDirectory").asText());
+        assertTrue(serialized.path("workingDirectoryTrust").isMissingNode());
+        assertEquals("user", mapper.treeToValue(serialized, SessionConfig.class).getTrustWorkingDirectory());
+    }
 
     @Test
     void defaultsAreNull() {
@@ -68,7 +97,7 @@ class CapiSessionOptionsTest {
     }
 
     @ParameterizedTest
-    @CsvSource({"EFFICIENCY,efficiency", "BALANCE,balance", "INTELLIGENCE,intelligence", "FAST,fast"})
+    @MethodSource("canonicalAutoTiers")
     void autoTierCanonicalValuesRoundTripAndForward(AutoTier tier, String value) throws Exception {
         var mapper = JsonRpcClient.getObjectMapper();
         var capi = new CapiSessionOptions().setAutoTier(tier);
@@ -90,11 +119,23 @@ class CapiSessionOptionsTest {
     }
 
     @Test
-    void autoTierRejectsNoncanonicalValues() {
+    void autoTierPreservesServerIdentifiersAndRejectsMalformedValues() throws Exception {
+        var mapper = JsonRpcClient.getObjectMapper();
         for (String value : new String[]{"balanced", "Balance", "unknown"}) {
+            var tier = AutoTier.fromValue(value);
+            assertEquals(value, tier.getValue());
+            assertEquals(value, mapper.valueToTree(tier).asText());
+            assertEquals(tier, mapper.readValue("\"" + value + "\"", AutoTier.class));
+        }
+        for (String value : new String[]{"", "two words", "\n"}) {
             assertThrows(IllegalArgumentException.class, () -> AutoTier.fromValue(value));
         }
         assertNull(AutoTier.fromValue(null));
+    }
+
+    private static Stream<Arguments> canonicalAutoTiers() {
+        return Stream.of(Arguments.of(AutoTier.EFFICIENCY, "efficiency"), Arguments.of(AutoTier.BALANCE, "balance"),
+                Arguments.of(AutoTier.INTELLIGENCE, "intelligence"), Arguments.of(AutoTier.FAST, "fast"));
     }
 
     @Test

@@ -98,6 +98,23 @@ public final class FfiRuntimeHost implements AutoCloseable {
      *            {@code env_json}
      */
     public void start(String entrypointPath, CopilotClientOptions options) {
+        start(entrypointPath, null, options);
+    }
+
+    /**
+     * Starts the in-process runtime and opens a connection.
+     *
+     * @param entrypointPath
+     *            optional explicit legacy CLI entrypoint passed in
+     *            {@code argv_json}
+     * @param cliLoginSyncIntegrationId
+     *            optional integration identifier used to synchronize login state
+     *            with the Copilot CLI credential store
+     * @param options
+     *            client options used to construct {@code argv_json} and
+     *            {@code env_json}
+     */
+    public void start(String entrypointPath, String cliLoginSyncIntegrationId, CopilotClientOptions options) {
         Objects.requireNonNull(options, "options must not be null");
         if (disposed.get()) {
             throw new IllegalStateException("FfiRuntimeHost is already closed.");
@@ -106,7 +123,7 @@ public final class FfiRuntimeHost implements AutoCloseable {
             throw new IllegalStateException("FfiRuntimeHost has already been started.");
         }
 
-        byte[] argvJson = buildArgvJson(entrypointPath, options);
+        byte[] argvJson = buildArgvJson(entrypointPath, cliLoginSyncIntegrationId, options);
         byte[] envJson = buildEnvJson(options);
         int hostHandle = runHostStartOnBlockingThread(argvJson, envJson);
         if (hostHandle == 0) {
@@ -156,6 +173,31 @@ public final class FfiRuntimeHost implements AutoCloseable {
 
     public OutputStream getSendStream() {
         return sendStream;
+    }
+
+    /**
+     * Configures this connection's experimental UI scheduler.
+     *
+     * @param enabled
+     *            whether the SDK supplies a scheduler
+     */
+    public void configureUiThread(boolean enabled) {
+        if (closing.get() || !nativeBinding.connectionSetUiThreadHandler(connectionId.get(), enabled)) {
+            throw new IllegalStateException("Failed to configure the in-process UI dispatcher.");
+        }
+    }
+
+    /**
+     * Enters a native action synchronously on the calling UI thread.
+     *
+     * @param actionId
+     *            the one-shot action identifier
+     */
+    public void runUiAction(int actionId) {
+        if (closing.get() || !nativeBinding.connectionRunUiAction(connectionId.get(), actionId)) {
+            throw new IllegalStateException(
+                    "Native UI action is retired, already executed, or not on the process main thread.");
+        }
     }
 
     @Override
@@ -275,7 +317,7 @@ public final class FfiRuntimeHost implements AutoCloseable {
         }
     }
 
-    private static byte[] buildArgvJson(String entrypointPath, CopilotClientOptions options) {
+    static byte[] buildArgvJson(String entrypointPath, String cliLoginSyncIntegrationId, CopilotClientOptions options) {
         List<String> argv = new ArrayList<>();
         if (entrypointPath != null) {
             if (entrypointPath.toLowerCase().endsWith(".js")) {
@@ -311,6 +353,9 @@ public final class FfiRuntimeHost implements AutoCloseable {
 
         if (options.isRemote()) {
             argv.add("--remote");
+        }
+        if (cliLoginSyncIntegrationId != null) {
+            argv.add("--cli-login-sync-integration-id=" + cliLoginSyncIntegrationId);
         }
 
         String[] cliArgs = options.getCliArgs();

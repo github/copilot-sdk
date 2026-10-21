@@ -15,7 +15,7 @@ import java.util.Map;
 import javax.annotation.processing.Generated;
 
 /**
- * Per-key metadata for every known user setting (settings.json overlaid with the legacy config.json, config.json wins), including settings left at their default. Excludes repository- and enterprise-managed overrides.
+ * Per-key metadata for every known user setting in settings.json, including settings left at their default. Excludes repository- and enterprise-managed overrides.
  *
  * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0

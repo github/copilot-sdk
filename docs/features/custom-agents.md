@@ -25,6 +25,8 @@ flowchart TD
 
 ## Defining custom agents
 
+To discover Markdown definitions from versioned packages or vendored folders, use `agentDirectories` or [repository customization locations](./customization-locations.md).
+
 Pass `customAgents` when creating a session. Each agent needs at minimum a `name` and `prompt`.
 
 <details open>

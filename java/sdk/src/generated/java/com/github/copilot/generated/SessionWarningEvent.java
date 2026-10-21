@@ -38,6 +38,8 @@ public final class SessionWarningEvent extends SessionEvent {
         @JsonProperty("warningType") String warningType,
         /** Human-readable warning message for display in the timeline */
         @JsonProperty("message") String message,
+        /** Logical ID returned by session.send for the request this warning concerns. Set for policy-blocked prompts, which do not emit a user.message event. */
+        @JsonProperty("originatingMessageId") String originatingMessageId,
         /** Optional URL associated with this warning that the user can open in a browser */
         @JsonProperty("url") String url,
         /** What the user must do to recover, when the runtime knows of an action. The `message` never names a client affordance, so a client that offers one — a slash command, a settings pane, a link — renders it from this value. */

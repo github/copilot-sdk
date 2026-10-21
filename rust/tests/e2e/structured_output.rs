@@ -55,7 +55,7 @@ fn config(proxy: &str) -> SessionConfig {
     SessionConfig::default()
         .with_model("gpt-4.1")
         .with_permission_handler(Arc::new(ApproveAllHandler))
-        .with_available_tools(Vec::<String>::new())
+        .with_available_tools(["custom:*"])
         .with_provider(
             ProviderConfig::new(proxy)
                 .with_provider_type("openai")

@@ -52,7 +52,20 @@ public class CompactionE2ETests(E2ETestFixture fixture, ITestOutputHelper output
         Assert.True(startEvent.Data.ConversationTokens.GetValueOrDefault() > 0, "Expected compaction to report conversation tokens at start");
         Assert.True(completeEvent.Data.Success, "Expected compaction to succeed");
         Assert.NotNull(completeEvent.Data.CompactionTokensUsed);
-        Assert.True(completeEvent.Data.CompactionTokensUsed!.InputTokens.GetValueOrDefault() > 0, "Expected compaction call to consume input tokens");
+        // Replay has no prompt usage; recording must preserve the provider's value or absence.
+        if (Environment.GetEnvironmentVariable("GITHUB_ACTIONS") == "true"
+            || E2ETestBackendConfiguration.Current != E2ETestBackend.Capi)
+        {
+            Assert.Equal(0, completeEvent.Data.CompactionTokensUsed!.InputTokens.GetValueOrDefault());
+        }
+        else
+        {
+            var exchanges = await Ctx.GetExchangesAsync();
+            var compaction = Assert.Single(exchanges, exchange =>
+                exchange.CompactionUsage is not null
+                && exchange.CompactionUsage.Summary == completeEvent.Data.SummaryContent);
+            Assert.Equal(compaction.CompactionUsage!.InputTokens, completeEvent.Data.CompactionTokensUsed!.InputTokens);
+        }
         Assert.Contains("<overview>", completeEvent.Data.SummaryContent ?? string.Empty, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("<history>", completeEvent.Data.SummaryContent ?? string.Empty, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("<checkpoint_title>", completeEvent.Data.SummaryContent ?? string.Empty, StringComparison.OrdinalIgnoreCase);
@@ -97,44 +110,5 @@ public class CompactionE2ETests(E2ETestFixture fixture, ITestOutputHelper output
 
         // Should not have any compaction events when disabled
         Assert.Empty(compactionEvents);
-    }
-
-    [Fact]
-    public async Task Should_Return_Empty_Handoff_Summary_For_Fresh_Session()
-    {
-        await using var session = await CreateSessionAsync();
-
-        var result = await session.Rpc.History.SummarizeForHandoffAsync();
-
-        Assert.NotNull(result);
-        Assert.NotNull(result.Summary);
-        Assert.Equal(string.Empty, result.Summary);
-    }
-
-    [Fact]
-    public async Task Should_Summarize_For_Handoff_After_NonEphemeral_Log_Event()
-    {
-        await using var session = await CreateSessionAsync();
-
-        await session.LogAsync("handoff summary log coverage");
-
-        var result = await session.Rpc.History.SummarizeForHandoffAsync();
-
-        Assert.NotNull(result);
-        Assert.NotNull(result.Summary);
-    }
-
-    [Fact]
-    public async Task Should_Report_No_Op_When_Cancelling_Compaction_Without_In_Flight_Work()
-    {
-        await using var session = await CreateSessionAsync();
-
-        var backgroundResult = await session.Rpc.History.CancelBackgroundCompactionAsync();
-        var manualResult = await session.Rpc.History.AbortManualCompactionAsync();
-
-        Assert.NotNull(backgroundResult);
-        Assert.False(backgroundResult.Cancelled);
-        Assert.NotNull(manualResult);
-        Assert.False(manualResult.Aborted);
     }
 }

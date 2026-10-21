@@ -412,7 +412,7 @@ public class ScenarioTestingCallbacksE2ETests(E2ETestFixture fixture, ITestOutpu
         Ctx.SetCopilotUserByTokenAsync(ModeHandlerToken, new CopilotUserConfig(
             Login: "scenario-client-mode-handler-user",
             CopilotPlan: "individual_pro",
-            Endpoints: new CopilotUserEndpoints(Api: Ctx.ProxyUrl, Telemetry: "https://localhost:1/telemetry"),
+            Endpoints: new CopilotUserEndpoints(Api: Ctx.ProxyUrl, Telemetry: "https://sdk-hydro-collector.example.com"),
             AnalyticsTrackingId: "scenario-client-mode-handler-tracking-id"));
 
     private static async Task<T> GetNextEventAllowingRateLimitAsync<T>(

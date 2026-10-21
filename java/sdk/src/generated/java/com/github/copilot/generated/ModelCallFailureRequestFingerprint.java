@@ -29,10 +29,22 @@ public record ModelCallFailureRequestFingerprint(
     @JsonProperty("toolCallCount") Long toolCallCount,
     /** Tool calls whose name is missing or empty (rejected by strict providers) */
     @JsonProperty("namelessToolCallCount") Long namelessToolCallCount,
+    /** Free-form custom tool calls in the request history before request shaping, counted apart from named function calls (rejected by strict providers) */
+    @JsonProperty("customToolCallCount") Long customToolCallCount,
+    /** Tool result messages in the request history before request shaping that answer no earlier unanswered tool call */
+    @JsonProperty("unmatchedToolResultCount") Long unmatchedToolResultCount,
+    /** Tool calls in the request history before request shaping that no later tool result message answers */
+    @JsonProperty("orphanToolCallCount") Long orphanToolCallCount,
     /** Total number of image content parts */
     @JsonProperty("imagePartCount") Long imagePartCount,
     /** Image parts whose media type cannot be determined (rejected by strict providers) */
     @JsonProperty("imagePartsMissingMediaType") Long imagePartsMissingMediaType,
+    /** Summed byte length of inline image payloads (data URLs and base64 sources) */
+    @JsonProperty("imageBytes") Long imageBytes,
+    /** Number of messages carrying opaque or encrypted reasoning */
+    @JsonProperty("reasoningItemCount") Long reasoningItemCount,
+    /** Summed byte length of opaque or encrypted reasoning payloads */
+    @JsonProperty("encryptedContentBytes") Long encryptedContentBytes,
     /** Role of the final message in the request */
     @JsonProperty("lastMessageRole") String lastMessageRole
 ) {

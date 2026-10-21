@@ -18,6 +18,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import com.github.copilot.generated.SessionEvent;
@@ -53,8 +54,13 @@ class StructuredOutputTest {
     }
 
     private void emit(String type, Map<String, Object> data) throws Exception {
+        emit(type, data, "");
+    }
+
+    private void emit(String type, Map<String, Object> data, String agentId) throws Exception {
         var event = JsonRpcClient.getObjectMapper().convertValue(Map.of("id", java.util.UUID.randomUUID().toString(),
-                "timestamp", "2026-01-01T00:00:00Z", "type", type, "data", data), SessionEvent.class);
+                "timestamp", "2026-01-01T00:00:00Z", "type", type, "data", data, "agentId", agentId),
+                SessionEvent.class);
         var dispatch = CopilotSession.class.getDeclaredMethod("dispatchEvent", SessionEvent.class);
         dispatch.setAccessible(true);
         dispatch.invoke(session, event);
@@ -62,6 +68,40 @@ class StructuredOutputTest {
 
     private void assistant(String origin, String content) throws Exception {
         emit("assistant.message", Map.of("messageId", "assistant", "originatingMessageId", origin, "content", content));
+    }
+
+    @ParameterizedTest
+    @CsvSource({"false,false", "false,true", "true,false", "true,true"})
+    void correlatesErrorsIndependentlyOfMessageEvents(boolean structured, boolean beforeAck) throws Exception {
+        for (String source : List.of("user", "assistant", "autopilot", "system", "session-memory-rollover", "marked",
+                "pre-message", "steering")) {
+            var admission = new CompletableFuture<SendMessageResponse>();
+            when(rpc.invoke(eq("session.send"), any(), eq(SendMessageResponse.class))).thenReturn(admission);
+            var options = new MessageOptions().setPrompt("waited");
+            if (structured)
+                options.setResponseSchema(Map.of("type", "object"));
+            var result = session.sendAndWait(options, 1_000);
+            if (!beforeAck)
+                admission.complete(new SendMessageResponse("user-1"));
+            assistant(source.equals("pre-message") ? "other" : "user-1", "{\"ok\":true}");
+            if (source.equals("assistant"))
+                assistant("other", "other");
+            else
+                emit("user.message",
+                        Map.of("messageId", "other", "content", "other", "source",
+                                source.equals("steering") || source.equals("pre-message") ? "sdk" : source,
+                                "isAutopilotContinuation", source.equals("marked")));
+            emit("session.error", Map.of("errorType", "query", "message", "provider failed", "originatingMessageId",
+                    source.equals("user") || source.equals("assistant") ? "other" : "user-1"));
+            emit("session.idle", Map.of());
+            if (beforeAck)
+                admission.complete(new SendMessageResponse("user-1"));
+            if (source.equals("user") || source.equals("assistant"))
+                assertEquals("{\"ok\":true}", result.get(1, TimeUnit.SECONDS).getData().content());
+            else
+                assertTrue(assertThrows(ExecutionException.class, () -> result.get(1, TimeUnit.SECONDS)).getCause()
+                        .getMessage().contains("provider failed"));
+        }
     }
 
     @Test
@@ -114,6 +154,169 @@ class StructuredOutputTest {
         emit("session.idle", Map.of());
         assertEquals(42, first.get(1, TimeUnit.SECONDS).count());
         assertEquals(7, second.get(1, TimeUnit.SECONDS).count());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"session.idle", "session.autopilot_stopped", "session.error"})
+    void plainWaitPreservesPreAckOutcomeThroughRetirement(String terminal) throws Exception {
+        var admission = new CompletableFuture<SendMessageResponse>();
+        when(rpc.invoke(eq("session.send"), any(), eq(SendMessageResponse.class))).thenReturn(admission);
+        var result = session.sendAndWait(new MessageOptions().setPrompt("finish"), 0);
+        assistant("user-1", "finished");
+        emit(terminal, Map.of("reason", "task_complete", "requestId", "user-1", "errorType", "test", "message",
+                "original failure"));
+        session.forceStopLocally();
+        admission.complete(new SendMessageResponse("user-1"));
+        if (terminal.equals("session.error")) {
+            assertEquals("Session error: original failure",
+                    assertThrows(ExecutionException.class, () -> result.get(1, TimeUnit.SECONDS)).getCause()
+                            .getMessage());
+        } else {
+            assertEquals("finished", result.get(1, TimeUnit.SECONDS).getData().content());
+        }
+    }
+
+    @Test
+    void plainWaitIgnoresStaleAbortedIdle() throws Exception {
+        var result = session.sendAndWait(new MessageOptions().setPrompt("queued"), 1_000);
+        emit("session.idle", Map.of("aborted", true));
+        emit("session.idle", Map.of());
+        assertFalse(result.isDone());
+        emit("user.message", Map.of("messageId", "user-1", "content", "queued"));
+        emit("session.idle", Map.of());
+        assertNull(result.get(1, TimeUnit.SECONDS));
+    }
+
+    @Test
+    void plainWaitCompletesPolicyBlockedPromptOnCorrelatedWarning() throws Exception {
+        var result = session.sendAndWait(new MessageOptions().setPrompt("blocked"), 1_000);
+        emit("session.warning",
+                Map.of("warningType", "policy_blocked", "message", "blocked", "originatingMessageId", "other"));
+        emit("session.idle", Map.of());
+        assertFalse(result.isDone());
+        emit("session.warning",
+                Map.of("warningType", "policy_blocked", "message", "blocked", "originatingMessageId", "user-1"));
+        emit("session.idle", Map.of());
+        assertNull(result.get(1, TimeUnit.SECONDS));
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void plainWaitIgnoresEarlierSuccessfulIdle(boolean beforeAck) throws Exception {
+        var admission = new CompletableFuture<SendMessageResponse>();
+        when(rpc.invoke(eq("session.send"), any(), eq(SendMessageResponse.class))).thenReturn(admission);
+        var result = session.sendAndWait(new MessageOptions().setPrompt("queued"), 1_000);
+        if (!beforeAck)
+            admission.complete(new SendMessageResponse("user-1"));
+        assistant("other", "previous");
+        emit("session.idle", Map.of());
+        if (beforeAck)
+            admission.complete(new SendMessageResponse("user-1"));
+        assistant("user-1", "current");
+        emit("session.idle", Map.of());
+        assertEquals("current", result.get(1, TimeUnit.SECONDS).getData().content());
+    }
+
+    @ParameterizedTest
+    @CsvSource({"false,false", "false,true", "true,false", "true,true"})
+    void plainWaitCorrelatesPolicyBlockedPrompts(boolean beforeAck, boolean aborted) throws Exception {
+        var admission = new CompletableFuture<SendMessageResponse>();
+        when(rpc.invoke(eq("session.send"), any(), eq(SendMessageResponse.class))).thenReturn(admission);
+        var result = session.sendAndWait(new MessageOptions().setPrompt("blocked"), 1_000);
+        if (!beforeAck)
+            admission.complete(new SendMessageResponse("user-1"));
+        emit("session.warning",
+                Map.of("warningType", "policy_blocked", "message", "Blocked", "originatingMessageId", "other"));
+        emit("session.warning",
+                Map.of("warningType", "policy_blocked", "message", "Blocked", "originatingMessageId", "user-1"),
+                "child");
+        emit("session.idle", Map.of());
+        emit("session.warning",
+                Map.of("warningType", "policy_blocked", "message", "Blocked", "originatingMessageId", "user-1"));
+        emit("session.idle", Map.of("aborted", aborted));
+        if (beforeAck)
+            admission.complete(new SendMessageResponse("user-1"));
+        if (aborted) {
+            var error = assertThrows(ExecutionException.class, () -> result.get(1, TimeUnit.SECONDS));
+            assertTrue(error.getCause().getMessage().toLowerCase().contains("aborted"), error.toString());
+        } else {
+            assertNull(result.get(1, TimeUnit.SECONDS));
+        }
+    }
+
+    @Test
+    void plainWaitRejectsAbortedIdleAfterMatchingUserMessage() throws Exception {
+        var result = session.sendAndWait(new MessageOptions().setPrompt("cancel"), 1_000);
+        emit("user.message", Map.of("messageId", "user-1", "content", "cancel"));
+        emit("session.idle", Map.of("aborted", true));
+        var error = assertThrows(ExecutionException.class, () -> result.get(1, TimeUnit.SECONDS));
+        assertTrue(error.getCause().getMessage().toLowerCase().contains("aborted"), error.toString());
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void autopilotTerminalBuffersPreAckAndIgnoresUnrelatedRequests(boolean structured) throws Exception {
+        when(rpc.invoke(eq("session.send"), any(), eq(SendMessageResponse.class))).thenAnswer(invocation -> {
+            assistant("user-1", "{\"count\":42,\"color\":\"red\"}");
+            emit("user.message", Map.of("content", "Continue", "messageId", "other", "source", "autopilot",
+                    "isAutopilotContinuation", true));
+            emit("session.autopilot_stopped", Map.of("reason", "task_complete", "requestId", "other"));
+            emit("session.autopilot_stopped", Map.of("reason", "task_complete"));
+            emit("session.autopilot_stopped", Map.of("reason", "task_complete", "requestId", "user-1"), "child");
+            emit("session.idle", Map.of("mode", "autopilot"));
+            assistant("user-1", "{\"count\":7,\"color\":\"blue\"}");
+            emit("session.autopilot_stopped", Map.of("reason", "task_complete", "requestId", "user-1"));
+            return CompletableFuture.completedFuture(new SendMessageResponse("user-1"));
+        });
+        var options = new MessageOptions().setPrompt("inventory");
+        if (structured)
+            options.setResponseSchema(Map.of("type", "object"));
+        assertEquals("{\"count\":7,\"color\":\"blue\"}",
+                session.sendAndWait(options).get(1, TimeUnit.SECONDS).getData().content());
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void autopilotErrorTerminalDoesNotRequireSessionError(boolean structured) throws Exception {
+        var options = new MessageOptions().setPrompt("fail");
+        if (structured)
+            options.setResponseSchema(Map.of("type", "object"));
+        var result = session.sendAndWait(options);
+        emit("session.autopilot_stopped", Map.of("reason", "error", "requestId", "user-1"));
+        assertEquals("Autopilot request failed",
+                assertThrows(ExecutionException.class, () -> result.get(1, TimeUnit.SECONDS)).getCause().getMessage());
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void autopilotAbortedTerminalDoesNotSucceed(boolean structured) throws Exception {
+        var options = new MessageOptions().setPrompt("cancel");
+        if (structured)
+            options.setResponseSchema(Map.of("type", "object"));
+        var result = session.sendAndWait(options);
+        assistant("user-1", "{\"count\":42,\"color\":\"red\"}");
+        emit("session.autopilot_stopped", Map.of("reason", "aborted", "requestId", "user-1"));
+        var error = assertThrows(ExecutionException.class, () -> result.get(1, TimeUnit.SECONDS));
+        assertTrue(error.getCause().getMessage().toLowerCase().contains("aborted"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void autopilotTerminalsIsolateConcurrentWaits(boolean structured) throws Exception {
+        when(rpc.invoke(eq("session.send"), any(), eq(SendMessageResponse.class))).thenReturn(
+                CompletableFuture.completedFuture(new SendMessageResponse("first")),
+                CompletableFuture.completedFuture(new SendMessageResponse("second")));
+        var options = new MessageOptions().setPrompt("inventory");
+        if (structured)
+            options.setResponseSchema(Map.of("type", "object"));
+        var first = session.sendAndWait(options);
+        var second = session.sendAndWait(options);
+        assistant("first", "{\"count\":42,\"color\":\"red\"}");
+        emit("session.autopilot_stopped", Map.of("reason", "task_complete", "requestId", "first"));
+        assistant("second", "{\"count\":7,\"color\":\"blue\"}");
+        emit("session.autopilot_stopped", Map.of("reason", "task_complete", "requestId", "second"));
+        assertEquals("{\"count\":42,\"color\":\"red\"}", first.get(1, TimeUnit.SECONDS).getData().content());
+        assertEquals("{\"count\":7,\"color\":\"blue\"}", second.get(1, TimeUnit.SECONDS).getData().content());
     }
 
     @ParameterizedTest

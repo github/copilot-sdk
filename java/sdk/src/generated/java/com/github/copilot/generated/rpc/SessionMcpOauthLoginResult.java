@@ -28,7 +28,9 @@ public record SessionMcpOauthLoginResult(
     @JsonProperty("loginId") String loginId,
     /** Explicit outcome for owned sign-in. Manual callers retain their legacy response shape. */
     @JsonProperty("status") McpOwnedOauthLoginStatus status,
-    /** URL the caller should open in a browser to complete OAuth. Omitted when cached tokens were still valid and no browser interaction was needed — the server is already reconnected in that case. When present, the runtime starts the callback listener before returning and continues the flow in the background; completion is signaled via session.mcp_server_status_changed. */
-    @JsonProperty("authorizationUrl") String authorizationUrl
+    /** URL the caller should open in a browser to complete OAuth. Omitted when cached tokens were still valid and no browser interaction was needed — the server is already reconnected in that case. For the default loopback flow, the runtime starts its listener before returning. With redirectUri, the host receives the callback and completes it through session.mcp.oauth.complete. The runtime continues the flow in the background and signals completion via session.mcp_server_status_changed. */
+    @JsonProperty("authorizationUrl") String authorizationUrl,
+    /** Opaque authorization identifier returned only for a host-managed redirect URI. The runtime also sends it as the OAuth state value, so the callback endpoint can read state and pass it with the full callback URL to session.mcp.oauth.complete. */
+    @JsonProperty("authorizationId") String authorizationId
 ) {
 }

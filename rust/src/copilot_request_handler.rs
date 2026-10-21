@@ -14,6 +14,7 @@
 //! [`send_request`](CopilotRequestHandler::send_request) to mutate / replace HTTP
 //! requests, or [`open_websocket`](CopilotRequestHandler::open_websocket) to
 //! mutate the handshake or return a custom [`CopilotWebSocketHandler`].
+//! Default pass-through uses native-tls for HTTPS and secure WebSockets.
 //!
 //! # Cancellation
 //!
@@ -23,20 +24,30 @@
 
 use std::collections::HashMap;
 use std::pin::Pin;
-use std::sync::{Arc, LazyLock, OnceLock, Weak};
+#[cfg(feature = "network-forwarding")]
+use std::sync::LazyLock;
+use std::sync::{Arc, OnceLock, Weak};
 
 use async_trait::async_trait;
 use base64::Engine;
 use bytes::Bytes;
-use futures_util::{SinkExt, Stream, StreamExt};
+use futures_util::Stream;
+#[cfg(feature = "network-forwarding")]
+use futures_util::{SinkExt, StreamExt};
 use http::HeaderMap;
 use http::header::{HeaderName, HeaderValue};
 use parking_lot::Mutex;
+#[cfg(feature = "network-forwarding")]
 use tokio::net::TcpStream;
 use tokio::sync::{Mutex as AsyncMutex, mpsc};
+#[cfg(feature = "network-forwarding")]
 use tokio_tungstenite::tungstenite::Message;
+#[cfg(feature = "network-forwarding")]
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
-use tokio_tungstenite::{MaybeTlsStream, WebSocketStream, connect_async};
+#[cfg(feature = "network-forwarding")]
+use tokio_tungstenite::{
+    Connector, MaybeTlsStream, WebSocketStream, connect_async_tls_with_config,
+};
 use tokio_util::sync::CancellationToken;
 use tracing::warn;
 
@@ -145,6 +156,8 @@ pub struct CopilotRequestContext {
     pub session_id: Option<String>,
     /// Stable per-agent-instance id for the agent trajectory that issued this request.
     pub agent_id: Option<String>,
+    /// Runtime-provided logical invocation identity, unchanged across physical retries.
+    pub agent_invocation_id: Option<String>,
     /// Id of the parent agent when this request was issued by a subagent.
     pub parent_agent_id: Option<String>,
     /// Runtime classification for the interaction that produced this request.
@@ -267,6 +280,7 @@ impl CopilotWebSocketResponse {
         self.exchange.end_response().await
     }
 
+    #[cfg(feature = "network-forwarding")]
     async fn fail(
         &self,
         message: impl Into<String>,
@@ -276,9 +290,9 @@ impl CopilotWebSocketResponse {
     }
 }
 
-/// A per-connection WebSocket handler. The default implementation
-/// ([`CopilotWebSocketForwarder`]) bridges to the real upstream;
-/// override [`CopilotRequestHandler::open_websocket`] to supply a custom one.
+/// A per-connection WebSocket handler. With `network-forwarding`, the default
+/// `CopilotWebSocketForwarder` connects to the upstream. Without that feature,
+/// callers supply a handler through [`CopilotRequestHandler::open_websocket`].
 #[async_trait]
 pub trait CopilotWebSocketHandler: Send + Sync {
     /// Forward one runtime→upstream message.
@@ -287,20 +301,32 @@ pub trait CopilotWebSocketHandler: Send + Sync {
         message: CopilotWebSocketMessage,
     ) -> Result<(), CopilotRequestError>;
 
+    /// Forward a message with its own invocation identity, which may differ
+    /// from the identity that opened a reused connection. The default delegates
+    /// to the existing message hook so existing implementations remain valid.
+    async fn send_request_message_with_context(
+        &self,
+        message: CopilotWebSocketMessage,
+        _ctx: &CopilotRequestContext,
+    ) -> Result<(), CopilotRequestError> {
+        self.send_request_message(message).await
+    }
+
     /// Tear down the upstream connection.
     async fn close(&self) -> Result<(), CopilotRequestError>;
 }
 
 /// The connection-level Copilot request seam.
 ///
-/// One implementor services both transports. Defaults forward transparently to
-/// the real upstream, so overriding nothing yields a pass-through; override a
-/// method to mutate or replace traffic.
+/// One implementor services both transports. With `network-forwarding`,
+/// defaults pass traffic to the upstream. Without it, callers implement both
+/// methods to handle traffic.
 #[async_trait]
 pub trait CopilotRequestHandler: Send + Sync + 'static {
     /// Service one intercepted HTTP request. Default: forward to the real
     /// upstream via [`forward_http`]. Override to mutate the request before
     /// forwarding, mutate the response after, or replace the call entirely.
+    #[cfg(feature = "network-forwarding")]
     async fn send_request(
         &self,
         request: CopilotHttpRequest,
@@ -308,6 +334,15 @@ pub trait CopilotRequestHandler: Send + Sync + 'static {
     ) -> Result<CopilotHttpResponse, CopilotRequestError> {
         forward_http(request).await
     }
+
+    /// Service one intercepted HTTP request with an explicit implementation
+    /// when the CLI owns upstream networking in its runtime.
+    #[cfg(not(feature = "network-forwarding"))]
+    async fn send_request(
+        &self,
+        request: CopilotHttpRequest,
+        ctx: &CopilotRequestContext,
+    ) -> Result<CopilotHttpResponse, CopilotRequestError>;
 
     /// Open a per-connection WebSocket handler. Default: a
     /// [`CopilotWebSocketForwarder`] wired to the real upstream.
@@ -320,6 +355,7 @@ pub trait CopilotRequestHandler: Send + Sync + 'static {
     /// must store this `CopilotWebSocketResponse` in the returned handler struct
     /// and call [`CopilotWebSocketResponse::send_message`] on it to push
     /// upstream messages back to the runtime.
+    #[cfg(feature = "network-forwarding")]
     async fn open_websocket(
         &self,
         ctx: &CopilotRequestContext,
@@ -330,6 +366,15 @@ pub trait CopilotRequestHandler: Send + Sync + 'static {
             .await?;
         Ok(Box::new(handler))
     }
+
+    /// Provide an explicit WebSocket handler when default upstream forwarding
+    /// belongs to the runtime instead of this SDK client.
+    #[cfg(not(feature = "network-forwarding"))]
+    async fn open_websocket(
+        &self,
+        ctx: &CopilotRequestContext,
+        response: CopilotWebSocketResponse,
+    ) -> Result<Box<dyn CopilotWebSocketHandler>, CopilotRequestError>;
 }
 
 /// Forward through a shared handler, so an `Arc<H>` can be registered while the
@@ -353,6 +398,7 @@ impl<H: CopilotRequestHandler> CopilotRequestHandler for Arc<H> {
     }
 }
 /// fresh upstream connection.
+#[cfg(feature = "network-forwarding")]
 const FORBIDDEN_HEADERS: &[&str] = &[
     "host",
     "connection",
@@ -365,12 +411,14 @@ const FORBIDDEN_HEADERS: &[&str] = &[
     "trailer",
 ];
 
+#[cfg(feature = "network-forwarding")]
 fn is_forbidden_header(name: &HeaderName) -> bool {
     let name = name.as_str();
     FORBIDDEN_HEADERS.contains(&name) || name.starts_with("sec-websocket")
 }
 
 /// Drop headers that belong to the inbound connection rather than the request.
+#[cfg(feature = "network-forwarding")]
 fn strip_forbidden_headers(headers: &mut HeaderMap) {
     let forbidden: Vec<HeaderName> = headers
         .keys()
@@ -382,17 +430,20 @@ fn strip_forbidden_headers(headers: &mut HeaderMap) {
     }
 }
 
-static SHARED_HTTP_CLIENT: LazyLock<reqwest::Client> = LazyLock::new(|| {
-    reqwest::Client::builder()
-        .redirect(reqwest::redirect::Policy::none())
-        .build()
-        .expect("default reqwest client must build")
-});
+#[cfg(feature = "network-forwarding")]
+static SHARED_HTTP_CLIENT: LazyLock<Result<reqwest::Client, reqwest::Error>> =
+    LazyLock::new(|| {
+        reqwest::Client::builder()
+            .tls_backend_native()
+            .redirect(reqwest::redirect::Policy::none())
+            .build()
+    });
 
 /// Forward an HTTP request to its real upstream and stream the response back.
 ///
 /// This is the default behaviour of [`CopilotRequestHandler::send_request`];
 /// consumers that mutate a request can call it to forward the mutated request.
+#[cfg(feature = "network-forwarding")]
 pub async fn forward_http(
     request: CopilotHttpRequest,
 ) -> Result<CopilotHttpResponse, CopilotRequestError> {
@@ -403,6 +454,10 @@ pub async fn forward_http(
     strip_forbidden_headers(&mut headers);
 
     let mut builder = SHARED_HTTP_CLIENT
+        .as_ref()
+        .map_err(|error| {
+            CopilotRequestError::Upstream(format!("HTTP TLS configuration failed: {error}"))
+        })?
         .request(method, &request.url)
         .headers(headers);
     if !request.body.is_empty() {
@@ -431,6 +486,7 @@ pub async fn forward_http(
     })
 }
 
+#[cfg(feature = "network-forwarding")]
 type UpstreamWrite =
     futures_util::stream::SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>;
 
@@ -438,18 +494,39 @@ type UpstreamWrite =
 pub type WebSocketTransform =
     Arc<dyn Fn(CopilotWebSocketMessage) -> Option<CopilotWebSocketMessage> + Send + Sync>;
 
+/// Transform applied to a runtime request message with its per-message context;
+/// return `None` to drop it.
+pub type WebSocketContextTransform = Arc<
+    dyn Fn(CopilotWebSocketMessage, &CopilotRequestContext) -> Option<CopilotWebSocketMessage>
+        + Send
+        + Sync,
+>;
+
 /// Builder for a [`CopilotWebSocketForwarder`].
+#[cfg(feature = "network-forwarding")]
 pub struct CopilotWebSocketForwarderBuilder {
     url: String,
     headers: HeaderMap,
     on_send_request_message: Option<WebSocketTransform>,
+    on_send_request_message_with_context: Option<WebSocketContextTransform>,
     on_send_response_message: Option<WebSocketTransform>,
 }
 
+#[cfg(feature = "network-forwarding")]
 impl CopilotWebSocketForwarderBuilder {
     /// Hook runtime→upstream messages (mutate or drop before forwarding).
     pub fn on_send_request_message(mut self, transform: WebSocketTransform) -> Self {
         self.on_send_request_message = Some(transform);
+        self
+    }
+
+    /// Hook runtime→upstream messages with their per-message invocation context.
+    /// When present, this runs before the existing request-message transform.
+    pub fn on_send_request_message_with_context(
+        mut self,
+        transform: WebSocketContextTransform,
+    ) -> Self {
+        self.on_send_request_message_with_context = Some(transform);
         self
     }
 
@@ -476,7 +553,23 @@ impl CopilotWebSocketForwarderBuilder {
             request.headers_mut().append(name.clone(), value.clone());
         }
 
-        let (stream, _) = connect_async(request)
+        // Explicit selection survives consumers enabling another TLS backend.
+        let connector = if request.uri().scheme_str() == Some("wss") {
+            let connector = tokio::task::spawn_blocking(native_tls::TlsConnector::new)
+                .await
+                .map_err(|e| {
+                    CopilotRequestError::Upstream(format!("websocket TLS setup task failed: {e}"))
+                })?
+                .map_err(|e| {
+                    CopilotRequestError::Upstream(format!(
+                        "websocket TLS configuration failed: {e}"
+                    ))
+                })?;
+            Connector::NativeTls(connector)
+        } else {
+            Connector::Plain
+        };
+        let (stream, _) = connect_async_tls_with_config(request, None, false, Some(connector))
             .await
             .map_err(|e| CopilotRequestError::Upstream(format!("websocket connect failed: {e}")))?;
         let (write, mut read) = stream.split();
@@ -516,6 +609,7 @@ impl CopilotWebSocketForwarderBuilder {
         Ok(CopilotWebSocketForwarder {
             write: AsyncMutex::new(Some(write)),
             on_send_request_message: self.on_send_request_message,
+            on_send_request_message_with_context: self.on_send_request_message_with_context,
             cancel,
         })
     }
@@ -524,12 +618,15 @@ impl CopilotWebSocketForwarderBuilder {
 /// The default WebSocket handler: forwards each runtime message to the real
 /// upstream and each upstream message back to the runtime. Mutate by supplying
 /// transforms on the [builder](CopilotWebSocketForwarder::builder).
+#[cfg(feature = "network-forwarding")]
 pub struct CopilotWebSocketForwarder {
     write: AsyncMutex<Option<UpstreamWrite>>,
     on_send_request_message: Option<WebSocketTransform>,
+    on_send_request_message_with_context: Option<WebSocketContextTransform>,
     cancel: CancellationToken,
 }
 
+#[cfg(feature = "network-forwarding")]
 impl CopilotWebSocketForwarder {
     /// Start building a forwarding handler for `url` with the given upstream
     /// handshake headers.
@@ -538,13 +635,30 @@ impl CopilotWebSocketForwarder {
             url,
             headers,
             on_send_request_message: None,
+            on_send_request_message_with_context: None,
             on_send_response_message: None,
         }
     }
 }
 
 #[async_trait]
+#[cfg(feature = "network-forwarding")]
 impl CopilotWebSocketHandler for CopilotWebSocketForwarder {
+    async fn send_request_message_with_context(
+        &self,
+        message: CopilotWebSocketMessage,
+        ctx: &CopilotRequestContext,
+    ) -> Result<(), CopilotRequestError> {
+        let message = match &self.on_send_request_message_with_context {
+            Some(transform) => transform(message, ctx),
+            None => Some(message),
+        };
+        if let Some(message) = message {
+            self.send_request_message(message).await?;
+        }
+        Ok(())
+    }
+
     async fn send_request_message(
         &self,
         message: CopilotWebSocketMessage,
@@ -582,6 +696,7 @@ impl CopilotWebSocketHandler for CopilotWebSocketForwarder {
     }
 }
 
+#[cfg(feature = "network-forwarding")]
 fn apply_transform(
     transform: &Option<WebSocketTransform>,
     message: CopilotWebSocketMessage,
@@ -612,12 +727,18 @@ struct ResponseState {
 struct RequestMeta {
     session_id: Option<String>,
     agent_id: Option<String>,
+    agent_invocation_id: Option<String>,
     parent_agent_id: Option<String>,
     interaction_type: Option<String>,
     method: String,
     url: String,
     headers: HeaderMap,
     transport: CopilotRequestTransport,
+}
+
+struct RequestBodyFrame {
+    data: Vec<u8>,
+    agent_invocation_id: Option<String>,
 }
 
 struct CopilotRequestExchange {
@@ -627,8 +748,8 @@ struct CopilotRequestExchange {
     client: Weak<ClientInner>,
     /// Sender feeding the request body stream. Dropped (set to `None`) on `end`
     /// or `cancel` to close the stream.
-    body_tx: Mutex<Option<mpsc::UnboundedSender<Vec<u8>>>>,
-    body_rx: AsyncMutex<mpsc::UnboundedReceiver<Vec<u8>>>,
+    body_tx: Mutex<Option<mpsc::UnboundedSender<RequestBodyFrame>>>,
+    body_rx: AsyncMutex<mpsc::UnboundedReceiver<RequestBodyFrame>>,
     state: Mutex<ResponseState>,
 }
 
@@ -651,6 +772,7 @@ impl CopilotRequestExchange {
         let _ = self.meta.set(RequestMeta {
             session_id: params.session_id.map(SessionId::into_inner),
             agent_id: params.agent_id,
+            agent_invocation_id: params.agent_invocation_id,
             parent_agent_id: params.parent_agent_id,
             interaction_type: params.interaction_type,
             method: params.method,
@@ -673,6 +795,7 @@ impl CopilotRequestExchange {
             request_id: self.request_id.clone(),
             session_id: meta.session_id.clone(),
             agent_id: meta.agent_id.clone(),
+            agent_invocation_id: meta.agent_invocation_id.clone(),
             parent_agent_id: meta.parent_agent_id.clone(),
             interaction_type: meta.interaction_type.clone(),
             transport: meta.transport,
@@ -695,9 +818,12 @@ impl CopilotRequestExchange {
 
     // --- Request body feed (driven by the dispatcher as frames arrive) ---
 
-    fn push_chunk(&self, data: Vec<u8>) {
+    fn push_chunk(&self, data: Vec<u8>, agent_invocation_id: Option<String>) {
         if let Some(tx) = self.body_tx.lock().as_ref() {
-            let _ = tx.send(data);
+            let _ = tx.send(RequestBodyFrame {
+                data,
+                agent_invocation_id,
+            });
         }
     }
 
@@ -710,7 +836,7 @@ impl CopilotRequestExchange {
         *self.body_tx.lock() = None;
     }
 
-    async fn recv_body(&self) -> Option<Vec<u8>> {
+    async fn recv_body(&self) -> Option<RequestBodyFrame> {
         self.body_rx.lock().await.recv().await
     }
 
@@ -718,7 +844,13 @@ impl CopilotRequestExchange {
         let mut buf = Vec::new();
         let mut rx = self.body_rx.lock().await;
         while let Some(frame) = rx.recv().await {
-            buf.extend_from_slice(&frame);
+            // The first frame becomes the buffer, so a body sent as one chunk (the runtime sends
+            // every HTTP request body so) reaches the handler without a copy.
+            if buf.is_empty() {
+                buf = frame.data;
+            } else {
+                buf.extend_from_slice(&frame.data);
+            }
         }
         buf
     }
@@ -993,9 +1125,14 @@ async fn pump_websocket_requests(
                 return Err(CopilotRequestError::message("Request cancelled by runtime"));
             }
             frame = exchange.recv_body() => match frame {
-                Some(data) => {
+                Some(frame) => {
+                    let mut ctx = exchange.context();
+                    ctx.agent_invocation_id = frame.agent_invocation_id;
                     handler
-                        .send_request_message(CopilotWebSocketMessage { data, binary: false })
+                        .send_request_message_with_context(
+                            CopilotWebSocketMessage { data: frame.data, binary: false },
+                            &ctx,
+                        )
                         .await?;
                 }
                 None => return Ok(()),
@@ -1114,7 +1251,8 @@ impl CopilotRequestDispatcher {
 
     async fn handle_start(self: &Arc<Self>, request: JsonRpcRequest) {
         let id = request.id;
-        let Some(params) = parse_params::<LlmInferenceHttpRequestStartRequest>(&request) else {
+        let Some(params) = parse_params::<LlmInferenceHttpRequestStartRequest>(request.params)
+        else {
             self.send_error(id, "invalid llmInference.httpRequestStart params")
                 .await;
             return;
@@ -1140,7 +1278,8 @@ impl CopilotRequestDispatcher {
 
     async fn handle_chunk(&self, request: JsonRpcRequest) {
         let id = request.id;
-        let Some(params) = parse_params::<LlmInferenceHttpRequestChunkRequest>(&request) else {
+        let Some(params) = parse_params::<LlmInferenceHttpRequestChunkRequest>(request.params)
+        else {
             self.send_error(id, "invalid llmInference.httpRequestChunk params")
                 .await;
             return;
@@ -1149,7 +1288,7 @@ impl CopilotRequestDispatcher {
         // May arrive before the matching start frame; get-or-create so the body
         // is buffered, never lost.
         let exchange = self.get_or_create_exchange(params.request_id.to_string());
-        apply_chunk(&exchange, &params);
+        apply_chunk(&exchange, params);
 
         self.ack(id).await;
     }
@@ -1182,7 +1321,7 @@ impl CopilotRequestDispatcher {
                 id,
                 result: None,
                 error: Some(crate::JsonRpcError {
-                    code: error_codes::INTERNAL_ERROR,
+                    code: error_codes::INTERNAL_ERROR.into(),
                     message: message.to_string(),
                     data: None,
                 }),
@@ -1193,7 +1332,7 @@ impl CopilotRequestDispatcher {
 
 /// Apply one body chunk to a pending request: route data into the body stream,
 /// or terminate it on `end` / `cancel`.
-fn apply_chunk(exchange: &CopilotRequestExchange, params: &LlmInferenceHttpRequestChunkRequest) {
+fn apply_chunk(exchange: &CopilotRequestExchange, params: LlmInferenceHttpRequestChunkRequest) {
     if params.cancel == Some(true) {
         exchange.push_cancel();
         return;
@@ -1209,9 +1348,9 @@ fn apply_chunk(exchange: &CopilotRequestExchange, params: &LlmInferenceHttpReque
                 }
             }
         } else {
-            params.data.clone().into_bytes()
+            params.data.into_bytes()
         };
-        exchange.push_chunk(decoded);
+        exchange.push_chunk(decoded, params.agent_invocation_id);
     }
 
     if params.end == Some(true) {
@@ -1219,11 +1358,10 @@ fn apply_chunk(exchange: &CopilotRequestExchange, params: &LlmInferenceHttpReque
     }
 }
 
-fn parse_params<T: serde::de::DeserializeOwned>(request: &JsonRpcRequest) -> Option<T> {
-    request
-        .params
-        .as_ref()
-        .and_then(|p| serde_json::from_value(p.clone()).ok())
+/// Deserialize a request's params by value, so their strings (the request body among them) move
+/// into `T`: deserializing from a borrow deep-clones the whole `Value` first.
+fn parse_params<T: serde::de::DeserializeOwned>(params: Option<serde_json::Value>) -> Option<T> {
+    params.and_then(|p| serde_json::from_value(p).ok())
 }
 
 /// Convert a wire header map into an [`http::HeaderMap`], skipping any entry the
@@ -1258,3 +1396,9 @@ fn headers_to_wire(headers: &HeaderMap) -> HashMap<String, Vec<String>> {
     }
     wire
 }
+
+#[cfg(all(test, feature = "network-forwarding"))]
+mod tests;
+
+#[cfg(all(test, not(feature = "network-forwarding")))]
+mod local_runtime_tests;

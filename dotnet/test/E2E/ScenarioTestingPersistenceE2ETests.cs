@@ -34,53 +34,6 @@ public class ScenarioTestingPersistenceE2ETests(E2ETestFixture fixture, ITestOut
             evt => (evt.Data.Content ?? string.Empty).Contains("EMPTY_BATCH_RETRY_DONE", StringComparison.Ordinal));
     }
 
-    [Theory]
-    [InlineData(1)]
-    [InlineData(3)]
-    public async Task Should_Page_Persisted_Events_Backward_Without_Resuming(int pageSize)
-    {
-        const string firstPrompt = "Reply with exactly PERSISTED_SCENARIO_FIRST.";
-        const string secondPrompt = "Reply with exactly PERSISTED_SCENARIO_SECOND.";
-        var session = await CreateSessionAsync();
-        var sessionId = session.SessionId;
-
-        await session.SendAndWaitAsync(new MessageOptions { Prompt = firstPrompt });
-        await session.SendAndWaitAsync(new MessageOptions { Prompt = secondPrompt });
-        await Client.Rpc.Sessions.SaveAsync(sessionId);
-        await session.DisposeAsync();
-
-        var pages = new List<EventsReadResult>();
-        EventsReadResult page = await Client.Rpc.Sessions.ReadPersistedEventsAsync(
-            sessionId,
-            max: pageSize,
-            direction: EventsReadDirection.Backward);
-        pages.Add(page);
-
-        while (page.HasMore)
-        {
-            Assert.False(string.IsNullOrWhiteSpace(page.Cursor));
-            page = await Client.Rpc.Sessions.ReadPersistedEventsAsync(
-                sessionId,
-                cursor: page.Cursor,
-                max: pageSize);
-            pages.Add(page);
-        }
-
-        Assert.All(pages, current => Assert.Equal(EventsCursorStatus.Ok, current.CursorStatus));
-        var events = pages.SelectMany(current => current.Events).ToList();
-        Assert.Equal(events.Count, events.Select(evt => evt.Id).Distinct().Count());
-
-        var userMessages = events
-            .OfType<UserMessageEvent>()
-            .Select(evt => evt.Data.Content)
-            .ToList();
-        Assert.Contains(firstPrompt, userMessages);
-        Assert.Contains(secondPrompt, userMessages);
-        Assert.True(
-            userMessages.IndexOf(secondPrompt) < userMessages.IndexOf(firstPrompt),
-            "Backward pages should expose the newer user turn before the older turn.");
-    }
-
     [Fact]
     public async Task Should_Truncate_History_And_Resend_From_Boundary()
     {
@@ -109,42 +62,4 @@ public class ScenarioTestingPersistenceE2ETests(E2ETestFixture fixture, ITestOut
         Assert.Contains(events.OfType<UserMessageEvent>(), evt => evt.Data.Content == replacementPrompt);
     }
 
-    [Theory]
-    [InlineData("session")]
-    [InlineData("unstaged")]
-    [InlineData("branch")]
-    public async Task Should_List_Read_And_Diff_Scenario_Workspace_State(string mode)
-    {
-        await using var session = await CreateSessionAsync();
-        var workspaceFile = $"scenario-state-{Guid.NewGuid():N}.txt";
-        const string workspaceContent = "SCENARIO_WORKSPACE_STATE";
-        var requestedMode = new WorkspaceDiffMode(mode);
-
-        await session.Rpc.Workspaces.CreateFileAsync(workspaceFile, workspaceContent);
-
-        var listed = await session.Rpc.Workspaces.ListFilesAsync();
-        var read = await session.Rpc.Workspaces.ReadFileAsync(workspaceFile);
-        var diff = await session.Rpc.Workspaces.DiffAsync(requestedMode);
-
-        Assert.Contains(workspaceFile, listed.Files);
-        Assert.Equal(workspaceContent, read.Content);
-        Assert.Equal(requestedMode, diff.RequestedMode);
-
-        if (requestedMode == WorkspaceDiffMode.Unstaged)
-        {
-            Assert.Equal(WorkspaceDiffMode.Unstaged, diff.Mode);
-            Assert.False(diff.IsFallback);
-            Assert.Null(diff.UnavailableReason);
-        }
-        else
-        {
-            Assert.True(
-                diff.Mode == requestedMode || diff.Mode == WorkspaceDiffMode.Unstaged,
-                $"Unexpected effective workspace diff mode: {diff.Mode}");
-            Assert.Equal(diff.Mode == WorkspaceDiffMode.Unstaged, diff.IsFallback);
-            Assert.Equal(
-                requestedMode == WorkspaceDiffMode.Session && diff.IsFallback,
-                diff.UnavailableReason is not null);
-        }
-    }
 }

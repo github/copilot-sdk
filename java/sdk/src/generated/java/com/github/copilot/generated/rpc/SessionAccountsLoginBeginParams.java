@@ -14,7 +14,7 @@ import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
- * Begin an interactive login flow for a provider kind. Dispatch is kind-only.
+ * Begin an interactive login flow for a provider kind, optionally reusing a cached base identity or explicitly requesting provider account selection.
  *
  * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0

@@ -5,9 +5,13 @@
 package com.github.copilot;
 
 import com.github.copilot.generated.rpc.HostDisposeParams;
+import com.github.copilot.generated.rpc.HostListSessionsParams;
+import com.github.copilot.generated.rpc.HostListSessionsResult;
 import com.github.copilot.generated.rpc.HostPublishSessionParams;
 import com.github.copilot.generated.rpc.HostPublishSessionResult;
 import com.github.copilot.generated.rpc.HostStartResult;
+import com.github.copilot.generated.rpc.HostUnpublishSessionParams;
+import com.github.copilot.generated.rpc.HostUnpublishSessionResult;
 import com.github.copilot.generated.rpc.ServerHostApi;
 import java.util.concurrent.CompletableFuture;
 
@@ -38,7 +42,8 @@ public final class AhpHost implements AutoCloseable {
     /**
      * Gets the bound address.
      *
-     * @return the actual bound WebSocket URL
+     * @return the actual bound WebSocket URL, or {@code null} without a local
+     *         server
      */
     public String getUrl() {
         return info.url();
@@ -47,7 +52,7 @@ public final class AhpHost implements AutoCloseable {
     /**
      * Gets the secret token.
      *
-     * @return the token, or {@code null} when authentication is disabled
+     * @return the token, or {@code null} without an authenticated local server
      */
     public String getToken() {
         return info.token();
@@ -63,6 +68,15 @@ public final class AhpHost implements AutoCloseable {
     }
 
     /**
+     * Gets the GitHub Mission Control environment identity.
+     *
+     * @return the environment ID, or {@code null} without a GitHub environment
+     */
+    public String getEnvironmentId() {
+        return info.environmentId();
+    }
+
+    /**
      * Stops the listener and joins runtime cleanup. Every call reaches the runtime,
      * including concurrent and repeated disposal calls.
      *
@@ -73,8 +87,8 @@ public final class AhpHost implements AutoCloseable {
     }
 
     /**
-     * Publishes an exact resident session attached to the owning client, without
-     * invoking a factory or transferring session ownership.
+     * Durably advertises an exact attached session in the compute-scoped catalog,
+     * without invoking a factory or transferring session ownership.
      *
      * @param sessionId
      *            resident session identity
@@ -82,6 +96,28 @@ public final class AhpHost implements AutoCloseable {
      */
     public CompletableFuture<HostPublishSessionResult> publishSession(String sessionId) {
         return rpc.publishSession(new HostPublishSessionParams(info.hostId(), sessionId));
+    }
+
+    /**
+     * Withdraws a live or dormant application publication and revokes AHP
+     * attachments. Preserves local history, worktrees and ongoing work. Rejects
+     * nonapplication publications without stopping the host.
+     *
+     * @param sessionId
+     *            canonical application session identity
+     * @return whether a publication was removed; false when already absent
+     */
+    public CompletableFuture<HostUnpublishSessionResult> unpublishSession(String sessionId) {
+        return rpc.unpublishSession(new HostUnpublishSessionParams(info.hostId(), sessionId));
+    }
+
+    /**
+     * Lists all live and dormant catalog sessions advertised by this host.
+     *
+     * @return the advertised host sessions
+     */
+    public CompletableFuture<HostListSessionsResult> listSessions() {
+        return rpc.listSessions(new HostListSessionsParams(info.hostId()));
     }
 
     /** Disposes the listener and waits for acknowledged cleanup. */

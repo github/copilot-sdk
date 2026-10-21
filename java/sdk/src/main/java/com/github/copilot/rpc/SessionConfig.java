@@ -15,9 +15,12 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import com.github.copilot.CopilotExperimental;
+import com.github.copilot.SkillProvider;
 import com.github.copilot.generated.SessionEvent;
 import com.github.copilot.generated.rpc.DiagnosticsConfiguration;
+import com.github.copilot.generated.rpc.SandboxConfig;
 import com.github.copilot.generated.rpc.SessionLimitsConfig;
+import com.github.copilot.generated.rpc.AutopilotOptions;
 
 /**
  * Configuration for creating a new Copilot session.
@@ -42,6 +45,7 @@ import com.github.copilot.generated.rpc.SessionLimitsConfig;
 public class SessionConfig {
 
     private String sessionId;
+    private String name;
     private String clientName;
     private String model;
     private String reasoningEffort;
@@ -61,6 +65,7 @@ public class SessionConfig {
     private Boolean enableCitations;
     private Boolean enableFileChangeTracking;
     private SessionLimitsConfig sessionLimits;
+    private AutopilotOptions autopilot;
     private Boolean enableExperimentalMode;
     private Boolean skipCustomInstructions;
     private Boolean customAgentsLocalOnly;
@@ -83,24 +88,30 @@ public class SessionConfig {
     private String agent;
     private InfiniteSessionConfig infiniteSessions;
     private List<String> skillDirectories;
+    private List<String> agentDirectories;
+    private List<String> hookDirectories;
     private List<String> includedBuiltinSkills;
     private List<String> instructionDirectories;
     private List<String> pluginDirectories;
     private LargeToolOutputConfig largeOutput;
     private ToolSearchConfig toolSearch;
+    private ImageGenerationConfig imageGeneration;
     private MemoryConfiguration memory;
     private List<String> disabledSkills;
     private List<String> disabledMcpServers;
+    private SandboxConfig sandboxConfig;
     private String configDirectory;
     private Boolean enableConfigDiscovery;
     private Boolean skipEmbeddingRetrieval;
     private String organizationCustomInstructions;
     private Boolean enableOnDemandInstructionDiscovery;
     private Boolean refreshCustomInstructions;
+    private WorkingDirectoryTrust trustWorkingDirectory;
     private Boolean enableFileHooks;
     private Boolean enableHostGitOperations;
     private Boolean enableSessionStore;
     private Boolean enableSkills;
+    private SkillProvider skillProvider;
     private String embeddingCacheStorage;
     private ModelCapabilitiesOverride modelCapabilities;
     private Consumer<SessionEvent> onEvent;
@@ -117,6 +128,8 @@ public class SessionConfig {
     private CloudSessionOptions cloud;
     private CopilotExpAssignmentResponse expAssignments;
     private Boolean enableManagedSettings;
+    private Boolean enforceManagedModelDefaults;
+    private Boolean interactiveUser;
     private Map<String, Boolean> featureFlags;
     private ManagedSettings managedSettings;
 
@@ -140,6 +153,31 @@ public class SessionConfig {
      */
     public SessionConfig setSessionId(String sessionId) {
         this.sessionId = sessionId;
+        return this;
+    }
+
+    /**
+     * Gets the create-time session name.
+     *
+     * @return the session name, or {@code null} if the session is unnamed
+     */
+    public String getName() {
+        return name;
+    }
+
+    /**
+     * Names the session at creation, as {@code session.name.set} would, and is
+     * validated the same way: non-empty, no leading or trailing whitespace, at most
+     * 100 UTF-16 units, no control characters, and no double quotes. A name also
+     * makes the session persist from the start, so it can be listed and resumed
+     * without ever running a turn. Local sessions only: cloud creation rejects it.
+     *
+     * @param name
+     *            the session name
+     * @return this config instance for method chaining
+     */
+    public SessionConfig setName(String name) {
+        this.name = name;
         return this;
     }
 
@@ -655,6 +693,40 @@ public class SessionConfig {
     @CopilotExperimental
     public SessionConfig clearSessionLimits() {
         this.sessionLimits = null;
+        return this;
+    }
+
+    /**
+     * Gets the Autopilot policy, independently of the session mode.
+     *
+     * @return the policy, or {@code null} for runtime defaults
+     */
+    @CopilotExperimental
+    public AutopilotOptions getAutopilot() {
+        return autopilot;
+    }
+
+    /**
+     * Sets the Autopilot policy before the first turn.
+     *
+     * @param autopilot
+     *            the policy; omitted fields use runtime defaults
+     * @return this instance for method chaining
+     */
+    @CopilotExperimental
+    public SessionConfig setAutopilot(AutopilotOptions autopilot) {
+        this.autopilot = autopilot;
+        return this;
+    }
+
+    /**
+     * Omits the Autopilot policy, using runtime defaults.
+     *
+     * @return this instance for method chaining
+     */
+    @CopilotExperimental
+    public SessionConfig clearAutopilot() {
+        this.autopilot = null;
         return this;
     }
 
@@ -1232,7 +1304,11 @@ public class SessionConfig {
     }
 
     /**
-     * Gets the skill directories.
+     * Gets explicit discovery-only skill roots, not general filesystem grants.
+     * Available without configuration discovery, subject to skill/managed disables.
+     * Relative paths resolve once when supplied against the request's effective
+     * working directory; retained roots do not move when it changes. Null and
+     * omission are equivalent; an empty list clears only the SDK contribution.
      *
      * @return the list of skill directory paths
      */
@@ -1253,6 +1329,59 @@ public class SessionConfig {
      */
     public SessionConfig setSkillDirectories(List<String> skillDirectories) {
         this.skillDirectories = skillDirectories;
+        return this;
+    }
+
+    /**
+     * Gets explicit discovery-only agent roots, separate from custom agent objects.
+     * No general filesystem grant. Available without configuration discovery,
+     * subject to source/managed disables. Relative paths resolve once when supplied
+     * against the request's effective working directory; retained roots do not
+     * move. Null and omission are equivalent; an empty list clears only the SDK
+     * contribution.
+     *
+     * @return the agent directory paths
+     */
+    public List<String> getAgentDirectories() {
+        return agentDirectories == null ? null : Collections.unmodifiableList(agentDirectories);
+    }
+
+    /**
+     * Sets explicit discovery-only agent roots. See {@link #getAgentDirectories()}.
+     *
+     * @param agentDirectories
+     *            the agent directory paths
+     * @return this config for method chaining
+     */
+    public SessionConfig setAgentDirectories(List<String> agentDirectories) {
+        this.agentDirectories = agentDirectories == null ? null : new ArrayList<>(agentDirectories);
+        return this;
+    }
+
+    /**
+     * Gets explicit discovery-only file-hook roots, separate from callback hooks.
+     * No general filesystem grant. Available without configuration discovery or
+     * file-hook enablement (repository-origin hooks only), subject to hook/managed
+     * disables. Relative paths resolve once when supplied against the request's
+     * effective working directory; retained roots do not move. Null and omission
+     * are equivalent; an empty list clears only the SDK contribution.
+     *
+     * @return the file-hook directory paths
+     */
+    public List<String> getHookDirectories() {
+        return hookDirectories == null ? null : Collections.unmodifiableList(hookDirectories);
+    }
+
+    /**
+     * Sets explicit discovery-only file-hook roots. See
+     * {@link #getHookDirectories()}.
+     *
+     * @param hookDirectories
+     *            the file-hook directory paths
+     * @return this config for method chaining
+     */
+    public SessionConfig setHookDirectories(List<String> hookDirectories) {
+        this.hookDirectories = hookDirectories == null ? null : new ArrayList<>(hookDirectories);
         return this;
     }
 
@@ -1279,7 +1408,12 @@ public class SessionConfig {
     }
 
     /**
-     * Gets the additional directories to search for custom instruction files.
+     * Gets explicit discovery-only instruction roots using existing SDK formats. No
+     * general filesystem grant. Available without configuration discovery, subject
+     * to instruction/managed disables. Relative paths resolve once when supplied
+     * against the request's effective working directory; retained roots do not
+     * move. Null and omission are equivalent; an empty list clears only the SDK
+     * contribution.
      *
      * @return the list of instruction directory paths
      */
@@ -1348,6 +1482,29 @@ public class SessionConfig {
      */
     public ToolSearchConfig getToolSearch() {
         return toolSearch;
+    }
+
+    /**
+     * Gets the non-persisted image generation opt-in.
+     *
+     * @return the image generation config, or null when unset
+     */
+    @CopilotExperimental
+    public ImageGenerationConfig getImageGeneration() {
+        return imageGeneration;
+    }
+
+    /**
+     * Sets the image generation opt-in. Re-supply after runtime restart.
+     *
+     * @param imageGeneration
+     *            the image generation config
+     * @return this config for method chaining
+     */
+    @CopilotExperimental
+    public SessionConfig setImageGeneration(ImageGenerationConfig imageGeneration) {
+        this.imageGeneration = imageGeneration;
+        return this;
     }
 
     /**
@@ -1428,6 +1585,31 @@ public class SessionConfig {
      */
     public SessionConfig setDisabledMcpServers(List<String> disabledMcpServers) {
         this.disabledMcpServers = disabledMcpServers;
+        return this;
+    }
+
+    /**
+     * Gets the sandbox configuration applied during session construction.
+     *
+     * @return the sandbox configuration, or {@code null} when omitted
+     */
+    @CopilotExperimental
+    public SandboxConfig getSandboxConfig() {
+        return sandboxConfig;
+    }
+
+    /**
+     * Sandbox configuration applied when the session is constructed, before MCP
+     * servers start. Same shape as the sandboxConfig option of session options
+     * update; an identical later update is a no-op.
+     *
+     * @param sandboxConfig
+     *            the sandbox configuration
+     * @return this config for method chaining
+     */
+    @CopilotExperimental
+    public SessionConfig setSandboxConfig(SandboxConfig sandboxConfig) {
+        this.sandboxConfig = sandboxConfig;
         return this;
     }
 
@@ -1595,6 +1777,53 @@ public class SessionConfig {
     }
 
     /**
+     * Gets the working-directory trust scope.
+     *
+     * @return {@code "session"}, {@code "user"}, or {@code null} to leave trust
+     *         unchanged
+     */
+    public String getTrustWorkingDirectory() {
+        return trustWorkingDirectory != null ? trustWorkingDirectory.getValue() : null;
+    }
+
+    /**
+     * Trusts the working directory for this session or persistently for the user.
+     *
+     * @param trustWorkingDirectory
+     *            {@code "session"}, {@code "user"}, or {@code null} to leave trust
+     *            unchanged
+     * @return this config for method chaining
+     */
+    public SessionConfig setTrustWorkingDirectory(String trustWorkingDirectory) {
+        this.trustWorkingDirectory = trustWorkingDirectory != null
+                ? WorkingDirectoryTrust.fromValue(trustWorkingDirectory)
+                : null;
+        return this;
+    }
+
+    /**
+     * Gets the typed working-directory trust scope.
+     *
+     * @return the trust scope, or null if not specified
+     */
+    @JsonIgnore
+    public WorkingDirectoryTrust getWorkingDirectoryTrust() {
+        return trustWorkingDirectory;
+    }
+
+    /**
+     * Sets the typed working-directory trust scope.
+     *
+     * @param trustWorkingDirectory
+     *            the trust scope, or null to clear it
+     * @return this config for method chaining
+     */
+    public SessionConfig setWorkingDirectoryTrust(WorkingDirectoryTrust trustWorkingDirectory) {
+        this.trustWorkingDirectory = trustWorkingDirectory;
+        return this;
+    }
+
+    /**
      * Sets whether to invalidate process-wide instruction discovery caches before
      * constructing the new session. Defaults to {@code false}, reusing cached
      * discovery. Other sessions in this runtime may observe updated instructions on
@@ -1621,7 +1850,9 @@ public class SessionConfig {
     }
 
     /**
-     * Gets whether file-based hooks are enabled.
+     * Gets whether repository-origin file hooks from {@code .github/hooks/} and
+     * trusted repository-configured roots are enabled. Does not control explicit
+     * {@link #getHookDirectories()} or callback hooks.
      *
      * @return an {@link java.util.Optional} containing {@code true} to enable file
      *         hooks or {@code false} to disable them, or
@@ -1633,7 +1864,10 @@ public class SessionConfig {
     }
 
     /**
-     * Sets whether file-based hooks from {@code .github/hooks/} are enabled.
+     * Controls repository-origin hooks, including accepted startup additional
+     * roots. This gate supports live updates. Additional-root eligibility and
+     * {@code DISABLE_ADDITIONAL_DIRECTORY_HOOKS} remain startup-scoped. Explicit
+     * hook directories and callbacks are independent.
      *
      * @param enableFileHooks
      *            {@code true} to enable file hooks, {@code false} to disable them
@@ -1756,6 +1990,35 @@ public class SessionConfig {
      */
     public SessionConfig clearEnableSkills() {
         this.enableSkills = null;
+        return this;
+    }
+
+    /**
+     * Gets the session-scoped skill provider.
+     *
+     * @return the skill provider, or {@code null} when not configured
+     * @apiNote This API is experimental and may change in a future version.
+     */
+    @CopilotExperimental
+    @JsonIgnore
+    public SkillProvider getSkillProvider() {
+        return skillProvider;
+    }
+
+    /**
+     * Sets the session-scoped skill provider.
+     * <p>
+     * Re-supply this provider when resuming a session. Skill providers are not
+     * supported for cloud sessions.
+     *
+     * @param skillProvider
+     *            the skill provider to expose to the runtime
+     * @return this config instance for method chaining
+     * @apiNote This API is experimental and may change in a future version.
+     */
+    @CopilotExperimental
+    public SessionConfig setSkillProvider(SkillProvider skillProvider) {
+        this.skillProvider = skillProvider;
         return this;
     }
 
@@ -2263,6 +2526,55 @@ public class SessionConfig {
     }
 
     /**
+     * Gets whether locked managed model controls are enforced.
+     *
+     * @return the explicit choice, or empty to use the runtime default
+     */
+    @JsonIgnore
+    public Optional<Boolean> getEnforceManagedModelDefaults() {
+        return Optional.ofNullable(enforceManagedModelDefaults);
+    }
+
+    /**
+     * Sets whether locked managed model controls are enforced for this session.
+     * Conflicting model changes are rejected; overridable defaults remain mutable.
+     *
+     * @param enforceManagedModelDefaults
+     *            whether to enforce locked managed model controls
+     * @return this config instance for method chaining
+     */
+    public SessionConfig setEnforceManagedModelDefaults(boolean enforceManagedModelDefaults) {
+        this.enforceManagedModelDefaults = enforceManagedModelDefaults;
+        return this;
+    }
+
+    /**
+     * Gets whether this session is human-driven.
+     *
+     * @return an optional containing the declaration, or empty when unset
+     */
+    @JsonIgnore
+    public Optional<Boolean> getInteractiveUser() {
+        return Optional.ofNullable(interactiveUser);
+    }
+
+    /**
+     * Declares that a human drives this session's conversation, enabling
+     * user-message analysis telemetry for user-authored messages. Automated
+     * messages remain excluded. Defaults to false for SDK sessions. Ignored for
+     * cloud sessions.
+     *
+     * @param interactiveUser
+     *            {@code true} for interactive hosts such as editors or IDE chat
+     *            panels
+     * @return this config instance for method chaining
+     */
+    public SessionConfig setInteractiveUser(boolean interactiveUser) {
+        this.interactiveUser = interactiveUser;
+        return this;
+    }
+
+    /**
      * Gets host-injected managed settings for this session.
      *
      * @return the managed settings, or {@code null} when unset
@@ -2321,6 +2633,7 @@ public class SessionConfig {
         copy.enableCitations = this.enableCitations;
         copy.enableFileChangeTracking = this.enableFileChangeTracking;
         copy.sessionLimits = this.sessionLimits;
+        copy.autopilot = this.autopilot;
         copy.enableExperimentalMode = this.enableExperimentalMode;
         copy.skipCustomInstructions = this.skipCustomInstructions;
         copy.customAgentsLocalOnly = this.customAgentsLocalOnly;
@@ -2344,6 +2657,8 @@ public class SessionConfig {
         copy.agent = this.agent;
         copy.infiniteSessions = this.infiniteSessions;
         copy.skillDirectories = this.skillDirectories != null ? new ArrayList<>(this.skillDirectories) : null;
+        copy.agentDirectories = this.agentDirectories != null ? new ArrayList<>(this.agentDirectories) : null;
+        copy.hookDirectories = this.hookDirectories != null ? new ArrayList<>(this.hookDirectories) : null;
         copy.includedBuiltinSkills = this.includedBuiltinSkills != null
                 ? new ArrayList<>(this.includedBuiltinSkills)
                 : null;
@@ -2353,19 +2668,23 @@ public class SessionConfig {
         copy.pluginDirectories = this.pluginDirectories != null ? new ArrayList<>(this.pluginDirectories) : null;
         copy.largeOutput = this.largeOutput;
         copy.toolSearch = this.toolSearch;
+        copy.imageGeneration = this.imageGeneration;
         copy.memory = this.memory;
         copy.disabledSkills = this.disabledSkills != null ? new ArrayList<>(this.disabledSkills) : null;
         copy.disabledMcpServers = this.disabledMcpServers != null ? new ArrayList<>(this.disabledMcpServers) : null;
+        copy.sandboxConfig = this.sandboxConfig;
         copy.configDirectory = this.configDirectory;
         copy.enableConfigDiscovery = this.enableConfigDiscovery;
         copy.skipEmbeddingRetrieval = this.skipEmbeddingRetrieval;
         copy.organizationCustomInstructions = this.organizationCustomInstructions;
         copy.enableOnDemandInstructionDiscovery = this.enableOnDemandInstructionDiscovery;
         copy.refreshCustomInstructions = this.refreshCustomInstructions;
+        copy.trustWorkingDirectory = this.trustWorkingDirectory;
         copy.enableFileHooks = this.enableFileHooks;
         copy.enableHostGitOperations = this.enableHostGitOperations;
         copy.enableSessionStore = this.enableSessionStore;
         copy.enableSkills = this.enableSkills;
+        copy.skillProvider = this.skillProvider;
         copy.embeddingCacheStorage = this.embeddingCacheStorage;
         copy.modelCapabilities = this.modelCapabilities;
         copy.onEvent = this.onEvent;
@@ -2383,6 +2702,8 @@ public class SessionConfig {
         copy.featureFlags = this.featureFlags != null ? new java.util.HashMap<>(this.featureFlags) : null;
         copy.expAssignments = this.expAssignments;
         copy.enableManagedSettings = this.enableManagedSettings;
+        copy.enforceManagedModelDefaults = this.enforceManagedModelDefaults;
+        copy.interactiveUser = this.interactiveUser;
         copy.managedSettings = this.managedSettings;
         return copy;
     }

@@ -5,6 +5,8 @@
 package com.github.copilot.rpc;
 
 import com.github.copilot.CopilotExperimental;
+import java.util.concurrent.CompletableFuture;
+import java.util.function.Function;
 
 /**
  * Hosts the runtime in-process by loading its native library and communicating
@@ -22,6 +24,38 @@ import com.github.copilot.CopilotExperimental;
 @CopilotExperimental
 public final class InProcessRuntimeConnection extends RuntimeConnection {
 
+    private Function<Runnable, CompletableFuture<Void>> runOnUiThread;
+
     InProcessRuntimeConnection() {
+    }
+
+    /**
+     * Returns the experimental native UI scheduler.
+     *
+     * @return the scheduler, or {@code null} when not configured
+     */
+    public Function<Runnable, CompletableFuture<Void>> getRunOnUiThread() {
+        return runOnUiThread;
+    }
+
+    /**
+     * Schedules the supplied native action exactly once on the UI thread (the
+     * process main thread on macOS), completing only after it returns. The action
+     * can block while native UI is open. No authentication data crosses this
+     * callback. Other in-process clients may share this process-wide capability.
+     *
+     * Required for OneAuth interactive authentication on macOS. This
+     * general-purpose scheduler may also be used for other runtime-owned native UI
+     * operations. Temporary OneAuth workaround; this API may be removed if no
+     * longer needed. See
+     * https://github.com/github/copilot-agent-runtime/issues/27032.
+     *
+     * @param handler
+     *            the scheduler, or {@code null} to leave it unconfigured
+     * @return this connection
+     */
+    public InProcessRuntimeConnection setRunOnUiThread(Function<Runnable, CompletableFuture<Void>> handler) {
+        runOnUiThread = handler;
+        return this;
     }
 }

@@ -24,9 +24,23 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * @param initialPrompt
  *            the initial prompt, or {@code null}
  * @since 1.0.7
+ * @param agentId
+ *            optional subagent identity, absent for root hooks and older
+ *            runtimes
+ * @param agentType
+ *            optional subagent identity, absent for root hooks and older
+ *            runtimes
+ * @param parentAgentId
+ *            optional subagent identity, absent for root hooks and older
+ *            runtimes
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionStartHookInput(@JsonProperty("sessionId") String sessionId,
         @JsonProperty("timestamp") long timestamp, @JsonProperty("cwd") String cwd,
-        @JsonProperty("source") String source, @JsonProperty("initialPrompt") String initialPrompt) {
+        @JsonProperty("source") String source, @JsonProperty("initialPrompt") String initialPrompt,
+        @JsonProperty("agentId") String agentId, @JsonProperty("agentType") String agentType,
+        @JsonProperty("parentAgentId") String parentAgentId) {
+    public SessionStartHookInput(String sessionId, long timestamp, String cwd, String source, String initialPrompt) {
+        this(sessionId, timestamp, cwd, source, initialPrompt, null, null, null);
+    }
 }

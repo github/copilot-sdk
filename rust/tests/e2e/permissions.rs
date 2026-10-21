@@ -10,8 +10,7 @@ use github_copilot_sdk::{
 use tokio::sync::{mpsc, oneshot};
 
 use super::support::{
-    DEFAULT_TEST_TOKEN, assistant_message_content, recv_with_timeout, wait_for_condition,
-    wait_for_event,
+    DEFAULT_TEST_TOKEN, assistant_message_content, recv_with_timeout, wait_for_event,
 };
 
 #[tokio::test]
@@ -505,18 +504,16 @@ async fn should_wait_for_slow_permission_handler() {
                     "tool completed before the permission handler returned"
                 );
 
+                let response_events = session.subscribe();
                 release_tx.send(()).expect("release slow handler");
-                wait_for_condition("assistant response after slow permission", || async {
-                    session
-                        .get_events()
-                        .await
-                        .expect("get messages")
-                        .iter()
-                        .any(|event| {
-                            event.parsed_type() == SessionEventType::AssistantMessage
-                                && assistant_message_content(event).contains("slow_handler_test")
-                        })
-                })
+                wait_for_event(
+                    response_events,
+                    "assistant response after slow permission",
+                    |event| {
+                        event.parsed_type() == SessionEventType::AssistantMessage
+                            && assistant_message_content(event).contains("slow_handler_test")
+                    },
+                )
                 .await;
 
                 session.disconnect().await.expect("disconnect session");

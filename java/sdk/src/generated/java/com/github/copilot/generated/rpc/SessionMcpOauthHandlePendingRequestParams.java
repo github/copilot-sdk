@@ -14,7 +14,7 @@ import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
- * Pending MCP OAuth request ID and host-provided token or cancellation response.
+ * Pending MCP OAuth request ID and host token, cancellation, or advertised runtime refresh response.
  *
  * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0

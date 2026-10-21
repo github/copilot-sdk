@@ -26,7 +26,7 @@ import javax.annotation.processing.Generated;
 public record SessionModelSwitchToParams(
     /** Target session identifier */
     @JsonProperty("sessionId") String sessionId,
-    /** Model selection id to switch to, as returned by `list`. A bare id (e.g. `claude-sonnet-4.6`) names a Copilot (CAPI) model; a provider-qualified id (`provider/id`, e.g. `acme/claude-sonnet`) targets a registry BYOK model. */
+    /** Model id to switch to, as returned by `list`. Include providerId to select an exact catalog entry when providers share the id. Without providerId, a bare id retains incumbent selection behavior; a registry-qualified id (`provider/id`, e.g. `acme/claude-sonnet`) targets a BYOK model. */
     @JsonProperty("modelId") String modelId,
     /** Optional Auto routing preference to stage atomically with selecting `auto`. Pass null to return to provider-default Auto routing. This field is rejected when `modelId` is not `auto`. */
     @JsonProperty("autoTier") AutoTier autoTier,
@@ -46,7 +46,7 @@ public record SessionModelSwitchToParams(
     @JsonProperty("deferIfModelChangeQueued") Boolean deferIfModelChangeQueued,
     /** Explicit response to a model-switch compaction preflight. Omit to request a confirmation projection when compaction is necessary. */
     @JsonProperty("compactionDecision") String compactionDecision,
-    /** When true, evaluate context-window compaction policy before applying the switch. */
+    /** When true, evaluate context-window compaction policy before applying the switch, including effort-only and unchanged selections while idle. An effort-only change applies immediately without compaction when a turn is active, including when the turn starts during preflight; an explicit `compactionDecision: "cancel"` still cancels the change. Other switches retain preflight and may be deferred until the active turn ends. */
     @JsonProperty("runCompactionPreflight") Boolean runCompactionPreflight,
     /** Optional repository settings scope to persist after the switch commits. */
     @JsonProperty("repoScope") String repoScope,

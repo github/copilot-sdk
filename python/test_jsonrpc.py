@@ -347,9 +347,8 @@ async def test_process_exit_waits_for_stderr_reader():
 
     client._fail_pending_requests()
 
-    await asyncio.sleep(0)
     with pytest.raises(ProcessExitedError, match=r"stderr: unsupported argument"):
-        future.result()
+        await asyncio.wait_for(future, timeout=1)
 
 
 class TestReadMessageWithLargePayloads:

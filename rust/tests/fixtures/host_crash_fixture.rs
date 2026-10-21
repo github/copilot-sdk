@@ -13,6 +13,7 @@
 //!   on the spawned CLI's environment.
 //! - `HOST_CRASH_FIXTURE_PID_FILE`: path this process atomically publishes the
 //!   CLI child's OS process id to, once the client finishes starting.
+//! - `HOST_CRASH_FIXTURE_TRANSPORT`: optional `stdio` (default) or `tcp`.
 
 use std::io::Write;
 use std::path::PathBuf;
@@ -38,13 +39,21 @@ async fn main() {
         std::env::var("HOST_CRASH_FIXTURE_PID_FILE").expect("HOST_CRASH_FIXTURE_PID_FILE"),
     );
 
+    let transport = match std::env::var("HOST_CRASH_FIXTURE_TRANSPORT").as_deref() {
+        Ok("tcp") => Transport::Tcp {
+            port: 0,
+            connection_token: None,
+        },
+        Ok("stdio") | Err(std::env::VarError::NotPresent) => Transport::Stdio,
+        value => panic!("invalid HOST_CRASH_FIXTURE_TRANSPORT: {value:?}"),
+    };
     let options = ClientOptions::new()
         .with_program(CliProgram::Path(PathBuf::from(program)))
         .with_prefix_args(prefix_args)
         .with_cwd(PathBuf::from(cwd))
         .with_env(env_pairs)
         .with_use_logged_in_user(false)
-        .with_transport(Transport::Stdio);
+        .with_transport(transport);
 
     let client = Client::start(options).await.expect("start CLI client");
     let pid = client.pid().expect("client reports spawned CLI pid");

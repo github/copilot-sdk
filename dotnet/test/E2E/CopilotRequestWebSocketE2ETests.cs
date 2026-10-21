@@ -7,6 +7,7 @@
 using System.Net;
 using System.Net.Sockets;
 using System.Net.WebSockets;
+using System.Security.Cryptography;
 using System.Text;
 using GitHub.Copilot.Test.Harness;
 using Xunit;
@@ -161,9 +162,10 @@ internal sealed class FakeCopilotUpstream : IAsyncDisposable
     private const string HttpText = "OK from synthetic HTTP upstream.";
     private const string WsText = "OK from synthetic WS upstream.";
 
-    private readonly HttpListener _listener = new();
+    private readonly TcpListener _listener = new(IPAddress.Loopback, 0);
     private readonly CancellationTokenSource _cts = new();
     private readonly Task _loop;
+    private readonly List<Task> _connections = [];
     private int _wsRequestMessages;
 
     public string BaseUrl { get; }
@@ -172,54 +174,102 @@ internal sealed class FakeCopilotUpstream : IAsyncDisposable
 
     public FakeCopilotUpstream()
     {
-        var port = GetFreePort();
-        BaseUrl = $"http://127.0.0.1:{port}/";
-        _listener.Prefixes.Add(BaseUrl);
         _listener.Start();
-        _loop = Task.Run(() => AcceptLoopAsync(_cts.Token), _cts.Token);
+        var port = ((IPEndPoint)_listener.LocalEndpoint).Port;
+        BaseUrl = $"http://127.0.0.1:{port}/";
+        _loop = AcceptLoopAsync(_cts.Token);
     }
 
     private async Task AcceptLoopAsync(CancellationToken ct)
     {
         while (!ct.IsCancellationRequested)
         {
-            HttpListenerContext context;
+            TcpClient client;
             try
             {
-                context = await _listener.GetContextAsync().ConfigureAwait(false);
+                client = await _listener.AcceptTcpClientAsync(ct).ConfigureAwait(false);
             }
-            catch
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                break;
+            }
+            catch (SocketException) when (ct.IsCancellationRequested)
             {
                 break;
             }
 
-            _ = Task.Run(() => HandleContextAsync(context, ct), ct);
+            _connections.Add(HandleConnectionAsync(client, ct));
         }
     }
 
-    private async Task HandleContextAsync(HttpListenerContext context, CancellationToken ct)
+    private async Task HandleConnectionAsync(TcpClient client, CancellationToken ct)
     {
+        using var connection = client;
         try
         {
-            if (context.Request.IsWebSocketRequest)
+            var stream = client.GetStream();
+            var head = new StringBuilder();
+            var next = new byte[1];
+            // Do not read ahead into the first WebSocket frame or HTTP request body.
+            while (head.Length < 4 ||
+                head[head.Length - 4] != '\r' || head[head.Length - 3] != '\n' ||
+                head[head.Length - 2] != '\r' || head[head.Length - 1] != '\n')
             {
-                await HandleWebSocketAsync(context, ct).ConfigureAwait(false);
+                if (await stream.ReadAsync(next, ct).ConfigureAwait(false) == 0)
+                {
+                    throw new EndOfStreamException("Upstream request ended before its headers.");
+                }
+
+                head.Append((char)next[0]);
+            }
+
+            var lines = head.ToString().Split("\r\n", StringSplitOptions.RemoveEmptyEntries);
+            var headers = lines.Skip(1).Select(line => line.Split(':', 2))
+                .ToDictionary(parts => parts[0], parts => parts[1].Trim(), StringComparer.OrdinalIgnoreCase);
+            if (headers.TryGetValue("Upgrade", out var upgrade) &&
+                upgrade.Equals("websocket", StringComparison.OrdinalIgnoreCase))
+            {
+                var key = headers["Sec-WebSocket-Key"];
+                var accept = Convert.ToBase64String(SHA1.HashData(
+                    Encoding.ASCII.GetBytes(key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11")));
+                await stream.WriteAsync(Encoding.ASCII.GetBytes(
+                    $"HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Accept: {accept}\r\n\r\n"), ct).ConfigureAwait(false);
+                using var socket = WebSocket.CreateFromStream(stream, isServer: true, subProtocol: null,
+                    keepAliveInterval: Timeout.InfiniteTimeSpan);
+                await HandleWebSocketAsync(socket, ct).ConfigureAwait(false);
             }
             else
             {
-                await HandleHttpAsync(context, ct).ConfigureAwait(false);
+                if (headers.ContainsKey("Transfer-Encoding"))
+                {
+                    throw new InvalidDataException("The upstream fixture requires a fixed-length request body.");
+                }
+
+                var remaining = headers.TryGetValue("Content-Length", out var length)
+                    ? int.Parse(length, System.Globalization.CultureInfo.InvariantCulture) : 0;
+                if (remaining < 0) throw new InvalidDataException("Negative upstream request body length.");
+                var buffer = new byte[8 * 1024];
+                while (remaining > 0)
+                {
+                    var read = await stream.ReadAsync(buffer.AsMemory(0, Math.Min(remaining, buffer.Length)), ct).ConfigureAwait(false);
+                    if (read == 0) throw new EndOfStreamException("Upstream request body was truncated.");
+                    remaining -= read;
+                }
+
+                await HandleHttpAsync(stream, lines[0].Split(' ')[1], ct).ConfigureAwait(false);
             }
         }
-        catch
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
-            // Best-effort: the runtime tears connections down as turns complete.
+        }
+        catch (WebSocketException error) when (error.WebSocketErrorCode == WebSocketError.ConnectionClosedPrematurely)
+        {
+            // The runtime may dispose its transport after the final response.
         }
     }
 
-    private async Task HandleWebSocketAsync(HttpListenerContext context, CancellationToken ct)
+    private async Task HandleWebSocketAsync(WebSocket socket, CancellationToken ct)
     {
-        var wsContext = await context.AcceptWebSocketAsync(subProtocol: null).ConfigureAwait(false);
-        var socket = wsContext.WebSocket;
         var buffer = new byte[16 * 1024];
 
         while (socket.State == WebSocketState.Open && !ct.IsCancellationRequested)
@@ -243,16 +293,10 @@ internal sealed class FakeCopilotUpstream : IAsyncDisposable
             }
         }
 
-        if (socket.State == WebSocketState.Open || socket.State == WebSocketState.CloseReceived)
+        if (!ct.IsCancellationRequested &&
+            (socket.State == WebSocketState.Open || socket.State == WebSocketState.CloseReceived))
         {
-            try
-            {
-                await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, null, CancellationToken.None).ConfigureAwait(false);
-            }
-            catch
-            {
-                // Already torn down.
-            }
+            await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, null, ct).ConfigureAwait(false);
         }
     }
 
@@ -275,19 +319,9 @@ internal sealed class FakeCopilotUpstream : IAsyncDisposable
         return Encoding.UTF8.GetString(assembled.ToArray());
     }
 
-    private static async Task HandleHttpAsync(HttpListenerContext context, CancellationToken ct)
+    private static async Task HandleHttpAsync(NetworkStream stream, string requestPath, CancellationToken ct)
     {
-        if (context.Request.HasEntityBody)
-        {
-            using var input = context.Request.InputStream;
-            var drain = new byte[8 * 1024];
-            while (await input.ReadAsync(drain.AsMemory(), ct).ConfigureAwait(false) > 0)
-            {
-                // Discard the request body; the synthetic response is fixed.
-            }
-        }
-
-        var path = context.Request.Url!.AbsolutePath.ToLowerInvariant();
+        var path = requestPath.Split('?', 2)[0].ToLowerInvariant();
         string contentType = "application/json";
         string body;
 
@@ -314,11 +348,9 @@ internal sealed class FakeCopilotUpstream : IAsyncDisposable
         }
 
         var bytes = Encoding.UTF8.GetBytes(body);
-        context.Response.StatusCode = 200;
-        context.Response.ContentType = contentType;
-        context.Response.ContentLength64 = bytes.Length;
-        await context.Response.OutputStream.WriteAsync(bytes.AsMemory(), ct).ConfigureAwait(false);
-        context.Response.OutputStream.Close();
+        await stream.WriteAsync(Encoding.ASCII.GetBytes(
+            $"HTTP/1.1 200 OK\r\nContent-Type: {contentType}\r\nContent-Length: {bytes.Length}\r\nConnection: close\r\n\r\n"), ct).ConfigureAwait(false);
+        await stream.WriteAsync(bytes, ct).ConfigureAwait(false);
     }
 
     private static string BuildSse(string text, string id)
@@ -351,36 +383,19 @@ internal sealed class FakeCopilotUpstream : IAsyncDisposable
     private const string ModelCatalogJson =
         "{\"data\":[{\"id\":\"claude-sonnet-5\",\"name\":\"Claude Sonnet 5\",\"object\":\"model\",\"vendor\":\"Anthropic\",\"version\":\"1\",\"preview\":false,\"model_picker_enabled\":true,\"supported_endpoints\":[\"/responses\",\"ws:/responses\"],\"capabilities\":{\"type\":\"chat\",\"family\":\"claude-sonnet-5\",\"tokenizer\":\"o200k_base\",\"limits\":{\"max_context_window_tokens\":200000,\"max_output_tokens\":8192},\"supports\":{\"streaming\":true,\"tool_calls\":true,\"parallel_tool_calls\":true,\"vision\":true}}}]}";
 
-    private static int GetFreePort()
-    {
-        using var probe = new TcpListener(IPAddress.Loopback, 0);
-        probe.Start();
-        return ((IPEndPoint)probe.LocalEndpoint).Port;
-    }
-
     public async ValueTask DisposeAsync()
     {
         _cts.Cancel();
-        try
-        {
-            _listener.Stop();
-            _listener.Close();
-        }
-        catch
-        {
-            // Already stopped.
-        }
-
+        _listener.Stop();
         try
         {
             await _loop.ConfigureAwait(false);
+            await Task.WhenAll(_connections).ConfigureAwait(false);
         }
-        catch
+        finally
         {
-            // Accept loop unwinds on listener shutdown.
+            _cts.Dispose();
         }
-
-        _cts.Dispose();
     }
 }
 

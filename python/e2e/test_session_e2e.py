@@ -375,8 +375,6 @@ class TestSessions:
             )
 
     async def test_should_list_sessions(self, ctx: E2ETestContext):
-        import asyncio
-
         # Create a couple of sessions and send messages to persist them
         session1 = await ctx.client.create_session(
             on_permission_request=PermissionHandler.approve_all
@@ -387,11 +385,21 @@ class TestSessions:
         )
         await session2.send_and_wait("Say goodbye")
 
-        # Small delay to ensure session files are written to disk
-        await asyncio.sleep(0.2)
+        sessions = []
+
+        async def sessions_are_persisted() -> bool:
+            nonlocal sessions
+            sessions = await ctx.client.list_sessions()
+            ids = {s.session_id for s in sessions}
+            return {session1.session_id, session2.session_id} <= ids
+
+        await wait_for_condition(
+            sessions_are_persisted,
+            timeout=10.0,
+            timeout_message="Timed out waiting for both sessions to be listed.",
+        )
 
         # List sessions and verify they're included
-        sessions = await ctx.client.list_sessions()
         assert isinstance(sessions, list)
 
         session_ids = [s.session_id for s in sessions]
@@ -418,8 +426,6 @@ class TestSessions:
                 assert isinstance(session_data.context.working_directory, str)
 
     async def test_should_delete_session(self, ctx: E2ETestContext):
-        import asyncio
-
         # Create a session and send a message to persist it
         session = await ctx.client.create_session(
             on_permission_request=PermissionHandler.approve_all
@@ -427,11 +433,20 @@ class TestSessions:
         await session.send_and_wait("Hello")
         session_id = session.session_id
 
-        # Small delay to ensure session file is written to disk
-        await asyncio.sleep(0.2)
+        sessions = []
+
+        async def session_is_persisted() -> bool:
+            nonlocal sessions
+            sessions = await ctx.client.list_sessions()
+            return any(s.session_id == session_id for s in sessions)
+
+        await wait_for_condition(
+            session_is_persisted,
+            timeout=10.0,
+            timeout_message=f"Timed out waiting for session {session_id} to be listed.",
+        )
 
         # Verify session exists in the list
-        sessions = await ctx.client.list_sessions()
         session_ids = [s.session_id for s in sessions]
         assert session_id in session_ids
 
@@ -485,18 +500,25 @@ class TestSessions:
         assert not_found is None
 
     async def test_should_get_last_session_id(self, ctx: E2ETestContext):
-        import asyncio
-
         # Create a session and send a message to persist it
         session = await ctx.client.create_session(
             on_permission_request=PermissionHandler.approve_all
         )
         await session.send_and_wait("Say hello")
 
-        # Small delay to ensure session data is flushed to disk
-        await asyncio.sleep(0.5)
+        last_session_id = None
 
-        last_session_id = await ctx.client.get_last_session_id()
+        async def last_session_is_persisted() -> bool:
+            nonlocal last_session_id
+            last_session_id = await ctx.client.get_last_session_id()
+            return last_session_id == session.session_id
+
+        await wait_for_condition(
+            last_session_is_persisted,
+            timeout=10.0,
+            timeout_message=f"Timed out waiting for last session ID {session.session_id}.",
+        )
+
         assert last_session_id == session.session_id
 
         await session.disconnect()
@@ -699,26 +721,23 @@ class TestSessions:
         )
 
         received_events = []
+        notifications_received = asyncio.Event()
 
         def on_event(event):
             if event.type.value in ("session.info", "session.warning", "session.error"):
                 received_events.append(event)
+                if len(received_events) >= 4:
+                    notifications_received.set()
 
-        session.on(on_event)
-
-        await session.log("Info message")
-        await session.log("Warning message", level="warning")
-        await session.log("Error message", level="error")
-        await session.log("Ephemeral message", ephemeral=True)
-
-        # Poll until all 4 notification events arrive
-        deadline = asyncio.get_event_loop().time() + 10
-        while len(received_events) < 4:
-            if asyncio.get_event_loop().time() > deadline:
-                pytest.fail(
-                    f"Timed out waiting for 4 notification events, got {len(received_events)}"
-                )
-            await asyncio.sleep(0.1)
+        unsubscribe = session.on(on_event)
+        try:
+            await session.log("Info message")
+            await session.log("Warning message", level="warning")
+            await session.log("Error message", level="error")
+            await session.log("Ephemeral message", ephemeral=True)
+            await asyncio.wait_for(notifications_received.wait(), timeout=10)
+        finally:
+            unsubscribe()
 
         by_message = {e.data.message: e for e in received_events}
 
@@ -1003,15 +1022,23 @@ class TestSessions:
             events.append(event)
 
         unsubscribe = session.on(on_event)
-        idle_task = get_next_event_of_type(session, "session.idle", timeout=10.0)
+        idle_task = get_next_event_of_type(session, "session.idle")
+        started = asyncio.get_running_loop().time()
         try:
             # Use a slow command so we can verify send() returns before completion
             await session.send("Run 'sleep 2 && echo done'")
+            send_duration = asyncio.get_running_loop().time() - started
 
             # send() should return before turn completes (no session.idle yet)
             assert not any(event.type.value == "session.idle" for event in events)
 
-            await idle_task
+            try:
+                await idle_task
+            except TimeoutError as exc:
+                raise AssertionError(
+                    f"session.idle did not arrive after send() returned in {send_duration:.1f}s; "
+                    f"observed events: {[event.type.value for event in events]}"
+                ) from exc
             messages = [event for event in events if event.type.value == "assistant.message"]
             assert messages
             assert "done" in messages[-1].data.content

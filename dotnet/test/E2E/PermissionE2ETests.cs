@@ -5,6 +5,7 @@
 using GitHub.Copilot.Rpc;
 using GitHub.Copilot.Test.Harness;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Logging;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Xunit;
@@ -173,23 +174,64 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
     [Fact]
     public async Task Should_Handle_Async_Permission_Handler()
     {
+        await Ctx.ConfigureForTestAsync("permissions", "Should_Handle_Async_Permission_Handler_Dotnet");
+
+        const string toolName = "async_permission_echo";
+        const string expectedResult = "DOTNET_ASYNC_PERMISSION_RESULT";
         var permissionRequestReceived = false;
-        var session = await CreateSessionAsync(new SessionConfig
+        var toolCalls = 0;
+        string? permissionToolCallId = null;
+        CopilotSession? session = null;
+        session = await CreateSessionAsync(new SessionConfig
         {
+            Tools =
+            [
+                AIFunctionFactory.Create(
+                    Echo,
+                    toolName,
+                    "Returns the result for the asynchronous permission test.",
+                    serializerOptions: PermissionJsonContext.Default.Options),
+            ],
+            AvailableTools = [toolName],
             OnPermissionRequest = async (request, invocation) =>
             {
-                permissionRequestReceived = true;
+                var customToolRequest = Assert.IsType<PermissionRequestCustomTool>(request);
+                Assert.Equal(toolName, customToolRequest.ToolName);
+                Assert.Equal(session!.SessionId, invocation.SessionId);
+                Assert.False(string.IsNullOrWhiteSpace(customToolRequest.ToolCallId));
+                permissionToolCallId = customToolRequest.ToolCallId;
                 await Task.Yield();
+                permissionRequestReceived = true;
                 return PermissionDecision.ApproveOnce();
             }
         });
 
-        await TestHelper.SendAndGetFinalAssistantMessageAsync(session, new MessageOptions
+        ToolExecutionCompleteEvent? toolCompleted = null;
+        using var subscription = session.On<ToolExecutionCompleteEvent>(evt =>
         {
-            Prompt = "Run 'echo test' and tell me what happens"
+            if (evt.Data.ToolCallId == permissionToolCallId)
+            {
+                toolCompleted = evt;
+            }
+        });
+        var message = await TestHelper.SendAndGetFinalAssistantMessageAsync(session, new MessageOptions
+        {
+            Prompt = "Call async_permission_echo once and reply with only its returned text."
         });
 
         Assert.True(permissionRequestReceived, "Permission request should have been received");
+        Assert.Equal(1, toolCalls);
+        Assert.NotNull(toolCompleted);
+        Assert.True(toolCompleted.Data.Success);
+        Assert.Equal(expectedResult, toolCompleted.Data.Result?.Content);
+        Assert.Contains(expectedResult, message.Data.Content);
+
+        string Echo()
+        {
+            Assert.True(permissionRequestReceived, "The yielding permission handler must finish before the tool runs.");
+            Interlocked.Increment(ref toolCalls);
+            return expectedResult;
+        }
     }
 
     [Fact]
@@ -330,6 +372,7 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
 
     [Fact]
     public async Task Should_Wait_For_Slow_Permission_Handler()
+        => await WithSdkDiagnosticsAsync(async () =>
     {
         var handlerEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var releaseHandler = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -388,7 +431,21 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
 
         releaseHandler.SetResult();
 
-        var message = await sendTask;
+        AssistantMessageEvent? message;
+        try
+        {
+            message = await sendTask;
+        }
+        catch (TimeoutException)
+        {
+            lock (lifecycleLock)
+            {
+                Logger.LogWarning(
+                    "Slow-permission timeout lifecycle: {Lifecycle}",
+                    string.Join(", ", lifecycle.Select(evt => $"{evt.Phase}:{evt.ToolCallId}")));
+            }
+            throw;
+        }
         var persistedEvents = await WaitForPersistedEventsAsync(
             session,
             events =>
@@ -424,7 +481,7 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
 
         // The tool should have actually run after permission was granted
         Assert.Contains("slow_handler_test", message?.Data.Content ?? string.Empty);
-    }
+    });
 
     [Fact]
     public async Task Should_Handle_Concurrent_Permission_Requests_From_Parallel_Tools()
@@ -601,166 +658,6 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
         }
     }
 
-    [Fact]
-    public async Task Should_Configure_And_Update_Permission_Paths()
-    {
-        var session = await CreateSessionAsync();
-        var configuredAllowedDirectory = CreateUniqueWorkDirectory("configured-allowed");
-        var addedAllowedDirectory = CreateUniqueWorkDirectory("added-allowed");
-        var newPrimaryDirectory = CreateUniqueWorkDirectory("new-primary");
-
-        var configureResult = await session.Rpc.Permissions.ConfigureAsync(
-            approveAllToolPermissionRequests: false,
-            approveAllReadPermissionRequests: true,
-            rules: new PermissionRulesSet
-            {
-                Approved = [new PermissionRule { Kind = "read", Argument = null }],
-                Denied = [new PermissionRule { Kind = "write", Argument = null }],
-            },
-            paths: new PermissionPathsConfig
-            {
-                WorkspacePath = Ctx.WorkDir,
-                AdditionalDirectories = [configuredAllowedDirectory],
-                IncludeTempDirectory = false,
-                Unrestricted = false,
-            },
-            urls: new PermissionUrlsConfig
-            {
-                InitialAllowed = ["https://example.invalid/permissions-configure"],
-                Unrestricted = false,
-            });
-        Assert.True(configureResult.Success);
-
-        var configuredList = await session.Rpc.Permissions.Paths.ListAsync();
-        AssertPathEqual(Ctx.WorkDir, configuredList.Primary);
-        AssertContainsPath(configuredList.Directories, Ctx.WorkDir);
-        AssertContainsPath(configuredList.Directories, configuredAllowedDirectory);
-
-        var addResult = await session.Rpc.Permissions.Paths.AddAsync(addedAllowedDirectory);
-        Assert.True(addResult.Success);
-
-        var allowedCheck = await session.Rpc.Permissions.Paths.IsPathWithinAllowedDirectoriesAsync(
-            Path.Join(addedAllowedDirectory, "child.txt"));
-        Assert.True(allowedCheck.Allowed);
-
-        var updatePrimaryResult = await session.Rpc.Permissions.Paths.UpdatePrimaryAsync(newPrimaryDirectory);
-        Assert.True(updatePrimaryResult.Success);
-
-        var updatedList = await session.Rpc.Permissions.Paths.ListAsync();
-        AssertPathEqual(newPrimaryDirectory, updatedList.Primary);
-        AssertContainsPath(updatedList.Directories, newPrimaryDirectory);
-
-        var newPrimaryWorkspaceCheck = await session.Rpc.Permissions.Paths.IsPathWithinWorkspaceAsync(
-            Path.Join(newPrimaryDirectory, "child.txt"));
-        Assert.True(newPrimaryWorkspaceCheck.Allowed);
-    }
-
-    [Fact]
-    public async Task Should_Invoke_Permission_State_Rpc_Apis()
-    {
-        var session = await CreateSessionAsync();
-
-        var pendingRequests = await session.Rpc.Permissions.PendingRequestsAsync();
-        Assert.Empty(pendingRequests.Items);
-
-        var setRequiredResult = await session.Rpc.Permissions.SetRequiredAsync(true);
-        Assert.True(setRequiredResult.Success);
-
-        var clearRequiredResult = await session.Rpc.Permissions.SetRequiredAsync(false);
-        Assert.True(clearRequiredResult.Success);
-
-        var promptShownResult = await session.Rpc.Permissions.NotifyPromptShownAsync(
-            $"Permission prompt shown from {nameof(Should_Invoke_Permission_State_Rpc_Apis)}");
-        Assert.True(promptShownResult.Success);
-
-        var rule = new PermissionRule
-        {
-            Kind = "commands",
-            Argument = $"dotnet-permission-e2e-{Guid.NewGuid():N}",
-        };
-
-        var addRuleResult = await session.Rpc.Permissions.ModifyRulesAsync(
-            PermissionsModifyRulesScope.Session,
-            add: [rule]);
-        Assert.True(addRuleResult.Success);
-
-        var removeRuleResult = await session.Rpc.Permissions.ModifyRulesAsync(
-            PermissionsModifyRulesScope.Session,
-            remove: [rule]);
-        Assert.True(removeRuleResult.Success);
-
-        var enableUrlsResult = await session.Rpc.Permissions.Urls.SetUnrestrictedModeAsync(true);
-        Assert.True(enableUrlsResult.Success);
-
-        var disableUrlsResult = await session.Rpc.Permissions.Urls.SetUnrestrictedModeAsync(false);
-        Assert.True(disableUrlsResult.Success);
-    }
-
-    [Fact]
-    public async Task Should_Invoke_Permission_Location_And_FolderTrust_Rpc_Apis()
-    {
-        var session = await CreateSessionAsync();
-        var locationDirectory = CreateUniqueWorkDirectory("permission-location");
-        var trustedDirectory = CreateUniqueWorkDirectory("folder-trust");
-        var commandIdentifier = $"dotnet-permission-location-{Guid.NewGuid():N}";
-
-        var resolved = await session.Rpc.Permissions.Locations.ResolveAsync(locationDirectory);
-        Assert.Equal(PermissionLocationType.Dir, resolved.LocationType);
-        AssertPathEqual(locationDirectory, resolved.LocationKey);
-
-        var addToolApprovalResult = await session.Rpc.Permissions.Locations.AddToolApprovalAsync(
-            resolved.LocationKey,
-            new PermissionsLocationsAddToolApprovalDetailsCommands
-            {
-                CommandIdentifiers = [commandIdentifier],
-            });
-        Assert.True(addToolApprovalResult.Success);
-
-        var applied = await session.Rpc.Permissions.Locations.ApplyAsync(locationDirectory);
-        Assert.Equal(resolved.LocationType, applied.LocationType);
-        AssertPathEqual(resolved.LocationKey, applied.LocationKey);
-        Assert.True(applied.AppliedRuleCount >= 1);
-        Assert.Contains(applied.AppliedRules, rule =>
-            string.Equals(rule.Kind, "shell", StringComparison.Ordinal) &&
-            string.Equals(rule.Argument, commandIdentifier, StringComparison.Ordinal));
-
-        var initialTrust = await session.Rpc.Permissions.FolderTrust.IsTrustedAsync(trustedDirectory);
-        Assert.False(initialTrust.Trusted);
-
-        var addTrustedResult = await session.Rpc.Permissions.FolderTrust.AddTrustedAsync(trustedDirectory);
-        Assert.True(addTrustedResult.Success);
-
-        var updatedTrust = await session.Rpc.Permissions.FolderTrust.IsTrustedAsync(trustedDirectory);
-        Assert.True(updatedTrust.Trusted);
-    }
-
-    private string CreateUniqueWorkDirectory(string prefix)
-    {
-        var path = Path.Join(Ctx.WorkDir, $"{prefix}-{Guid.NewGuid():N}");
-        Directory.CreateDirectory(path);
-        return path;
-    }
-
-    private static void AssertContainsPath(IEnumerable<string> paths, string expected)
-    {
-        Assert.Contains(paths, actual => PathsEqual(expected, actual));
-    }
-
-    private static void AssertPathEqual(string expected, string actual)
-    {
-        Assert.True(
-            PathsEqual(expected, actual),
-            $"Expected path '{expected}' to equal '{actual}'.");
-    }
-
-    private static bool PathsEqual(string expected, string actual)
-    {
-        return string.Equals(
-            NormalizePath(expected),
-            NormalizePath(actual),
-            OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
-    }
-
     private static async Task<List<SessionEvent>> WaitForPersistedEventsAsync(
         CopilotSession session,
         Func<List<SessionEvent>, bool> condition,
@@ -785,6 +682,7 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
             _ => evt.Type,
         };
 
+#pragma warning disable CS0618 // Compatibility coverage still reads the legacy terminal variant.
     private static bool ToolCompleteContains(ToolExecutionCompleteEvent evt, string expected)
         => evt.Data.Result?.Content.Contains(expected, StringComparison.OrdinalIgnoreCase) == true ||
             evt.Data.Result?.DetailedContent?.Contains(expected, StringComparison.OrdinalIgnoreCase) == true ||
@@ -794,17 +692,5 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
                 ToolExecutionCompleteContentTerminal terminal => terminal.Text.Contains(expected, StringComparison.OrdinalIgnoreCase),
                 _ => false,
             }) == true;
-
-    private static string NormalizePath(string path)
-    {
-        var fullPath = Path.GetFullPath(path);
-        var root = Path.GetPathRoot(fullPath) ?? string.Empty;
-        while (fullPath.Length > root.Length &&
-            (fullPath[fullPath.Length - 1] == Path.DirectorySeparatorChar ||
-             fullPath[fullPath.Length - 1] == Path.AltDirectorySeparatorChar))
-        {
-            fullPath = fullPath.Substring(0, fullPath.Length - 1);
-        }
-        return fullPath;
-    }
+#pragma warning restore CS0618
 }

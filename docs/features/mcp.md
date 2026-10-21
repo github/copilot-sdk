@@ -26,6 +26,44 @@ The SDK supports two types of MCP servers:
 
 ## Configuration
 
+### Inspect configuration and lifecycle
+
+`session.rpc.mcp.listConfigured()` is a parameterless, passive inventory read.
+It does not start or restart servers, authenticate, apply sandbox policy, or
+wait for server startup. Configuration discovery and policy filtering determine
+which servers appear and their `enabled` values.
+
+This experimental RPC requires an aligned SDK/runtime release. Its earlier
+prerelease response allowed `live` to be omitted; SDKs using the required
+lifecycle contract do not support that older response shape. When supplying
+an external runtime, update it alongside the SDK. The overall protocol version
+is unchanged and does not identify this experimental contract revision.
+
+Every entry includes `live.status`. A configured server with no materialized
+runtime server reports the existing `not_configured` status, even when
+`enabled` is `true`. A runtime server that was explicitly stopped reports
+`stopped`. Materialized servers report their actual lifecycle, including
+`pending`, `connected`, `needs-auth`, and `failed`; failures include `live.error`
+when available.
+
+Configuration and lifecycle describe different facts. If a server's URL,
+authentication, or configuration source changes while an old connection remains
+alive, inventory still reports that connection's actual lifecycle. A
+`connected` status does not mean the latest configuration has been applied.
+The runtime owns this observation; clients must not substitute cached state
+based only on the server name.
+
+Inventory retries concurrent graph replacement a bounded number of times and
+returns an error if it cannot obtain a consistent snapshot. It never omits
+`live` to hide a graph race.
+
+A name-only `startServer` or `restartServer` resolves and initializes only the
+requested server after a cold session resume without first calling `list`.
+This includes user and plugin configurations and the built-in GitHub server
+configured through `githubMcpToolConfig`. It does not start other configured
+servers or override disabled state, authentication requirements, sandbox policy,
+or configuration-source precedence.
+
 ### Node.js / TypeScript
 
 ```typescript
@@ -183,6 +221,97 @@ On session creation and a **cold** resume, disabled servers are not started and
 the runtime does not initiate their authentication. A resident resume cannot
 undo a server that the runtime has already spawned. Names are matched exactly.
 
+## Listing and retrieving prompts
+
+The experimental generated MCP namespace exposes the wire JSON-RPC methods
+`session.mcp.prompts.list` and `session.mcp.prompts.get`. Use the language-specific
+SDK accessors below to call them. These methods target one connected server in the
+current session; they do not combine results from multiple servers.
+
+| SDK | List prompts | Get a prompt |
+| --- | --- | --- |
+| Node.js | `session.rpc.mcp.prompts.list(...)` | `session.rpc.mcp.prompts.get(...)` |
+| Python | `session.rpc.mcp.prompts.list(...)` | `session.rpc.mcp.prompts.get(...)` |
+| Go | `session.RPC.MCP.Prompts().List(...)` | `session.RPC.MCP.Prompts().Get(...)` |
+| .NET | `session.Rpc.Mcp.Prompts.ListAsync(...)` | `session.Rpc.Mcp.Prompts.GetAsync(...)` |
+| Java | `session.getRpc().mcp.prompts.list(...)` | `session.getRpc().mcp.prompts.get(...)` |
+| Rust | `session.rpc().mcp().prompts().list(...)` | `session.rpc().mcp().prompts().get(...)` |
+
+Listing requires `serverName` and accepts an optional opaque `cursor`. Each
+call returns one page of typed prompt definitions and an optional `nextCursor`.
+Pass that cursor in another list call to request the next page. Definitions
+include names, optional titles and descriptions, and argument definitions.
+An omitted argument `required` flag remains distinct from `false`.
+
+Getting a prompt requires `serverName` and `promptName`, with an optional
+`arguments` dictionary whose values are strings. Omitting `arguments` leaves the
+MCP request's arguments absent; passing `{}` sends an explicitly empty dictionary.
+The runtime preserves this distinction for the server. The result contains an optional
+description and ordered messages with typed roles and opaque JSON `content`.
+Inspect each content block's `type` before interpreting it; content is not
+flattened into text. Nested resources, annotations, metadata, unfamiliar content
+types, and additional content fields retain their JSON structure. Server
+extensions on typed descriptors, messages, and result envelopes are available under
+`additionalProperties`. A server extension itself named `additionalProperties`
+is preserved as an entry inside that map, not merged into it.
+The protocol's top-level `resultType: "complete"` discriminator is consumed by
+the runtime; it is not returned as an SDK field or a server extension.
+Requests fail explicitly if the runtime cannot preserve the raw response,
+including stdio response frames exceeding the 1 MiB capture limit.
+
+The returned prompt messages are not automatically sent to the model or used to
+execute tools or fetch referenced resources. Your application decides how to
+use the result.
+While generating that result, an MCP server can request sampling or elicitation
+through multi round-trip continuations. These requests use the same configured
+host responders as other MCP operations; prompt retrieval does not grant
+additional permission or bypass the host's decision. A missing responder or
+responder error fails the request, and an elicitation decline is returned to the
+server unchanged. State-only continuations do not invoke either responder.
+
+After an existing `mcp.prompts.list_changed` session event, list the named
+server's prompts again to refresh your application's view.
+
+## Applying sandbox policy before MCP startup
+
+Pass `sandboxConfig` to `createSession` or `resumeSession` to apply sandbox policy
+during construction, before discovered root-config, plugin, or explicitly
+configured MCP servers start. It accepts the same configuration as
+`session.rpc.options.update({ sandboxConfig })`.
+
+```typescript
+const sandboxConfig = {
+    enabled: true,
+    sandboxMcpServers: true,
+    userPolicy: { network: { allowOutbound: false } },
+};
+const session = await client.createSession({
+    onPermissionRequest: approveAll,
+    sandboxConfig,
+});
+```
+
+Re-supply the configuration on a cold resume; omission preserves a resident
+session's current policy. A resident resume cannot undo processes that already
+started. Managed-policy validation uses the same direct-host semantics as an
+options update: a conflicting request fails create or resume instead of falling
+back to an unsandboxed session, with `data.code` set to
+`managed_sandbox_policy_conflict` in the JSON-RPC error. The runtime does not
+assign a settings-derived `sandboxConfigSource` to this explicit host configuration.
+
+A later identical `options.update({ sandboxConfig })` does not restart MCP
+servers, including when managed policy has normalized the configuration. A
+different effective MCP sandbox policy retains the usual restart behavior.
+
+Check the runtime `version` returned by `server.connect` (`ConnectResult`) against
+the minimum runtime release your application requires for this feature. The SDK
+protocol version is not a per-feature capability signal. Older runtimes ignore
+unknown create/resume fields, so an application supporting them can send
+`sandboxConfig` at open and repeat it in a follow-up options update. That update
+is harmless on supporting runtimes, but older runtimes can still start MCP before
+the update arrives; require a supporting runtime version when confinement from
+the first process is mandatory.
+
 ## Tool configuration
 
 You can control which tools are available to an MCP server using the `tools` field.
@@ -294,6 +423,124 @@ directories for different applications.
 | `oauthGrantType` | `string` | No | OAuth grant type for the configured client, such as `client_credentials` |
 | `tools` | `string[]` | No | Tools to enable |
 | `timeout` | `number` | No | Timeout in milliseconds |
+
+## OAuth ownership for remote servers
+
+Choose one OAuth ownership model for each authentication attempt:
+
+1. **Runtime-managed loopback**: Call `session.mcp.oauth.login` without a
+   redirect URI. The runtime opens a local callback listener and owns discovery,
+   PKCE, state validation, token exchange, persistence, refresh, and reconnect.
+1. **Runtime-managed hosted callback**: Call `session.mcp.oauth.login` with a
+   trusted public HTTPS redirect URI. Your host receives the callback, but the
+   runtime continues to own the OAuth protocol and credentials.
+1. **Host-managed OAuth**: Use the SDK's MCP authentication request handler and
+   return a host-acquired access token. Your host owns authorization and refresh.
+
+Do not register a host-managed OAuth handler for an authentication attempt that
+uses a runtime-managed hosted callback. Wait until the remote server enters the
+`needs-auth` state, then call the generated `session.rpc.mcp.oauth.login` method
+directly with the server name and callback URI:
+
+```jsonc
+{
+    "serverName": "remote-mcp",
+    "redirectUri": "https://agent.example.com/oauth/callback"
+}
+```
+
+The selected static, CIMD, or dynamically registered OAuth client must advertise
+that exact URI. The URI must use HTTPS and must not contain a query or fragment.
+When browser interaction is required, the result contains `authorizationUrl`
+and `authorizationId`. Open `authorizationUrl` in the user's browser and retain
+`authorizationId` with the target session.
+
+After the authorization server redirects to your endpoint, call the generated
+`session.rpc.mcp.oauth.complete` method:
+
+```jsonc
+{
+    "authorizationId": "<opaque-state>",
+    "callbackUrl": "https://agent.example.com/oauth/callback?code=...&state=..."
+}
+```
+
+Construct `callbackUrl` from the configured public redirect origin and path plus
+the callback's original query. Do not pass an internal service URL or trust
+client-supplied `Forwarded` or `X-Forwarded-*` headers. The runtime validates the
+origin, port, path, state, and OAuth response before accepting delivery. Token
+exchange, persistence, and MCP reconnect then continue asynchronously.
+
+### Handing a rejected access token back to the runtime
+
+For a host OAuth request with `reason: "refresh"` and
+`runtimeRefreshSupported: true`, your handler can return
+`{ "kind": "runtimeRefresh" }` instead of acquiring a replacement access token.
+The runtime performs noninteractive renewal using its existing saved grant
+inside the original authorization operation. It does not start a new consent
+flow or call the independent `authenticationStateChanged` refresh RPC.
+The replacement retains its saved-grant provenance, so later scoped stored-token
+adoption remains available. A token supplied directly by a host is not marked as
+a stored token and cannot be overwritten by that adoption path.
+
+Only return this response when the pending request advertises support. A missing
+capability is false and retains the legacy token/cancellation contract. If a
+handler returns the handoff for a request without the capability, the SDK sends
+`cancelled` instead, so the pending request does not remain open. A supplied
+token takes precedence over the handoff, and a cancellation stays a cancellation.
+
+| SDK | Capability | Handoff result |
+| --- | --- | --- |
+| Node.js | `request.runtimeRefreshSupported` | `{ kind: "runtimeRefresh" }` |
+| Python | `request["runtimeRefreshSupported"]` | `{"kind": "runtimeRefresh"}` |
+| Go | `MCPAuthRuntimeRefreshHandler` capability argument | `MCPAuthResultRuntimeRefresh()` |
+| .NET | `McpAuthContext.RuntimeRefreshSupported` | `McpAuthResult.RefreshInRuntime()` |
+| Java | `McpAuthHandler.handleWithRuntimeRefresh` capability argument | `McpAuthResponse.runtimeRefresh()` |
+| Rust | `McpAuthHandler::handle_with_runtime_refresh` | `McpAuthResponse::RuntimeRefresh` |
+
+Response acceptance acknowledges the handoff, not refresh, reconnect, or tool
+completion. For an accepted handoff, `mcp.oauth_completed` is emitted once, when
+the original authorization reservation reaches its terminal outcome. Its
+`outcome` uses only the existing values: `token` when recovery succeeded, and
+`cancelled` when it was cancelled or failed. The persisted
+`mcp.oauth_recovery_completed` event carries the same `requestId` and
+`serverName` and distinguishes the terminal outcome, including reconnect:
+`succeeded`, `cancelled`, or `failed`. SDK versions that predate this event
+receive it as an unknown event type.
+
+Until the runtime accepts a `runtimeRefresh` response, existing replies keep
+their earlier meaning. A host `{ kind: "cancelled" }` reply declines the
+request; for a `refresh` request, the runtime can then request reauthorization.
+If no host replies, the runtime falls back to its ordinary local OAuth handling,
+including cached credentials, and emits no `mcp.oauth_recovery_completed` event.
+This change does not reclassify a host `cancelled` reply as Stop. The original
+invocation is preserved only through an accepted `runtimeRefresh` handoff.
+
+After acceptance, the original
+invocation can retry after credential installation and reconnect pass the
+existing session, configuration, policy, and permission fences. Stopping the
+main turn or ending the session cancels the original authorization reservation;
+the stopped invocation cannot later retry or publish a result. An already-issued
+rotating-grant exchange can finish persisting its replacement after cancellation,
+but cannot install stale credentials, reconnect, or resume the canceled
+invocation.
+
+An unavailable saved grant or failed refresh terminates the original invocation
+without requesting interactive reauthorization. A failed reconnect also
+terminates the invocation; successfully obtaining a token is not a successful
+tool result.
+
+Concurrent invocations join the exact in-flight authorization attempt and receive
+its terminal result. A connected server, a retained access token, or a later
+successful attempt is not evidence that their attempt succeeded. Each surviving
+invocation still rechecks its own catalog and tool permission before retrying;
+joined failure does not start another interactive authorization.
+
+OAuth HTTP deadlines apply to individual requests, not the complete handoff or
+grant-storage settlement. Cancellation can return before an issued exchange
+settles, and session disposal waits for tracked settlement workers. There is no
+overall settlement deadline, so hosts must not treat cancellation, handoff
+acceptance, or an HTTP timeout as proof that all storage work has finished.
 
 ## Session-scoped MCP diagnostics
 

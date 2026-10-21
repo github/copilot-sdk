@@ -14,7 +14,7 @@ mod callbacks;
 use std::time::Duration;
 
 use ahp_ws::WebSocketTransport;
-use github_copilot_sdk::rpc::{HostDisposeRequest, HostExitReason};
+use github_copilot_sdk::rpc::{HostDisposeRequest, HostExitReason, HostLocalServerOptions};
 use github_copilot_sdk::{AhpHostOptions, Client, ResumeSessionConfig, SessionId, Transport};
 use host_support::*;
 use serde_json::{Value, json};
@@ -34,13 +34,17 @@ async fn streams_real_ahp_turn_beside_sdk_session_on_same_runtime() {
                 )
                 .await
                 .unwrap();
-            let host = owner
-                .start_ahp_host(AhpHostOptions::default())
+            let previous_ids: Vec<_> = owner
+                .list_sessions(None)
                 .await
-                .unwrap();
+                .unwrap()
+                .into_iter()
+                .map(|session| session.session_id)
+                .collect();
+            let host = owner.start_ahp_host(local_options()).await.unwrap();
             let ahp = connect(&host).await;
             let (uri, chat, subscription) = create(&ahp, ctx).await;
-            topology(&host, &owner, &home(ctx).join("ahp/sessions"));
+            topology(&host, &owner, &home(ctx));
             let (_, response) =
                 tokio::join!(turn(&ahp, &chat, subscription), sdk.send_and_wait(PROMPT));
             assert!(
@@ -49,18 +53,17 @@ async fn streams_real_ahp_turn_beside_sdk_session_on_same_runtime() {
                     .unwrap()
                     .contains('4')
             );
-            let id = uri.strip_prefix("ahp-session:/").unwrap();
             // Turn completion is not a persistence acknowledgement: event writes
             // are debounced, and list_sessions lists persisted sessions.
             let sessions = tokio::time::timeout(Duration::from_secs(10), async {
                 loop {
                     let sessions = owner.list_sessions(None).await.unwrap();
-                    if sessions
+                    if sessions.iter().any(|session| {
+                        session.session_id != sdk.id()
+                            && !previous_ids.contains(&session.session_id)
+                    }) && sessions
                         .iter()
-                        .any(|session| session.session_id.as_str() == id)
-                        && sessions
-                            .iter()
-                            .any(|session| session.session_id == sdk.id())
+                        .any(|session| session.session_id == sdk.id())
                     {
                         return sessions;
                     }
@@ -69,11 +72,19 @@ async fn streams_real_ahp_turn_beside_sdk_session_on_same_runtime() {
             })
             .await
             .expect("persisted session list must include both completed AHP and SDK sessions");
-            assert!(
-                sessions
-                    .iter()
-                    .any(|session| session.session_id.as_str() == id)
+            let ahp_sessions: Vec<_> = sessions
+                .iter()
+                .filter(|session| {
+                    session.session_id != sdk.id() && !previous_ids.contains(&session.session_id)
+                })
+                .collect();
+            assert_eq!(
+                ahp_sessions.len(),
+                1,
+                "exactly one new private AHP runtime session"
             );
+            let id = ahp_sessions[0].session_id.clone();
+            assert_ne!(id.as_str(), uri.strip_prefix("ahp-session:/").unwrap());
             assert!(
                 sessions
                     .iter()
@@ -81,12 +92,13 @@ async fn streams_real_ahp_turn_beside_sdk_session_on_same_runtime() {
             );
             let observer = owner
                 .resume_session(
-                    ResumeSessionConfig::new(SessionId::from(id)).with_permission_handler(
+                    ResumeSessionConfig::new(id.clone()).with_permission_handler(
                         std::sync::Arc::new(github_copilot_sdk::handler::ApproveAllHandler),
                     ),
                 )
                 .await
                 .unwrap();
+            assert_eq!(observer.id(), id);
             assert!(observer.get_events().await.unwrap().iter().any(|event| {
                 event.event_type == "assistant.message"
                     && event.data["content"]
@@ -114,10 +126,7 @@ async fn durable_catalog_resumes_after_repeated_listener_disposal() {
                 .create_session(ctx.approve_all_session_config())
                 .await
                 .unwrap();
-            let host = owner
-                .start_ahp_host(AhpHostOptions::default())
-                .await
-                .unwrap();
+            let host = owner.start_ahp_host(local_options()).await.unwrap();
             let ahp = connect(&host).await;
             let (uri, chat, subscription) = create(&ahp, ctx).await;
             turn(&ahp, &chat, subscription).await;
@@ -132,10 +141,7 @@ async fn durable_catalog_resumes_after_repeated_listener_disposal() {
             assert_eq!(exit(&exits).await.reason, HostExitReason::Disposed);
             stopped(&replacement, &ahp, &owner).await;
             ahp.client.shutdown().await;
-            let recovered = owner
-                .start_ahp_host(AhpHostOptions::default())
-                .await
-                .unwrap();
+            let recovered = owner.start_ahp_host(local_options()).await.unwrap();
             let ahp = connect(&recovered).await;
             resume(&ahp, &uri, Some(sdk.id().as_str())).await;
             sdk.get_events().await.unwrap();
@@ -162,23 +168,16 @@ async fn explicit_base_directory_survives_runtime_restart_and_excludes_other_wri
             let second = Client::start(options_with_base_directory(ctx, &base))
                 .await
                 .unwrap();
-            let host = first
-                .start_ahp_host(AhpHostOptions::default())
-                .await
-                .unwrap();
+            let host = first.start_ahp_host(local_options()).await.unwrap();
             let ahp = connect(&host).await;
-            topology(&host, &first, &base.join("ahp/sessions"));
+            topology(&host, &first, &base);
             let (uri, chat, subscription) = create(&ahp, ctx).await;
             turn(&ahp, &chat, subscription).await;
             let sdk = second
                 .create_session(ctx.approve_all_session_config())
                 .await
                 .unwrap();
-            let error = second
-                .start_ahp_host(AhpHostOptions::default())
-                .await
-                .err()
-                .unwrap();
+            let error = second.start_ahp_host(local_options()).await.err().unwrap();
             assert!(
                 error.to_string().contains("catalog")
                     && error.to_string().contains("already in use"),
@@ -196,10 +195,7 @@ async fn explicit_base_directory_survives_runtime_restart_and_excludes_other_wri
             let restarted = Client::start(options_with_base_directory(ctx, &base))
                 .await
                 .unwrap();
-            let host = restarted
-                .start_ahp_host(AhpHostOptions::default())
-                .await
-                .unwrap();
+            let host = restarted.start_ahp_host(local_options()).await.unwrap();
             let ahp = connect(&host).await;
             resume(&ahp, &uri, None).await;
             host.dispose().await.unwrap();
@@ -225,13 +221,7 @@ fn unused_port() -> u16 {
 async fn same_catalog_and_other_owner_rejected_disconnect_cleans_up_without_stopping_sdk() {
     run(|ctx| {
         Box::pin(async move {
-            let port = unused_port();
-            let owner = Client::start(options(ctx).with_transport(Transport::Tcp {
-                port,
-                connection_token: Some(RUNTIME_TOKEN.into()),
-            }))
-            .await
-            .unwrap();
+            let (owner, port) = tcp_owner(ctx).await;
             let sdk = owner
                 .create_session(ctx.approve_all_session_config())
                 .await
@@ -250,12 +240,8 @@ async fn same_catalog_and_other_owner_rejected_disconnect_cleans_up_without_stop
             let ahp = connect(&host).await;
             let (uri, chat, subscription) = create(&ahp, ctx).await;
             turn(&ahp, &chat, subscription).await;
-            topology(&host, &owner, &home(ctx).join("ahp/sessions"));
-            let error = owner
-                .start_ahp_host(AhpHostOptions::default())
-                .await
-                .err()
-                .unwrap();
+            topology(&host, &owner, &home(ctx));
+            let error = owner.start_ahp_host(local_options()).await.err().unwrap();
             assert!(
                 error.to_string().contains("catalog")
                     && error.to_string().contains("already in use"),
@@ -290,10 +276,7 @@ async fn same_catalog_and_other_owner_rejected_disconnect_cleans_up_without_stop
             stopped_after_owner_disconnect(&host, &ahp, &owner).await;
             ahp.client.shutdown().await;
             sdk.get_events().await.unwrap();
-            let replacement = owner
-                .start_ahp_host(AhpHostOptions::default())
-                .await
-                .unwrap();
+            let replacement = owner.start_ahp_host(local_options()).await.unwrap();
             let ahp = connect(&replacement).await;
             resume(&ahp, &uri, Some(sdk.id().as_str())).await;
             replacement.dispose().await.unwrap();
@@ -303,7 +286,7 @@ async fn same_catalog_and_other_owner_rejected_disconnect_cleans_up_without_stop
                 .create_session(ctx.approve_all_session_config())
                 .await
                 .unwrap();
-            assert_eq!(exits.lock().unwrap().len(), 1);
+            assert_eq!(exits.borrow().len(), 1);
             owner.stop().await.unwrap();
         })
     })
@@ -326,7 +309,12 @@ async fn listener_startup_failure_recovers_and_preserves_owner_session() {
             let port = blocker.local_addr().unwrap().port();
             assert!(
                 owner
-                    .start_ahp_host(AhpHostOptions::default().with_port(port.into()))
+                    .start_ahp_host(AhpHostOptions::default().with_local_server(
+                        HostLocalServerOptions {
+                            port: Some(port.into()),
+                            ..Default::default()
+                        }
+                    ))
                     .await
                     .is_err()
             );
@@ -334,11 +322,14 @@ async fn listener_startup_failure_recovers_and_preserves_owner_session() {
             drop(blocker);
             // Listener recovery is not process isolation: it runs inside the runtime.
             let host = owner
-                .start_ahp_host(options.with_port(port.into()))
+                .start_ahp_host(options.with_local_server(HostLocalServerOptions {
+                    port: Some(port.into()),
+                    ..Default::default()
+                }))
                 .await
                 .unwrap();
             let ahp = connect(&host).await;
-            topology(&host, &owner, &home(ctx).join("ahp/sessions"));
+            topology(&host, &owner, &home(ctx));
             host.dispose().await.unwrap();
             let observed = exit(&exits).await;
             assert_eq!(observed.host_id, host.host_id);
@@ -350,7 +341,7 @@ async fn listener_startup_failure_recovers_and_preserves_owner_session() {
             host.dispose().await.unwrap();
             ahp.client.shutdown().await;
             owner.stop().await.unwrap();
-            assert_eq!(exits.lock().unwrap().len(), 1);
+            assert_eq!(exits.borrow().len(), 1);
         })
     })
     .await;
@@ -394,7 +385,7 @@ async fn direct_rpc_concurrent_repeated_dispose_closes_listener_and_notifies_onc
                 .unwrap();
             ahp.client.shutdown().await;
             owner.stop().await.unwrap();
-            assert_eq!(exits.lock().unwrap().len(), 1);
+            assert_eq!(exits.borrow().len(), 1);
         })
     })
     .await;
@@ -407,31 +398,33 @@ async fn listener_defaults_explicit_ports_tokens_and_invalid_combinations() {
     run(|ctx| {
         Box::pin(async move {
             let owner = start(ctx).await;
-            let host = owner
-                .start_ahp_host(AhpHostOptions::default())
-                .await
-                .unwrap();
-            let url = reqwest::Url::parse(&host.url).unwrap();
+            let host = owner.start_ahp_host(local_options()).await.unwrap();
+            let url =
+                reqwest::Url::parse(host.url.as_deref().expect("local listener URL")).unwrap();
             assert_eq!(url.host_str(), Some("127.0.0.1"));
             assert!(url.port().unwrap() > 0);
             assert!(!host.token.as_ref().unwrap().is_empty());
             assert!(
-                deadline(WebSocketTransport::connect(&host.url))
-                    .await
-                    .is_err()
+                deadline(WebSocketTransport::connect(
+                    host.url.as_deref().expect("local listener URL")
+                ))
+                .await
+                .is_err()
             );
             let ahp = connect(&host).await;
             host.dispose().await.unwrap();
             stopped(&host, &ahp, &owner).await;
             ahp.client.shutdown().await;
             for (hostname, port) in [("0.0.0.0", unused_port()), ("localhost", 0), ("::1", 0)] {
-                let options = AhpHostOptions::default()
-                    .with_hostname(hostname)
-                    .with_port(port.into())
-                    .with_token("rust-supplied-token")
-                    .with_require_connection_token(true);
+                let options = AhpHostOptions::default().with_local_server(HostLocalServerOptions {
+                    hostname: Some(hostname.into()),
+                    port: Some(port.into()),
+                    token: Some("rust-supplied-token".into()),
+                    require_connection_token: Some(true),
+                });
                 let host = owner.start_ahp_host(options).await.unwrap();
-                let mut url = reqwest::Url::parse(&host.url).unwrap();
+                let mut url =
+                    reqwest::Url::parse(host.url.as_deref().expect("local listener URL")).unwrap();
                 match hostname {
                     "0.0.0.0" => assert_eq!(url.host_str(), Some("0.0.0.0")),
                     "::1" => assert_eq!(url.host_str(), Some("[::1]")),
@@ -461,7 +454,7 @@ async fn listener_defaults_explicit_ports_tokens_and_invalid_combinations() {
                 );
                 let ahp = connect_url(url.as_str(), host.token.as_deref()).await;
                 ahp.client.ping().await.unwrap();
-                topology(&host, &owner, &home(ctx).join("ahp/sessions"));
+                topology(&host, &owner, &home(ctx));
                 host.dispose().await.unwrap();
                 stopped(&host, &ahp, &owner).await;
                 ahp.client.shutdown().await;
@@ -474,16 +467,13 @@ async fn listener_defaults_explicit_ports_tokens_and_invalid_combinations() {
                 json!({"port": 1.5}),
                 json!({"hostname": ""}),
             ] {
-                let mut request = invalid;
+                let mut request = json!({"localServer": invalid});
                 request["hostId"] = json!(uuid::Uuid::new_v4().to_string());
                 // The raw RPC entry point also reaches runtime validation for
                 // fractional ports, which the generated Rust integer rejects.
                 assert!(owner.call("host.start", Some(request)).await.is_err());
             }
-            let host = owner
-                .start_ahp_host(AhpHostOptions::default())
-                .await
-                .unwrap();
+            let host = owner.start_ahp_host(local_options()).await.unwrap();
             host.dispose().await.unwrap();
             owner.stop().await.unwrap();
         })
@@ -499,7 +489,12 @@ async fn disabled_connection_token_still_requires_ahp_resource_authentication() 
         Box::pin(async move {
             let owner = start(ctx).await;
             let host = owner
-                .start_ahp_host(AhpHostOptions::default().with_require_connection_token(false))
+                .start_ahp_host(AhpHostOptions::default().with_local_server(
+                    HostLocalServerOptions {
+                        require_connection_token: Some(false),
+                        ..Default::default()
+                    },
+                ))
                 .await
                 .unwrap();
             assert_eq!(host.token, None);
@@ -563,7 +558,7 @@ async fn graceful_runtime_shutdown_closes_attached_ahp_session_and_reaps_runtime
             let ahp = connect(&host).await;
             create(&ahp, ctx).await;
             let runtime_pid = owner.pid().unwrap();
-            topology(&host, &owner, &home(ctx).join("ahp/sessions"));
+            topology(&host, &owner, &home(ctx));
             deadline(owner.rpc().runtime().shutdown()).await.unwrap();
             let observed = exit(&exits).await;
             assert_eq!(observed.reason, HostExitReason::RuntimeShutdown);
@@ -574,7 +569,7 @@ async fn graceful_runtime_shutdown_closes_attached_ahp_session_and_reaps_runtime
             owner.stop().await.unwrap();
             reaped(runtime_pid).await;
             tokio::time::sleep(Duration::from_millis(50)).await;
-            assert_eq!(exits.lock().unwrap().len(), 1);
+            assert_eq!(exits.borrow().len(), 1);
         })
     })
     .await;

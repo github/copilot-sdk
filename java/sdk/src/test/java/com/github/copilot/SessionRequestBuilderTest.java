@@ -6,6 +6,8 @@ package com.github.copilot;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -16,7 +18,9 @@ import com.github.copilot.generated.rpc.DiagnosticLogLevel;
 import com.github.copilot.generated.rpc.DiagnosticSourcesConfiguration;
 import com.github.copilot.generated.rpc.DiagnosticsConfiguration;
 import com.github.copilot.generated.rpc.McpDiagnosticSourceConfiguration;
+import com.github.copilot.generated.rpc.SandboxConfig;
 import com.github.copilot.generated.rpc.SessionLimitsConfig;
+import com.github.copilot.generated.rpc.AutopilotOptions;
 import com.github.copilot.rpc.AskUserVariant;
 import com.github.copilot.rpc.AutoModeSwitchResponse;
 import com.github.copilot.rpc.CloudSessionOptions;
@@ -36,6 +40,7 @@ import com.github.copilot.rpc.LargeToolOutputConfig;
 import com.github.copilot.rpc.MemoryConfiguration;
 import com.github.copilot.rpc.ResumeSessionConfig;
 import com.github.copilot.rpc.ResumeSessionRequest;
+import com.github.copilot.rpc.ResumeSessionResponse;
 import com.github.copilot.rpc.SessionConfig;
 import com.github.copilot.rpc.SessionHooks;
 import com.github.copilot.rpc.ToolDefinition;
@@ -49,6 +54,121 @@ import com.github.copilot.rpc.UserInputResponse;
  */
 public class SessionRequestBuilderTest {
 
+    @Test
+    void transcriptRecoveryOverridesAndResponseInAllModes() throws Exception {
+        var mapper = JsonRpcClient.getObjectMapper();
+        for (var mode : new CopilotClientMode[]{CopilotClientMode.COPILOT_CLI, CopilotClientMode.EMPTY}) {
+            for (Boolean choice : new Boolean[]{null, false, true}) {
+                var config = new ResumeSessionConfig();
+                if (choice != null) {
+                    config.setAllowTranscriptRecovery(choice);
+                }
+                var request = SessionRequestBuilder.buildResumeRequest("s1", config.clone(), mode);
+                var requestJson = mapper.readTree(mapper.writeValueAsBytes(request));
+                if (choice == null) {
+                    assertFalse(requestJson.has("allowTranscriptRecovery"));
+                } else {
+                    assertTrue(requestJson.has("allowTranscriptRecovery"));
+                    assertEquals(choice.booleanValue(), requestJson.path("allowTranscriptRecovery").asBoolean());
+                }
+            }
+        }
+
+        var response = mapper
+                .readValue(
+                        "{\"sessionId\":\"s1\",\"transcriptRecovery\":{\"plannedBackupPath\":\"backup.jsonl\","
+                                + "\"invalidLineNumbers\":[3,4],\"sessionStartMoved\":true}}",
+                        ResumeSessionResponse.class);
+        assertNotNull(response.transcriptRecovery());
+        assertEquals("backup.jsonl", response.transcriptRecovery().plannedBackupPath());
+        assertEquals(List.of(3, 4), response.transcriptRecovery().invalidLineNumbers());
+        assertTrue(response.transcriptRecovery().sessionStartMoved());
+        assertNull(mapper.readValue("{\"sessionId\":\"s1\"}", ResumeSessionResponse.class).transcriptRecovery());
+        assertNull(new ResumeSessionResponse("s1", null, null, null).transcriptRecovery());
+    }
+
+    @Test
+    void clearingTranscriptRecoveryRestoresRuntimeDefaultInAllModes() throws Exception {
+        var mapper = JsonRpcClient.getObjectMapper();
+        for (boolean choice : new boolean[]{false, true}) {
+            var config = new ResumeSessionConfig().setAllowTranscriptRecovery(choice);
+            assertEquals(choice, config.getAllowTranscriptRecovery().orElseThrow());
+            assertSame(config, config.clearAllowTranscriptRecovery());
+            assertTrue(config.getAllowTranscriptRecovery().isEmpty());
+            assertFalse(mapper.readTree(mapper.writeValueAsBytes(config)).has("allowTranscriptRecovery"));
+
+            var cli = SessionRequestBuilder.buildResumeRequest("s1", config.clone(), CopilotClientMode.COPILOT_CLI);
+            var empty = SessionRequestBuilder.buildResumeRequest("s1", config.clone(), CopilotClientMode.EMPTY);
+            assertFalse(mapper.readTree(mapper.writeValueAsBytes(cli)).has("allowTranscriptRecovery"));
+            assertFalse(mapper.readTree(mapper.writeValueAsBytes(empty)).has("allowTranscriptRecovery"));
+        }
+    }
+
+    @Test
+    void customizationDirectoriesArePreservedOnCreateAndResume() throws Exception {
+        var mapper = JsonRpcClient.getObjectMapper();
+        for (int kind = 0; kind < 3; kind++) {
+            List<String> roots = kind == 0 ? null : kind == 1 ? List.of() : List.of("relative-root", "other-root");
+            var directories = new HashMap<String, List<String>>();
+            for (var type : List.of("skill", "agent", "instruction", "hook")) {
+                directories.put(type + "Directories",
+                        roots == null ? null : roots.stream().map(root -> root + "-" + type).toList());
+            }
+            var create = SessionRequestBuilder.buildCreateRequest(
+                    new SessionConfig().setWorkingDirectory("request-cwd").setEnableConfigDiscovery(false)
+                            .setEnableFileHooks(false).setSkillDirectories(directories.get("skillDirectories"))
+                            .setAgentDirectories(directories.get("agentDirectories"))
+                            .setInstructionDirectories(directories.get("instructionDirectories"))
+                            .setHookDirectories(directories.get("hookDirectories")),
+                    "created");
+            var resume = SessionRequestBuilder.buildResumeRequest("resumed",
+                    new ResumeSessionConfig().setWorkingDirectory("resume-cwd").setEnableConfigDiscovery(false)
+                            .setEnableFileHooks(false).setSkillDirectories(directories.get("skillDirectories"))
+                            .setAgentDirectories(directories.get("agentDirectories"))
+                            .setInstructionDirectories(directories.get("instructionDirectories"))
+                            .setHookDirectories(directories.get("hookDirectories")));
+            for (var request : List.of(create, resume)) {
+                var wire = mapper.readTree(mapper.writeValueAsBytes(request));
+                for (var entry : directories.entrySet()) {
+                    if (entry.getValue() == null) {
+                        assertFalse(wire.has(entry.getKey()), wire.toString());
+                    } else {
+                        assertEquals(mapper.valueToTree(entry.getValue()), wire.get(entry.getKey()));
+                    }
+                }
+                assertFalse(wire.path("enableConfigDiscovery").asBoolean(true));
+                assertFalse(wire.path("enableFileHooks").asBoolean(true));
+                assertFalse(wire.has("additionalDirectories"));
+                assertFalse(wire.has("customAgents"));
+                assertFalse(wire.path("hooks").asBoolean());
+            }
+        }
+    }
+
+    @Test
+    void customizationDirectoryClonesOwnTheirLists() {
+        var agents = new ArrayList<>(List.of("agents"));
+        var hooks = new ArrayList<>(List.of("hooks"));
+        var create = new SessionConfig().setAgentDirectories(agents).setHookDirectories(hooks);
+        var resume = new ResumeSessionConfig().setAgentDirectories(agents).setHookDirectories(hooks);
+        var createClone = create.clone();
+        var resumeClone = resume.clone();
+        agents.add("added-agents");
+        hooks.add("added-hooks");
+        assertEquals(List.of("agents"), create.getAgentDirectories());
+        assertEquals(List.of("hooks"), create.getHookDirectories());
+        assertEquals(List.of("agents"), resume.getAgentDirectories());
+        assertEquals(List.of("hooks"), resume.getHookDirectories());
+        assertEquals(List.of("agents"), createClone.getAgentDirectories());
+        assertEquals(List.of("hooks"), createClone.getHookDirectories());
+        assertEquals(List.of("agents"), resumeClone.getAgentDirectories());
+        assertEquals(List.of("hooks"), resumeClone.getHookDirectories());
+        assertThrows(UnsupportedOperationException.class, () -> createClone.getAgentDirectories().add("mutation"));
+        assertThrows(UnsupportedOperationException.class, () -> resumeClone.getHookDirectories().add("mutation"));
+        assertThrows(UnsupportedOperationException.class, () -> create.getAgentDirectories().add("mutation"));
+        assertThrows(UnsupportedOperationException.class, () -> resume.getHookDirectories().add("mutation"));
+    }
+
     // =========================================================================
     // buildCreateRequest
     // =========================================================================
@@ -60,6 +180,7 @@ public class SessionRequestBuilderTest {
         assertNull(request.getModel());
         assertTrue(request.getRequestPermission(), "requestPermission should be true even for null config");
         assertEquals("direct", request.getEnvValueMode(), "envValueMode should be 'direct' even for null config");
+        assertNull(request.getHasSkillProvider());
     }
 
     @Test
@@ -109,6 +230,36 @@ public class SessionRequestBuilderTest {
         assertFalse(mapper.readTree(mapper.writeValueAsBytes(createRequest)).has("askUserVariant"));
         assertNull(resumeRequest.getAskUserVariant());
         assertFalse(mapper.readTree(mapper.writeValueAsBytes(resumeRequest)).has("askUserVariant"));
+    }
+
+    @Test
+    @AllowCopilotExperimental
+    void skillProviderFlagIsForwardedAndSerializedForCreateAndResume() throws Exception {
+        SkillProvider provider = testSkillProvider();
+        var mapper = JsonRpcClient.getObjectMapper();
+
+        var createRequest = SessionRequestBuilder.buildCreateRequest(new SessionConfig().setSkillProvider(provider),
+                "skill-provider-create");
+        var resumeRequest = SessionRequestBuilder.buildResumeRequest("skill-provider-resume",
+                new ResumeSessionConfig().setSkillProvider(provider));
+
+        assertTrue(createRequest.getHasSkillProvider());
+        assertTrue(resumeRequest.getHasSkillProvider());
+        assertTrue(mapper.readTree(mapper.writeValueAsBytes(createRequest)).path("hasSkillProvider").asBoolean());
+        assertTrue(mapper.readTree(mapper.writeValueAsBytes(resumeRequest)).path("hasSkillProvider").asBoolean());
+    }
+
+    @Test
+    void skillProviderFlagIsOmittedWhenUnset() throws Exception {
+        var mapper = JsonRpcClient.getObjectMapper();
+        var createRequest = SessionRequestBuilder.buildCreateRequest(new SessionConfig(), "skill-provider-create");
+        var resumeRequest = SessionRequestBuilder.buildResumeRequest("skill-provider-resume",
+                new ResumeSessionConfig());
+
+        assertNull(createRequest.getHasSkillProvider());
+        assertNull(resumeRequest.getHasSkillProvider());
+        assertFalse(mapper.readTree(mapper.writeValueAsBytes(createRequest)).has("hasSkillProvider"));
+        assertFalse(mapper.readTree(mapper.writeValueAsBytes(resumeRequest)).has("hasSkillProvider"));
     }
 
     @Test
@@ -274,6 +425,33 @@ public class SessionRequestBuilderTest {
     }
 
     @Test
+    void testBuildRequestsForwardSandboxConfig() throws Exception {
+        var mapper = JsonRpcClient.getObjectMapper();
+        for (boolean enabled : new boolean[]{true, false}) {
+            var sandbox = new SandboxConfig(enabled, null, false, true, null, null, null, null, null, null, null);
+            var create = SessionRequestBuilder.buildCreateRequest(new SessionConfig().setSandboxConfig(sandbox));
+            var resume = SessionRequestBuilder.buildResumeRequest("sid-sandbox",
+                    new ResumeSessionConfig().setSandboxConfig(sandbox));
+            assertSame(sandbox, create.getSandboxConfig());
+            assertSame(sandbox, resume.getSandboxConfig());
+            for (var request : List.of(create, resume)) {
+                var json = mapper.readTree(mapper.writeValueAsBytes(request));
+                var config = json.get("sandboxConfig");
+                assertEquals(enabled, config.get("enabled").asBoolean());
+                assertFalse(config.get("addCurrentWorkingDirectory").asBoolean());
+                assertTrue(config.get("sandboxMcpServers").asBoolean());
+            }
+        }
+        var create = SessionRequestBuilder.buildCreateRequest(new SessionConfig());
+        var resume = SessionRequestBuilder.buildResumeRequest("sid-sandbox", new ResumeSessionConfig());
+        assertNull(create.getSandboxConfig());
+        assertNull(resume.getSandboxConfig());
+        for (var request : List.of(create, resume)) {
+            assertFalse(mapper.readTree(mapper.writeValueAsBytes(request)).has("sandboxConfig"));
+        }
+    }
+
+    @Test
     void testBuildCreateRequestSetsMemory() {
         var memory = new MemoryConfiguration().setEnabled(true);
         var config = new SessionConfig().setMemory(memory);
@@ -319,8 +497,9 @@ public class SessionRequestBuilderTest {
     @Test
     void testBuildCreateRequestForwardsSessionPolicyOptions() {
         var sessionLimits = new SessionLimitsConfig(30.0);
+        var autopilot = new AutopilotOptions(false, 0L);
         var config = new SessionConfig().setExcludedBuiltInAgents(List.of("explore")).setEnableCitations(true)
-                .setEnableFileChangeTracking(true).setSessionLimits(sessionLimits);
+                .setEnableFileChangeTracking(true).setSessionLimits(sessionLimits).setAutopilot(autopilot);
 
         CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(config, "session-policy");
 
@@ -328,6 +507,7 @@ public class SessionRequestBuilderTest {
         assertTrue(request.getEnableCitations());
         assertTrue(request.getEnableFileChangeTracking());
         assertSame(sessionLimits, request.getSessionLimits());
+        assertSame(autopilot, request.getAutopilot());
     }
 
     @Test
@@ -348,6 +528,7 @@ public class SessionRequestBuilderTest {
         assertNull(request.getContinuePendingWork());
         assertTrue(request.getRequestPermission(), "requestPermission should be true even for null config");
         assertEquals("direct", request.getEnvValueMode(), "envValueMode should be 'direct' even for null config");
+        assertNull(request.getHasSkillProvider());
     }
 
     @Test
@@ -359,8 +540,9 @@ public class SessionRequestBuilderTest {
 
             var request = SessionRequestBuilder.buildResumeRequest("sid-pending", config.clone());
             assertEquals(enabled, request.getContinuePendingWork());
-            assertEquals(enabled,
-                    mapper.readTree(mapper.writeValueAsBytes(request)).path("continuePendingWork").booleanValue());
+            var serialized = mapper.readTree(mapper.writeValueAsBytes(request));
+            assertTrue(serialized.has("continuePendingWork"));
+            assertEquals(enabled, serialized.get("continuePendingWork").booleanValue());
         }
     }
 
@@ -557,7 +739,7 @@ public class SessionRequestBuilderTest {
     void testBuildResumeRequestPropagatesGranularMultitenancyFields() {
         var config = new ResumeSessionConfig().setSkipEmbeddingRetrieval(false)
                 .setOrganizationCustomInstructions("Resume org instructions")
-                .setEnableOnDemandInstructionDiscovery(true).setEnableFileHooks(false).setEnableHostGitOperations(true)
+                .setEnableOnDemandInstructionDiscovery(true).setEnableFileHooks(true).setEnableHostGitOperations(true)
                 .setEnableSessionStore(false).setEnableSkills(true);
 
         ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-11", config);
@@ -565,7 +747,7 @@ public class SessionRequestBuilderTest {
         assertFalse(request.getSkipEmbeddingRetrieval());
         assertEquals("Resume org instructions", request.getOrganizationCustomInstructions());
         assertTrue(request.getEnableOnDemandInstructionDiscovery());
-        assertFalse(request.getEnableFileHooks());
+        assertTrue(request.getEnableFileHooks());
         assertTrue(request.getEnableHostGitOperations());
         assertFalse(request.getEnableSessionStore());
         assertTrue(request.getEnableSkills());
@@ -588,8 +770,9 @@ public class SessionRequestBuilderTest {
     @Test
     void testBuildResumeRequestForwardsSessionPolicyOptions() {
         var sessionLimits = new SessionLimitsConfig(30.0);
+        var autopilot = new AutopilotOptions(null, 2L);
         var config = new ResumeSessionConfig().setExcludedBuiltInAgents(List.of("explore")).setEnableCitations(true)
-                .setEnableFileChangeTracking(true).setSessionLimits(sessionLimits);
+                .setEnableFileChangeTracking(true).setSessionLimits(sessionLimits).setAutopilot(autopilot);
 
         ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-policy", config);
 
@@ -597,6 +780,7 @@ public class SessionRequestBuilderTest {
         assertTrue(request.getEnableCitations());
         assertTrue(request.getEnableFileChangeTracking());
         assertSame(sessionLimits, request.getSessionLimits());
+        assertSame(autopilot, request.getAutopilot());
     }
 
     @Test
@@ -799,6 +983,17 @@ public class SessionRequestBuilderTest {
     }
 
     @Test
+    @AllowCopilotExperimental
+    void configureSessionWithSkillProvider_registersProvider() {
+        CopilotSession session = new CopilotSession("session-1", null);
+        SkillProvider provider = testSkillProvider();
+
+        SessionRequestBuilder.configureSession(session, new SessionConfig().setSkillProvider(provider));
+
+        assertSame(provider, session.getSkillProvider());
+    }
+
+    @Test
     void configureSessionWithCommands_registersCommands() {
         CopilotSession session = new CopilotSession("session-1", null);
 
@@ -868,6 +1063,17 @@ public class SessionRequestBuilderTest {
 
         // Covers ResumeSessionConfig.getOnEvent() != null branch (L277-278)
         SessionRequestBuilder.configureSession(session, config);
+    }
+
+    @Test
+    @AllowCopilotExperimental
+    void configureResumedSessionWithSkillProvider_registersProvider() {
+        CopilotSession session = new CopilotSession("session-1", null);
+        SkillProvider provider = testSkillProvider();
+
+        SessionRequestBuilder.configureSession(session, new ResumeSessionConfig().setSkillProvider(provider));
+
+        assertSame(provider, session.getSkillProvider());
     }
 
     @Test
@@ -1247,5 +1453,20 @@ public class SessionRequestBuilderTest {
         assertFalse(
                 mapper.writeValueAsString(SessionRequestBuilder.buildCreateRequest(new SessionConfig(), "session-2"))
                         .contains("\"githubMcpToolConfig\""));
+    }
+
+    @AllowCopilotExperimental
+    private static SkillProvider testSkillProvider() {
+        return new SkillProvider() {
+            @Override
+            public CompletableFuture<List<SkillProviderDescriptor>> listSkills() {
+                return CompletableFuture.completedFuture(List.of());
+            }
+
+            @Override
+            public CompletableFuture<String> readSkill(String name) {
+                return CompletableFuture.completedFuture(null);
+            }
+        };
     }
 }

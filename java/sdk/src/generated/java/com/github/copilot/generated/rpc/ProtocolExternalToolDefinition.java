@@ -43,6 +43,11 @@ public record ProtocolExternalToolDefinition(
     /** Whether the tool executes commands in a terminal. */
     @JsonProperty("isTerminal") Boolean isTerminal,
     /** Optional caller-defined metadata associated with the tool. */
-    @JsonProperty("metadata") Map<String, Object> metadata
+    @JsonProperty("metadata") Map<String, Object> metadata,
+    /** Optional namespace grouping this tool with related tools. Where the model
+provider supports native tool namespaces, deferred tools sharing a namespace
+are presented to the model as one group; elsewhere the tool stays flat. The
+tool's `name` remains its unique invocation name either way. */
+    @JsonProperty("namespace") ProtocolExternalToolNamespace namespace
 ) {
 }

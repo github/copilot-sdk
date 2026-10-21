@@ -1,4 +1,6 @@
-"""Existing callers keep their construction style when a request gains fields."""
+# Copyright (c) Microsoft Corporation. All rights reserved.
+
+"""Existing callers keep their construction style when an RPC record gains fields."""
 
 import dataclasses
 
@@ -93,3 +95,41 @@ def test_listed_server_owned_marker_round_trips_by_keyword():
     assert server.owned.installation_id == "installation"
     assert rpc.MCPServer.from_dict(server.to_dict()) == server
     assert server.to_dict()["owned"] == {"installationId": "installation"}
+
+
+def test_workspace_diff_positional_arguments_keep_their_meaning():
+    change = rpc.WorkspaceDiffFileChange(
+        rpc.WorkspaceDiffFileChangeType.MODIFIED, "patch", "app.txt", True, "old.txt"
+    )
+
+    assert (change.is_truncated, change.old_path, change.contents, _positional(type(change))) == (
+        True,
+        "old.txt",
+        None,
+        ["change_type", "diff", "path", "is_truncated", "old_path"],
+    )
+    assert "contents" not in change.to_dict()
+
+
+def test_workspace_diff_contents_round_trip_by_keyword():
+    contents = rpc.WorkspaceDiffContents(before="port=3000\n", after="port=4000\n")
+    change = rpc.WorkspaceDiffFileChange(
+        rpc.WorkspaceDiffFileChangeType.MODIFIED,
+        "patch",
+        "app.txt",
+        False,
+        None,
+        contents=contents,
+    )
+    encoded = change.to_dict()
+
+    assert (encoded, rpc.WorkspaceDiffFileChange.from_dict(encoded)) == (
+        {
+            "changeType": "modified",
+            "diff": "patch",
+            "path": "app.txt",
+            "isTruncated": False,
+            "contents": {"before": "port=3000\n", "after": "port=4000\n"},
+        },
+        change,
+    )

@@ -84,7 +84,7 @@ final class CopilotRequestTestSupport {
     static void setupCapiAuth(E2ETestContext ctx) throws IOException, InterruptedException {
         ctx.initializeProxy();
         ctx.setCopilotUserByToken("fake-token-for-e2e-tests", "e2e-user", "individual_pro", ctx.getProxyUrl(),
-                "https://localhost:1/telemetry", "e2e-tracking-id");
+                "https://sdk-hydro-collector.example.com", "e2e-tracking-id");
     }
 
     static Map<String, List<String>> headers(String name, String value) {
@@ -475,7 +475,7 @@ final class CopilotRequestTestSupport {
 
     /** A single request the handler intercepted. */
     record InterceptedRequest(String url, String sessionId, String agentId, String parentAgentId,
-            String interactionType, String body) {
+            String agentInvocationId, String interactionType, String body) {
     }
 
     /**
@@ -512,7 +512,7 @@ final class CopilotRequestTestSupport {
             String url = request.uri().toString();
             String body = requestBodyText(request);
             records.add(new InterceptedRequest(url, ctx.sessionId(), ctx.agentId(), ctx.parentAgentId(),
-                    ctx.interactionType(), body));
+                    ctx.withUrl(url).withHeaders(ctx.headers()).agentInvocationId(), ctx.interactionType(), body));
             if (isInferenceUrl(url)) {
                 return buildInferenceResponse(url, body, text);
             }

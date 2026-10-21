@@ -40,6 +40,8 @@ type ConnectionOpenFn = unsafe extern "C" fn(
 ) -> u32;
 type ConnectionWriteFn = unsafe extern "C" fn(u32, *const u8, usize) -> bool;
 type ConnectionCloseFn = unsafe extern "C" fn(u32) -> bool;
+type ConnectionSetUiThreadHandlerFn = unsafe extern "C" fn(u32, bool) -> bool;
+type ConnectionRunUiActionFn = unsafe extern "C" fn(u32, u32) -> bool;
 
 /// State handed to the native side as `user_data` so the outbound callback can
 /// route inbound frames back to the reader.
@@ -66,8 +68,11 @@ extern "C" fn on_outbound(user_data: *mut c_void, bytes: *const u8, len: usize) 
 /// only the bound fn pointers and connection state.
 pub(crate) struct FfiShared {
     host_shutdown: HostShutdownFn,
+    owns_host: bool,
     connection_write: ConnectionWriteFn,
     connection_close: ConnectionCloseFn,
+    connection_set_ui_thread_handler: ConnectionSetUiThreadHandlerFn,
+    connection_run_ui_action: ConnectionRunUiActionFn,
     server_id: AtomicU32,
     connection_id: AtomicU32,
     callback_state: AtomicPtr<CallbackState>,
@@ -83,7 +88,50 @@ unsafe impl Send for FfiShared {}
 unsafe impl Sync for FfiShared {}
 
 impl FfiShared {
-    /// Close the connection, shut the host down, and free the callback state.
+    pub(crate) fn configure_ui_thread(&self, enabled: bool) -> Result<(), Error> {
+        let connection = self.connection_id.load(Ordering::SeqCst);
+        if !self.closed.load(Ordering::SeqCst)
+            && unsafe { (self.connection_set_ui_thread_handler)(connection, enabled) }
+        {
+            Ok(())
+        } else {
+            Err(Error::with_message(
+                ErrorKind::InvalidConfig,
+                "failed to configure the in-process UI dispatcher",
+            ))
+        }
+    }
+
+    pub(crate) fn run_ui_action(&self, action_id: u32) -> Result<(), Error> {
+        let connection = self.connection_id.load(Ordering::SeqCst);
+        // No operation lock across native UI: another thread must still be able
+        // to close the connection and request cancellation.
+        if !self.closed.load(Ordering::SeqCst)
+            && unsafe { (self.connection_run_ui_action)(connection, action_id) }
+        {
+            Ok(())
+        } else {
+            Err(Error::with_message(
+                ErrorKind::InvalidConfig,
+                "native UI action is retired, already executed, or not on the process main thread",
+            ))
+        }
+    }
+
+    pub(crate) fn library_path(&self) -> &Path {
+        &self.library_path
+    }
+
+    pub(crate) fn owns_host(&self) -> bool {
+        self.owns_host
+    }
+
+    pub(crate) fn connection_id(&self) -> Option<u32> {
+        let id = self.connection_id.load(Ordering::SeqCst);
+        (id != 0 && !self.closed.load(Ordering::SeqCst)).then_some(id)
+    }
+
+    /// Close the connection, shut down an owned host, and free the callback state.
     /// Idempotent; called from [`Client::stop`], drop, and on startup failure.
     pub(crate) fn close(&self) {
         let _operation = self.operation_lock.lock();
@@ -105,6 +153,7 @@ impl FfiShared {
                         .swap(std::ptr::null_mut(), Ordering::SeqCst) as usize;
                 let connection_close = self.connection_close;
                 let host_shutdown = self.host_shutdown;
+                let owns_host = self.owns_host;
                 let library_path = self.library_path.clone();
                 if let Err(error) = std::thread::Builder::new()
                     .name("copilot-ffi-cleanup".to_owned())
@@ -113,7 +162,7 @@ impl FfiShared {
                             std::thread::sleep(std::time::Duration::from_millis(100));
                         }
                         release_callback_state(state);
-                        if server != 0 && !unsafe { host_shutdown(server) } {
+                        if owns_host && server != 0 && !unsafe { host_shutdown(server) } {
                             warn!(
                                 library = %library_path.display(),
                                 server_id = server,
@@ -138,7 +187,7 @@ impl FfiShared {
             .callback_state
             .swap(std::ptr::null_mut(), Ordering::SeqCst) as usize;
         release_callback_state(state);
-        if server != 0 && !unsafe { (self.host_shutdown)(server) } {
+        if self.owns_host && server != 0 && !unsafe { (self.host_shutdown)(server) } {
             warn!(
                 library = %self.library_path.display(),
                 server_id = server,
@@ -245,13 +294,17 @@ impl AsyncWrite for FfiWriter {
 pub(crate) struct FfiHost {
     library_path: PathBuf,
     cli_entrypoint: Option<PathBuf>,
+    integration_id: Option<String>,
     environment: Vec<(String, String)>,
     args: Vec<String>,
+    attached_server_id: Option<u32>,
     host_start: HostStartFn,
     host_shutdown: HostShutdownFn,
     connection_open: ConnectionOpenFn,
     connection_write: ConnectionWriteFn,
     connection_close: ConnectionCloseFn,
+    connection_set_ui_thread_handler: ConnectionSetUiThreadHandlerFn,
+    connection_run_ui_action: ConnectionRunUiActionFn,
 }
 
 // SAFETY: as for `FfiShared` — the bound exports are plain fn pointers, safe to
@@ -259,12 +312,15 @@ pub(crate) struct FfiHost {
 unsafe impl Send for FfiHost {}
 
 impl FfiHost {
-    /// Load the cdylib next to `runtime_entrypoint` and bind its exports.
+    /// Load the selected cdylib, defaulting to a sibling of `runtime_entrypoint`.
     pub(crate) fn create(
         runtime_entrypoint: &Path,
         cli_entrypoint: Option<&Path>,
+        integration_id: Option<&str>,
         environment: Vec<(String, String)>,
         args: Vec<String>,
+        attached_server_id: Option<u32>,
+        runtime_library_path: Option<&Path>,
     ) -> Result<Self, Error> {
         let runtime_entrypoint = std::fs::canonicalize(runtime_entrypoint).map_err(|e| {
             Error::with_message(
@@ -285,13 +341,22 @@ impl FfiHost {
                 )
             })?
             .map(path_for_child_process);
-        let library_path = std::fs::canonicalize(resolve_library_path(&runtime_entrypoint)?)
-            .map_err(|e| {
-                Error::with_message(
+        let selected_library = match (attached_server_id, runtime_library_path) {
+            (_, Some(path)) => path.to_path_buf(),
+            (Some(_), None) => {
+                return Err(Error::with_message(
                     ErrorKind::InvalidConfig,
-                    format!("failed to resolve in-process runtime library: {e}"),
-                )
-            })?;
+                    "an attached server requires the runtime image already loaded by its host",
+                ));
+            }
+            (None, None) => resolve_library_path(&runtime_entrypoint)?,
+        };
+        let library_path = std::fs::canonicalize(selected_library).map_err(|e| {
+            Error::with_message(
+                ErrorKind::InvalidConfig,
+                format!("failed to resolve in-process runtime library: {e}"),
+            )
+        })?;
         let lib = load_library(&library_path)?;
 
         let host_start = *bind::<HostStartFn>(lib, b"copilot_runtime_host_start\0", &library_path)?;
@@ -303,17 +368,31 @@ impl FfiHost {
             *bind::<ConnectionWriteFn>(lib, b"copilot_runtime_connection_write\0", &library_path)?;
         let connection_close =
             *bind::<ConnectionCloseFn>(lib, b"copilot_runtime_connection_close\0", &library_path)?;
+        let connection_set_ui_thread_handler = *bind::<ConnectionSetUiThreadHandlerFn>(
+            lib,
+            b"copilot_runtime_connection_set_ui_thread_handler\0",
+            &library_path,
+        )?;
+        let connection_run_ui_action = *bind::<ConnectionRunUiActionFn>(
+            lib,
+            b"copilot_runtime_connection_run_ui_action\0",
+            &library_path,
+        )?;
 
         Ok(Self {
             library_path,
             cli_entrypoint,
+            integration_id: integration_id.map(str::to_owned),
             environment,
             args,
+            attached_server_id,
             host_start,
             host_shutdown,
             connection_open,
             connection_write,
             connection_close,
+            connection_set_ui_thread_handler,
+            connection_run_ui_action,
         })
     }
 
@@ -330,7 +409,11 @@ impl FfiHost {
     }
 
     fn start_blocking(self) -> Result<(FfiReader, FfiWriter, Arc<FfiShared>), Error> {
-        let argv = build_argv_json(self.cli_entrypoint.as_deref(), &self.args);
+        let argv = build_argv_json(
+            self.cli_entrypoint.as_deref(),
+            self.integration_id.as_deref(),
+            &self.args,
+        );
         let env = build_env_json(&self.environment);
 
         let (env_ptr, env_len) = match &env {
@@ -338,7 +421,11 @@ impl FfiHost {
             None => (std::ptr::null(), 0),
         };
 
-        let server_id = unsafe { (self.host_start)(argv.as_ptr(), argv.len(), env_ptr, env_len) };
+        let owns_host = self.attached_server_id.is_none();
+        let server_id = match self.attached_server_id {
+            Some(server_id) => server_id,
+            None => unsafe { (self.host_start)(argv.as_ptr(), argv.len(), env_ptr, env_len) },
+        };
 
         if server_id == 0 {
             return Err(Error::with_message(
@@ -370,7 +457,9 @@ impl FfiHost {
         };
         if connection_id == 0 {
             drop(unsafe { Box::from_raw(state_ptr) });
-            unsafe { (self.host_shutdown)(server_id) };
+            if owns_host {
+                unsafe { (self.host_shutdown)(server_id) };
+            }
             return Err(Error::with_message(
                 ErrorKind::InvalidConfig,
                 "copilot_runtime_connection_open failed",
@@ -379,8 +468,11 @@ impl FfiHost {
 
         let shared = Arc::new(FfiShared {
             host_shutdown: self.host_shutdown,
+            owns_host,
             connection_write: self.connection_write,
             connection_close: self.connection_close,
+            connection_set_ui_thread_handler: self.connection_set_ui_thread_handler,
+            connection_run_ui_action: self.connection_run_ui_action,
             server_id: AtomicU32::new(server_id),
             connection_id: AtomicU32::new(connection_id),
             callback_state: AtomicPtr::new(state_ptr),
@@ -561,7 +653,11 @@ fn path_for_child_process(path: PathBuf) -> PathBuf {
     path
 }
 
-fn build_argv_json(entrypoint: Option<&Path>, extra_args: &[String]) -> Vec<u8> {
+fn build_argv_json(
+    entrypoint: Option<&Path>,
+    integration_id: Option<&str>,
+    extra_args: &[String],
+) -> Vec<u8> {
     let mut argv = Vec::new();
     if let Some(entrypoint) = entrypoint {
         let entrypoint_str = entrypoint.to_string_lossy().into_owned();
@@ -577,6 +673,9 @@ fn build_argv_json(entrypoint: Option<&Path>, extra_args: &[String]) -> Vec<u8> 
             "--embedded-host".to_string(),
             "--no-auto-update".to_string(),
         ]);
+    }
+    if let Some(integration_id) = integration_id {
+        argv.push(format!("--cli-login-sync-integration-id={integration_id}"));
     }
     argv.extend_from_slice(extra_args);
     serde_json::to_vec(&argv).expect("argv serializes")
@@ -594,151 +693,7 @@ fn build_env_json(environment: &[(String, String)]) -> Option<Vec<u8>> {
 }
 
 #[cfg(test)]
-mod tests {
-    use std::sync::Mutex;
-    use std::sync::atomic::AtomicUsize;
-    use std::time::{Duration, Instant};
+mod tests;
 
-    use super::*;
-
-    static FFI_LIFECYCLE_TEST_LOCK: Mutex<()> = Mutex::new(());
-    static TEST_ALLOW_CLOSE: AtomicBool = AtomicBool::new(false);
-    static TEST_CLOSE_CALLS: AtomicUsize = AtomicUsize::new(0);
-    static TEST_SHUTDOWN_CALLS: AtomicUsize = AtomicUsize::new(0);
-
-    unsafe extern "C" fn test_host_shutdown(_server_id: u32) -> bool {
-        TEST_SHUTDOWN_CALLS.fetch_add(1, Ordering::SeqCst);
-        true
-    }
-
-    unsafe extern "C" fn test_connection_write(
-        _connection_id: u32,
-        _bytes: *const u8,
-        _length: usize,
-    ) -> bool {
-        true
-    }
-
-    unsafe extern "C" fn test_connection_close(_connection_id: u32) -> bool {
-        TEST_CLOSE_CALLS.fetch_add(1, Ordering::SeqCst);
-        TEST_ALLOW_CLOSE.load(Ordering::SeqCst)
-    }
-
-    #[test]
-    fn argv_without_entrypoint_contains_only_client_options() {
-        let argv: Vec<String> = serde_json::from_slice(&build_argv_json(
-            None,
-            &["--log-level".into(), "debug".into()],
-        ))
-        .unwrap();
-
-        assert_eq!(argv, ["--log-level", "debug"]);
-    }
-
-    #[test]
-    fn explicit_javascript_entrypoint_uses_node() {
-        let argv: Vec<String> =
-            serde_json::from_slice(&build_argv_json(Some(Path::new("index.js")), &[])).unwrap();
-
-        assert_eq!(
-            argv,
-            ["node", "index.js", "--embedded-host", "--no-auto-update"]
-        );
-    }
-
-    #[cfg(windows)]
-    #[test]
-    fn child_process_path_removes_windows_verbatim_prefix() {
-        assert_eq!(
-            path_for_child_process(PathBuf::from(r"\\?\D:\a\copilot-sdk\index.js")),
-            PathBuf::from(r"D:\a\copilot-sdk\index.js")
-        );
-        assert_eq!(
-            path_for_child_process(PathBuf::from(r"\\?\UNC\server\share\copilot-sdk\index.js")),
-            PathBuf::from(r"\\server\share\copilot-sdk\index.js")
-        );
-    }
-
-    #[test]
-    fn environment_is_omitted_when_empty() {
-        assert_eq!(build_env_json(&[]), None);
-    }
-
-    #[test]
-    fn environment_serializes_worker_overrides() {
-        let env: serde_json::Value = serde_json::from_slice(
-            &build_env_json(&[
-                ("COPILOT_HOME".into(), "state".into()),
-                ("COPILOT_DISABLE_KEYTAR".into(), "1".into()),
-            ])
-            .unwrap(),
-        )
-        .unwrap();
-
-        assert_eq!(
-            env,
-            serde_json::json!({
-                "COPILOT_HOME": "state",
-                "COPILOT_DISABLE_KEYTAR": "1",
-            })
-        );
-    }
-
-    #[test]
-    fn callback_state_is_retained_until_connection_close_succeeds() {
-        let _guard = FFI_LIFECYCLE_TEST_LOCK.lock().unwrap();
-        TEST_ALLOW_CLOSE.store(false, Ordering::SeqCst);
-        TEST_CLOSE_CALLS.store(0, Ordering::SeqCst);
-        TEST_SHUTDOWN_CALLS.store(0, Ordering::SeqCst);
-
-        let (tx, mut rx) = mpsc::unbounded_channel();
-        let state_ptr = Box::into_raw(Box::new(CallbackState {
-            tx,
-            closing: AtomicBool::new(false),
-        }));
-        let shared = FfiShared {
-            host_shutdown: test_host_shutdown,
-            connection_write: test_connection_write,
-            connection_close: test_connection_close,
-            server_id: AtomicU32::new(11),
-            connection_id: AtomicU32::new(21),
-            callback_state: AtomicPtr::new(state_ptr),
-            closed: AtomicBool::new(false),
-            operation_lock: parking_lot::Mutex::new(()),
-            library_path: PathBuf::from("test-runtime"),
-        };
-
-        shared.close();
-
-        assert!(TEST_CLOSE_CALLS.load(Ordering::SeqCst) >= 1);
-        assert_eq!(TEST_SHUTDOWN_CALLS.load(Ordering::SeqCst), 0);
-        assert_eq!(shared.connection_id.load(Ordering::SeqCst), 0);
-        assert!(shared.callback_state.load(Ordering::SeqCst).is_null());
-
-        assert!(matches!(
-            rx.try_recv(),
-            Err(mpsc::error::TryRecvError::Empty)
-        ));
-
-        TEST_ALLOW_CLOSE.store(true, Ordering::SeqCst);
-        let deadline = Instant::now() + Duration::from_secs(5);
-        while Instant::now() < deadline && TEST_SHUTDOWN_CALLS.load(Ordering::SeqCst) == 0 {
-            std::thread::sleep(Duration::from_millis(10));
-        }
-
-        assert!(TEST_CLOSE_CALLS.load(Ordering::SeqCst) >= 2);
-        assert_eq!(TEST_SHUTDOWN_CALLS.load(Ordering::SeqCst), 1);
-        assert!(matches!(
-            rx.try_recv(),
-            Err(mpsc::error::TryRecvError::Disconnected)
-        ));
-
-        let close_calls_after_cleanup = TEST_CLOSE_CALLS.load(Ordering::SeqCst);
-        shared.close();
-        assert_eq!(
-            TEST_CLOSE_CALLS.load(Ordering::SeqCst),
-            close_calls_after_cleanup
-        );
-        assert_eq!(TEST_SHUTDOWN_CALLS.load(Ordering::SeqCst), 1);
-    }
-}
+#[cfg(test)]
+mod shutdown_tests;

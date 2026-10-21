@@ -28,7 +28,7 @@ func TestModeHandlersE2E(t *testing.T) {
 	if err := ctx.SetCopilotUserByToken(modeHandlerToken, map[string]interface{}{
 		"login":                 "mode-handler-user",
 		"copilot_plan":          "individual_pro",
-		"endpoints":             map[string]interface{}{"api": ctx.ProxyURL, "telemetry": "https://localhost:1/telemetry"},
+		"endpoints":             map[string]interface{}{"api": ctx.ProxyURL, "telemetry": "https://sdk-hydro-collector.example.com"},
 		"analytics_tracking_id": "mode-handler-tracking-id",
 	}); err != nil {
 		t.Fatalf("Failed to set copilot user for mode handler test: %v", err)

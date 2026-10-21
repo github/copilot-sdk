@@ -40,6 +40,12 @@ public record InstalledPluginInfo(
     /** The enabled state required by enterprise managed settings, when this plugin spec is managed. */
     @JsonProperty("managedDesiredEnabled") Boolean managedDesiredEnabled,
     /** Whether the managed desired plugin currently has an installed or live record. Set to false for a managed desired entry retained in the listing after installation or reconciliation failed. */
-    @JsonProperty("installed") Boolean installed
+    @JsonProperty("installed") Boolean installed,
+    /** Description from the manifest of the installed copy. Present only for a direct install pinned to one GitHub commit, such as a verified install from GitHub. */
+    @JsonProperty("description") String description,
+    /** The GitHub repository and commit a direct install is pinned to, from its install record. Present only for a direct install pinned to one GitHub commit, such as a verified install from GitHub; absent for marketplace, local and unpinned installs. */
+    @JsonProperty("verifiedSource") InstalledPluginVerifiedSource verifiedSource,
+    /** HTTPS URL of the plugin's icon on raw.githubusercontent.com, retained from the catalogue entry it was installed from. Untrusted external content: load it without credentials. Present only for a direct install pinned to one GitHub commit whose catalogue entry had an icon. */
+    @JsonProperty("iconUrl") String iconUrl
 ) {
 }

@@ -31,6 +31,8 @@ public record AccountStatus(
     @JsonProperty("login") String login,
     /** The provider kind of this account. */
     @JsonProperty("kind") AccountKind kind,
+    /** Human-readable credential source used to authenticate this account, such as `gh` or `GITHUB_TOKEN`. */
+    @JsonProperty("authSource") String authSource,
     /** Opaque id of the account this one was derived from (e.g. an EMU account's base Entra identity); absent for a root account. Matches the base identity account's selectionId, forming the derivation edge. */
     @JsonProperty("derivedFrom") String derivedFrom,
     /** Whether this is the active account. */

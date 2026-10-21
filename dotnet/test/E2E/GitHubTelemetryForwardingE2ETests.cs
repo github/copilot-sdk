@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-using System.Collections.Concurrent;
 using GitHub.Copilot.Rpc;
 using GitHub.Copilot.Test.Harness;
 using Xunit;
@@ -21,13 +20,13 @@ public class GitHubTelemetryForwardingE2ETests(E2ETestFixture fixture, ITestOutp
     [Fact]
     public async Task Should_Forward_GitHub_Telemetry_For_A_Live_Session()
     {
-        var notifications = new ConcurrentQueue<GitHubTelemetryNotification>();
+        var notificationReceived = new TaskCompletionSource<GitHubTelemetryNotification>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         await using var client = Ctx.CreateClient(options: new CopilotClientOptions
         {
             OnGitHubTelemetry = notification =>
             {
-                notifications.Enqueue(notification);
+                notificationReceived.TrySetResult(notification);
                 return Task.CompletedTask;
             },
         });
@@ -40,12 +39,7 @@ public class GitHubTelemetryForwardingE2ETests(E2ETestFixture fixture, ITestOutp
                 OnPermissionRequest = PermissionHandler.ApproveAll,
             });
 
-            await TestHelper.WaitForConditionAsync(
-                () => !notifications.IsEmpty,
-                timeout: TimeSpan.FromSeconds(30),
-                timeoutMessage: "Timed out waiting for GitHub telemetry notification.");
-
-            Assert.True(notifications.TryPeek(out var notification));
+            var notification = await notificationReceived.Task.WaitAsync(TimeSpan.FromSeconds(30));
             Assert.False(string.IsNullOrEmpty(notification.SessionId));
             Assert.NotNull(notification.Event);
             Assert.NotEmpty(notification.Event.Kind);

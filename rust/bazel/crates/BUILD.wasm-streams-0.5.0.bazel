@@ -61,9 +61,9 @@ rust_library(
     version = "0.5.0",
     deps = [
         "@sdk_vendor__futures-util-0.3.34//:futures_util",
-        "@sdk_vendor__js-sys-0.3.105//:js_sys",
-        "@sdk_vendor__wasm-bindgen-0.2.128//:wasm_bindgen",
-        "@sdk_vendor__wasm-bindgen-futures-0.4.78//:wasm_bindgen_futures",
-        "@sdk_vendor__web-sys-0.3.105//:web_sys",
+        "@sdk_vendor__js-sys-0.3.106//:js_sys",
+        "@sdk_vendor__wasm-bindgen-0.2.129//:wasm_bindgen",
+        "@sdk_vendor__wasm-bindgen-futures-0.4.79//:wasm_bindgen_futures",
+        "@sdk_vendor__web-sys-0.3.106//:web_sys",
     ],
 )

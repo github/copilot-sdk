@@ -13,6 +13,7 @@ import type { CopilotRequestHandler } from "./copilotRequestHandler.js";
 import type { InstallationConfirmationHandler } from "./installationConfirmation.js";
 export type { InstallationConfirmationHandler } from "./installationConfirmation.js";
 import type {
+    AgentModelPolicy,
     AttachmentExtensionContext as GeneratedExtensionContextAttachment,
     AutoTier,
     PermissionRequest as GeneratedPermissionRequest,
@@ -26,20 +27,26 @@ import type { CopilotSession } from "./session.js";
 import type { JsonValue } from "./workflow.js";
 import type {
     ExtensionLaunchProviderHandler as GeneratedExtensionLaunchProvider,
+    AutopilotOptions,
     GitHubTokenAcquireRequest,
     GitHubTokenAcquireResult,
     GitHubTelemetryNotification,
     ModelBillingTokenPrices,
     DiagnosticsConfiguration,
     OpenCanvasInstance,
+    ProtocolExternalToolNamespace,
     RemoteSessionMode,
     CurrentToolMetadata,
+    SandboxConfig,
 } from "./generated/rpc.js";
 import type { ToolSet } from "./toolSet.js";
 export type { RemoteSessionMode } from "./generated/rpc.js";
+export type { AutopilotOptions } from "./generated/rpc.js";
 export type { CurrentToolMetadata } from "./generated/rpc.js";
-export type { SandboxConfigSource } from "./generated/rpc.js";
+export type { SandboxConfig, SandboxConfigSource } from "./generated/rpc.js";
 export type {
+    AuthIdentityMetadata,
+    AuthInfoType,
     ConnectorAccountRequest,
     ConnectorAvailability,
     ConnectorCapabilities,
@@ -53,6 +60,8 @@ export type {
     ConnectorMcpStatus,
     ConnectorReconcileRequest,
     ConnectorRuntimeStatus,
+    ConnectorSessionAccount,
+    ConnectorSessionAccountResult,
     ConnectorStatus,
     ExtensionLaunchProfile,
     ExtensionLaunchProviderResolveRequest,
@@ -116,7 +125,10 @@ export type { SessionFsSqliteProvider } from "./sessionFsProvider.js";
 export type { SessionFsSqliteStatement } from "./sessionFsProvider.js";
 export type { SessionFsSqliteTransactionErrorClass } from "./sessionFsProvider.js";
 export { SessionFsSqliteTransactionFailure } from "./sessionFsProvider.js";
+export { SessionFsWriteFailure } from "./sessionFsProvider.js";
 export type { LlmInferenceHeaders } from "./generated/rpc.js";
+import type { SkillProviderDescriptor } from "./generated/rpc.js";
+export type { SkillProviderDescriptor };
 export type {
     PermissionDecisionContext,
     PermissionDecisionOutcome,
@@ -226,6 +238,19 @@ export interface StdioRuntimeConnection extends ChildProcessRuntimeConnection {
  */
 export interface InProcessRuntimeConnection {
     readonly kind: "inprocess";
+    /**
+     * Schedule the supplied native action exactly once on the host's UI thread
+     * (the process main thread on macOS), completing only after it returns.
+     * The action can block while native UI is open. No authentication data crosses
+     * this callback. Other in-process clients can share this process-wide capability.
+     *
+     * Required for OneAuth interactive authentication on macOS. This general-purpose
+     * scheduler may also be used for other runtime-owned native UI operations.
+     * Temporary OneAuth workaround; this API may be removed if no longer needed.
+     * See https://github.com/github/copilot-agent-runtime/issues/27032.
+     * @experimental
+     */
+    readonly runOnUiThread?: (action: () => void) => void | Promise<void>;
 }
 
 /**
@@ -309,8 +334,10 @@ export const RuntimeConnection = {
      * corresponding environment variables on the host process instead. See
      * https://github.com/github/copilot-sdk/issues/1934.
      */
-    forInProcess(): InProcessRuntimeConnection {
-        return { kind: "inprocess" };
+    forInProcess(
+        options: Pick<InProcessRuntimeConnection, "runOnUiThread"> = {}
+    ): InProcessRuntimeConnection {
+        return { kind: "inprocess", ...options };
     },
 } as const;
 
@@ -741,6 +768,24 @@ export interface ToolInvocation {
     tracestate?: string;
     /** Aborted when the runtime completes this request or the session disconnects. */
     signal?: AbortSignal;
+    /**
+     * Sub-agent instance that issued this call (the `agentId` of its session
+     * events). `undefined` for a root-agent call, and for every call when the
+     * runtime does not attribute sub-agent tool calls.
+     *
+     * @experimental
+     */
+    agentId?: string;
+    /**
+     * Runtime request id of this call: the key
+     * `session.tools.handlePendingToolCall` and `session.tools.listPendingRequests`
+     * use. A root-agent call stays answerable after the session is resumed with
+     * pending work continued; a sub-agent's call can be answered only while that
+     * sub-agent is still running.
+     *
+     * @experimental
+     */
+    requestId?: string;
 }
 
 export type ToolHandler<TArgs = unknown> = (
@@ -816,7 +861,30 @@ export interface Tool<TArgs = unknown> {
      * continue from.
      */
     isTerminal?: boolean;
+    /**
+     * Groups this tool with related tools for model tool discovery.
+     *
+     * On models and providers that support native tool namespaces, deferred
+     * tools sharing a namespace are presented to the model as one group with
+     * this name and description, like the tools of an MCP server. Elsewhere,
+     * and for tools that are always loaded, the tool stays a flat function.
+     * The tool keeps its own name, so calls still reach this tool's handler
+     * by name.
+     *
+     * @experimental
+     */
+    namespace?: ToolNamespace;
 }
+
+/**
+ * A namespace that groups related {@link Tool}s for model tool discovery.
+ * Tools sharing a name share a namespace. An invalid namespace is reported as a
+ * session warning and the tool is presented without it; a missing description
+ * defaults to a generic description of the namespace.
+ *
+ * @experimental
+ */
+export type ToolNamespace = ProtocolExternalToolNamespace;
 
 /**
  * Helper to define a tool with Zod schema and get type inference for the handler.
@@ -833,9 +901,32 @@ export function defineTool<T = unknown>(
         defer?: "auto" | "never";
         metadata?: Record<string, unknown>;
         isTerminal?: boolean;
+        namespace?: ToolNamespace;
     }
 ): Tool<T> {
     return { name, ...config };
+}
+
+/**
+ * Non-persisted opt-in to image generation.
+ * @experimental This API may change or be removed in a future release.
+ */
+export interface ImageGenerationConfig {
+    /**
+     * Opt in to image generation through an authorized Copilot image model.
+     * False disables it; omission defaults to disabled on create/cold resume and
+     * preserves the setting on resident resume. Not persisted: re-supply after
+     * runtime restart. Policy, permissions, offline mode, and tool filters still
+     * apply. BYOK image generation is not supported.
+     */
+    enabled?: boolean;
+    /**
+     * Request a visible "Made with AI" label on generated and edited images.
+     * Overrides the user's imageGenerationWatermark preference, which defaults
+     * to false. Re-supply after cold resume. Does not enable image generation
+     * or enforce enterprise policy.
+     */
+    watermark?: boolean;
 }
 
 /**
@@ -1152,11 +1243,11 @@ export const SYSTEM_MESSAGE_SECTIONS: Record<SystemMessageSection, { description
     custom_instructions: { description: "Repository and organization custom instructions" },
     runtime_instructions: {
         description:
-            "Runtime-provided context and instructions (e.g. system notifications, memories, workspace context, mode-specific instructions, content-exclusion policy)",
+            "Runtime-provided system-prompt context and instructions, such as system notifications, memories, workspace context, and content-exclusion policy. Mode-specific instructions can travel in transition messages instead.",
     },
     last_instructions: {
         description:
-            "End-of-prompt instructions: parallel tool calling, persistence, task completion",
+            "End-of-prompt instructions: parallel tool calling, persistence, task completion, and configured subagent-model guidance when the task tool is available",
     },
 };
 
@@ -1232,6 +1323,8 @@ export interface SystemMessageReplaceConfig {
 /**
  * Customize mode: Override individual sections of the system prompt.
  * Keeps the SDK-managed prompt structure while allowing targeted modifications.
+ * The `last_instructions` section includes configured subagent-model guidance.
+ * Its overrides and transforms control that prose, not runtime model selection or tool availability.
  */
 export interface SystemMessageCustomizeConfig {
     mode: "customize";
@@ -1269,10 +1362,11 @@ import type { PermissionDecisionRequest, PermissionDecisionContext } from "./gen
  * access the variant-specific fields (e.g. shell `commands`, write
  * `fileName`/`diff`, mcp `toolName`/`args`).
  *
- * `managedApprovalRequired` indicates that managed policy requires an explicit
- * user decision. Hosts should bypass automatic approval and present their
- * normal confirmation UI. The runtime currently emits it for managed Shell,
- * Read, Edit, and Domain selector asks.
+ * On the raw `permissionRequest`, `managedApprovalRequired` preserves managed
+ * policy provenance and one-shot restrictions. To determine whether a human
+ * response is still required, hosts should prefer
+ * `event.data.promptRequest?.managedApprovalRequired` when `promptRequest` is
+ * present, and fall back to the raw marker for older runtimes.
  */
 export type PermissionRequest = GeneratedPermissionRequest & {
     readonly managedApprovalRequired?: boolean;
@@ -1335,9 +1429,26 @@ export function createAttributedPermissionResult(
     return { kind: "attributed", result: inner, decisionContext };
 }
 
+/**
+ * Context supplied with a permission request callback.
+ */
+export interface PermissionHandlerInvocation {
+    sessionId: string;
+    managedSettingsEnabled?: boolean;
+    /**
+     * Derived user-facing prompt context when supplied by the runtime.
+     *
+     * Managed requests retain their raw `managedApprovalRequired` marker. Only
+     * standard prompt kinds (`commands`, `read`, `write`, `url`, and
+     * `workflow`) can clear that human requirement after Assisted approval.
+     * For missing or other prompt kinds, keep the raw marker authoritative.
+     */
+    promptRequest?: PermissionRequestedData["promptRequest"];
+}
+
 export type PermissionHandler = (
     request: PermissionRequest,
-    invocation: { sessionId: string; managedSettingsEnabled?: boolean }
+    invocation: PermissionHandlerInvocation
 ) =>
     | Promise<PermissionRequestResult | AttributedPermissionResult>
     | PermissionRequestResult
@@ -1477,8 +1588,15 @@ export type AutoModeSwitchHandler = (
  * Base interface for all hook inputs
  */
 export interface BaseHookInput {
-    /** The runtime session ID of the session that triggered the hook.
-     * For sub-agent hooks this differs from `invocation.sessionId`. */
+    /** Subagent actor ID, absent for root hooks and older runtimes. */
+    agentId?: string;
+    /** Subagent type, when known by the runtime. */
+    agentType?: string;
+    /** Immediate parent actor ID, when available. */
+    parentAgentId?: string;
+    /** The runtime session ID associated with the hook. Child tool hooks use
+     * the child session ID; sub-agent lifecycle hooks use the parent session ID,
+     * matching `invocation.sessionId`. */
     sessionId: string;
     /** Time at which the hook event was emitted by the runtime. */
     timestamp: Date;
@@ -1629,6 +1747,14 @@ export interface UserPromptSubmittedHookOutput {
     modifiedPrompt?: string;
     additionalContext?: string;
     suppressOutput?: boolean;
+    /**
+     * `"block"` refuses the prompt: no model turn runs, no user message is
+     * recorded, and the session emits an ephemeral `session.warning`
+     * (`warningType: "policy_blocked"`) carrying {@link reason}.
+     */
+    decision?: "block";
+    /** Why the prompt was blocked, carried by the `session.warning`. */
+    reason?: string;
 }
 
 /**
@@ -1787,6 +1913,56 @@ export type AgentStopHandler = (
 ) => Promise<AgentStopHookOutput | void> | AgentStopHookOutput | void;
 
 /**
+ * Input for the hook fired before a sub-agent's first turn.
+ *
+ * The session metadata belongs to the parent session, not the child.
+ */
+export interface SubagentStartHookInput extends BaseHookInput {
+    transcriptPath: string;
+    agentName: string;
+    agentDisplayName?: string;
+    agentDescription?: string;
+}
+
+/** Output for the sub-agent start hook. Context is prepended to the child's initial prompt. */
+export interface SubagentStartHookOutput {
+    additionalContext?: string;
+}
+
+/** Handler for the sub-agent start hook. */
+export type SubagentStartHandler = (
+    input: SubagentStartHookInput,
+    invocation: { sessionId: string }
+) => Promise<SubagentStartHookOutput | void> | SubagentStartHookOutput | void;
+
+/**
+ * Input for the hook fired after a sub-agent completes a turn.
+ *
+ * The response is the child's last assistant message before any hook rewrite.
+ */
+export interface SubagentStopHookInput extends SubagentStartHookInput {
+    agentId?: string;
+    agentType: string;
+    stopReason: "end_turn";
+    response: string;
+}
+
+/**
+ * Output for the sub-agent stop hook. `"block"` with a nonempty `reason` continues
+ * the child; otherwise `modifiedResponse` replaces the response reported to the parent.
+ * When both are supplied, a valid block takes precedence over the rewrite.
+ */
+export type SubagentStopHookOutput =
+    | { decision: "block"; reason: string; modifiedResponse?: string }
+    | { decision?: "allow"; reason?: never; modifiedResponse?: string };
+
+/** Handler for the sub-agent stop hook. */
+export type SubagentStopHandler = (
+    input: SubagentStopHookInput,
+    invocation: { sessionId: string }
+) => Promise<SubagentStopHookOutput | void> | SubagentStopHookOutput | void;
+
+/**
  * Configuration for session hooks
  */
 export interface SessionHooks {
@@ -1851,6 +2027,15 @@ export interface SessionHooks {
      * agent stop.
      */
     onAgentStop?: AgentStopHandler;
+
+    /** Called before a sub-agent's first turn. Return context to prepend to its prompt. */
+    onSubagentStart?: SubagentStartHandler;
+
+    /**
+     * Called after a sub-agent completes a turn. Return a block reason to
+     * continue the child, or a replacement response to report to the parent.
+     */
+    onSubagentStop?: SubagentStopHandler;
 }
 
 // ============================================================================
@@ -1923,6 +2108,8 @@ export type MCPServerConfig = MCPStdioServerConfig | MCPHTTPServerConfig;
  * Configuration for a custom agent.
  */
 export interface CustomAgentConfig {
+    /** Declarative hook actions keyed by event name, active only for this agent. */
+    hooks?: Record<string, Record<string, unknown>[]>;
     /**
      * Unique name of the custom agent.
      */
@@ -1964,9 +2151,15 @@ export interface CustomAgentConfig {
     /**
      * Model identifier for this agent (e.g. "claude-haiku-4.5").
      * When set, the runtime will attempt to use this model for the agent,
-     * falling back to the parent session model if unavailable.
+     * falling back to the parent session model if unavailable unless
+     * `modelPolicy` is `"required"`.
      */
     model?: string;
+    /**
+     * Whether the authored model is a preference or a requirement for this agent.
+     * Defaults to `"preferred"` when omitted.
+     */
+    modelPolicy?: AgentModelPolicy;
     /**
      * Reasoning effort level for this agent's model.
      * When omitted, the runtime resolves the effort from model configuration,
@@ -2026,6 +2219,12 @@ export interface MemoryConfiguration {
      * Whether the memory feature is enabled for this session.
      */
     enabled: boolean;
+    /**
+     * "system-prompt" (default) places memories in the system prompt.
+     * "user-prompt" places memories in generated user-role messages.
+     * @experimental This option may change or be removed in a future release.
+     */
+    mode?: "system-prompt" | "user-prompt";
 }
 
 /**
@@ -2065,6 +2264,11 @@ export type ReasoningEffort = "low" | "medium" | "high" | "xhigh" | "max";
  */
 export type ContextTier = "default" | "long_context";
 
+/**
+ * Scope of a working-directory trust grant made during session creation.
+ */
+export type WorkingDirectoryTrust = "session" | "user";
+
 /** Parsed parameters from an MCP server's WWW-Authenticate response. */
 export interface McpAuthWwwAuthenticateParams {
     /** Parsed resource_metadata URL used for protected-resource metadata discovery, if present. */
@@ -2099,6 +2303,8 @@ export interface McpAuthRequest {
     serverUrl: string;
     /** Why the runtime is requesting host-provided OAuth credentials. */
     reason: "initial" | "refresh" | "reauth" | "upscope";
+    /** Whether this Refresh request supports noninteractive runtime handoff. Missing means false. */
+    runtimeRefreshSupported?: boolean;
     /** Parsed WWW-Authenticate parameters from the MCP server. */
     wwwAuthenticateParams?: McpAuthWwwAuthenticateParams;
     /** Raw RFC 9728 protected-resource metadata JSON fetched by the runtime, if available. */
@@ -2122,9 +2328,13 @@ export interface McpAuthToken {
  *
  * Return `null`/`undefined` or `{ kind: "cancelled" }` to cancel the pending
  * OAuth request. Return `{ kind: "token", ... }` to provide host-acquired
- * OAuth token data.
+ * OAuth token data. Return `{ kind: "runtimeRefresh" }` only for a Refresh
+ * request advertising `runtimeRefreshSupported`; acceptance is not reconnect completion.
  */
-export type McpAuthResult = ({ kind: "token" } & McpAuthToken) | { kind: "cancelled" };
+export type McpAuthResult =
+    | ({ kind: "token" } & McpAuthToken)
+    | { kind: "cancelled" }
+    | { kind: "runtimeRefresh" };
 
 /** Callback invoked when an MCP server requires OAuth and the SDK host opted in. */
 export type McpAuthHandler = (
@@ -2280,6 +2490,11 @@ export interface ManagedSettingsPermissions {
      * values are forwarded so newer runtime policies fail closed.
      */
     disableBypassPermissionsMode?: string;
+    /**
+     * When true, prevents Assisted Permissions from being activated. Omit or
+     * set to false to impose no restriction.
+     */
+    disableAssistedPermissionsMode?: boolean;
     /** Operations that must always be denied. Unioned across managed layers. */
     deny?: string[];
     /**
@@ -2291,6 +2506,13 @@ export interface ManagedSettingsPermissions {
      * (across managed layers) must admit an operation for it to be allowed.
      */
     allow?: string[];
+    /**
+     * Closed-world host boundary expressed as `Domain(hostname)`, `Domain(IP)`,
+     * or `Domain(*.example.com)` rules. Schemes, ports, paths, queries, and
+     * fragments are rejected. Multiple managed layers intersect their lists;
+     * an empty list denies all hosts.
+     */
+    limitTo?: string[];
 }
 
 /**
@@ -2306,6 +2528,65 @@ export interface ManagedSettings {
 
 /** Selects the model-facing shape of the built-in `ask_user` tool. */
 export type AskUserVariant = "legacy" | "elicitation";
+
+/**
+ * Supplies session-scoped skills from the host's own storage, such as a
+ * database, instead of `SKILL.md` files on disk.
+ *
+ * The runtime calls {@link SkillProvider.listSkills} when it builds the
+ * session's skill catalog, and {@link SkillProvider.readSkill} each time it
+ * needs a skill's instructions: when the model loads the skill through the
+ * `skill` tool, when a user runs `/skill-name`, or when a custom agent lists
+ * the skill. Calls may run concurrently, including on behalf of sub-agents, and
+ * each call must finish within 30 seconds. Errors thrown by a provider are
+ * never shown to the model.
+ *
+ * Supply a provider with {@link SessionConfigBase.skillProvider}. Providers
+ * aren't supported for cloud sessions.
+ *
+ * @experimental Session-scoped skill providers are experimental and may change
+ * or be removed in future SDK or CLI releases.
+ */
+export interface SkillProvider {
+    /**
+     * Returns catalog metadata for every skill the provider supplies. The
+     * descriptors are authoritative: names must be unique ignoring case, and
+     * the runtime validates their limits.
+     */
+    listSkills(
+        options: SkillProviderCallOptions
+    ): SkillProviderDescriptor[] | Promise<SkillProviderDescriptor[]>;
+
+    /**
+     * Returns the `SKILL.md` text for the named skill, or `null`/`undefined`
+     * when the skill no longer exists.
+     *
+     * YAML frontmatter is optional. Fields it omits come from the skill's
+     * descriptor, fields it declares must match the descriptor, and
+     * `allowed-tools` can only be set there. Text whose first line is `---` is
+     * parsed as frontmatter.
+     *
+     * @param name - The skill's name, as listed by {@link SkillProvider.listSkills}.
+     */
+    readSkill(
+        name: string,
+        options: SkillProviderCallOptions
+    ): string | null | undefined | Promise<string | null | undefined>;
+}
+
+/**
+ * Per-call options passed to {@link SkillProvider} methods.
+ *
+ * @experimental Session-scoped skill providers are experimental and may change
+ * or be removed in future SDK or CLI releases.
+ */
+export interface SkillProviderCallOptions {
+    /**
+     * Aborted when the runtime cancels the call, for example when it times out
+     * or the session disconnects. The runtime ignores any later result.
+     */
+    signal: AbortSignal;
+}
 
 /**
  * Shared configuration fields used by both {@link SessionConfig} (for
@@ -2471,6 +2752,12 @@ export interface SessionConfigBase {
     toolSearch?: ToolSearchConfig;
 
     /**
+     * Image generation opt-in. Re-supply after runtime restart.
+     * @experimental This API may change or be removed in a future release.
+     */
+    imageGeneration?: ImageGenerationConfig;
+
+    /**
      * List of tool names to allow. When specified, only these tools will be available.
      *
      * Supports source-qualified filter patterns (`builtin:*`, `builtin:<name>`,
@@ -2577,6 +2864,15 @@ export interface SessionConfigBase {
      * @experimental
      */
     sessionLimits?: SessionLimitsConfig;
+
+    /**
+     * Autopilot policy. Omitted fields preserve resident values on warm resume;
+     * new sessions default to continuation enabled and at most five continuations.
+     * Does not change the session mode. Re-supply on cold resume.
+     *
+     * @experimental
+     */
+    autopilot?: AutopilotOptions;
 
     /**
      * When true, the runtime skips loading custom-instruction sources
@@ -2781,9 +3077,51 @@ export interface SessionConfigBase {
     agent?: string;
 
     /**
-     * Directories to load skills from.
+     * Explicit discovery-only skill roots. No general filesystem access is granted.
+     * Available without `enableConfigDiscovery`; skill and managed disables still apply.
+     * Relative paths resolve once when supplied against the request's effective
+     * `workingDirectory`, and retained roots do not move when it changes.
+     * Null and omission are equivalent; `[]` clears only the explicit SDK contribution.
      */
     skillDirectories?: string[];
+
+    /**
+     * Supplies skills from the host's own storage instead of `SKILL.md` files on
+     * disk. Provider skills join the session's skill catalog alongside file-based
+     * skills. See {@link SkillProvider}.
+     *
+     * Supplying a provider enables skills unless `enableSkills` is set explicitly,
+     * so set `enableSkills: true` when the client runs in `"empty"` mode. With
+     * `enableSkills: false` the provider stays bound but receives no calls.
+     *
+     * The provider isn't persisted. Pass it again when resuming the session;
+     * resuming without one removes the provider's skills.
+     *
+     * @experimental Session-scoped skill providers are experimental and may change
+     * or be removed in future SDK or CLI releases.
+     */
+    skillProvider?: SkillProvider;
+
+    /**
+     * Explicit discovery-only agent roots, separate from `customAgents` objects.
+     * No general filesystem access is granted. Available without `enableConfigDiscovery`;
+     * source and managed disables still apply.
+     * Relative paths resolve once when supplied against the request's effective
+     * `workingDirectory`, and retained roots do not move when it changes.
+     * Null and omission are equivalent; `[]` clears only the explicit SDK contribution.
+     */
+    agentDirectories?: string[];
+
+    /**
+     * Explicit discovery-only file-hook roots, separate from callback `hooks`.
+     * No general filesystem access is granted. Available without `enableConfigDiscovery`
+     * or `enableFileHooks` (which controls repository-origin hooks only);
+     * hook and managed disables still apply.
+     * Relative paths resolve once when supplied against the request's effective
+     * `workingDirectory`, and retained roots do not move when it changes.
+     * Null and omission are equivalent; `[]` clears only the explicit SDK contribution.
+     */
+    hookDirectories?: string[];
 
     /**
      * Local filesystem paths to Open Plugins-format directories
@@ -2801,7 +3139,12 @@ export interface SessionConfigBase {
     pluginDirectories?: string[];
 
     /**
-     * Additional directories to search for custom instruction files.
+     * Explicit discovery-only instruction roots using the existing SDK instruction formats.
+     * No general filesystem access is granted. Available without `enableConfigDiscovery`;
+     * instruction and managed disables still apply.
+     * Relative paths resolve once when supplied against the request's effective
+     * `workingDirectory`, and retained roots do not move when it changes.
+     * Null and omission are equivalent; `[]` clears only the explicit SDK contribution.
      */
     instructionDirectories?: string[];
 
@@ -2816,6 +3159,15 @@ export interface SessionConfigBase {
      * this on a resident resume cannot stop servers that are already running.
      */
     disabledMcpServers?: string[];
+
+    /**
+     * Sandbox configuration applied before MCP servers or session tools start.
+     * Uses the same direct-host semantics and managed-policy validation as
+     * `session.rpc.options.update({ sandboxConfig })`. A policy conflict fails
+     * create or resume; an identical later update does not restart MCP servers.
+     * Re-supply on cold resume. Requires runtime-version support.
+     */
+    sandboxConfig?: SandboxConfig;
 
     /**
      * Infinite session configuration for persistent workspaces and automatic compaction.
@@ -2858,6 +3210,21 @@ export interface SessionConfigBase {
      * if omitted, the runtime is expected to reject session creation (fail-closed).
      */
     enableManagedSettings?: boolean;
+
+    /**
+     * When true, locked managed model controls are enforced for this session.
+     * Conflicting model changes are rejected, and locked startup values replace
+     * conflicting session options. Overridable managed defaults remain mutable.
+     */
+    enforceManagedModelDefaults?: boolean;
+
+    /**
+     * Declares that a human drives this session's conversation, enabling
+     * user-message analysis telemetry for user-authored messages. Automated
+     * messages remain excluded. Defaults to false for SDK sessions; ignored
+     * for cloud sessions and when resuming a session that is already active.
+     */
+    interactiveUser?: boolean;
 
     /**
      * Host-injected enterprise managed settings for this session.
@@ -2912,9 +3279,9 @@ export interface SessionConfigBase {
     enableOnDemandInstructionDiscovery?: boolean;
 
     /**
-     * When true, enables loading of file-based hooks from `.github/hooks/`.
-     * This is separate from the `hooks` callback parameter which gates SDK
-     * hook event registration.
+     * When true, enables repository-origin file hooks from `.github/hooks/` and
+     * trusted repository-configured roots. Does not control explicit `hookDirectories`
+     * or the `hooks` callback parameter.
      */
     enableFileHooks?: boolean;
 
@@ -2995,6 +3362,22 @@ export interface SessionConfig extends SessionConfigBase {
     sessionId?: string;
 
     /**
+     * Names the session at creation, as `session.name.set` would, and is validated the
+     * same way: non-empty, no leading or trailing whitespace, at most 100 UTF-16 units,
+     * no control characters, and no double quotes. A name also makes the session persist
+     * from the start, so it can be listed and resumed without ever running a turn.
+     * Local sessions only: cloud creation rejects it.
+     */
+    name?: string;
+
+    /**
+     * Grants trust to the canonical working directory during session creation.
+     * "session" applies only to this session; "user" persists the grant for later
+     * sessions. Omit to leave directory trust unchanged. Not available on resume.
+     */
+    trustWorkingDirectory?: WorkingDirectoryTrust;
+
+    /**
      * Invalidates the process-wide custom-instruction discovery cache before
      * creating this session. Use when instruction files changed in the same runtime.
      * Other sessions in this runtime may observe updated instructions on later turns
@@ -3016,6 +3399,11 @@ export interface SessionConfig extends SessionConfigBase {
  */
 export interface ResumeSessionConfig extends SessionConfigBase {
     /**
+     * Allow the runtime to recover a damaged transcript during resume.
+     * Defaults to true in all modes. Set false to reject recovery.
+     */
+    allowTranscriptRecovery?: boolean;
+    /**
      * When true, skips emitting the session.resume event.
      * Useful for reconnecting to a session without triggering resume-related side effects.
      * @default false
@@ -3024,7 +3412,8 @@ export interface ResumeSessionConfig extends SessionConfigBase {
     /**
      * When true, the runtime continues any tool calls or permission prompts that were
      * still pending when the session was last suspended. When false (the default), the
-     * runtime treats pending work as interrupted on resume.
+     * runtime treats pending work as interrupted on resume. Completed tool results
+     * already durably recorded by the runtime are preserved.
      *
      * For permission requests, the runtime re-emits `permission.requested` so the
      * registered `onPermissionRequest` handler can re-prompt; for external tool calls,
@@ -3039,6 +3428,16 @@ export interface ResumeSessionConfig extends SessionConfigBase {
      * do not need to re-open canvases that were active before the previous shutdown.
      */
     openCanvases?: OpenCanvasInstance[];
+}
+
+/** Transcript repair proposed during the most recent resume. */
+export interface TranscriptRecovery {
+    /** Planned backup path; the backup is written on the next append. */
+    plannedBackupPath: string;
+    /** One-based physical line numbers removed from the transcript. */
+    invalidLineNumbers: number[];
+    /** Whether an existing session.start event was moved to the beginning. */
+    sessionStartMoved: boolean;
 }
 
 /**
@@ -3097,6 +3496,20 @@ export interface ProviderTokenArgs {
 export type BearerTokenProvider = (args: ProviderTokenArgs) => Promise<string>;
 
 /**
+ * Product serving a configured provider's model. Allowed values are
+ * "openai", "anthropic", "azure_openai", "ollama", "lm_studio",
+ * "foundry_local", and "llama_cpp".
+ */
+export type ProviderConfigModelProvider =
+    | "openai"
+    | "anthropic"
+    | "azure_openai"
+    | "ollama"
+    | "lm_studio"
+    | "foundry_local"
+    | "llama_cpp";
+
+/**
  * Configuration for a custom API provider.
  */
 export interface ProviderConfig {
@@ -3122,6 +3535,12 @@ export interface ProviderConfig {
     transport?: "http" | "websockets";
 
     /**
+     * Product serving the model, such as "ollama" or "lm_studio", reported in
+     * telemetry as `model_provider`. Only affects telemetry.
+     */
+    modelProvider?: ProviderConfigModelProvider;
+
+    /**
      * API endpoint URL
      */
     baseUrl: string;
@@ -3130,6 +3549,13 @@ export interface ProviderConfig {
      * API key. Optional for local providers like Ollama.
      */
     apiKey?: string;
+
+    /**
+     * Command run by the runtime before each provider request to obtain a fresh API key.
+     * Command failures fail the turn before sending a model request.
+     * Bearer authentication takes precedence; use {@link apiKey} for a static key.
+     */
+    apiKeyCommand?: string;
 
     /**
      * Bearer token for authentication. Sets the Authorization header directly.
@@ -3143,10 +3569,10 @@ export interface ProviderConfig {
      * When set, the SDK keeps this function client-side (it is never serialized)
      * and the runtime calls back into this client to acquire a token before each
      * outbound request. The runtime does no caching of its own, so the callback
-     * owns token caching and refresh. When set alongside {@link apiKey} /
-     * {@link bearerToken}, this callback takes precedence: the runtime applies
-     * the token it returns as the `Authorization: Bearer` header for each
-     * request and does not send the static credential.
+     * owns token caching and refresh. When set alongside {@link apiKey},
+     * {@link apiKeyCommand}, or {@link bearerToken}, this callback takes precedence:
+     * the runtime applies its token as the `Authorization: Bearer` header for each
+     * request, without sending the static credential or running the command.
      *
      * @experimental
      */
@@ -3226,6 +3652,12 @@ export interface NamedProviderConfig {
      * Wire API format (openai/azure only). Defaults to "completions".
      */
     wireApi?: "completions" | "responses";
+
+    /**
+     * Product serving this provider's models, such as "ollama" or "lm_studio",
+     * reported in telemetry as `model_provider`. Only affects telemetry.
+     */
+    modelProvider?: ProviderConfigModelProvider;
 
     /**
      * API endpoint URL.
@@ -3500,6 +3932,12 @@ export interface SessionFsConfig {
          * @default false
          */
         sqlite?: boolean;
+        /**
+         * Whether this provider supports exact binary reads and writes through readFileBytes and writeFileBytes.
+         * Required to view images stored only in the provider.
+         * @default false
+         */
+        binary?: boolean;
     };
 }
 

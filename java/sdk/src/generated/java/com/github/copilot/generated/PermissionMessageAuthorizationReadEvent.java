@@ -10,12 +10,16 @@ package com.github.copilot.generated;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
  * Session event "permission.messageAuthorizationRead". Historical decode-only extractor progress marker. Current runtimes do not run or resume extraction from it.
+ *
+ * @apiNote This event type is experimental and may change in a future version.
  * @since 1.0.0
  */
+@CopilotExperimental
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
@@ -31,12 +35,15 @@ public final class PermissionMessageAuthorizationReadEvent extends SessionEvent 
     public void setData(PermissionMessageAuthorizationReadEventData data) { this.data = data; }
 
     /** Data payload for {@link PermissionMessageAuthorizationReadEvent}. */
+    @CopilotExperimental
     @JsonIgnoreProperties(ignoreUnknown = true)
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record PermissionMessageAuthorizationReadEventData(
         /** The human turn that was read by the proposer. */
+        @CopilotExperimental
         @JsonProperty("turnIndex") Long turnIndex,
         /** Whether this read activates ongoing message-backed extraction. False for a contextual-assent-only pass while auto-approval is off, so unrelated future messages remain outside extraction. */
+        @CopilotExperimental
         @JsonProperty("activatesExtraction") Boolean activatesExtraction
     ) {
     }

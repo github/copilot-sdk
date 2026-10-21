@@ -31,7 +31,7 @@ public final class SessionMetadataApi {
     }
 
     /**
-     * Identifies the target session.
+     * Returns a snapshot of the session's identifying metadata, mode, agent, and remote info.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -42,7 +42,7 @@ public final class SessionMetadataApi {
     }
 
     /**
-     * Identifies the target session.
+     * Returns the client-owned string metadata persisted with this local session. The metadata is not included in model context, events, telemetry, snapshots, or remote exports.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -53,7 +53,7 @@ public final class SessionMetadataApi {
     }
 
     /**
-     * Atomic patch for client-owned session metadata. Operations apply in clear, remove, then set order. The resulting bag must satisfy the ClientMetadata entry and serialized-size limits. Local storage coordinates concurrent runtime processes; custom SessionFs providers must serialize writers that access the same session from multiple processes.
+     * Atomically patches the client-owned string metadata persisted with this local session and returns the committed bag.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -69,7 +69,7 @@ public final class SessionMetadataApi {
     }
 
     /**
-     * Identifies the target session.
+     * Reports whether the local session is currently processing user/agent messages.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -80,7 +80,7 @@ public final class SessionMetadataApi {
     }
 
     /**
-     * Identifies the target session.
+     * Returns a snapshot of activity flags for the session.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -91,7 +91,7 @@ public final class SessionMetadataApi {
     }
 
     /**
-     * Model identifier and token limits used to compute the context-info breakdown.
+     * Returns the token breakdown for the session's current context window for a given model.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -107,7 +107,7 @@ public final class SessionMetadataApi {
     }
 
     /**
-     * Identifies the target session.
+     * Returns the experimental per-source attribution breakdown of the session's current context window as a flat list of entries (skills, subagents, MCP servers, built-in tools, plugin rollups, system/tool-definition costs, with nesting via parentId), plus the successful compaction count. The heaviest individual messages are available separately via `metadata.getContextHeaviestMessages`. Returns null until the session has initialized its system prompt and tool metadata.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -118,7 +118,7 @@ public final class SessionMetadataApi {
     }
 
     /**
-     * Parameters for the heaviest-messages query.
+     * Returns the largest individual messages currently in the session's context window, most-expensive first. Companion to `metadata.getContextAttribution`. Returns an empty list until the session has initialized.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -134,7 +134,7 @@ public final class SessionMetadataApi {
     }
 
     /**
-     * Updated working-directory/git context to record on the session.
+     * Records a working-directory/git context change and emits a `session.context_changed` event. For a local session, a report whose `cwd` diverges from the session's current working directory is ignored (the call still succeeds but records nothing and emits no event): a local session's working directory is authoritative and is moved via `metadata.setWorkingDirectory` (or an SDK `session.resume` that supplies a `workingDirectory`), not by this method.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -150,7 +150,7 @@ public final class SessionMetadataApi {
     }
 
     /**
-     * Absolute path to set as the session's new working directory. For local sessions the path must be absolute and exist on disk: it is validated before any session state changes, and a failing validation rejects the call with nothing mutated, persisted, or emitted. Remote sessions record the path as-is.
+     * Updates the session's working directory. For local sessions the target is validated first (an absolute path that exists on disk) and the permission primary directory is re-based; a rejected validation fails the call before any session state changes.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -166,7 +166,7 @@ public final class SessionMetadataApi {
     }
 
     /**
-     * Model identifier to use when re-tokenizing the session's existing messages.
+     * Re-tokenizes the session's existing messages against a model and returns aggregate token totals.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.

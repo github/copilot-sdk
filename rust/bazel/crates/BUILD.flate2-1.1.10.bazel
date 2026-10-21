@@ -36,12 +36,10 @@ rust_library(
     ),
     crate_features = [
         "any_impl",
-        "any_zlib",
         "default",
         "miniz_oxide",
         "runtime_detection",
         "rust_backend",
-        "zlib-rs",
     ],
     crate_root = "src/lib.rs",
     edition = "2018",
@@ -71,6 +69,5 @@ rust_library(
     deps = [
         "@sdk_vendor__crc32fast-1.5.2//:crc32fast",
         "@sdk_vendor__miniz_oxide-0.9.1//:miniz_oxide",
-        "@sdk_vendor__zlib-rs-0.6.8//:zlib_rs",
     ],
 )

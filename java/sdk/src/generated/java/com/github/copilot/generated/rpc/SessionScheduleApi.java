@@ -31,7 +31,7 @@ public final class SessionScheduleApi {
     }
 
     /**
-     * Identifies the target session.
+     * Lists the session's currently active scheduled prompts.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -42,29 +42,29 @@ public final class SessionScheduleApi {
     }
 
     /**
-     * Identifies the target session.
+     * Hydrates the native schedule registry from persisted session events.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
     @CopilotExperimental
-    public CompletableFuture<Void> hydrate() {
+    CompletableFuture<Void> hydrate() {
         return caller.invoke("session.schedule.hydrate", java.util.Map.of("sessionId", this.sessionId), Void.class);
     }
 
     /**
-     * Identifies the target session.
+     * Reports whether the session has an active self-paced scheduled prompt.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
     @CopilotExperimental
-    public CompletableFuture<SessionScheduleHasSelfPacedResult> hasSelfPaced() {
-        return caller.invoke("session.schedule.hasSelfPaced", java.util.Map.of("sessionId", this.sessionId), SessionScheduleHasSelfPacedResult.class);
+    CompletableFuture<ScheduleHasSelfPacedResult> hasSelfPaced() {
+        return caller.invoke("session.schedule.hasSelfPaced", java.util.Map.of("sessionId", this.sessionId), ScheduleHasSelfPacedResult.class);
     }
 
     /**
-     * Register a relative-interval scheduled prompt.
+     * Registers a relative-interval scheduled prompt.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -73,14 +73,14 @@ public final class SessionScheduleApi {
      * @since 1.0.0
      */
     @CopilotExperimental
-    public CompletableFuture<SessionScheduleAddResult> add(SessionScheduleAddParams params) {
+    CompletableFuture<ScheduleAddResult> add(SessionScheduleAddParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
-        return caller.invoke("session.schedule.add", _p, SessionScheduleAddResult.class);
+        return caller.invoke("session.schedule.add", _p, ScheduleAddResult.class);
     }
 
     /**
-     * Register a cron scheduled prompt.
+     * Registers a recurring cron scheduled prompt.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -89,14 +89,14 @@ public final class SessionScheduleApi {
      * @since 1.0.0
      */
     @CopilotExperimental
-    public CompletableFuture<SessionScheduleAddCronResult> addCron(SessionScheduleAddCronParams params) {
+    CompletableFuture<ScheduleAddResult> addCron(SessionScheduleAddCronParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
-        return caller.invoke("session.schedule.addCron", _p, SessionScheduleAddCronResult.class);
+        return caller.invoke("session.schedule.addCron", _p, ScheduleAddResult.class);
     }
 
     /**
-     * Register an absolute-time scheduled prompt.
+     * Registers an absolute-time scheduled prompt.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -105,14 +105,14 @@ public final class SessionScheduleApi {
      * @since 1.0.0
      */
     @CopilotExperimental
-    public CompletableFuture<SessionScheduleAddAtResult> addAt(SessionScheduleAddAtParams params) {
+    CompletableFuture<ScheduleAddResult> addAt(SessionScheduleAddAtParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
-        return caller.invoke("session.schedule.addAt", _p, SessionScheduleAddAtResult.class);
+        return caller.invoke("session.schedule.addAt", _p, ScheduleAddResult.class);
     }
 
     /**
-     * Register a self-paced scheduled prompt.
+     * Registers a self-paced scheduled prompt.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -121,14 +121,14 @@ public final class SessionScheduleApi {
      * @since 1.0.0
      */
     @CopilotExperimental
-    public CompletableFuture<SessionScheduleAddSelfPacedResult> addSelfPaced(SessionScheduleAddSelfPacedParams params) {
+    CompletableFuture<ScheduleAddResult> addSelfPaced(SessionScheduleAddSelfPacedParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
-        return caller.invoke("session.schedule.addSelfPaced", _p, SessionScheduleAddSelfPacedResult.class);
+        return caller.invoke("session.schedule.addSelfPaced", _p, ScheduleAddResult.class);
     }
 
     /**
-     * Re-arm a self-paced scheduled prompt.
+     * Re-arms an active self-paced scheduled prompt.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -137,14 +137,14 @@ public final class SessionScheduleApi {
      * @since 1.0.0
      */
     @CopilotExperimental
-    public CompletableFuture<SessionScheduleRearmSelfPacedResult> rearmSelfPaced(SessionScheduleRearmSelfPacedParams params) {
+    CompletableFuture<ScheduleAddResult> rearmSelfPaced(SessionScheduleRearmSelfPacedParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
-        return caller.invoke("session.schedule.rearmSelfPaced", _p, SessionScheduleRearmSelfPacedResult.class);
+        return caller.invoke("session.schedule.rearmSelfPaced", _p, ScheduleAddResult.class);
     }
 
     /**
-     * Identifier of the scheduled prompt to remove.
+     * Removes a scheduled prompt by id.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.

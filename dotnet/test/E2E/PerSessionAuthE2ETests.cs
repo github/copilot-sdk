@@ -54,14 +54,14 @@ public class PerSessionAuthE2ETests(E2ETestFixture fixture, ITestOutputHelper ou
         await Ctx.SetCopilotUserByTokenAsync("token-alice", new CopilotUserConfig(
             Login: "alice",
             CopilotPlan: "individual_pro",
-            Endpoints: new CopilotUserEndpoints(Api: Ctx.ProxyUrl, Telemetry: "https://localhost:1/telemetry"),
+            Endpoints: new CopilotUserEndpoints(Api: Ctx.ProxyUrl, Telemetry: "https://sdk-hydro-collector.example.com"),
             AnalyticsTrackingId: "alice-tracking-id"
         ));
 
         await Ctx.SetCopilotUserByTokenAsync("token-bob", new CopilotUserConfig(
             Login: "bob",
             CopilotPlan: "business",
-            Endpoints: new CopilotUserEndpoints(Api: Ctx.ProxyUrl, Telemetry: "https://localhost:1/telemetry"),
+            Endpoints: new CopilotUserEndpoints(Api: Ctx.ProxyUrl, Telemetry: "https://sdk-hydro-collector.example.com"),
             AnalyticsTrackingId: "bob-tracking-id"
         ));
     }

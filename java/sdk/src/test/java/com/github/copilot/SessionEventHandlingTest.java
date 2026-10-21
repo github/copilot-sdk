@@ -21,6 +21,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -34,6 +35,7 @@ import com.github.copilot.generated.ExternalToolRequestedEvent;
 import com.github.copilot.generated.SessionIdleEvent;
 import com.github.copilot.generated.SessionErrorEvent;
 import com.github.copilot.generated.SessionMode;
+import com.github.copilot.generated.SessionResumeEvent;
 import com.github.copilot.generated.SessionStartEvent;
 import com.github.copilot.generated.rpc.SessionToolsGetCurrentMetadataResult;
 import com.github.copilot.rpc.MessageOptions;
@@ -83,6 +85,35 @@ public class SessionEventHandlingTest {
         assertInstanceOf(SessionStartEvent.class, receivedEvents.get(0));
         assertInstanceOf(AssistantMessageEvent.class, receivedEvents.get(1));
         assertInstanceOf(SessionIdleEvent.class, receivedEvents.get(2));
+    }
+
+    @Test
+    void testHandlerAddedDuringDispatchStartsWithNextEvent() {
+        var received = new ArrayList<SessionEvent>();
+        // Fixed hashes make the old weakly consistent iterator visit the new handler
+        // after the registering handlers, without relying on scheduling or identity
+        // hashes.
+        record Handler(int hash, Consumer<SessionEvent> callback) implements Consumer<SessionEvent> {
+            @Override
+            public int hashCode() {
+                return hash;
+            }
+
+            @Override
+            public void accept(SessionEvent event) {
+                callback.accept(event);
+            }
+        }
+        var added = new Handler(15, received::add);
+        session.on(new Handler(0, event -> session.on(added)));
+        session.on(new Handler(1, event -> session.on(added)));
+
+        dispatchEvent(createSessionIdleEvent());
+        assertTrue(received.isEmpty(), "A new wait must not receive the idle event already being dispatched");
+
+        var next = createAssistantMessageEvent("HELLO");
+        dispatchEvent(next);
+        assertEquals(List.of(next), received);
     }
 
     @Test
@@ -201,6 +232,24 @@ public class SessionEventHandlingTest {
     }
 
     @Test
+    void testSendReturnsAfterRpcAcceptanceWithoutWaitingForIdle() throws Exception {
+        var rpc = mock(JsonRpcClient.class);
+        when(rpc.invoke(eq("session.send"), any(), eq(SendMessageResponse.class)))
+                .thenReturn(CompletableFuture.completedFuture(new SendMessageResponse("message-1")));
+        session = createTestSession(rpc);
+        var events = new ArrayList<SessionEvent>();
+        session.on(events::add);
+
+        session.send("hello").get(1, TimeUnit.SECONDS);
+
+        verify(rpc).invoke(eq("session.send"), any(), eq(SendMessageResponse.class));
+        assertTrue(events.isEmpty());
+        dispatchEvent(createAssistantMessageEvent("done"));
+        dispatchEvent(createSessionIdleEvent());
+        assertEquals(List.of("assistant.message", "session.idle"), events.stream().map(SessionEvent::getType).toList());
+    }
+
+    @Test
     void testSendAndWaitSkipsAutopilotContinuationIdle() throws Exception {
         var rpc = mock(JsonRpcClient.class);
         when(rpc.invoke(eq("session.send"), any(), eq(SendMessageResponse.class)))
@@ -212,6 +261,7 @@ public class SessionEventHandlingTest {
         try {
             var pending = session.sendAndWait(new MessageOptions().setPrompt("keep going"));
 
+            dispatchEvent(createUserMessageEvent("keep going"));
             dispatchEvent(createAssistantMessageEvent("intermediate"));
             dispatchEvent(createSessionIdleEvent(SessionMode.AUTOPILOT));
             assertFalse(pending.isDone(), "Autopilot continuation idle must not complete sendAndWait");
@@ -246,8 +296,8 @@ public class SessionEventHandlingTest {
             dispatchEvent(childMessage);
             var childError = new SessionErrorEvent();
             childError.setAgentId("child-1");
-            childError.setData(new SessionErrorEvent.SessionErrorEventData("query", null, null, "child failed", null,
-                    null, null, null, null, null));
+            childError.setData(new SessionErrorEvent.SessionErrorEventData("message-1", "query", null, null, null, null,
+                    "child failed", null, null, null, null, null, null));
             dispatchEvent(childError);
             var childIdle = createSessionIdleEvent();
             childIdle.setAgentId("child-1");
@@ -255,6 +305,7 @@ public class SessionEventHandlingTest {
             assertEquals(List.of(childMessage, childError, childIdle), received);
             assertFalse(pending.isDone(), "Child events must not complete the parent wait");
 
+            dispatchEvent(createUserMessageEvent("delegate"));
             dispatchEvent(createSessionIdleEvent());
             assertNull(pending.get(5, TimeUnit.SECONDS), "Child reply must not supply the parent result");
         } finally {
@@ -355,9 +406,7 @@ public class SessionEventHandlingTest {
             capturedSessionId.set(start.getData().sessionId());
         });
 
-        SessionStartEvent startEvent = createSessionStartEvent();
-        startEvent.setData(new SessionStartEvent.SessionStartEventData("my-session-123", null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null, null, null));
+        SessionStartEvent startEvent = createSessionStartEvent("my-session-123");
         dispatchEvent(startEvent);
 
         AssistantMessageEvent msgEvent = createAssistantMessageEvent("Test content");
@@ -365,6 +414,17 @@ public class SessionEventHandlingTest {
 
         assertEquals("my-session-123", capturedSessionId.get());
         assertEquals("Test content", capturedContent.get());
+    }
+
+    @Test
+    void testLegacyLifecycleEventConstructorsRemainAvailable() {
+        var start = new SessionStartEvent.SessionStartEventData("session", null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null);
+        var resume = new SessionResumeEvent.SessionResumeEventData(null, 0L, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null);
+
+        assertEquals("session", start.sessionId());
+        assertEquals(0L, resume.eventCount());
     }
 
     @Test
@@ -1034,16 +1094,22 @@ public class SessionEventHandlingTest {
     private SessionStartEvent createSessionStartEvent(String sessionId) {
         var event = new SessionStartEvent();
         var data = new SessionStartEvent.SessionStartEventData(sessionId, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null);
         event.setData(data);
         return event;
     }
 
+    private SessionEvent createUserMessageEvent(String content) {
+        return JsonRpcClient.getObjectMapper().convertValue(
+                Map.of("type", "user.message", "data", Map.of("messageId", "message-1", "content", content)),
+                SessionEvent.class);
+    }
+
     private AssistantMessageEvent createAssistantMessageEvent(String content) {
         var event = new AssistantMessageEvent();
-        var data = new AssistantMessageEvent.AssistantMessageEventData(null, null, null, content, null, null, null,
+        var data = new AssistantMessageEvent.AssistantMessageEventData(null, null, null, null, content, null, null,
                 null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
-                null);
+                null, null);
         event.setData(data);
         return event;
     }

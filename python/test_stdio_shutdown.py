@@ -28,7 +28,7 @@ function check() {
         if (error.code === "ESRCH") return;
         throw error;
     }
-    // Force-stop does not reap children; a zombie has already exited.
+    // An exited child can remain a zombie until its owner reaps it.
     if (process.platform === "linux") {
         try {
             const stat = fs.readFileSync(`/proc/${pid}/stat`, "utf8");
@@ -127,7 +127,7 @@ async def test_force_stop_does_not_run_graceful_host_cleanup(tmp_path):
         started = time.monotonic()
         await asyncio.wait_for(client.force_stop(), timeout=30)
         assert time.monotonic() - started < 10
-        await _assert_child_exited(tmp_path, wait_millis=5000)
+        await _assert_child_exited(tmp_path)
         assert not (tmp_path / "cleanup.jsonl").exists()
         with pytest.raises(RuntimeError, match="Client is not connected"):
             _ = client.rpc
@@ -158,7 +158,7 @@ async def test_force_stop_cleans_up_after_startup_failure(tmp_path):
         with pytest.raises(RuntimeError, match="[Pp]rotocol"):
             await client.start()
         await asyncio.wait_for(client.force_stop(), timeout=30)
-        await _assert_child_exited(tmp_path, wait_millis=5000)
+        await _assert_child_exited(tmp_path)
         assert not (tmp_path / "cleanup.jsonl").exists()
         with pytest.raises(RuntimeError, match="Client is not connected"):
             _ = client.rpc

@@ -30,6 +30,8 @@ public record HostStartResult(
     @JsonProperty("url") String url,
     /** Secret connection token, absent when authentication is disabled. */
     @JsonProperty("token") String token,
+    /** GitHub Mission Control environment ID, present when its relay transport is ready. */
+    @JsonProperty("environmentId") String environmentId,
     /** Separate host process ID, when provided by a legacy runtime. Absent for in-process listeners. */
     @JsonProperty("pid") Long pid
 ) {

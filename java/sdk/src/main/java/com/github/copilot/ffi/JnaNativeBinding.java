@@ -64,7 +64,7 @@ final class JnaNativeBinding implements NativeBinding {
     private static final Logger LOG = Logger.getLogger(JnaNativeBinding.class.getName());
 
     /**
-     * JNA inner interface mapping the five {@code copilot_runtime_*} C ABI exports.
+     * JNA inner interface mapping the {@code copilot_runtime_*} C ABI exports.
      */
     interface CopilotRuntimeLibrary extends Library {
         /** Corresponds to {@code copilot_runtime_host_start}. */
@@ -97,6 +97,12 @@ final class JnaNativeBinding implements NativeBinding {
          * @see #copilot_runtime_host_shutdown for why this returns {@code byte}
          */
         byte copilot_runtime_connection_close(int connectionId);
+
+        /** Corresponds to {@code copilot_runtime_connection_set_ui_thread_handler}. */
+        byte copilot_runtime_connection_set_ui_thread_handler(int connectionId, byte enabled);
+
+        /** Corresponds to {@code copilot_runtime_connection_run_ui_action}. */
+        byte copilot_runtime_connection_run_ui_action(int connectionId, int actionId);
     }
 
     // -------------------------------------------------------------------------
@@ -265,6 +271,16 @@ final class JnaNativeBinding implements NativeBinding {
     @Override
     public boolean connectionWrite(int connectionId, byte[] data, int dataLen) {
         return lib.copilot_runtime_connection_write(connectionId, data, new SizeT(dataLen)) != 0;
+    }
+
+    @Override
+    public boolean connectionSetUiThreadHandler(int connectionId, boolean enabled) {
+        return lib.copilot_runtime_connection_set_ui_thread_handler(connectionId, (byte) (enabled ? 1 : 0)) != 0;
+    }
+
+    @Override
+    public boolean connectionRunUiAction(int connectionId, int actionId) {
+        return lib.copilot_runtime_connection_run_ui_action(connectionId, actionId) != 0;
     }
 
     @Override

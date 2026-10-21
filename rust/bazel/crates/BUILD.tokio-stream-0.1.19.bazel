@@ -68,7 +68,7 @@ rust_library(
     deps = [
         "@sdk_vendor__futures-core-0.3.34//:futures_core",
         "@sdk_vendor__pin-project-lite-0.2.17//:pin_project_lite",
-        "@sdk_vendor__tokio-1.53.1//:tokio",
-        "@sdk_vendor__tokio-util-0.7.19//:tokio_util",
+        "@sdk_vendor__tokio-1.53.3//:tokio",
+        "@sdk_vendor__tokio-util-0.7.20//:tokio_util",
     ],
 )

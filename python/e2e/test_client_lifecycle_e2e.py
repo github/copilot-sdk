@@ -22,16 +22,6 @@ from .testharness import E2ETestContext
 pytestmark = pytest.mark.asyncio(loop_scope="module")
 
 
-async def _wait_for_condition(predicate, timeout: float = 10.0) -> None:
-    deadline = asyncio.get_running_loop().time() + timeout
-    while True:
-        if predicate():
-            return
-        if asyncio.get_running_loop().time() >= deadline:
-            raise TimeoutError("condition was not met before timeout")
-        await asyncio.sleep(0.05)
-
-
 async def _wait_for_last_session_id(client) -> str:
     last_id = None
 
@@ -80,8 +70,8 @@ class TestClientLifecycle:
             await session.disconnect()
 
     async def test_should_emit_session_lifecycle_events(self, ctx: E2ETestContext):
-        events: list = []
-        unsubscribe = ctx.client.on_lifecycle(events.append)
+        events: asyncio.Queue = asyncio.Queue()
+        unsubscribe = ctx.client.on_lifecycle(events.put_nowait)
         try:
             session = await ctx.client.create_session(
                 on_permission_request=PermissionHandler.approve_all,
@@ -89,12 +79,9 @@ class TestClientLifecycle:
             try:
                 await session.send_and_wait("Say hello")
 
-                await _wait_for_condition(
-                    lambda: any(
-                        getattr(e, "session_id", None) == session.session_id for e in events
-                    ),
-                    timeout=10.0,
-                )
+                async with asyncio.timeout(10.0):
+                    while getattr(await events.get(), "session_id", None) != session.session_id:
+                        pass
             finally:
                 await session.disconnect()
         finally:

@@ -16,7 +16,8 @@ import javax.annotation.processing.Generated;
 /**
  * The existing runtime identity and its resource on the listener.
  *
- * @apiNote This method is experimental and may change in a future version.
+ * @apiNote This type is experimental and may change in a future version.
+ *
  * @since 1.0.0
  */
 @CopilotExperimental

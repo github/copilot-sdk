@@ -43,16 +43,26 @@ public final class SessionResumeEvent extends SessionEvent {
         @JsonProperty("eventsFileSizeBytes") Long eventsFileSizeBytes,
         /** Model currently selected at resume time */
         @JsonProperty("selectedModel") String selectedModel,
+        /** Provider of selectedModel at resume time, when explicitly selected. */
+        @JsonProperty("providerId") String providerId,
         /** Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh", "max") */
         @JsonProperty("reasoningEffort") String reasoningEffort,
+        /** Model that owns effort embedded in an authored model selection. Omitted for independent reasoning-effort overrides and legacy events. */
+        @JsonProperty("reasoningEffortModel") String reasoningEffortModel,
+        /** True when the reasoning effort is a managed-policy default bound to reasoningEffortModel. Omitted for agent-authored, user-authored, independent, and legacy effort. */
+        @JsonProperty("reasoningEffortManaged") Boolean reasoningEffortManaged,
         /** Reasoning summary mode used for model calls, if applicable (e.g. "none", "concise", "detailed") */
         @JsonProperty("reasoningSummary") ReasoningSummary reasoningSummary,
         /** Output verbosity level used for model calls, if applicable (e.g. "low", "medium", "high") */
         @JsonProperty("verbosity") Verbosity verbosity,
         /** Context tier currently selected at resume time; null when no tier is active */
         @JsonProperty("contextTier") ContextTier contextTier,
+        /** True when contextTier is a managed-policy default. Omitted for user-authored and legacy values. */
+        @JsonProperty("contextTierManaged") Boolean contextTierManaged,
         /** Auto routing preference active at resume time */
         @JsonProperty("autoTier") AutoTier autoTier,
+        /** True when autoTier is a managed-policy default. Omitted for user-authored and legacy values. */
+        @JsonProperty("autoTierManaged") Boolean autoTierManaged,
         /** Session limits currently configured at resume time; null when no limits are active */
         @JsonProperty("sessionLimits") SessionLimitsConfig sessionLimits,
         /** Updated working directory and git context at resume time */
@@ -66,5 +76,29 @@ public final class SessionResumeEvent extends SessionEvent {
         /** When true, tool calls and permission requests left in flight by the previous session lifetime remain pending after resume and the agentic loop awaits their results. User sends are queued behind the pending work until all such requests reach a terminal state. When false or omitted, pending work is normally marked as interrupted unless the resume passively joined live work owned by another client; sessionWasActive distinguishes that case. */
         @JsonProperty("continuePendingWork") Boolean continuePendingWork
     ) {
+
+        /**
+         * Creates event data with the components it had before later optional fields were added.
+         */
+        public SessionResumeEventData(
+            OffsetDateTime resumeTime,
+            Long eventCount,
+            Long eventsFileSizeBytes,
+            String selectedModel,
+            String reasoningEffort,
+            String reasoningEffortModel,
+            ReasoningSummary reasoningSummary,
+            Verbosity verbosity,
+            ContextTier contextTier,
+            AutoTier autoTier,
+            SessionLimitsConfig sessionLimits,
+            WorkingDirectoryContext context,
+            Boolean alreadyInUse,
+            Boolean sessionWasActive,
+            Boolean remoteSteerable,
+            Boolean continuePendingWork
+        ) {
+            this(resumeTime, eventCount, eventsFileSizeBytes, selectedModel, null, reasoningEffort, reasoningEffortModel, null, reasoningSummary, verbosity, contextTier, null, autoTier, null, sessionLimits, context, alreadyInUse, sessionWasActive, remoteSteerable, continuePendingWork);
+        }
     }
 }

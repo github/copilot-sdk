@@ -62,7 +62,7 @@ class StructuredOutputE2ETest {
     }
 
     private SessionConfig config() {
-        return new SessionConfig().setModel("gpt-4.1").setAvailableTools(List.of())
+        return new SessionConfig().setModel("gpt-4.1").setAvailableTools(List.of("custom:*"))
                 .setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setProvider(
                         new ProviderConfig().setType("openai").setWireApi("completions").setBaseUrl(ctx.getProxyUrl())
                                 .setModelId("gpt-4.1").setWireModel("gpt-4.1").setApiKey("fake-token-for-e2e-tests")

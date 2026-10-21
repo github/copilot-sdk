@@ -1681,6 +1681,7 @@ async fn should_send_with_mode_property() {
                     .await
                     .expect("create session");
 
+                let events = session.subscribe();
                 session
                     .client()
                     .call(
@@ -1693,7 +1694,7 @@ async fn should_send_with_mode_property() {
                     )
                     .await
                     .expect("send with agent mode");
-                wait_for_event(session.subscribe(), "session.idle", |event| {
+                wait_for_event(events, "session.idle", |event| {
                     event.parsed_type() == SessionEventType::SessionIdle
                 })
                 .await;

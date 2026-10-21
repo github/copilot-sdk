@@ -78,6 +78,33 @@ pub enum ProtocolErrorKind {
         /// Newly reported version.
         current: u32,
     },
+
+    /// The CLI rejected a frame it could not identify: its error response had
+    /// a `null` id, so it could not be matched to a request. Every request
+    /// pending at that moment fails with this error, and the connection stays
+    /// open. The CLI may still have acted on a request that failed this way, so
+    /// retry only a request that is safe to repeat. The SDK sends no request
+    /// or response nested deeper than the CLI reads (see
+    /// [`RequestTooDeep`](Self::RequestTooDeep)), so this error means a frame
+    /// the CLI could not read for another reason.
+    UncorrelatedRejection {
+        /// The CLI's JSON-RPC error code.
+        code: i64,
+        /// The CLI's error message, with quoted values elided.
+        message: String,
+    },
+
+    /// The request's parameters nest arrays and objects deeper than the CLI
+    /// reads, so the SDK did not send it. The CLI could not have identified
+    /// such a frame, and its rejection would fail every request pending on the
+    /// connection. Nothing was written: the connection and its other requests
+    /// are unaffected.
+    RequestTooDeep {
+        /// The request's JSON-RPC method.
+        method: String,
+        /// The deepest nesting a frame the CLI reads can carry.
+        limit: usize,
+    },
 }
 
 impl fmt::Display for ProtocolErrorKind {
@@ -107,6 +134,18 @@ impl fmt::Display for ProtocolErrorKind {
             }
             ProtocolErrorKind::VersionChanged { previous, current } => {
                 write!(f, "version changed: was {previous}, now {current}")
+            }
+            ProtocolErrorKind::UncorrelatedRejection { code, message } => {
+                write!(
+                    f,
+                    "the CLI rejected a frame it could not identify (code {code}): {message}"
+                )
+            }
+            ProtocolErrorKind::RequestTooDeep { method, limit } => {
+                write!(
+                    f,
+                    "the {method} request was not sent: it nests deeper than {limit} levels of arrays and objects, which the CLI cannot read"
+                )
             }
         }
     }
@@ -306,12 +345,24 @@ impl Error {
         }
     }
 
-    pub(crate) fn from_rpc<C>(code: i32, message: C, data: Option<Value>) -> Self
+    /// An [`ErrorKind::Rpc`] error from a JSON-RPC error response. The wire code
+    /// is an `i64`, as the CLI's is; the public code is an `i32`, which every
+    /// code the CLI sends fits. A wider code saturates, and the message keeps
+    /// its exact value.
+    pub(crate) fn from_rpc<C>(code: i64, message: C, data: Option<Value>) -> Self
     where
         C: Into<Cow<'static, str>>,
     {
+        let (code, message) = match i32::try_from(code) {
+            Ok(code) => (code, message.into()),
+            Err(_) => {
+                let saturated = if code < 0 { i32::MIN } else { i32::MAX };
+                let message = format!("{} (code {code})", message.into());
+                (saturated, Cow::Owned(message))
+            }
+        };
         Self {
-            repr: Repr::SimpleMessage(ErrorKind::Rpc { code }, message.into()),
+            repr: Repr::SimpleMessage(ErrorKind::Rpc { code }, message),
             rpc_data: data.map(Box::new),
             backtrace: capture_backtrace(),
         }

@@ -28,6 +28,9 @@ import javax.annotation.processing.Generated;
 public record SessionOptionsUpdateParams(
     /** Target session identifier */
     @JsonProperty("sessionId") String sessionId,
+    /** Enable or disable the native image tool for this session without changing the conversation model.
+Omitted values preserve the current setting. Re-supply consent on cold resume. */
+    @JsonProperty("imageGeneration") ProtocolImageGenerationOptions imageGeneration,
     /** The model ID to use for assistant turns. */
     @JsonProperty("model") String model,
     /** Per-property model capability overrides for the selected model. */
@@ -82,8 +85,14 @@ public record SessionOptionsUpdateParams(
     @JsonProperty("envValueMode") OptionsUpdateEnvValueMode envValueMode,
     /** Whether to include instructions from every MCP server in the system prompt instead of only allowlisted servers. */
     @JsonProperty("allowAllMcpServerInstructions") Boolean allowAllMcpServerInstructions,
-    /** Additional directories to search for skills. */
+    /** Explicit discovery-only skill roots, not filesystem grants. Available without enableConfigDiscovery, subject to skill/managed disables. Relative SDK paths resolve once when supplied against the request's effective workingDirectory; retained roots do not move on cwd changes. Null and omission are equivalent; [] clears only the explicit SDK contribution. */
     @JsonProperty("skillDirectories") List<String> skillDirectories,
+    /** Explicit discovery-only agent roots, separate from customAgents and filesystem grants. Available without enableConfigDiscovery, subject to managed/source disables. Relative SDK paths resolve once when supplied against the request's effective workingDirectory; retained roots do not move on cwd changes. Null and omission are equivalent; [] clears only the explicit SDK contribution. */
+    @JsonProperty("agentDirectories") List<String> agentDirectories,
+    /** Explicit discovery-only instruction roots using existing SDK instruction formats, not filesystem grants. Available without enableConfigDiscovery, subject to instruction/managed disables. Relative SDK paths resolve once when supplied against the request's effective workingDirectory; retained roots do not move on cwd changes. Null and omission are equivalent; [] clears only the explicit SDK contribution. */
+    @JsonProperty("instructionDirectories") List<String> instructionDirectories,
+    /** Explicit discovery-only file-hook roots, separate from callback hooks and filesystem grants. Available without enableConfigDiscovery or enableFileHooks, which controls repository-origin hooks only; hook/managed disables still apply. Relative SDK paths resolve once when supplied against the request's effective workingDirectory; retained roots do not move on cwd changes. Null and omission are equivalent; [] clears only the explicit SDK contribution. */
+    @JsonProperty("hookDirectories") List<String> hookDirectories,
     /** Skill scan directories and descendants excluded from discovery. Supports `~`-relative paths. */
     @JsonProperty("ignoredSkillsLocations") List<String> ignoredSkillsLocations,
     /** Built-in skill names to include in this session. When specified, only these runtime-bundled skills are available. Skills from other sources with the same name remain available. Set to null to remove the allowlist restriction. */
@@ -136,17 +145,19 @@ public record SessionOptionsUpdateParams(
     @JsonProperty("skipEmbeddingRetrieval") Boolean skipEmbeddingRetrieval,
     /** Organization-level custom instructions to inject into the system prompt. */
     @JsonProperty("organizationCustomInstructions") String organizationCustomInstructions,
-    /** Whether to enable loading of `.github/hooks/` filesystem hooks. Separate from the SDK callback hook mechanism. */
+    /** Whether to enable repository-origin file hooks from `.github/hooks/` and trusted repository-configured roots. Does not control explicit hookDirectories or SDK callback hooks. */
     @JsonProperty("enableFileHooks") Boolean enableFileHooks,
     /** Whether to enable host git operations (context resolution, child repo scanning, git info in system prompt). */
     @JsonProperty("enableHostGitOperations") Boolean enableHostGitOperations,
     /** Whether to enable cross-session store writes and reads. */
     @JsonProperty("enableSessionStore") Boolean enableSessionStore,
-    /** Whether skill loading is enabled. Explicit false disables every source, including a bound SDK provider; changing the value invalidates the loaded skill snapshot. When omitted, creation falls back to enableConfigDiscovery unless an SDK skill provider is registered. */
+    /** Whether skill loading is enabled. Explicit false disables every source, including explicit SDK roots and a bound SDK provider; changing the value invalidates the loaded skill snapshot. When omitted, creation falls back to enableConfigDiscovery unless explicit SDK skill roots or an SDK skill provider are supplied. */
     @JsonProperty("enableSkills") Boolean enableSkills,
     /** Context tier for models with tiered pricing. The session uses this to derive effective `modelCapabilitiesOverrides` so compaction, truncation, token display, and request limits honor the selected tier. */
     @JsonProperty("contextTier") OptionsUpdateContextTier contextTier,
     /** Optional session limits. Pass null to clear the session limits. */
-    @JsonProperty("sessionLimits") SessionLimitsConfig sessionLimits
+    @JsonProperty("sessionLimits") SessionLimitsConfig sessionLimits,
+    /** Patch the Autopilot policy. Omitted fields retain their current values; an empty object makes no changes. Does not change the session mode. */
+    @JsonProperty("autopilot") AutopilotOptions autopilot
 ) {
 }

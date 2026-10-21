@@ -23,22 +23,43 @@ class ManagedSettingsTest {
     @Test
     void forwardsManagedSettingsOnCreateAndResume() throws Exception {
         var permissions = new ManagedSettingsPermissions()
-                .setDisableBypassPermissionsMode(DisableBypassPermissionsModes.DISABLE).setDeny(List.of("Shell(rm *)"))
-                .setAsk(List.of("Domain(publish.example)")).setAllow(List.of("Read(**)"));
+                .setDisableBypassPermissionsMode(DisableBypassPermissionsModes.DISABLE)
+                .setDisableAssistedPermissionsMode(true).setDeny(List.of("Shell(rm *)"))
+                .setAsk(List.of("Domain(publish.example)")).setAllow(List.of("Read(**)"))
+                .setLimitTo(List.of("Domain(github.com)"));
         var managedSettings = new ManagedSettings().setPermissions(permissions);
 
-        var create = SessionRequestBuilder.buildCreateRequest(
-                new SessionConfig().setEnableManagedSettings(true).setManagedSettings(managedSettings),
+        var create = SessionRequestBuilder.buildCreateRequest(new SessionConfig().setEnableManagedSettings(true)
+                .setEnforceManagedModelDefaults(true).setInteractiveUser(true).setManagedSettings(managedSettings),
                 "managed-create");
         var resume = SessionRequestBuilder.buildResumeRequest("managed-resume",
-                new ResumeSessionConfig().setEnableManagedSettings(true).setManagedSettings(managedSettings));
+                new ResumeSessionConfig().setEnableManagedSettings(true).setEnforceManagedModelDefaults(true)
+                        .setInteractiveUser(true).setManagedSettings(managedSettings));
 
         assertEquals(managedSettings, create.getManagedSettings());
         assertEquals(managedSettings, resume.getManagedSettings());
+        assertTrue(create.getEnforceManagedModelDefaults());
+        assertTrue(resume.getEnforceManagedModelDefaults());
+        assertEquals(Boolean.TRUE, create.getInteractiveUser());
+        assertEquals(Boolean.TRUE, resume.getInteractiveUser());
         var json = new ObjectMapper().writeValueAsString(create);
         assertTrue(json.contains("\"enableManagedSettings\":true"));
+        assertTrue(json.contains("\"enforceManagedModelDefaults\":true"));
+        assertTrue(json.contains("\"interactiveUser\":true"));
         assertTrue(json.contains("\"managedSettings\":{\"permissions\""));
         assertTrue(json.contains("\"disableBypassPermissionsMode\":\"disable\""));
+        assertTrue(json.contains("\"limitTo\":[\"Domain(github.com)\"]"));
+        assertTrue(json.contains("\"disableAssistedPermissionsMode\":true"));
+    }
+
+    @Test
+    void omitsInteractiveUserWhenUnset() throws Exception {
+        var create = SessionRequestBuilder.buildCreateRequest(new SessionConfig(), "default-create");
+        var resume = SessionRequestBuilder.buildResumeRequest("default-resume", new ResumeSessionConfig());
+        var mapper = new ObjectMapper();
+
+        assertFalse(mapper.writeValueAsString(create).contains("interactiveUser"));
+        assertFalse(mapper.writeValueAsString(resume).contains("interactiveUser"));
     }
 
     @Test
@@ -55,7 +76,8 @@ class ManagedSettingsTest {
         // absent (null) list imposes no such restriction. Jackson NON_NULL must
         // emit an explicit empty array as `[]` and omit null fields, so the two
         // remain distinguishable on the wire.
-        var permissions = new ManagedSettingsPermissions().setDeny(List.of()).setAsk(List.of()).setAllow(List.of());
+        var permissions = new ManagedSettingsPermissions().setDeny(List.of()).setAsk(List.of()).setAllow(List.of())
+                .setLimitTo(List.of());
         var managedSettings = new ManagedSettings().setPermissions(permissions);
         var create = SessionRequestBuilder.buildCreateRequest(new SessionConfig().setManagedSettings(managedSettings),
                 "managed-empty");
@@ -64,6 +86,7 @@ class ManagedSettingsTest {
         assertTrue(json.contains("\"deny\":[]"), json);
         assertTrue(json.contains("\"ask\":[]"), json);
         assertTrue(json.contains("\"allow\":[]"), json);
+        assertTrue(json.contains("\"limitTo\":[]"), json);
     }
 
     @Test

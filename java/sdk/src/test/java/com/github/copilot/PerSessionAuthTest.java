@@ -59,9 +59,9 @@ public class PerSessionAuthTest {
         // /copilot_internal/user endpoint used for per-session auth resolution.
         ctx.initializeProxy();
         ctx.setCopilotUserByToken("token-alice", "alice", "individual_pro", ctx.getProxyUrl(),
-                "https://localhost:1/telemetry", "alice-tracking-id");
-        ctx.setCopilotUserByToken("token-bob", "bob", "business", ctx.getProxyUrl(), "https://localhost:1/telemetry",
-                "bob-tracking-id");
+                "https://sdk-hydro-collector.example.com", "alice-tracking-id");
+        ctx.setCopilotUserByToken("token-bob", "bob", "business", ctx.getProxyUrl(),
+                "https://sdk-hydro-collector.example.com", "bob-tracking-id");
     }
 
     @Test

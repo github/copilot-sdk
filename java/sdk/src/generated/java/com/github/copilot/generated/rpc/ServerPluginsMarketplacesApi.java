@@ -27,7 +27,7 @@ public final class ServerPluginsMarketplacesApi {
     }
 
     /**
-     * All registered marketplaces, including built-in defaults.
+     * Lists all registered marketplaces (defaults + user-added).
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -38,7 +38,7 @@ public final class ServerPluginsMarketplacesApi {
     }
 
     /**
-     * Marketplace source and optional working directory for relative-path resolution.
+     * Registers a new marketplace from a source (owner/repo, URL, or local path).
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -49,7 +49,7 @@ public final class ServerPluginsMarketplacesApi {
     }
 
     /**
-     * Name of the marketplace to remove and an optional force flag.
+     * Removes a previously-registered marketplace. When the marketplace has dependent plugins and `force` is not set, the marketplace is left intact and the result lists the dependents so the caller can decide whether to retry with `force=true`.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -60,7 +60,7 @@ public final class ServerPluginsMarketplacesApi {
     }
 
     /**
-     * Name of the marketplace whose plugin catalog to fetch.
+     * Lists plugins advertised by a registered marketplace.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -71,7 +71,7 @@ public final class ServerPluginsMarketplacesApi {
     }
 
     /**
-     * Optional marketplace name; omit to refresh all.
+     * Re-fetches one or all registered marketplace catalogs.
      * <p>
      * Invokes the method with no params, applying the runtime defaults.
      *
@@ -84,7 +84,7 @@ public final class ServerPluginsMarketplacesApi {
     }
 
     /**
-     * Optional marketplace name; omit to refresh all.
+     * Re-fetches one or all registered marketplace catalogs.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0

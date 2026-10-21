@@ -17,6 +17,11 @@ import java.util.concurrent.CompletableFuture;
  * <pre>{@code
  * UserPromptSubmittedHandler handler = (input, invocation) -> {
  * 	System.out.println("User submitted: " + input.prompt());
+ * 	if (input.prompt().contains("password")) {
+ * 		// Refuse the prompt: no model turn runs, and the session emits a
+ * 		// session.warning carrying the reason
+ * 		return CompletableFuture.completedFuture(UserPromptSubmittedHookOutput.block("No credentials, please."));
+ * 	}
  * 	// Optionally modify the prompt
  * 	return CompletableFuture
  * 			.completedFuture(new UserPromptSubmittedHookOutput(input.prompt() + " (enhanced)", null, null));

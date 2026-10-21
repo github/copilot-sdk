@@ -98,12 +98,14 @@ func TestCopilotRequestError(t *testing.T) {
 type cancellingTransport struct {
 	inferenceEntered atomic.Bool
 	sawAbort         atomic.Bool
+	inferenceSeen    chan struct{}
 	abortSeen        chan struct{}
-	once             sync.Once
+	inferenceOnce    sync.Once
+	abortOnce        sync.Once
 }
 
 func newCancellingTransport() *cancellingTransport {
-	return &cancellingTransport{abortSeen: make(chan struct{})}
+	return &cancellingTransport{inferenceSeen: make(chan struct{}), abortSeen: make(chan struct{})}
 }
 
 func (tr *cancellingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -114,22 +116,12 @@ func (tr *cancellingTransport) RoundTrip(req *http.Request) (*http.Response, err
 		_, _ = io.Copy(io.Discard, req.Body)
 	}
 	tr.inferenceEntered.Store(true)
+	tr.inferenceOnce.Do(func() { close(tr.inferenceSeen) })
 	// Block until the runtime cancels the request (via context cancellation).
 	<-req.Context().Done()
 	tr.sawAbort.Store(true)
-	tr.once.Do(func() { close(tr.abortSeen) })
+	tr.abortOnce.Do(func() { close(tr.abortSeen) })
 	return nil, req.Context().Err()
-}
-
-func waitFor(t *testing.T, predicate func() bool, timeout time.Duration) {
-	t.Helper()
-	deadline := time.Now().Add(timeout)
-	for !predicate() {
-		if time.Now().After(deadline) {
-			t.Fatal("waitFor timed out")
-		}
-		time.Sleep(50 * time.Millisecond)
-	}
 }
 
 func TestCopilotRequestCancel(t *testing.T) {
@@ -154,7 +146,11 @@ func TestCopilotRequestCancel(t *testing.T) {
 	if _, err := session.Send(t.Context(), copilot.MessageOptions{Prompt: "Say OK."}); err != nil {
 		t.Fatalf("send failed: %v", err)
 	}
-	waitFor(t, transport.inferenceEntered.Load, 60*time.Second)
+	select {
+	case <-transport.inferenceSeen:
+	case <-time.After(60 * time.Second):
+		t.Fatal("Timed out waiting for the inference transport call")
+	}
 	if err := session.Abort(t.Context()); err != nil {
 		t.Fatalf("abort failed: %v", err)
 	}

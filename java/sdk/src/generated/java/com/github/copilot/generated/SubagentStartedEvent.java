@@ -48,8 +48,6 @@ public final class SubagentStartedEvent extends SessionEvent {
         @JsonProperty("taskModelSource") SubagentTaskModelSource taskModelSource,
         /** Authority or runtime mechanism responsible for sub-agent model selection, when known at start. */
         @JsonProperty("modelSelectionSource") SubagentModelSelectionSource modelSelectionSource,
-        /** Legacy root id of the workflow run that spawned this sub-agent. New consumers should use workflowRunId. */
-        @JsonProperty("factoryRunId") String factoryRunId,
         /** Root id of the workflow run that spawned this sub-agent, when it was spawned by one. */
         @JsonProperty("workflowRunId") String workflowRunId,
         /** Task-registry ID of the spawning sub-agent. Absent when the root session spawned this child. */

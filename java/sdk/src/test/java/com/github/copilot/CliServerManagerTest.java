@@ -7,13 +7,22 @@ package com.github.copilot;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
 import java.net.ServerSocket;
 import java.net.URI;
+import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletionException;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledOnOs;
+import org.junit.jupiter.api.condition.OS;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import com.github.copilot.ffi.NativeRuntimeLoader;
 import com.github.copilot.rpc.CopilotClientMode;
@@ -190,9 +199,167 @@ class CliServerManagerTest {
         assertNull(info.port());
     }
 
-    // ===== resolveCliCommand tests (via startCliServer) =====
-    // resolveCliCommand is private, so we test indirectly through startCliServer
-    // with specific cliPath values.
+    // ===== resolveCliCommand tests =====
+
+    @ParameterizedTest
+    @ValueSource(strings = {"NoDefaultCurrentDirectoryInExePath", "nodefaultcurrentdirectoryinexepath"})
+    @EnabledOnOs(OS.WINDOWS)
+    void bareWindowsCliPathHonorsCurrentDirectorySearchOptOut(String optOutKey) throws Exception {
+        Path bin = Files.createDirectory(tempDir.resolve("bin"));
+        Files.createFile(tempDir.resolve("copilot.EXE"));
+        Path executable = Files.createFile(bin.resolve("copilot.EXE"));
+        var options = new CopilotClientOptions().setCliPath("copilot").setCwd(tempDir.toString()).setUseStdio(true)
+                .setEnvironment(Map.of("Path", bin.toString(), "PATHEXT", ".EXE", optOutKey, ""));
+
+        assertClientAttemptsExecutable(options, executable);
+    }
+
+    @Test
+    @EnabledOnOs(OS.WINDOWS)
+    void bareWindowsCliPathSearchesCurrentDirectoryWithoutOptOut() throws Exception {
+        Path bin = Files.createDirectory(tempDir.resolve("bin"));
+        Path executable = Files.createFile(tempDir.resolve("copilot.EXE"));
+        Files.createFile(bin.resolve("copilot.EXE"));
+        var options = new CopilotClientOptions().setCliPath("copilot").setCwd(tempDir.toString()).setUseStdio(true)
+                .setEnvironment(Map.of("PATH", bin.toString(), "PATHEXT", ".EXE"));
+
+        assertClientAttemptsExecutable(options, executable);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    @EnabledOnOs(OS.WINDOWS)
+    void explicitWindowsCurrentDirectorySearchIsPreservedWithOptOut(boolean relativeCliPath) throws Exception {
+        Path executable = Files.createFile(tempDir.resolve(".").resolve("copilot.EXE"));
+        var options = new CopilotClientOptions().setCliPath(relativeCliPath ? ".\\copilot.EXE" : "copilot")
+                .setCwd(tempDir.toString()).setUseStdio(true).setEnvironment(Map.of("PATH", relativeCliPath ? "" : ".",
+                        "PATHEXT", ".EXE", "NoDefaultCurrentDirectoryInExePath", ""));
+
+        assertClientAttemptsExecutable(options, executable);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"", "C:\\invalid|entry"})
+    @EnabledOnOs(OS.WINDOWS)
+    void invalidWindowsCommandIsNotPassedToShellWhenCurrentDirectorySearchIsDisabled(String path) {
+        var options = new CopilotClientOptions().setCliPath("copilot|invalid").setCwd(tempDir.toString())
+                .setUseStdio(true)
+                .setEnvironment(Map.of("PATH", path, "PATHEXT", ".EXE", "NoDefaultCurrentDirectoryInExePath", ""));
+
+        try (var client = new CopilotClient(options)) {
+            Throwable error = assertThrows(CompletionException.class, () -> client.start().join());
+            while (error.getCause() != null) {
+                error = error.getCause();
+            }
+            var invalidPath = assertInstanceOf(InvalidPathException.class, error);
+            assertEquals("copilot|invalid.EXE", invalidPath.getInput());
+        }
+    }
+
+    private static void assertClientAttemptsExecutable(CopilotClientOptions options, Path executable) {
+        // Empty executables expose the attempted OS launch path without running a
+        // child.
+        try (var client = new CopilotClient(options)) {
+            Throwable error = assertThrows(CompletionException.class, () -> client.start().join());
+            while (!(error instanceof IOException) && error.getCause() != null) {
+                error = error.getCause();
+            }
+            var launchError = assertInstanceOf(IOException.class, error);
+            assertTrue(launchError.getMessage().contains("\"" + executable + "\""), launchError::getMessage);
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"tools/copilot.exe", "tools\\copilot", ".\\tools\\copilot.EXE"})
+    @EnabledOnOs(OS.WINDOWS)
+    void relativeWindowsCliPathDoesNotSearchPathDirectories(String cliPath) throws Exception {
+        Path bin = Files.createDirectory(tempDir.resolve("bin"));
+        Path tools = Files.createDirectory(bin.resolve("tools"));
+        Path unrelated = Files.createFile(tools.resolve("copilot.EXE"));
+        var options = new CopilotClientOptions().setCliPath(cliPath).setCwd(tempDir.toString()).setUseStdio(false)
+                .setEnvironment(Map.of("PATH", bin.toString(), "PATHEXT", ".EXE"));
+
+        try (var client = new CopilotClient(options)) {
+            Throwable error = assertThrows(CompletionException.class, () -> client.start().join());
+            while (error.getCause() != null) {
+                error = error.getCause();
+            }
+            var launchError = assertInstanceOf(IOException.class, error);
+            assertTrue(launchError.getMessage().startsWith("CLI process exited unexpectedly."),
+                    launchError::getMessage);
+            assertFalse(launchError.getMessage().contains(unrelated.toString()), launchError::getMessage);
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {" C:\\invalid", "C:\\invalid ", "C:\\invalid<entry", "C:\\invalid>entry",
+            "C:\\invalid|entry", "C:\\invalid?entry", "C:\\invalid*entry", "C:\\invalid\"entry"})
+    @EnabledOnOs(OS.WINDOWS)
+    void windowsNativeExecutableSkipsMalformedPathEntries(String malformedEntry) throws Exception {
+        Path bin = Files.createDirectory(tempDir.resolve("bin with spaces"));
+        Path executable = Files.createFile(bin.resolve("copilot.EXE"));
+        var options = new CopilotClientOptions().setCliPath("copilot").setCwd(tempDir.toString())
+                .setEnvironment(Map.of("Path", malformedEntry + ";\"" + bin + "\"", "PATHEXT", ".CMD;.EXE"));
+
+        assertEquals(List.of(executable.toString(), "--server"), resolveCliCommand(new CliServerManager(options)));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {".CMD", ".BAT"})
+    @EnabledOnOs(OS.WINDOWS)
+    void windowsCommandWrapperAfterMalformedPathEntryUsesShell(String extension) throws Exception {
+        Path bin = Files.createDirectory(tempDir.resolve("bin"));
+        Files.createFile(bin.resolve("copilot" + extension));
+        Files.createFile(bin.resolve("copilot.EXE"));
+        var options = new CopilotClientOptions().setCwd(tempDir.toString())
+                .setEnvironment(Map.of(NativeRuntimeLoader.COPILOT_CLI_PATH_ENV, "copilot", "PATH",
+                        "C:\\invalid|entry;" + bin, "PATHEXT", extension + ";.EXE"));
+
+        assertEquals(List.of("cmd", "/c", "copilot", "--server"), resolveCliCommand(new CliServerManager(options)));
+    }
+
+    @Test
+    @EnabledOnOs(OS.WINDOWS)
+    void windowsCommandFallsBackToShellWhenPathEntriesAreMalformed() throws Exception {
+        var options = new CopilotClientOptions().setCliPath("copilot").setCwd(tempDir.toString())
+                .setEnvironment(Map.of("PATH", " C:\\invalid;C:\\invalid|entry"));
+
+        assertEquals(List.of("cmd", "/c", "copilot", "--server"), resolveCliCommand(new CliServerManager(options)));
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    @EnabledOnOs(OS.WINDOWS)
+    void explicitWindowsExecutablePathDoesNotDependOnPath(boolean absolute) throws Exception {
+        Path bin = Files.createDirectory(tempDir.resolve("bin"));
+        Path executable = Files.createFile(bin.resolve("copilot.exe"));
+        String cliPath = (absolute ? executable : tempDir.relativize(executable)).toString();
+        var options = new CopilotClientOptions().setCliPath(cliPath).setCwd(tempDir.toString())
+                .setEnvironment(Map.of("PATH", "C:\\invalid|entry"));
+
+        assertEquals(List.of(executable.toString(), "--server"), resolveCliCommand(new CliServerManager(options)));
+    }
+
+    @Test
+    @EnabledOnOs(OS.WINDOWS)
+    void malformedWindowsCliPathIsNotSkipped() {
+        var options = new CopilotClientOptions().setCliPath("copilot|invalid").setCwd(tempDir.toString())
+                .setEnvironment(Map.of("PATH", "C:\\invalid|entry", "PATHEXT", ".EXE"));
+
+        var error = assertThrows(InvocationTargetException.class,
+                () -> resolveCliCommand(new CliServerManager(options)));
+        var cause = assertInstanceOf(InvalidPathException.class, error.getCause());
+        assertEquals("copilot|invalid.EXE", cause.getInput());
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<String> resolveCliCommand(CliServerManager manager) throws Exception {
+        var resolve = CliServerManager.class.getDeclaredMethod("resolveCliCommand", String.class, List.class);
+        resolve.setAccessible(true);
+        return (List<String>) resolve.invoke(manager, manager.resolveCliLaunch().executable(), List.of("--server"));
+    }
+
+    // ===== startCliServer tests =====
 
     // On Windows, "/nonexistent/copilot" is not an absolute path (no drive letter),
     // so resolveCliCommand wraps it with "cmd /c" and ProcessBuilder.start()

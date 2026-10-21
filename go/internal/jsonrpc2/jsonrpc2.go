@@ -329,11 +329,11 @@ func (c *Client) RequestWithInlineResponse(ctx context.Context, method string, p
 			return response.Result, nil
 		case <-c.processDone:
 			if err := c.getProcessError(); err != nil {
-				return nil, err
+				return responseAfterShutdown(responseChan, err)
 			}
-			return nil, fmt.Errorf("process exited unexpectedly")
+			return responseAfterShutdown(responseChan, fmt.Errorf("process exited unexpectedly"))
 		case <-c.stopChan:
-			return nil, fmt.Errorf("client stopped")
+			return responseAfterShutdown(responseChan, fmt.Errorf("client stopped"))
 		}
 	}
 	select {
@@ -345,9 +345,22 @@ func (c *Client) RequestWithInlineResponse(ctx context.Context, method string, p
 		}
 		return response.Result, nil
 	case <-c.connectionClosed:
-		return nil, fmt.Errorf("connection closed")
+		return responseAfterShutdown(responseChan, fmt.Errorf("connection closed"))
 	case <-c.stopChan:
-		return nil, fmt.Errorf("client stopped")
+		return responseAfterShutdown(responseChan, fmt.Errorf("client stopped"))
+	}
+}
+
+func responseAfterShutdown(responseChan <-chan *Response, shutdownErr error) (json.RawMessage, error) {
+	// Shutdown can win the outer select after the read loop has already admitted a reply.
+	select {
+	case response := <-responseChan:
+		if response.Error != nil {
+			return nil, response.Error
+		}
+		return response.Result, nil
+	default:
+		return nil, shutdownErr
 	}
 }
 

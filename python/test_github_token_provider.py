@@ -41,7 +41,7 @@ class FakeJsonRpcClient:
     async def stop(self) -> None:
         pass
 
-    def set_request_handler(self, method: str, handler: Any) -> None:
+    def set_request_handler(self, method: str, handler: Any, **_options: Any) -> None:
         self.request_handlers[method] = handler
 
     def set_raw_request_handler(self, method: str, handler: Any) -> None:
@@ -55,6 +55,7 @@ class ConcurrentResumeJsonRpcClient(FakeJsonRpcClient):
     def __init__(self) -> None:
         super().__init__()
         self.resume_responses: list[asyncio.Future[dict[str, Any]]] = []
+        self.both_resumes_started = asyncio.Event()
 
     async def request(self, method: str, params: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
         self.requests.append((method, params))
@@ -67,6 +68,8 @@ class ConcurrentResumeJsonRpcClient(FakeJsonRpcClient):
         if method == "session.resume":
             response = asyncio.get_running_loop().create_future()
             self.resume_responses.append(response)
+            if len(self.resume_responses) >= 2:
+                self.both_resumes_started.set()
             return await response
         raise RuntimeError(f"Unexpected method: {method}")
 
@@ -263,8 +266,7 @@ class TestGitHubTokenProvider:
                 github_token_provider=lambda _: {"kind": "cancelled"},
             )
         )
-        while len(fake.resume_responses) < 2:
-            await asyncio.sleep(0)
+        await asyncio.wait_for(fake.both_resumes_started.wait(), timeout=5.0)
 
         fake.resume_responses[0].set_result({"sessionId": "concurrent"})
         await first_resume

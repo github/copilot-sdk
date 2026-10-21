@@ -10,7 +10,7 @@ package com.github.copilot.generated;
 import javax.annotation.processing.Generated;
 
 /**
- * For a `bypass_permissions_blocked` action, which permission-escalation primitive was refused
+ * For a `bypass_permissions_blocked` action, which permission-mode or escalation primitive was refused
  *
  * @since 1.0.0
  */

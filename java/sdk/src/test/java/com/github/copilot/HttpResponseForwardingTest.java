@@ -304,8 +304,8 @@ class HttpResponseForwardingTest {
             ServerRpc rpc = new ServerRpc(caller);
             exchange = new LlmInferenceExchange("test", () -> rpc.llmInference);
             exchange.setMethod("GET");
-            exchange.setContext(new CopilotRequestContext("test", null, null, null, null, CopilotRequestTransport.HTTP,
-                    "http://unused.test", Map.of(), exchange.cancellation()));
+            exchange.setContext(new CopilotRequestContext("test", null, null, null, null, null,
+                    CopilotRequestTransport.HTTP, "http://unused.test", Map.of(), exchange.cancellation()));
             exchange.pushEnd();
 
             CopilotRequestHandler handler = new CopilotRequestHandler() {
@@ -372,6 +372,7 @@ class HttpResponseForwardingTest {
 
         private final BlockingQueue<Object> items = new LinkedBlockingQueue<>();
         private final AtomicLong bytesRead = new AtomicLong();
+        private final Object readProgress = new Object();
         private final AtomicBoolean closed = new AtomicBoolean();
         private final CompletableFuture<Void> failureRead = new CompletableFuture<>();
         private final CompletableFuture<Void> closeObserved = new CompletableFuture<>();
@@ -400,8 +401,11 @@ class HttpResponseForwardingTest {
 
         void awaitBytesRead(long expected) throws Exception {
             long deadline = System.nanoTime() + DEADLINE.toNanos();
-            while (bytesRead.get() < expected && System.nanoTime() < deadline) {
-                Thread.sleep(5);
+            synchronized (readProgress) {
+                long remaining;
+                while (bytesRead.get() < expected && (remaining = deadline - System.nanoTime()) > 0) {
+                    TimeUnit.NANOSECONDS.timedWait(readProgress, remaining);
+                }
             }
             assertEquals(expected, bytesRead.get());
         }
@@ -436,7 +440,10 @@ class HttpResponseForwardingTest {
                         current.set(null);
                         currentOffset = 0;
                     }
-                    bytesRead.addAndGet(count);
+                    synchronized (readProgress) {
+                        bytesRead.addAndGet(count);
+                        readProgress.notifyAll();
+                    }
                     return count;
                 }
 

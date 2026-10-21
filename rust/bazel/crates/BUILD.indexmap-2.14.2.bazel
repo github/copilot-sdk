@@ -65,7 +65,7 @@ rust_library(
     }),
     version = "2.14.2",
     deps = [
-        "@sdk_vendor__equivalent-1.0.2//:equivalent",
+        "@sdk_vendor__equivalent-1.0.3//:equivalent",
         "@sdk_vendor__hashbrown-0.17.1//:hashbrown",
         "@sdk_vendor__serde_core-1.0.229//:serde_core",
     ],

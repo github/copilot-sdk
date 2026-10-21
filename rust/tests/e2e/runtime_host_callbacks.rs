@@ -41,8 +41,8 @@ async fn callback_resume_composes_tools_after_application_session_runtime_restar
             let original = deadline(created.recv()).await.unwrap();
             assert!(created.try_recv().is_err());
             let session_id = original.id();
-            assert_eq!(session_id.as_str(), uri.strip_prefix("ahp-session:/").unwrap());
-            topology(&first, &first_owner, &home(ctx).join("ahp/sessions"));
+            assert_ne!(session_id.as_str(), uri.strip_prefix("ahp-session:/").unwrap());
+            topology(&first, &first_owner, &home(ctx));
             turn(&ahp, &chat, subscription).await;
             assert_eq!(first_callbacks.tools.load(Ordering::SeqCst), 0);
             first.dispose().await.unwrap();
@@ -68,7 +68,7 @@ async fn callback_resume_composes_tools_after_application_session_runtime_restar
             let (released_tx, mut released) = mpsc::unbounded_channel();
             let expected_id = session_id.clone();
             let expected_directory = ctx.work_dir().canonicalize().unwrap();
-            let options = AhpHostOptions::new()
+            let options = local_options()
                 .with_create_session(move |_: AhpSessionRequest, _: Client| {
                     creates.fetch_add(1, Ordering::SeqCst);
                     async { Err::<Arc<Session>, Error>(std::io::Error::other("resume must not create").into()) }
@@ -102,13 +102,13 @@ async fn callback_resume_composes_tools_after_application_session_runtime_restar
                 })
                 .with_on_session_released(move |session| { released_tx.send(session).unwrap(); });
             let host = owner.start_ahp_host(options).await.unwrap();
-            let ahp = connect_url_as(&host.url, host.token.as_deref(), client_id).await;
-            topology(&host, &owner, &home(ctx).join("ahp/sessions"));
+            let ahp = connect_url_as(host.url.as_deref().expect("local listener URL"), host.token.as_deref(), client_id).await;
+            topology(&host, &owner, &home(ctx));
             resume(&ahp, &uri, None).await;
             let restored = deadline(resumed.recv()).await.unwrap();
             assert_eq!(restored.id(), session_id);
             assert!(!Arc::ptr_eq(&original, &restored));
-            let (session, _) = ahp.client.subscribe(uri.clone()).await.unwrap();
+            let (session, mut session_updates) = ahp.client.subscribe(uri.clone()).await.unwrap();
             let session = serde_json::to_value(session).unwrap();
             let chat_uri = session["snapshot"]["state"]["defaultChat"].as_str().unwrap();
             let (history, subscription) = ahp.client.subscribe(chat_uri.into()).await.unwrap();
@@ -122,14 +122,24 @@ async fn callback_resume_composes_tools_after_application_session_runtime_restar
                     "tools":client_tools}
             })).unwrap()).await.unwrap();
             deadline(async {
-                loop {
-                    let (session, _) = ahp.client.subscribe(uri.clone()).await.unwrap();
-                    let state = serde_json::to_value(session).unwrap();
-                    if state["snapshot"]["state"]["activeClients"].as_array().unwrap().iter()
-                        .any(|entry| entry["clientId"] == ahp.client_id) { break; }
-                    tokio::task::yield_now().await;
+                while let Some(event) = session_updates.recv().await {
+                    let ahp::SubscriptionEvent::Action(envelope) = event else {
+                        continue;
+                    };
+                    let envelope = serde_json::to_value(envelope).unwrap();
+                    assert!(envelope["rejectionReason"].is_null(), "{envelope}");
+                    let action = &envelope["action"];
+                    if action["type"] == "session/activeClientSet"
+                        && action["activeClient"]["clientId"] == ahp.client_id {
+                        return;
+                    }
                 }
+                panic!("session subscription closed before active client update");
             }).await;
+            let (session, _) = ahp.client.subscribe(uri.clone()).await.unwrap();
+            let state = serde_json::to_value(session).unwrap();
+            assert!(state["snapshot"]["state"]["activeClients"].as_array().unwrap().iter()
+                .any(|entry| entry["clientId"] == ahp.client_id));
             let client_calls = AtomicUsize::new(0);
             let client_tool = |name: &str, input: Value| {
                 assert_eq!(name, "client_echo");
@@ -230,7 +240,7 @@ async fn callback_pending_disposal_releases_without_transport_drain_timeout() {
             let (released_tx, mut released) = mpsc::unbounded_channel();
             let finish = CancellationToken::new();
             let gate = finish.clone();
-            let options = AhpHostOptions::new()
+            let options = local_options()
                 .with_create_session(move |request: AhpSessionRequest, client: Client| {
                     let ready_tx = ready_tx.clone();
                     let gate = gate.clone();
@@ -318,12 +328,17 @@ fn options_with_app(
 ) {
     let (created_tx, created) = mpsc::unbounded_channel();
     let (released_tx, released) = mpsc::unbounded_channel();
-    let options = AhpHostOptions::new()
+    let options = local_options()
         .with_create_session(move |request: AhpSessionRequest, client: Client| {
             let callbacks = callbacks.clone();
             let created_tx = created_tx.clone();
             async move {
                 assert!(!request.cancellation_token.is_cancelled());
+                let requested_id = request
+                    .config
+                    .session_id
+                    .clone()
+                    .expect("host-requested runtime ID");
                 let tool = Tool::new("magic_number")
                     .with_description("Returns a magic number")
                     .with_parameters(json!({
@@ -348,6 +363,7 @@ fn options_with_app(
                         )
                         .await?,
                 );
+                assert_eq!(original.id(), requested_id);
                 created_tx.send(original.clone()).unwrap();
                 Ok(original)
             }
@@ -356,6 +372,141 @@ fn options_with_app(
             released_tx.send(session).unwrap();
         });
     (options, created, released)
+}
+
+#[tokio::test]
+#[ignore = "requires local runtime host artifacts"]
+#[serial_test::serial]
+async fn resident_publication_preserves_original_without_invoking_factories() {
+    use github_copilot_sdk::rpc::ModeSetRequest;
+    use github_copilot_sdk::session_events::SessionMode;
+
+    run_snapshot("multi_client", TOOL_SNAPSHOT, |ctx| {
+        Box::pin(async move {
+            let owner = start(ctx).await;
+            let callbacks = Arc::new(AppCallbacks::default());
+            let tool = Tool::new("magic_number")
+                .with_description("Returns a magic number")
+                .with_parameters(json!({
+                    "type": "object",
+                    "properties": {"seed": {"type": "string", "description": "A seed value"}},
+                    "required": ["seed"]
+                }))
+                .with_handler(callbacks.clone());
+            let original = owner
+                .create_session(
+                    ctx.approve_all_session_config()
+                        .with_model("claude-sonnet-5")
+                        .with_system_message(
+                            SystemMessageConfig::new()
+                                .with_mode("append")
+                                .with_content(MARKER),
+                        )
+                        .with_excluded_tools(["bash"])
+                        .with_tools(vec![tool])
+                        .with_hooks(callbacks.clone()),
+                )
+                .await
+                .unwrap();
+            original
+                .rpc()
+                .mode()
+                .set(ModeSetRequest {
+                    mode: SessionMode::Plan,
+                    ..Default::default()
+                })
+                .await
+                .unwrap();
+            let creates = Arc::new(AtomicUsize::new(0));
+            let resumes = Arc::new(AtomicUsize::new(0));
+            let releases = Arc::new(AtomicUsize::new(0));
+            let (created, resumed, released) = (creates.clone(), resumes.clone(), releases.clone());
+            let host = owner
+                .start_ahp_host(
+                    local_options()
+                        .with_create_session(move |_: AhpSessionRequest, _: Client| {
+                            created.fetch_add(1, Ordering::SeqCst);
+                            async {
+                                Err::<Arc<Session>, Error>(
+                                    std::io::Error::other("publication must not create").into(),
+                                )
+                            }
+                        })
+                        .with_resume_session(move |_: AhpSessionResumeRequest, _: Client| {
+                            resumed.fetch_add(1, Ordering::SeqCst);
+                            async {
+                                Err::<Arc<Session>, Error>(
+                                    std::io::Error::other("resident publication must not resume")
+                                        .into(),
+                                )
+                            }
+                        })
+                        .with_on_session_released(move |_| {
+                            released.fetch_add(1, Ordering::SeqCst);
+                        }),
+                )
+                .await
+                .unwrap();
+            let ahp = connect(&host).await;
+            let published = host.publish_session(original.id().as_str()).await.unwrap();
+            assert_eq!(published.session_id, original.id());
+            authenticate(&ahp).await;
+            let attachment = ahp.client.subscribe(published.session_uri).await;
+            assert_eq!(creates.load(Ordering::SeqCst), 0);
+            assert_eq!(
+                resumes.load(Ordering::SeqCst),
+                0,
+                "attaching an already-resident publication must not invoke its resume factory"
+            );
+            let (session, _) = attachment.expect("attach original resident session");
+            assert_eq!(
+                serde_json::to_value(session).unwrap()["snapshot"]["state"]["lifecycle"],
+                "ready"
+            );
+            assert_eq!(
+                original.rpc().mode().get().await.unwrap(),
+                SessionMode::Plan
+            );
+            original
+                .rpc()
+                .mode()
+                .set(ModeSetRequest {
+                    mode: SessionMode::Interactive,
+                    ..Default::default()
+                })
+                .await
+                .unwrap();
+            let response = original.send_and_wait(TOOL_PROMPT).await.unwrap().unwrap();
+            assert!(
+                response.data["content"]
+                    .as_str()
+                    .unwrap()
+                    .contains("MAGIC_hello_42")
+            );
+            assert_eq!(callbacks.tools.load(Ordering::SeqCst), 1);
+            assert!(callbacks.hooks.load(Ordering::SeqCst) > 0);
+            let exchanges = ctx.exchanges();
+            let request = &exchanges.last().expect("application inference")["request"];
+            assert!(request["messages"].to_string().contains(MARKER));
+            let tools = request["tools"].as_array().unwrap();
+            assert!(
+                tools
+                    .iter()
+                    .any(|tool| tool["function"]["name"] == "magic_number")
+            );
+            assert!(!tools.iter().any(|tool| tool["function"]["name"] == "bash"));
+            host.dispose().await.unwrap();
+            stopped(&host, &ahp, &owner).await;
+            assert_eq!(creates.load(Ordering::SeqCst), 0);
+            assert_eq!(resumes.load(Ordering::SeqCst), 0);
+            assert_eq!(releases.load(Ordering::SeqCst), 0);
+            assert!(!original.get_events().await.unwrap().is_empty());
+            ahp.client.shutdown().await;
+            original.disconnect().await.unwrap();
+            owner.stop().await.unwrap();
+        })
+    })
+    .await;
 }
 
 #[tokio::test]
@@ -371,11 +522,11 @@ async fn callback_handoff_preserves_tools_hooks_prompt_and_original_arc() {
             let ahp = connect(&host).await;
             let (uri, chat, subscription) = create(&ahp, ctx).await;
             let original = deadline(created.recv()).await.unwrap();
-            assert_eq!(
+            assert_ne!(
                 original.id().as_str(),
                 uri.strip_prefix("ahp-session:/").unwrap()
             );
-            topology(&host, &owner, &home(ctx).join("ahp/sessions"));
+            topology(&host, &owner, &home(ctx));
             turn_with_prompt(&ahp, &chat, subscription, TOOL_PROMPT, "MAGIC_hello_42").await;
             assert_eq!(callbacks.tools.load(Ordering::SeqCst), 1);
             assert!(callbacks.hooks.load(Ordering::SeqCst) > 0);
@@ -453,13 +604,7 @@ async fn callback_disposal_and_owner_termination_release_once() {
     run(|ctx| {
         Box::pin(async move {
             for owner_loss in [false, true] {
-                let port = unused_port();
-                let runtime = Client::start(options(ctx).with_transport(Transport::Tcp {
-                    port,
-                    connection_token: Some(RUNTIME_TOKEN.into()),
-                }))
-                .await
-                .unwrap();
+                let (runtime, port) = tcp_owner(ctx).await;
                 let owner = Client::start(options(ctx).with_transport(Transport::External {
                     host: "127.0.0.1".into(),
                     port,
@@ -512,7 +657,7 @@ async fn callback_cancellation_releases_late_session_after_host_disposal() {
             let (released_tx, mut released) = mpsc::unbounded_channel();
             let finish = CancellationToken::new();
             let gate = finish.clone();
-            let options = AhpHostOptions::new()
+            let options = local_options()
                 .with_create_session(move |request: AhpSessionRequest, client: Client| {
                     let ready_tx = ready_tx.clone();
                     let gate = gate.clone();

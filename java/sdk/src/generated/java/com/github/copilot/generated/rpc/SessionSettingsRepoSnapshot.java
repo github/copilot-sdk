@@ -20,7 +20,7 @@ import javax.annotation.processing.Generated;
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record SessionSettingsRepoSnapshot(
+record SessionSettingsRepoSnapshot(
     /** Repository name. */
     @JsonProperty("name") String name,
     /** GitHub repository database ID. */

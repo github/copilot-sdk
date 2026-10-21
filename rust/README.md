@@ -1,3 +1,5 @@
+<!-- Copyright (c) Microsoft Corporation. All rights reserved. -->
+
 # GitHub Copilot CLI SDK for Rust
 
 A Rust SDK for programmatic access to the GitHub Copilot CLI.
@@ -101,6 +103,13 @@ let pong = client.ping("hello").await?;
 client.stop().await?;
 ```
 
+`ResumeSessionConfig::with_allow_transcript_recovery(false)` rejects a resume that would
+discard or reorder transcript records, but permits adding a missing newline after
+an intact final record. Recovery defaults to `true` in all modes.
+When allowed and performed, `session.transcript_recovery()` returns
+the planned backup path, invalid line numbers, and whether `session.start` was moved;
+the backup is written on the next append rather than during resume.
+
 After `Client::start` succeeds, inspect its startup cost without parsing logs:
 
 ```rust,ignore
@@ -114,6 +123,12 @@ println!(
 Transport-specific phases are optional. For example, `port_wait_ms` is present
 only for TCP and `process_spawn_ms` is absent for external and in-process
 transports.
+
+Windows CLI children normally join a private kill-on-close Job before resuming.
+PSS lookup falls back to Toolhelp. Only `OpenThread` access denial permits an
+ordinary-spawn retry after terminating the original. This logged fallback uses
+best-effort Job assignment: early descendants can escape, and assignment failure
+leaves only direct-child cleanup, without crash-safe SDK-host-exit ownership.
 
 **`ClientOptions`:**
 
@@ -129,6 +144,18 @@ transports.
 | `extension_launch_provider` | `Option<Arc<dyn ExtensionLaunchProvider>>` | Connection-global extension launch resolver |
 | `installation_confirmation_handler` | `Option<Arc<dyn InstallationConfirmationHandler>>` | Experimental connection-global human installation review |
 
+For the native standalone runtime, include
+`("COPILOT_GITHUB_TELEMETRY_DISABLED".into(), "true".into())` in
+`ClientOptions::env` before startup to disable direct GitHub telemetry uploads for
+the entire host, including sessionless events. Authentication,
+`on_github_telemetry` forwarding, and user-configured OpenTelemetry export remain
+unchanged. This is separate from
+`SessionConfig::with_enable_session_telemetry(false)`, which disables only a
+session's pipeline. The value must be exactly `"true"`; changing it requires a
+runtime restart. The Node CLI host does not use this variable.
+`Transport::InProcess` rejects per-client `env`; set the variable in the host
+process environment before starting the runtime instead.
+
 With the default `CliProgram::Resolve`, managed stdio and TCP transports resolve an explicit `CliProgram::Path(path)`, `COPILOT_CLI_PATH`, then the bundled `copilot-runtime` wrapper and adjacent `runtime.node`. In-process transport loads the native runtime library adjacent to that resolved runtime bundle. There is no PATH scanning.
 
 #### AHP listeners (experimental)
@@ -143,27 +170,39 @@ use github_copilot_sdk::{AhpHostOptions, Client};
 # async fn example(client: &Client) -> Result<(), github_copilot_sdk::Error> {
 let host = client.start_ahp_host(
     AhpHostOptions::default()
-        .with_hostname("127.0.0.1")
-        .with_port(0)
+        .with_local_server(Default::default())
         .with_on_exit(|exit| {
             println!("host {} exited: {:?}", exit.host_id, exit.reason);
         }),
 ).await?;
-println!("{} (in-process host {})", host.url, host.host_id);
+println!("{:?} (in-process host {})", host.url, host.host_id);
 // Supply host.token to AHP clients when present; never log it.
 host.dispose().await?;
 # Ok(())
 # }
 ```
 
-`AhpHostOptions` has optional `hostname`, `port`, `token`,
-`require_connection_token`, and local-only `on_exit` fields, with matching
-`with_*` builders. Defaults and validation stay in the runtime: loopback hostname,
-an available port, and required connection-token authentication. Set
-`with_require_connection_token(false)` to disable token authentication; then
-`AhpHost::token` is `None`.
+`AhpHostOptions` requires at least one explicit transport: `with_local_server`
+accepts generated `rpc::HostLocalServerOptions`, and `with_github_environment`
+accepts generated `rpc::HostGitHubEnvironmentOptions` with required `name` and
+`compute_id`. Both transports may be enabled. There is no implicit local listener.
+Local `hostname`, `port`, `token`, and `require_connection_token` settings belong
+inside `HostLocalServerOptions`. Its runtime defaults are loopback, an available
+port, and required token authentication. Set its `require_connection_token` to
+`Some(false)` to disable connection-token authentication.
+The `on_exit` callback remains local-only. All hosting APIs are experimental.
 
-The returned `AhpHost` exposes `host_id`, `url`, `pid`, and `token`.
+The returned `AhpHost` exposes `host_id` and optional `url`, `pid`, `token`, and
+`environment_id`. Mission Control-only hosting has no local URL; `environment_id`
+identifies its registration. Environment list/get/delete operations are available
+only through the generated `client.rpc().environments()` namespace. Call
+`host.list_sessions().await` to read the complete advertised catalog of live and
+dormant sessions.
+Use `AhpHostOptions::with_compute_id(...)` to reuse the durable catalog across
+local and Mission Control hosting; it must agree with the GitHub environment's
+`compute_id` when both are supplied. The runtime persists an omitted local-only
+identity. Publication survives host shutdown; dormant application sessions
+require your resume callback.
 `pid` is `None` for in-process listeners; `Some(pid)` preserves a separate host
 process ID returned by a legacy runtime, never the runtime PID. Stop the
 in-process listener with `dispose()`. There is no
@@ -209,6 +248,7 @@ use github_copilot_sdk::handler::ApproveAllHandler;
 # async fn example(client: &Client) -> Result<(), github_copilot_sdk::Error> {
 let host = client.start_ahp_host(
     AhpHostOptions::new()
+        .with_local_server(Default::default())
         .with_create_session(|request: AhpSessionRequest, client: Client| async move {
             // Use this request-scoped client instead of capturing the owner.
             // Preserve request.config; add your tools/hooks here.
@@ -249,8 +289,9 @@ owning client, subject to the same session identity and workspace checks.
 
 Only durable catalog entries marked as application-owned use this resume
 factory. Restoration fails if the callback is missing; it does not fall back
-to host-owned creation. Published resident sessions attach directly without invoking it or
-reconfiguring their current registrations. The SDK retains the exact returned
+to host-owned creation. Currently resident published sessions attach directly without invoking it or
+reconfiguring their current registrations. Dormant published application sessions
+require this callback to restore their tools and handlers. The SDK retains the exact returned
 `Arc` and applies the same cancellation, late completion, and release rules as
 fresh handoffs; it never automatically disconnects or destroys the result.
 
@@ -351,6 +392,27 @@ executable is a version-matched standalone Copilot binary, omit that variable
 and set `COPILOT_AUTO_UPDATE=false` so its embedded distribution remains
 selected.
 
+### Azure ML model acquisition (experimental)
+
+`client.rpc().azure_ml()` works before a chat session exists. `catalog`,
+`latest`, and `resolve` return eligible model facts without signed download
+URLs. A development-registry request also needs server-verified Microsoft staff
+access. `download` completes only after the runtime verifies the files and
+publishes the manifest. Use `status` for progress and `cancel` to request
+cleanup; the pending `download` call reports the final result.
+
+A client that also changes model activation or registration must hold one
+connection-owned `acquire_family` lease across that full operation. Pass its
+`lease_id` to `download` and `discard`, then call `release_family` after the
+client's last change. The runtime holds the existing family and compatibility
+locks until the operation completes. A standalone `download` or `discard`
+without a lease holds those locks for its own call. Disconnect cancels active
+transfers and retains their locks through cleanup.
+
+The [Rust SDK example](examples/azure_ml_acquisition.rs) shows a lease and
+status query without a network request or a model download. Build the matching
+CLI first, then set `COPILOT_CLI_PATH` to that CLI when you run the example.
+
 ### Session
 
 Created via `Client::create_session` or `Client::resume_session`. Owns an internal event loop that dispatches CLI callbacks to the focused handler traits you install on `SessionConfig`, and broadcasts session events through `subscribe()`.
@@ -418,6 +480,80 @@ session
 // Cleanup (preserves on-disk session state for later resume)
 session.disconnect().await?;
 ```
+
+#### Skill providers (experimental)
+
+Hosts can supply a session-scoped skill catalog and lazy markdown reader with
+`SkillProvider`. The provider is runtime-only: the SDK sends only
+`hasSkillProvider: true` on `session.create` / `session.resume`, and routes
+`skillProvider.list` and `skillProvider.read` callbacks back to the trait.
+
+```rust,no_run
+use std::sync::Arc;
+use async_trait::async_trait;
+use github_copilot_sdk::skill_provider::{SkillProvider, SkillProviderDescriptor};
+use github_copilot_sdk::{Client, ClientOptions, Error, SessionConfig};
+
+struct AppSkills;
+
+#[async_trait]
+impl SkillProvider for AppSkills {
+    async fn list_skills(
+        &self,
+    ) -> Result<Vec<SkillProviderDescriptor>, Error> {
+        Ok(vec![SkillProviderDescriptor {
+            name: "review".to_string(),
+            description: "Review the current change".to_string(),
+            ..Default::default()
+        }])
+    }
+
+    async fn read_skill(&self, name: &str) -> Result<Option<String>, Error> {
+        Ok((name == "review").then(|| "# Review\nInspect the diff carefully.".to_string()))
+    }
+}
+
+# async fn example() -> Result<(), Error> {
+let client = Client::start(ClientOptions::default()).await?;
+let session = client
+    .create_session(SessionConfig::default().with_skill_provider(Arc::new(AppSkills)))
+    .await?;
+# session.disconnect().await?;
+# client.stop().await.ok();
+# Ok(())
+# }
+```
+
+In `ClientMode::Empty`, built-in skill loading defaults to disabled; set
+`enable_skills` to `Some(true)` when the session should use provider-backed
+skills in that mode. Providers are not persisted, so re-supply one with
+`ResumeSessionConfig::with_skill_provider` on every resume. Cloud sessions do
+not support skill providers. Each callback is dispatched on its own spawned
+task, so provider implementations must be safe for concurrent calls. When the
+runtime cancels a call, for example after its 30-second limit or when the
+session disconnects, the SDK drops the provider future; await cancel-safe work
+so that dropping it stops the lookup.
+
+##### Supporting files (experimental)
+
+To give a provider skill supporting files, such as scripts, references,
+templates, and assets, set its descriptor's `directory` to the absolute path of
+the folder that holds them:
+
+```rust
+# use github_copilot_sdk::skill_provider::SkillProviderDescriptor;
+# let _ =
+SkillProviderDescriptor {
+    name: "release-notes".to_string(),
+    description: "Writes release notes in the team's format.".to_string(),
+    directory: Some("/srv/skills/release-notes".to_string()),
+    ..Default::default()
+}
+# ;
+```
+
+When the skill is activated, the runtime lists the folder's files for the model.
+See [Supporting files](../docs/features/skills.md#supporting-files-experimental) for details.
 
 #### Typed RPC namespace
 
@@ -583,6 +719,8 @@ The SDK exposes five focused handler traits, one per CLI callback type. Implemen
 
 The CLI's `requestPermission` / `requestElicitation` / `requestUserInput` / etc. wire flags are derived automatically from which traits you've installed — clients that don't install a handler are silently skipped, letting another connected client handle the request.
 
+`Session::subscribe()` exposes permission events through an observation-only stream, and `PermissionHandler` receives the same `PermissionRequestData`. Call `data.prompt_request()` for optional derived prompt context. The raw `managed_approval_required` field remains managed-policy provenance and enforces one-shot restrictions. Only derived `Commands`, `Read`, `Write`, `Url`, and `Workflow` prompts can clear the human requirement after Assisted approval; for missing or other prompt kinds, keep the raw marker authoritative.
+
 ```rust,ignore
 use std::sync::Arc;
 use async_trait::async_trait;
@@ -627,6 +765,15 @@ The built-in `ApproveAllHandler` and `DenyAllHandler` implement `PermissionHandl
 
 ### SessionConfig
 
+`SessionConfig::with_autopilot(AutopilotOptions)` and the corresponding
+`ResumeSessionConfig` builder configure experimental Autopilot policy.
+`continuation_enabled` defaults to true and does not change session mode.
+`max_continues` limits continuations outside an active objective: a non-negative
+integer, default five, with zero allowing none. Options updates and warm resumes
+preserve omitted fields; an empty
+policy changes nothing. Re-supply on cold resume. Pause state, prompt overrides,
+and no-progress detection remain internal.
+
 ```rust,ignore
 let config = SessionConfig {
     model: Some("gpt-5".into()),
@@ -645,6 +792,12 @@ Use `with_ask_user_variant(AskUserVariant::Elicitation)` together with
 `with_elicitation_handler(...)` to expose the structured form-based `ask_user`
 tool. The default remains `AskUserVariant::Legacy`. Re-supply the option and
 handler through `ResumeSessionConfig` on a cold resume.
+
+Use `with_interactive_user(true)` to declare that a person types the session's
+messages, as in an editor chat panel. This enables the runtime's user-message
+analysis telemetry for user-authored messages; automated messages stay
+excluded. The default is off, and cloud sessions ignore it. Re-supply it through
+`ResumeSessionConfig` on a cold resume.
 
 For rotating per-session GitHub credentials, install a `GitHubTokenProvider`
 instead of setting `github_token`:
@@ -768,11 +921,36 @@ let session = client
     .await?;
 ```
 
-**Hook events:** `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `UserPromptSubmitted`, `UserPromptTransformed`, `SessionStart`, `SessionEnd`, `ErrorOccurred`. Each carries typed input/output structs. `PostToolUse` only fires on success; override `on_post_tool_use_failure` to observe failed tool calls. Return `HookOutput::None` for events you don't handle.
+**Hook events:** `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `UserPromptSubmitted`, `UserPromptTransformed`, `SessionStart`, `SessionEnd`, `ErrorOccurred`, `AgentStop`, `SubagentStart`, and `SubagentStop`. Each carries typed input/output structs. `PostToolUse` only fires on success; override `on_post_tool_use_failure` to observe failed tool calls. `on_subagent_start` can inject `additional_context` into the child agent's initial prompt; `on_subagent_stop` can return a `decision` of `"block"` with a `reason` to continue the child or a `modified_response` to replace its final answer. `on_user_prompt_submitted` can return a `decision` of `"block"` with a `reason` to refuse the prompt: no model turn runs, no user message is recorded, and the session emits an ephemeral `session.warning` (`warningType: "policy_blocked"`) carrying the reason. `UserPromptSubmittedOutput` gained the `decision` and `reason` fields for this; a struct literal that names every field must add them or use `..Default::default()`. Return `HookOutput::None` for events you don't handle.
+
+To inspect runtime-provided actor metadata, override `SessionHooks::on_hook_with_actor`.
+Its typed `HookActor` exposes optional `agent_id()`, `agent_type()`, and `parent_agent_id()` getters.
+Root hooks and older runtimes can omit these fields; existing `SubagentStopInput` actor fields remain unchanged.
+The default implementation delegates to `on_hook`, which retains the existing per-hook dispatch.
+Existing implementations, input struct literals, and exact destructuring patterns therefore need no migration.
+The enriched wire fields are opt-in metadata, not new fields on the legacy Rust input structs.
+
+```rust,no_run
+# use async_trait::async_trait;
+# use github_copilot_sdk::hooks::{HookActor, HookEvent, HookOutput, SessionHooks};
+struct ActorAwareHooks;
+
+#[async_trait]
+impl SessionHooks for ActorAwareHooks {
+    async fn on_hook_with_actor(&self, event: HookEvent, actor: HookActor) -> HookOutput {
+        if let Some(id) = actor.agent_id() {
+            eprintln!("Hook actor: {id}");
+        }
+        self.on_hook(event).await
+    }
+}
+```
 
 ### System Message Transforms
 
 Transforms customize system message sections during session creation. The SDK injects `action: "transform"` entries for each section ID your transform handles.
+
+`last_instructions` includes configured subagent-model guidance when the `task` tool is available. Removing or replacing this section in customize mode also removes that guidance; a `SystemMessageTransform` handling this section receives its complete content, including the guidance, and any replacement it returns is authoritative. Append, prepend, and preserve retain their usual section semantics. These overrides change prompt prose only, not configured subagent models, tool availability, or runtime dispatch policy. `runtime_instructions` is a separate section: removing it does not remove `last_instructions`.
 
 ```rust,ignore
 use github_copilot_sdk::transforms::*;
@@ -880,6 +1058,44 @@ The closure receives the full [`ToolInvocation`](crate::types::ToolInvocation) a
 
 Reach for the `ToolHandler` trait directly when you need shared state across multiple methods or want a named type that shows up by name in stack traces.
 
+#### Replacing tools during a session
+
+`Session::set_tools` (experimental) replaces the complete set of tools this client supplies to a live session, together with the handlers that serve them. It takes the same `Tool` values as `with_tools`, and an empty collection removes all of this client's tools. Built-in, MCP, plugin, and extension tools, and tools that other connected clients supply, are unaffected.
+
+```rust,ignore
+session.set_tools(vec![search_tool, filter_tool]).await?;
+```
+
+The agent sees the new tools from its next model request. The new handlers take effect as soon as the runtime accepts the replacement, and calls already running finish on the handlers that started them. If the runtime rejects the replacement, nothing changes. A model request already in flight was made with the previous tools, so the agent can still call a tool you removed; this session won't answer that call, so replace tools while the session is idle if a running turn might still call a tool you remove. See [Changing tools during a session](../docs/features/changing-tools.md) for the behavior shared by all SDKs.
+
+#### String-schema `apply_patch` overrides
+
+With the `derive` feature enabled, an explicit `apply_patch` override can use
+`define_tool::<String, _, _>` to declare a root string schema. The model sees a
+required `input` property, but the runtime restores the scalar patch text before
+dispatch. The typed handler receives a `String`, not an `{"input": ...}` object.
+This example returns trimmed patch text; replace the handler body with your own
+patch implementation:
+
+```rust,ignore
+use github_copilot_sdk::tool::define_tool;
+use github_copilot_sdk::ToolResult;
+
+let apply_patch = define_tool::<String, _, _>(
+    "apply_patch",
+    "Apply a patch",
+    |_invocation, patch| async move {
+        Ok(ToolResult::Text(patch.trim().to_owned()))
+    },
+)
+.with_overrides_built_in_tool(true);
+
+let config = config.with_tools(vec![apply_patch]);
+```
+
+String-schema `apply_patch` overrides cannot contain JSON Schema references;
+use an object schema if references are needed.
+
 ### Permission Policies
 
 Set a permission policy directly on `SessionConfig` with the chainable builders. They install a synthesized `PermissionHandler` so only permission requests are intercepted; every other event flows through unchanged.
@@ -945,7 +1161,13 @@ let config = SessionConfig::default()
     .with_elicitation_handler(Arc::new(MyElicitation));
 ```
 
-The handler receives a message, optional JSON Schema for form fields, and an optional mode. Known modes include `Form` and `Url`, but the mode may be absent or an unknown future value.
+The handler receives a message, optional JSON Schema for form fields, and an optional mode. The schema retains the wire object's field order and metadata, including keys not modeled by the generated event type. Known modes include `Form` and `Url`, but the mode may be absent or an unknown future value.
+
+Wire-schema preservation is a Rust SDK guarantee, not a guarantee shared by
+every SDK. For applications targeting multiple SDK languages, constrain form
+schemas to the [portable elicitation schema contract](../README.md#portable-elicitation-schemas):
+the modeled `type`, `properties`, and optional `required` fields, without
+depending on additional top-level metadata or property insertion order.
 
 ### User Input Requests
 
@@ -1032,13 +1254,17 @@ while let Ok(event) = events.recv().await {
 
 When streaming is off (the default), only the final `assistant.message` and `assistant.reasoning` events fire. Delta events arrive in order; concatenating their `delta` text payloads reproduces the final message.
 
+After session shutdown or owner connection loss, `session.subscribe()` returns an immediately closed subscription: `recv()` reports `RecvErrorKind::Closed`, and stream iteration ends. Ordinary shutdown lets existing subscriptions drain already-published events. `Client::force_stop()` instead closes live and prepared subscriptions immediately and discards unread live and resume-bootstrap events, without waiting for producer shutdown. Retaining the `Session` does not retain the event producer or prevent its event loop from terminating.
+
+When the event loop retires, it also releases registered tool-handler captures, even if the application retains the `Session`. Tool replacements reject local admission and late acknowledgments after retirement. An already-admitted tool call retains its selected handler for its existing completion or cancellation path.
+
 #### Subscribing before the session starts
 
 `session.subscribe()` can only be called once the session exists. On create, events dispatched before a subscriber is installed are not delivered. Ephemeral events such as `session.idle` are not written to the session log either, so `get_messages` can't recover them afterwards.
 
 On resume with no active prepared subscriber, the SDK instead retains all routed startup events, durable and ephemeral, in an ordered bootstrap queue. The first `session.subscribe()` call claims that queue synchronously, even before the subscription is polled. It receives the complete prefix and any events dispatched while catching up, then atomically switches to bounded live delivery. Later subscribers receive newly dispatched live events immediately, even while the owner is draining.
 
-**The resume bootstrap is unbounded until its owner catches up.** Subscribe and drain promptly: a caller that never subscribes or cannot catch up can retain arbitrarily many events. Dropping the owner discards its unread backlog without transferring it to another subscriber. Stopping the session event loop releases an unclaimed backlog; a claimed backlog can still drain after shutdown without keeping the sender alive. This guarantee covers events routed to the session, not overflow in the bounded client-global notification router.
+**The resume bootstrap is unbounded until its owner catches up.** Subscribe and drain promptly: a caller that never subscribes or cannot catch up can retain arbitrarily many events. Dropping the owner discards its unread backlog without transferring it to another subscriber. Stopping the session event loop releases an unclaimed backlog; a claimed backlog can still drain after ordinary shutdown without keeping the sender alive. Client force-stop discards the backlog even after it has been claimed. This guarantee covers events routed to the session, not overflow in the bounded client-global notification router.
 
 For create and resume calls with a client-known session ID, the SDK starts its event loop before sending the RPC so it can answer session-scoped requests issued during startup. Cloud creates with a server-assigned ID register the loop after the response identifies the session.
 
@@ -1173,7 +1399,7 @@ session.rpc().send(request).await?;
 # }
 ```
 
-Both paths use ordinary `session.send`. Source does not select a delivery mode or set billing flags; the runtime applies its existing source behavior. `send_and_wait` still completes on `session.idle` and may return `Ok(None)` when no assistant message was emitted. Genuine errors still propagate.
+Both paths use ordinary `session.send`. Source does not select a delivery mode or set billing flags; the runtime applies its existing source behavior. `send_and_wait` completes on non-Autopilot `session.idle` or a correlated `session.autopilot_stopped`, and may return `Ok(None)` when no assistant message was emitted. Genuine errors still propagate.
 
 ### Progress Reporting (`send_and_wait`)
 
@@ -1183,7 +1409,7 @@ For fire-and-forget messaging where you need to block until the agent finishes:
 use std::time::Duration;
 use github_copilot_sdk::MessageOptions;
 
-// Sends a message and blocks until the root session.idle or session.error
+// Sends a message and blocks until its request completes
 session
     .send_and_wait(
         MessageOptions::new("Fix the bug").with_wait_timeout(Duration::from_secs(120)),
@@ -1191,10 +1417,17 @@ session
     .await?;
 ```
 
-Default timeout is 60 seconds. Only one unformatted `send_and_wait` can be active
-per session; it also prevents other sends until it completes. Events attributed
-to a sub-agent (with a non-empty `agentId`) are still delivered to subscribers,
-but cannot supply the reply or end the parent's wait.
+Default timeout is 60 seconds. Multiple unformatted `send_and_wait` calls can
+run concurrently; each wait is correlated with its originating message ID.
+Plain `send` calls can also run while waits are active. Events
+attributed to a sub-agent (with a non-empty `agentId`) are still delivered to
+subscribers, but cannot supply the reply or end the parent's wait.
+Errors with a different `originatingMessageId` do not fail the wait.
+Matching errors also fail before a user message is emitted, such as when a
+prompt-transformation hook fails. Errors without an ID retain legacy
+session-wide handling, so older hosts that omit error IDs cannot provide
+concurrent request-error isolation. Event order cannot reliably distinguish
+those errors from pre-message failures or errors after immediate steering.
 The terminal event is queued to existing subscriptions before the wait returns;
 subscribers consume their streams independently and do not delay completion.
 
@@ -1234,7 +1467,13 @@ For explicit schemas, `MessageOptions::with_response_schema` works with `send` o
 Schemas apply to one run, including tools, steering, and stop-hook corrections,
 not independent sends or subagents. Streaming remains text. Structured waits
 select the last correlated root message without tool requests at non-autopilot
-idle and support concurrent structured waits with independent results. Later
+idle or the matching root `session.autopilot_stopped` event.
+All `send_and_wait` variants accept this authoritative Autopilot terminal without
+waiting for or stopping attached shells. Its `requestId` must match the original
+send ID; continuation messages do not change ownership. Missing, unrelated, or
+subagent terminals cannot complete the wait. `session.idle` remains whole-session
+quiescence; `assistant.idle` and `session.task_complete` alone are not completion.
+Structured waits support independent concurrent results. Later
 queued work can delay idle. Aborts, session errors after the run starts, missing
 output, and event-stream lag fail the wait. Dropping the future or timing out
 unsubscribes without aborting the agent. Immediate steering cannot set a schema.
@@ -1314,6 +1553,16 @@ let session = client
 
 See [`examples/session_fs.rs`](examples/session_fs.rs) for a complete
 in-memory provider implementation.
+To let the `view` tool read images stored only in that provider, enable
+`SessionFsCapabilities::new().with_binary(true)` with
+`SessionFsConfig::with_capabilities`, implement `SessionFsBinaryProvider`
+(`read_file_bytes` and `write_file_bytes`), and return it from
+`SessionFsProvider::binary`. A registered provider
+without binary support does not fall back to a local file with the same
+path.
+
+Binary reads and writes are limited to 50,330,880 raw bytes (approximately 48 MiB);
+larger results return a filesystem error before encoding or decoding.
 
 - **Canvas action dispatch is a single trait method, not per-action closures.**
   The Node SDK binds an optional `handler` closure on each entry of a canvas's
@@ -1445,7 +1694,21 @@ explicit program path is supplied.
      (present in published crate tarballs and vendored slots).
    - Otherwise, `../nodejs/package.json` (contributor build inside the github/copilot-sdk repo).
 
-   When SDK-managed acquisition is enabled, the resolved version is baked into the crate via `cargo:rustc-env=COPILOT_SDK_CLI_VERSION`. The runtime resolver consumes it to recompute the on-disk path by convention, so no absolute paths leak into the rlib.
+   When SDK-managed acquisition is enabled, the resolved version is baked into the crate via `cargo:rustc-env=COPILOT_SDK_CLI_VERSION`. A release-scoped `COPILOT_SDK_CLI_CACHE_ID` lets the runtime resolver recompute the on-disk path without leaking absolute build-machine paths into the rlib.
+
+   Stable/prerelease snapshots, including existing published crates, acquire
+   assets from `github/copilot-cli` at `v<runtime-version>`. Public unstable
+   snapshots additionally pin
+   `release-url=https://github.com/github/copilot-sdk/releases/download/runtime-<runtime-version>`.
+   Both snapshots must agree on the version and release URL. Executables,
+   runtime packages, and checksum lookups all use that exact public release;
+   consumers need no credentials or unstable-specific environment settings.
+
+   Source checkouts without snapshots infer the SDK-hosted release for canonical
+   unstable pins in `nodejs/package.json`, including both
+   `X.Y.Z-unstable.r<run-id>.g<sha>` and `X.Y.Z-N.unstable.r<run-id>.g<sha>`.
+   Other source pins and legacy snapshots without `release-url` continue to use
+   the CLI release location.
 
 2. **Build time:** `build.rs` downloads the platform-specific full CLI archive
    and runtime package, then verifies both SHA-256 hashes against the release's
@@ -1477,6 +1740,10 @@ explicit program path is supplied.
    non-bundled build from deleting a same-version bundled CLI used by another
    application. Old version directories accumulate in siblings; clean them up
    at your leisure.
+
+   Public unstable cache directories use
+   `copilot-sdk-runtime-<version>` instead of `<version>` to keep release
+   destinations separate. Legacy cache paths remain unchanged.
 
 ### Overriding the extraction location
 
@@ -1569,9 +1836,61 @@ In embed mode `build.rs` downloads both verified archives on every clean build
 by default. Set `BUNDLED_CLI_CACHE_DIR=<path>` to cache them between builds (CI
 keys this on `<os>-<version>` for near-zero-cost rebuilds on cache hits). For
 Copilot CLI 1.0.83-5, the two upstream archives total roughly 132-157 MB per
-platform before the runtime package is filtered. With `runtime` enabled and both
-`bundled-cli` and `local-runtime` disabled,
-there is no separate archive cache: the extracted runtime bundle is the cache.
+platform before the runtime package is filtered. With `runtime` enabled and
+both `bundled-cli` and `local-runtime` disabled,
+the extracted runtime bundle is the primary cache; a configured download
+cache can also supply its initial extraction.
+
+### Preparing release snapshots before publication
+
+The two scripts in `scripts/` retain their no-option behavior: read
+`../nodejs/package.json` and fetch the pinned CLI release's `SHA256SUMS.txt`.
+Release packaging can instead supply local checksums and the final public
+location, without waiting for that release to exist:
+
+```bash
+bash scripts/snapshot-bundled-cli-version.sh \
+  --version "$RUNTIME_VERSION" --release-url "$RELEASE_URL" \
+  --checksums "$LOCAL_SHA256SUMS"
+bash scripts/snapshot-bundled-in-process-version.sh \
+  --version "$RUNTIME_VERSION" --release-url "$RELEASE_URL" \
+  --checksums "$LOCAL_SHA256SUMS"
+```
+
+`RELEASE_URL` is the exact base URL described above, without a trailing slash.
+`LOCAL_SHA256SUMS` names the staged checksum file covering all eight executable
+archives and all eight `github-copilot-<runtime-version>-<target>.tgz` payloads.
+The existing `cli-version.txt` and `cli-version-in-process.txt` package entries
+carry the version, hashes, and optional `release-url`; no separate manifest or
+consumer configuration is required.
+
+For normal promotions from an older compatible source, invoke the reviewed
+producer scripts with `--output` pointing to each snapshot in the selected
+Rust source staging directory. Pass the selected runtime version explicitly.
+This preserves the older product's build code and does not require its source
+to contain these producer scripts. Public unstable releases still require
+selected-source support for the SDK-hosted acquisition location.
+
+For offline build/package verification, seed `BUNDLED_CLI_CACHE_DIR` with the
+host's executable and payload archives under these filenames:
+
+* CLI release: `v<runtime-version>-<asset-filename>`
+* SDK-hosted unstable release: `copilot-sdk-runtime-<runtime-version>-<asset-filename>`
+
+Archive bytes must match the snapshot hashes; cache hits are verified and
+corrupt entries are evicted. The executable is `copilot-<target>.tar.gz` (or
+`.zip` on Windows); the payload is
+`github-copilot-<runtime-version>-<target>.tgz`. A non-bundled build needs only
+the payload archive and can also use this seeded cache for initial extraction.
+Keep `COPILOT_SKIP_CLI_DOWNLOAD` unset during acquisition verification.
+
+The focused acquisition checks use tiny local archive fixtures and never
+download a runtime:
+
+```bash
+node --test scripts/snapshot-version.test.mjs
+cargo test --no-default-features --features local-runtime --test build_acquisition
+```
 
 ### Platforms
 
@@ -1588,6 +1907,7 @@ and `CARGO_CFG_TARGET_ENV` (cross-compilation works).
 | `bundled-cli` | ✓ | Enables `runtime` and embeds the managed wrapper pair and compatible CLI artifact. |
 | `in-process` | — | Enables `Transport::InProcess` while preserving the selected runtime acquisition policy. |
 | `local-runtime` | — | Enables `in-process` and, when `bundled-cli` is disabled, disables SDK-managed runtime download, extraction, and embedding. The application must supply a compatible runtime package through `COPILOT_CLI_PATH`. |
+| `network-forwarding` | ✓ (via `bundled-cli`) | Enables the default HTTP, TLS, and WebSocket request handler. Without it, an application can supply a custom `CopilotRequestHandler`. |
 | `bundled-in-process` | — | Enables `in-process`, implies `bundled-cli`, and additionally embeds the platform-native runtime library. |
 | `derive` | — | `schema_for::<T>()` for generating JSON Schema from Rust types (adds `schemars`). |
 
@@ -1600,6 +1920,9 @@ github-copilot-sdk = { version = "1", features = ["bundled-in-process"] }
 
 # Enable the in-process transport with an application-supplied runtime.
 github-copilot-sdk = { version = "1", default-features = false, features = ["local-runtime"] }
+
+# Keep the default network handler with an application-supplied runtime.
+github-copilot-sdk = { version = "1", default-features = false, features = ["local-runtime", "network-forwarding"] }
 
 # Opt out of bundling, but retain managed startup and build-machine runtime caching.
 github-copilot-sdk = { version = "1", default-features = false, features = ["runtime"] }

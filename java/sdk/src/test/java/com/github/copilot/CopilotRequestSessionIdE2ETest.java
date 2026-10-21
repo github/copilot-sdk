@@ -104,6 +104,9 @@ public class CopilotRequestSessionIdE2ETest {
     private static void assertAgentMetadata(InterceptedRequest request) {
         assertNotNull(request.agentId(), "Inference request must carry an agent id");
         assertFalse(request.agentId().isEmpty(), "Inference request must carry an agent id");
+        assertNotNull(request.agentInvocationId(), "Inference request must carry an invocation id");
+        assertFalse(request.agentInvocationId().isEmpty(), "Inference request must carry an invocation id");
+        assertNotEquals(request.agentId(), request.agentInvocationId(), "Invocation and agent ids must differ");
         assertNotNull(request.interactionType(), "Inference request must carry an interaction type");
         assertFalse(request.interactionType().isEmpty(), "Inference request must carry an interaction type");
     }

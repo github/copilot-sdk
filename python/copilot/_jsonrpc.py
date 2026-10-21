@@ -36,6 +36,10 @@ class ProcessExitedError(Exception):
     pass
 
 
+class _RequestCancelledError(Exception):
+    """Raised when the peer cancels an incoming request."""
+
+
 RequestHandler = Callable[[dict], dict | Awaitable[dict]]
 RawRequestHandler = Callable[[dict], None | Awaitable[None]]
 
@@ -117,6 +121,7 @@ class JsonRpcClient:
         self.notification_handler: Callable[[str, dict], None] | None = None
         self.notification_method_handlers: dict[str, Callable[[dict], Any]] = {}
         self.request_handlers: dict[str, RequestHandler] = {}
+        self._cancellable_request_methods: set[str] = set()
         self.raw_request_handlers: dict[str, RawRequestHandler] = {}
         self._incoming_request_cancellations: dict[int, _IncomingRequestCancellation] = {}
         self._running = False
@@ -294,11 +299,23 @@ class JsonRpcClient:
         else:
             self.notification_method_handlers[method] = handler
 
-    def set_request_handler(self, method: str, handler: RequestHandler):
+    def set_request_handler(
+        self, method: str, handler: RequestHandler | None, *, cancellable: bool = False
+    ):
+        """Register a handler for incoming requests of ``method``.
+
+        When ``cancellable`` is true, a ``$/cancelRequest`` for a pending request
+        cancels the handler's task and fails the request with code -32800.
+        """
         if handler is None:
             self.request_handlers.pop(method, None)
+            self._cancellable_request_methods.discard(method)
         else:
             self.request_handlers[method] = handler
+            if cancellable:
+                self._cancellable_request_methods.add(method)
+            else:
+                self._cancellable_request_methods.discard(method)
 
     def set_raw_request_handler(self, method: str, handler: RawRequestHandler | None):
         """Register a request handler that receives the full JSON-RPC message.
@@ -550,7 +567,12 @@ class JsonRpcClient:
         if not self._loop:
             return
         asyncio.run_coroutine_threadsafe(
-            self._dispatch_request(message, handler, cancellation_id),
+            self._dispatch_request(
+                message,
+                handler,
+                cancellation_id,
+                cancellable=method in self._cancellable_request_methods,
+            ),
             self._loop,
         )
 
@@ -602,13 +624,21 @@ class JsonRpcClient:
                     self._incoming_request_cancellations.pop(cancellation_id, None)
 
     async def _dispatch_request(
-        self, message: dict, handler: RequestHandler, cancellation_id: int | None
+        self,
+        message: dict,
+        handler: RequestHandler,
+        cancellation_id: int | None,
+        *,
+        cancellable: bool = False,
     ):
         try:
             params = message.get("params", {})
             outcome = handler(params)
             if inspect.isawaitable(outcome):
-                outcome = await outcome
+                if cancellable and cancellation_id is not None:
+                    outcome = await self._await_cancellable(outcome, cancellation_id)
+                else:
+                    outcome = await outcome
             if outcome is not None and not isinstance(
                 outcome, dict | list | str | int | float | bool
             ):
@@ -617,6 +647,9 @@ class JsonRpcClient:
                     f"got {type(outcome).__name__}"
                 )
             await self._send_response(message["id"], outcome)
+        except _RequestCancelledError:
+            logger.debug("JSON-RPC method %s cancelled", message.get("method", ""))
+            await self._send_error_response(message["id"], -32800, "Request cancelled", None)
         except JsonRpcError as exc:
             logger.debug(
                 "Error handling JSON-RPC method %s: %s", message.get("method", ""), exc.message
@@ -634,6 +667,27 @@ class JsonRpcClient:
             if cancellation_id is not None:
                 with self._pending_lock:
                     self._incoming_request_cancellations.pop(cancellation_id, None)
+
+    async def _await_cancellable(self, outcome: Awaitable[Any], cancellation_id: int) -> Any:
+        """Await ``outcome``, cancelling it if the peer cancels the request."""
+        with self._pending_lock:
+            signal = self._incoming_request_cancellations.get(cancellation_id)
+        if signal is None or self._loop is None:
+            return await outcome
+        task = asyncio.ensure_future(outcome)
+        waiter = asyncio.ensure_future(signal.bind_event(self._loop).wait())
+        try:
+            await asyncio.wait({task, waiter}, return_when=asyncio.FIRST_COMPLETED)
+        except BaseException:
+            task.cancel()
+            raise
+        finally:
+            waiter.cancel()
+        if task.done():
+            return task.result()
+        task.cancel()
+        await asyncio.wait({task})
+        raise _RequestCancelledError()
 
     async def _send_response(self, request_id: str, result: Any):
         response = {

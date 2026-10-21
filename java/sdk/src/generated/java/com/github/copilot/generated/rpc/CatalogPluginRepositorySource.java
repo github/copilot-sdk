@@ -23,7 +23,7 @@ import javax.annotation.processing.Generated;
 public record CatalogPluginRepositorySource(
     /** Canonical lowercase owner/repository name derived from metadata.sourceSet. */
     @JsonProperty("repository") String repository,
-    /** Case-preserving safe relative POSIX path derived from metadata.repoPath. */
+    /** Case-preserving safe relative POSIX path derived from metadata.repoPath. Absent when the catalog declared sourceSet without repoPath, meaning the plugin is at the repository root; only callers that require agent-plugin-confirmed-installation receive such a source. */
     @JsonProperty("path") String path
 ) {
 }

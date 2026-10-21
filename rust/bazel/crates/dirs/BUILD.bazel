@@ -10,6 +10,6 @@ package(default_visibility = ["//visibility:public"])
 
 alias(
     name = "dirs",
-    actual = "@sdk_vendor__dirs-5.0.1//:dirs",
+    actual = "@sdk_vendor__dirs-7.0.0//:dirs",
     tags = ["manual"],
 )

@@ -23,7 +23,7 @@ import javax.annotation.processing.Generated;
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record SessionSettingsEvaluatePredicateParams(
+record SessionSettingsEvaluatePredicateParams(
     /** Target session identifier */
     @JsonProperty("sessionId") String sessionId,
     /** Predicate name. The runtime owns the raw feature-flag names and composition logic. */

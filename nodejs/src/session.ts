@@ -8,7 +8,7 @@
  */
 
 import { AsyncLocalStorage } from "node:async_hooks";
-import type { MessageConnection } from "vscode-jsonrpc/node.js";
+import type { CancellationToken, MessageConnection } from "vscode-jsonrpc/node.js";
 import { ConnectionError, ErrorCodes, ResponseError } from "vscode-jsonrpc/node.js";
 import { createInternalSessionRpc, createSessionRpc } from "./generated/rpc.js";
 import type {
@@ -16,6 +16,7 @@ import type {
     CanvasActionInvokeResult,
     CurrentToolMetadata,
     McpOauthPendingRequestResponse,
+    ProtocolExternalToolDefinition,
     WorkflowLogLine,
     WorkflowRunResult as WireWorkflowRunResult,
     ModelSwitchAutoTierResult,
@@ -44,7 +45,9 @@ import type {
     McpAuthHandler,
     McpAuthRequest,
     PermissionHandler,
+    PermissionHandlerInvocation,
     PermissionRequest,
+    PermissionRequestedData,
     PermissionRequestResult,
     ContextTier,
     ReasoningEffort,
@@ -53,17 +56,22 @@ import type {
     ModelCapabilitiesOverride,
     SectionTransformFn,
     SessionCapabilities,
+    SessionConfig,
     SessionEvent,
     SessionEventHandler,
     SessionEventPayload,
     SessionEventType,
     SessionHooks,
     SessionUiApi,
+    SkillProvider,
+    SkillProviderCallOptions,
+    SkillProviderDescriptor,
     Tool,
     ToolHandler,
     ToolResult,
     ToolResultObject,
     TraceContextProvider,
+    TranscriptRecovery,
     TypedSessionEventHandler,
     UserInputHandler,
     UserInputRequest,
@@ -109,6 +117,24 @@ function copyDefinedWorkflowAgentOption<TKey extends keyof WorkflowAgentOptions>
     if (value !== undefined) {
         target[key] = value;
     }
+}
+
+/**
+ * The wire definition `session.tools.set` takes for a tool, matching what
+ * session creation and resumption send for the same tool.
+ */
+function toToolDefinition(tool: Tool): ProtocolExternalToolDefinition {
+    return {
+        name: tool.name,
+        description: tool.description ?? "",
+        parameters: toJsonSchema(tool.parameters) as ProtocolExternalToolDefinition["parameters"],
+        overridesBuiltInTool: tool.overridesBuiltInTool,
+        skipPermission: tool.skipPermission,
+        defer: tool.defer,
+        metadata: tool.metadata as ProtocolExternalToolDefinition["metadata"],
+        isTerminal: tool.isTerminal,
+        namespace: tool.namespace,
+    };
 }
 
 type WorkflowExecutionContext = {
@@ -161,6 +187,27 @@ function deserializeHookInput(raw: unknown): unknown {
     };
 }
 
+/**
+ * The CLI sends the `error` of an errorOccurred or sessionEnd hook input as an
+ * error object (`{ name, message, stack }` or `{ message }`), where the hook
+ * input types declare a string. The object's message becomes the error, and an
+ * object without a string message becomes its JSON. Other values pass through.
+ */
+function normalizeHookError(hookType: string, input: unknown): unknown {
+    if (hookType !== "errorOccurred" && hookType !== "sessionEnd") {
+        return input;
+    }
+    if (!input || typeof input !== "object" || !("error" in input)) {
+        return input;
+    }
+    const { error } = input as { error: unknown };
+    if (!error || typeof error !== "object" || Array.isArray(error)) {
+        return input;
+    }
+    const { message } = error as { message?: unknown };
+    return { ...input, error: typeof message === "string" ? message : JSON.stringify(error) };
+}
+
 function isOpenCanvasInstance(value: unknown): value is OpenCanvasInstance {
     if (!value || typeof value !== "object") {
         return false;
@@ -176,13 +223,13 @@ function isOpenCanvasInstance(value: unknown): value is OpenCanvasInstance {
     );
 }
 
-const FACTORY_LOG_FLUSH_DELAY_MS = 10;
-const MAX_FACTORY_FANOUT_ITEMS = 4096;
+const WORKFLOW_LOG_FLUSH_DELAY_MS = 10;
+const MAX_WORKFLOW_FANOUT_ITEMS = 4096;
 
 function assertWorkflowFanoutSize(kind: "parallel" | "pipeline", size: number): void {
-    if (size > MAX_FACTORY_FANOUT_ITEMS) {
+    if (size > MAX_WORKFLOW_FANOUT_ITEMS) {
         throw new Error(
-            `${kind}() accepts at most ${MAX_FACTORY_FANOUT_ITEMS} items; got ${size}.`
+            `${kind}() accepts at most ${MAX_WORKFLOW_FANOUT_ITEMS} items; got ${size}.`
         );
     }
 }
@@ -315,7 +362,7 @@ class WorkflowProgressBuffer {
         this.flushTimer = setTimeout(() => {
             this.flushTimer = undefined;
             void this.flush().catch(() => {});
-        }, FACTORY_LOG_FLUSH_DELAY_MS);
+        }, WORKFLOW_LOG_FLUSH_DELAY_MS);
         this.flushTimer.unref?.();
     }
 
@@ -425,10 +472,13 @@ const TOOL_SEARCH_TOOL_NAME = "tool_search_tool";
  */
 
 export class CopilotSession {
+    private _transcriptRecovery?: TranscriptRecovery;
     private eventHandlers: Set<SessionEventHandler> = new Set();
     private typedEventHandlers: Map<SessionEventType, Set<(event: SessionEvent) => void>> =
         new Map();
     private toolHandlers: Map<string, ToolHandler> = new Map();
+    /** Settles once every earlier `setTools` call has finished. */
+    private setToolsQueue: Promise<void> = Promise.resolve();
     private pendingExternalTools: Map<string, AbortController> = new Map();
     private canvases: Map<string, Canvas> = new Map();
     private bearerTokenProviders: Map<string, BearerTokenProvider> = new Map();
@@ -441,6 +491,7 @@ export class CopilotSession {
     private elicitationHandler?: ElicitationHandler;
     private exitPlanModeHandler?: ExitPlanModeHandler;
     private autoModeSwitchHandler?: AutoModeSwitchHandler;
+    private skillProvider?: SkillProvider;
     private hooks?: SessionHooks;
     private transformCallbacks?: Map<string, SectionTransformFn>;
     private _rpc: ReturnType<typeof createSessionRpc> | null = null;
@@ -450,6 +501,7 @@ export class CopilotSession {
     private _capabilities: SessionCapabilities = {};
     private openCanvasInstances: OpenCanvasInstance[] = [];
     private disconnected = false;
+    private readonly pendingResponseWaits = new Set<(error: Error) => void>();
     private readonly pendingStructuredWaits = new Set<(error: Error) => void>();
     private disconnecting = false;
     private onDisconnected?: () => void;
@@ -670,6 +722,16 @@ export class CopilotSession {
         return this._workspacePath;
     }
 
+    /** Recovery observed while loading this session; undefined on a clean resume. */
+    get transcriptRecovery(): TranscriptRecovery | undefined {
+        return this._transcriptRecovery;
+    }
+
+    /** @internal */
+    setTranscriptRecovery(recovery: TranscriptRecovery | undefined): void {
+        this._transcriptRecovery = recovery;
+    }
+
     /**
      * Host capabilities reported when the session was created or resumed.
      * Use this to check feature support before calling capability-gated APIs.
@@ -751,10 +813,12 @@ export class CopilotSession {
     }
 
     /**
-     * Sends a message to this session and waits until the session becomes idle.
+     * Sends a message and waits for its response to complete.
      *
      * This is a convenience method that combines {@link send} with waiting for
-     * the `session.idle` event. Use this when you want to block until the
+     * non-Autopilot `session.idle` or the request-correlated `session.autopilot_stopped`
+     * event. Autopilot completion does not wait for or stop attached shells.
+     * Use this when you want to block until the
      * assistant has finished processing the message.
      *
      * Events are still delivered to handlers registered via {@link on} while waiting.
@@ -765,9 +829,10 @@ export class CopilotSession {
      *
      * @param options - The message options including the prompt and optional attachments
      * @param timeout - Timeout in milliseconds (default: 60000). Controls how long to wait; does not abort in-flight agent work.
-     * @returns A promise that resolves with the final assistant message when the session becomes idle,
+     * @returns A promise that resolves with the final assistant message on completion,
      *          or undefined if no assistant message was received
-     * @throws Error if the timeout is reached before the session becomes idle
+     * @throws Error if the run is aborted before completion
+     * @throws Error if the timeout is reached before response completion
      * @throws Error if the session has been disconnected or the connection fails
      *
      * @example
@@ -830,39 +895,116 @@ export class CopilotSession {
             return message;
         }
 
-        type SessionOutcome = { kind: "idle" } | { kind: "error"; error: Error };
+        type SessionOutcome =
+            | { kind: "idle"; message: AssistantMessageEvent | undefined }
+            | { kind: "error"; error: Error };
         let resolveOutcome: (outcome: SessionOutcome) => void;
         const outcomePromise = new Promise<SessionOutcome>((resolve) => {
             resolveOutcome = resolve;
         });
 
         let lastAssistantMessage: AssistantMessageEvent | undefined;
+        let messageId: string | undefined;
+        let requestStarted = false;
+        let admitted = false;
+        const buffered: (SessionEvent | Error)[] = [];
 
         // Register event handler BEFORE calling send to avoid race condition
-        // where session.idle fires before we start listening
-        const unsubscribe = this.on((event) => {
+        // where completion fires before the send response supplies its request ID.
+        const observe = (event: SessionEvent) => {
             if (event.agentId) return;
-            if (event.type === "assistant.message") {
+            if (event.type === "user.message" && event.data.messageId === messageId) {
+                requestStarted = true;
+            } else if (
+                event.type === "session.warning" &&
+                event.data.warningType === "policy_blocked" &&
+                event.data.originatingMessageId === messageId
+            ) {
+                requestStarted = true;
+            } else if (
+                event.type === "assistant.message" &&
+                (event.data.originatingMessageId === messageId ||
+                    (!event.data.originatingMessageId && requestStarted))
+            ) {
                 lastAssistantMessage = event;
-            } else if (event.type === "session.idle" && event.data.mode !== "autopilot") {
-                resolveOutcome({ kind: "idle" });
-            } else if (event.type === "session.error") {
+                if (event.data.originatingMessageId === messageId) requestStarted = true;
+            } else if (
+                event.type === "session.idle" &&
+                requestStarted &&
+                event.data.mode !== "autopilot"
+            ) {
+                resolveOutcome(
+                    event.data.aborted
+                        ? {
+                              kind: "error",
+                              error: new Error("The requested run was aborted before completion."),
+                          }
+                        : { kind: "idle", message: lastAssistantMessage }
+                );
+            } else if (
+                event.type === "session.autopilot_stopped" &&
+                messageId &&
+                event.data.requestId === messageId
+            ) {
+                if (event.data.reason === "error") {
+                    resolveOutcome({
+                        kind: "error",
+                        error: new Error("Autopilot request failed"),
+                    });
+                } else if (event.data.reason === "aborted") {
+                    resolveOutcome({
+                        kind: "error",
+                        error: new Error("The requested run was aborted before completion."),
+                    });
+                } else {
+                    resolveOutcome({ kind: "idle", message: lastAssistantMessage });
+                }
+            } else if (
+                event.type === "session.error" &&
+                (!event.data.originatingMessageId || event.data.originatingMessageId === messageId)
+            ) {
                 const error = new Error(event.data.message);
                 error.stack = event.data.stack;
                 resolveOutcome({ kind: "error", error });
             }
+        };
+        const unsubscribe = this.on((event) => {
+            if (
+                event.agentId ||
+                (event.type !== "assistant.message" &&
+                    event.type !== "user.message" &&
+                    event.type !== "session.warning" &&
+                    event.type !== "session.idle" &&
+                    event.type !== "session.autopilot_stopped" &&
+                    event.type !== "session.error")
+            ) {
+                return;
+            }
+            if (!admitted) buffered.push(event);
+            else observe(event);
         });
+        const fail = (error: Error) => {
+            if (!admitted) buffered.push(error);
+            else resolveOutcome({ kind: "error", error });
+        };
+        this.pendingResponseWaits.add(fail);
 
         let timeoutId: ReturnType<typeof setTimeout> | undefined;
         try {
-            await this.send(options);
+            messageId = await this.send(options);
+            admitted = true;
+            for (const event of buffered) {
+                if (event instanceof Error) fail(event);
+                else observe(event);
+            }
+            buffered.length = 0;
 
             const timeoutPromise = new Promise<never>((_, reject) => {
                 timeoutId = setTimeout(
                     () =>
                         reject(
                             new Error(
-                                `Timeout after ${effectiveTimeout}ms waiting for session.idle`
+                                `Timeout after ${effectiveTimeout}ms waiting for response completion`
                             )
                         ),
                     effectiveTimeout
@@ -873,12 +1015,14 @@ export class CopilotSession {
                 throw outcome.error;
             }
 
-            return lastAssistantMessage;
+            return outcome.message;
         } finally {
             if (timeoutId !== undefined) {
                 clearTimeout(timeoutId);
             }
             unsubscribe();
+            buffered.length = 0;
+            this.pendingResponseWaits.delete(fail);
         }
     }
 
@@ -912,11 +1056,15 @@ export class CopilotSession {
                 consumed = true;
                 lastMessage = event.data.toolRequests?.length ? undefined : event;
             } else if (
-                consumed &&
-                event.type === "session.idle" &&
-                event.data.mode !== "autopilot"
+                (consumed && event.type === "session.idle" && event.data.mode !== "autopilot") ||
+                (event.type === "session.autopilot_stopped" && event.data.requestId === messageId)
             ) {
-                if (event.data.aborted) {
+                if (event.type === "session.autopilot_stopped" && event.data.reason === "error") {
+                    fail(new Error("Autopilot request failed"));
+                } else if (
+                    (event.type === "session.idle" && event.data.aborted) ||
+                    (event.type === "session.autopilot_stopped" && event.data.reason === "aborted")
+                ) {
                     fail(
                         new Error(
                             "The requested run was aborted before a structured result was completed."
@@ -925,7 +1073,12 @@ export class CopilotSession {
                 } else {
                     resolveOutcome({ kind: "idle", message: lastMessage });
                 }
-            } else if (consumed && event.type === "session.error") {
+            } else if (
+                event.type === "session.error" &&
+                (event.data.originatingMessageId
+                    ? event.data.originatingMessageId === messageId
+                    : consumed)
+            ) {
                 const error = new Error(event.data.message);
                 error.stack = event.data.stack;
                 fail(error);
@@ -936,6 +1089,7 @@ export class CopilotSession {
                 event.type !== "user.message" &&
                 event.type !== "assistant.message" &&
                 event.type !== "session.idle" &&
+                event.type !== "session.autopilot_stopped" &&
                 event.type !== "session.error"
             ) {
                 return;
@@ -980,12 +1134,22 @@ export class CopilotSession {
         }
     }
 
+    private assertConnected(): void {
+        if (this.disconnected) {
+            throw new Error("Session is disconnected");
+        }
+    }
+
     /** @internal */
     _markDisconnected(): void {
         if (this.disconnected) {
             return;
         }
         this.disconnected = true;
+        for (const fail of this.pendingResponseWaits) {
+            fail(new Error("Session disconnected while waiting for a response"));
+        }
+        this.pendingResponseWaits.clear();
         for (const fail of this.pendingStructuredWaits) {
             fail(new Error("Session disconnected while waiting for a structured response"));
         }
@@ -994,15 +1158,19 @@ export class CopilotSession {
             controller.abort();
         }
         this.pendingExternalTools.clear();
-        this._runOnDisconnected();
         this.eventHandlers.clear();
         this.typedEventHandlers.clear();
         this.toolHandlers.clear();
         this.permissionHandler = undefined;
+        this.mcpAuthHandler = undefined;
         this.userInputHandler = undefined;
         this.elicitationHandler = undefined;
         this.exitPlanModeHandler = undefined;
         this.autoModeSwitchHandler = undefined;
+        this.skillProvider = undefined;
+        this.hooks = undefined;
+        this.traceContextProvider = undefined;
+        this.bearerTokenProviders.clear();
         this.commandHandlers.clear();
         this.canvases.clear();
         this.workflows.clear();
@@ -1012,17 +1180,24 @@ export class CopilotSession {
             }
         }
         this.workflowAbortControllers.clear();
-        this.transformCallbacks?.clear();
+        this.transformCallbacks = undefined;
+        delete this.clientSessionApis.providerToken;
+        delete this.clientSessionApis.canvas;
+        delete this.clientSessionApis.workflow;
+        delete this.clientSessionApis.sessionFs;
+        this._runOnDisconnected();
     }
 
     /** @internal */
     _runOnDisconnected(): void {
-        this.onDisconnected?.();
+        const callback = this.onDisconnected;
         this.onDisconnected = undefined;
+        callback?.();
     }
 
     /** @internal */
     _setOnDisconnected(callback: () => void): void {
+        this.assertConnected();
         this.onDisconnected = callback;
     }
 
@@ -1078,6 +1253,9 @@ export class CopilotSession {
         eventTypeOrHandler: K | SessionEventHandler,
         handler?: TypedSessionEventHandler<K>
     ): () => void {
+        if (this.disconnected) {
+            throw new Error("Session is disconnected");
+        }
         // Overload 1: on(eventType, handler) - typed event subscription
         if (typeof eventTypeOrHandler === "string" && handler) {
             const eventType = eventTypeOrHandler;
@@ -1167,7 +1345,8 @@ export class CopilotSession {
                     args,
                     handler,
                     traceparent,
-                    tracestate
+                    tracestate,
+                    event.agentId || undefined
                 );
             }
         } else if (event.type === "external_tool.completed") {
@@ -1180,16 +1359,13 @@ export class CopilotSession {
                 }
             }
         } else if (event.type === "permission.requested") {
-            const { requestId, permissionRequest, resolvedByHook } = event.data as {
-                requestId: string;
-                permissionRequest: PermissionRequest;
-                resolvedByHook?: boolean;
-            };
+            const { requestId, permissionRequest, promptRequest, resolvedByHook } =
+                event.data as PermissionRequestedData;
             if (resolvedByHook) {
                 return; // Already resolved by a permissionRequest hook; no client action needed.
             }
             if (this.permissionHandler) {
-                void this._executePermissionAndRespond(requestId, permissionRequest);
+                void this._executePermissionAndRespond(requestId, permissionRequest, promptRequest);
             }
         } else if (event.type === "mcp.oauth_required") {
             const data = event.data as McpAuthRequest | undefined;
@@ -1286,7 +1462,8 @@ export class CopilotSession {
         args: unknown,
         handler: ToolHandler,
         traceparent?: string,
-        tracestate?: string
+        tracestate?: string,
+        agentId?: string
     ): Promise<void> {
         const controller = new AbortController();
         if (this.disconnected || this.pendingExternalTools.has(requestId)) {
@@ -1332,6 +1509,8 @@ export class CopilotSession {
                 traceparent,
                 tracestate,
                 signal: controller.signal,
+                agentId,
+                requestId,
             });
             let result: ToolResult;
             if (rawResult == null) {
@@ -1382,13 +1561,16 @@ export class CopilotSession {
      */
     private async _executePermissionAndRespond(
         requestId: string,
-        permissionRequest: PermissionRequest
+        permissionRequest: PermissionRequest,
+        promptRequest?: PermissionRequestedData["promptRequest"]
     ): Promise<void> {
         try {
-            const handlerResult = await this.permissionHandler!(permissionRequest, {
+            const invocation: PermissionHandlerInvocation = {
                 sessionId: this.sessionId,
                 managedSettingsEnabled: this.managedSettingsEnabled,
-            });
+                ...(promptRequest === undefined ? {} : { promptRequest }),
+            };
+            const handlerResult = await this.permissionHandler!(permissionRequest, invocation);
             const isAttributed = isAttributedPermissionResult(handlerResult);
             const result: PermissionRequestResult = isAttributed
                 ? handlerResult.result
@@ -1438,9 +1620,19 @@ export class CopilotSession {
         try {
             const result = await this.mcpAuthHandler!(request, { sessionId: this.sessionId });
             const response: McpOauthPendingRequestResponse =
-                result && "accessToken" in result
-                    ? { kind: "token", ...result }
-                    : { kind: "cancelled" };
+                result && "kind" in result && result.kind === "cancelled"
+                    ? { kind: "cancelled" }
+                    : result &&
+                        "accessToken" in result &&
+                        typeof result.accessToken === "string" &&
+                        result.accessToken.length > 0
+                      ? { ...result, kind: "token" }
+                      : result &&
+                          "kind" in result &&
+                          result.kind === "runtimeRefresh" &&
+                          request.runtimeRefreshSupported === true
+                        ? { kind: "runtimeRefresh" }
+                        : { kind: "cancelled" };
             await this.rpc.mcp.oauth.handlePendingRequest({
                 requestId: request.requestId,
                 result: response,
@@ -1514,7 +1706,8 @@ export class CopilotSession {
      * @param tools - An array of tool definitions with their handlers, or undefined to clear all tools
      * @internal This method is typically called internally when creating a session with tools.
      */
-    registerTools(tools?: Tool[]): void {
+    registerTools(tools?: SessionConfig["tools"]): void {
+        this.assertConnected();
         this.toolHandlers.clear();
         if (!tools) {
             return;
@@ -1522,7 +1715,29 @@ export class CopilotSession {
 
         for (const tool of tools) {
             if (tool.handler) {
-                this.toolHandlers.set(tool.name, tool.handler);
+                const handler = tool.handler;
+                if (
+                    tool.name === "apply_patch" &&
+                    tool.overridesBuiltInTool &&
+                    toJsonSchema(tool.parameters)?.type === "string"
+                ) {
+                    this.toolHandlers.set(tool.name, (args, invocation) => {
+                        if (typeof args === "string") {
+                            return handler(args, invocation);
+                        }
+                        if (
+                            typeof args === "object" &&
+                            args !== null &&
+                            "input" in args &&
+                            typeof args.input === "string"
+                        ) {
+                            return handler(args.input, invocation);
+                        }
+                        throw new TypeError("apply_patch string override requires a string input");
+                    });
+                } else {
+                    this.toolHandlers.set(tool.name, handler);
+                }
             }
         }
     }
@@ -1545,6 +1760,7 @@ export class CopilotSession {
      * @internal Called by the SDK when creating/resuming a session with `canvases`.
      */
     registerCanvases(canvases?: Canvas[]): void {
+        this.assertConnected();
         this.canvases.clear();
         if (!canvases || canvases.length === 0) {
             delete this.clientSessionApis.canvas;
@@ -1602,6 +1818,7 @@ export class CopilotSession {
      * @internal Called by the SDK when an extension joins a session.
      */
     registerWorkflows(workflows?: WorkflowHandle[]): void {
+        this.assertConnected();
         this.workflows.clear();
         if (!workflows || workflows.length === 0) {
             delete this.clientSessionApis.workflow;
@@ -1815,6 +2032,7 @@ export class CopilotSession {
      * @internal This method is called internally when creating/resuming a session.
      */
     registerBearerTokenProviders(providers?: Map<string, BearerTokenProvider>): void {
+        this.assertConnected();
         this.bearerTokenProviders.clear();
         if (!providers || providers.size === 0) {
             delete this.clientSessionApis.providerToken;
@@ -1827,6 +2045,7 @@ export class CopilotSession {
         const self = this;
         this.clientSessionApis.providerToken = {
             async getToken(params) {
+                self.assertConnected();
                 const callback = self.bearerTokenProviders.get(params.providerName);
                 if (!callback) {
                     throw new Error(
@@ -1849,6 +2068,7 @@ export class CopilotSession {
      * @internal This method is typically called internally when creating/resuming a session.
      */
     registerCommands(commands?: { name: string; handler: CommandHandler }[]): void {
+        this.assertConnected();
         this.commandHandlers.clear();
         if (!commands) {
             return;
@@ -1865,6 +2085,7 @@ export class CopilotSession {
      * @internal This method is typically called internally when creating/resuming a session.
      */
     registerElicitationHandler(handler?: ElicitationHandler): void {
+        this.assertConnected();
         this.elicitationHandler = handler;
     }
 
@@ -1875,6 +2096,7 @@ export class CopilotSession {
      * @internal This method is typically called internally when creating/resuming a session.
      */
     registerExitPlanModeHandler(handler?: ExitPlanModeHandler): void {
+        this.assertConnected();
         this.exitPlanModeHandler = handler;
     }
 
@@ -1885,6 +2107,7 @@ export class CopilotSession {
      * @internal This method is typically called internally when creating/resuming a session.
      */
     registerAutoModeSwitchHandler(handler?: AutoModeSwitchHandler): void {
+        this.assertConnected();
         this.autoModeSwitchHandler = handler;
     }
 
@@ -1927,6 +2150,7 @@ export class CopilotSession {
      * @internal
      */
     async _handleExitPlanModeRequest(request: ExitPlanModeRequest): Promise<ExitPlanModeResult> {
+        this.assertConnected();
         if (!this.exitPlanModeHandler) {
             return { approved: true };
         }
@@ -1941,6 +2165,7 @@ export class CopilotSession {
     async _handleAutoModeSwitchRequest(
         request: AutoModeSwitchRequest
     ): Promise<AutoModeSwitchResponse> {
+        this.assertConnected();
         if (!this.autoModeSwitchHandler) {
             return "no";
         }
@@ -2064,6 +2289,7 @@ export class CopilotSession {
      * @internal This method is typically called internally when creating a session.
      */
     registerPermissionHandler(handler?: PermissionHandler): void {
+        this.assertConnected();
         this.permissionHandler = handler;
     }
 
@@ -2077,7 +2303,86 @@ export class CopilotSession {
      * @internal This method is typically called internally when creating a session.
      */
     registerUserInputHandler(handler?: UserInputHandler): void {
+        this.assertConnected();
         this.userInputHandler = handler;
+    }
+
+    /**
+     * Registers the session's skill provider.
+     *
+     * @param provider - The skill provider, or undefined to remove it
+     * @internal This method is typically called internally when creating a session.
+     */
+    registerSkillProvider(provider?: SkillProvider): void {
+        this.assertConnected();
+        this.skillProvider = provider;
+    }
+
+    /**
+     * Handles a `skillProvider.list` request from the runtime.
+     *
+     * @internal This method is for internal use by the SDK.
+     */
+    async _handleSkillProviderList(
+        token?: CancellationToken
+    ): Promise<{ skills: SkillProviderDescriptor[] }> {
+        const provider = this.requireSkillProvider();
+        return await this.callSkillProvider("listSkills", token, async (options) => ({
+            skills: (await provider.listSkills(options)) ?? [],
+        }));
+    }
+
+    /**
+     * Handles a `skillProvider.read` request from the runtime.
+     *
+     * @internal This method is for internal use by the SDK.
+     */
+    async _handleSkillProviderRead(
+        name: string,
+        token?: CancellationToken
+    ): Promise<{ markdown: string | null }> {
+        const provider = this.requireSkillProvider();
+        return await this.callSkillProvider("readSkill", token, async (options) => ({
+            markdown: (await provider.readSkill(name, options)) ?? null,
+        }));
+    }
+
+    private requireSkillProvider(): SkillProvider {
+        this.assertConnected();
+        if (!this.skillProvider) {
+            throw new Error(`No skill provider for session: ${this.sessionId}`);
+        }
+        return this.skillProvider;
+    }
+
+    /**
+     * Runs a provider call with an abort signal tied to the runtime's request
+     * cancellation. Failures are logged locally and reported generically.
+     */
+    private async callSkillProvider<T>(
+        operation: string,
+        token: CancellationToken | undefined,
+        call: (options: SkillProviderCallOptions) => Promise<T>
+    ): Promise<T> {
+        const controller = new AbortController();
+        const subscription = token?.onCancellationRequested(() => controller.abort());
+        if (token?.isCancellationRequested) {
+            controller.abort();
+        }
+        try {
+            return await call({ signal: controller.signal });
+        } catch (error) {
+            if (controller.signal.aborted) {
+                throw new ResponseError(-32800, `Skill provider ${operation} cancelled`);
+            }
+            console.error(`Skill provider ${operation} failed`, {
+                sessionId: this.sessionId,
+                error,
+            });
+            throw skillProviderFailure(operation);
+        } finally {
+            subscription?.dispose();
+        }
     }
 
     /**
@@ -2090,6 +2395,7 @@ export class CopilotSession {
      * @internal This method is typically called internally when creating a session.
      */
     registerHooks(hooks?: SessionHooks): void {
+        this.assertConnected();
         this.hooks = hooks;
     }
 
@@ -2100,6 +2406,7 @@ export class CopilotSession {
      * @internal This method is typically called internally when creating a session.
      */
     registerTransformCallbacks(callbacks?: Map<string, SectionTransformFn>): void {
+        this.assertConnected();
         this.transformCallbacks = callbacks;
     }
 
@@ -2114,6 +2421,7 @@ export class CopilotSession {
     async _handleSystemMessageTransform(
         sections: Record<string, { content: string }>
     ): Promise<{ sections: Record<string, { content: string }> }> {
+        this.assertConnected();
         const result: Record<string, { content: string }> = {};
 
         for (const [sectionId, { content }] of Object.entries(sections)) {
@@ -2143,6 +2451,7 @@ export class CopilotSession {
      * @internal This method is for internal use by the SDK.
      */
     async _handleUserInputRequest(request: unknown): Promise<UserInputResponse> {
+        this.assertConnected();
         if (!this.userInputHandler) {
             // No handler registered, throw error
             throw new Error("User input requested but no handler registered");
@@ -2168,6 +2477,7 @@ export class CopilotSession {
      * @internal This method is for internal use by the SDK.
      */
     async _handleHooksInvoke(hookType: string, input: unknown): Promise<unknown> {
+        this.assertConnected();
         if (!this.hooks) {
             return undefined;
         }
@@ -2178,7 +2488,7 @@ export class CopilotSession {
         // is left alone — the user-facing handler types still cast unknown to the
         // specific HookInput, so a runtime type mismatch surfaces as a normal
         // TypeError in user code rather than being silently masked.
-        const normalized = deserializeHookInput(input);
+        const normalized = normalizeHookError(hookType, deserializeHookInput(input));
 
         type GenericHandler = (
             input: unknown,
@@ -2196,6 +2506,8 @@ export class CopilotSession {
             sessionEnd: this.hooks.onSessionEnd as GenericHandler | undefined,
             errorOccurred: this.hooks.onErrorOccurred as GenericHandler | undefined,
             agentStop: this.hooks.onAgentStop as GenericHandler | undefined,
+            subagentStart: this.hooks.onSubagentStart as GenericHandler | undefined,
+            subagentStop: this.hooks.onSubagentStop as GenericHandler | undefined,
         };
 
         const handler = handlerMap[hookType];
@@ -2391,6 +2703,63 @@ export class CopilotSession {
     }
 
     /**
+     * Replace the tools this client supplies to the session.
+     *
+     * `tools` becomes the complete set of tools this client implements,
+     * replacing the ones it supplied when the session was created or resumed,
+     * or in an earlier call. Built-in, MCP, and plugin tools, and tools other
+     * connected clients supply, are unaffected. Pass an empty array to remove
+     * all of this client's tools.
+     *
+     * Tools are defined the same way as for `createSession`: calls to tools
+     * with a `handler` are dispatched to it, and tools without one are
+     * declaration-only. Once the runtime accepts the replacement, every tool
+     * call this session dispatches uses the new handlers; calls already
+     * running finish on their original handlers. If the runtime rejects the
+     * replacement, this rejects and the previous tools and handlers stay in
+     * place. Concurrent calls on the same session are applied one at a time,
+     * in the order they are made.
+     *
+     * The agent sees the new tools from its next model request, which can fall
+     * within a turn in progress. A model request already in flight was made
+     * with the previous tools, so the agent can still call a tool you removed.
+     * This session doesn't answer that call, and it can stay pending until the
+     * turn is aborted. If a running turn might still call a tool you remove,
+     * replace tools while the session is idle.
+     *
+     * @param tools - The complete set of tools this client supplies
+     * @throws Error if the session disconnects before the replacement is applied
+     *
+     * @experimental Wraps the experimental `session.tools.set` RPC and may change
+     * or be removed in a future release.
+     *
+     * @example
+     * ```typescript
+     * await session.setTools([
+     *     defineTool("search_issues", {
+     *         description: "Search the issues shown on the current page",
+     *         parameters: z.object({ query: z.string() }),
+     *         handler: async ({ query }) => searchIssues(query),
+     *     }),
+     * ]);
+     * ```
+     */
+    async setTools(tools: NonNullable<SessionConfig["tools"]>): Promise<void> {
+        this.assertConnected();
+        const definitions = tools.map(toToolDefinition);
+        const replacement = this.setToolsQueue.then(async () => {
+            this.assertConnected();
+            await this.rpc.tools.set({ tools: definitions });
+            this.registerTools(tools);
+        });
+        this.setToolsQueue = replacement.then(
+            () => undefined,
+            () => undefined
+        );
+        await replacement;
+    }
+
+    /**
      * Log a message to the session timeline.
      * The message appears in the session event stream and is visible to SDK consumers
      * and (for non-ephemeral messages) persisted to the session event log on disk.
@@ -2451,6 +2820,11 @@ function toCanvasRpcError(error: unknown): ResponseError<unknown> {
     const code = error instanceof CanvasError ? error.code : "canvas_handler_error";
     const message = error instanceof Error ? error.message : String(error);
     return new ResponseError(ErrorCodes.InternalError, message, { code, message });
+}
+
+// The provider's own error text is deliberately not forwarded to the runtime.
+function skillProviderFailure(operation: string): ResponseError<undefined> {
+    return new ResponseError(ErrorCodes.InternalError, `Skill provider ${operation} failed`);
 }
 
 type WorkflowResultValidationCategory =

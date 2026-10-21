@@ -1,0 +1,36 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+// AUTO-GENERATED FILE - DO NOT EDIT
+// Generated from: api.schema.json
+
+package com.github.copilot.generated.rpc;
+
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import java.util.List;
+import javax.annotation.processing.Generated;
+
+/**
+ * Internal snapshot of native queue state for local session orchestration.
+ *
+ * @since 1.0.0
+ */
+@javax.annotation.processing.Generated("copilot-sdk-codegen")
+@JsonInclude(JsonInclude.Include.NON_NULL)
+@JsonIgnoreProperties(ignoreUnknown = true)
+record QueueSnapshotResult(
+    /** Queue item identifier of a model switch that has been dequeued but not yet applied. */
+    @JsonProperty("inFlightModelChangeId") String inFlightModelChangeId,
+    /** User-facing pending items in FIFO order. */
+    @JsonProperty("items") List<QueuePendingItems> items,
+    /** Immediate steering messages waiting for an active turn. */
+    @JsonProperty("steeringMessages") List<String> steeringMessages,
+    /** Insertion orders for queued items, aligned with `items`. */
+    @JsonProperty("itemOrders") List<Long> itemOrders,
+    /** Insertion orders for immediate steering messages, aligned with `steeringMessages`. */
+    @JsonProperty("steeringMessageOrders") List<Long> steeringMessageOrders
+) {
+}

@@ -456,7 +456,9 @@ fn extract_binary_bytes(archive: &[u8], platform: Platform) -> Vec<u8> {
             let mut entry = zip
                 .by_index(i)
                 .unwrap_or_else(|e| panic!("failed to read zip entry {i}: {e}"));
-            let name = entry.name().to_string();
+            let name = entry
+                .name()
+                .unwrap_or_else(|e| panic!("failed to read zip entry {i} name: {e}"));
             if name == platform.binary_name || name.ends_with(&format!("/{}", platform.binary_name))
             {
                 let mut bytes = Vec::with_capacity(entry.size() as usize);
@@ -677,7 +679,9 @@ fn archive_contains_zip_entry(zip_bytes: &[u8], binary_name: &str) -> bool {
         let Ok(entry) = archive.by_index(i) else {
             continue;
         };
-        let name = entry.name();
+        let name = entry
+            .name()
+            .unwrap_or_else(|e| panic!("failed to read zip entry {i} name: {e}"));
         if name == binary_name || name.ends_with(&format!("/{binary_name}")) {
             return true;
         }

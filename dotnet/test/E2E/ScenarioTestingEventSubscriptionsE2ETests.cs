@@ -123,10 +123,7 @@ public class ScenarioTestingEventSubscriptionsE2ETests(E2ETestFixture fixture, I
             await firstSession.DisposeAsync();
             await firstClient.ForceStopAsync();
 
-            await TestHelper.WaitForConditionAsync(
-                () => Task.FromResult(IsEventChannelClosed(firstSession)),
-                timeout: EventTimeout,
-                timeoutMessage: "Timed out waiting for the old scenario event source to close.");
+            await GetEventChannelCompletion(firstSession).WaitAsync(EventTimeout);
         }
 
         var countAfterClose = Volatile.Read(ref oldEventCount);
@@ -166,7 +163,7 @@ public class ScenarioTestingEventSubscriptionsE2ETests(E2ETestFixture fixture, I
         }
     }
 
-    private static bool IsEventChannelClosed(CopilotSession session)
+    private static Task GetEventChannelCompletion(CopilotSession session)
     {
         var eventChannelField = typeof(CopilotSession).GetField(
             "_eventChannel",
@@ -174,6 +171,6 @@ public class ScenarioTestingEventSubscriptionsE2ETests(E2ETestFixture fixture, I
             ?? throw new InvalidOperationException("CopilotSession._eventChannel was not found.");
         var channel = eventChannelField.GetValue(session)!;
         var reader = channel.GetType().GetProperty("Reader")!.GetValue(channel)!;
-        return ((Task)reader.GetType().GetProperty("Completion")!.GetValue(reader)!).IsCompleted;
+        return (Task)reader.GetType().GetProperty("Completion")!.GetValue(reader)!;
     }
 }

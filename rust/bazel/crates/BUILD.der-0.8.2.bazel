@@ -67,6 +67,6 @@ rust_library(
     version = "0.8.2",
     deps = [
         "@sdk_vendor__pem-rfc7468-1.0.0//:pem_rfc7468",
-        "@sdk_vendor__zeroize-1.9.0//:zeroize",
+        "@sdk_vendor__zeroize-1.9.1//:zeroize",
     ],
 )

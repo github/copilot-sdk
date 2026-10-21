@@ -24,6 +24,8 @@ public enum CatalogCapability {
     AI_SKILL_DISCOVERY("ai-skill-discovery"),
     /** The {@code agent-plugin-discovery} variant. */
     AGENT_PLUGIN_DISCOVERY("agent-plugin-discovery"),
+    /** The {@code agent-plugin-formats} variant. */
+    AGENT_PLUGIN_FORMATS("agent-plugin-formats"),
     /** The {@code mcp-install-planning} variant. */
     MCP_INSTALL_PLANNING("mcp-install-planning"),
     /** The {@code multiple-transport-choice} variant. */
@@ -43,7 +45,15 @@ public enum CatalogCapability {
     /** The {@code mcp-configured-remote-installation} variant. */
     MCP_CONFIGURED_REMOTE_INSTALLATION("mcp-configured-remote-installation"),
     /** The {@code skill-confirmed-installation} variant. */
-    SKILL_CONFIRMED_INSTALLATION("skill-confirmed-installation");
+    SKILL_CONFIRMED_INSTALLATION("skill-confirmed-installation"),
+    /** The {@code agent-plugin-confirmed-installation} variant. */
+    AGENT_PLUGIN_CONFIRMED_INSTALLATION("agent-plugin-confirmed-installation"),
+    /** The {@code catalog-reference-installation} variant. */
+    CATALOG_REFERENCE_INSTALLATION("catalog-reference-installation"),
+    /** The {@code catalog-feeds} variant. */
+    CATALOG_FEEDS("catalog-feeds"),
+    /** The {@code catalog-search-categories} variant. */
+    CATALOG_SEARCH_CATEGORIES("catalog-search-categories");
 
     private final String value;
     CatalogCapability(String value) { this.value = value; }

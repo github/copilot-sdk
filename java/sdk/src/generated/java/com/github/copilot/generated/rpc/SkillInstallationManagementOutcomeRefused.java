@@ -25,6 +25,8 @@ import javax.annotation.processing.Generated;
 public record SkillInstallationManagementOutcomeRefused(
     /** Bounded refusal reason. */
     @JsonProperty("reason") SkillInstallationFailureReason reason,
+    /** Whole seconds GitHub asked the caller to wait, present only with source-rate-limited. */
+    @JsonProperty("retryAfterSeconds") Long retryAfterSeconds,
     /** Skill installation management outcome discriminator. */
     @JsonProperty("kind") String kind
 ) implements SkillInstallationManagementOutcome {
@@ -33,8 +35,9 @@ public record SkillInstallationManagementOutcomeRefused(
     }
 
     public SkillInstallationManagementOutcomeRefused(
-        SkillInstallationFailureReason reason
+        SkillInstallationFailureReason reason,
+        Long retryAfterSeconds
     ) {
-        this(reason, "refused");
+        this(reason, retryAfterSeconds, "refused");
     }
 }

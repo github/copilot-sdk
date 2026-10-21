@@ -32,6 +32,42 @@ filegroup(
 
 # Workspace Member Dependencies
 alias(
+    name = "ahp-0.9.0",
+    actual = "@sdk_vendor__ahp-0.9.0//:ahp",
+    tags = ["manual"],
+)
+
+alias(
+    name = "ahp",
+    actual = "@sdk_vendor__ahp-0.9.0//:ahp",
+    tags = ["manual"],
+)
+
+alias(
+    name = "ahp-types-0.9.0",
+    actual = "@sdk_vendor__ahp-types-0.9.0//:ahp_types",
+    tags = ["manual"],
+)
+
+alias(
+    name = "ahp-types",
+    actual = "@sdk_vendor__ahp-types-0.9.0//:ahp_types",
+    tags = ["manual"],
+)
+
+alias(
+    name = "ahp-ws-0.9.0",
+    actual = "@sdk_vendor__ahp-ws-0.9.0//:ahp_ws",
+    tags = ["manual"],
+)
+
+alias(
+    name = "ahp-ws",
+    actual = "@sdk_vendor__ahp-ws-0.9.0//:ahp_ws",
+    tags = ["manual"],
+)
+
+alias(
     name = "async-trait-0.1.92",
     actual = "@sdk_vendor__async-trait-0.1.92//:async_trait",
     tags = ["manual"],
@@ -68,14 +104,14 @@ alias(
 )
 
 alias(
-    name = "dirs-5.0.1",
-    actual = "@sdk_vendor__dirs-5.0.1//:dirs",
+    name = "dirs-7.0.0",
+    actual = "@sdk_vendor__dirs-7.0.0//:dirs",
     tags = ["manual"],
 )
 
 alias(
     name = "dirs",
-    actual = "@sdk_vendor__dirs-5.0.1//:dirs",
+    actual = "@sdk_vendor__dirs-7.0.0//:dirs",
     tags = ["manual"],
 )
 
@@ -112,6 +148,18 @@ alias(
 alias(
     name = "getrandom",
     actual = "@sdk_vendor__getrandom-0.4.3//:getrandom",
+    tags = ["manual"],
+)
+
+alias(
+    name = "hpke-0.13.0",
+    actual = "@sdk_vendor__hpke-0.13.0//:hpke",
+    tags = ["manual"],
+)
+
+alias(
+    name = "hpke",
+    actual = "@sdk_vendor__hpke-0.13.0//:hpke",
     tags = ["manual"],
 )
 
@@ -182,6 +230,30 @@ alias(
 )
 
 alias(
+    name = "rand_chacha-0.9.0",
+    actual = "@sdk_vendor__rand_chacha-0.9.0//:rand_chacha",
+    tags = ["manual"],
+)
+
+alias(
+    name = "rand_chacha",
+    actual = "@sdk_vendor__rand_chacha-0.9.0//:rand_chacha",
+    tags = ["manual"],
+)
+
+alias(
+    name = "rand_core-0.6.4",
+    actual = "@sdk_vendor__rand_core-0.6.4//:rand_core",
+    tags = ["manual"],
+)
+
+alias(
+    name = "rand_core",
+    actual = "@sdk_vendor__rand_core-0.6.4//:rand_core",
+    tags = ["manual"],
+)
+
+alias(
     name = "regex-1.13.1",
     actual = "@sdk_vendor__regex-1.13.1//:regex",
     tags = ["manual"],
@@ -218,14 +290,14 @@ alias(
 )
 
 alias(
-    name = "schemars-1.2.2",
-    actual = "@sdk_vendor__schemars-1.2.2//:schemars",
+    name = "schemars-1.2.3",
+    actual = "@sdk_vendor__schemars-1.2.3//:schemars",
     tags = ["manual"],
 )
 
 alias(
     name = "schemars",
-    actual = "@sdk_vendor__schemars-1.2.2//:schemars",
+    actual = "@sdk_vendor__schemars-1.2.3//:schemars",
     tags = ["manual"],
 )
 
@@ -242,14 +314,14 @@ alias(
 )
 
 alias(
-    name = "serde_json-1.0.151",
-    actual = "@sdk_vendor__serde_json-1.0.151//:serde_json",
+    name = "serde_json-1.0.154",
+    actual = "@sdk_vendor__serde_json-1.0.154//:serde_json",
     tags = ["manual"],
 )
 
 alias(
     name = "serde_json",
-    actual = "@sdk_vendor__serde_json-1.0.151//:serde_json",
+    actual = "@sdk_vendor__serde_json-1.0.154//:serde_json",
     tags = ["manual"],
 )
 
@@ -302,14 +374,14 @@ alias(
 )
 
 alias(
-    name = "tokio-1.53.1",
-    actual = "@sdk_vendor__tokio-1.53.1//:tokio",
+    name = "tokio-1.53.3",
+    actual = "@sdk_vendor__tokio-1.53.3//:tokio",
     tags = ["manual"],
 )
 
 alias(
     name = "tokio",
-    actual = "@sdk_vendor__tokio-1.53.1//:tokio",
+    actual = "@sdk_vendor__tokio-1.53.3//:tokio",
     tags = ["manual"],
 )
 
@@ -326,26 +398,26 @@ alias(
 )
 
 alias(
-    name = "tokio-tungstenite-0.28.0",
-    actual = "@sdk_vendor__tokio-tungstenite-0.28.0//:tokio_tungstenite",
+    name = "tokio-tungstenite-0.30.0",
+    actual = "@sdk_vendor__tokio-tungstenite-0.30.0//:tokio_tungstenite",
     tags = ["manual"],
 )
 
 alias(
     name = "tokio-tungstenite",
-    actual = "@sdk_vendor__tokio-tungstenite-0.28.0//:tokio_tungstenite",
+    actual = "@sdk_vendor__tokio-tungstenite-0.30.0//:tokio_tungstenite",
     tags = ["manual"],
 )
 
 alias(
-    name = "tokio-util-0.7.19",
-    actual = "@sdk_vendor__tokio-util-0.7.19//:tokio_util",
+    name = "tokio-util-0.7.20",
+    actual = "@sdk_vendor__tokio-util-0.7.20//:tokio_util",
     tags = ["manual"],
 )
 
 alias(
     name = "tokio-util",
-    actual = "@sdk_vendor__tokio-util-0.7.19//:tokio_util",
+    actual = "@sdk_vendor__tokio-util-0.7.20//:tokio_util",
     tags = ["manual"],
 )
 
@@ -374,14 +446,14 @@ alias(
 )
 
 alias(
-    name = "uuid-1.26.1",
-    actual = "@sdk_vendor__uuid-1.26.1//:uuid",
+    name = "uuid-1.28.0",
+    actual = "@sdk_vendor__uuid-1.28.0//:uuid",
     tags = ["manual"],
 )
 
 alias(
     name = "uuid",
-    actual = "@sdk_vendor__uuid-1.26.1//:uuid",
+    actual = "@sdk_vendor__uuid-1.28.0//:uuid",
     tags = ["manual"],
 )
 
@@ -398,13 +470,13 @@ alias(
 )
 
 alias(
-    name = "zip-7.2.0",
-    actual = "@sdk_vendor__zip-7.2.0//:zip",
+    name = "zip-9.0.5",
+    actual = "@sdk_vendor__zip-9.0.5//:zip",
     tags = ["manual"],
 )
 
 alias(
     name = "zip",
-    actual = "@sdk_vendor__zip-7.2.0//:zip",
+    actual = "@sdk_vendor__zip-9.0.5//:zip",
     tags = ["manual"],
 )

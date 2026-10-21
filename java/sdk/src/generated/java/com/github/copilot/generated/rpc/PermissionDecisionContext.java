@@ -28,6 +28,8 @@ public record PermissionDecisionContext(
     /** Client surface that submitted the response. */
     @JsonProperty("surface") PermissionDecisionSurface surface,
     /** Whether the responding client could ask a user interactively, was running headlessly, or had no response path. Omit when the client cannot determine this authoritatively. */
-    @JsonProperty("responseCapability") PermissionResponseCapability responseCapability
+    @JsonProperty("responseCapability") PermissionResponseCapability responseCapability,
+    /** Optional user-authored explanation of this decision, independent of approval scope. Collected only in restricted telemetry for accepted human responses to Assisted Permissions prompts. Never persisted in session history, sent to the agent or judge, or used to create approval rules. Existing rejection feedback is separate. */
+    @JsonProperty("userFeedback") String userFeedback
 ) {
 }

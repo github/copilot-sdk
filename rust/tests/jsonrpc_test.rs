@@ -2,6 +2,7 @@
 #![allow(clippy::unwrap_used)]
 
 use github_copilot_sdk::test_support::{JsonRpcClient, JsonRpcNotification, JsonRpcRequest};
+use github_copilot_sdk::{ErrorKind, ProtocolErrorKind};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, duplex};
 use tokio::sync::{broadcast, mpsc};
 
@@ -512,6 +513,182 @@ async fn unrepairable_frame_remains_fatal() {
 
     assert_eq!(error.to_string(), "request cancelled");
     assert!(error.is_transport_failure());
+    server_task.await.unwrap();
+}
+
+/// The CLI answers a request it could not read, for example one its parser
+/// refused for its nesting depth, with an error whose `id` is null (#24583).
+/// That request's caller gets the CLI's rejection instead of waiting forever,
+/// and the connection keeps serving the next request.
+#[tokio::test]
+async fn null_id_error_fails_the_pending_request_and_keeps_the_connection() {
+    let (client_write, mut server_read) = duplex(4096);
+    let (mut server_write, client_read) = duplex(4096);
+    let (notification_tx, _) = broadcast::channel(16);
+    let (request_tx, _) = mpsc::unbounded_channel();
+    let client = JsonRpcClient::new(client_write, client_read, notification_tx, request_tx);
+
+    let server_task = tokio::spawn(async move {
+        // The CLI reads the request but cannot identify it.
+        read_framed(&mut server_read).await;
+        write_framed(
+            &mut server_write,
+            br#"{"jsonrpc":"2.0","id":null,"error":{"code":-32700,"message":"recursion limit exceeded at line 1 column 513"}}"#,
+        )
+        .await;
+        let request: JsonRpcRequest =
+            serde_json::from_slice(&read_framed(&mut server_read).await).unwrap();
+        let response = serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": request.id,
+            "result": {"name": "still connected"}
+        });
+        write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
+    });
+
+    let error = tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        client.send_request("session.send", None),
+    )
+    .await
+    .expect("the rejected request completes")
+    .unwrap_err();
+    assert_eq!(
+        error.kind(),
+        &ErrorKind::Protocol(ProtocolErrorKind::UncorrelatedRejection {
+            code: -32700,
+            message: "recursion limit exceeded at line 1 column 513".to_string(),
+        })
+    );
+    assert!(!error.is_transport_failure());
+
+    let response = tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        client.send_request("models.list", None),
+    )
+    .await
+    .expect("the next request is answered")
+    .unwrap();
+    assert_eq!(
+        response.result.unwrap()["name"],
+        serde_json::json!("still connected")
+    );
+    server_task.await.unwrap();
+}
+
+/// With several requests pending, a null-id error cannot say which one the CLI
+/// rejected, so every pending request fails with the rejection and none
+/// waits. The rejection repeats the CLI's message without its quoted values.
+#[tokio::test]
+async fn null_id_error_fails_every_pending_request() {
+    let (client_write, mut server_read) = duplex(4096);
+    let (mut server_write, client_read) = duplex(4096);
+    let (notification_tx, _) = broadcast::channel(16);
+    let (request_tx, _) = mpsc::unbounded_channel();
+    let client = JsonRpcClient::new(client_write, client_read, notification_tx, request_tx);
+
+    let server_task = tokio::spawn(async move {
+        read_framed(&mut server_read).await;
+        read_framed(&mut server_read).await;
+        write_framed(
+            &mut server_write,
+            br#"{"jsonrpc":"2.0","id":null,"error":{"code":-32600,"message":"invalid type: string \"ghp_secret\", expected u64"}}"#,
+        )
+        .await;
+        let request: JsonRpcRequest =
+            serde_json::from_slice(&read_framed(&mut server_read).await).unwrap();
+        let response = serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": request.id,
+            "result": {"name": "still connected"}
+        });
+        write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
+    });
+
+    let (first, second) = tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        tokio::join!(
+            client.send_request("session.send", None),
+            client.send_request("models.list", None)
+        )
+    })
+    .await
+    .expect("both pending requests complete");
+    for result in [first, second] {
+        let error = result.unwrap_err();
+        assert_eq!(
+            error.kind(),
+            &ErrorKind::Protocol(ProtocolErrorKind::UncorrelatedRejection {
+                code: -32600,
+                message: "invalid type: string \"…\", expected u64".to_string(),
+            })
+        );
+        assert!(!error.to_string().contains("ghp_secret"), "{error}");
+    }
+
+    let response = tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        client.send_request("account.getQuota", None),
+    )
+    .await
+    .expect("the next request is answered")
+    .unwrap();
+    assert_eq!(
+        response.result.unwrap()["name"],
+        serde_json::json!("still connected")
+    );
+    server_task.await.unwrap();
+}
+
+/// A null-id error that arrives with nothing pending fails nothing, and the
+/// connection keeps serving.
+#[tokio::test]
+async fn null_id_error_with_nothing_pending_keeps_the_connection() {
+    let (client_write, mut server_read) = duplex(4096);
+    let (mut server_write, client_read) = duplex(4096);
+    let (notification_tx, mut notifications) = broadcast::channel(16);
+    let (request_tx, _) = mpsc::unbounded_channel();
+    let client = JsonRpcClient::new(client_write, client_read, notification_tx, request_tx);
+
+    write_framed(
+        &mut server_write,
+        br#"{"jsonrpc":"2.0","id":null,"error":{"code":-32700,"message":"Parse error"}}"#,
+    )
+    .await;
+    // The read loop handles frames in order: once this notification arrives,
+    // the error before it has been handled.
+    write_framed(
+        &mut server_write,
+        br#"{"jsonrpc":"2.0","method":"session.event","params":{}}"#,
+    )
+    .await;
+    let notification: JsonRpcNotification =
+        tokio::time::timeout(std::time::Duration::from_secs(5), notifications.recv())
+            .await
+            .expect("the notification after the error arrives")
+            .unwrap();
+    assert_eq!(notification.method, "session.event");
+
+    let server_task = tokio::spawn(async move {
+        let request: JsonRpcRequest =
+            serde_json::from_slice(&read_framed(&mut server_read).await).unwrap();
+        let response = serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": request.id,
+            "result": {"name": "still connected"}
+        });
+        write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
+    });
+    let response = tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        client.send_request("models.list", None),
+    )
+    .await
+    .expect("the request after the null-id error is answered")
+    .unwrap();
+    assert_eq!(
+        response.result.unwrap()["name"],
+        serde_json::json!("still connected")
+    );
     server_task.await.unwrap();
 }
 

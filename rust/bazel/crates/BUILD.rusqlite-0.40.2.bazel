@@ -73,6 +73,6 @@ rust_library(
         "@sdk_vendor__fallible-streaming-iterator-0.1.9//:fallible_streaming_iterator",
         "@sdk_vendor__hashlink-0.12.2//:hashlink",
         "@sdk_vendor__libsqlite3-sys-0.38.2//:libsqlite3_sys",
-        "@sdk_vendor__smallvec-1.16.1//:smallvec",
+        "@sdk_vendor__smallvec-1.16.3//:smallvec",
     ],
 )

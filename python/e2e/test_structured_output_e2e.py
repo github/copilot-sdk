@@ -56,7 +56,7 @@ class Second(BaseModel):
 def config(ctx):
     return {
         "model": "gpt-4.1",
-        "available_tools": [],
+        "available_tools": ["custom:*"],
         "on_permission_request": PermissionHandler.approve_all,
         "provider": {
             "type": "openai",

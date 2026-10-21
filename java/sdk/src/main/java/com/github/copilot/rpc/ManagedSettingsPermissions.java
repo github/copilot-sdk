@@ -16,6 +16,9 @@ public final class ManagedSettingsPermissions {
     @JsonProperty("disableBypassPermissionsMode")
     private String disableBypassPermissionsMode;
 
+    @JsonProperty("disableAssistedPermissionsMode")
+    private Boolean disableAssistedPermissionsMode;
+
     @JsonProperty("deny")
     private List<String> deny;
 
@@ -24,6 +27,9 @@ public final class ManagedSettingsPermissions {
 
     @JsonProperty("allow")
     private List<String> allow;
+
+    @JsonProperty("limitTo")
+    private List<String> limitTo;
 
     /** @return the bypass-permissions policy, or {@code null} when unset */
     public String getDisableBypassPermissionsMode() {
@@ -41,6 +47,25 @@ public final class ManagedSettingsPermissions {
      */
     public ManagedSettingsPermissions setDisableBypassPermissionsMode(String value) {
         this.disableBypassPermissionsMode = value;
+        return this;
+    }
+
+    /**
+     * @return whether Assisted Permissions are disabled, or {@code null} when unset
+     */
+    public Boolean getDisableAssistedPermissionsMode() {
+        return disableAssistedPermissionsMode;
+    }
+
+    /**
+     * Prevents Assisted Permissions from being activated when true.
+     *
+     * @param value
+     *            whether Assisted Permissions are disabled
+     * @return this policy
+     */
+    public ManagedSettingsPermissions setDisableAssistedPermissionsMode(Boolean value) {
+        this.disableAssistedPermissionsMode = value;
         return this;
     }
 
@@ -86,6 +111,27 @@ public final class ManagedSettingsPermissions {
      */
     public ManagedSettingsPermissions setAllow(List<String> rules) {
         this.allow = rules == null ? null : new ArrayList<>(rules);
+        return this;
+    }
+
+    /**
+     * @return the closed-world host boundary, or {@code null} when unset
+     */
+    public List<String> getLimitTo() {
+        return limitTo;
+    }
+
+    /**
+     * Every network request must match this list, and multiple managed layers
+     * intersect their lists. A present empty list denies all hosts.
+     *
+     * @param rules
+     *            host-only {@code Domain(hostname)}, {@code Domain(IP)}, or
+     *            {@code Domain(*.example.com)} boundary rules
+     * @return this policy
+     */
+    public ManagedSettingsPermissions setLimitTo(List<String> rules) {
+        this.limitTo = rules == null ? null : new ArrayList<>(rules);
         return this;
     }
 }

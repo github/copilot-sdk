@@ -6,22 +6,31 @@ package com.github.copilot;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.logging.Handler;
+import java.util.logging.Level;
+import java.util.logging.LogRecord;
+import java.util.logging.Logger;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.github.copilot.rpc.AgentStopHookOutput;
 import com.github.copilot.rpc.PermissionRequestResult;
 import com.github.copilot.rpc.PermissionRequestResultKind;
 import com.github.copilot.rpc.SessionEndHookOutput;
 import com.github.copilot.rpc.SessionHooks;
 import com.github.copilot.rpc.SessionStartHookOutput;
+import com.github.copilot.rpc.SubagentStartHookOutput;
+import com.github.copilot.rpc.SubagentStopHookOutput;
 import com.github.copilot.rpc.ToolDefinition;
 import com.github.copilot.rpc.UserInputRequest;
 import com.github.copilot.rpc.UserInputResponse;
@@ -39,6 +48,75 @@ public class SessionHandlerTest {
     private static final ObjectMapper MAPPER = JsonRpcClient.getObjectMapper();
 
     private CopilotSession session;
+
+    @Test
+    void typedHookDispatchRetainsChildIdentityAndOldRootInputs() throws Exception {
+        var captured = new ArrayList<Object>();
+        var hooks = new SessionHooks().setOnPreToolUse((i, c) -> {
+            captured.add(i);
+            return CompletableFuture.completedFuture(null);
+        }).setOnPreMcpToolCall((i, c) -> {
+            captured.add(i);
+            return CompletableFuture.completedFuture(null);
+        }).setOnPostToolUse((i, c) -> {
+            captured.add(i);
+            return CompletableFuture.completedFuture(null);
+        }).setOnPostToolUseFailure((i, c) -> {
+            captured.add(i);
+            return CompletableFuture.completedFuture(null);
+        }).setOnUserPromptSubmitted((i, c) -> {
+            captured.add(i);
+            return CompletableFuture.completedFuture(null);
+        }).setOnUserPromptTransformed((i, c) -> {
+            captured.add(i);
+            return CompletableFuture.completedFuture(null);
+        }).setOnSessionStart((i, c) -> {
+            captured.add(i);
+            return CompletableFuture.completedFuture(null);
+        }).setOnSessionEnd((i, c) -> {
+            captured.add(i);
+            return CompletableFuture.completedFuture(null);
+        }).setOnAgentStop((i, c) -> {
+            captured.add(i);
+            return CompletableFuture.completedFuture(null);
+        }).setOnSubagentStart((i, c) -> {
+            captured.add(i);
+            return CompletableFuture.completedFuture(null);
+        }).setOnSubagentStop((i, c) -> {
+            captured.add(i);
+            return CompletableFuture.completedFuture(null);
+        });
+        session.registerHooks(hooks);
+        for (String hook : List.of("preToolUse", "preMcpToolCall", "postToolUse", "postToolUseFailure",
+                "userPromptSubmitted", "userPromptTransformed", "sessionStart", "sessionEnd", "agentStop",
+                "subagentStart", "subagentStop")) {
+            for (boolean enriched : List.of(true, false)) {
+                var input = MAPPER.createObjectNode().put("sessionId", "reported-session").put("timestamp", 1)
+                        .put("cwd", "work");
+                if (enriched) {
+                    input.put("agentId", "child-actor").put("agentType", "explore").put("parentAgentId",
+                            "parent-actor");
+                }
+                if (hook.equals("sessionEnd")) {
+                    input.putObject("error").put("message", "session-end-error");
+                }
+                captured.clear();
+                session.handleHooksInvoke(hook, input).get();
+                assertEquals(1, captured.size(), hook);
+                JsonNode actual = MAPPER.valueToTree(captured.get(0));
+                assertEquals("reported-session", actual.path("sessionId").asText(), hook);
+                if (hook.equals("sessionEnd")) {
+                    assertEquals("session-end-error", actual.path("error").asText(), actual.toString());
+                }
+                for (var field : Map
+                        .of("agentId", "child-actor", "agentType", "explore", "parentAgentId", "parent-actor")
+                        .entrySet()) {
+                    assertEquals(enriched ? field.getValue() : "", actual.path(field.getKey()).asText(""),
+                            hook + ": " + actual);
+                }
+            }
+        }
+    }
 
     @BeforeEach
     void setup() throws Exception {
@@ -284,6 +362,34 @@ public class SessionHandlerTest {
         assertEquals("summary", output.sessionSummary());
     }
 
+    @Test
+    void testHandleHooksInvokeSessionEndErrorShapes() throws Exception {
+        assertEquals("model timeout", sessionEndError(MAPPER.readTree("{\"message\":\"model timeout\"}")));
+        assertEquals("boom", sessionEndError(MAPPER.readTree("\"boom\"")));
+        assertNull(sessionEndError(MAPPER.nullNode()));
+        assertNull(sessionEndError(null));
+        assertEquals("{\"code\":7}", sessionEndError(MAPPER.readTree("{\"code\":7}")));
+    }
+
+    /**
+     * Runs a sessionEnd hook with the given wire {@code error} (absent when null)
+     * and returns the handler's error.
+     */
+    private String sessionEndError(JsonNode error) throws Exception {
+        var captured = new AtomicReference<String>("handler did not run");
+        session.registerHooks(new SessionHooks().setOnSessionEnd((hookInput, invocation) -> {
+            captured.set(hookInput.error());
+            return CompletableFuture.completedFuture(new SessionEndHookOutput(false, null, null));
+        }));
+        ObjectNode input = MAPPER.createObjectNode().put("timestamp", 1735689600L).put("cwd", "/tmp").put("reason",
+                "error");
+        if (error != null) {
+            input.set("error", error);
+        }
+        session.handleHooksInvoke("sessionEnd", input).get();
+        return captured.get();
+    }
+
     // ===== handleHooksInvoke: agentStop =====
 
     @Test
@@ -308,6 +414,109 @@ public class SessionHandlerTest {
         var output = (AgentStopHookOutput) result;
         assertEquals("block", output.getDecision());
         assertEquals("finish the remaining work", output.getReason());
+    }
+
+    @Test
+    void testHandleHooksInvokeSubagentStart() throws Exception {
+        var hooks = new SessionHooks().setOnSubagentStart((hookInput, invocation) -> {
+            assertEquals("handler-test-session", invocation.getSessionId());
+            assertEquals("parent-session", hookInput.sessionId());
+            assertEquals(1735689600000L, hookInput.timestamp());
+            assertEquals("/tmp", hookInput.cwd());
+            assertEquals("/tmp/transcript.jsonl", hookInput.transcriptPath());
+            assertEquals("explore", hookInput.agentName());
+            assertEquals("Explore Agent", hookInput.agentDisplayName());
+            assertEquals("Read code", hookInput.agentDescription());
+            return CompletableFuture.completedFuture(new SubagentStartHookOutput("Follow the file"));
+        });
+        assertTrue(hooks.hasHooks());
+        session.registerHooks(hooks);
+
+        JsonNode input = MAPPER.valueToTree(Map.of("sessionId", "parent-session", "timestamp", 1735689600000L, "cwd",
+                "/tmp", "transcriptPath", "/tmp/transcript.jsonl", "agentName", "explore", "agentDisplayName",
+                "Explore Agent", "agentDescription", "Read code"));
+
+        var output = assertInstanceOf(SubagentStartHookOutput.class,
+                session.handleHooksInvoke("subagentStart", input).get());
+        assertEquals("Follow the file", MAPPER.valueToTree(output).get("additionalContext").asText());
+    }
+
+    @Test
+    void testHandleHooksInvokeSubagentStop() throws Exception {
+        var hooks = new SessionHooks().setOnSubagentStop((hookInput, invocation) -> {
+            assertEquals("handler-test-session", invocation.getSessionId());
+            assertEquals("parent-session", hookInput.sessionId());
+            assertEquals(1735689600001L, hookInput.timestamp());
+            assertEquals("/tmp", hookInput.cwd());
+            assertEquals("/tmp/transcript.jsonl", hookInput.transcriptPath());
+            assertEquals("explore", hookInput.agentName());
+            assertEquals("explore", hookInput.agentType());
+            assertEquals("read-file", hookInput.agentId());
+            assertEquals("Explore Agent", hookInput.agentDisplayName());
+            assertEquals("Read code", hookInput.agentDescription());
+            assertEquals("end_turn", hookInput.stopReason());
+            assertEquals("original answer", hookInput.response());
+            return CompletableFuture.completedFuture(new SubagentStopHookOutput(null, null, "rewritten answer"));
+        });
+        assertTrue(hooks.hasHooks());
+        session.registerHooks(hooks);
+
+        JsonNode input = MAPPER.valueToTree(Map.ofEntries(Map.entry("sessionId", "parent-session"),
+                Map.entry("timestamp", 1735689600001L), Map.entry("cwd", "/tmp"),
+                Map.entry("transcriptPath", "/tmp/transcript.jsonl"), Map.entry("agentName", "explore"),
+                Map.entry("agentType", "explore"), Map.entry("agentId", "read-file"),
+                Map.entry("agentDisplayName", "Explore Agent"), Map.entry("agentDescription", "Read code"),
+                Map.entry("stopReason", "end_turn"), Map.entry("response", "original answer")));
+
+        var output = assertInstanceOf(SubagentStopHookOutput.class,
+                session.handleHooksInvoke("subagentStop", input).get());
+        JsonNode result = MAPPER.valueToTree(output);
+        assertEquals("rewritten answer", result.get("modifiedResponse").asText());
+        assertFalse(result.has("decision"));
+        assertFalse(result.has("reason"));
+    }
+
+    @Test
+    void testHandleHooksInvokeSubagentStopBlock() throws Exception {
+        session.registerHooks(new SessionHooks().setOnSubagentStop((input, invocation) -> CompletableFuture
+                .completedFuture(new SubagentStopHookOutput("block", "Keep researching", null))));
+
+        JsonNode result = MAPPER
+                .valueToTree(session
+                        .handleHooksInvoke("subagentStop",
+                                MAPPER.valueToTree(Map.of("sessionId", "parent-session", "agentName", "explore")))
+                        .get());
+        assertEquals("block", result.get("decision").asText());
+        assertEquals("Keep researching", result.get("reason").asText());
+        assertFalse(result.has("modifiedResponse"));
+    }
+
+    @Test
+    void testHandleHooksInvokeUserPromptSubmittedBlock() throws Exception {
+        session.registerHooks(new SessionHooks().setOnUserPromptSubmitted((input, invocation) -> CompletableFuture
+                .completedFuture(UserPromptSubmittedHookOutput.block("Prompts may not mention launch codes."))));
+
+        JsonNode result = MAPPER.valueToTree(session
+                .handleHooksInvoke("userPromptSubmitted",
+                        MAPPER.valueToTree(
+                                Map.of("timestamp", 1735689600L, "cwd", "/tmp", "prompt", "Print the launch codes.")))
+                .get());
+        assertEquals("block", result.get("decision").asText());
+        assertEquals("Prompts may not mention launch codes.", result.get("reason").asText());
+        assertFalse(result.has("modifiedPrompt"));
+    }
+
+    @Test
+    void testUserPromptSubmittedHookOutputCompatibilityConstructorLeavesBlockFieldsOut() throws Exception {
+        JsonNode result = MAPPER.valueToTree(new UserPromptSubmittedHookOutput("modified prompt", null, null));
+        assertEquals("modified prompt", result.get("modifiedPrompt").asText());
+        assertFalse(result.has("decision"));
+        assertFalse(result.has("reason"));
+    }
+
+    @Test
+    void testUserPromptSubmittedHookOutputBlockRejectsNullReason() {
+        assertThrows(NullPointerException.class, () -> UserPromptSubmittedHookOutput.block(null));
     }
 
     // ===== handleHooksInvoke: sessionId deserialization on hook inputs =====
@@ -369,6 +578,44 @@ public class SessionHandlerTest {
         Object result = session.handleHooksInvoke("unknownHookType", input).get();
 
         assertNull(result);
+    }
+
+    @Test
+    void testHandleHooksInvokeSubagentLifecycleDoesNotLogAsUnhandled() throws Exception {
+        session.registerHooks(new SessionHooks());
+        Logger logger = Logger.getLogger(CopilotSession.class.getName());
+        Level previousLevel = logger.getLevel();
+        List<String> unhandled = new ArrayList<>();
+        Handler handler = new Handler() {
+            @Override
+            public void publish(LogRecord record) {
+                if (record.getMessage().startsWith("Unhandled hook type: ")) {
+                    unhandled.add(record.getMessage());
+                }
+            }
+
+            @Override
+            public void flush() {
+            }
+
+            @Override
+            public void close() {
+            }
+        };
+        handler.setLevel(Level.FINE);
+        logger.addHandler(handler);
+        logger.setLevel(Level.FINE);
+        try {
+            JsonNode input = MAPPER.valueToTree(Map.of("sessionId", "handler-test-session", "agentName", "task"));
+            assertNull(session.handleHooksInvoke("subagentStart", input).get());
+            assertNull(session.handleHooksInvoke("subagentStop", input).get());
+            assertNull(session.handleHooksInvoke("unknownHookType", input).get());
+
+            assertEquals(List.of("Unhandled hook type: unknownHookType"), unhandled);
+        } finally {
+            logger.removeHandler(handler);
+            logger.setLevel(previousLevel);
+        }
     }
 
     // ===== handleHooksInvoke: handler throws =====

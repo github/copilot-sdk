@@ -6,6 +6,8 @@ type inProcessHost interface {
 	Start() error
 	Writer() io.WriteCloser
 	Reader() io.ReadCloser
+	ConfigureUiThread(enabled bool) error
+	RunUiAction(actionID uint32) error
 	Dispose()
 }
 

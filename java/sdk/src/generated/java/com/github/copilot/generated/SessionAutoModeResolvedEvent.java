@@ -10,14 +10,18 @@ package com.github.copilot.generated;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.github.copilot.CopilotExperimental;
 import java.util.List;
 import java.util.Map;
 import javax.annotation.processing.Generated;
 
 /**
  * Session event "session.auto_mode_resolved". Auto Intent resolution: the concrete model the session settled on for the first prompt of an auto-mode session, and why. Lets SDK clients render the chosen model and the full reason it was picked. The core selection fields (chosenModel/reasoningBucket/categoryScores) are stable; the routing-analytics fields (predictedLabel/confidence/candidateModels) mirror the upstream intent service and may evolve, hence the event's experimental stability.
+ *
+ * @apiNote This event type is experimental and may change in a future version.
  * @since 1.0.0
  */
+@CopilotExperimental
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
@@ -33,6 +37,7 @@ public final class SessionAutoModeResolvedEvent extends SessionEvent {
     public void setData(SessionAutoModeResolvedEventData data) { this.data = data; }
 
     /** Data payload for {@link SessionAutoModeResolvedEvent}. */
+    @CopilotExperimental
     @JsonIgnoreProperties(ignoreUnknown = true)
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record SessionAutoModeResolvedEventData(
@@ -56,6 +61,8 @@ public final class SessionAutoModeResolvedEvent extends SessionEvent {
         @JsonProperty("fallback") Boolean fallback,
         /** Server-provided reason for falling back, when available */
         @JsonProperty("fallbackReason") String fallbackReason,
+        /** Short human-readable sentence from the routing service explaining why this model was chosen, for display alongside the model. Present only when the service supplied one: it is omitted for on-device selections, when the service did not provide an explanation, and when a replayed decision made no routing call. The text is display-only and drawn from a fixed catalogue; several distinct routing categories share identical wording, so it cannot be used to recover the category or keyed on programmatically. */
+        @JsonProperty("selectionReason") String selectionReason,
         /** Whether a sticky model choice overrode the router result */
         @JsonProperty("stickyOverride") Boolean stickyOverride,
         /** Server-reported router processing time in milliseconds */

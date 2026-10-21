@@ -7,6 +7,36 @@ import (
 	"github.com/github/copilot-sdk/go/rpc"
 )
 
+func TestMemoryConfiguration_Mode(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		mode MemoryMode
+		json string
+	}{
+		{"omitted", "", `{"enabled":true}`},
+		{"system prompt", MemoryModeSystemPrompt, `{"enabled":true,"mode":"system-prompt"}`},
+		{"user prompt", MemoryModeUserPrompt, `{"enabled":true,"mode":"user-prompt"}`},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			original := MemoryConfiguration{Enabled: true, Mode: test.mode}
+			data, err := json.Marshal(original)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(data) != test.json {
+				t.Fatalf("expected %s, got %s", test.json, data)
+			}
+			var decoded MemoryConfiguration
+			if err := json.Unmarshal(data, &decoded); err != nil {
+				t.Fatal(err)
+			}
+			if decoded != original {
+				t.Fatalf("expected %#v after round-trip, got %#v", original, decoded)
+			}
+		})
+	}
+}
+
 func TestUserPromptTransformedHookOutput_PreservesEmptyReplacement(t *testing.T) {
 	data, err := json.Marshal(UserPromptTransformedHookOutput{
 		ModifiedTransformedPrompt: String(""),
@@ -124,6 +154,7 @@ func TestProviderConfig_JSONIncludesAllFields(t *testing.T) {
 		Headers:         map[string]string{"Authorization": "Bearer provider-token"},
 		ModelID:         "gpt-4o",
 		WireModel:       "my-finetune-v3",
+		ModelProvider:   "lm_studio",
 		MaxPromptTokens: 100000,
 		MaxOutputTokens: 4096,
 	}
@@ -146,6 +177,9 @@ func TestProviderConfig_JSONIncludesAllFields(t *testing.T) {
 	}
 	if decoded["wireModel"] != "my-finetune-v3" {
 		t.Errorf("expected wireModel 'my-finetune-v3', got %v", decoded["wireModel"])
+	}
+	if decoded["modelProvider"] != "lm_studio" {
+		t.Errorf("expected modelProvider 'lm_studio', got %v", decoded["modelProvider"])
 	}
 	if decoded["maxPromptTokens"] != float64(100000) {
 		t.Errorf("expected maxPromptTokens 100000, got %v", decoded["maxPromptTokens"])
@@ -175,10 +209,69 @@ func TestProviderConfig_JSONOmitsUnsetTokenFields(t *testing.T) {
 		t.Fatalf("failed to unmarshal ProviderConfig: %v", err)
 	}
 
-	for _, field := range []string{"modelId", "wireModel", "maxPromptTokens", "maxOutputTokens", "headers"} {
+	for _, field := range []string{"modelId", "wireModel", "modelProvider", "maxPromptTokens", "maxOutputTokens", "headers"} {
 		if _, present := decoded[field]; present {
 			t.Errorf("expected %q to be omitted when unset, got %v", field, decoded[field])
 		}
+	}
+}
+
+func TestProviderConfig_APIKeyCommandRoundTrips(t *testing.T) {
+	cfg := ProviderConfig{
+		BaseURL:       "https://models.example.test",
+		APIKeyCommand: "credential-helper --profile sdk",
+	}
+	data, err := json.Marshal(cfg)
+	if err != nil {
+		t.Fatalf("failed to marshal provider config: %v", err)
+	}
+	var decoded map[string]any
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("failed to decode provider config: %v", err)
+	}
+	if decoded["apiKeyCommand"] != cfg.APIKeyCommand {
+		t.Errorf("expected command wire value %q, got %v", cfg.APIKeyCommand, decoded["apiKeyCommand"])
+	}
+	var roundTripped ProviderConfig
+	if err := json.Unmarshal(data, &roundTripped); err != nil {
+		t.Fatalf("failed to round-trip provider config: %v", err)
+	}
+	if roundTripped.APIKeyCommand != cfg.APIKeyCommand {
+		t.Errorf("expected command %q, got %q", cfg.APIKeyCommand, roundTripped.APIKeyCommand)
+	}
+	data, err = json.Marshal(ProviderConfig{BaseURL: cfg.BaseURL})
+	if err != nil {
+		t.Fatalf("failed to marshal default provider config: %v", err)
+	}
+	var omitted map[string]any
+	if err := json.Unmarshal(data, &omitted); err != nil {
+		t.Fatalf("failed to decode default provider config: %v", err)
+	}
+	if _, present := omitted["apiKeyCommand"]; present {
+		t.Errorf("expected unset apiKeyCommand to be omitted, got %s", data)
+	}
+}
+
+func TestNamedProviderConfig_JSONIncludesModelProvider(t *testing.T) {
+	cfg := NamedProviderConfig{
+		Name:          "local",
+		Type:          "openai",
+		BaseURL:       "http://localhost:11434/v1",
+		ModelProvider: "ollama",
+	}
+
+	data, err := json.Marshal(cfg)
+	if err != nil {
+		t.Fatalf("failed to marshal NamedProviderConfig: %v", err)
+	}
+
+	var decoded map[string]any
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("failed to unmarshal NamedProviderConfig: %v", err)
+	}
+
+	if decoded["modelProvider"] != "ollama" {
+		t.Errorf("expected modelProvider 'ollama', got %v", decoded["modelProvider"])
 	}
 }
 

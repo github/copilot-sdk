@@ -40,6 +40,8 @@ public record NamedProviderConfig(
     @JsonProperty("azure") ProviderConfigAzure azure,
     /** Additional HTTP headers included with provider requests. */
     @JsonProperty("headers") Map<String, String> headers,
+    /** The product serving the provider's models, reported in telemetry as `model_provider`. Only affects telemetry. */
+    @JsonProperty("modelProvider") ProviderConfigModelProvider modelProvider,
     /** Whether the host supplies bearer tokens dynamically. */
     @JsonProperty("hasBearerTokenProvider") Boolean hasBearerTokenProvider
 ) {

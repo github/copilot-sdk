@@ -106,6 +106,7 @@ function assistantEvent() {
     data: {
       content: "scenario response",
       messageId: "assistant-message",
+      originatingMessageId: "user-message",
     },
   };
 }

@@ -24,7 +24,7 @@ export {
 
 export type JoinSessionConfig = Omit<
     ResumeSessionConfig,
-    "onPermissionRequest" | "extensionSdkPath"
+    "onPermissionRequest" | "extensionSdkPath" | "skillProvider" | "imageGeneration"
 > & {
     onPermissionRequest?: PermissionHandler;
     /**
@@ -124,16 +124,25 @@ export async function joinSession(config: JoinSessionConfig = {}): Promise<Copil
     // Strip `extensionSdkPath` at runtime even though `JoinSessionConfig` omits it
     // at the type level — untyped (JS) callers can still slip it through, and
     // honoring it here would be misleading since the extension subprocess has
-    // already been forked by the host with the SDK the host chose.
+    // already been forked by the host with the SDK the host chose. Skill
+    // providers belong to the session's owning client, and the CLI rejects them
+    // from extensions.
     const {
         extensionSdkPath: _stripped,
+        skillProvider: _strippedSkillProvider,
+        imageGeneration: _strippedImageGeneration,
         workflows,
         requestedEnvironmentVariables,
         ...rest
     } = config as JoinSessionConfig & {
         extensionSdkPath?: string;
+        skillProvider?: unknown;
+        imageGeneration?: unknown;
     };
     void _stripped;
+    void _strippedSkillProvider;
+    // Image generation consent belongs to the session owner, not joining extensions.
+    void _strippedImageGeneration;
 
     return client.resumeSessionForExtension(
         sessionId,

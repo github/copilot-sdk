@@ -51,6 +51,9 @@ public class NamedProviderConfig {
     @JsonProperty("wireApi")
     private String wireApi;
 
+    @JsonProperty("modelProvider")
+    private String modelProvider;
+
     @JsonProperty("baseUrl")
     private String baseUrl;
 
@@ -141,6 +144,30 @@ public class NamedProviderConfig {
      */
     public NamedProviderConfig setWireApi(String wireApi) {
         this.wireApi = wireApi;
+        return this;
+    }
+
+    /**
+     * Gets the product serving this provider's models.
+     *
+     * @return the model provider, such as "ollama" or "lm_studio"
+     */
+    public String getModelProvider() {
+        return modelProvider;
+    }
+
+    /**
+     * Sets the product serving this provider's models, reported in telemetry as
+     * {@code model_provider}. Allowed values are "openai", "anthropic",
+     * "azure_openai", "ollama", "lm_studio", "foundry_local", and "llama_cpp"; only
+     * affects telemetry.
+     *
+     * @param modelProvider
+     *            the model provider
+     * @return this config for method chaining
+     */
+    public NamedProviderConfig setModelProvider(String modelProvider) {
+        this.modelProvider = modelProvider;
         return this;
     }
 

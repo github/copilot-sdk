@@ -31,7 +31,7 @@ public final class SessionCompletionsApi {
     }
 
     /**
-     * Identifies the target session.
+     * Gets the characters that should trigger host-driven completions for the session. Empty disables host-driven completions (e.g. local sessions, or a relay host that does not advertise them).
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -42,7 +42,7 @@ public final class SessionCompletionsApi {
     }
 
     /**
-     * Request host-driven completions for the current composer input.
+     * Requests host-driven completion items for the current composer input. Returns an empty list when the host has no items or does not support completions.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.

@@ -15,7 +15,15 @@ from typing import TYPE_CHECKING, Any, Union, get_args, get_origin, get_type_hin
 from uuid import uuid4
 from weakref import WeakKeyDictionary
 
-from .generated.rpc import HostExitedNotification, HostPublishSessionResult, HostStartResult
+from .generated.rpc import (
+    HostExitedNotification,
+    HostGitHubEnvironmentOptions,
+    HostListSessionsResult,
+    HostLocalServerOptions,
+    HostPublishSessionResult,
+    HostStartResult,
+    HostUnpublishSessionResult,
+)
 
 if TYPE_CHECKING:
     from ._jsonrpc import JsonRpcClient
@@ -59,9 +67,10 @@ class AhpHost:
     """
 
     host_id: str
-    url: str
+    url: str | None
     token: str | None
     pid: int | None
+    environment_id: str | None
     _rpc: JsonRpcClient = field(repr=False, compare=False)
 
     async def dispose(self) -> None:
@@ -69,11 +78,27 @@ class AhpHost:
         await self._rpc.request("host.dispose", {"hostId": self.host_id})
 
     async def publish_session(self, session_id: str) -> HostPublishSessionResult:
-        """Publish a resident session attached to the owning client."""
+        """Publish an attached session into the durable compute-scoped catalog."""
         result = await self._rpc.request(
             "host.publishSession", {"hostId": self.host_id, "sessionId": session_id}
         )
         return HostPublishSessionResult.from_dict(result)
+
+    async def unpublish_session(self, session_id: str) -> HostUnpublishSessionResult:
+        """Withdraw a live or dormant application publication and revoke AHP attachments.
+
+        Preserves local history, worktrees and ongoing work; returns false when absent.
+        Rejects nonapplication publications without stopping the host.
+        """
+        result = await self._rpc.request(
+            "host.unpublishSession", {"hostId": self.host_id, "sessionId": session_id}
+        )
+        return HostUnpublishSessionResult.from_dict(result)
+
+    async def list_sessions(self) -> HostListSessionsResult:
+        """List all live and dormant catalog sessions advertised by this host."""
+        result = await self._rpc.request("host.listSessions", {"hostId": self.host_id})
+        return HostListSessionsResult.from_dict(result)
 
     async def __aenter__(self) -> AhpHost:
         return self
@@ -84,21 +109,25 @@ class AhpHost:
 
 @dataclass(frozen=True)
 class AhpHostOptions:
-    """Local callbacks and listener settings for experimental AHP hosting.
+    """Local callbacks and transport settings for experimental AHP hosting.
 
+    Select ``local_server``, ``github_environment``, or both. An empty local
+    server selects loopback defaults. GitHub-only hosting has no local URL.
     Factories must return the exact requested session from the owning client.
     Release callbacks receive that same object once per handoff, including late
     results. The SDK never disconnects or destroys it on the application's behalf.
+    ``compute_id`` selects a durable catalog across transports; omitted local-only
+    identities are persisted by the runtime. It must agree with the GitHub
+    environment's compute identity when both are supplied.
     """
 
-    hostname: str | None = None
-    port: int | None = None
-    token: str | None = None
-    require_connection_token: bool | None = None
+    local_server: HostLocalServerOptions | None = None
+    github_environment: HostGitHubEnvironmentOptions | None = None
     create_session: Callable[[AhpSessionCreateRequest], Awaitable[CopilotSession]] | None = None
     resume_session: Callable[[AhpSessionResumeRequest], Awaitable[CopilotSession]] | None = None
     on_session_released: Callable[[CopilotSession], Awaitable[None] | None] | None = None
     on_exit: Callable[[AhpHostExit], Awaitable[None] | None] | None = None
+    compute_id: str | None = None
 
 
 @dataclass
@@ -198,14 +227,21 @@ class _AhpHostManager:
                 entry.configs[session] = copy.deepcopy(config)
 
     async def start(self, rpc: JsonRpcClient, options: AhpHostOptions) -> AhpHost:
+        if options.local_server is None and options.github_environment is None:
+            raise ValueError("At least one of local_server or github_environment is required")
         host_id = str(uuid4())
         self._hosts[host_id] = options
         params = {
             "hostId": host_id,
-            "hostname": options.hostname,
-            "port": options.port,
-            "token": options.token,
-            "requireConnectionToken": options.require_connection_token,
+            "computeId": options.compute_id,
+            "localServer": (
+                options.local_server.to_dict() if options.local_server is not None else None
+            ),
+            "githubEnvironment": (
+                options.github_environment.to_dict()
+                if options.github_environment is not None
+                else None
+            ),
             "sessionFactory": True if options.create_session else None,
             "resumeFactory": True if options.resume_session else None,
         }
@@ -216,7 +252,7 @@ class _AhpHostManager:
         )
         try:
             info = HostStartResult.from_dict(await asyncio.shield(startup))
-            return AhpHost(info.host_id, info.url, info.token, info.pid, rpc)
+            return AhpHost(info.host_id, info.url, info.token, info.pid, info.environment_id, rpc)
         except asyncio.CancelledError:
             # Settle startup before disposing: the runtime may not have registered
             # the host yet, and canceling the local RPC does not cancel that work.

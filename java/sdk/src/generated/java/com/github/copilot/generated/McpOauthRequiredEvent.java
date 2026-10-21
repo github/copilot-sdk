@@ -49,7 +49,9 @@ public final class McpOauthRequiredEvent extends SessionEvent {
         /** Raw OAuth protected-resource metadata document fetched for the MCP server, if available */
         @JsonProperty("resourceMetadata") String resourceMetadata,
         /** Why the runtime is requesting host-provided OAuth credentials. */
-        @JsonProperty("reason") McpOauthRequestReason reason
+        @JsonProperty("reason") McpOauthRequestReason reason,
+        /** Whether this Refresh request accepts kind runtimeRefresh to continue noninteractive grant renewal within its original authorization reservation. Missing or false means unsupported; the host must retain its legacy response behavior. */
+        @JsonProperty("runtimeRefreshSupported") Boolean runtimeRefreshSupported
     ) {
     }
 }

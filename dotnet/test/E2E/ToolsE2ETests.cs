@@ -319,6 +319,67 @@ public partial class ToolsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         }
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    [Trait(E2ETestTraits.Backend, E2ETestTraits.SelfConfiguredBackend)]
+    public async Task ApplyPatch_StringSchemaOverride_Binds_Patch_Input(bool useCustomToolCall)
+    {
+        var receivedInput = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+        JsonElement? receivedArguments = null;
+        var invocationCount = 0;
+        var handler = new ApplyPatchOverrideRequestHandler(useCustomToolCall);
+        await using var client = Ctx.CreateClient(options: new CopilotClientOptions
+        {
+            Connection = RuntimeConnection.ForStdio(),
+            RequestHandler = handler,
+        });
+        await client.StartAsync();
+
+        var inner = CopilotTool.DefineTool(
+            (string input, ToolInvocation invocation) =>
+            {
+                receivedArguments = invocation.Arguments;
+                Interlocked.Increment(ref invocationCount);
+                receivedInput.TrySetResult(input);
+                return ApplyPatchResult;
+            },
+            new CopilotToolOptions { OverridesBuiltInTool = true, SkipPermission = true },
+            new AIFunctionFactoryOptions { Name = "apply_patch", Description = "Host-implemented apply_patch" });
+        var tool = new StringSchemaApplyPatchTool(inner);
+        Assert.Equal("string", tool.JsonSchema.GetProperty("type").GetString());
+
+        await using var session = await Ctx.CreateSessionAsync(client, new SessionConfig
+        {
+            Model = "gpt-4o-mini",
+            Provider = new ProviderConfig
+            {
+                Type = "openai",
+                WireApi = "completions",
+                BaseUrl = "https://apply-patch.invalid/v1",
+                ApiKey = "test-key",
+                ModelId = "gpt-4o-mini",
+                WireModel = "gpt-4o-mini",
+            },
+            Streaming = true,
+            Tools = [tool],
+            OnPermissionRequest = PermissionHandler.ApproveAll,
+        });
+
+        var message = await session.SendAndWaitAsync(new MessageOptions { Prompt = "Use apply_patch" });
+
+        Assert.True(receivedInput.Task.IsCompleted);
+        Assert.Equal(ApplyPatchInput, await receivedInput.Task);
+        Assert.Equal(JsonValueKind.String, receivedArguments?.ValueKind);
+        Assert.Equal(ApplyPatchInput, receivedArguments?.GetString());
+        Assert.Equal(1, Volatile.Read(ref invocationCount));
+        Assert.Equal("override complete", message?.Data.Content);
+        var requests = handler.InferenceRequests;
+        Assert.Equal(2, requests.Count);
+        AssertApplyPatchOverrideAdvertised(requests[0], "string");
+        AssertApplyPatchResultReachedModel(requests[1]);
+    }
+
     [Fact]
     public async Task SkipPermission_Sent_In_Tool_Definition()
     {
@@ -571,6 +632,17 @@ public partial class ToolsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
                 message.GetProperty("role").GetString() == "tool"
                 && message.GetProperty("tool_call_id").GetString() == "call-1");
         Assert.Equal(ApplyPatchResult, toolResult.GetProperty("content").GetString());
+    }
+
+    private sealed class StringSchemaApplyPatchTool(AIFunction inner) : DelegatingAIFunction(inner)
+    {
+        public override JsonElement JsonSchema { get; } = CreateSchema();
+
+        private static JsonElement CreateSchema()
+        {
+            using var document = JsonDocument.Parse("""{"type":"string"}""");
+            return document.RootElement.Clone();
+        }
     }
 
     private sealed class ApplyPatchOverrideRequestHandler(bool useCustomToolCall) : CopilotRequestHandler

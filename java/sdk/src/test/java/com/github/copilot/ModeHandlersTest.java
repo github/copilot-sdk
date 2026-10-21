@@ -65,7 +65,7 @@ public class ModeHandlersTest {
     private void configureAuthenticatedUser(String testName) throws Exception {
         ctx.configureForTest("mode_handlers", testName);
         ctx.setCopilotUserByToken(TOKEN, "mode-handler-user", "individual_pro", ctx.getProxyUrl(),
-                "https://localhost:1/telemetry", "mode-handler-tracking-id");
+                "https://sdk-hydro-collector.example.com", "mode-handler-tracking-id");
     }
 
     @Test

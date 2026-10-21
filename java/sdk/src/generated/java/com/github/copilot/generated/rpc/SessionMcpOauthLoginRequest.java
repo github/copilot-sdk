@@ -14,7 +14,7 @@ import java.util.Objects;
 import javax.annotation.processing.Generated;
 
 /**
- * Remote MCP server name and optional overrides controlling reauthentication, OAuth client display name, callback success-page copy, and static OAuth client selection.
+ * Remote MCP server name and optional overrides controlling reauthentication, OAuth client display name, callback handling, and static OAuth client selection.
  * <p>
  * Required inputs are constructor arguments. Optional inputs have fluent setters.
  *
@@ -57,6 +57,10 @@ public final class SessionMcpOauthLoginRequest {
     /** Optional OAuth grant type override for this login. Defaults to the server configuration, or authorization_code when no grant type is specified. */
     @JsonProperty("grantType")
     private McpOauthLoginGrantType grantType;
+
+    /** Optional externally visible HTTPS redirect URI for a host-managed callback endpoint. When supplied, the runtime still owns discovery, PKCE, token exchange, persistence, and reconnect, but does not bind a loopback listener or terminate HTTPS. The URI must not contain query parameters or a fragment and must be registered for the selected CIMD, DCR, or static OAuth client. */
+    @JsonProperty("redirectUri")
+    private String redirectUri;
 
     /** Required for owned login. Consumes the exact prepareLogin handle once. Set forceReauth and display options during preparation, not consumption. */
     @JsonProperty("loginId")
@@ -145,6 +149,15 @@ public final class SessionMcpOauthLoginRequest {
      */
     public McpOauthLoginGrantType getGrantType() {
         return grantType;
+    }
+
+    /**
+     * Returns the {@code redirectUri} property.
+     *
+     * @return Optional externally visible HTTPS redirect URI for a host-managed callback endpoint. When supplied, the runtime still owns discovery, PKCE, token exchange, persistence, and reconnect, but does not bind a loopback listener or terminate HTTPS. The URI must not contain query parameters or a fragment and must be registered for the selected CIMD, DCR, or static OAuth client.
+     */
+    public String getRedirectUri() {
+        return redirectUri;
     }
 
     /**
@@ -239,6 +252,17 @@ public final class SessionMcpOauthLoginRequest {
      */
     public SessionMcpOauthLoginRequest setGrantType(McpOauthLoginGrantType value) {
         this.grantType = value;
+        return this;
+    }
+
+    /**
+     * Sets the {@code redirectUri} property.
+     *
+     * @param value Optional externally visible HTTPS redirect URI for a host-managed callback endpoint. When supplied, the runtime still owns discovery, PKCE, token exchange, persistence, and reconnect, but does not bind a loopback listener or terminate HTTPS. The URI must not contain query parameters or a fragment and must be registered for the selected CIMD, DCR, or static OAuth client.
+     * @return this request
+     */
+    public SessionMcpOauthLoginRequest setRedirectUri(String value) {
+        this.redirectUri = value;
         return this;
     }
 

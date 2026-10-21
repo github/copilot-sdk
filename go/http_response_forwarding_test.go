@@ -128,18 +128,25 @@ func (p *responseProtocolPeer) close() {
 	})
 }
 
-func (p *responseProtocolPeer) beginRequest() {
+func (p *responseProtocolPeer) beginRequest(agentInvocationID ...string) {
 	p.t.Helper()
+	params := map[string]any{
+		"requestId":     "test",
+		"sessionId":     "session",
+		"agentId":       "agent",
+		"parentAgentId": "parent",
+		"method":        "GET",
+		"url":           "http://unused.test",
+		"headers":       map[string][]string{},
+	}
+	if len(agentInvocationID) != 0 {
+		params["agentInvocationId"] = agentInvocationID[0]
+	}
 	p.send(responseProtocolMessage{
 		JSONRPC: "2.0",
 		ID:      json.RawMessage("1"),
 		Method:  "llmInference.httpRequestStart",
-		Params: mustMarshal(p.t, map[string]any{
-			"requestId": "test",
-			"method":    "GET",
-			"url":       "http://unused.test",
-			"headers":   map[string][]string{},
-		}),
+		Params:  mustMarshal(p.t, params),
 	})
 	p.send(responseProtocolMessage{
 		JSONRPC: "2.0",
@@ -330,6 +337,50 @@ func waitForBodyClose(t *testing.T, body *trackedResponseBody) {
 	case <-body.closed:
 	case <-time.After(responseProtocolTimeout):
 		t.Fatal("response body was not closed")
+	}
+}
+
+func TestHTTPRequestContextPreservesInvocationIdentity(t *testing.T) {
+	for _, invocationID := range []string{"", "first-invocation", "second-invocation"} {
+		t.Run(invocationID, func(t *testing.T) {
+			seen := make(chan *CopilotRequestContext, 1)
+			peer := newResponseProtocolPeerWithTransport(t, roundTripFunc(func(request *http.Request) (*http.Response, error) {
+				seen <- RequestContextFrom(request)
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Header:     http.Header{},
+					Body:       io.NopCloser(strings.NewReader("")),
+				}, nil
+			}))
+			if invocationID == "" {
+				peer.beginRequest()
+			} else {
+				peer.beginRequest(invocationID)
+			}
+			select {
+			case ctx := <-seen:
+				if ctx == nil {
+					t.Fatal("request context was not attached")
+				}
+				if ctx.RequestID != "test" || ctx.SessionID != "session" ||
+					ctx.AgentID != "agent" || ctx.ParentAgentID != "parent" {
+					t.Fatalf("unexpected request context: %+v; want invocation %q", ctx, invocationID)
+				}
+				var expectedInvocationID *string
+				if invocationID != "" {
+					expectedInvocationID = &invocationID
+				}
+				assertInvocationID(t, ctx.AgentInvocationID, expectedInvocationID)
+			case <-time.After(responseProtocolTimeout):
+				t.Fatal("request handler did not receive its context")
+			}
+			peer.ack(peer.nextRequest())
+			end := peer.nextRequest()
+			if params := responseChunkParams(t, end); params["end"] != true || params["error"] != nil {
+				t.Fatalf("unexpected terminal chunk: %s", end.Params)
+			}
+			peer.ack(end)
+		})
 	}
 }
 

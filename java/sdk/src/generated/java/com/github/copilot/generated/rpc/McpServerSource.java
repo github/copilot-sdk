@@ -10,7 +10,7 @@ package com.github.copilot.generated.rpc;
 import javax.annotation.processing.Generated;
 
 /**
- * Configuration source: user, workspace, plugin, builtin, or managed
+ * Configuration source: user, workspace, plugin, builtin, managed, or account
  *
  * @since 1.0.0
  */
@@ -25,7 +25,9 @@ public enum McpServerSource {
     /** The {@code builtin} variant. */
     BUILTIN("builtin"),
     /** The {@code managed} variant. */
-    MANAGED("managed");
+    MANAGED("managed"),
+    /** The {@code account} variant. */
+    ACCOUNT("account");
 
     private final String value;
     McpServerSource(String value) { this.value = value; }

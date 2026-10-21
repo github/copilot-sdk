@@ -8,6 +8,7 @@
 package com.github.copilot.generated.rpc;
 
 import com.github.copilot.CopilotExperimental;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.processing.Generated;
 
@@ -27,7 +28,7 @@ public final class ServerHooksApi {
     }
 
     /**
-     * Optional project paths and host-exclusion behavior for server-scoped hook discovery.
+     * Discovers hook actions enabled under server-side discovery settings from user, repository, plugin, and managed-policy sources.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -35,6 +36,19 @@ public final class ServerHooksApi {
     @CopilotExperimental
     public CompletableFuture<HooksDiscoverResult> discover(HooksDiscoverParams params) {
         return caller.invoke("hooks.discover", params, HooksDiscoverResult.class);
+    }
+
+    /**
+     * Discovers hook actions enabled under server-side discovery settings from user, repository, plugin, and managed-policy sources.
+     * <p>
+     * Accepts the extensible request, including inputs added after the params record.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<HooksDiscoverResult> discover(HooksDiscoverRequest request) {
+        return caller.invoke("hooks.discover", Objects.requireNonNull(request, "request"), HooksDiscoverResult.class);
     }
 
 }

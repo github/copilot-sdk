@@ -33,6 +33,8 @@ public record SessionModelListResult(
     /** Cost categories for the full CAPI catalog, including picker-disabled models that Auto may select. Metadata only; entries absent from `list` are not manually selectable. */
     @JsonProperty("modelPriceCategories") List<SessionModelPriceCategory> modelPriceCategories,
     /** Per-quota snapshots returned alongside the model list, keyed by quota type. */
-    @JsonProperty("quotaSnapshots") Map<String, Object> quotaSnapshots
+    @JsonProperty("quotaSnapshots") Map<String, Object> quotaSnapshots,
+    /** Ordered Auto routing preferences discovered for this session's account. */
+    @JsonProperty("auto") AutoTierMetadata auto
 ) {
 }

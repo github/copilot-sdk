@@ -65,10 +65,10 @@ rust_library(
     deps = [
         "@sdk_vendor__bytes-1.12.1//:bytes",
         "@sdk_vendor__http-body-util-0.1.5//:http_body_util",
-        "@sdk_vendor__hyper-1.11.1//:hyper",
-        "@sdk_vendor__hyper-util-0.1.20//:hyper_util",
+        "@sdk_vendor__hyper-1.12.0//:hyper",
+        "@sdk_vendor__hyper-util-0.1.21//:hyper_util",
         "@sdk_vendor__native-tls-0.2.18//:native_tls",
-        "@sdk_vendor__tokio-1.53.1//:tokio",
+        "@sdk_vendor__tokio-1.53.3//:tokio",
         "@sdk_vendor__tokio-native-tls-0.3.1//:tokio_native_tls",
         "@sdk_vendor__tower-service-0.3.3//:tower_service",
     ],

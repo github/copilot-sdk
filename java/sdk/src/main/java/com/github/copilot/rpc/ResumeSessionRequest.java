@@ -13,7 +13,9 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 
 import com.github.copilot.CopilotExperimental;
 import com.github.copilot.generated.rpc.DiagnosticsConfiguration;
+import com.github.copilot.generated.rpc.SandboxConfig;
 import com.github.copilot.generated.rpc.SessionLimitsConfig;
+import com.github.copilot.generated.rpc.AutopilotOptions;
 
 /**
  * Internal request object for resuming an existing session.
@@ -41,6 +43,9 @@ public final class ResumeSessionRequest {
 
     @JsonProperty("continuePendingWork")
     private Boolean continuePendingWork;
+
+    @JsonProperty("allowTranscriptRecovery")
+    private Boolean allowTranscriptRecovery;
 
     @JsonProperty("reasoningEffort")
     private String reasoningEffort;
@@ -95,6 +100,9 @@ public final class ResumeSessionRequest {
     @JsonProperty("sessionLimits")
     private SessionLimitsConfig sessionLimits;
 
+    @JsonProperty("autopilot")
+    private AutopilotOptions autopilot;
+
     @JsonProperty("requestPermission")
     private Boolean requestPermission;
 
@@ -144,6 +152,10 @@ public final class ResumeSessionRequest {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private Boolean enableSkills;
 
+    @JsonProperty("hasSkillProvider")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private Boolean hasSkillProvider;
+
     @JsonProperty("embeddingCacheStorage")
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private String embeddingCacheStorage;
@@ -190,6 +202,12 @@ public final class ResumeSessionRequest {
     @JsonProperty("skillDirectories")
     private List<String> skillDirectories;
 
+    @JsonProperty("agentDirectories")
+    private List<String> agentDirectories;
+
+    @JsonProperty("hookDirectories")
+    private List<String> hookDirectories;
+
     @JsonProperty("instructionDirectories")
     private List<String> instructionDirectories;
 
@@ -202,6 +220,9 @@ public final class ResumeSessionRequest {
     @JsonProperty("toolSearch")
     private ToolSearchConfig toolSearch;
 
+    @JsonProperty("imageGeneration")
+    private ImageGenerationConfig imageGeneration;
+
     @JsonProperty("memory")
     private MemoryConfiguration memory;
 
@@ -210,6 +231,9 @@ public final class ResumeSessionRequest {
 
     @JsonProperty("disabledMcpServers")
     private List<String> disabledMcpServers;
+
+    @JsonProperty("sandboxConfig")
+    private SandboxConfig sandboxConfig;
 
     @JsonProperty("infiniteSessions")
     private InfiniteSessionConfig infiniteSessions;
@@ -257,6 +281,14 @@ public final class ResumeSessionRequest {
     @JsonProperty("enableManagedSettings")
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private Boolean enableManagedSettings;
+
+    @JsonProperty("enforceManagedModelDefaults")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private Boolean enforceManagedModelDefaults;
+
+    @JsonProperty("interactiveUser")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private Boolean interactiveUser;
 
     @JsonProperty("managedSettings")
     @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -314,6 +346,19 @@ public final class ResumeSessionRequest {
     /** Restores the runtime's default pending-work continuation behavior. */
     public void clearContinuePendingWork() {
         continuePendingWork = null;
+    }
+
+    /** @return whether transcript repair was requested, or null if omitted */
+    public Boolean getAllowTranscriptRecovery() {
+        return allowTranscriptRecovery;
+    }
+
+    /**
+     * @param allowTranscriptRecovery
+     *            whether transcript repair is allowed
+     */
+    public void setAllowTranscriptRecovery(boolean allowTranscriptRecovery) {
+        this.allowTranscriptRecovery = allowTranscriptRecovery;
     }
 
     /** Gets the reasoning effort. @return the reasoning effort level */
@@ -518,6 +563,18 @@ public final class ResumeSessionRequest {
     /** Sets the session limits. @param sessionLimits the session limits */
     public void setSessionLimits(SessionLimitsConfig sessionLimits) {
         this.sessionLimits = sessionLimits;
+    }
+
+    /** Gets the Autopilot policy patch. @return the policy, or null */
+    @CopilotExperimental
+    public AutopilotOptions getAutopilot() {
+        return autopilot;
+    }
+
+    /** Sets the Autopilot policy patch. @param autopilot the policy */
+    @CopilotExperimental
+    public void setAutopilot(AutopilotOptions autopilot) {
+        this.autopilot = autopilot;
     }
 
     /**
@@ -748,6 +805,23 @@ public final class ResumeSessionRequest {
         this.enableSkills = null;
     }
 
+    /** Gets skill-provider availability flag. @return the flag */
+    public Boolean getHasSkillProvider() {
+        return hasSkillProvider;
+    }
+
+    /** Sets skill-provider availability flag. @param hasSkillProvider the flag */
+    public void setHasSkillProvider(boolean hasSkillProvider) {
+        this.hasSkillProvider = hasSkillProvider;
+    }
+
+    /**
+     * Clears the hasSkillProvider setting, reverting to the default behavior.
+     */
+    public void clearHasSkillProvider() {
+        this.hasSkillProvider = null;
+    }
+
     /** Gets embedding cache storage mode. @return the mode */
     public String getEmbeddingCacheStorage() {
         return embeddingCacheStorage;
@@ -952,6 +1026,31 @@ public final class ResumeSessionRequest {
         this.skillDirectories = skillDirectories;
     }
 
+    /** Gets explicit agent discovery roots. @return the directories */
+    public List<String> getAgentDirectories() {
+        return agentDirectories == null ? null : Collections.unmodifiableList(agentDirectories);
+    }
+
+    /**
+     * Sets explicit agent discovery roots. @param agentDirectories the directories
+     */
+    public void setAgentDirectories(List<String> agentDirectories) {
+        this.agentDirectories = agentDirectories;
+    }
+
+    /** Gets explicit file-hook discovery roots. @return the directories */
+    public List<String> getHookDirectories() {
+        return hookDirectories == null ? null : Collections.unmodifiableList(hookDirectories);
+    }
+
+    /**
+     * Sets explicit file-hook discovery roots. @param hookDirectories the
+     * directories
+     */
+    public void setHookDirectories(List<String> hookDirectories) {
+        this.hookDirectories = hookDirectories;
+    }
+
     /** Gets instruction directories. @return the instruction directories */
     public List<String> getInstructionDirectories() {
         return instructionDirectories == null ? null : Collections.unmodifiableList(instructionDirectories);
@@ -989,6 +1088,19 @@ public final class ResumeSessionRequest {
         return toolSearch;
     }
 
+    /** Gets image generation config. @return the image generation config */
+    public ImageGenerationConfig getImageGeneration() {
+        return imageGeneration;
+    }
+
+    /**
+     * Sets image generation config. @param imageGeneration the image generation
+     * config
+     */
+    public void setImageGeneration(ImageGenerationConfig imageGeneration) {
+        this.imageGeneration = imageGeneration;
+    }
+
     /** Sets tool-search config. @param toolSearch the tool-search config */
     public void setToolSearch(ToolSearchConfig toolSearch) {
         this.toolSearch = toolSearch;
@@ -1024,6 +1136,20 @@ public final class ResumeSessionRequest {
      */
     public void setDisabledMcpServers(List<String> disabledMcpServers) {
         this.disabledMcpServers = disabledMcpServers;
+    }
+
+    /** Gets sandbox configuration. @return the sandbox configuration */
+    @CopilotExperimental
+    public SandboxConfig getSandboxConfig() {
+        return sandboxConfig;
+    }
+
+    /**
+     * Sets sandbox configuration. @param sandboxConfig the sandbox configuration
+     */
+    @CopilotExperimental
+    public void setSandboxConfig(SandboxConfig sandboxConfig) {
+        this.sandboxConfig = sandboxConfig;
     }
 
     /** Gets infinite sessions config. @return the infinite sessions config */
@@ -1232,6 +1358,39 @@ public final class ResumeSessionRequest {
      */
     public void clearEnableManagedSettings() {
         this.enableManagedSettings = null;
+    }
+
+    /** Gets managed model lock enforcement. @return the flag, or {@code null} */
+    public Boolean getEnforceManagedModelDefaults() {
+        return enforceManagedModelDefaults;
+    }
+
+    /** Sets managed model lock enforcement. @param enforce whether to enforce */
+    public void setEnforceManagedModelDefaults(boolean enforce) {
+        this.enforceManagedModelDefaults = enforce;
+    }
+
+    /** Clears managed model lock enforcement. */
+    public void clearEnforceManagedModelDefaults() {
+        this.enforceManagedModelDefaults = null;
+    }
+
+    /** @return whether this session is human-driven, or {@code null} when unset */
+    public Boolean getInteractiveUser() {
+        return interactiveUser;
+    }
+
+    /**
+     * @param interactiveUser
+     *            whether a human drives this session
+     */
+    public void setInteractiveUser(boolean interactiveUser) {
+        this.interactiveUser = interactiveUser;
+    }
+
+    /** Clears the interactiveUser setting, reverting to the default behavior. */
+    public void clearInteractiveUser() {
+        this.interactiveUser = null;
     }
 
     /** @return host-injected managed settings, or {@code null} when unset */

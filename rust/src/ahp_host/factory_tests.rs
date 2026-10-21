@@ -39,7 +39,7 @@ fn factory_options() -> (
 ) {
     let (created_tx, created) = mpsc::unbounded_channel();
     let (released_tx, released) = mpsc::unbounded_channel();
-    let options = AhpHostOptions::new()
+    let options = local_options()
         .with_create_session(move |request: AhpSessionRequest, client: Client| {
             let created_tx = created_tx.clone();
             async move {
@@ -63,7 +63,7 @@ async fn owner_loss_cancels_pending_factory_but_releases_its_late_original() {
     let (released_tx, mut released) = mpsc::unbounded_channel();
     let finish = CancellationToken::new();
     let gate = finish.clone();
-    let options = AhpHostOptions::new()
+    let options = local_options()
         .with_create_session(move |request: AhpSessionRequest, client: Client| {
             let ready_tx = ready_tx.clone();
             let gate = gate.clone();
@@ -128,7 +128,7 @@ async fn resume_can_return_retained_original_after_creation_handoff_released() {
     let (released_tx, mut resumed_released) = mpsc::unbounded_channel();
     let pending = start(
         &client,
-        AhpHostOptions::new()
+        local_options()
             .with_resume_session(move |_: AhpSessionResumeRequest, _: Client| {
                 let retained = retained.clone();
                 async move { Ok(retained) }
@@ -186,12 +186,15 @@ async fn resume_rejects_superseded_retained_original() {
     assert_eq!(reload["method"], "session.skills.reload");
     peer.respond(&reload, json!({})).await;
     let current = timeout(TIMEOUT, resuming).await.unwrap().unwrap().unwrap();
-    assert!(!original.cancellation_token().is_cancelled());
+    let original_retired = original.cancellation_token();
+    timeout(TIMEOUT, original_retired.cancelled())
+        .await
+        .unwrap();
     let retained = original.clone();
     let (released_tx, mut resumed_released) = mpsc::unbounded_channel();
     let pending = start(
         &client,
-        AhpHostOptions::new()
+        local_options()
             .with_resume_session(move |_: AhpSessionResumeRequest, _: Client| {
                 let retained = retained.clone();
                 async move { Ok(retained) }
@@ -212,6 +215,13 @@ async fn resume_rejects_superseded_retained_original() {
     let response = peer.request().await;
     assert_eq!(response["id"], 901);
     assert!(response.get("error").is_some());
+    assert!(
+        response["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("AHP callback must return the requested session from this client"),
+        "{response}"
+    );
     assert!(Arc::ptr_eq(
         &original,
         &receive(&mut resumed_released).await
@@ -232,7 +242,7 @@ async fn resume_factory_registered_before_start_retains_original_and_preserves_s
     let (released_tx, mut released) = mpsc::unbounded_channel();
     let pending = start(
         &client,
-        AhpHostOptions::new()
+        local_options()
             .with_resume_session(move |request: AhpSessionResumeRequest, client: Client| {
                 let created_tx = created_tx.clone();
                 async move {
@@ -289,10 +299,9 @@ async fn resume_factory_registered_before_start_retains_original_and_preserves_s
 #[tokio::test]
 async fn resume_never_falls_back_to_create_factory() {
     let (client, mut peer) = fixture();
-    let options =
-        AhpHostOptions::new().with_create_session(|_: AhpSessionRequest, _: Client| async {
-            panic!("must not create on resume")
-        });
+    let options = local_options().with_create_session(|_: AhpSessionRequest, _: Client| async {
+        panic!("must not create on resume")
+    });
     let host = start_factory(&client, &mut peer, options).await;
     peer.send(json!({
         "jsonrpc": "2.0", "id": 900, "method": "host.materializeSession",
@@ -317,7 +326,7 @@ async fn cancelled_resume_releases_late_original_once() {
     let (released_tx, mut released) = mpsc::unbounded_channel();
     let finish = CancellationToken::new();
     let gate = finish.clone();
-    let options = AhpHostOptions::new()
+    let options = local_options()
         .with_resume_session(move |request: AhpSessionResumeRequest, client: Client| {
             let ready_tx = ready_tx.clone();
             let gate = gate.clone();
@@ -416,7 +425,7 @@ async fn cancellation_responds_promptly_and_releases_late_original_once() {
     let (released_tx, mut released) = mpsc::unbounded_channel();
     let finish = CancellationToken::new();
     let gate = finish.clone();
-    let options = AhpHostOptions::new()
+    let options = local_options()
         .with_create_session(move |request: AhpSessionRequest, client: Client| {
             let ready_tx = ready_tx.clone();
             let gate = gate.clone();
@@ -454,7 +463,7 @@ async fn cancellation_responds_promptly_and_releases_late_original_once() {
 async fn callback_failure_and_panic_fail_handoff_without_release() {
     for panic in [false, true] {
         let (client, mut peer) = fixture();
-        let options = AhpHostOptions::new().with_create_session(
+        let options = local_options().with_create_session(
             move |_: AhpSessionRequest, _: Client| async move {
                 assert!(!panic, "application panic");
                 Err(handoff_error("application failure"))
@@ -473,7 +482,7 @@ async fn callback_failure_and_panic_fail_handoff_without_release() {
 async fn altered_post_create_setting_is_rejected_and_original_released() {
     let (client, mut peer) = fixture();
     let (released_tx, mut released) = mpsc::unbounded_channel();
-    let options = AhpHostOptions::new()
+    let options = local_options()
         .with_create_session(
             |mut request: AhpSessionRequest, client: Client| async move {
                 request.config.skip_custom_instructions = None;
@@ -578,6 +587,35 @@ async fn failed_and_cancelled_start_remove_factory() {
 }
 
 #[test]
+fn host_create_refresh_custom_instructions_round_trips_without_widening_resume() {
+    for refresh in [None, Some(false), Some(true)] {
+        let mut value = json!({"sessionId": "refresh-instructions"});
+        if let Some(refresh) = refresh {
+            value["refreshCustomInstructions"] = json!(refresh);
+        }
+        let settings = serde_json::from_value(value.clone()).unwrap();
+        let config = config_from_host(&settings).unwrap();
+        assert_eq!(config.refresh_custom_instructions, refresh);
+        assert_eq!(config_for_host(&config).unwrap(), value);
+        if refresh.is_some() {
+            assert!(resume_config_from_host(&settings).is_err());
+        } else {
+            assert!(resume_config_from_host(&settings).is_ok());
+        }
+    }
+}
+
+#[test]
+fn host_create_refresh_custom_instructions_rejects_invalid_and_unknown_settings() {
+    for value in [
+        json!({"sessionId": "id", "refreshCustomInstructions": "true"}),
+        json!({"sessionId": "id", "refreshCustomInstructions": true, "unknown": true}),
+    ] {
+        assert!(config_from_host(&serde_json::from_value(value).unwrap()).is_err());
+    }
+}
+
+#[test]
 fn host_settings_round_trip_without_callbacks_or_losing_constraints() {
     let value = json!({
         "sessionId": "id", "workingDirectory": "/work", "additionalDirectories": ["/extra"],
@@ -591,6 +629,7 @@ fn host_settings_round_trip_without_callbacks_or_losing_constraints() {
         "customAgentsLocalOnly": true, "coauthorEnabled": false, "manageScheduleEnabled": false,
         "memory": {"enabled":false}, "pluginDirectories": ["/plugins"],
         "skillDirectories": ["/skills"], "instructionDirectories": ["/instructions"],
+        "agentDirectories": ["relative-agents"], "hookDirectories": [],
         "enableMcpApps": true, "model":"model", "reasoningEffort":"high", "contextTier":"long_context"
     });
     let config = config_from_host(&serde_json::from_value(value.clone()).unwrap()).unwrap();
@@ -602,7 +641,10 @@ fn host_settings_round_trip_without_callbacks_or_losing_constraints() {
         Some(false)
     );
     assert_eq!(config_for_host(&config).unwrap(), value);
-    let resume = resume_config_from_host(&serde_json::from_value(value.clone()).unwrap()).unwrap();
+    let mut resume_value = value.clone();
+    resume_value["allowTranscriptRecovery"] = json!(false);
+    let resume =
+        resume_config_from_host(&serde_json::from_value(resume_value.clone()).unwrap()).unwrap();
     assert!(resume.permission_handler.is_none());
     assert_eq!(resume.config_directory, Some(PathBuf::from("/config")));
     assert_eq!(resume.enable_experimental_mode, Some(true));
@@ -610,7 +652,14 @@ fn host_settings_round_trip_without_callbacks_or_losing_constraints() {
         resume.infinite_sessions.as_ref().unwrap().enabled,
         Some(false)
     );
-    assert_eq!(resume_config_for_host(&resume).unwrap(), value);
+    assert_eq!(resume_config_for_host(&resume).unwrap(), resume_value);
+    assert_eq!(resume.allow_transcript_recovery, Some(false));
+    let explicit_true = crate::ResumeSessionConfig::new(crate::SessionId::from("id"))
+        .with_allow_transcript_recovery(true);
+    assert_eq!(
+        resume_config_for_host(&explicit_true).unwrap()["allowTranscriptRecovery"],
+        true
+    );
     assert!(config_from_host(&serde_json::from_value(json!({"unknown":true})).unwrap()).is_err());
     assert!(contains_settings(
         Some(&json!({"a":{"b":true,"c":1}})),
@@ -694,7 +743,7 @@ async fn callback_returning_another_clients_session_is_released_not_destroyed() 
     let host = start_factory(
         &client,
         &mut peer,
-        AhpHostOptions::new()
+        local_options()
             .with_create_session(move |_: AhpSessionRequest, _: Client| {
                 let session = session.clone();
                 async move { Ok(session) }

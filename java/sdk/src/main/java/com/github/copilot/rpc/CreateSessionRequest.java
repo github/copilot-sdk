@@ -13,7 +13,9 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 
 import com.github.copilot.CopilotExperimental;
 import com.github.copilot.generated.rpc.DiagnosticsConfiguration;
+import com.github.copilot.generated.rpc.SandboxConfig;
 import com.github.copilot.generated.rpc.SessionLimitsConfig;
+import com.github.copilot.generated.rpc.AutopilotOptions;
 
 /**
  * Internal request object for creating a new session.
@@ -33,6 +35,9 @@ public final class CreateSessionRequest {
 
     @JsonProperty("sessionId")
     private String sessionId;
+
+    @JsonProperty("name")
+    private String name;
 
     @JsonProperty("clientName")
     private String clientName;
@@ -89,6 +94,9 @@ public final class CreateSessionRequest {
 
     @JsonProperty("sessionLimits")
     private SessionLimitsConfig sessionLimits;
+
+    @JsonProperty("autopilot")
+    private AutopilotOptions autopilot;
 
     @JsonProperty("requestPermission")
     private Boolean requestPermission;
@@ -147,6 +155,12 @@ public final class CreateSessionRequest {
     @JsonProperty("skillDirectories")
     private List<String> skillDirectories;
 
+    @JsonProperty("agentDirectories")
+    private List<String> agentDirectories;
+
+    @JsonProperty("hookDirectories")
+    private List<String> hookDirectories;
+
     @JsonProperty("instructionDirectories")
     private List<String> instructionDirectories;
 
@@ -159,6 +173,9 @@ public final class CreateSessionRequest {
     @JsonProperty("toolSearch")
     private ToolSearchConfig toolSearch;
 
+    @JsonProperty("imageGeneration")
+    private ImageGenerationConfig imageGeneration;
+
     @JsonProperty("memory")
     private MemoryConfiguration memory;
 
@@ -167,6 +184,9 @@ public final class CreateSessionRequest {
 
     @JsonProperty("disabledMcpServers")
     private List<String> disabledMcpServers;
+
+    @JsonProperty("sandboxConfig")
+    private SandboxConfig sandboxConfig;
 
     @JsonProperty("configDir")
     private String configDirectory;
@@ -189,6 +209,9 @@ public final class CreateSessionRequest {
     @JsonProperty("refreshCustomInstructions")
     private Boolean refreshCustomInstructions;
 
+    @JsonProperty("trustWorkingDirectory")
+    private String trustWorkingDirectory;
+
     @JsonProperty("enableFileHooks")
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private Boolean enableFileHooks;
@@ -204,6 +227,10 @@ public final class CreateSessionRequest {
     @JsonProperty("enableSkills")
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private Boolean enableSkills;
+
+    @JsonProperty("hasSkillProvider")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private Boolean hasSkillProvider;
 
     @JsonProperty("embeddingCacheStorage")
     @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -256,6 +283,14 @@ public final class CreateSessionRequest {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private Boolean enableManagedSettings;
 
+    @JsonProperty("enforceManagedModelDefaults")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private Boolean enforceManagedModelDefaults;
+
+    @JsonProperty("interactiveUser")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private Boolean interactiveUser;
+
     @JsonProperty("managedSettings")
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private ManagedSettings managedSettings;
@@ -278,6 +313,16 @@ public final class CreateSessionRequest {
     /** Sets the session ID. @param sessionId the session ID */
     public void setSessionId(String sessionId) {
         this.sessionId = sessionId;
+    }
+
+    /** Gets the create-time session name. @return the session name */
+    public String getName() {
+        return name;
+    }
+
+    /** Sets the create-time session name. @param name the session name */
+    public void setName(String name) {
+        this.name = name;
     }
 
     /** Gets the client name. @return the client name */
@@ -489,6 +534,18 @@ public final class CreateSessionRequest {
     /** Sets the session limits. @param sessionLimits the session limits */
     public void setSessionLimits(SessionLimitsConfig sessionLimits) {
         this.sessionLimits = sessionLimits;
+    }
+
+    /** Gets the Autopilot policy. @return the policy, or null */
+    @CopilotExperimental
+    public AutopilotOptions getAutopilot() {
+        return autopilot;
+    }
+
+    /** Sets the Autopilot policy. @param autopilot the policy */
+    @CopilotExperimental
+    public void setAutopilot(AutopilotOptions autopilot) {
+        this.autopilot = autopilot;
     }
 
     /**
@@ -712,6 +769,31 @@ public final class CreateSessionRequest {
         this.skillDirectories = skillDirectories;
     }
 
+    /** Gets explicit agent discovery roots. @return the directories */
+    public List<String> getAgentDirectories() {
+        return agentDirectories == null ? null : Collections.unmodifiableList(agentDirectories);
+    }
+
+    /**
+     * Sets explicit agent discovery roots. @param agentDirectories the directories
+     */
+    public void setAgentDirectories(List<String> agentDirectories) {
+        this.agentDirectories = agentDirectories;
+    }
+
+    /** Gets explicit file-hook discovery roots. @return the directories */
+    public List<String> getHookDirectories() {
+        return hookDirectories == null ? null : Collections.unmodifiableList(hookDirectories);
+    }
+
+    /**
+     * Sets explicit file-hook discovery roots. @param hookDirectories the
+     * directories
+     */
+    public void setHookDirectories(List<String> hookDirectories) {
+        this.hookDirectories = hookDirectories;
+    }
+
     /** Gets instruction directories. @return the instruction directories */
     public List<String> getInstructionDirectories() {
         return instructionDirectories == null ? null : Collections.unmodifiableList(instructionDirectories);
@@ -749,6 +831,19 @@ public final class CreateSessionRequest {
         return toolSearch;
     }
 
+    /** Gets image generation config. @return the image generation config */
+    public ImageGenerationConfig getImageGeneration() {
+        return imageGeneration;
+    }
+
+    /**
+     * Sets image generation config. @param imageGeneration the image generation
+     * config
+     */
+    public void setImageGeneration(ImageGenerationConfig imageGeneration) {
+        this.imageGeneration = imageGeneration;
+    }
+
     /** Sets tool-search config. @param toolSearch the tool-search config */
     public void setToolSearch(ToolSearchConfig toolSearch) {
         this.toolSearch = toolSearch;
@@ -784,6 +879,20 @@ public final class CreateSessionRequest {
      */
     public void setDisabledMcpServers(List<String> disabledMcpServers) {
         this.disabledMcpServers = disabledMcpServers;
+    }
+
+    /** Gets sandbox configuration. @return the sandbox configuration */
+    @CopilotExperimental
+    public SandboxConfig getSandboxConfig() {
+        return sandboxConfig;
+    }
+
+    /**
+     * Sets sandbox configuration. @param sandboxConfig the sandbox configuration
+     */
+    @CopilotExperimental
+    public void setSandboxConfig(SandboxConfig sandboxConfig) {
+        this.sandboxConfig = sandboxConfig;
     }
 
     /** Gets config directory. @return the config directory path */
@@ -876,6 +985,21 @@ public final class CreateSessionRequest {
     }
 
     /**
+     * Gets the working-directory trust scope. @return the scope, or {@code null}
+     */
+    public String getTrustWorkingDirectory() {
+        return trustWorkingDirectory;
+    }
+
+    /**
+     * Sets the working-directory trust scope. @param trustWorkingDirectory the
+     * scope
+     */
+    public void setTrustWorkingDirectory(String trustWorkingDirectory) {
+        this.trustWorkingDirectory = trustWorkingDirectory;
+    }
+
+    /**
      * Sets the instruction discovery cache invalidation flag.
      *
      * @param refreshCustomInstructions
@@ -954,6 +1078,23 @@ public final class CreateSessionRequest {
     /** Clears the enableSkills setting, reverting to the default behavior. */
     public void clearEnableSkills() {
         this.enableSkills = null;
+    }
+
+    /** Gets skill-provider availability flag. @return the flag */
+    public Boolean getHasSkillProvider() {
+        return hasSkillProvider;
+    }
+
+    /** Sets skill-provider availability flag. @param hasSkillProvider the flag */
+    public void setHasSkillProvider(boolean hasSkillProvider) {
+        this.hasSkillProvider = hasSkillProvider;
+    }
+
+    /**
+     * Clears the hasSkillProvider setting, reverting to the default behavior.
+     */
+    public void clearHasSkillProvider() {
+        this.hasSkillProvider = null;
     }
 
     /** Gets embedding cache storage mode. @return the mode */
@@ -1218,6 +1359,39 @@ public final class CreateSessionRequest {
      */
     public void clearEnableManagedSettings() {
         this.enableManagedSettings = null;
+    }
+
+    /** Gets managed model lock enforcement. @return the flag, or {@code null} */
+    public Boolean getEnforceManagedModelDefaults() {
+        return enforceManagedModelDefaults;
+    }
+
+    /** Sets managed model lock enforcement. @param enforce whether to enforce */
+    public void setEnforceManagedModelDefaults(boolean enforce) {
+        this.enforceManagedModelDefaults = enforce;
+    }
+
+    /** Clears managed model lock enforcement. */
+    public void clearEnforceManagedModelDefaults() {
+        this.enforceManagedModelDefaults = null;
+    }
+
+    /** @return whether this session is human-driven, or {@code null} when unset */
+    public Boolean getInteractiveUser() {
+        return interactiveUser;
+    }
+
+    /**
+     * @param interactiveUser
+     *            whether a human drives this session
+     */
+    public void setInteractiveUser(boolean interactiveUser) {
+        this.interactiveUser = interactiveUser;
+    }
+
+    /** Clears the interactiveUser setting, reverting to the default behavior. */
+    public void clearInteractiveUser() {
+        this.interactiveUser = null;
     }
 
     /** @return host-injected managed settings, or {@code null} when unset */

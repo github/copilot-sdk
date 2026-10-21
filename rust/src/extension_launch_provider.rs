@@ -149,7 +149,7 @@ impl ExtensionLaunchProviderDispatcher {
                 id: request_id,
                 result: None,
                 error: Some(JsonRpcError {
-                    code,
+                    code: code.into(),
                     message: message.to_string(),
                     data: None,
                 }),

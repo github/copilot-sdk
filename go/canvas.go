@@ -112,6 +112,11 @@ func CanvasErrorNoHandler() *CanvasError {
 type CanvasHandler interface {
 	OnOpen(ctx context.Context, c rpc.CanvasProviderOpenRequest) (rpc.CanvasProviderOpenResult, error)
 	OnClose(ctx context.Context, c rpc.CanvasProviderCloseRequest) error
+	// OnAction handles a non-lifecycle action declared by the canvas. The
+	// returned value is sent to the model as the invoke_canvas_action tool
+	// result. To return text and images, as tool handlers do, return a
+	// ToolResult with BinaryResultsForLLM; any other value is rendered to the
+	// model as JSON text.
 	OnAction(ctx context.Context, c rpc.CanvasProviderInvokeActionRequest) (any, error)
 }
 

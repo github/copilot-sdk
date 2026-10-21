@@ -1,7 +1,6 @@
 package e2e
 
 import (
-	"sync"
 	"testing"
 	"time"
 
@@ -20,13 +19,13 @@ func TestGitHubTelemetryE2E(t *testing.T) {
 		ctx := testharness.NewTestContext(t)
 		ctx.ConfigureForTest(t)
 
-		var mu sync.Mutex
-		var notifications []*rpc.GitHubTelemetryNotification
+		notifications := make(chan *rpc.GitHubTelemetryNotification, 1)
 		client := ctx.NewClient(func(opts *copilot.ClientOptions) {
 			opts.OnGitHubTelemetry = func(notification *rpc.GitHubTelemetryNotification) {
-				mu.Lock()
-				notifications = append(notifications, notification)
-				mu.Unlock()
+				select {
+				case notifications <- notification:
+				default:
+				}
 			}
 		})
 		t.Cleanup(func() { client.ForceStop() })
@@ -39,7 +38,15 @@ func TestGitHubTelemetryE2E(t *testing.T) {
 		}
 		t.Cleanup(func() { session.Disconnect() })
 
-		notification := waitForGitHubTelemetryNotification(t, &mu, &notifications, 30*time.Second)
+		var notification *rpc.GitHubTelemetryNotification
+		select {
+		case notification = <-notifications:
+			if notification == nil {
+				t.Fatal("Received nil GitHub telemetry notification")
+			}
+		case <-time.After(30 * time.Second):
+			t.Fatal("Timed out waiting for GitHub telemetry notification after 30s")
+		}
 		if notification.SessionID == nil || *notification.SessionID == "" {
 			t.Fatal("Expected a non-empty SessionID")
 		}
@@ -47,27 +54,4 @@ func TestGitHubTelemetryE2E(t *testing.T) {
 			t.Fatal("Expected a non-empty Event.Kind")
 		}
 	})
-}
-
-func waitForGitHubTelemetryNotification(t *testing.T, mu *sync.Mutex, notifications *[]*rpc.GitHubTelemetryNotification, timeout time.Duration) *rpc.GitHubTelemetryNotification {
-	t.Helper()
-
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		mu.Lock()
-		if len(*notifications) > 0 {
-			notification := (*notifications)[0]
-			mu.Unlock()
-			if notification != nil {
-				return notification
-			}
-			t.Fatal("Received nil GitHub telemetry notification")
-		}
-		mu.Unlock()
-
-		time.Sleep(50 * time.Millisecond)
-	}
-
-	t.Fatalf("Timed out waiting for GitHub telemetry notification after %s", timeout)
-	return nil
 }

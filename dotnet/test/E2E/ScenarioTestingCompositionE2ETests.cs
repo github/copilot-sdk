@@ -85,12 +85,14 @@ public class ScenarioTestingCompositionE2ETests(E2ETestFixture fixture, ITestOut
         });
         var userMessages = new List<UserMessageEvent>();
         var userMessagesLock = new object();
+        var userMessagesChanged = new AsyncTestSignal();
         using var subscription = session.On<UserMessageEvent>(message =>
         {
             lock (userMessagesLock)
             {
                 userMessages.Add(message);
             }
+            userMessagesChanged.Pulse();
         });
 
         try
@@ -123,14 +125,13 @@ public class ScenarioTestingCompositionE2ETests(E2ETestFixture fixture, ITestOut
                 "the queued scenario response");
             releaseTool.TrySetResult("ACTIVE_TURN_RELEASED");
 
-            await TestHelper.WaitForConditionAsync(
+            await userMessagesChanged.WaitForAsync(
                 () =>
                 {
                     lock (userMessagesLock)
                     {
-                        return Task.FromResult(
-                            userMessages.Any(evt => evt.Data.MessageId == queuedMessageId) &&
-                            userMessages.Any(evt => evt.Data.MessageId == steeringMessageId));
+                        return userMessages.Any(evt => evt.Data.MessageId == queuedMessageId) &&
+                            userMessages.Any(evt => evt.Data.MessageId == steeringMessageId);
                     }
                 },
                 timeout: EventTimeout,
@@ -183,6 +184,8 @@ public class ScenarioTestingCompositionE2ETests(E2ETestFixture fixture, ITestOut
         Assert.Contains("INITIALIZED", initialResponse?.Data.Content ?? string.Empty, StringComparison.Ordinal);
 
         var canvas = Assert.Single((await session1.Rpc.Canvas.ListAsync()).Canvases);
+        var canvasOpened = TestHelper.GetNextEventOfTypeAsync<SessionCanvasOpenedEvent>(
+            session1, evt => evt.Data.InstanceId == "scenario-counter-1", EventTimeout);
         await session1.Rpc.Canvas.OpenAsync(
             canvasId: "scenario-counter",
             instanceId: "scenario-counter-1",
@@ -190,10 +193,8 @@ public class ScenarioTestingCompositionE2ETests(E2ETestFixture fixture, ITestOut
             input: new Dictionary<string, object> { ["start"] = 40 });
         await session1.LogAsync("SCENARIO_HOST_STATE_MARKER");
 
-        await TestHelper.WaitForConditionAsync(
-            () => Task.FromResult(session1.OpenCanvases.Count == 1),
-            timeout: EventTimeout,
-            timeoutMessage: "Timed out waiting for the open canvas snapshot.");
+        await canvasOpened;
+        Assert.Single(session1.OpenCanvases);
         var openCanvases = session1.OpenCanvases.ToList();
 
         await session1.Rpc.SuspendAsync();
@@ -338,15 +339,15 @@ public class ScenarioTestingCompositionE2ETests(E2ETestFixture fixture, ITestOut
         });
         Assert.Contains("SCENARIO_RETRY_RESUME_READY", initialResponse?.Data.Content ?? string.Empty, StringComparison.Ordinal);
         var canvas = Assert.Single((await session1.Rpc.Canvas.ListAsync()).Canvases);
+        var canvasOpened = TestHelper.GetNextEventOfTypeAsync<SessionCanvasOpenedEvent>(
+            session1, evt => evt.Data.InstanceId == "scenario-retry-canvas", EventTimeout);
         await session1.Rpc.Canvas.OpenAsync(
             canvasId: "scenario-counter",
             instanceId: "scenario-retry-canvas",
             extensionId: canvas.ExtensionId,
             input: new Dictionary<string, object> { ["start"] = 40 });
-        await TestHelper.WaitForConditionAsync(
-            () => Task.FromResult(session1.OpenCanvases.Count == 1),
-            timeout: EventTimeout,
-            timeoutMessage: "Timed out waiting for the retry canvas snapshot.");
+        await canvasOpened;
+        Assert.Single(session1.OpenCanvases);
         var openCanvases = session1.OpenCanvases.ToList();
         await session1.LogAsync("SCENARIO_RETRY_RESUME_HISTORY");
 

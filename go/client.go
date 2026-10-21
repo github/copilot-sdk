@@ -42,6 +42,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
@@ -59,6 +60,12 @@ import (
 // defaultBearerTokenProviderName is the implicit provider name for the singular,
 // whole-session [ProviderConfig]. Named providers are keyed by their own Name.
 const defaultBearerTokenProviderName = "default"
+
+type cloudSkillProviderError struct{}
+
+func (cloudSkillProviderError) Error() string {
+	return "Skill providers are not supported for cloud sessions."
+}
 
 // collectBearerTokenProviders gathers the per-provider [BearerTokenProvider] callbacks
 // from the singular provider and any named providers, keyed by provider name. The
@@ -170,6 +177,7 @@ type Client struct {
 	useStdio                           bool     // resolved value from options
 	useInProcess                       bool     // true for InProcessConnection (FFI transport)
 	ffiHost                            inProcessHost
+	runOnUiThread                      func(action func() error) error
 	// resolved process options for the spawned runtime (zero values for URIConnection)
 	cliPath            string
 	cliArgs            []string
@@ -289,6 +297,7 @@ func NewClient(options *ClientOptions) *Client {
 	case InProcessConnection:
 		client.useStdio = false
 		client.useInProcess = true
+		client.runOnUiThread = conn.RunOnUiThread
 	default:
 		panic(fmt.Sprintf("unknown RuntimeConnection type: %T", connection))
 	}
@@ -543,8 +552,10 @@ func (c *Client) Start(ctx context.Context) error {
 		}
 		if c.options.SessionFS.Capabilities != nil {
 			sqlite := c.options.SessionFS.Capabilities.Sqlite
+			binary := c.options.SessionFS.Capabilities.Binary
 			req.Capabilities = &rpc.SessionFSSetProviderCapabilities{
 				Sqlite: &sqlite,
+				Binary: &binary,
 			}
 		}
 		_, err := c.RPC.SessionFS.SetProvider(ctx, req)
@@ -713,6 +724,14 @@ func (c *Client) logDebugTiming(start time.Time, message string) {
 //   - Force closes the connection
 //   - Kills the CLI process (if spawned by this client)
 //
+// Event processing observes the stop signal before dispatching each remaining
+// callback. Callbacks already being dispatched are not awaited and may finish
+// after this method returns; an event handler can itself call ForceStop.
+// Pending response waits fail when the session is retired, without waiting for
+// an idle event or their context deadline.
+// Registered session callbacks are released locally, including unadmitted event
+// handler entries retained by a dispatch snapshot.
+//
 // Example:
 //
 //	// If normal stop hangs, force stop
@@ -745,7 +764,9 @@ func (c *Client) ForceStop() {
 	c.sessions = make(map[string]*Session)
 	c.sessionsMux.Unlock()
 	for _, session := range sessions {
+		session.clearSkillProvider()
 		session.cancelPendingExternalTools()
+		session.stopEventProcessing()
 	}
 	c.clearGitHubTokenProviders()
 	c.closeCopilotRequestAdapter()
@@ -871,14 +892,31 @@ func validateAskUserVariant(variant AskUserVariant) error {
 }
 
 func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Session, error) {
+	return c.createSession(ctx, config, nil)
+}
+
+// CreateSessionWithMCPAuthRuntimeRefresh creates a session using the opt-in MCP
+// auth handler instead of config.OnMCPAuthRequest. A nil handler uses the legacy
+// callback. All other options and session lifecycle behavior match CreateSession.
+func (c *Client) CreateSessionWithMCPAuthRuntimeRefresh(ctx context.Context, config *SessionConfig, handler MCPAuthRuntimeRefreshHandler) (*Session, error) {
+	return c.createSession(ctx, config, handler)
+}
+
+func (c *Client) createSession(ctx context.Context, config *SessionConfig, runtimeRefreshHandler MCPAuthRuntimeRefreshHandler) (*Session, error) {
 	if config == nil {
 		config = &SessionConfig{}
+	}
+	if config.Cloud != nil && config.SkillProvider != nil {
+		return nil, cloudSkillProviderError{}
 	}
 	if config.GitHubToken != "" && config.GitHubTokenProvider != nil {
 		return nil, fmt.Errorf("GitHubToken and GitHubTokenProvider cannot be used together")
 	}
 	if err := validateAskUserVariant(config.AskUserVariant); err != nil {
 		return nil, err
+	}
+	if trust := config.TrustWorkingDirectory; trust != "" && trust != WorkingDirectoryTrustSession && trust != WorkingDirectoryTrustUser {
+		return nil, fmt.Errorf("invalid TrustWorkingDirectory %q: expected %q, %q, or unset", trust, WorkingDirectoryTrustSession, WorkingDirectoryTrustUser)
 	}
 
 	if err := c.ensureConnected(ctx); err != nil {
@@ -903,6 +941,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	req.ContextTier = config.ContextTier
 	req.ConfigDir = config.ConfigDirectory
 	req.EnableConfigDiscovery = config.EnableConfigDiscovery
+	req.TrustWorkingDirectory = string(config.TrustWorkingDirectory)
 	req.SkipEmbeddingRetrieval = config.SkipEmbeddingRetrieval
 	req.EmbeddingCacheStorage = config.EmbeddingCacheStorage
 	req.OrganizationCustomInstructions = config.OrganizationCustomInstructions
@@ -911,6 +950,9 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	req.EnableHostGitOperations = config.EnableHostGitOperations
 	req.EnableSessionStore = config.EnableSessionStore
 	req.EnableSkills = config.EnableSkills
+	if config.SkillProvider != nil {
+		req.HasSkillProvider = Bool(true)
+	}
 	req.Tools = config.Tools
 	systemMessage := c.systemMessageForMode(config.SystemMessage)
 	wireSystemMessage, transformCallbacks := extractTransformCallbacks(systemMessage)
@@ -932,6 +974,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	req.EnableCitations = config.EnableCitations
 	req.EnableFileChangeTracking = config.EnableFileChangeTracking
 	req.SessionLimits = config.SessionLimits
+	req.Autopilot = config.Autopilot
 	req.IsExperimentalMode = config.EnableExperimentalMode
 	req.SkipCustomInstructions = config.SkipCustomInstructions
 	req.RefreshCustomInstructions = config.RefreshCustomInstructions
@@ -950,15 +993,19 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	req.DefaultAgent = config.DefaultAgent
 	req.Agent = config.Agent
 	req.SkillDirectories = config.SkillDirectories
+	req.AgentDirectories = config.AgentDirectories
+	req.HookDirectories = config.HookDirectories
 	req.PluginDirectories = config.PluginDirectories
 	req.InstructionDirectories = config.InstructionDirectories
 	req.DisabledSkills = config.DisabledSkills
 	if config.DisabledMCPServers != nil {
 		req.DisabledMCPServers = &config.DisabledMCPServers
 	}
+	req.SandboxConfig = config.SandboxConfig
 	req.InfiniteSessions = config.InfiniteSessions
 	req.LargeOutput = config.LargeOutput
 	req.ToolSearch = config.ToolSearch
+	req.ImageGeneration = config.ImageGeneration
 	req.Memory = config.Memory
 	req.GitHubToken = config.GitHubToken
 	req.GitHubTokenProviderRegistrationID = registrationID
@@ -976,6 +1023,8 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 		req.FeatureFlags = &config.FeatureFlags
 	}
 	req.EnableManagedSettings = config.EnableManagedSettings
+	req.EnforceManagedModelDefaults = config.EnforceManagedModelDefaults
+	req.InteractiveUser = config.InteractiveUser
 	req.ManagedSettings = config.ManagedSettings
 
 	if len(config.Commands) > 0 {
@@ -1022,10 +1071,12 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 		config.Hooks.OnSessionStart != nil ||
 		config.Hooks.OnSessionEnd != nil ||
 		config.Hooks.OnErrorOccurred != nil ||
-		config.Hooks.OnAgentStop != nil) {
+		config.Hooks.OnAgentStop != nil ||
+		config.Hooks.OnSubagentStart != nil ||
+		config.Hooks.OnSubagentStop != nil) {
 		req.Hooks = Bool(true)
 	}
-	if config.OnPermissionRequest != nil {
+	if config.OnPermissionRequest != nil || config.OnPermissionRequestWithPrompt != nil {
 		req.RequestPermission = Bool(true)
 	}
 
@@ -1050,6 +1101,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 		localSessionID = uuid.NewString()
 	}
 	req.SessionID = localSessionID
+	req.Name = config.Name
 
 	// unregisterSession removes only the session created by this call and stops
 	// its event consumer. The latter is essential on CreateSession error paths:
@@ -1080,7 +1132,8 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 
 		s.registerTools(config.Tools)
 		s.registerPermissionHandler(config.OnPermissionRequest)
-		s.registerMCPAuthHandler(config.OnMCPAuthRequest)
+		s.registerPermissionHandlerWithPrompt(config.OnPermissionRequestWithPrompt)
+		s.registerMCPAuthHandlers(config.OnMCPAuthRequest, runtimeRefreshHandler)
 		if config.OnUserInputRequest != nil {
 			s.registerUserInputHandler(config.OnUserInputRequest)
 		}
@@ -1108,6 +1161,9 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 		if config.CanvasHandler != nil {
 			s.registerCanvasHandler(config.CanvasHandler)
 		}
+		if config.SkillProvider != nil {
+			s.registerSkillProvider(config.SkillProvider)
+		}
 		if bearerTokenProviders := collectBearerTokenProviders(config.Provider, config.Providers); bearerTokenProviders != nil {
 			s.registerBearerTokenProviders(bearerTokenProviders)
 		}
@@ -1124,6 +1180,12 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 					return nil, fmt.Errorf("SessionFS capabilities declare SQLite support but the provider does not implement SessionFSSqliteProvider")
 				}
 			}
+			if c.options.SessionFS.Capabilities != nil && c.options.SessionFS.Capabilities.Binary {
+				if _, ok := provider.(SessionFSBinaryProvider); !ok {
+					unregisterSession(sessionID, s)
+					return nil, fmt.Errorf("SessionFS capabilities declare binary support but the provider does not implement SessionFSBinaryProvider")
+				}
+			}
 			s.clientSessionAPIs.SessionFS = newSessionFSAdapter(provider)
 		}
 
@@ -1135,6 +1197,14 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 
 	var session *Session
 	var registeredSessionID string
+	var orphanedSessionID string
+	var inlineMu sync.Mutex
+	var requestFinished bool
+	deleteOrphan := func(sessionID string) error {
+		cleanupCtx, cancelCleanup := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+		defer cancelCleanup()
+		return c.DeleteSession(cleanupCtx, sessionID)
+	}
 
 	// Pre-register non-cloud sessions BEFORE issuing the RPC so any
 	// session-scoped requests the CLI emits during session.create processing
@@ -1169,19 +1239,48 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 				return fmt.Errorf("session.create response did not include a sessionId")
 			}
 			s, err := initializeSession(early.SessionID)
+			inlineMu.Lock()
 			if err != nil {
+				if requestFinished {
+					// Cleanup must not wait for an RPC response on the read loop.
+					go func() {
+						if cleanupErr := deleteOrphan(early.SessionID); cleanupErr != nil {
+							log.Printf("failed to delete uninitialized cloud session %s: %v", early.SessionID, cleanupErr)
+						}
+					}()
+				} else {
+					orphanedSessionID = early.SessionID
+				}
+				inlineMu.Unlock()
 				return err
+			}
+			if requestFinished {
+				inlineMu.Unlock()
+				unregisterSession(early.SessionID, s)
+				return nil
 			}
 			session = s
 			registeredSessionID = early.SessionID
+			inlineMu.Unlock()
 			return nil
 		}
 	}
 
 	result, err := c.client.RequestWithInlineResponse(ctx, "session.create", req, inlineCb)
+	inlineMu.Lock()
+	requestFinished = true
+	cleanupSessionID := orphanedSessionID
+	sessionToUnregister := session
+	registeredID := registeredSessionID
+	inlineMu.Unlock()
 	if err != nil {
-		if registeredSessionID != "" {
-			unregisterSession(registeredSessionID, session)
+		if registeredID != "" {
+			unregisterSession(registeredID, sessionToUnregister)
+		}
+		if cleanupSessionID != "" {
+			if cleanupErr := deleteOrphan(cleanupSessionID); cleanupErr != nil {
+				err = errors.Join(err, fmt.Errorf("failed to delete uninitialized cloud session: %w", cleanupErr))
+			}
 		}
 		return nil, fmt.Errorf("failed to create session: %w", err)
 	}
@@ -1202,7 +1301,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 		unregisterSession(registeredSessionID, session)
 		return nil, fmt.Errorf("session.create returned sessionId %s but the caller requested %s", response.SessionID, localSessionID)
 	}
-	if config.OnMCPAuthRequest != nil {
+	if config.OnMCPAuthRequest != nil || runtimeRefreshHandler != nil {
 		if _, err := c.client.Request(ctx, "session.eventLog.registerInterest", map[string]any{
 			"sessionId": session.SessionID,
 			"eventType": "mcp.oauth_required",
@@ -1263,6 +1362,17 @@ func (c *Client) ResumeSession(ctx context.Context, sessionID string, config *Re
 //	    Tools: []copilot.Tool{myNewTool},
 //	})
 func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string, config *ResumeSessionConfig) (*Session, error) {
+	return c.resumeSession(ctx, sessionID, config, nil)
+}
+
+// ResumeSessionWithMCPAuthRuntimeRefresh resumes a session using the opt-in MCP
+// auth handler instead of config.OnMCPAuthRequest. A nil handler uses the legacy
+// callback. All other options and session lifecycle behavior match ResumeSessionWithOptions.
+func (c *Client) ResumeSessionWithMCPAuthRuntimeRefresh(ctx context.Context, sessionID string, config *ResumeSessionConfig, handler MCPAuthRuntimeRefreshHandler) (*Session, error) {
+	return c.resumeSession(ctx, sessionID, config, handler)
+}
+
+func (c *Client) resumeSession(ctx context.Context, sessionID string, config *ResumeSessionConfig, runtimeRefreshHandler MCPAuthRuntimeRefreshHandler) (*Session, error) {
 	unlockSession := c.lockSessionOperation(sessionID)
 	defer unlockSession()
 
@@ -1324,6 +1434,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	req.EnableCitations = config.EnableCitations
 	req.EnableFileChangeTracking = config.EnableFileChangeTracking
 	req.SessionLimits = config.SessionLimits
+	req.Autopilot = config.Autopilot
 	if config.Streaming != nil {
 		req.Streaming = config.Streaming
 	}
@@ -1347,7 +1458,9 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 		config.Hooks.OnSessionStart != nil ||
 		config.Hooks.OnSessionEnd != nil ||
 		config.Hooks.OnErrorOccurred != nil ||
-		config.Hooks.OnAgentStop != nil) {
+		config.Hooks.OnAgentStop != nil ||
+		config.Hooks.OnSubagentStart != nil ||
+		config.Hooks.OnSubagentStop != nil) {
 		req.Hooks = Bool(true)
 	}
 	req.WorkingDirectory = config.WorkingDirectory
@@ -1362,10 +1475,14 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	req.EnableHostGitOperations = config.EnableHostGitOperations
 	req.EnableSessionStore = config.EnableSessionStore
 	req.EnableSkills = config.EnableSkills
+	if config.SkillProvider != nil {
+		req.HasSkillProvider = Bool(true)
+	}
 	if config.SuppressResumeEvent {
 		req.DisableResume = Bool(true)
 	}
 	req.ContinuePendingWork = config.ContinuePendingWork
+	req.AllowTranscriptRecovery = config.AllowTranscriptRecovery
 	req.MCPServers = config.MCPServers
 	req.Diagnostics = config.Diagnostics
 	req.MCPOAuthTokenStorage = config.MCPOAuthTokenStorage
@@ -1375,15 +1492,19 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	req.DefaultAgent = config.DefaultAgent
 	req.Agent = config.Agent
 	req.SkillDirectories = config.SkillDirectories
+	req.AgentDirectories = config.AgentDirectories
+	req.HookDirectories = config.HookDirectories
 	req.PluginDirectories = config.PluginDirectories
 	req.InstructionDirectories = config.InstructionDirectories
 	req.DisabledSkills = config.DisabledSkills
 	if config.DisabledMCPServers != nil {
 		req.DisabledMCPServers = &config.DisabledMCPServers
 	}
+	req.SandboxConfig = config.SandboxConfig
 	req.InfiniteSessions = config.InfiniteSessions
 	req.LargeOutput = config.LargeOutput
 	req.ToolSearch = config.ToolSearch
+	req.ImageGeneration = config.ImageGeneration
 	req.Memory = config.Memory
 	req.GitHubToken = config.GitHubToken
 	req.GitHubTokenProviderRegistrationID = registrationID
@@ -1401,8 +1522,10 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 		req.FeatureFlags = &config.FeatureFlags
 	}
 	req.EnableManagedSettings = config.EnableManagedSettings
+	req.EnforceManagedModelDefaults = config.EnforceManagedModelDefaults
+	req.InteractiveUser = config.InteractiveUser
 	req.ManagedSettings = config.ManagedSettings
-	if config.OnPermissionRequest != nil {
+	if config.OnPermissionRequest != nil || config.OnPermissionRequestWithPrompt != nil {
 		req.RequestPermission = Bool(true)
 	}
 
@@ -1442,7 +1565,8 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 
 	session.registerTools(config.Tools)
 	session.registerPermissionHandler(config.OnPermissionRequest)
-	session.registerMCPAuthHandler(config.OnMCPAuthRequest)
+	session.registerPermissionHandlerWithPrompt(config.OnPermissionRequestWithPrompt)
+	session.registerMCPAuthHandlers(config.OnMCPAuthRequest, runtimeRefreshHandler)
 	if config.OnUserInputRequest != nil {
 		session.registerUserInputHandler(config.OnUserInputRequest)
 	}
@@ -1470,6 +1594,9 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	if config.CanvasHandler != nil {
 		session.registerCanvasHandler(config.CanvasHandler)
 	}
+	if config.SkillProvider != nil {
+		session.registerSkillProvider(config.SkillProvider)
+	}
 	if bearerTokenProviders := collectBearerTokenProviders(config.Provider, config.Providers); bearerTokenProviders != nil {
 		session.registerBearerTokenProviders(bearerTokenProviders)
 	}
@@ -1484,6 +1611,12 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 			if _, ok := provider.(SessionFSSqliteProvider); !ok {
 				session.stopEventProcessing()
 				return nil, fmt.Errorf("SessionFS capabilities declare SQLite support but the provider does not implement SessionFSSqliteProvider")
+			}
+		}
+		if c.options.SessionFS.Capabilities != nil && c.options.SessionFS.Capabilities.Binary {
+			if _, ok := provider.(SessionFSBinaryProvider); !ok {
+				session.stopEventProcessing()
+				return nil, fmt.Errorf("SessionFS capabilities declare binary support but the provider does not implement SessionFSBinaryProvider")
 			}
 		}
 		session.clientSessionAPIs.SessionFS = newSessionFSAdapter(provider)
@@ -1526,7 +1659,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
 	}
 
-	if config.OnMCPAuthRequest != nil {
+	if config.OnMCPAuthRequest != nil || runtimeRefreshHandler != nil {
 		if _, err := c.client.Request(ctx, "session.eventLog.registerInterest", map[string]any{
 			"sessionId": sessionID,
 			"eventType": "mcp.oauth_required",
@@ -1537,6 +1670,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	}
 
 	session.workspacePath = response.WorkspacePath
+	session.transcriptRecovery = response.TranscriptRecovery
 	session.setCapabilities(response.Capabilities)
 	session.setOpenCanvases(response.OpenCanvases)
 
@@ -1686,6 +1820,7 @@ func (c *Client) DeleteSession(ctx context.Context, sessionID string) error {
 	delete(c.sessions, sessionID)
 	c.sessionsMux.Unlock()
 	if session != nil {
+		session.clearSkillProvider()
 		session.releaseGitHubTokenProviderRegistration()
 	}
 
@@ -2332,7 +2467,8 @@ func (c *Client) startInProcess(ctx context.Context) error {
 		return errors.New("in-process runtime unavailable: build with the bundled embedded runtime or set COPILOT_CLI_PATH to a compatible runtime package")
 	}
 
-	config := c.inProcessHostConfig()
+	integrationID := strings.TrimSpace(getEnvValue(c.options.Env, "GITHUB_COPILOT_INTEGRATION_ID"))
+	config := c.inProcessHostConfig(integrationID)
 
 	host, err := createInProcessHost(runtimePath, cliEntrypoint, config)
 	if err != nil {
@@ -2367,10 +2503,10 @@ func (c *Client) startInProcess(ctx context.Context) error {
 	c.internalRPC = rpc.NewInternalServerRPC(c.client)
 	c.setupNotificationHandler()
 	c.client.Start()
-	return nil
+	return host.ConfigureUiThread(c.runOnUiThread != nil)
 }
 
-func (c *Client) inProcessHostConfig() inProcessHostConfig {
+func (c *Client) inProcessHostConfig(cliLoginSyncIntegrationID string) inProcessHostConfig {
 	args := make([]string, 0, 8)
 	if c.options.LogLevel != "" {
 		args = append(args, "--log-level", c.options.LogLevel)
@@ -2392,6 +2528,9 @@ func (c *Client) inProcessHostConfig() inProcessHostConfig {
 	}
 	if c.options.EnableRemoteSessions {
 		args = append(args, "--remote")
+	}
+	if cliLoginSyncIntegrationID != "" {
+		args = append(args, "--cli-login-sync-integration-id="+cliLoginSyncIntegrationID)
 	}
 
 	environment := make(map[string]string)
@@ -2533,6 +2672,8 @@ func (c *Client) setupNotificationHandler() {
 	c.client.SetRequestHandler("exitPlanMode.request", jsonrpc2.RequestHandlerFor(c.handleExitPlanModeRequest))
 	c.client.SetRequestHandler("autoModeSwitch.request", jsonrpc2.RequestHandlerFor(c.handleAutoModeSwitchRequest))
 	c.client.SetRequestHandler("systemMessage.transform", jsonrpc2.RequestHandlerFor(c.handleSystemMessageTransform))
+	c.client.SetRequestContextHandler("skillProvider.list", c.handleSkillProviderList)
+	c.client.SetRequestContextHandler("skillProvider.read", c.handleSkillProviderRead)
 	rpc.RegisterClientSessionAPIHandlers(c.client, func(sessionID string) *rpc.ClientSessionAPIHandlers {
 		c.sessionsMux.Lock()
 		defer c.sessionsMux.Unlock()
@@ -2550,6 +2691,7 @@ func (c *Client) setupNotificationHandler() {
 		ExtensionLaunchProvider: c.options.ExtensionLaunchProvider,
 		Hooks:                   &hooksAdapter{client: c},
 		GitHubToken:             &gitHubTokenAdapter{client: c},
+		UIThread:                &uiThreadAdapter{host: c.ffiHost, runOnUiThread: c.runOnUiThread},
 	}
 
 	if c.options.RequestHandler != nil {
@@ -2627,6 +2769,7 @@ func (c *Client) handleConnectionClose() {
 	}
 	c.sessionsMux.Unlock()
 	for _, session := range sessions {
+		session.clearSkillProvider()
 		session.cancelPendingExternalTools()
 	}
 	// Avoid deadlocking with Stop/ForceStop, which hold startStopMux while
@@ -2680,6 +2823,24 @@ func (c *Client) lockSessionOperation(sessionID string) func() {
 		}
 		c.sessionOperationsMux.Unlock()
 	}
+}
+
+type uiThreadAdapter struct {
+	host          inProcessHost
+	runOnUiThread func(action func() error) error
+}
+
+func (a *uiThreadAdapter) Run(request *rpc.UIThreadRunRequest) (*rpc.UIThreadRunResult, error) {
+	if a.runOnUiThread == nil || a.host == nil {
+		return nil, fmt.Errorf("no in-process RunOnUiThread handler is configured")
+	}
+	if request.ActionID < 0 || uint64(request.ActionID) > 0xffffffff {
+		return nil, fmt.Errorf("UI action ID must be an unsigned 32-bit integer")
+	}
+	err := a.runOnUiThread(func() error {
+		return a.host.RunUiAction(uint32(request.ActionID))
+	})
+	return nil, err
 }
 
 type gitHubTokenAdapter struct {
@@ -2742,6 +2903,102 @@ func (c *Client) handleSessionEvent(req sessionEventRequest) {
 	if ok {
 		session.dispatchEvent(req.Event)
 	}
+}
+
+func (c *Client) handleSkillProviderList(ctx context.Context, params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+	var req rpc.SkillProviderListRequest
+	if err := json.Unmarshal(params, &req); err != nil || req.SessionID == "" {
+		return nil, &jsonrpc2.Error{Code: -32602, Message: "invalid skill provider list payload"}
+	}
+
+	provider, rpcErr := c.resolveSkillProvider(req.SessionID)
+	if rpcErr != nil {
+		return nil, rpcErr
+	}
+
+	skills, err := callSkillProvider(ctx, req.SessionID, "listSkills", func() ([]rpc.SkillProviderDescriptor, error) {
+		return provider.ListSkills(ctx)
+	})
+	if err != nil {
+		return nil, &jsonrpc2.Error{Code: -32603, Message: "Skill provider listSkills failed"}
+	}
+	if skills == nil {
+		skills = []rpc.SkillProviderDescriptor{}
+	}
+
+	raw, err := json.Marshal(rpc.SkillProviderListResult{Skills: skills})
+	if err != nil {
+		return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("Failed to marshal response: %v", err)}
+	}
+	return raw, nil
+}
+
+func (c *Client) handleSkillProviderRead(ctx context.Context, params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+	var req rpc.SkillProviderReadRequest
+	if err := json.Unmarshal(params, &req); err != nil || req.SessionID == "" || req.Name == "" {
+		return nil, &jsonrpc2.Error{Code: -32602, Message: "invalid skill provider read payload"}
+	}
+
+	provider, rpcErr := c.resolveSkillProvider(req.SessionID)
+	if rpcErr != nil {
+		return nil, rpcErr
+	}
+
+	// Classify not-found inside the guarded call: errors.Is runs provider
+	// Is/Unwrap methods, which may panic.
+	markdown, err := callSkillProvider(ctx, req.SessionID, "readSkill", func() (*string, error) {
+		markdown, err := provider.ReadSkill(ctx, req.Name)
+		if errors.Is(err, ErrSkillNotFound) {
+			return nil, nil
+		}
+		if err != nil {
+			return nil, err
+		}
+		return &markdown, nil
+	})
+	if err != nil {
+		return nil, &jsonrpc2.Error{Code: -32603, Message: "Skill provider readSkill failed"}
+	}
+
+	raw, err := json.Marshal(rpc.SkillProviderReadResult{Markdown: markdown})
+	if err != nil {
+		return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("Failed to marshal response: %v", err)}
+	}
+	return raw, nil
+}
+
+func (c *Client) resolveSkillProvider(sessionID string) (SkillProvider, *jsonrpc2.Error) {
+	c.sessionsMux.Lock()
+	session := c.sessions[sessionID]
+	c.sessionsMux.Unlock()
+	if session == nil {
+		return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No skill provider for session: %s", sessionID)}
+	}
+	provider := session.getSkillProvider()
+	if provider == nil {
+		return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No skill provider for session: %s", sessionID)}
+	}
+	return provider, nil
+}
+
+var errSkillProviderPanic = errors.New("skill provider panicked")
+
+// callSkillProvider logs provider failures locally and converts panics into
+// an error, so the runtime only ever receives a generic failure.
+func callSkillProvider[T any](ctx context.Context, sessionID, operation string, call func() (T, error)) (result T, err error) {
+	defer func() {
+		if failure := recover(); failure != nil {
+			log.Printf("skill provider %s panicked: session_id=%s panic=%v\n%s", operation, sessionID, failure, debug.Stack())
+			var zero T
+			result, err = zero, errSkillProviderPanic
+		}
+	}()
+	result, err = call()
+	// A call the runtime cancelled is expected to fail; it isn't a provider failure.
+	if err != nil && ctx.Err() == nil {
+		log.Printf("skill provider %s failed: session_id=%s error=%v", operation, sessionID, err)
+	}
+	return result, err
 }
 
 // handleUserInputRequest handles a user input request from the CLI server.

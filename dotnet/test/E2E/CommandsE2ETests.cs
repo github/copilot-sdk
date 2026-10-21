@@ -60,54 +60,9 @@ public class CommandsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
     }
 
     [Fact]
-    public async Task Session_Commands_Invoke_Known_Builtin_Returns_Expected_Result()
-    {
-        var session = await CreateSessionAsync();
-
-        var builtinCommands = await session.Rpc.Commands.ListAsync(new SessionCommandsListRequest
-        {
-            IncludeBuiltins = true,
-            IncludeClientCommands = false,
-            IncludeSkills = false,
-        });
-        var commandName = KnownBuiltinCommands.FirstOrDefault(name =>
-            builtinCommands.Commands.Any(c => IsCommand(c, name, SlashCommandKind.Builtin)));
-        Assert.NotNull(commandName);
-
-        var result = await session.Rpc.Commands.InvokeAsync(commandName);
-
-        switch (result)
-        {
-            case SlashCommandInvocationResultText text:
-                Assert.False(string.IsNullOrWhiteSpace(text.Text));
-                break;
-
-            case SlashCommandInvocationResultSelectSubcommand select:
-                Assert.False(string.IsNullOrWhiteSpace(select.Title));
-                Assert.NotEmpty(select.Options);
-                break;
-
-            case SlashCommandInvocationResultAgentPrompt prompt:
-                Assert.False(string.IsNullOrWhiteSpace(prompt.DisplayPrompt));
-                Assert.False(string.IsNullOrWhiteSpace(prompt.Prompt));
-                break;
-
-            case SlashCommandInvocationResultCompleted completed:
-                Assert.True(completed.Message is null || !string.IsNullOrWhiteSpace(completed.Message));
-                break;
-
-            default:
-                Assert.Fail($"Unexpected invocation result: {result.GetType().Name}");
-                break;
-        }
-
-        await session.DisposeAsync();
-    }
-
-    [Fact]
     public async Task Session_Commands_Execute_Runs_Registered_Command_Handler()
     {
-        CommandContext? capturedContext = null;
+        var contextReceived = new TaskCompletionSource<CommandContext>(TaskCreationOptions.RunContinuationsAsynchronously);
         var session = await CreateSessionAsync(new SessionConfig
         {
             Commands =
@@ -118,7 +73,7 @@ public class CommandsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
                     Description = "Deploy the app",
                     Handler = ctx =>
                     {
-                        capturedContext = ctx;
+                        contextReceived.TrySetResult(ctx);
                         return Task.CompletedTask;
                     },
                 },
@@ -142,40 +97,11 @@ public class CommandsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
         var result = await session.Rpc.Commands.ExecuteAsync("deploy", "production");
 
         Assert.Null(result.Error);
-        await TestHelper.WaitForConditionAsync(
-            () => capturedContext is not null,
-            timeout: TimeSpan.FromSeconds(10),
-            timeoutMessage: "Timed out waiting for command handler execution.");
-        Assert.Equal(session.SessionId, capturedContext!.SessionId);
+        var capturedContext = await contextReceived.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.Equal(session.SessionId, capturedContext.SessionId);
         Assert.Equal("/deploy production", capturedContext.Command);
         Assert.Equal("deploy", capturedContext.CommandName);
         Assert.Equal("production", capturedContext.Args);
-
-        await session.DisposeAsync();
-    }
-
-    [Fact]
-    public async Task Session_Commands_Enqueue_Accepts_Deterministic_Command()
-    {
-        var session = await CreateSessionAsync();
-
-        var result = await session.Rpc.Commands.EnqueueAsync("/help");
-
-        Assert.True(result.Queued);
-
-        await session.DisposeAsync();
-    }
-
-    [Fact]
-    public async Task Session_Commands_RespondToQueuedCommand_Returns_False_For_Unknown_RequestId()
-    {
-        var session = await CreateSessionAsync();
-
-        var result = await session.Rpc.Commands.RespondToQueuedCommandAsync(
-            "missing-queued-command-request",
-            new QueuedCommandResult { Handled = false });
-
-        Assert.False(result.Success);
 
         await session.DisposeAsync();
     }

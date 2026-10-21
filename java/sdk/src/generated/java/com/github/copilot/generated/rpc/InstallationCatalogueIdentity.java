@@ -36,6 +36,10 @@ public record InstallationCatalogueIdentity(
     /** Catalogue authority/source string that supplied the candidate. */
     @JsonProperty("source") String source,
     /** Catalogue trust observation retained at install planning time. */
-    @JsonProperty("trustAtInstall") CatalogTrustSnapshot trustAtInstall
+    @JsonProperty("trustAtInstall") CatalogTrustSnapshot trustAtInstall,
+    /** HTTPS URL of the resource's icon on raw.githubusercontent.com, retained from the catalogue
+candidate. Untrusted external content: load it without credentials. Omitted when the
+candidate had none. */
+    @JsonProperty("iconUrl") String iconUrl
 ) {
 }

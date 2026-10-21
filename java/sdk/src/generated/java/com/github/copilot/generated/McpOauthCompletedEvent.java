@@ -36,7 +36,7 @@ public final class McpOauthCompletedEvent extends SessionEvent {
     public record McpOauthCompletedEventData(
         /** Request ID of the resolved OAuth request */
         @JsonProperty("requestId") String requestId,
-        /** How the pending OAuth request was completed */
+        /** How the pending OAuth request was completed. An accepted runtimeRefresh handoff completes once at its authorization terminal: token when recovery succeeded, cancelled when it was cancelled or failed; see mcp.oauth_recovery_completed for the exact outcome. */
         @JsonProperty("outcome") McpOauthCompletionOutcome outcome
     ) {
     }

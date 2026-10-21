@@ -196,7 +196,7 @@ func defaultCopilotUser(proxyURL string) map[string]interface{} {
 		"copilot_plan": "individual_pro",
 		"endpoints": map[string]interface{}{
 			"api":       proxyURL,
-			"telemetry": "https://localhost:1/telemetry",
+			"telemetry": "https://sdk-hydro-collector.example.com",
 		},
 		"analytics_tracking_id": "e2e-test-tracking-id",
 	}

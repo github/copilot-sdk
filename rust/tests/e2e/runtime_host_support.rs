@@ -1,19 +1,26 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::sync::{Arc, LazyLock, Mutex};
-use std::time::Duration;
+use std::sync::LazyLock;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use ahp::{Client as AhpClient, ClientConfig, SessionSubscription, SubscriptionEvent};
 use ahp_types::version::PROTOCOL_VERSION;
 use ahp_ws::WebSocketTransport;
+use base64::Engine as _;
+use base64::engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD};
 use futures_util::FutureExt;
 use github_copilot_sdk::{
     AhpHost, AhpHostExit, AhpHostOptions, CliProgram, Client, ClientOptions, Transport,
 };
+use hpke::rand_core::SeedableRng;
+use hpke::{Deserializable, Serializable};
+use rand_chacha::ChaCha20Rng;
+use rand_core::{OsRng, RngCore};
 use serde::Deserialize;
 use serde_json::{Value, json};
+use sha2::{Digest, Sha256};
 
 use super::support::{DEFAULT_TEST_TOKEN, E2eContext};
 
@@ -134,6 +141,19 @@ pub async fn start(ctx: &E2eContext) -> Client {
         .expect("start local runtime")
 }
 
+pub async fn tcp_owner(ctx: &E2eContext) -> (Client, u16) {
+    let owner = Client::start(options(ctx).with_transport(Transport::Tcp {
+        port: 0,
+        connection_token: Some(RUNTIME_TOKEN.into()),
+    }))
+    .await
+    .expect("start owned TCP runtime");
+    let ports = owned_listening_ports(&owner);
+    assert_eq!(ports.len(), 1, "fresh TCP runtime listeners: {ports:?}");
+    let port = *ports.first().expect("owned runtime listener");
+    (owner, port)
+}
+
 pub fn options_with_base_directory(ctx: &E2eContext, base: &Path) -> ClientOptions {
     let mut options = options(ctx).with_base_directory(base);
     // The shared harness sets COPILOT_HOME explicitly; Rust's explicit env
@@ -151,40 +171,56 @@ pub fn home(ctx: &E2eContext) -> PathBuf {
         .unwrap()
 }
 
-pub fn exit_observer() -> (AhpHostOptions, Arc<Mutex<Vec<AhpHostExit>>>) {
-    let exits = Arc::new(Mutex::new(Vec::new()));
-    let seen = exits.clone();
-    let options = AhpHostOptions::default().with_on_exit(move |exit| {
-        seen.lock().unwrap().push(exit);
+pub fn local_options() -> AhpHostOptions {
+    AhpHostOptions::new().with_local_server(Default::default())
+}
+
+pub fn exit_observer() -> (
+    AhpHostOptions,
+    tokio::sync::watch::Receiver<Vec<AhpHostExit>>,
+) {
+    let (seen, exits) = tokio::sync::watch::channel(Vec::new());
+    let options = local_options().with_on_exit(move |exit| {
+        seen.send_modify(|exits| exits.push(exit));
     });
     (options, exits)
 }
 
-pub async fn exit(exits: &Arc<Mutex<Vec<AhpHostExit>>>) -> AhpHostExit {
+pub async fn exit(exits: &tokio::sync::watch::Receiver<Vec<AhpHostExit>>) -> AhpHostExit {
+    let mut exits = exits.clone();
     deadline(async {
-        loop {
-            if let Some(exit) = exits.lock().unwrap().first().cloned() {
-                return exit;
-            }
-            tokio::time::sleep(Duration::from_millis(20)).await;
-        }
+        exits
+            .wait_for(|events| !events.is_empty())
+            .await
+            .expect("host exit observer remains registered")[0]
+            .clone()
     })
     .await
 }
 
-pub async fn deadline<T>(future: impl Future<Output = T>) -> T {
-    tokio::time::timeout(DEADLINE, future)
-        .await
-        .expect("AHP operation deadline")
+/// Boxes eagerly so callers do not embed large wrapped futures, such as
+/// `WebSocketTransport::connect`, whose size depends on consumer TLS features.
+pub fn deadline<T>(future: impl Future<Output = T>) -> impl Future<Output = T> {
+    let future = Box::pin(future);
+    async move {
+        tokio::time::timeout(DEADLINE, future)
+            .await
+            .expect("AHP operation deadline")
+    }
 }
 
 pub struct Ahp {
     pub client: AhpClient,
     pub client_id: String,
+    initialize_meta: Value,
 }
 
 pub async fn connect(host: &AhpHost) -> Ahp {
-    connect_url(&host.url, host.token.as_deref()).await
+    connect_url(
+        host.url.as_deref().expect("local listener URL"),
+        host.token.as_deref(),
+    )
+    .await
 }
 
 pub async fn connect_url(url: &str, token: Option<&str>) -> Ahp {
@@ -213,7 +249,154 @@ pub async fn connect_url_as(url: &str, token: Option<&str>, client_id: String) -
         .await
         .unwrap();
     assert_eq!(initialized.protocol_version, "0.9.0");
-    Ahp { client, client_id }
+    let initialize_meta = serde_json::to_value(initialized).unwrap()["_meta"].clone();
+    Ahp {
+        client,
+        client_id,
+        initialize_meta,
+    }
+}
+
+// Matches protocol_base/ahp/sealing.rs: HPKE base mode, empty info/AAD,
+// enc || ciphertext, and the structured connection-bound auth-token plaintext.
+// The harness owns the direct endpoint; no remote advertisement is trusted.
+fn sealed_auth_token(initialize_meta: &Value, root_meta: &Value, resource: &str) -> String {
+    let required = initialize_meta["copilot.encryptionRequired"]
+        .as_array()
+        .unwrap();
+    assert!(required.iter().any(|purpose| purpose == "auth-token"));
+    let binding = &initialize_meta["copilot.authChallenge"];
+    assert_eq!(binding["required"], true);
+    assert!(binding["responseMaxAgeSeconds"].as_u64().unwrap() > 0);
+    let challenge = binding["challenge"].as_str().unwrap();
+    assert_eq!(challenge.len(), 32);
+    assert!(
+        challenge
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+    );
+    let key = root_meta["copilot.encryptionKeys"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|key| {
+            key["use"] == "auth-token" && key["algorithm"] == "hpke-x25519-hkdf-sha256-aes256gcm"
+        })
+        .expect("host advertises auth-token HPKE key");
+    let public_key = STANDARD.decode(key["publicKey"].as_str().unwrap()).unwrap();
+    assert_eq!(public_key.len(), 32);
+    let key_id = key["keyId"].as_str().unwrap();
+    assert_eq!(
+        key_id,
+        URL_SAFE_NO_PAD.encode(&Sha256::digest(&public_key)[..8])
+    );
+    let mut nonce = [0_u8; 16];
+    OsRng.fill_bytes(&mut nonce);
+    let nonce: String = nonce.iter().map(|byte| format!("{byte:02x}")).collect();
+    let plaintext = serde_json::to_vec(&json!({
+        "cty": "text",
+        "ctx": {
+            "purpose": "auth-token",
+            "resource": resource,
+            "connection": {
+                "challenge": challenge,
+                "nonce": nonce,
+                "issuedAt": SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
+            },
+        },
+        "value": DEFAULT_TEST_TOKEN,
+    }))
+    .unwrap();
+    type Kem = hpke::kem::X25519HkdfSha256;
+    let recipient = <Kem as hpke::Kem>::PublicKey::from_bytes(&public_key).unwrap();
+    let mut seed = [0_u8; 32];
+    getrandom::fill(&mut seed).unwrap();
+    let mut rng = ChaCha20Rng::from_seed(seed);
+    let (enc, mut sender) = hpke::setup_sender::<
+        hpke::aead::AesGcm256,
+        hpke::kdf::HkdfSha256,
+        Kem,
+        _,
+    >(&hpke::OpModeS::Base, &recipient, &[], &mut rng)
+    .unwrap();
+    let mut ciphertext = enc.to_bytes().to_vec();
+    ciphertext.extend(sender.seal(&plaintext, &[]).unwrap());
+    format!(
+        "copilot-sealed.v1.{key_id}.{}",
+        URL_SAFE_NO_PAD.encode(ciphertext)
+    )
+}
+
+#[test]
+fn fixture_authentication_is_sealed_and_bound_to_the_live_challenge() {
+    type Kem = hpke::kem::X25519HkdfSha256;
+    let mut seed = [0_u8; 32];
+    getrandom::fill(&mut seed).unwrap();
+    let (secret, public) = <Kem as hpke::Kem>::gen_keypair(&mut ChaCha20Rng::from_seed(seed));
+    let key_id = URL_SAFE_NO_PAD.encode(&Sha256::digest(public.to_bytes())[..8]);
+    let challenge = "00112233445566778899aabbccddeeff";
+    let initialized = json!({
+        "copilot.encryptionRequired": ["auth-token", "mcp-auth-token"],
+        "copilot.authChallenge": {
+            "challenge": challenge, "responseMaxAgeSeconds": 300, "required": true,
+        },
+    });
+    let root = json!({
+        "copilot.encryptionKeys": [{
+            "keyId": key_id, "use": "auth-token",
+            "algorithm": "hpke-x25519-hkdf-sha256-aes256gcm",
+            "publicKey": STANDARD.encode(public.to_bytes()),
+        }],
+    });
+    let mut nonces = std::collections::HashSet::new();
+    for _ in 0..2 {
+        let before = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        let sealed = sealed_auth_token(&initialized, &root, "https://api.github.com");
+        assert!(!sealed.contains(DEFAULT_TEST_TOKEN));
+        let prefix = format!("copilot-sealed.v1.{key_id}.");
+        let bytes = URL_SAFE_NO_PAD
+            .decode(sealed.strip_prefix(&prefix).unwrap())
+            .unwrap();
+        let enc = <Kem as hpke::Kem>::EncappedKey::from_bytes(&bytes[..32]).unwrap();
+        let mut recipient =
+            hpke::setup_receiver::<hpke::aead::AesGcm256, hpke::kdf::HkdfSha256, Kem>(
+                &hpke::OpModeR::Base,
+                &secret,
+                &enc,
+                &[],
+            )
+            .unwrap();
+        let plaintext: Value =
+            serde_json::from_slice(&recipient.open(&bytes[32..], &[]).unwrap()).unwrap();
+        assert_eq!(plaintext["cty"], "text");
+        assert_eq!(plaintext["value"], DEFAULT_TEST_TOKEN);
+        assert_eq!(plaintext["ctx"]["purpose"], "auth-token");
+        assert_eq!(plaintext["ctx"]["resource"], "https://api.github.com");
+        let connection = &plaintext["ctx"]["connection"];
+        assert_eq!(connection["challenge"], challenge);
+        assert!(connection["issuedAt"].as_u64().unwrap() >= before);
+        assert!(
+            connection["issuedAt"].as_u64().unwrap()
+                <= SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs()
+        );
+        let nonce = connection["nonce"].as_str().unwrap();
+        assert_eq!(nonce.len(), 32);
+        assert!(
+            nonce
+                .bytes()
+                .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+        );
+        assert!(
+            nonces.insert(nonce.to_owned()),
+            "each authentication has a fresh nonce"
+        );
+    }
 }
 
 pub async fn authenticate(ahp: &Ahp) {
@@ -231,12 +414,17 @@ pub async fn authenticate(ahp: &Ahp) {
         .find(|resource| resource["resource_name"] == "GitHub API")
         .unwrap()["resource"]
         .clone();
+    let token = sealed_auth_token(
+        &ahp.initialize_meta,
+        &root["snapshot"]["state"]["_meta"],
+        resource.as_str().unwrap(),
+    );
     let _: Value = ahp
         .client
         .request(
             "authenticate",
             json!({
-                "channel": ROOT, "resource": resource, "token": DEFAULT_TEST_TOKEN,
+                "channel": ROOT, "resource": resource, "token": token,
             }),
         )
         .await
@@ -440,9 +628,24 @@ pub async fn resume(ahp: &Ahp, uri: &str, excluded_sdk_id: Option<&str>) {
     );
 }
 
-pub fn topology(host: &AhpHost, owner: &Client, catalog: &Path) {
+pub fn topology(host: &AhpHost, owner: &Client, home: &Path) {
     let runtime = owner.pid().expect("owned out-of-process runtime");
+    let settings: Value =
+        serde_json::from_slice(&std::fs::read(home.join("settings.json")).unwrap()).unwrap();
+    let compute_id = settings["ahpEnvironment"]["computeId"]
+        .as_str()
+        .expect("host must save its default compute identity");
+    uuid::Uuid::parse_str(compute_id).expect("default compute identity must be a UUID");
+    let catalog = home.join("ahp").join(compute_id).join("sessions");
     assert!(catalog.is_dir(), "host must create the resolved catalog");
+    assert_eq!(
+        std::fs::read_to_string(catalog.join(".attached-host.owner"))
+            .expect("catalog ownership metadata")
+            .parse::<u32>()
+            .unwrap(),
+        runtime,
+        "the SDK runtime owns the compute-scoped catalog"
+    );
     let command = std::fs::read_to_string(format!("/proc/{runtime}/cmdline")).unwrap();
     let args: Vec<_> = command.split('\0').collect();
     assert!(!command.contains("copilotd"), "no companion host process");
@@ -499,33 +702,12 @@ pub fn topology(host: &AhpHost, owner: &Client, catalog: &Path) {
             descendants.push(child.parse::<u32>().unwrap());
         }
     }
-    let sockets: std::collections::BTreeSet<_> = std::fs::read_dir(format!("/proc/{runtime}/fd"))
+    let port = reqwest::Url::parse(host.url.as_deref().expect("local listener URL"))
         .unwrap()
-        .filter_map(|entry| match std::fs::read_link(entry.unwrap().path()) {
-            Ok(target) => Some(target.to_string_lossy().into_owned()),
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
-            Err(error) => panic!("read runtime socket: {error}"),
-        })
-        .collect();
-    let port = reqwest::Url::parse(&host.url).unwrap().port().unwrap();
+        .port()
+        .unwrap();
     assert!(
-        ["tcp", "tcp6"].iter().any(|table| {
-            std::fs::read_to_string(format!("/proc/{runtime}/net/{table}"))
-                .unwrap()
-                .lines()
-                .skip(1)
-                .any(|line| {
-                    let fields: Vec<_> = line.split_whitespace().collect();
-                    fields.len() > 9
-                        && fields[3] == "0A"
-                        && fields[1]
-                            .rsplit(':')
-                            .next()
-                            .and_then(|value| u16::from_str_radix(value, 16).ok())
-                            == Some(port)
-                        && sockets.contains(&format!("socket:[{}]", fields[9]))
-                })
-        }),
+        owned_listening_ports(owner).contains(&port),
         "runtime must own the listening TCP socket"
     );
     if ARTIFACTS.bundled {
@@ -536,6 +718,36 @@ pub fn topology(host: &AhpHost, owner: &Client, catalog: &Path) {
             "candidate must use adjacent assets"
         );
     }
+}
+
+fn owned_listening_ports(owner: &Client) -> BTreeSet<u16> {
+    let runtime = owner.pid().expect("owned out-of-process runtime");
+    let sockets: BTreeSet<_> = std::fs::read_dir(format!("/proc/{runtime}/fd"))
+        .unwrap()
+        .filter_map(|entry| match std::fs::read_link(entry.unwrap().path()) {
+            Ok(target) => Some(target.to_string_lossy().into_owned()),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+            Err(error) => panic!("read runtime socket: {error}"),
+        })
+        .collect();
+    let mut ports = BTreeSet::new();
+    for table in ["tcp", "tcp6"] {
+        let contents = std::fs::read_to_string(format!("/proc/{runtime}/net/{table}")).unwrap();
+        for line in contents.lines().skip(1) {
+            let fields: Vec<_> = line.split_whitespace().collect();
+            if fields.len() > 9
+                && fields[3] == "0A"
+                && sockets.contains(&format!("socket:[{}]", fields[9]))
+                && let Some(port) = fields[1]
+                    .rsplit(':')
+                    .next()
+                    .and_then(|value| u16::from_str_radix(value, 16).ok())
+            {
+                ports.insert(port);
+            }
+        }
+    }
+    ports
 }
 
 pub async fn reaped(pid: u32) {
@@ -572,7 +784,7 @@ pub async fn listener_closed(host: &AhpHost, ahp: &Ahp) {
         deadline(ahp.client.ping()).await.is_err(),
         "existing AHP client must disconnect"
     );
-    let url = reqwest::Url::parse(&host.url).unwrap();
+    let url = reqwest::Url::parse(host.url.as_deref().expect("local listener URL")).unwrap();
     let result = deadline(tokio::net::TcpStream::connect((
         url.host_str().unwrap().trim_matches(['[', ']']),
         url.port().unwrap(),

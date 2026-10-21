@@ -57,7 +57,7 @@ async fn send_error(
             id: request_id,
             result: None,
             error: Some(crate::JsonRpcError {
-                code,
+                code: code.into(),
                 message: message.to_string(),
                 data,
             }),

@@ -92,34 +92,50 @@ class CapiProxy:
         if not self._process:
             return
 
-        # Send stop request to the server
-        if self._proxy_url:
-            try:
-                stop_url = f"{self._proxy_url}/stop"
-                if skip_writing_cache:
-                    stop_url += "?skipWritingCache=true"
-                async with httpx.AsyncClient() as client:
-                    await client.post(stop_url)
-            except Exception:
-                pass  # Best effort
-
+        process = self._process
+        shutdown_error: Exception | None = None
         try:
-            process = self._process
-            try:
-                await asyncio.to_thread(process.wait, timeout=PROCESS_SHUTDOWN_TIMEOUT_SECONDS)
-            except subprocess.TimeoutExpired:
-                _kill_process_tree(process)
+            # Send stop request to the server
+            if self._proxy_url:
                 try:
-                    await asyncio.to_thread(process.wait, timeout=PROCESS_SHUTDOWN_TIMEOUT_SECONDS)
-                except subprocess.TimeoutExpired:
-                    warnings.warn(
-                        f"Proxy process {process.pid} did not exit after being killed",
-                        RuntimeWarning,
-                        stacklevel=2,
-                    )
+                    stop_url = f"{self._proxy_url}/stop"
+                    if skip_writing_cache:
+                        stop_url += "?skipWritingCache=true"
+                    async with httpx.AsyncClient() as client:
+                        response = await client.post(stop_url)
+                        if not response.is_success:
+                            shutdown_error = RuntimeError(
+                                f"Proxy shutdown failed: HTTP {response.status_code}: "
+                                f"{response.text}"
+                            )
+                except httpx.HTTPError as error:
+                    shutdown_error = error
         finally:
-            self._process = None
-            self._proxy_url = None
+            reaping = asyncio.create_task(asyncio.to_thread(_reap_process, process))
+            cancellation: asyncio.CancelledError | None = None
+            try:
+                # Even repeated teardown cancellation must not abandon the owned process.
+                while not reaping.done():
+                    try:
+                        await asyncio.shield(reaping)
+                    except asyncio.CancelledError as error:
+                        cancellation = error
+                reaping.result()
+                if cancellation is not None:
+                    raise cancellation
+            finally:
+                self._process = None
+                self._proxy_url = None
+
+        if shutdown_error is None:
+            if process.returncode is None:
+                shutdown_error = RuntimeError(
+                    f"Proxy process {process.pid} did not exit after being killed"
+                )
+            elif process.returncode != 0:
+                shutdown_error = RuntimeError(f"Proxy exited with code {process.returncode}")
+        if shutdown_error is not None:
+            raise shutdown_error
 
     async def configure(self, file_path: str, work_dir: str):
         """Send configuration to the proxy."""
@@ -183,6 +199,21 @@ class CapiProxy:
             "GH_ENTERPRISE_TOKEN": "",
             "GITHUB_ENTERPRISE_TOKEN": "",
         }
+
+
+def _reap_process(process: subprocess.Popen) -> None:
+    try:
+        process.wait(timeout=PROCESS_SHUTDOWN_TIMEOUT_SECONDS)
+    except subprocess.TimeoutExpired:
+        _kill_process_tree(process)
+        try:
+            process.wait(timeout=PROCESS_SHUTDOWN_TIMEOUT_SECONDS)
+        except subprocess.TimeoutExpired:
+            warnings.warn(
+                f"Proxy process {process.pid} did not exit after being killed",
+                RuntimeWarning,
+                stacklevel=2,
+            )
 
 
 def _kill_process_tree(process: subprocess.Popen) -> None:

@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 using Microsoft.Extensions.AI;
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json.Nodes;
 
 namespace GitHub.Copilot;
@@ -26,6 +27,9 @@ public static class CopilotTool
 
     /// <summary>The key used in <see cref="AITool.AdditionalProperties"/> to carry the tool's opaque host-defined metadata.</summary>
     internal const string MetadataKey = "metadata";
+
+    /// <summary>The key used in <see cref="AITool.AdditionalProperties"/> to carry the tool's <see cref="ToolNamespace"/>.</summary>
+    internal const string NamespaceKey = "namespace";
 
     /// <summary>
     /// Defines a tool for use in a <see cref="CopilotSession"/>.
@@ -94,7 +98,7 @@ public static class CopilotTool
 
         static void ApplyToolOptions(AIFunctionFactoryOptions factoryOptions, CopilotToolOptions? toolOptions)
         {
-            if (toolOptions is not null && (toolOptions.OverridesBuiltInTool || toolOptions.SkipPermission || toolOptions.IsTerminal || toolOptions.Defer is not null || toolOptions.Metadata is not null))
+            if (toolOptions is not null && (toolOptions.OverridesBuiltInTool || toolOptions.SkipPermission || toolOptions.IsTerminal || toolOptions.Defer is not null || toolOptions.Metadata is not null || toolOptions.Namespace is not null))
             {
                 Dictionary<string, object?> additionalProperties = new(StringComparer.Ordinal);
                 if (factoryOptions.AdditionalProperties is not null)
@@ -128,6 +132,11 @@ public static class CopilotTool
                 if (toolOptions.Metadata is { } metadata)
                 {
                     additionalProperties[MetadataKey] = metadata;
+                }
+
+                if (toolOptions.Namespace is { } toolNamespace)
+                {
+                    additionalProperties[NamespaceKey] = toolNamespace;
                 }
 
                 factoryOptions.AdditionalProperties = additionalProperties;
@@ -183,6 +192,34 @@ public sealed class CopilotToolOptions
     /// Gets or sets opaque, host-defined metadata associated with the tool definition.
     /// </summary>
     public IDictionary<string, JsonNode?>? Metadata { get; set; }
+
+    /// <summary>
+    /// Gets or sets an optional namespace grouping this tool with related tools for model tool discovery.
+    /// </summary>
+    /// <remarks>
+    /// Where the model provider supports native tool namespaces, deferred tools sharing a namespace are presented to
+    /// the model as one group; elsewhere the tool stays flat. The tool keeps its unique name either way.
+    /// The resulting <see cref="AIFunction"/> carries the value in its <see cref="AITool.AdditionalProperties"/>.
+    /// </remarks>
+    [Experimental(Diagnostics.Experimental)]
+    public ToolNamespace? Namespace { get; set; }
+}
+
+/// <summary>
+/// Groups related tools for model tool discovery.
+/// </summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class ToolNamespace
+{
+    /// <summary>
+    /// Gets or sets the namespace name: 1-64 ASCII letters, digits, underscores, or hyphens.
+    /// </summary>
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets an optional model-visible explanation of the tools in this namespace.
+    /// </summary>
+    public string? Description { get; set; }
 }
 
 /// <summary>

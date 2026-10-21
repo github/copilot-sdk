@@ -102,7 +102,13 @@ if (!finding) return { finding: null };
 
 Cancellation and hard runtime failures — a reached limit, a durable-state failure — reject instead, aborting the run. When filtering results, prefer `v => v !== null` over `Boolean`, which also discards a valid `false`, `0`, or `""`.
 
-**`schema` is a structural subset of JSON Schema, not a validator.** Honored: `type`, `required`, `enum`, `const`, recursive `properties`/`items`, and `anyOf`/`oneOf`/`allOf` — where `oneOf` is treated as `anyOf`, meaning at least one branch matches rather than exactly one. Ignored and *not* enforced: `additionalProperties`, `pattern`, `minLength`/`maxLength`, `format`, numeric ranges, and boolean schemas. Do not rely on an ignored keyword to constrain a result. A schema call retries once on a parse or match failure, so it may spawn twice, and both spawns count toward `maxTotalSubagents`.
+**`schema` is a structural subset of JSON Schema, not a validator.** Honored: `type`, `required`, `enum`, `const`, recursive `properties`/`items`, and `anyOf`/`oneOf`/`allOf` — where `oneOf` is treated as `anyOf`, meaning at least one branch matches rather than exactly one. Ignored and *not* enforced: `additionalProperties`, `pattern`, `minLength`/`maxLength`, `format`, numeric ranges, and boolean schemas. Do not rely on an ignored keyword to constrain a result.
+
+The runtime always parses and validates the returned JSON against that workflow subset. On a parse or match failure, it sends up to two correction turns to the same subagent; it does not spawn replacement subagents or repeat the original task.
+
+Eligible local first-party model routes also use provider-native structured output to strengthen generation. Native selection fails closed: the selected CAPI model must explicitly report structured-output support, the wire route must support native formats, and the schema must fit a conservative provider subset. That subset requires an object root, typed nodes, non-empty object properties, every property listed in `required`, `additionalProperties: false` on every object, object-shaped array items, and bounded depth, property count, enum size, and serialized size. It accepts nested `anyOf`, descriptions, and enums, but rejects root `anyOf`, references, boolean schemas, `allOf`, `oneOf`, `const`, and other unsupported keywords.
+
+AHP subagents, HydraFusion-selected children, BYOK providers, models without the capability, unknown routes, and schemas outside the native subset keep prompt-based JSON coercion. They retain the same parsing, validation, and same-agent correction behavior, so workflow authors use one `ctx.agent(..., { schema })` API regardless of the selected path.
 
 ### Choosing between pipeline and parallel
 
@@ -186,7 +192,7 @@ session.workflow.resume(
 
 Set `notifyOnComplete` to `true` for workflows that are likely to be invoked by an agent, so the originating session is notified when the workflow completes. Set it to `false` for workflows intended to be invoked programmatically, where the caller awaits the result directly. Set `logPhaseNames` to emit workflow phase names to the session transcript. Both options apply to new and resumed runs.
 
-Both resolve with the run envelope (`WorkflowRunResult`) for **every** outcome—`completed`, `error`, `halted`, `paused`, and `cancelled` alike. Inspect `status` and read `result` only when the run completed; a limit breach carries a typed `failure`. A `paused` envelope means that the current attempt settled, not that the durable run is permanently finished. Resume the same run ID to start another attempt with its journal and accounting intact. SDK-initiated `run` and `resume` do not request permission, so they have no declined outcome. An SDK-initiated run is refused only when the session already has its maximum number of active top-level runs. Pre-execution resume failures throw `WorkflowResumeError`, whose `code` is one of `not_found`, `non_resumable`, `workflow_run_not_resumable`, `already_active`, `workflow_already_running`, `workflow_limits_invalid`, `workflow_session_disposed`, `workflow_storage_unavailable`, or `workflow_storage_corrupt`.
+Both resolve with the run envelope (`WorkflowRunResult`) for **every** outcome—`completed`, `error`, `halted`, `paused`, and `cancelled` alike. Inspect `status` and read `result` only when the run completed; a limit breach carries a typed `failure`. A `paused` envelope means that the current attempt settled, not that the durable run is permanently finished. Resume the same run ID to start another attempt with its journal and accounting intact. SDK-initiated `run` and `resume` do not request permission, so they have no declined outcome. They still enforce execution eligibility, input validation, and active-run limits. Recognized pre-execution resume failures throw `WorkflowResumeError`, whose `code` is one of `not_found`, `non_resumable`, `workflow_run_not_resumable`, `already_active`, `workflow_already_running`, `workflow_limits_invalid`, `workflow_session_disposed`, `workflow_storage_unavailable`, or `workflow_storage_corrupt`.
 
 Pause a running attempt from outside its workflow body:
 
@@ -206,7 +212,13 @@ The first attempt pauses at `"review-ready"` and ends through cooperative cancel
 
 ## Observe a run
 
-The calling session can inspect its own workflow runs:
+The calling session can inspect its own workflow runs independently of its current execution eligibility. An empty registry enumerates successfully; losing eligibility does not hide already-admitted runs or terminal history. Observation still requires a valid, non-disposed session, and validation, missing-run, and storage errors still propagate.
+
+Workflow storage requires SQLite support from a custom session filesystem. A provider without that capability reports `workflow_storage_unavailable`, not an empty registry or a local-storage fallback.
+
+Compaction waits at most five seconds for its optional active-workflow summary. If storage fails or times out, compaction logs a warning and continues without that summary; aborting compaction cancels the wait. This does not change the results or error handling of explicit workflow observation calls.
+
+Observation does not restore execution eligibility. Starting, resuming, pausing, or cancelling runs, and workflow-owned agent, log, and journal/checkpoint operations still require eligible credentials (token-based billing or trusted HMAC authentication). Ineligible execution requests fail with JSON-RPC `-32601` and `data.code: "dynamic_workflows_unavailable"`.
 
 ```ts
 const runs = await session.workflow.listRuns();

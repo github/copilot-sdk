@@ -4,6 +4,7 @@
 
 using Xunit;
 using InstallationDecision = GitHub.Copilot.Rpc.InstallationDecision;
+using SandboxConfig = GitHub.Copilot.Rpc.SandboxConfig;
 
 namespace GitHub.Copilot.Test.Unit;
 
@@ -88,6 +89,15 @@ public class CloneTests
             Task.FromResult(new GitHub.Copilot.Rpc.ExtensionLaunchProviderResolveResult());
     }
 
+    private sealed class TestSkillProvider : ISkillProvider
+    {
+        public Task<IReadOnlyList<SkillProviderDescriptor>> ListSkillsAsync(CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<SkillProviderDescriptor>>([]);
+
+        public Task<string?> ReadSkillAsync(string name, CancellationToken cancellationToken) =>
+            Task.FromResult<string?>(null);
+    }
+
     [Fact]
     public void SessionConfig_Clone_CopiesAllProperties()
     {
@@ -132,6 +142,7 @@ public class CloneTests
             InstructionDirectories = ["/instructions"],
             DisabledSkills = ["skill1"],
             DisabledMcpServers = ["server1"],
+            SandboxConfig = new SandboxConfig { Enabled = true, SandboxMcpServers = false },
             PluginDirectories = ["/plugins"],
             LargeOutput = new LargeToolOutputConfig { Enabled = true, MaxSizeBytes = 2048, OutputDirectory = "/tmp/out" },
             Memory = new MemoryConfiguration { Enabled = true },
@@ -175,6 +186,7 @@ public class CloneTests
         Assert.Equal(original.InstructionDirectories, clone.InstructionDirectories);
         Assert.Equal(original.DisabledSkills, clone.DisabledSkills);
         Assert.Equal(original.DisabledMcpServers, clone.DisabledMcpServers);
+        Assert.Same(original.SandboxConfig, clone.SandboxConfig);
         Assert.Equal(original.PluginDirectories, clone.PluginDirectories);
         Assert.Same(original.LargeOutput, clone.LargeOutput);
         Assert.Same(original.Memory, clone.Memory);
@@ -203,6 +215,28 @@ public class CloneTests
         Assert.Null(new SessionConfig().RefreshCustomInstructions);
         Assert.Null(typeof(SessionConfigBase).GetProperty(nameof(SessionConfig.RefreshCustomInstructions)));
         Assert.Null(typeof(ResumeSessionConfig).GetProperty(nameof(SessionConfig.RefreshCustomInstructions)));
+    }
+
+    [Fact]
+    public void SessionConfig_Clone_CopiesSkillProvider()
+    {
+        var provider = new TestSkillProvider();
+        var original = new SessionConfig { SkillProvider = provider };
+
+        var clone = original.Clone();
+
+        Assert.Same(provider, clone.SkillProvider);
+    }
+
+    [Fact]
+    public void ResumeSessionConfig_Clone_CopiesSkillProvider()
+    {
+        var provider = new TestSkillProvider();
+        var original = new ResumeSessionConfig { SkillProvider = provider };
+
+        var clone = original.Clone();
+
+        Assert.Same(provider, clone.SkillProvider);
     }
 
     [Fact]
@@ -384,6 +418,7 @@ public class CloneTests
         Assert.Null(clone.InstructionDirectories);
         Assert.Null(clone.DisabledSkills);
         Assert.Null(clone.DisabledMcpServers);
+        Assert.Null(clone.SandboxConfig);
         Assert.Null(clone.Tools);
         Assert.Null(clone.DefaultAgent);
         Assert.True(clone.IncludeSubAgentStreamingEvents);
@@ -658,6 +693,20 @@ public class CloneTests
         var clone = original.Clone();
 
         Assert.Equal(McpOAuthTokenStorageMode.Persistent, clone.McpOAuthTokenStorage);
+    }
+
+    [Fact]
+    public void ResumeSessionConfig_Clone_CopiesSandboxConfig()
+    {
+        var original = new ResumeSessionConfig
+        {
+            SandboxConfig = new SandboxConfig { Enabled = false, AddCurrentWorkingDirectory = false },
+        };
+
+        var clone = original.Clone();
+
+        Assert.Same(original.SandboxConfig, clone.SandboxConfig);
+        Assert.Null(new ResumeSessionConfig().Clone().SandboxConfig);
     }
 
     [Fact]

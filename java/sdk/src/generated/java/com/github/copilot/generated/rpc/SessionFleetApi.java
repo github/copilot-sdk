@@ -31,7 +31,7 @@ public final class SessionFleetApi {
     }
 
     /**
-     * Parameters for starting fleet orchestration: an optional user prompt combined with the fleet instructions, plus the send options forwarded to the resulting turn.
+     * Starts fleet mode by submitting the fleet orchestration prompt to the session.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.

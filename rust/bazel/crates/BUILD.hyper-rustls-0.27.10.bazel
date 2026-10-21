@@ -61,11 +61,11 @@ rust_library(
     version = "0.27.10",
     deps = [
         "@sdk_vendor__http-1.5.0//:http",
-        "@sdk_vendor__hyper-1.11.1//:hyper",
-        "@sdk_vendor__hyper-util-0.1.20//:hyper_util",
-        "@sdk_vendor__rustls-0.23.45//:rustls",
-        "@sdk_vendor__tokio-1.53.1//:tokio",
-        "@sdk_vendor__tokio-rustls-0.26.5//:tokio_rustls",
+        "@sdk_vendor__hyper-1.12.0//:hyper",
+        "@sdk_vendor__hyper-util-0.1.21//:hyper_util",
+        "@sdk_vendor__rustls-0.23.46//:rustls",
+        "@sdk_vendor__tokio-1.53.3//:tokio",
+        "@sdk_vendor__tokio-rustls-0.26.6//:tokio_rustls",
         "@sdk_vendor__tower-service-0.3.3//:tower_service",
     ],
 )

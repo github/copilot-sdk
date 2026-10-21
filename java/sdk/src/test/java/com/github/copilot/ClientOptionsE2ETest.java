@@ -16,20 +16,51 @@ import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.NullSource;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.copilot.generated.rpc.SessionLimitsConfig;
+import com.github.copilot.generated.AgentModelPolicy;
+import com.github.copilot.rpc.CustomAgentConfig;
 import com.github.copilot.rpc.CopilotClientOptions;
 import com.github.copilot.rpc.PermissionHandler;
 import com.github.copilot.rpc.ProviderConfig;
 import com.github.copilot.rpc.ResumeSessionConfig;
 import com.github.copilot.rpc.SessionConfig;
+import com.github.copilot.rpc.WorkingDirectoryTrust;
 
 class ClientOptionsE2ETest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
+
+    @ParameterizedTest
+    @NullSource
+    @EnumSource(WorkingDirectoryTrust.class)
+    void testShouldForwardTrustAndCustomAgentModelPolicy(WorkingDirectoryTrust trust) throws Exception {
+        try (var fake = FakeStdioCli.create()) {
+            var policy = trust == null
+                    ? null
+                    : trust == WorkingDirectoryTrust.SESSION ? AgentModelPolicy.PREFERRED : AgentModelPolicy.REQUIRED;
+            var config = new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+                    .setWorkingDirectoryTrust(trust)
+                    .setCustomAgents(java.util.List.of(new CustomAgentConfig().setName("policy-agent")
+                            .setPrompt("Use the authored model.").setModel("claude-haiku-4.5").setModelPolicy(policy)));
+            try (var client = fake.createClient()) {
+                client.createSession(config).get(30, TimeUnit.SECONDS).close();
+            }
+            var create = fake.capturedRequest("session.create").path("params");
+            var agent = create.path("customAgents").get(0);
+            if (trust == null) {
+                assertFalse(create.has("trustWorkingDirectory"), create.toString());
+                assertFalse(agent.has("modelPolicy"), agent.toString());
+            } else {
+                assertEquals(trust.getValue(), create.path("trustWorkingDirectory").asText());
+                assertEquals(policy.getValue(), agent.path("modelPolicy").asText());
+            }
+        }
+    }
 
     @ParameterizedTest
     @NullSource
@@ -80,8 +111,8 @@ class ClientOptionsE2ETest {
 
             try (var client = fake.createClient()) {
                 var session = client.createSession(new SessionConfig().setSessionId("java-create-session")
-                        .setClientName("java-e2e-client").setModel("gpt-5-mini").setReasoningEffort("low")
-                        .setReasoningSummary("none").setContextTier("long_context")
+                        .setName("java named at create").setClientName("java-e2e-client").setModel("gpt-5-mini")
+                        .setReasoningEffort("low").setReasoningSummary("none").setContextTier("long_context")
                         .setAvailableTools(java.util.List.of("bash")).setExcludedTools(java.util.List.of("grep"))
                         .setExcludedBuiltInAgents(java.util.List.of("explore")).setEnableSessionTelemetry(true)
                         .setEnableCitations(true).setSessionLimits(new SessionLimitsConfig(42.0))
@@ -100,6 +131,7 @@ class ClientOptionsE2ETest {
 
             var create = fake.capturedRequest("session.create").path("params");
             assertEquals("java-create-session", create.path("sessionId").asText());
+            assertEquals("java named at create", create.path("name").asText());
             assertEquals("java-e2e-client", create.path("clientName").asText());
             assertEquals("gpt-5-mini", create.path("model").asText());
             assertEquals("low", create.path("reasoningEffort").asText());
@@ -108,33 +140,33 @@ class ClientOptionsE2ETest {
             assertEquals("bash", create.path("availableTools").get(0).asText());
             assertEquals("grep", create.path("excludedTools").get(0).asText());
             assertEquals("explore", create.path("excludedBuiltinAgents").get(0).asText());
-            assertTrue(create.path("enableSessionTelemetry").asBoolean());
-            assertTrue(create.path("enableCitations").asBoolean());
+            assertEquals(MAPPER.valueToTree(true), create.get("enableSessionTelemetry"));
+            assertEquals(MAPPER.valueToTree(true), create.get("enableCitations"));
             assertEquals(42.0, create.path("sessionLimits").path("maxAiCredits").asDouble());
             assertEquals(workDir.toString(), create.path("workingDirectory").asText());
-            assertTrue(create.path("streaming").asBoolean());
-            assertTrue(create.path("includeSubAgentStreamingEvents").asBoolean());
+            assertEquals(MAPPER.valueToTree(true), create.get("streaming"));
+            assertEquals(MAPPER.valueToTree(true), create.get("includeSubAgentStreamingEvents"));
             assertEquals(configDir.toString(), create.path("configDir").asText());
-            assertFalse(create.path("enableConfigDiscovery").asBoolean());
-            assertTrue(create.path("skipEmbeddingRetrieval").asBoolean());
+            assertEquals(MAPPER.valueToTree(false), create.get("enableConfigDiscovery"));
+            assertEquals(MAPPER.valueToTree(true), create.get("skipEmbeddingRetrieval"));
             assertEquals("Use Java parity instructions.", create.path("organizationCustomInstructions").asText());
-            assertFalse(create.path("enableOnDemandInstructionDiscovery").asBoolean());
-            assertTrue(create.path("enableFileHooks").asBoolean());
-            assertFalse(create.path("enableHostGitOperations").asBoolean());
-            assertTrue(create.path("enableSessionStore").asBoolean());
-            assertFalse(create.path("enableSkills").asBoolean());
+            assertEquals(MAPPER.valueToTree(false), create.get("enableOnDemandInstructionDiscovery"));
+            assertEquals(MAPPER.valueToTree(true), create.get("enableFileHooks"));
+            assertEquals(MAPPER.valueToTree(false), create.get("enableHostGitOperations"));
+            assertEquals(MAPPER.valueToTree(true), create.get("enableSessionStore"));
+            assertEquals(MAPPER.valueToTree(false), create.get("enableSkills"));
             assertEquals("in-memory", create.path("embeddingCacheStorage").asText());
             assertEquals("java-session-token", create.path("gitHubToken").asText());
             assertEquals("export", create.path("remoteSession").asText());
             assertEquals("direct", create.path("envValueMode").asText());
-            assertTrue(create.path("requestPermission").asBoolean());
+            assertEquals(MAPPER.valueToTree(true), create.get("requestPermission"));
 
             var update = fake.capturedRequest("session.options.update").path("params");
             assertEquals("java-create-session", update.path("sessionId").asText());
-            assertTrue(update.path("skipCustomInstructions").asBoolean());
-            assertFalse(update.path("customAgentsLocalOnly").asBoolean());
-            assertTrue(update.path("coauthorEnabled").asBoolean());
-            assertTrue(update.path("manageScheduleEnabled").asBoolean());
+            assertEquals(MAPPER.valueToTree(true), update.get("skipCustomInstructions"));
+            assertEquals(MAPPER.valueToTree(false), update.get("customAgentsLocalOnly"));
+            assertEquals(MAPPER.valueToTree(true), update.get("coauthorEnabled"));
+            assertEquals(MAPPER.valueToTree(true), update.get("manageScheduleEnabled"));
         }
     }
 
@@ -199,30 +231,30 @@ class ClientOptionsE2ETest {
             assertEquals("medium", resume.path("reasoningEffort").asText());
             assertEquals("none", resume.path("reasoningSummary").asText());
             assertEquals("long_context", resume.path("contextTier").asText());
-            assertTrue(resume.path("enableCitations").asBoolean());
+            assertEquals(MAPPER.valueToTree(true), resume.get("enableCitations"));
             assertEquals(84.0, resume.path("sessionLimits").path("maxAiCredits").asDouble());
             assertEquals(workDir.toString(), resume.path("workingDirectory").asText());
             assertEquals(configDir.toString(), resume.path("configDir").asText());
-            assertFalse(resume.path("enableConfigDiscovery").asBoolean());
-            assertTrue(resume.path("skipEmbeddingRetrieval").asBoolean());
+            assertEquals(MAPPER.valueToTree(false), resume.get("enableConfigDiscovery"));
+            assertEquals(MAPPER.valueToTree(true), resume.get("skipEmbeddingRetrieval"));
             assertEquals("Use resumed Java instructions.", resume.path("organizationCustomInstructions").asText());
-            assertFalse(resume.path("enableOnDemandInstructionDiscovery").asBoolean());
-            assertTrue(resume.path("enableFileHooks").asBoolean());
-            assertFalse(resume.path("enableHostGitOperations").asBoolean());
-            assertTrue(resume.path("enableSessionStore").asBoolean());
-            assertFalse(resume.path("enableSkills").asBoolean());
+            assertEquals(MAPPER.valueToTree(false), resume.get("enableOnDemandInstructionDiscovery"));
+            assertEquals(MAPPER.valueToTree(true), resume.get("enableFileHooks"));
+            assertEquals(MAPPER.valueToTree(false), resume.get("enableHostGitOperations"));
+            assertEquals(MAPPER.valueToTree(true), resume.get("enableSessionStore"));
+            assertEquals(MAPPER.valueToTree(false), resume.get("enableSkills"));
             assertEquals("in-memory", resume.path("embeddingCacheStorage").asText());
             assertEquals("java-resume-token", resume.path("gitHubToken").asText());
             assertEquals("export", resume.path("remoteSession").asText());
             assertEquals("direct", resume.path("envValueMode").asText());
-            assertTrue(resume.path("requestPermission").asBoolean());
+            assertEquals(MAPPER.valueToTree(true), resume.get("requestPermission"));
 
             var update = fake.capturedRequest("session.options.update").path("params");
             assertEquals("java-resume-session", update.path("sessionId").asText());
-            assertFalse(update.path("skipCustomInstructions").asBoolean());
-            assertTrue(update.path("customAgentsLocalOnly").asBoolean());
-            assertFalse(update.path("coauthorEnabled").asBoolean());
-            assertTrue(update.path("manageScheduleEnabled").asBoolean());
+            assertEquals(MAPPER.valueToTree(false), update.get("skipCustomInstructions"));
+            assertEquals(MAPPER.valueToTree(true), update.get("customAgentsLocalOnly"));
+            assertEquals(MAPPER.valueToTree(false), update.get("coauthorEnabled"));
+            assertEquals(MAPPER.valueToTree(true), update.get("manageScheduleEnabled"));
         }
     }
 

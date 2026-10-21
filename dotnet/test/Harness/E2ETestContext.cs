@@ -8,6 +8,7 @@ using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
 using GitHub.Copilot.Rpc;
+using Environment = System.Environment;
 
 namespace GitHub.Copilot.Test.Harness;
 
@@ -19,16 +20,16 @@ public sealed class E2ETestContext : IAsyncDisposable
 
     public string HomeDir { get; }
     public string WorkDir { get; }
-    public string ProxyUrl { get; }
+    public string ProxyUrl { get; private set; }
     internal static bool UsesInProcessTransport => IsInProcess(null);
 
     /// <summary>Optional logger injected by tests; applied to all clients created via <see cref="CreateClient"/>.</summary>
     public ILogger? Logger { get; set; }
+    public bool DiagnosticsEnabled { get; set; }
 
     private readonly ReplayProxy _proxy;
     private readonly string _repoRoot;
     private readonly Lazy<string> _cliPath;
-    private readonly Lazy<string> _legacyCliPath;
     private readonly object _clientsLock = new();
     private readonly List<CopilotClient> _persistentClients = [];
     private readonly List<CopilotClient> _transientClients = [];
@@ -43,10 +44,14 @@ public sealed class E2ETestContext : IAsyncDisposable
         _proxy = proxy;
         _repoRoot = repoRoot;
         _cliPath = GetCachedCliPath(repoRoot, "--print-path");
-        _legacyCliPath = GetCachedCliPath(repoRoot, "--print-legacy-path");
     }
 
-    public static async Task<E2ETestContext> CreateAsync()
+    public static Task<E2ETestContext> CreateAsync() => CreateAsync(
+        new ReplayProxy(),
+        Path.Combine(Path.GetTempPath(), $"copilot-test-config-{Guid.NewGuid()}"),
+        Path.Combine(Path.GetTempPath(), $"copilot-test-work-{Guid.NewGuid()}"));
+
+    internal static async Task<E2ETestContext> CreateAsync(ReplayProxy proxy, string homeDir, string workDir)
     {
         // A previous in-process context may have left this process's cwd inside a work
         // directory that has since been deleted. getcwd() then fails, which breaks
@@ -56,33 +61,45 @@ public sealed class E2ETestContext : IAsyncDisposable
 
         var repoRoot = FindRepoRoot();
 
-        var homeDir = Path.Combine(Path.GetTempPath(), $"copilot-test-config-{Guid.NewGuid()}");
-        var workDir = Path.Combine(Path.GetTempPath(), $"copilot-test-work-{Guid.NewGuid()}");
-
-        Directory.CreateDirectory(homeDir);
-        Directory.CreateDirectory(workDir);
-
         // Resolve symlinks (e.g., macOS /var -> /private/var) so paths
         // match what spawned subprocesses see when they resolve their cwd.
         homeDir = ResolveSymlinks(homeDir);
         workDir = ResolveSymlinks(workDir);
 
-        var proxy = new ReplayProxy();
-        var proxyUrl = await proxy.StartAsync();
-        // Creating an in-process fixture applies this URL before its first
-        // test-specific configuration is posted, so early runtime requests need
-        // an empty but valid replay state.
-        await proxy.ConfigureAsync(
-            Path.Combine(workDir, "__unconfigured__.yaml"),
-            workDir,
-            "capi");
-        await proxy.SetCopilotUserByTokenAsync(DefaultGitHubToken, new CopilotUserConfig(
-            Login: "e2e-test-user",
-            CopilotPlan: "individual_pro",
-            Endpoints: new CopilotUserEndpoints(Api: proxyUrl, Telemetry: "https://localhost:1/telemetry"),
-            AnalyticsTrackingId: "e2e-test-tracking-id", Id: 12345));
+        var context = new E2ETestContext(homeDir, workDir, string.Empty, proxy, repoRoot);
+        try
+        {
+            Directory.CreateDirectory(homeDir);
+            Directory.CreateDirectory(workDir);
 
-        return new E2ETestContext(homeDir, workDir, proxyUrl, proxy, repoRoot);
+            context.ProxyUrl = await proxy.StartAsync();
+            // Creating an in-process fixture applies this URL before its first
+            // test-specific configuration is posted, so early runtime requests need
+            // an empty but valid replay state.
+            await proxy.ConfigureAsync(
+                Path.Combine(workDir, "__unconfigured__.yaml"),
+                workDir,
+                "capi");
+            await proxy.SetCopilotUserByTokenAsync(DefaultGitHubToken, new CopilotUserConfig(
+                Login: "e2e-test-user",
+                CopilotPlan: "individual_pro",
+                Endpoints: new CopilotUserEndpoints(Api: context.ProxyUrl, Telemetry: context.ProxyUrl),
+                AnalyticsTrackingId: "e2e-test-tracking-id", Id: 12345));
+
+            return context;
+        }
+        catch (Exception startupError)
+        {
+            try
+            {
+                await context.DisposeAsync();
+            }
+            catch (Exception cleanupError)
+            {
+                throw new AggregateException(startupError, cleanupError);
+            }
+            throw;
+        }
     }
 
     /// <summary>
@@ -161,9 +178,6 @@ public sealed class E2ETestContext : IAsyncDisposable
 
     private string GetCliPath()
         => _cliPath.Value;
-
-    public string GetLegacyCliPath()
-        => _legacyCliPath.Value;
 
     private static Lazy<string> GetCachedCliPath(string repoRoot, string option)
     {
@@ -284,6 +298,10 @@ public sealed class E2ETestContext : IAsyncDisposable
         // disables the method (runtime filters out empty HMAC keys).
         env["COPILOT_HMAC_KEY"] = "";
         env["CAPI_HMAC_KEY"] = "";
+        if (DiagnosticsEnabled)
+        {
+            env["RUST_LOG"] = "error,sdk_diagnostics=debug";
+        }
 
         return env!;
     }
@@ -304,6 +322,10 @@ public sealed class E2ETestContext : IAsyncDisposable
         options ??= new CopilotClientOptions();
 
         options.Logger ??= Logger;
+        if (DiagnosticsEnabled)
+        {
+            options.LogLevel = CopilotLogLevel.Debug;
+        }
 
         // Resolve the working directory the worker should run in. Child-process and
         // URI transports take it as a per-client option; the in-process transport
@@ -599,7 +621,7 @@ public sealed class E2ETestContext : IAsyncDisposable
 
         // Skip writing snapshots in CI to avoid corrupting them on test failures
         var isCI = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("GITHUB_ACTIONS"));
-        try { await _proxy.StopAsync(skipWritingCache: isCI); } catch (Exception ex) when (IsTransientCleanupException(ex)) { errors.Add(ex); }
+        try { await _proxy.StopAsync(skipWritingCache: isCI); } catch (Exception ex) { errors.Add(ex); }
 
         // The in-process worker inherits this process's cwd, so ApplyInProcessEnvironment
         // may have pointed it at WorkDir. The assembly-level isolation attribute only

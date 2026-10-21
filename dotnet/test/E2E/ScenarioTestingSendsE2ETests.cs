@@ -221,6 +221,7 @@ public class ScenarioTestingSendsE2ETests(E2ETestFixture fixture, ITestOutputHel
         var releaseSecondTool = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
         var toolInvocationCount = 0;
         var messages = new List<UserMessageEvent>();
+        var messagesChanged = new AsyncTestSignal();
 
         await using var session = await CreateSessionAsync(new SessionConfig
         {
@@ -232,6 +233,7 @@ public class ScenarioTestingSendsE2ETests(E2ETestFixture fixture, ITestOutputHel
             {
                 messages.Add(message);
             }
+            messagesChanged.Pulse();
         });
 
         var idleEnqueue = TestHelper.GetNextEventOfTypeAsync<SessionIdleEvent>(session, SendTimeout);
@@ -288,15 +290,14 @@ public class ScenarioTestingSendsE2ETests(E2ETestFixture fixture, ITestOutputHel
             "the final queued scenario response");
         releaseSecondTool.TrySetResult("SCENARIO_SEND_BLOCKER_RELEASED_AGAIN");
 
-        await TestHelper.WaitForConditionAsync(
+        await messagesChanged.WaitForAsync(
             () =>
             {
                 lock (messages)
                 {
-                    return Task.FromResult(
-                        messages.Any(message => message.Data.MessageId == steeringId) &&
+                    return messages.Any(message => message.Data.MessageId == steeringId) &&
                         messages.Any(message => message.Data.MessageId == immediateBehindSteeringId) &&
-                        messages.Any(message => message.Data.MessageId == queuedId));
+                        messages.Any(message => message.Data.MessageId == queuedId);
                 }
             },
             timeout: SendTimeout,

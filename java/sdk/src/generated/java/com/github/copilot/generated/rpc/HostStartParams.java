@@ -14,7 +14,7 @@ import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
- * Starts a supervised AHP listener in the runtime's configured working directory.
+ * Starts a supervised AHP host with at least one explicitly selected transport.
  *
  * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
@@ -26,14 +26,10 @@ import javax.annotation.processing.Generated;
 public record HostStartParams(
     /** Caller-generated UUID identifying this connection-owned listener. */
     @JsonProperty("hostId") String hostId,
-    /** Listener hostname. Defaults to 127.0.0.1; explicit non-loopback binds are allowed. */
-    @JsonProperty("hostname") String hostname,
-    /** Listener port. Omitted or zero requests an OS-allocated port. */
-    @JsonProperty("port") Long port,
-    /** Nonempty connection token. Generated randomly when required and omitted. */
-    @JsonProperty("token") String token,
-    /** Require token authentication (default true). Cannot be false with a token. */
-    @JsonProperty("requireConnectionToken") Boolean requireConnectionToken,
+    /** Enables a local WebSocket listener. */
+    @JsonProperty("localServer") HostLocalServerOptions localServer,
+    /** Registers a GitHub Mission Control environment and enables its relay transport. */
+    @JsonProperty("githubEnvironment") HostGitHubEnvironmentOptions gitHubEnvironment,
     /** Ask the owning SDK application to materialize AHP sessions. */
     @JsonProperty("sessionFactory") Boolean sessionFactory,
     /** Ask the owning application to resume its durable AHP sessions. */

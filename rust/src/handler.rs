@@ -20,7 +20,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::generated::api_types::{
     McpOauthPendingRequestResponse, McpOauthPendingRequestResponseCancelled,
-    McpOauthPendingRequestResponseCancelledKind, McpOauthPendingRequestResponseToken,
+    McpOauthPendingRequestResponseCancelledKind, McpOauthPendingRequestResponseRuntimeRefresh,
+    McpOauthPendingRequestResponseRuntimeRefreshKind, McpOauthPendingRequestResponseToken,
     McpOauthPendingRequestResponseTokenKind, PermissionDecision, PermissionDecisionApproveOnce,
     PermissionDecisionContext, PermissionDecisionReject, PermissionDecisionUserNotAvailable,
 };
@@ -117,6 +118,7 @@ impl PermissionResult {
     ///     response_capability: None,
     ///     source: PermissionDecisionSource::HostPolicy,
     ///     surface: PermissionDecisionSurface::Sdk,
+    ///     user_feedback: None,
     /// });
     /// ```
     pub fn with_context(self, context: PermissionDecisionContext) -> Self {
@@ -282,6 +284,36 @@ impl McpAuthResult {
     }
 }
 
+/// Opt-in response from [`McpAuthHandler::handle_with_runtime_refresh`].
+/// The existing [`McpAuthResult`] remains exhaustive for legacy handlers.
+#[non_exhaustive]
+pub enum McpAuthResponse {
+    /// Return the existing host token or cancellation response.
+    Legacy(McpAuthResult),
+    /// Hand an advertised Refresh request back to its original runtime operation.
+    /// Acceptance is not credential installation or reconnect completion.
+    RuntimeRefresh,
+}
+
+impl McpAuthResponse {
+    pub(crate) fn into_wire_for_request(
+        self,
+        runtime_refresh_supported: bool,
+    ) -> McpOauthPendingRequestResponse {
+        match self {
+            Self::Legacy(result) => result.into_wire(),
+            Self::RuntimeRefresh if !runtime_refresh_supported => {
+                McpAuthResult::Cancelled.into_wire()
+            }
+            Self::RuntimeRefresh => McpOauthPendingRequestResponse::RuntimeRefresh(
+                McpOauthPendingRequestResponseRuntimeRefresh {
+                    kind: McpOauthPendingRequestResponseRuntimeRefreshKind::RuntimeRefresh,
+                },
+            ),
+        }
+    }
+}
+
 /// Handler for MCP server OAuth requests.
 #[async_trait]
 pub trait McpAuthHandler: Send + Sync + 'static {
@@ -292,6 +324,22 @@ pub trait McpAuthHandler: Send + Sync + 'static {
         request_id: RequestId,
         request: McpAuthRequest,
     ) -> McpAuthResult;
+
+    /// Opt in to noninteractive refresh handoff without changing legacy request
+    /// construction or result matching. The default delegates to [`Self::handle`].
+    /// `runtime_refresh_supported` defaults to false when omitted by the runtime.
+    /// Return [`McpAuthResponse::RuntimeRefresh`] only for an advertised Refresh;
+    /// otherwise return [`McpAuthResponse::Legacy`].
+    async fn handle_with_runtime_refresh(
+        &self,
+        session_id: SessionId,
+        request_id: RequestId,
+        request: McpAuthRequest,
+        runtime_refresh_supported: bool,
+    ) -> McpAuthResponse {
+        let _ = runtime_refresh_supported;
+        McpAuthResponse::Legacy(self.handle(session_id, request_id, request).await)
+    }
 }
 
 /// Handler for `user_input.requested` events from the legacy question-and-answer
@@ -381,97 +429,4 @@ impl PermissionHandler for DenyAllHandler {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[tokio::test]
-    async fn approve_all_handler_returns_approved() {
-        let result = ApproveAllHandler
-            .handle(
-                SessionId::from("s1"),
-                RequestId::new("1"),
-                PermissionRequestData::default(),
-            )
-            .await;
-        assert!(matches!(
-            result,
-            PermissionResult::Decision {
-                decision: PermissionDecision::ApproveOnce(_),
-                ..
-            }
-        ));
-    }
-
-    #[tokio::test]
-    async fn approve_all_handler_fails_when_managed_settings_enabled() {
-        let result = ApproveAllHandler
-            .handle(
-                SessionId::from("s1"),
-                RequestId::new("1"),
-                PermissionRequestData {
-                    managed_settings_enabled: true,
-                    ..Default::default()
-                },
-            )
-            .await;
-        assert!(matches!(
-            result,
-            PermissionResult::Decision {
-                decision: PermissionDecision::UserNotAvailable(_),
-                ..
-            }
-        ));
-    }
-
-    #[tokio::test]
-    async fn approve_all_handler_leaves_managed_approval_pending() {
-        let result = ApproveAllHandler
-            .handle(
-                SessionId::from("s1"),
-                RequestId::new("1"),
-                PermissionRequestData {
-                    managed_approval_required: Some(true),
-                    ..Default::default()
-                },
-            )
-            .await;
-        assert!(matches!(result, PermissionResult::NoResult));
-    }
-
-    #[tokio::test]
-    async fn deny_all_handler_returns_denied() {
-        let result = DenyAllHandler
-            .handle(
-                SessionId::from("s1"),
-                RequestId::new("1"),
-                PermissionRequestData::default(),
-            )
-            .await;
-        assert!(matches!(
-            result,
-            PermissionResult::Decision {
-                decision: PermissionDecision::Reject(_),
-                ..
-            }
-        ));
-    }
-
-    #[test]
-    fn mcp_auth_result_token_converts_to_wire_response() {
-        let wire = McpAuthResult::Token {
-            access_token: "host-token".to_string(),
-            token_type: Some("Bearer".to_string()),
-            expires_in: Some(3600),
-        }
-        .into_wire();
-
-        match wire {
-            McpOauthPendingRequestResponse::Token(token) => {
-                assert_eq!(token.access_token, "host-token");
-                assert_eq!(token.token_type.as_deref(), Some("Bearer"));
-                assert_eq!(token.expires_in, Some(3600));
-            }
-            McpOauthPendingRequestResponse::Cancelled(_) => panic!("expected token response"),
-        }
-    }
-}
+mod tests;

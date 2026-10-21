@@ -25,6 +25,40 @@ func TestDisposeUnregistersOutboundTarget(t *testing.T) {
 	}
 }
 
+func TestUiActionsAreSynchronousConnectionScopedAndRejectAfterDisposal(t *testing.T) {
+	configured := false
+	executed := false
+	host := &Host{
+		lib: &ffiLibrary{
+			connectionSetUiThreadHandler: func(connectionID uint32, enabled bool) bool {
+				configured = connectionID == 21 && enabled
+				return configured
+			},
+			connectionRunUiAction: func(connectionID, actionID uint32) bool {
+				executed = connectionID == 21 && actionID == 42
+				return executed
+			},
+			connectionClose: func(_ uint32) bool { return true },
+		},
+		recv:         newReceiveBuffer(),
+		connectionID: 21,
+	}
+	defer host.Dispose()
+	if err := host.ConfigureUiThread(true); err != nil || !configured {
+		t.Fatalf("UI dispatcher was not configured: %v", err)
+	}
+	if err := host.RunUiAction(42); err != nil || !executed {
+		t.Fatalf("UI action did not execute synchronously: %v", err)
+	}
+	if err := host.RunUiAction(43); err == nil {
+		t.Fatal("Expected a rejected native UI action to fail")
+	}
+	host.Dispose()
+	if err := host.RunUiAction(42); err == nil {
+		t.Fatal("Expected a disposed UI connection to fail")
+	}
+}
+
 func TestDisposeRetainsOutboundTargetUntilConnectionCloseSucceeds(t *testing.T) {
 	token := uintptr(nextOutboundToken.Add(1))
 	var allowClose atomic.Bool

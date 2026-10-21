@@ -108,12 +108,16 @@ func TestSession_SendAndWaitMessageSource(t *testing.T) {
 				wantError   string
 			}{
 				{
-					name:   "idle without assistant",
-					events: []SessionEvent{{Data: &SessionIdleData{}}},
+					name: "idle without assistant",
+					events: []SessionEvent{
+						{Data: &UserMessageData{MessageID: ptr("message-1")}},
+						{Data: &SessionIdleData{}},
+					},
 				},
 				{
 					name: "assistant then idle",
 					events: []SessionEvent{
+						{Data: &UserMessageData{MessageID: ptr("message-1")}},
 						{Data: &AssistantMessageData{MessageID: "assistant-1", Content: "done"}},
 						{Data: &SessionIdleData{}},
 					},

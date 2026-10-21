@@ -545,6 +545,7 @@ async fn resumed_canvas_reattaches_and_routes_all_callbacks() {
                     .into_iter()
                     .next()
                     .expect("declared canvas");
+                let mut events = session.subscribe();
                 session
                     .rpc()
                     .canvas()
@@ -556,8 +557,16 @@ async fn resumed_canvas_reattaches_and_routes_all_callbacks() {
                     })
                     .await
                     .expect("open canvas");
+                tokio::time::timeout(Duration::from_secs(10), async {
+                    while session.open_canvases().is_empty() {
+                        events.recv().await.expect("initial canvas opened event");
+                    }
+                })
+                .await
+                .expect("initial canvas snapshot");
                 let snapshots = session.open_canvases();
                 assert_eq!(snapshots.len(), 1);
+                assert_eq!(snapshots[0].instance_id, "counter-resume");
 
                 session.rpc().suspend().await.expect("suspend session");
                 session.stop_event_loop().await;
@@ -642,6 +651,13 @@ async fn resumed_canvas_reattaches_and_routes_all_callbacks() {
                         "close:counter-resume"
                     ]
                 );
+                tokio::time::timeout(Duration::from_secs(10), async {
+                    while !resumed.open_canvases().is_empty() {
+                        events.recv().await.expect("closed canvas event");
+                    }
+                })
+                .await
+                .expect("closed canvas snapshot");
                 assert!(resumed.open_canvases().is_empty());
 
                 resumed

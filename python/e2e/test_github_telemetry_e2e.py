@@ -17,10 +17,13 @@ pytestmark = pytest.mark.asyncio(loop_scope="module")
 
 class TestGitHubTelemetryE2E:
     async def test_should_receive_session_start_github_telemetry(self, ctx: E2ETestContext):
-        received: list[GitHubTelemetryNotification] = []
+        received: asyncio.Future[GitHubTelemetryNotification] = (
+            asyncio.get_running_loop().create_future()
+        )
 
         def on_github_telemetry(notification: GitHubTelemetryNotification) -> None:
-            received.append(notification)
+            if not received.done():
+                received.set_result(notification)
 
         client = CopilotClient(
             connection=RuntimeConnection.for_stdio(path=get_cli_path_for_tests(), args=()),
@@ -37,13 +40,7 @@ class TestGitHubTelemetryE2E:
                 on_permission_request=PermissionHandler.approve_all,
             )
 
-            for _ in range(600):
-                if received:
-                    break
-                await asyncio.sleep(0.05)
-
-            assert received
-            notification = received[0]
+            notification = await asyncio.wait_for(received, timeout=30.0)
             assert isinstance(notification.session_id, str)
             assert notification.session_id
             assert isinstance(notification.restricted, bool)

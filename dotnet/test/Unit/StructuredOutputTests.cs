@@ -13,6 +13,285 @@ namespace GitHub.Copilot.Test.Unit;
 public sealed partial class ClientSessionLifetimeTests
 {
     [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task SendAndWait_Correlates_Errors_Independently_Of_Message_Events(bool structured, bool beforeAck)
+    {
+        foreach (var source in new[] { "user", "assistant", "autopilot", "system", "session-memory-rollover", "marked", "pre-message", "steering" })
+        {
+            await using var server = await FakeCopilotServer.StartAsync();
+            await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+            await using var session = await client.CreateSessionAsync(new SessionConfig());
+            async Task Emit(string messageId)
+            {
+                await server.SendSessionEventAsync(session.SessionId, "assistant.message", new()
+                {
+                    ["messageId"] = "answer",
+                    ["originatingMessageId"] = source == "pre-message" ? "other" : messageId,
+                    ["content"] = """{"ok":true}"""
+                });
+                await server.SendSessionEventAsync(session.SessionId, source == "assistant" ? "assistant.message" : "user.message", new()
+                {
+                    ["messageId"] = "other",
+                    ["originatingMessageId"] = "other",
+                    ["content"] = "other",
+                    ["source"] = source is "steering" or "pre-message" ? "sdk" : source,
+                    ["isAutopilotContinuation"] = source == "marked"
+                });
+                await server.SendSessionEventAsync(session.SessionId, "session.error", new()
+                {
+                    ["errorType"] = "query",
+                    ["message"] = "provider failed",
+                    ["originatingMessageId"] = source is "user" or "assistant" ? "other" : messageId
+                });
+                await server.SendSessionEventAsync(session.SessionId, "session.idle", new());
+            }
+            if (beforeAck) server.BeforeSendResponse = Emit;
+            using var schema = JsonDocument.Parse("""{"type":"object"}""");
+            var waiting = session.SendAndWaitAsync(new MessageOptions
+            {
+                Prompt = "waited",
+                ResponseSchema = structured ? schema.RootElement.Clone() : null
+            }, TimeSpan.FromSeconds(5));
+            if (!beforeAck)
+            {
+                await WaitForRequestAsync(server, "session.send");
+                await Emit("message-1");
+            }
+            if (source is "user" or "assistant")
+                Assert.Equal("""{"ok":true}""", (await waiting)!.Data.Content);
+            else
+                Assert.Contains("provider failed", (await Assert.ThrowsAsync<InvalidOperationException>(() => waiting)).Message);
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SendAndWait_Ignores_Earlier_Successful_Idle(bool beforeAck)
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await using var session = await client.CreateSessionAsync(new SessionConfig());
+        async Task Emit(string messageId)
+        {
+            await server.SendSessionEventAsync(session.SessionId, "assistant.message", new()
+            {
+                ["messageId"] = "previous",
+                ["originatingMessageId"] = "other",
+                ["content"] = "previous"
+            });
+            await server.SendSessionEventAsync(session.SessionId, "session.idle", new());
+            await server.SendSessionEventAsync(session.SessionId, "assistant.message", new()
+            {
+                ["messageId"] = "current",
+                ["originatingMessageId"] = messageId,
+                ["content"] = "current"
+            });
+            await server.SendSessionEventAsync(session.SessionId, "session.idle", new());
+        }
+        if (beforeAck) server.BeforeSendResponse = Emit;
+        var waiting = session.SendAndWaitAsync(new MessageOptions { Prompt = "queued" }, TimeSpan.FromSeconds(5));
+        if (!beforeAck)
+        {
+            await WaitForRequestAsync(server, "session.send");
+            await Emit("message-1");
+        }
+        Assert.Equal("current", (await waiting)!.Data.Content);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task SendAndWait_Correlates_Policy_Blocked_Prompts(bool beforeAck, bool aborted)
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await using var session = await client.CreateSessionAsync(new SessionConfig());
+        async Task Emit(string messageId)
+        {
+            await server.SendSessionEventAsync(session.SessionId, "session.warning", new()
+            {
+                ["warningType"] = "policy_blocked",
+                ["message"] = "Blocked",
+                ["originatingMessageId"] = "other"
+            });
+            await server.SendSessionEventAsync(session.SessionId, "session.warning", new()
+            {
+                ["warningType"] = "policy_blocked",
+                ["message"] = "Blocked",
+                ["originatingMessageId"] = messageId
+            }, agentId: "child");
+            await server.SendSessionEventAsync(session.SessionId, "session.idle", new());
+            await server.SendSessionEventAsync(session.SessionId, "session.warning", new()
+            {
+                ["warningType"] = "policy_blocked",
+                ["message"] = "Blocked",
+                ["originatingMessageId"] = messageId
+            });
+            await server.SendSessionEventAsync(session.SessionId, "session.idle", new() { ["aborted"] = aborted });
+        }
+        if (beforeAck) server.BeforeSendResponse = Emit;
+        var waiting = session.SendAndWaitAsync(new MessageOptions { Prompt = "blocked" }, TimeSpan.FromSeconds(5));
+        if (!beforeAck)
+        {
+            await WaitForRequestAsync(server, "session.send");
+            await Emit("message-1");
+        }
+        if (aborted)
+        {
+            var error = await Assert.ThrowsAsync<InvalidOperationException>(() => waiting);
+            Assert.Contains("aborted", error.Message, StringComparison.OrdinalIgnoreCase);
+        }
+        else Assert.Null(await waiting);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Autopilot_Error_Terminal_Does_Not_Require_Session_Error(bool structured)
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await using var session = await client.CreateSessionAsync(new SessionConfig());
+        using var schema = JsonDocument.Parse("""{"type":"object"}""");
+        var waiting = session.SendAndWaitAsync(new MessageOptions
+        {
+            Prompt = "fail",
+            ResponseSchema = structured ? schema.RootElement.Clone() : null,
+        }, TimeSpan.FromSeconds(5));
+        await WaitForRequestAsync(server, "session.send");
+        await server.SendSessionEventAsync(session.SessionId, "session.autopilot_stopped", new()
+        {
+            ["reason"] = "error",
+            ["requestId"] = "message-1",
+        });
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => waiting.WaitAsync(TimeSpan.FromSeconds(5)));
+        Assert.Equal("Autopilot request failed", error.Message);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Autopilot_Aborted_Terminal_Does_Not_Succeed(bool structured)
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await using var session = await client.CreateSessionAsync(new SessionConfig());
+        using var schema = JsonDocument.Parse("""{"type":"object"}""");
+        var waiting = session.SendAndWaitAsync(new MessageOptions
+        {
+            Prompt = "cancel",
+            ResponseSchema = structured ? schema.RootElement.Clone() : null,
+        }, TimeSpan.FromSeconds(5));
+        await WaitForRequestAsync(server, "session.send");
+        await server.SendSessionEventAsync(session.SessionId, "assistant.message", new()
+        {
+            ["messageId"] = "assistant-1",
+            ["originatingMessageId"] = "message-1",
+            ["content"] = """{"count":42}""",
+        });
+        await server.SendSessionEventAsync(session.SessionId, "session.autopilot_stopped", new()
+        {
+            ["reason"] = "aborted",
+            ["requestId"] = "message-1",
+        });
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => waiting.WaitAsync(TimeSpan.FromSeconds(5)));
+        Assert.Contains("aborted", error.Message.ToLowerInvariant());
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Autopilot_Terminal_Buffers_PreAck_And_Ignores_Unrelated_Requests(bool structured)
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await using var session = await client.CreateSessionAsync(new SessionConfig());
+        server.BeforeSendResponse = async messageId =>
+        {
+            await server.SendSessionEventAsync(session.SessionId, "assistant.message", new()
+            {
+                ["messageId"] = "early",
+                ["originatingMessageId"] = messageId,
+                ["content"] = """{"count":42}""",
+            });
+            await server.SendSessionEventAsync(session.SessionId, "user.message", new()
+            {
+                ["content"] = "Continue",
+                ["messageId"] = "other",
+                ["source"] = "autopilot",
+                ["isAutopilotContinuation"] = true,
+            });
+            foreach (var requestId in new string?[] { "other", null, messageId })
+            {
+                var data = new Dictionary<string, object?> { ["reason"] = "task_complete" };
+                if (requestId is not null) data["requestId"] = requestId;
+                await server.SendSessionEventAsync(session.SessionId, "session.autopilot_stopped", data,
+                    agentId: requestId == messageId ? "child" : null);
+            }
+            await server.SendSessionEventAsync(session.SessionId, "session.idle", new() { ["mode"] = "autopilot" });
+            await server.SendSessionEventAsync(session.SessionId, "assistant.message", new()
+            {
+                ["messageId"] = "final",
+                ["originatingMessageId"] = messageId,
+                ["content"] = """{"count":7}""",
+            });
+            await server.SendSessionEventAsync(session.SessionId, "session.autopilot_stopped", new()
+            {
+                ["reason"] = "task_complete",
+                ["requestId"] = messageId,
+            });
+        };
+        using var schema = JsonDocument.Parse("""{"type":"object"}""");
+        var result = await session.SendAndWaitAsync(new MessageOptions
+        {
+            Prompt = "inventory",
+            ResponseSchema = structured ? schema.RootElement.Clone() : null,
+        }, TimeSpan.FromSeconds(5));
+        Assert.NotNull(result);
+        Assert.Equal("""{"count":7}""", result.Data.Content);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Autopilot_Terminals_Isolate_Concurrent_Waits(bool structured)
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        server.UniqueMessageIds = true;
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await using var session = await client.CreateSessionAsync(new SessionConfig());
+        using var schema = JsonDocument.Parse("""{"type":"object"}""");
+        var options = new MessageOptions { Prompt = "inventory", ResponseSchema = structured ? schema.RootElement.Clone() : null };
+        var first = session.SendAndWaitAsync(options, TimeSpan.FromSeconds(5));
+        await WaitForRequestAsync(server, "session.send");
+        server.ClearRequests();
+        var second = session.SendAndWaitAsync(options, TimeSpan.FromSeconds(5));
+        await WaitForRequestAsync(server, "session.send");
+        foreach (var (id, value) in new[] { ("message-1", "first"), ("message-2", "second") })
+        {
+            await server.SendSessionEventAsync(session.SessionId, "assistant.message", new()
+            {
+                ["messageId"] = Guid.NewGuid().ToString(),
+                ["originatingMessageId"] = id,
+                ["content"] = value,
+            });
+            await server.SendSessionEventAsync(session.SessionId, "session.autopilot_stopped", new()
+            {
+                ["reason"] = "task_complete",
+                ["requestId"] = id,
+            });
+        }
+        Assert.Equal("first", (await first.WaitAsync(TimeSpan.FromSeconds(5)))!.Data.Content);
+        Assert.Equal("second", (await second.WaitAsync(TimeSpan.FromSeconds(5)))!.Data.Content);
+    }
+
+    [Theory]
     [InlineData("session")]
     [InlineData("rpc")]
     [InlineData("batch")]

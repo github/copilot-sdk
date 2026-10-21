@@ -364,43 +364,57 @@ public class CapiProxy implements AutoCloseable {
             return;
         }
 
-        // Send stop request to the server
-        if (proxyUrl != null) {
-            try {
-                String stopUrl = proxyUrl + "/stop";
-                if (skipWritingCache) {
-                    stopUrl += "?skipWritingCache=true";
+        IOException shutdownFailure = null;
+        try {
+            if (proxyUrl != null) {
+                try {
+                    String stopUrl = proxyUrl + "/stop";
+                    if (skipWritingCache) {
+                        stopUrl += "?skipWritingCache=true";
+                    }
+
+                    HttpRequest request = HttpRequest.newBuilder().uri(URI.create(stopUrl))
+                            .POST(HttpRequest.BodyPublishers.noBody()).build();
+
+                    var response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+                    if (response.statusCode() != 200) {
+                        shutdownFailure = new IOException(
+                                "Proxy shutdown failed: HTTP " + response.statusCode() + ": " + response.body());
+                    }
+                } catch (IOException e) {
+                    shutdownFailure = e;
                 }
-
-                HttpRequest request = HttpRequest.newBuilder().uri(URI.create(stopUrl))
-                        .POST(HttpRequest.BodyPublishers.noBody()).build();
-
-                HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
-            } catch (Exception e) {
-                // Best effort - ignore errors
             }
-        }
 
-        // Wait for the process to exit
-        process.waitFor(5, TimeUnit.SECONDS);
-        if (process.isAlive()) {
-            process.destroyForcibly();
-        }
-
-        // Close the stdout reader
-        if (stdoutReader != null) {
-            try {
-                stdoutReader.close();
-            } catch (IOException e) {
-                // Ignore
+            if (!process.waitFor(5, TimeUnit.SECONDS)) {
+                process.destroyForcibly();
+                if (!process.waitFor(5, TimeUnit.SECONDS)) {
+                    shutdownFailure = new IOException("Proxy did not exit after being killed", shutdownFailure);
+                }
             }
-            stdoutReader = null;
+            if (!process.isAlive() && process.exitValue() != 0 && shutdownFailure == null) {
+                shutdownFailure = new IOException("Proxy exited with code " + process.exitValue());
+            }
+        } finally {
+            if (process.isAlive()) {
+                process.destroyForcibly();
+            }
+            if (stdoutReader != null) {
+                try {
+                    stdoutReader.close();
+                } catch (IOException e) {
+                    // The process has already been stopped.
+                }
+                stdoutReader = null;
+            }
+            process = null;
+            proxyUrl = null;
+            connectProxyUrl = null;
+            caFilePath = null;
         }
-
-        process = null;
-        proxyUrl = null;
-        connectProxyUrl = null;
-        caFilePath = null;
+        if (shutdownFailure != null) {
+            throw shutdownFailure;
+        }
     }
 
     /**

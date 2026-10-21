@@ -20,11 +20,30 @@ import java.util.List;
  * @param openCanvases
  *            the canvas instances open for the session, or {@code null} (since
  *            1.0.1)
+ * @param transcriptRecovery
+ *            repair details, or {@code null} if no repair was reported
  * @since 1.0.0
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record ResumeSessionResponse(@JsonProperty("sessionId") String sessionId,
         @JsonProperty("workspacePath") String workspacePath,
         @JsonProperty("capabilities") SessionCapabilities capabilities,
-        @JsonProperty("openCanvases") List<OpenCanvasInstance> openCanvases) {
+        @JsonProperty("openCanvases") List<OpenCanvasInstance> openCanvases,
+        @JsonProperty("transcriptRecovery") TranscriptRecoveryReport transcriptRecovery) {
+    /**
+     * Constructs a response without a transcript recovery report.
+     *
+     * @param sessionId
+     *            the session ID
+     * @param workspacePath
+     *            the workspace path, or {@code null}
+     * @param capabilities
+     *            the host capabilities, or {@code null}
+     * @param openCanvases
+     *            the open canvas instances, or {@code null}
+     */
+    public ResumeSessionResponse(String sessionId, String workspacePath, SessionCapabilities capabilities,
+            List<OpenCanvasInstance> openCanvases) {
+        this(sessionId, workspacePath, capabilities, openCanvases, null);
+    }
 }

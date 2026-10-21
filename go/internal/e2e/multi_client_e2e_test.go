@@ -164,6 +164,7 @@ func TestMultiClientE2E(t *testing.T) {
 		// Track events
 		var client1Events, client2Events []copilot.SessionEvent
 		var mu1, mu2 sync.Mutex
+		requestedSeen, completedSeen := make(chan struct{}, 1), make(chan struct{}, 1)
 		session1.On(func(event copilot.SessionEvent) {
 			mu1.Lock()
 			client1Events = append(client1Events, event)
@@ -173,6 +174,7 @@ func TestMultiClientE2E(t *testing.T) {
 			mu2.Lock()
 			client2Events = append(client2Events, event)
 			mu2.Unlock()
+			signalPermissionEvent(event, requestedSeen, completedSeen)
 		})
 
 		// Send a prompt that triggers a write operation (requires permission)
@@ -200,7 +202,7 @@ func TestMultiClientE2E(t *testing.T) {
 		mu1.Lock()
 		c1PermRequested := filterEventsByType(client1Events, copilot.SessionEventTypePermissionRequested)
 		mu1.Unlock()
-		c2PermRequested := waitForEventsByType(t, &mu2, &client2Events, copilot.SessionEventTypePermissionRequested, 5*time.Second)
+		c2PermRequested := waitForEventsByType(t, requestedSeen, &mu2, &client2Events, copilot.SessionEventTypePermissionRequested, 5*time.Second)
 
 		if len(c1PermRequested) == 0 {
 			t.Errorf("Expected client 1 to see permission.requested events")
@@ -213,7 +215,7 @@ func TestMultiClientE2E(t *testing.T) {
 		mu1.Lock()
 		c1PermCompleted := filterEventsByType(client1Events, copilot.SessionEventTypePermissionCompleted)
 		mu1.Unlock()
-		c2PermCompleted := waitForEventsByType(t, &mu2, &client2Events, copilot.SessionEventTypePermissionCompleted, 5*time.Second)
+		c2PermCompleted := waitForEventsByType(t, completedSeen, &mu2, &client2Events, copilot.SessionEventTypePermissionCompleted, 5*time.Second)
 
 		if len(c1PermCompleted) == 0 {
 			t.Errorf("Expected client 1 to see permission.completed events")
@@ -260,6 +262,7 @@ func TestMultiClientE2E(t *testing.T) {
 
 		var client1Events, client2Events []copilot.SessionEvent
 		var mu1, mu2 sync.Mutex
+		requestedSeen, completedSeen := make(chan struct{}, 1), make(chan struct{}, 1)
 		session1.On(func(event copilot.SessionEvent) {
 			mu1.Lock()
 			client1Events = append(client1Events, event)
@@ -269,6 +272,7 @@ func TestMultiClientE2E(t *testing.T) {
 			mu2.Lock()
 			client2Events = append(client2Events, event)
 			mu2.Unlock()
+			signalPermissionEvent(event, requestedSeen, completedSeen)
 		})
 
 		// Write a test file and ask the agent to edit it
@@ -297,7 +301,7 @@ func TestMultiClientE2E(t *testing.T) {
 		mu1.Lock()
 		c1PermRequested := filterEventsByType(client1Events, copilot.SessionEventTypePermissionRequested)
 		mu1.Unlock()
-		c2PermRequested := waitForEventsByType(t, &mu2, &client2Events, copilot.SessionEventTypePermissionRequested, 5*time.Second)
+		c2PermRequested := waitForEventsByType(t, requestedSeen, &mu2, &client2Events, copilot.SessionEventTypePermissionRequested, 5*time.Second)
 
 		if len(c1PermRequested) == 0 {
 			t.Errorf("Expected client 1 to see permission.requested events")
@@ -310,7 +314,7 @@ func TestMultiClientE2E(t *testing.T) {
 		mu1.Lock()
 		c1PermCompleted := filterEventsByType(client1Events, copilot.SessionEventTypePermissionCompleted)
 		mu1.Unlock()
-		c2PermCompleted := waitForEventsByType(t, &mu2, &client2Events, copilot.SessionEventTypePermissionCompleted, 5*time.Second)
+		c2PermCompleted := waitForEventsByType(t, completedSeen, &mu2, &client2Events, copilot.SessionEventTypePermissionCompleted, 5*time.Second)
 
 		if len(c1PermCompleted) == 0 {
 			t.Errorf("Expected client 1 to see permission.completed events")
@@ -525,19 +529,30 @@ func filterEventsByType(events []copilot.SessionEvent, eventType copilot.Session
 	return filtered
 }
 
-// waitForEventsByType polls the event slice until at least one event of the given type appears
-// or the timeout is reached. This avoids flaky assertions on async event delivery.
-func waitForEventsByType(t *testing.T, mu *sync.Mutex, events *[]copilot.SessionEvent, eventType copilot.SessionEventType, timeout time.Duration) []copilot.SessionEvent {
-	t.Helper()
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		mu.Lock()
-		filtered := filterEventsByType(*events, eventType)
-		mu.Unlock()
-		if len(filtered) > 0 {
-			return filtered
-		}
-		time.Sleep(50 * time.Millisecond)
+func signalPermissionEvent(event copilot.SessionEvent, requested, completed chan<- struct{}) {
+	var ready chan<- struct{}
+	switch event.Type() {
+	case copilot.SessionEventTypePermissionRequested:
+		ready = requested
+	case copilot.SessionEventTypePermissionCompleted:
+		ready = completed
+	default:
+		return
 	}
-	return nil
+	select {
+	case ready <- struct{}{}:
+	default:
+	}
+}
+
+func waitForEventsByType(t *testing.T, ready <-chan struct{}, mu *sync.Mutex, events *[]copilot.SessionEvent, eventType copilot.SessionEventType, timeout time.Duration) []copilot.SessionEvent {
+	t.Helper()
+	select {
+	case <-ready:
+		mu.Lock()
+		defer mu.Unlock()
+		return filterEventsByType(*events, eventType)
+	case <-time.After(timeout):
+		return nil
+	}
 }

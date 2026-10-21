@@ -171,6 +171,12 @@ public interface ICanvasHandler
     /// Handle a non-lifecycle action declared by the canvas.
     /// Default: throws <see cref="CanvasException.NoHandler"/>.
     /// </summary>
+    /// <remarks>
+    /// The returned value is sent to the model as the <c>invoke_canvas_action</c>
+    /// tool result. To return text and images, as tool handlers do, return a
+    /// <see cref="ToolResultObject"/> with <see cref="ToolResultObject.BinaryResultsForLlm"/>;
+    /// any other value is rendered to the model as JSON text.
+    /// </remarks>
     Task<object?> OnActionAsync(CanvasProviderInvokeActionRequest context, CancellationToken cancellationToken);
 }
 

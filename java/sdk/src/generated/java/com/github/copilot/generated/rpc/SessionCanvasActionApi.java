@@ -31,7 +31,7 @@ public final class SessionCanvasActionApi {
     }
 
     /**
-     * Canvas action invocation parameters.
+     * Invokes an action on an open canvas instance.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.

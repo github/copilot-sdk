@@ -4,8 +4,10 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -21,7 +23,7 @@ import (
 // Returns a cleanup function that stops the consumer.
 func newTestSession() (*Session, func()) {
 	s := &Session{
-		handlers:        make([]sessionHandler, 0),
+		handlers:        make([]*sessionHandler, 0),
 		commandHandlers: make(map[string]CommandHandler),
 		eventCh:         make(chan SessionEvent, 128),
 		eventDone:       make(chan struct{}),
@@ -32,6 +34,54 @@ func newTestSession() (*Session, func()) {
 
 func newTestEvent() SessionEvent {
 	return SessionEvent{Data: &SessionIdleData{}}
+}
+
+func TestPermissionHandlerReceivesDerivedPromptContext(t *testing.T) {
+	session := &Session{
+		SessionID:       "session-1",
+		managedSettings: true,
+	}
+	promptRequest := &rpc.PermissionPromptRequestCommands{
+		FullCommandText:         "ls",
+		Intention:               "List files",
+		CommandIdentifiers:      []string{"ls"},
+		CanOfferSessionApproval: false,
+		AssistedApproval: &rpc.PermissionAssistedApproval{
+			Recommendation: rpc.AssistedApprovalRecommendationApprove,
+		},
+	}
+	var observed PermissionHandlerInvocation
+	session.registerPermissionHandlerWithPrompt(func(_ PermissionRequest, invocation PermissionHandlerInvocation) (rpc.PermissionDecision, error) {
+		observed = invocation
+		return &rpc.PermissionDecisionNoResult{}, nil
+	})
+	managedApprovalRequired := true
+
+	session.handleBroadcastEvent(SessionEvent{
+		Data: &PermissionRequestedData{
+			RequestID: "permission-1",
+			PermissionRequest: &rpc.PermissionRequestShell{
+				FullCommandText:         "ls",
+				Intention:               "List files",
+				ManagedApprovalRequired: &managedApprovalRequired,
+			},
+			PromptRequest: promptRequest,
+		},
+	})
+
+	if observed.PromptRequest != promptRequest {
+		t.Fatalf("expected derived prompt context, got %#v", observed.PromptRequest)
+	}
+	if !observed.ManagedSettingsEnabled {
+		t.Fatal("expected managed settings context")
+	}
+}
+
+func TestPermissionInvocationPreservesPositionalFields(t *testing.T) {
+	invocation := PermissionInvocation{"session-1", true}
+	if invocation.SessionID != "session-1" || !invocation.ManagedSettingsEnabled {
+		t.Fatalf("unexpected legacy invocation: %#v", invocation)
+	}
 }
 
 func TestExternalToolCompletedCancelsBlockedHandler(t *testing.T) {
@@ -67,6 +117,68 @@ func TestExternalToolCompletedCancelsBlockedHandler(t *testing.T) {
 	case <-cancelled:
 	case <-time.After(time.Second):
 		t.Fatal("tool handler was not cancelled")
+	}
+}
+
+func TestToolInvocationNamesTheSubAgentAndRequestBehindTheCall(t *testing.T) {
+	session, cleanup := newTestSession()
+	defer cleanup()
+
+	invocations := make(chan ToolInvocation, 3)
+	session.registerTools([]Tool{{
+		Name: "calc",
+		Handler: func(invocation ToolInvocation) (ToolResult, error) {
+			invocations <- invocation
+			<-invocation.TraceContext.Done()
+			return ToolResult{}, invocation.TraceContext.Err()
+		},
+	}})
+
+	session.dispatchEvent(SessionEvent{
+		AgentID: ptr("task-agent-1"),
+		Data: &ExternalToolRequestedData{
+			RequestID:  "req-sub-agent",
+			SessionID:  "session-1",
+			ToolCallID: "tc-sub-agent",
+			ToolName:   "calc",
+		},
+	})
+	defer session.dispatchEvent(SessionEvent{Data: &ExternalToolCompletedData{RequestID: "req-sub-agent"}})
+	session.dispatchEvent(SessionEvent{Data: &ExternalToolRequestedData{
+		RequestID:  "req-root",
+		SessionID:  "session-1",
+		ToolCallID: "tc-root",
+		ToolName:   "calc",
+	}})
+	defer session.dispatchEvent(SessionEvent{Data: &ExternalToolCompletedData{RequestID: "req-root"}})
+	session.dispatchEvent(SessionEvent{
+		AgentID: ptr(""),
+		Data: &ExternalToolRequestedData{
+			RequestID:  "req-blank-agent",
+			SessionID:  "session-1",
+			ToolCallID: "tc-blank-agent",
+			ToolName:   "calc",
+		},
+	})
+	defer session.dispatchEvent(SessionEvent{Data: &ExternalToolCompletedData{RequestID: "req-blank-agent"}})
+
+	got := make(map[string]ToolInvocation)
+	for range 3 {
+		select {
+		case invocation := <-invocations:
+			got[invocation.ToolCallID] = invocation
+		case <-time.After(time.Second):
+			t.Fatal("tool handler did not start")
+		}
+	}
+	if sub := got["tc-sub-agent"]; sub.AgentID != "task-agent-1" || sub.RequestID != "req-sub-agent" {
+		t.Fatalf("sub-agent call: got AgentID %q RequestID %q", sub.AgentID, sub.RequestID)
+	}
+	if root := got["tc-root"]; root.AgentID != "" || root.RequestID != "req-root" {
+		t.Fatalf("root call: got AgentID %q RequestID %q", root.AgentID, root.RequestID)
+	}
+	if blank := got["tc-blank-agent"]; blank.AgentID != "" || blank.RequestID != "req-blank-agent" {
+		t.Fatalf("blank-agent call: got AgentID %q RequestID %q", blank.AgentID, blank.RequestID)
 	}
 }
 
@@ -184,7 +296,349 @@ func TestSession_SetAutoTierSendsExplicitNull(t *testing.T) {
 	}
 }
 
+func TestSession_SetToolsSendsPayloadAndInstallsHandlers(t *testing.T) {
+	session, server := newSetToolsTestSession(t)
+	handler := func(_ ToolInvocation) (ToolResult, error) {
+		return ToolResult{TextResultForLLM: "handled"}, nil
+	}
+	tools := []Tool{
+		{
+			Name:                 "lookup_fruit",
+			Parameters:           map[string]any{"type": "object"},
+			OverridesBuiltInTool: true,
+			SkipPermission:       true,
+			IsTerminal:           true,
+			Defer:                ToolDeferNever,
+			Metadata:             map[string]any{"x-test": "metadata"},
+			Namespace:            &ToolNamespace{Name: "fruit", Description: "Fruit lookups"},
+			Handler:              handler,
+		},
+		{
+			Name:        "declaration_only",
+			Description: "No handler",
+		},
+	}
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- session.SetTools(context.Background(), tools)
+	}()
+
+	request := server.expectRequest(t, "session.tools.set")
+	if request.Params["sessionId"] != "session-1" {
+		t.Fatalf("sessionId = %v, want session-1", request.Params["sessionId"])
+	}
+	wireTools, ok := request.Params["tools"].([]any)
+	if !ok || len(wireTools) != 2 {
+		t.Fatalf("tools = %#v, want two tools", request.Params["tools"])
+	}
+	first, ok := wireTools[0].(map[string]any)
+	if !ok {
+		t.Fatalf("first tool = %#v, want object", wireTools[0])
+	}
+	if first["name"] != "lookup_fruit" {
+		t.Fatalf("name = %v, want lookup_fruit", first["name"])
+	}
+	if description, ok := first["description"].(string); !ok || description != "" {
+		t.Fatalf("description = %#v, want empty string", first["description"])
+	}
+	for _, key := range []string{"overridesBuiltInTool", "skipPermission", "isTerminal"} {
+		if first[key] != true {
+			t.Fatalf("%s = %v, want true", key, first[key])
+		}
+	}
+	if first["defer"] != "never" {
+		t.Fatalf("defer = %v, want never", first["defer"])
+	}
+	if _, ok := first["parameters"].(map[string]any); !ok {
+		t.Fatalf("parameters = %#v, want object", first["parameters"])
+	}
+	if _, ok := first["metadata"].(map[string]any); !ok {
+		t.Fatalf("metadata = %#v, want object", first["metadata"])
+	}
+	namespace, ok := first["namespace"].(map[string]any)
+	if !ok || namespace["name"] != "fruit" || namespace["description"] != "Fruit lookups" {
+		t.Fatalf("namespace = %#v, want fruit namespace with description", first["namespace"])
+	}
+	second, ok := wireTools[1].(map[string]any)
+	if !ok {
+		t.Fatalf("second tool = %#v, want object", wireTools[1])
+	}
+	if _, ok := second["namespace"]; ok {
+		t.Fatalf("namespace = %#v, want omitted", second["namespace"])
+	}
+
+	server.respond(t, request.ID, map[string]any{})
+	if err := awaitSetTools(t, errCh); err != nil {
+		t.Fatalf("SetTools failed: %v", err)
+	}
+	if got, ok := session.getToolHandler("lookup_fruit"); !ok || got == nil {
+		t.Fatal("lookup_fruit handler was not installed")
+	}
+	if _, ok := session.getToolHandler("declaration_only"); ok {
+		t.Fatal("declaration-only tool installed a handler")
+	}
+}
+
+func TestSession_SetToolsSwitchesHandlersAfterAccepted(t *testing.T) {
+	session, server := newSetToolsTestSession(t)
+	oldHandler := func(_ ToolInvocation) (ToolResult, error) {
+		return ToolResult{TextResultForLLM: "old"}, nil
+	}
+	newHandler := func(_ ToolInvocation) (ToolResult, error) {
+		return ToolResult{TextResultForLLM: "new"}, nil
+	}
+	session.registerTools([]Tool{{Name: "lookup", Handler: oldHandler}})
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- session.SetTools(context.Background(), []Tool{{Name: "lookup", Handler: newHandler}})
+	}()
+	request := server.expectRequest(t, "session.tools.set")
+
+	handler, ok := session.getToolHandler("lookup")
+	if !ok {
+		t.Fatal("lookup handler missing while replacement RPC is pending")
+	}
+	result, err := handler(ToolInvocation{})
+	if err != nil || result.TextResultForLLM != "old" {
+		t.Fatalf("pending replacement used %q, %v; want old handler", result.TextResultForLLM, err)
+	}
+
+	server.respond(t, request.ID, map[string]any{})
+	if err := awaitSetTools(t, errCh); err != nil {
+		t.Fatalf("SetTools failed: %v", err)
+	}
+	handler, ok = session.getToolHandler("lookup")
+	if !ok {
+		t.Fatal("lookup handler missing after accepted replacement")
+	}
+	result, err = handler(ToolInvocation{})
+	if err != nil || result.TextResultForLLM != "new" {
+		t.Fatalf("accepted replacement used %q, %v; want new handler", result.TextResultForLLM, err)
+	}
+}
+
+func TestSession_SetToolsRunningCallsFinishOnOriginalHandler(t *testing.T) {
+	session, server := newSetToolsTestSession(t)
+	started := make(chan struct{})
+	release := make(chan struct{})
+	oldHandler := func(_ ToolInvocation) (ToolResult, error) {
+		close(started)
+		<-release
+		return ToolResult{TextResultForLLM: "old"}, nil
+	}
+	newHandler := func(_ ToolInvocation) (ToolResult, error) {
+		return ToolResult{TextResultForLLM: "new"}, nil
+	}
+	session.registerTools([]Tool{{Name: "lookup", Handler: oldHandler}})
+	session.startExternalTool(&ExternalToolRequestedData{
+		RequestID:  "request-1",
+		SessionID:  "session-1",
+		ToolCallID: "tool-call-1",
+		ToolName:   "lookup",
+	}, "")
+	select {
+	case <-started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("tool handler did not start")
+	}
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- session.SetTools(context.Background(), []Tool{{Name: "lookup", Handler: newHandler}})
+	}()
+	request := server.expectRequest(t, "session.tools.set")
+	server.respond(t, request.ID, map[string]any{})
+	if err := awaitSetTools(t, errCh); err != nil {
+		t.Fatalf("SetTools failed: %v", err)
+	}
+	close(release)
+
+	completion := server.expectRequest(t, "session.tools.handlePendingToolCall")
+	result, ok := completion.Params["result"].(map[string]any)
+	if !ok {
+		t.Fatalf("completion result = %#v, want object", completion.Params["result"])
+	}
+	if result["textResultForLlm"] != "old" {
+		t.Fatalf("completion result = %#v, want old handler result", result)
+	}
+	server.respond(t, completion.ID, map[string]any{})
+}
+
+func TestSession_SetToolsRejectionLeavesHandlersUnchanged(t *testing.T) {
+	session, server := newSetToolsTestSession(t)
+	oldHandler := func(_ ToolInvocation) (ToolResult, error) {
+		return ToolResult{TextResultForLLM: "old"}, nil
+	}
+	newHandler := func(_ ToolInvocation) (ToolResult, error) {
+		return ToolResult{TextResultForLLM: "new"}, nil
+	}
+	session.registerTools([]Tool{{Name: "lookup", Handler: oldHandler}})
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- session.SetTools(context.Background(), []Tool{{Name: "lookup", Handler: newHandler}})
+	}()
+	request := server.expectRequest(t, "session.tools.set")
+	server.respondError(t, request.ID, -32602, "invalid tool name")
+	if err := awaitSetTools(t, errCh); err == nil {
+		t.Fatal("SetTools succeeded; want rejection error")
+	}
+
+	handler, ok := session.getToolHandler("lookup")
+	if !ok {
+		t.Fatal("lookup handler missing after rejected replacement")
+	}
+	result, err := handler(ToolInvocation{})
+	if err != nil || result.TextResultForLLM != "old" {
+		t.Fatalf("rejected replacement used %q, %v; want old handler", result.TextResultForLLM, err)
+	}
+}
+
+func TestSession_SetToolsEmptySetRemovesHandlers(t *testing.T) {
+	session, server := newSetToolsTestSession(t)
+	session.registerTools([]Tool{{Name: "lookup", Handler: func(_ ToolInvocation) (ToolResult, error) {
+		return ToolResult{TextResultForLLM: "old"}, nil
+	}}})
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- session.SetTools(context.Background(), []Tool{})
+	}()
+	request := server.expectRequest(t, "session.tools.set")
+	wireTools, ok := request.Params["tools"].([]any)
+	if !ok || len(wireTools) != 0 {
+		t.Fatalf("tools = %#v, want empty list", request.Params["tools"])
+	}
+	server.respond(t, request.ID, map[string]any{})
+	if err := awaitSetTools(t, errCh); err != nil {
+		t.Fatalf("SetTools failed: %v", err)
+	}
+	if _, ok := session.getToolHandler("lookup"); ok {
+		t.Fatal("handler remained after empty replacement")
+	}
+}
+
+func TestSession_SetToolsConcurrentCallsAreSerialized(t *testing.T) {
+	session, server := newSetToolsTestSession(t)
+
+	firstErr := make(chan error, 1)
+	go func() {
+		firstErr <- session.SetTools(context.Background(), []Tool{{Name: "first", Handler: func(_ ToolInvocation) (ToolResult, error) {
+			return ToolResult{}, nil
+		}}})
+	}()
+	first := server.expectRequest(t, "session.tools.set")
+
+	secondErr := make(chan error, 1)
+	go func() {
+		secondErr <- session.SetTools(context.Background(), []Tool{{Name: "second", Handler: func(_ ToolInvocation) (ToolResult, error) {
+			return ToolResult{}, nil
+		}}})
+	}()
+
+	server.expectNoRequest(t)
+	server.respondError(t, first.ID, -32602, "first rejected")
+	if err := awaitSetTools(t, firstErr); err == nil {
+		t.Fatal("first SetTools succeeded; want rejection error")
+	}
+
+	second := server.expectRequest(t, "session.tools.set")
+	server.respond(t, second.ID, map[string]any{})
+	if err := awaitSetTools(t, secondErr); err != nil {
+		t.Fatalf("second SetTools failed: %v", err)
+	}
+	if _, ok := session.getToolHandler("first"); ok {
+		t.Fatal("first handler installed after rejected replacement")
+	}
+	if _, ok := session.getToolHandler("second"); !ok {
+		t.Fatal("second handler was not installed after earlier rejection")
+	}
+}
+
+func TestSession_SetToolsCancelledAfterSendStillInstallsAcceptedHandlers(t *testing.T) {
+	session, server := newSetToolsTestSession(t)
+	oldHandler := func(_ ToolInvocation) (ToolResult, error) {
+		return ToolResult{TextResultForLLM: "old"}, nil
+	}
+	newHandler := func(_ ToolInvocation) (ToolResult, error) {
+		return ToolResult{TextResultForLLM: "new"}, nil
+	}
+	session.registerTools([]Tool{{Name: "lookup", Handler: oldHandler}})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- session.SetTools(ctx, []Tool{{Name: "lookup", Handler: newHandler}})
+	}()
+	request := server.expectRequest(t, "session.tools.set")
+	cancel()
+	if err := awaitSetTools(t, errCh); !errors.Is(err, context.Canceled) {
+		t.Fatalf("SetTools error = %v, want context.Canceled", err)
+	}
+	handler, ok := session.getToolHandler("lookup")
+	if !ok {
+		t.Fatal("lookup handler missing before accepted replacement resolves")
+	}
+	result, err := handler(ToolInvocation{})
+	if err != nil || result.TextResultForLLM != "old" {
+		t.Fatalf("cancelled pending replacement used %q, %v; want old handler", result.TextResultForLLM, err)
+	}
+
+	server.respond(t, request.ID, map[string]any{})
+	waitForToolHandlerResult(t, session, "lookup", "new")
+}
+
+func TestSession_SetToolsAlreadyCancelledWhileBlockedDoesNotSend(t *testing.T) {
+	session, server := newSetToolsTestSession(t)
+	firstErr := make(chan error, 1)
+	go func() {
+		firstErr <- session.SetTools(context.Background(), []Tool{{Name: "first", Handler: func(_ ToolInvocation) (ToolResult, error) {
+			return ToolResult{}, nil
+		}}})
+	}()
+	first := server.expectRequest(t, "session.tools.set")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	secondErr := make(chan error, 1)
+	go func() {
+		secondErr <- session.SetTools(ctx, []Tool{{Name: "second", Handler: func(_ ToolInvocation) (ToolResult, error) {
+			return ToolResult{}, nil
+		}}})
+	}()
+	cancel()
+	if err := awaitSetTools(t, secondErr); !errors.Is(err, context.Canceled) {
+		t.Fatalf("blocked SetTools error = %v, want context.Canceled", err)
+	}
+	server.expectNoRequest(t)
+
+	server.respond(t, first.ID, map[string]any{})
+	if err := awaitSetTools(t, firstErr); err != nil {
+		t.Fatalf("first SetTools failed: %v", err)
+	}
+	server.expectNoRequest(t)
+	if _, ok := session.getToolHandler("second"); ok {
+		t.Fatal("cancelled blocked replacement installed a handler")
+	}
+}
+
 func TestSession_MCPAuthRequestSendsHostToken(t *testing.T) {
+	testSessionMCPAuthRequestResponse(t, false)
+}
+
+func TestSession_MCPAuthRequestSendsRuntimeRefresh(t *testing.T) {
+	testSessionMCPAuthRequestResponse(t, true)
+}
+
+func testSessionMCPAuthRequestResponse(t *testing.T, runtimeRefresh bool) {
+	t.Helper()
+	reason := rpc.MCPOauthRequestReasonInitial
+	var supported *bool
+	if runtimeRefresh {
+		reason = rpc.MCPOauthRequestReasonRefresh
+		supported = &runtimeRefresh
+	}
 	stdinR, stdinW := io.Pipe()
 	stdoutR, stdoutW := io.Pipe()
 	defer stdinR.Close()
@@ -243,13 +697,18 @@ func TestSession_MCPAuthRequestSendsHostToken(t *testing.T) {
 		RPC:       rpc.NewSessionRPC(client, "session-1"),
 	}
 	var observedRequest MCPAuthRequest
-	session.registerMCPAuthHandler(func(request MCPAuthRequest, invocation MCPAuthInvocation) (*MCPAuthResult, error) {
+	var observedCapability bool
+	session.registerMCPAuthHandlers(nil, func(request MCPAuthRequest, invocation MCPAuthInvocation, runtimeRefreshSupported bool) (*MCPAuthResult, error) {
 		observedRequest = request
+		observedCapability = runtimeRefreshSupported
 		if invocation.SessionID != "session-1" {
 			t.Fatalf("expected invocation session-1, got %s", invocation.SessionID)
 		}
 		if request.RequestID != "oauth-request" {
 			t.Fatalf("expected oauth-request, got %s", request.RequestID)
+		}
+		if runtimeRefreshSupported {
+			return MCPAuthResultRuntimeRefresh(), nil
 		}
 		tokenType := "Bearer"
 		return MCPAuthResultToken(&MCPAuthToken{
@@ -265,11 +724,12 @@ func TestSession_MCPAuthRequestSendsHostToken(t *testing.T) {
 	scope := "configured.read"
 	session.handleBroadcastEvent(SessionEvent{
 		Data: &MCPOauthRequiredData{
-			RequestID:        "oauth-request",
-			Reason:           rpc.MCPOauthRequestReasonInitial,
-			ServerName:       "oauth-server",
-			ServerURL:        "https://example.com/mcp",
-			ResourceMetadata: &resourceMetadata,
+			RequestID:               "oauth-request",
+			Reason:                  reason,
+			RuntimeRefreshSupported: supported,
+			ServerName:              "oauth-server",
+			ServerURL:               "https://example.com/mcp",
+			ResourceMetadata:        &resourceMetadata,
 			StaticClientConfig: &MCPOauthRequiredStaticClientConfig{
 				ClientID:     "static-client",
 				ClientSecret: &clientSecret,
@@ -285,8 +745,11 @@ func TestSession_MCPAuthRequestSendsHostToken(t *testing.T) {
 	if observedRequest.ResourceMetadata == nil || *observedRequest.ResourceMetadata != `{"resource":"https://example.com/mcp"}` {
 		t.Fatalf("expected resource metadata to be propagated, got %#v", observedRequest.ResourceMetadata)
 	}
-	if observedRequest.Reason != MCPOauthRequestReasonInitial {
-		t.Fatalf("expected initial reason, got %q", observedRequest.Reason)
+	if observedRequest.Reason != reason {
+		t.Fatalf("expected reason %q, got %q", reason, observedRequest.Reason)
+	}
+	if observedCapability != runtimeRefresh {
+		t.Fatalf("expected runtimeRefreshSupported %v, got %v", runtimeRefresh, observedCapability)
 	}
 	if observedRequest.WwwAuthenticateParams == nil {
 		t.Fatal("expected WWW-Authenticate params to be propagated")
@@ -316,6 +779,12 @@ func TestSession_MCPAuthRequestSendsHostToken(t *testing.T) {
 		if !ok {
 			t.Fatalf("expected result object, got %T", params["result"])
 		}
+		if runtimeRefresh {
+			if result["kind"] != "runtimeRefresh" || len(result) != 1 {
+				t.Fatalf("expected token-free runtimeRefresh result, got %v", result)
+			}
+			return
+		}
 		if result["kind"] != "token" {
 			t.Fatalf("expected token kind, got %v", result["kind"])
 		}
@@ -330,6 +799,226 @@ func TestSession_MCPAuthRequestSendsHostToken(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("timed out waiting for MCP OAuth request")
 	}
+}
+
+func TestSession_MCPAuthRuntimeRefreshRequiresCapability(t *testing.T) {
+	supported := true
+	unsupported := false
+	tokenType := "Bearer"
+	tests := []struct {
+		name      string
+		supported *bool
+		result    *MCPAuthResult
+		expected  map[string]any
+	}{
+		{
+			name:     "missing capability sends cancelled",
+			result:   MCPAuthResultRuntimeRefresh(),
+			expected: map[string]any{"kind": "cancelled"},
+		},
+		{
+			name:      "false capability sends cancelled",
+			supported: &unsupported,
+			result:    MCPAuthResultRuntimeRefresh(),
+			expected:  map[string]any{"kind": "cancelled"},
+		},
+		{
+			name:      "token takes precedence over runtime refresh",
+			supported: &supported,
+			result: &MCPAuthResult{
+				Kind:  MCPAuthResultKindRuntimeRefresh,
+				Token: &MCPAuthToken{AccessToken: "host-token", TokenType: &tokenType},
+			},
+			expected: map[string]any{"kind": "token", "accessToken": "host-token", "tokenType": "Bearer"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := captureMCPAuthPendingResult(t, &MCPOauthRequiredData{
+				RequestID:               "oauth-request",
+				Reason:                  rpc.MCPOauthRequestReasonRefresh,
+				RuntimeRefreshSupported: tt.supported,
+				ServerName:              "oauth-server",
+				ServerURL:               "https://example.com/mcp",
+			}, func(MCPAuthRequest, MCPAuthInvocation) (*MCPAuthResult, error) {
+				return tt.result, nil
+			}, nil)
+			if !reflect.DeepEqual(result, tt.expected) {
+				t.Fatalf("expected result %v, got %v", tt.expected, result)
+			}
+		})
+	}
+}
+
+func TestMCPAuthLegacySourceCompatibility(t *testing.T) {
+	request := MCPAuthRequest{"request", "server", "https://example.com/mcp", MCPOauthRequestReasonRefresh, nil, nil, nil}
+	invocation := MCPAuthInvocation{"session"}
+	handler := MCPAuthHandler(func(request MCPAuthRequest, invocation MCPAuthInvocation) (*MCPAuthResult, error) {
+		return MCPAuthResultCancelled(), nil
+	})
+	client := &Client{}
+	var _ interface {
+		CreateSession(context.Context, *SessionConfig) (*Session, error)
+		ResumeSession(context.Context, string, *ResumeSessionConfig) (*Session, error)
+		ResumeSessionWithOptions(context.Context, string, *ResumeSessionConfig) (*Session, error)
+	} = client
+	if request.RequestID != "request" || invocation.SessionID != "session" || handler == nil {
+		t.Fatal("legacy MCP auth construction or client signatures changed")
+	}
+}
+
+func TestSession_MCPAuthPrecedenceCapabilityTruthTable(t *testing.T) {
+	supported, unsupported := true, false
+	for _, capability := range []*bool{nil, &unsupported, &supported} {
+		for _, response := range []string{"runtimeRefresh", "token", "cancelled", "cancelled_with_token", "handoff_with_empty_token"} {
+			t.Run(fmt.Sprintf("%v/%s", capability, response), func(t *testing.T) {
+				expected := map[string]any{"kind": "cancelled"}
+				result := MCPAuthResultRuntimeRefresh()
+				switch response {
+				case "token":
+					result.Token = &MCPAuthToken{AccessToken: "host-token"}
+					expected = map[string]any{"kind": "token", "accessToken": "host-token"}
+				case "cancelled":
+					result = MCPAuthResultCancelled()
+				case "cancelled_with_token":
+					result = MCPAuthResultCancelled()
+					result.Token = &MCPAuthToken{AccessToken: "host-token"}
+				case "handoff_with_empty_token":
+					result.Token = &MCPAuthToken{}
+					if capability != nil && *capability {
+						expected = map[string]any{"kind": "runtimeRefresh"}
+					}
+				case "runtimeRefresh":
+					if capability != nil && *capability {
+						expected = map[string]any{"kind": "runtimeRefresh"}
+					}
+				}
+				actual := captureMCPAuthPendingResult(t, &MCPOauthRequiredData{
+					RequestID: "oauth-request", Reason: rpc.MCPOauthRequestReasonRefresh,
+					RuntimeRefreshSupported: capability,
+					ServerName:              "oauth-server", ServerURL: "https://example.com/mcp",
+				}, func(MCPAuthRequest, MCPAuthInvocation) (*MCPAuthResult, error) {
+					return result, nil
+				}, nil)
+				if !reflect.DeepEqual(actual, expected) {
+					t.Fatalf("expected result %v, got %v", expected, actual)
+				}
+			})
+		}
+	}
+}
+
+func TestSession_OptInMCPAuthPrecedenceCapabilityTruthTable(t *testing.T) {
+	for _, capability := range []*bool{Bool(true), Bool(false), nil} {
+		for _, result := range []*MCPAuthResult{
+			MCPAuthResultRuntimeRefresh(),
+			{Kind: MCPAuthResultKindRuntimeRefresh, Token: &MCPAuthToken{}},
+			{Kind: MCPAuthResultKindRuntimeRefresh, Token: &MCPAuthToken{AccessToken: "host-token"}},
+			MCPAuthResultCancelled(),
+			{Kind: MCPAuthResultKindCancelled, Token: &MCPAuthToken{AccessToken: "host-token"}},
+		} {
+			name := fmt.Sprintf("capability=%v kind=%s token=%v", capability != nil && *capability, result.Kind, result.Token)
+			if capability == nil {
+				name = "missing " + name
+			}
+			t.Run(name, func(t *testing.T) {
+				actual := captureMCPAuthPendingResult(t, &MCPOauthRequiredData{
+					RequestID: "request", Reason: rpc.MCPOauthRequestReasonRefresh, RuntimeRefreshSupported: capability,
+				}, nil, func(request MCPAuthRequest, invocation MCPAuthInvocation, supported bool) (*MCPAuthResult, error) {
+					if supported != (capability != nil && *capability) {
+						t.Errorf("handler capability=%v, want %v", supported, capability != nil && *capability)
+					}
+					return result, nil
+				})
+				expected := "cancelled"
+				if result.Kind != MCPAuthResultKindCancelled {
+					if result.Token != nil && result.Token.AccessToken != "" {
+						expected = "token"
+					} else if capability != nil && *capability {
+						expected = "runtimeRefresh"
+					}
+				}
+				if actual["kind"] != expected {
+					t.Fatalf("expected %s, got %+v", expected, actual)
+				}
+			})
+		}
+	}
+}
+
+func captureMCPAuthPendingResult(t *testing.T, data *MCPOauthRequiredData, handler MCPAuthHandler, refreshHandler MCPAuthRuntimeRefreshHandler) map[string]any {
+	t.Helper()
+	stdinR, stdinW := io.Pipe()
+	stdoutR, stdoutW := io.Pipe()
+	defer stdinR.Close()
+	defer stdinW.Close()
+	defer stdoutR.Close()
+	defer stdoutW.Close()
+
+	client := jsonrpc2.NewClient(stdinW, stdoutR)
+	client.Start()
+	defer client.Stop()
+
+	paramsCh := make(chan map[string]any, 1)
+	errCh := make(chan error, 1)
+	go func() {
+		frame, err := readTestJSONRPCFrame(stdinR)
+		if err != nil {
+			errCh <- err
+			return
+		}
+		var request struct {
+			ID     json.RawMessage `json:"id"`
+			Method string          `json:"method"`
+			Params map[string]any  `json:"params"`
+		}
+		if err := json.Unmarshal(frame, &request); err != nil {
+			errCh <- err
+			return
+		}
+		if request.Method != "session.mcp.oauth.handlePendingRequest" {
+			errCh <- fmt.Errorf("expected session.mcp.oauth.handlePendingRequest, got %s", request.Method)
+			return
+		}
+		paramsCh <- request.Params
+		response, err := json.Marshal(map[string]any{
+			"jsonrpc": "2.0",
+			"id":      json.RawMessage(request.ID),
+			"result":  map[string]any{"success": true},
+		})
+		if err != nil {
+			errCh <- err
+			return
+		}
+		if _, err := fmt.Fprintf(stdoutW, "Content-Length: %d\r\n\r\n%s", len(response), response); err != nil {
+			errCh <- err
+		}
+	}()
+
+	session := &Session{
+		SessionID: "session-1",
+		client:    client,
+		RPC:       rpc.NewSessionRPC(client, "session-1"),
+	}
+	session.registerMCPAuthHandlers(handler, refreshHandler)
+	session.handleBroadcastEvent(SessionEvent{Data: data})
+
+	select {
+	case params := <-paramsCh:
+		if params["requestId"] != data.RequestID {
+			t.Fatalf("expected requestId %s, got %v", data.RequestID, params["requestId"])
+		}
+		result, ok := params["result"].(map[string]any)
+		if !ok {
+			t.Fatalf("expected result object, got %T", params["result"])
+		}
+		return result
+	case err := <-errCh:
+		t.Fatal(err)
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for MCP OAuth response")
+	}
+	return nil
 }
 
 func TestMCPAuthRequestAllowsMissingOptionalMetadata(t *testing.T) {
@@ -521,6 +1210,169 @@ func readTestJSONRPCFrame(r io.Reader) ([]byte, error) {
 	return data, err
 }
 
+type setToolsJSONRPCRequest struct {
+	ID     json.RawMessage `json:"id"`
+	Method string          `json:"method"`
+	Params map[string]any  `json:"params"`
+}
+
+type setToolsTestServer struct {
+	stdinR  *io.PipeReader
+	stdinW  *io.PipeWriter
+	stdoutR *io.PipeReader
+	stdoutW *io.PipeWriter
+	client  *jsonrpc2.Client
+	mu      sync.Mutex
+	request chan setToolsJSONRPCRequest
+	errs    chan error
+}
+
+func newSetToolsTestSession(t *testing.T) (*Session, *setToolsTestServer) {
+	t.Helper()
+
+	stdinR, stdinW := io.Pipe()
+	stdoutR, stdoutW := io.Pipe()
+	client := jsonrpc2.NewClient(stdinW, stdoutR)
+	client.Start()
+
+	server := &setToolsTestServer{
+		stdinR:  stdinR,
+		stdinW:  stdinW,
+		stdoutR: stdoutR,
+		stdoutW: stdoutW,
+		client:  client,
+		request: make(chan setToolsJSONRPCRequest, 16),
+		errs:    make(chan error, 1),
+	}
+	go server.readRequests()
+	t.Cleanup(func() {
+		client.Stop()
+		stdinR.Close()
+		stdinW.Close()
+		stdoutR.Close()
+		stdoutW.Close()
+	})
+
+	session := &Session{
+		SessionID:    "session-1",
+		client:       client,
+		toolHandlers: make(map[string]ToolHandler),
+		RPC:          rpc.NewSessionRPC(client, "session-1"),
+	}
+	return session, server
+}
+
+func (s *setToolsTestServer) readRequests() {
+	for {
+		frame, err := readTestJSONRPCFrame(s.stdinR)
+		if err != nil {
+			return
+		}
+
+		var request setToolsJSONRPCRequest
+		if err := json.Unmarshal(frame, &request); err != nil {
+			select {
+			case s.errs <- err:
+			default:
+			}
+			return
+		}
+		s.request <- request
+	}
+}
+
+func (s *setToolsTestServer) expectRequest(t *testing.T, method string) setToolsJSONRPCRequest {
+	t.Helper()
+	select {
+	case request := <-s.request:
+		if request.Method != method {
+			t.Fatalf("method = %s, want %s", request.Method, method)
+		}
+		return request
+	case err := <-s.errs:
+		t.Fatal(err)
+	case <-time.After(2 * time.Second):
+		t.Fatalf("timed out waiting for %s request", method)
+	}
+	return setToolsJSONRPCRequest{}
+}
+
+func (s *setToolsTestServer) expectNoRequest(t *testing.T) {
+	t.Helper()
+	select {
+	case request := <-s.request:
+		t.Fatalf("unexpected request while replacement should be blocked: %s", request.Method)
+	case err := <-s.errs:
+		t.Fatal(err)
+	case <-time.After(100 * time.Millisecond):
+	}
+}
+
+func (s *setToolsTestServer) respond(t *testing.T, id json.RawMessage, result any) {
+	t.Helper()
+	s.writeResponse(t, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      id,
+		"result":  result,
+	})
+}
+
+func (s *setToolsTestServer) respondError(t *testing.T, id json.RawMessage, code int, message string) {
+	t.Helper()
+	s.writeResponse(t, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      id,
+		"error": map[string]any{
+			"code":    code,
+			"message": message,
+		},
+	})
+}
+
+func (s *setToolsTestServer) writeResponse(t *testing.T, response map[string]any) {
+	t.Helper()
+	data, err := json.Marshal(response)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, err := fmt.Fprintf(s.stdoutW, "Content-Length: %d\r\n\r\n%s", len(data), data); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func awaitSetTools(t *testing.T, errCh <-chan error) error {
+	t.Helper()
+	select {
+	case err := <-errCh:
+		return err
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for SetTools")
+	}
+	return nil
+}
+
+func waitForToolHandlerResult(t *testing.T, session *Session, name, want string) {
+	t.Helper()
+	deadline := time.After(2 * time.Second)
+	for {
+		handler, ok := session.getToolHandler(name)
+		if ok {
+			result, err := handler(ToolInvocation{})
+			if err == nil && result.TextResultForLLM == want {
+				return
+			}
+		}
+		select {
+		case <-deadline:
+			t.Fatalf("timed out waiting for %s handler to return %q", name, want)
+		default:
+			time.Sleep(time.Millisecond)
+		}
+	}
+}
+
 func TestSession_SendAndWaitSkipsSubagentAndAutopilotContinuationIdle(t *testing.T) {
 	t.Run("with root reply", func(t *testing.T) {
 		checkSendAndWaitSkipsSubagentAndAutopilotContinuationIdle(t, true)
@@ -585,7 +1437,7 @@ func checkSendAndWaitSkipsSubagentAndAutopilotContinuationIdle(t *testing.T, roo
 		SessionID: "session-1",
 		client:    client,
 		RPC:       rpc.NewSessionRPC(client, "session-1"),
-		handlers:  make([]sessionHandler, 0),
+		handlers:  make([]*sessionHandler, 0),
 		eventCh:   make(chan SessionEvent, 8),
 		eventDone: make(chan struct{}),
 	}
@@ -609,6 +1461,10 @@ func checkSendAndWaitSkipsSubagentAndAutopilotContinuationIdle(t *testing.T, roo
 	case <-time.After(2 * time.Second):
 		t.Fatal("timed out waiting for session.send request")
 	}
+	session.dispatchEvent(SessionEvent{Data: &UserMessageData{
+		Content:   "keep going",
+		MessageID: ptr("message-1"),
+	}})
 
 	continuationIdleProcessed := make(chan struct{})
 	childMessageProcessed := make(chan struct{})
@@ -1442,6 +2298,116 @@ func TestSession_PostToolUseFailureHook(t *testing.T) {
 			t.Errorf("expected nil output, got %v", output)
 		}
 	})
+}
+
+func TestSession_UserPromptSubmittedHookBlocks(t *testing.T) {
+	cases := []struct {
+		name   string
+		output *UserPromptSubmittedHookOutput
+		want   string
+	}{
+		{
+			"block with a reason",
+			&UserPromptSubmittedHookOutput{Decision: "block", Reason: "Prompts may not mention launch codes."},
+			`{"decision":"block","reason":"Prompts may not mention launch codes."}`,
+		},
+		{"no decision", &UserPromptSubmittedHookOutput{AdditionalContext: "Be brief."}, `{"additionalContext":"Be brief."}`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			session, cleanup := newTestSession()
+			defer cleanup()
+			session.registerHooks(&SessionHooks{
+				OnUserPromptSubmitted: func(UserPromptSubmittedHookInput, HookInvocation) (*UserPromptSubmittedHookOutput, error) {
+					return tc.output, nil
+				},
+			})
+
+			raw := json.RawMessage(`{"sessionId": "sess-1", "timestamp": 1700000000, "cwd": "/work", "prompt": "Hi"}`)
+			output, err := session.handleHooksInvoke("userPromptSubmitted", raw)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			encoded, err := json.Marshal(output)
+			if err != nil {
+				t.Fatalf("marshal output: %v", err)
+			}
+			if string(encoded) != tc.want {
+				t.Errorf("expected output %s, got %s", tc.want, encoded)
+			}
+		})
+	}
+}
+
+func TestSession_ErrorHooksDecodeCliErrorObject(t *testing.T) {
+	cases := []struct {
+		name  string
+		error string
+		want  string
+	}{
+		{"error object", `"error": {"name": "Error", "message": "model timeout", "stack": "Error: model timeout"},`, "model timeout"},
+		{"string", `"error": "boom",`, "boom"},
+		{"null", `"error": null,`, ""},
+		{"absent", ``, ""},
+		{"object without a string message", `"error": {"code": 7},`, `{"code":7}`},
+	}
+	for _, tc := range cases {
+		t.Run("errorOccurred/"+tc.name, func(t *testing.T) {
+			session, cleanup := newTestSession()
+			defer cleanup()
+
+			var captured *ErrorOccurredHookInput
+			session.registerHooks(&SessionHooks{
+				OnErrorOccurred: func(input ErrorOccurredHookInput, _ HookInvocation) (*ErrorOccurredHookOutput, error) {
+					captured = &input
+					return nil, nil
+				},
+			})
+
+			raw := json.RawMessage(`{"sessionId": "sess-1", "timestamp": 1700000000, "cwd": "/work", ` + tc.error +
+				` "errorContext": "model_call", "recoverable": true}`)
+			if _, err := session.handleHooksInvoke("errorOccurred", raw); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if captured == nil {
+				t.Fatal("OnErrorOccurred did not run")
+			}
+			if captured.Error != tc.want {
+				t.Errorf("expected error %q, got %q", tc.want, captured.Error)
+			}
+			if captured.ErrorContext != "model_call" || !captured.Recoverable {
+				t.Errorf("unexpected input: %+v", *captured)
+			}
+		})
+
+		t.Run("sessionEnd/"+tc.name, func(t *testing.T) {
+			session, cleanup := newTestSession()
+			defer cleanup()
+
+			var captured *SessionEndHookInput
+			session.registerHooks(&SessionHooks{
+				OnSessionEnd: func(input SessionEndHookInput, _ HookInvocation) (*SessionEndHookOutput, error) {
+					captured = &input
+					return nil, nil
+				},
+			})
+
+			raw := json.RawMessage(`{"sessionId": "sess-1", "timestamp": 1700000000, "cwd": "/work", ` + tc.error +
+				` "reason": "error"}`)
+			if _, err := session.handleHooksInvoke("sessionEnd", raw); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if captured == nil {
+				t.Fatal("OnSessionEnd did not run")
+			}
+			if captured.Error != tc.want {
+				t.Errorf("expected error %q, got %q", tc.want, captured.Error)
+			}
+			if captured.Reason != "error" {
+				t.Errorf("expected reason 'error', got %q", captured.Reason)
+			}
+		})
+	}
 }
 
 func TestSession_AgentStopHook(t *testing.T) {

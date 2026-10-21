@@ -16,6 +16,7 @@ import java.util.Collection;
 import java.util.List;
 
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestFactory;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -51,6 +52,21 @@ class GeneratedTypesJacksonRoundTripTest {
         mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         mapper.configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false);
         return mapper;
+    }
+
+    @Test
+    void futureFileEditKindDoesNotRejectToolCompletion() throws IOException {
+        var event = MAPPER.readValue(
+                "{\"type\":\"tool.execution_complete\",\"data\":{\"toolCallId\":\"call-1\",\"success\":true,"
+                        + "\"fileEdits\":[{\"path\":\"/future.txt\",\"kind\":\"append\"}]}}",
+                ToolExecutionCompleteEvent.class);
+
+        assertEquals("call-1", event.getData().toolCallId());
+        assertEquals("/future.txt", event.getData().fileEdits().get(0).path());
+        assertEquals("append", event.getData().fileEdits().get(0).kind().getValue());
+        assertEquals("append", MAPPER.readTree(MAPPER.writeValueAsString(event)).path("data").path("fileEdits").get(0)
+                .path("kind").asText());
+        assertEquals(ToolExecutionCompleteFileEditKind.CREATE, ToolExecutionCompleteFileEditKind.fromValue("create"));
     }
 
     @TestFactory

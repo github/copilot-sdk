@@ -1,0 +1,57 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+// AUTO-GENERATED FILE - DO NOT EDIT
+// Generated from: session-events.schema.json
+
+package com.github.copilot.generated;
+
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import java.time.OffsetDateTime;
+import java.util.List;
+import java.util.Map;
+import javax.annotation.processing.Generated;
+
+/**
+ * Accumulated session usage metrics, including premium request cost, token counts, model breakdown, and code-change totals.
+ *
+ * @since 1.0.0
+ */
+@javax.annotation.processing.Generated("copilot-sdk-codegen")
+@JsonInclude(JsonInclude.Include.NON_NULL)
+@JsonIgnoreProperties(ignoreUnknown = true)
+public record UsageGetMetricsResult(
+    /** Completeness of totalNanoAiu. Numeric totals remain the reported subtotal; zero is not a claim of free usage when unavailable. */
+    @JsonProperty("aiCreditsStatus") AiCreditsStatus aiCreditsStatus,
+    /** Total user-initiated premium request cost across all models (may be fractional due to multipliers) */
+    @JsonProperty("totalPremiumRequestCost") Double totalPremiumRequestCost,
+    /** Raw count of user-initiated API requests */
+    @JsonProperty("totalUserRequests") Long totalUserRequests,
+    /** Session-wide accumulated nano-AI units cost */
+    @JsonProperty("totalNanoAiu") Double totalNanoAiu,
+    /** Session-wide per-token-type accumulated token counts */
+    @JsonProperty("tokenDetails") Map<String, UsageMetricsTokenDetail> tokenDetails,
+    /** Total time spent in model API calls (milliseconds) */
+    @JsonProperty("totalApiDurationMs") Long totalApiDurationMs,
+    /** ISO 8601 timestamp when the session started */
+    @JsonProperty("sessionStartTime") OffsetDateTime sessionStartTime,
+    /** Aggregated code change metrics */
+    @JsonProperty("codeChanges") UsageMetricsCodeChanges codeChanges,
+    /** Per-model token and request metrics, keyed by model identifier */
+    @JsonProperty("modelMetrics") Map<String, UsageMetricsModelMetric> modelMetrics,
+    /** Provider-attributed model metrics, ordered by first observed provider and model.
+Null attribution preserves historical usage whose provider or model was not recorded. */
+    @JsonProperty("providerModelMetrics") List<UsageMetricsProviderModelMetric> providerModelMetrics,
+    /** Per-agent usage metrics, keyed by agent instance identifier. The main conversation uses the stable key `main`. */
+    @JsonProperty("agentMetrics") Map<String, UsageMetricsAgentMetric> agentMetrics,
+    /** Currently active model identifier */
+    @JsonProperty("currentModel") String currentModel,
+    /** Input tokens from the most recent main-agent API call */
+    @JsonProperty("lastCallInputTokens") Long lastCallInputTokens,
+    /** Output tokens from the most recent main-agent API call */
+    @JsonProperty("lastCallOutputTokens") Long lastCallOutputTokens
+) {
+}

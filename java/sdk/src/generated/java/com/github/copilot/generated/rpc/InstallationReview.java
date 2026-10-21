@@ -20,7 +20,8 @@ import javax.annotation.processing.Generated;
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "resource", visible = true)
 @JsonSubTypes({
     @JsonSubTypes.Type(value = InstallationReviewMcp.class, name = "mcp"),
-    @JsonSubTypes.Type(value = InstallationReviewSkill.class, name = "skill")
+    @JsonSubTypes.Type(value = InstallationReviewSkill.class, name = "skill"),
+    @JsonSubTypes.Type(value = InstallationReviewPlugin.class, name = "plugin")
 })
 @JsonIgnoreProperties(ignoreUnknown = true)
 @javax.annotation.processing.Generated("copilot-sdk-codegen")

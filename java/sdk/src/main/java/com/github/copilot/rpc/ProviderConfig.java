@@ -47,11 +47,17 @@ public class ProviderConfig {
     @JsonProperty("transport")
     private String transport;
 
+    @JsonProperty("modelProvider")
+    private String modelProvider;
+
     @JsonProperty("baseUrl")
     private String baseUrl;
 
     @JsonProperty("apiKey")
     private String apiKey;
+
+    @JsonProperty("apiKeyCommand")
+    private String apiKeyCommand;
 
     @JsonProperty("bearerToken")
     private String bearerToken;
@@ -154,6 +160,30 @@ public class ProviderConfig {
     }
 
     /**
+     * Gets the product serving the model.
+     *
+     * @return the model provider, such as "ollama" or "lm_studio"
+     */
+    public String getModelProvider() {
+        return modelProvider;
+    }
+
+    /**
+     * Sets the product serving the model, reported in telemetry as
+     * {@code model_provider}. Allowed values are "openai", "anthropic",
+     * "azure_openai", "ollama", "lm_studio", "foundry_local", and "llama_cpp"; only
+     * affects telemetry.
+     *
+     * @param modelProvider
+     *            the model provider
+     * @return this config for method chaining
+     */
+    public ProviderConfig setModelProvider(String modelProvider) {
+        this.modelProvider = modelProvider;
+        return this;
+    }
+
+    /**
      * Gets the base URL for the API.
      *
      * @return the API base URL
@@ -194,6 +224,29 @@ public class ProviderConfig {
      */
     public ProviderConfig setApiKey(String apiKey) {
         this.apiKey = apiKey;
+        return this;
+    }
+
+    /**
+     * Gets the command used to obtain a fresh API key.
+     *
+     * @return the API key command, or {@code null} if not set
+     */
+    public String getApiKeyCommand() {
+        return apiKeyCommand;
+    }
+
+    /**
+     * Sets a command run by the runtime before each provider request to obtain a
+     * fresh API key. Command failures fail the turn before sending a model request.
+     * Bearer authentication takes precedence over this command.
+     *
+     * @param apiKeyCommand
+     *            the API key command
+     * @return this config for method chaining
+     */
+    public ProviderConfig setApiKeyCommand(String apiKeyCommand) {
+        this.apiKeyCommand = apiKeyCommand;
         return this;
     }
 

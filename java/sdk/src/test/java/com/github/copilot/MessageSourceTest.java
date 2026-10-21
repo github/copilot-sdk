@@ -329,6 +329,11 @@ class MessageSourceTest {
                     }
                     writeMessage(response);
                     if (send && outcome != Outcome.RPC_ERROR) {
+                        writeMessage(Map.of("jsonrpc", "2.0", "method", "session.event", "params", Map.of("sessionId",
+                                params.path("sessionId").asText(), "event",
+                                Map.of("type", "user.message", "id", "00000000-0000-0000-0000-000000000002",
+                                        "timestamp", "2026-09-06T00:00:00Z", "data",
+                                        Map.of("messageId", "message-1", "content", params.path("prompt").asText())))));
                         String type = outcome == Outcome.IDLE ? "session.idle" : "session.error";
                         Map<String, Object> data = outcome == Outcome.IDLE
                                 ? Map.of()

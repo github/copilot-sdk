@@ -9,6 +9,10 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
@@ -21,13 +25,18 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.copilot.ffi.FfiRuntimeHost;
 import com.github.copilot.rpc.CopilotClientOptions;
 import com.github.copilot.rpc.InProcessRuntimeConnection;
 import com.github.copilot.rpc.RuntimeConnection;
@@ -72,6 +81,79 @@ class CopilotClientTransportTest {
             });
             var failure = assertThrows(Exception.class, () -> client.start().get(30, TimeUnit.SECONDS));
             assertTrue(rootMessage(failure).contains("no runtime available"));
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {0, 42, 0xffff_ffffL})
+    void inProcessUiThreadRequestWaitsForScheduler(long actionId) throws Exception {
+        var nativeHost = mock(FfiRuntimeHost.class);
+        var started = new CountDownLatch(1);
+        var completion = new CompletableFuture<Void>();
+        var connection = RuntimeConnection.forInProcess().setRunOnUiThread(action -> {
+            action.run();
+            started.countDown();
+            return completion;
+        });
+        var options = new CopilotClientOptions().setConnection(connection);
+        try (var runtime = new FakeInProcessRuntime(); var client = new CopilotClient(options)) {
+            client.setInProcessTransportFactory(opts -> {
+                var transport = runtime.open(opts);
+                return new CopilotClient.InProcessTransport(transport.receiveStream(), transport.sendStream(),
+                        nativeHost);
+            });
+            client.start().get(30, TimeUnit.SECONDS);
+            verify(nativeHost).configureUiThread(true);
+
+            var request = FakeInProcessRuntime.MAPPER.createObjectNode();
+            request.put("jsonrpc", "2.0");
+            request.put("id", 17);
+            request.put("method", "uiThread.run");
+            request.putObject("params").put("actionId", actionId);
+            FakeInProcessRuntime.writeMessage(runtime.runtimeOutput, request);
+            try {
+                assertTrue(started.await(5, TimeUnit.SECONDS), "The UI scheduler was not called");
+                verify(nativeHost).runUiAction((int) actionId);
+                assertFalse(runtime.callbackResponse.isDone(), "UI RPC completed before its scheduler");
+            } finally {
+                completion.complete(null);
+            }
+            var response = runtime.callbackResponse.get(5, TimeUnit.SECONDS);
+            assertEquals(17, response.path("id").asInt());
+            assertTrue(response.has("result") && response.get("result").isNull(), response.toString());
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {-1, 0x1_0000_0000L})
+    void inProcessUiThreadRequestRejectsOutOfRangeActionIds(long actionId) throws Exception {
+        var nativeHost = mock(FfiRuntimeHost.class);
+        var scheduled = new AtomicBoolean();
+        var connection = RuntimeConnection.forInProcess().setRunOnUiThread(action -> {
+            scheduled.set(true);
+            action.run();
+            return CompletableFuture.completedFuture(null);
+        });
+        var options = new CopilotClientOptions().setConnection(connection);
+        try (var runtime = new FakeInProcessRuntime(); var client = new CopilotClient(options)) {
+            client.setInProcessTransportFactory(opts -> {
+                var transport = runtime.open(opts);
+                return new CopilotClient.InProcessTransport(transport.receiveStream(), transport.sendStream(),
+                        nativeHost);
+            });
+            client.start().get(30, TimeUnit.SECONDS);
+
+            var request = FakeInProcessRuntime.MAPPER.createObjectNode();
+            request.put("jsonrpc", "2.0");
+            request.put("id", 17);
+            request.put("method", "uiThread.run");
+            request.putObject("params").put("actionId", actionId);
+            FakeInProcessRuntime.writeMessage(runtime.runtimeOutput, request);
+            var response = runtime.callbackResponse.get(5, TimeUnit.SECONDS);
+            assertEquals(17, response.path("id").asInt());
+            assertEquals(-32603, response.path("error").path("code").asInt(), response.toString());
+            assertFalse(scheduled.get(), "Invalid action ID reached the UI scheduler");
+            verify(nativeHost, never()).runUiAction(anyInt());
         }
     }
 
@@ -258,6 +340,7 @@ class CopilotClientTransportTest {
 
         private final AtomicBoolean opened = new AtomicBoolean();
         private final AtomicBoolean closed = new AtomicBoolean();
+        private final CompletableFuture<JsonNode> callbackResponse = new CompletableFuture<>();
         private final BytePipe toClient;
         private final BytePipe toRuntime;
         private final InputStream runtimeInput;
@@ -296,6 +379,10 @@ class CopilotClientTransportTest {
                         return;
                     }
                     if (!request.hasNonNull("id")) {
+                        continue;
+                    }
+                    if (!request.has("method")) {
+                        callbackResponse.complete(request);
                         continue;
                     }
                     var response = MAPPER.createObjectNode();

@@ -64,22 +64,22 @@ rust_library(
     version = "0.6.5",
     deps = select({
         "@rules_rust//rust/platform:aarch64-apple-darwin": [
-            "@sdk_vendor__libc-0.2.189//:libc",  # cfg(any(unix, target_os = "wasi"))
+            "@sdk_vendor__libc-0.2.191//:libc",  # cfg(any(unix, target_os = "wasi"))
         ],
         "@rules_rust//rust/platform:aarch64-pc-windows-msvc": [
             "@sdk_vendor__windows-sys-0.61.2//:windows_sys",  # cfg(windows)
         ],
         "@rules_rust//rust/platform:aarch64-unknown-linux-gnu": [
-            "@sdk_vendor__libc-0.2.189//:libc",  # cfg(any(unix, target_os = "wasi"))
+            "@sdk_vendor__libc-0.2.191//:libc",  # cfg(any(unix, target_os = "wasi"))
         ],
         "@rules_rust//rust/platform:x86_64-apple-darwin": [
-            "@sdk_vendor__libc-0.2.189//:libc",  # cfg(any(unix, target_os = "wasi"))
+            "@sdk_vendor__libc-0.2.191//:libc",  # cfg(any(unix, target_os = "wasi"))
         ],
         "@rules_rust//rust/platform:x86_64-pc-windows-msvc": [
             "@sdk_vendor__windows-sys-0.61.2//:windows_sys",  # cfg(windows)
         ],
         "@rules_rust//rust/platform:x86_64-unknown-linux-gnu": [
-            "@sdk_vendor__libc-0.2.189//:libc",  # cfg(any(unix, target_os = "wasi"))
+            "@sdk_vendor__libc-0.2.191//:libc",  # cfg(any(unix, target_os = "wasi"))
         ],
         "//conditions:default": [],
     }),

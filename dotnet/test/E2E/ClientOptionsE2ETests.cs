@@ -278,6 +278,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
 
         var session = await Ctx.CreateSessionAsync(client, new SessionConfig
         {
+            Name = "named at create",
             SkipEmbeddingRetrieval = false,
             OrganizationCustomInstructions = "Follow org policy.",
             EnableOnDemandInstructionDiscovery = true,
@@ -291,6 +292,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
 
         using var capture = JsonDocument.Parse(await File.ReadAllTextAsync(capturePath));
         var createRequest = GetCapturedRequestParams(capture.RootElement, "session.create");
+        Assert.Equal("named at create", createRequest.GetProperty("name").GetString());
         Assert.False(createRequest.GetProperty("skipEmbeddingRetrieval").GetBoolean());
         Assert.Equal("Follow org policy.", createRequest.GetProperty("organizationCustomInstructions").GetString());
         Assert.True(createRequest.GetProperty("enableOnDemandInstructionDiscovery").GetBoolean());
@@ -537,6 +539,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         Assert.False(createRequest.GetProperty("enableSkills").GetBoolean());
         Assert.True(createRequest.GetProperty("customAgentsLocalOnly").GetBoolean());
         Assert.False(createRequest.TryGetProperty("organizationCustomInstructions", out _));
+        Assert.False(createRequest.TryGetProperty("name", out _));
 
         await session.DisposeAsync();
     }

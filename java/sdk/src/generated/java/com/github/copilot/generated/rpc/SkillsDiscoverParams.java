@@ -27,7 +27,7 @@ import javax.annotation.processing.Generated;
 public record SkillsDiscoverParams(
     /** Optional list of project directory paths to scan for project-scoped skills */
     @JsonProperty("projectPaths") List<String> projectPaths,
-    /** Optional list of additional skill directory paths to include */
+    /** Explicit discovery-only skill roots, not filesystem grants. Available without ambient discovery, subject to skill/managed disables. Relative paths resolve against the request's effective working directory when supplied. Null and omission are equivalent; an empty array contributes no explicit roots. */
     @JsonProperty("skillDirectories") List<String> skillDirectories,
     /** Optional skill scan paths to exclude from discovery. */
     @JsonProperty("ignoredSkillsLocations") List<String> ignoredSkillsLocations,

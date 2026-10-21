@@ -74,7 +74,7 @@ rust_library(
         "@sdk_vendor__futures-util-0.3.34//:futures_util",
         "@sdk_vendor__pin-project-lite-0.2.17//:pin_project_lite",
         "@sdk_vendor__sync_wrapper-1.0.2//:sync_wrapper",
-        "@sdk_vendor__tokio-1.53.1//:tokio",
+        "@sdk_vendor__tokio-1.53.3//:tokio",
         "@sdk_vendor__tower-layer-0.3.3//:tower_layer",
         "@sdk_vendor__tower-service-0.3.3//:tower_service",
     ],

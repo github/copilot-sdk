@@ -133,35 +133,48 @@ func (p *CapiProxy) StopWithOptions(skipWritingCache bool) error {
 	releaseSignalGuard := ProtectProcessWait()
 	defer releaseSignalGuard()
 
+	var shutdownErr error
 	// Send stop request to the server
 	if p.proxyURL != "" {
 		stopURL := p.proxyURL + "/stop"
 		if skipWritingCache {
 			stopURL += "?skipWritingCache=true"
 		}
-		// Best effort - ignore errors
 		client := http.Client{Timeout: proxyShutdownTimeout}
 		resp, err := client.Post(stopURL, "application/json", nil)
-		if err == nil {
+		if err != nil {
+			shutdownErr = err
+		} else {
+			if resp.StatusCode != http.StatusOK {
+				body, readErr := io.ReadAll(resp.Body)
+				shutdownErr = errors.Join(
+					fmt.Errorf("proxy shutdown failed: HTTP %d: %s", resp.StatusCode, body),
+					readErr,
+				)
+			}
 			resp.Body.Close()
 		}
 	}
 
 	exited := make(chan struct{}, 1)
+	var waitErr error
 	go func() {
 		PrepareForProcessWait()
-		_ = cmd.Wait()
+		waitErr = cmd.Wait()
 		exited <- struct{}{}
 	}()
 	if !waitForProcessExit(exited, proxyShutdownTimeout) {
-		if err := killProcessTree(cmd); err != nil {
-			return fmt.Errorf("failed to kill proxy process: %w", err)
-		}
+		// Windows Wait can release the process handle before the kill attempt.
+		// A late kill error is harmless only when our own Wait confirms exit.
+		killErr := killProcessTree(cmd)
 		if !waitForProcessExit(exited, proxyShutdownTimeout) {
+			if killErr != nil {
+				return fmt.Errorf("failed to kill proxy process: %w", killErr)
+			}
 			return fmt.Errorf("proxy process did not exit after being killed")
 		}
 	}
-	return nil
+	return errors.Join(shutdownErr, waitErr)
 }
 
 func killProcessTree(cmd *exec.Cmd) error {
@@ -278,9 +291,18 @@ type CapturedRequest struct {
 
 // ParsedHttpExchange represents a captured HTTP exchange.
 type ParsedHttpExchange struct {
-	Request        ChatCompletionRequest      `json:"request"`
-	Response       *ChatCompletionResponse    `json:"response,omitempty"`
-	RequestHeaders map[string]json.RawMessage `json:"requestHeaders,omitempty"`
+	Request         ChatCompletionRequest      `json:"request"`
+	Response        *ChatCompletionResponse    `json:"response,omitempty"`
+	RequestHeaders  map[string]json.RawMessage `json:"requestHeaders,omitempty"`
+	CompactionUsage *CompactionProviderUsage   `json:"compactionUsage,omitempty"`
+}
+
+// CompactionProviderUsage folds all responses in one correlated compaction request chain.
+type CompactionProviderUsage struct {
+	InteractionID string `json:"interactionId"`
+	Summary       string `json:"summary"`
+	ResponseCount int    `json:"responseCount"`
+	InputTokens   *int64 `json:"inputTokens,omitempty"`
 }
 
 // ChatCompletionRequest represents an OpenAI chat completion request.

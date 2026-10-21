@@ -14,6 +14,7 @@ import java.io.InputStream;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.concurrent.CancellationException;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -75,8 +76,8 @@ public class CopilotRequestCancelErrorE2ETest {
     /** Blocks every inference request until the runtime cancels it. */
     private static final class CancellingRequestHandler extends CopilotRequestHandler {
 
-        private volatile boolean inferenceEntered;
-        private volatile boolean sawAbort;
+        private final CompletableFuture<Void> inferenceEntered = new CompletableFuture<>();
+        private final CompletableFuture<Void> sawAbort = new CompletableFuture<>();
 
         @Override
         protected HttpResponse<InputStream> sendRequest(HttpRequest request, CopilotRequestContext rctx) {
@@ -84,7 +85,7 @@ public class CopilotRequestCancelErrorE2ETest {
             if (!isInferenceUrl(url)) {
                 return buildNonInferenceResponse(url);
             }
-            inferenceEntered = true;
+            inferenceEntered.complete(null);
             try {
                 // Never produce a response; wait for the runtime to cancel us.
                 rctx.cancellation().join();
@@ -92,7 +93,7 @@ public class CopilotRequestCancelErrorE2ETest {
                 // The cancellation future completes normally on cancel; this guards
                 // against any exceptional completion too.
             }
-            sawAbort = true;
+            sawAbort.complete(null);
             throw new CancellationException("Request cancelled by runtime");
         }
     }
@@ -129,24 +130,13 @@ public class CopilotRequestCancelErrorE2ETest {
                     .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             session.send(new MessageOptions().setPrompt("Say OK.")).get(60, TimeUnit.SECONDS);
-            waitFor(() -> handler.inferenceEntered, 60_000);
+            handler.inferenceEntered.get(60, TimeUnit.SECONDS);
             session.abort().get(30, TimeUnit.SECONDS);
-            waitFor(() -> handler.sawAbort, 30_000);
+            handler.sawAbort.get(30, TimeUnit.SECONDS);
             session.close();
         }
 
-        assertTrue(handler.inferenceEntered, "Expected the inference callback to be entered");
-        assertTrue(handler.sawAbort, "Expected the callback to observe runtime cancellation");
-    }
-
-    private static void waitFor(java.util.function.BooleanSupplier predicate, long timeoutMillis)
-            throws InterruptedException {
-        long deadline = System.currentTimeMillis() + timeoutMillis;
-        while (!predicate.getAsBoolean()) {
-            if (System.currentTimeMillis() > deadline) {
-                throw new AssertionError("waitFor timed out");
-            }
-            Thread.sleep(50);
-        }
+        assertTrue(handler.inferenceEntered.isDone(), "Expected the inference callback to be entered");
+        assertTrue(handler.sawAbort.isDone(), "Expected the callback to observe runtime cancellation");
     }
 }

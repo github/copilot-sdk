@@ -30,11 +30,11 @@ class SessionAutoTierEventTest {
     private static final ObjectMapper MAPPER = JsonRpcClient.getObjectMapper();
 
     @ParameterizedTest
-    @CsvSource({"session.start,EFFICIENCY,efficiency", "session.start,BALANCE,balance",
-            "session.start,INTELLIGENCE,intelligence", "session.start,FAST,fast",
-            "session.resume,EFFICIENCY,efficiency", "session.resume,BALANCE,balance",
-            "session.resume,INTELLIGENCE,intelligence", "session.resume,FAST,fast"})
-    void canonicalAutoTierRoundTrips(String type, AutoTier tier, String value) throws Exception {
+    @CsvSource({"session.start,efficiency", "session.start,balance", "session.start,intelligence", "session.start,fast",
+            "session.start,premium-v2", "session.resume,efficiency", "session.resume,balance",
+            "session.resume,intelligence", "session.resume,fast", "session.resume,premium-v2"})
+    void canonicalAutoTierRoundTrips(String type, String value) throws Exception {
+        AutoTier tier = AutoTier.fromValue(value);
         String json = """
                 {"type":"%s","data":{"selectedModel":"auto","autoTier":"%s"}}
                 """.formatted(type, value);

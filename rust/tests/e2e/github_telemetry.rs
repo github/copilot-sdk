@@ -1,7 +1,6 @@
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::Duration;
 
-use github_copilot_sdk::github_telemetry::GitHubTelemetryNotification;
 use github_copilot_sdk::handler::ApproveAllHandler;
 use github_copilot_sdk::{Client, SessionConfig};
 
@@ -18,10 +17,9 @@ async fn should_forward_github_telemetry_on_session_create() {
         Box::pin(async move {
             ctx.set_default_copilot_user();
 
-            let notifications = Arc::new(Mutex::new(Vec::<GitHubTelemetryNotification>::new()));
-            let collected = notifications.clone();
+            let (collected, mut notifications) = tokio::sync::mpsc::unbounded_channel();
             let client = Client::start(ctx.client_options().with_on_github_telemetry(move |n| {
-                collected.lock().unwrap().push(n);
+                let _ = collected.send(n);
             }))
             .await
             .expect("start client");
@@ -34,34 +32,18 @@ async fn should_forward_github_telemetry_on_session_create() {
                 .await
                 .expect("create session");
 
-            let deadline = tokio::time::Instant::now() + Duration::from_secs(30);
-            loop {
-                if !notifications.lock().unwrap().is_empty() {
-                    break;
-                }
-                assert!(
-                    tokio::time::Instant::now() < deadline,
-                    "timed out waiting for github telemetry notification"
-                );
-                tokio::time::sleep(Duration::from_millis(100)).await;
-            }
-
-            {
-                let notifications = notifications.lock().unwrap();
-                assert!(!notifications.is_empty());
-                let first = notifications
-                    .first()
-                    .expect("github telemetry notification");
-                assert!(
-                    first
-                        .session_id
-                        .as_deref()
-                        .is_some_and(|session_id| !session_id.is_empty())
-                );
-                let _: bool = first.restricted;
-                assert!(!first.event.kind.is_empty());
-            }
-
+            let first = tokio::time::timeout(Duration::from_secs(30), notifications.recv())
+                .await
+                .expect("timed out waiting for github telemetry notification")
+                .expect("github telemetry notification");
+            assert!(
+                first
+                    .session_id
+                    .as_deref()
+                    .is_some_and(|session_id| !session_id.is_empty())
+            );
+            let _: bool = first.restricted;
+            assert!(!first.event.kind.is_empty());
             session.disconnect().await.expect("disconnect session");
             client.stop().await.expect("stop client");
         })

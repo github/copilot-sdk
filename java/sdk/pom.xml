@@ -77,7 +77,7 @@
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
-            <version>2.22.2</version>
+            <version>2.22.3</version>
         </dependency>
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
@@ -87,7 +87,7 @@
         <dependency>
             <groupId>com.fasterxml.jackson.datatype</groupId>
             <artifactId>jackson-datatype-jsr310</artifactId>
-            <version>2.22.2</version>
+            <version>2.22.3</version>
         </dependency>
 
         <!-- SpotBugs annotations for suppressing warnings -->
@@ -230,6 +230,27 @@
                     </execution>
                 </executions>
             </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <version>3.6.1</version>
+                <executions>
+                    <execution>
+                        <id>packaged-consumer-dependencies</id>
+                        <phase>generate-test-resources</phase>
+                        <goals>
+                            <goal>copy-dependencies</goal>
+                        </goals>
+                        <configuration>
+                            <skip>${maven.test.skip}</skip>
+                            <includeScope>runtime</includeScope>
+                            <!-- Default consumers do not receive optional JNA. -->
+                            <excludeArtifactIds>jna</excludeArtifactIds>
+                            <outputDirectory>${project.build.directory}/consumer-dependencies</outputDirectory>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
             <!--
                 Failsafe runs integration tests against the actually packaged
                 JAR (after the package phase). Used to validate multi-release
@@ -257,7 +278,7 @@
                     </systemPropertyVariables>
                     <!--
                         Keep the integration-test JVM aligned with Surefire so
-                        tests like SlashCommandsIT resolve the pinned CLI using
+                        integration tests resolve the pinned CLI using
                         the monorepo Node.js runtime preparation tooling.
                     -->
                     <environmentVariables>
@@ -273,15 +294,7 @@
                     <forkNode implementation="org.apache.maven.plugin.surefire.extensions.SurefireForkNodeFactory" />
                     <!-- Inject JaCoCo agent + any JDK-version-specific flags -->
                     <argLine>${testExecutionAgentArgs} ${surefire.jvm.args} --add-opens com.github.copilot.java/com.github.copilot.e2e=ALL-UNNAMED</argLine>
-                    <!--
-                        Automatically retry tests that fail on the first attempt.
-                        This handles intermittent failures in E2E tests (e.g.,
-                        CompactionTest) where snapshot matching can be sensitive
-                        to non-deterministic compaction behaviour.
-                        Revisit this once this issue is successfully resolved.
-                        https://github.com/github/copilot-sdk/issues/1227
-                    -->
-                    <rerunFailingTestsCount>2</rerunFailingTestsCount>
+                    <rerunFailingTestsCount>0</rerunFailingTestsCount>
                     <systemPropertyVariables>
                         <copilot.tests.dir>${copilot.tests.dir}</copilot.tests.dir>
                         <copilot.sdk.dir>${copilot.sdk.root}</copilot.sdk.dir>
@@ -628,38 +641,6 @@ did not produce the multi-release output. Re-build on JDK 25+ and verify the
                             <skipTests>false</skipTests>
                             <forkCount>1</forkCount>
                             <parallel>none</parallel>
-                            <!--
-                                TODO(cli-1.0.81-2): CLI 1.0.81-5 still stops
-                                completing model-driven turns when hosted in-process
-                                against CAPI. The shared runtime then poisons every
-                                later model-driven test. These classes still run over
-                                stdio; pure-RPC in-process coverage remains enabled.
-                            -->
-                            <excludes>
-                                <exclude>**/AskUserTest.java</exclude>
-                                <exclude>**/CompactionTest.java</exclude>
-                                <!-- Subprocess coverage remains in both JDK jobs. -->
-                                <exclude>**/CopilotClientTest.java</exclude>
-                                <exclude>**/CopilotSessionTest.java</exclude>
-                                <exclude>**/ErrorHandlingTest.java</exclude>
-                                <exclude>**/EventFidelityTest.java</exclude>
-                                <exclude>**/ExecutorWiringTest.java</exclude>
-                                <exclude>**/HooksTest.java</exclude>
-                                <exclude>**/McpAndAgentsTest.java</exclude>
-                                <exclude>**/McpOAuthResumeE2ETest.java</exclude>
-                                <exclude>**/PermissionsTest.java</exclude>
-                                <exclude>**/PreMcpToolCallHookTest.java</exclude>
-                                <exclude>**/RpcServerE2ETest.java</exclude>
-                                <exclude>**/RpcSessionStateExtrasE2ETest.java</exclude>
-                                <exclude>**/SessionConfigE2ETest.java</exclude>
-                                <exclude>**/SessionEventsE2ETest.java</exclude>
-                                <exclude>**/SessionTodosChangedTest.java</exclude>
-                                <exclude>**/SkillsTest.java</exclude>
-                                <exclude>**/StreamingFidelityTest.java</exclude>
-                                <exclude>**/SubagentHooksE2ETest.java</exclude>
-                                <exclude>**/ToolResultsTest.java</exclude>
-                                <exclude>**/ToolsTest.java</exclude>
-                            </excludes>
                             <environmentVariables>
                                 <COPILOT_CLI_PATH>${copilot.inprocess.cli.path}</COPILOT_CLI_PATH>
                                 <COPILOT_SDK_DEFAULT_CONNECTION>inprocess</COPILOT_SDK_DEFAULT_CONNECTION>
@@ -672,17 +653,6 @@ did not produce the multi-release output. Re-build on JDK 25+ and verify the
                         <configuration>
                             <forkCount>1</forkCount>
                             <parallel>none</parallel>
-                            <!--
-                                TODO(cli-1.0.81-2): same in-process CAPI turn hang as
-                                the Surefire exclusions above.
-                            -->
-                            <excludes>
-                                <exclude>**/ErgonomicToolDefinitionIT.java</exclude>
-                                <exclude>**/GitHubTelemetryForwardingIT.java</exclude>
-                                <exclude>**/LowLevelToolDefinitionIT.java</exclude>
-                                <exclude>**/RewindIT.java</exclude>
-                                <exclude>**/SystemMessageSectionsIT.java</exclude>
-                            </excludes>
                             <environmentVariables>
                                 <COPILOT_CLI_PATH>${copilot.inprocess.cli.path}</COPILOT_CLI_PATH>
                                 <COPILOT_SDK_DEFAULT_CONNECTION>inprocess</COPILOT_SDK_DEFAULT_CONNECTION>
@@ -718,6 +688,22 @@ did not produce the multi-release output. Re-build on JDK 25+ and verify the
             </activation>
             <properties>
                 <copilot.native.classifier>linuxmusl-x64</copilot.native.classifier>
+            </properties>
+        </profile>
+        <profile>
+            <id>native-linuxmusl-arm64</id>
+            <activation>
+                <os>
+                    <name>Linux</name>
+                    <arch>aarch64</arch>
+                </os>
+                <property>
+                    <name>copilot.native.libc</name>
+                    <value>musl</value>
+                </property>
+            </activation>
+            <properties>
+                <copilot.native.classifier>linuxmusl-arm64</copilot.native.classifier>
             </properties>
         </profile>
         <profile>

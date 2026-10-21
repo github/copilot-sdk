@@ -21,7 +21,7 @@
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use async_trait::async_trait;
 use bytes::Bytes;
@@ -274,14 +274,6 @@ fn synth_inference_response(url: &str, body: &[u8], text: &str) -> CopilotHttpRe
         json_headers(),
         vec![serde_json::to_string(&buffered).unwrap().into_bytes()],
     )
-}
-
-async fn wait_for_flag(flag: &AtomicBool, what: &str) {
-    let deadline = Instant::now() + Duration::from_secs(60);
-    while !flag.load(Ordering::SeqCst) {
-        assert!(Instant::now() < deadline, "timed out waiting for {what}");
-        tokio::time::sleep(Duration::from_millis(50)).await;
-    }
 }
 
 async fn session_send(session: &github_copilot_sdk::session::Session) -> Option<SessionEvent> {
@@ -588,6 +580,7 @@ struct InterceptedRequest {
     session_id: Option<String>,
     agent_id: Option<String>,
     parent_agent_id: Option<String>,
+    agent_invocation_id: Option<String>,
     interaction_type: Option<String>,
 }
 
@@ -615,6 +608,7 @@ impl CopilotRequestHandler for RecordingHandler {
             session_id: ctx.session_id.clone(),
             agent_id: ctx.agent_id.clone(),
             parent_agent_id: ctx.parent_agent_id.clone(),
+            agent_invocation_id: ctx.agent_invocation_id.clone(),
             interaction_type: ctx.interaction_type.clone(),
         });
         if is_inference_url(&request.url) {
@@ -804,6 +798,17 @@ fn assert_agent_metadata(record: &InterceptedRequest) {
         record.agent_id.as_deref().is_some_and(|id| !id.is_empty()),
         "inference request must carry an agent id"
     );
+    assert!(
+        record
+            .agent_invocation_id
+            .as_deref()
+            .is_some_and(|id| !id.is_empty()),
+        "inference request must carry an invocation id"
+    );
+    assert_ne!(
+        record.agent_invocation_id, record.agent_id,
+        "invocation and agent ids must differ"
+    );
     if let Some(parent_agent_id) = record.parent_agent_id.as_deref() {
         assert!(
             !parent_agent_id.is_empty(),
@@ -893,6 +898,8 @@ async fn surfaces_handler_errors() {
 struct CancellingHandler {
     inference_entered: AtomicBool,
     saw_abort: AtomicBool,
+    inference_seen: tokio::sync::Notify,
+    abort_seen: tokio::sync::Notify,
 }
 
 #[async_trait]
@@ -909,8 +916,10 @@ impl CopilotRequestHandler for CancellingHandler {
         // Inference: never produce a response. Wait for the runtime to cancel
         // us, recording the abort, then propagate it as an error.
         self.inference_entered.store(true, Ordering::SeqCst);
+        self.inference_seen.notify_one();
         ctx.cancel.cancelled().await;
         self.saw_abort.store(true, Ordering::SeqCst);
+        self.abort_seen.notify_one();
         Err(CopilotRequestError::message("cancelled by runtime"))
     }
 }
@@ -931,9 +940,13 @@ async fn observes_runtime_driven_cancel() {
                 .expect("create session");
 
             session.send(say_ok()).await.expect("send");
-            wait_for_flag(&handler.inference_entered, "inference entered").await;
+            tokio::time::timeout(Duration::from_secs(60), handler.inference_seen.notified())
+                .await
+                .expect("inference entered");
             session.abort().await.expect("abort");
-            wait_for_flag(&handler.saw_abort, "consumer observed cancellation").await;
+            tokio::time::timeout(Duration::from_secs(60), handler.abort_seen.notified())
+                .await
+                .expect("consumer observed cancellation");
             let _ = session.disconnect().await;
 
             assert!(
@@ -985,7 +998,9 @@ async fn withdrawn_running_turn_prompt_leaves_persisted_history() {
             let options = say_ok();
             let prompt = options.prompt.clone();
             let message_id = session.send(options).await.expect("send");
-            wait_for_flag(&handler.inference_entered, "inference entered").await;
+            tokio::time::timeout(Duration::from_secs(60), handler.inference_seen.notified())
+                .await
+                .expect("inference entered");
             let result = session
                 .rpc()
                 .queue()

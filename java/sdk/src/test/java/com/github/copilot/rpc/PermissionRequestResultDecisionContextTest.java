@@ -31,7 +31,7 @@ class PermissionRequestResultDecisionContextTest {
 
     private static PermissionDecisionContext sampleContext() {
         return new PermissionDecisionContext(PermissionDecisionOutcome.AUTO_APPROVED,
-                PermissionDecisionSource.HOST_POLICY, PermissionDecisionSurface.SDK, null);
+                PermissionDecisionSource.HOST_POLICY, PermissionDecisionSurface.SDK, null, null);
     }
 
     @Test
@@ -68,7 +68,7 @@ class PermissionRequestResultDecisionContextTest {
     void setDecisionContextTwiceReplacesRatherThanNests() {
         var first = sampleContext();
         var second = new PermissionDecisionContext(PermissionDecisionOutcome.PROMPTED_USER,
-                PermissionDecisionSource.HUMAN_RESPONSE, PermissionDecisionSurface.TUI, null);
+                PermissionDecisionSource.HUMAN_RESPONSE, PermissionDecisionSurface.TUI, null, null);
 
         var result = PermissionRequestResult.approveOnce().setDecisionContext(first).setDecisionContext(second);
 
@@ -84,6 +84,21 @@ class PermissionRequestResultDecisionContextTest {
         assertFalse(resultJson.has("decisionContext"),
                 "@JsonIgnore must keep decisionContext out of the serialized result");
         assertEquals(PermissionRequestResultKind.APPROVED.getValue(), resultJson.get("kind").asText());
+    }
+
+    @Test
+    void userFeedbackRemainsSeparateFromThePermissionResult() {
+        var context = new PermissionDecisionContext(PermissionDecisionOutcome.PROMPTED_USER,
+                PermissionDecisionSource.HUMAN_RESPONSE, PermissionDecisionSurface.SDK, null,
+                "This action is acceptable.");
+        var result = PermissionRequestResult.approveOnce().setDecisionContext(context);
+        var params = new SessionPermissionsHandlePendingPermissionRequestParams("session-1", "req-1", result, context);
+
+        JsonNode json = MAPPER.valueToTree(params);
+
+        assertEquals("This action is acceptable.", json.get("decisionContext").get("userFeedback").asText());
+        assertFalse(json.get("result").has("userFeedback"));
+        assertFalse(json.get("result").has("feedback"));
     }
 
     @Test

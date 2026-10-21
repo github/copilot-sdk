@@ -10,12 +10,16 @@ package com.github.copilot.generated;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
  * Session event "assistant.fusion_phase_completed". Experimental durable HydraFusion phase output and lossless replay checkpoint.
+ *
+ * @apiNote This event type is experimental and may change in a future version.
  * @since 1.0.0
  */
+@CopilotExperimental
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
@@ -31,6 +35,7 @@ public final class AssistantFusionPhaseCompletedEvent extends SessionEvent {
     public void setData(AssistantFusionPhaseCompletedEventData data) { this.data = data; }
 
     /** Data payload for {@link AssistantFusionPhaseCompletedEvent}. */
+    @CopilotExperimental
     @JsonIgnoreProperties(ignoreUnknown = true)
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record AssistantFusionPhaseCompletedEventData(
@@ -47,6 +52,7 @@ public final class AssistantFusionPhaseCompletedEvent extends SessionEvent {
         /** Concrete model that executed the phase. */
         @JsonProperty("model") String model,
         /** Explicit reasoning effort selected for this phase, if supplied. */
+        @CopilotExperimental
         @JsonProperty("reasoningEffort") String reasoningEffort,
         /** Durable outcome status of the phase. */
         @JsonProperty("status") FusionPhaseStatus status,
@@ -63,7 +69,10 @@ public final class AssistantFusionPhaseCompletedEvent extends SessionEvent {
         /** Projection action for the exact internal message. */
         @JsonProperty("projectionMode") FusionProjectionMode projectionMode,
         /** Terminal request held outside canonical state until selected by the final commit. */
-        @JsonProperty("stagedTerminal") FusionStagedTerminal stagedTerminal
+        @JsonProperty("stagedTerminal") FusionStagedTerminal stagedTerminal,
+        /** True when a first pass (Cascade primary or Critique draft) ended with background work outstanding, whether or not the turn then committed it without review; absent otherwise. */
+        @CopilotExperimental
+        @JsonProperty("endedWithBackgroundWork") Boolean endedWithBackgroundWork
     ) {
     }
 }

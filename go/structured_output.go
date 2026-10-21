@@ -113,15 +113,32 @@ func (s *Session) sendAndWaitStructured(ctx context.Context, options MessageOpti
 			} else {
 				finish(outcome{event: final})
 			}
+		case *SessionAutopilotStoppedData:
+			if messageID == "" || data.RequestID == nil || *data.RequestID != messageID {
+				return
+			}
+			if data.Reason == "error" {
+				finish(outcome{err: fmt.Errorf("autopilot request failed")})
+			} else if data.Reason == "aborted" {
+				finish(outcome{err: fmt.Errorf("session aborted before structured output completed")})
+			} else if final == nil || strings.TrimSpace(final.Data.(*AssistantMessageData).Content) == "" {
+				finish(outcome{err: fmt.Errorf("run completed without a structured assistant response")})
+			} else {
+				finish(outcome{event: final})
+			}
 		case *SessionErrorData:
-			if started {
+			correlated := data.OriginatingMessageID != nil && *data.OriginatingMessageID != ""
+			if (correlated && *data.OriginatingMessageID == messageID) || (!correlated && started) {
 				finish(outcome{err: fmt.Errorf("session error: %s", data.Message)})
 			}
 		}
 	}
 	unsubscribe := s.On(func(event SessionEvent) {
+		if event.AgentID != nil && *event.AgentID != "" {
+			return
+		}
 		switch event.Data.(type) {
-		case *UserMessageData, *AssistantMessageData, *SessionIdleData, *SessionErrorData:
+		case *UserMessageData, *AssistantMessageData, *SessionIdleData, *SessionAutopilotStoppedData, *SessionErrorData:
 		default:
 			return
 		}

@@ -36,6 +36,8 @@ public record ProviderConfig(
     @JsonProperty("baseUrl") String baseUrl,
     /** API key. Optional for local providers like Ollama. */
     @JsonProperty("apiKey") String apiKey,
+    /** Command run by the runtime before each provider request to obtain a fresh API key. Credential-command failures fail the turn without sending a model request. Bearer authentication takes precedence. */
+    @JsonProperty("apiKeyCommand") String apiKeyCommand,
     /** Bearer token for authentication. Sets the Authorization header directly. Takes precedence over apiKey when both are set. */
     @JsonProperty("bearerToken") String bearerToken,
     /** Azure-specific provider options. */
@@ -46,6 +48,8 @@ public record ProviderConfig(
     @JsonProperty("modelCapabilities") ModelCapabilitiesOverride modelCapabilities,
     /** Provider name used for model and telemetry attribution. */
     @JsonProperty("providerName") String providerName,
+    /** The product serving the model, reported in telemetry as `model_provider`. Set it when `type` alone cannot identify the product, such as Ollama or LM Studio behind an OpenAI-compatible endpoint. Only affects telemetry. */
+    @JsonProperty("modelProvider") ProviderConfigModelProvider modelProvider,
     /** The model identifier sent to the provider API for inference (the "wire" model), as opposed to modelId which is the well-known base. */
     @JsonProperty("wireModel") String wireModel,
     /** Maximum prompt/input tokens for the model. */

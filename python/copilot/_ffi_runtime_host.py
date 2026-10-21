@@ -196,6 +196,14 @@ class _FfiLibrary:
         self.connection_close = getattr(lib, f"{_SYMBOL_PREFIX}connection_close")
         self.connection_close.argtypes = [ctypes.c_uint32]
         self.connection_close.restype = ctypes.c_bool
+        self.connection_set_ui_thread_handler = getattr(
+            lib, f"{_SYMBOL_PREFIX}connection_set_ui_thread_handler"
+        )
+        self.connection_set_ui_thread_handler.argtypes = [ctypes.c_uint32, ctypes.c_bool]
+        self.connection_set_ui_thread_handler.restype = ctypes.c_bool
+        self.connection_run_ui_action = getattr(lib, f"{_SYMBOL_PREFIX}connection_run_ui_action")
+        self.connection_run_ui_action.argtypes = [ctypes.c_uint32, ctypes.c_uint32]
+        self.connection_run_ui_action.restype = ctypes.c_bool
 
 
 def _load_library(library_path: str) -> _FfiLibrary:
@@ -489,11 +497,25 @@ class FfiRuntimeHost:
             if not ok:
                 raise RuntimeError("Failed to write a frame to the in-process runtime connection.")
 
+    def configure_ui_thread(self, enabled: bool) -> None:
+        if self._disposed or not self._lib.connection_set_ui_thread_handler(
+            self._connection_id, enabled
+        ):
+            raise RuntimeError("Failed to configure the in-process UI dispatcher.")
+
+    def run_ui_action(self, action_id: int) -> None:
+        # Synchronous, on the caller's UI thread, without holding a shutdown lock.
+        if self._disposed or not self._lib.connection_run_ui_action(self._connection_id, action_id):
+            raise RuntimeError(
+                "Native UI action is retired, already executed, or not on the process main thread."
+            )
+
     def dispose(self) -> None:
         """Close the FFI connection, shut down the native host, release resources.
 
         Idempotent. Callback state remains rooted until connection_close reports
-        that native callbacks are quiescent.
+        that native callbacks are quiescent. Native shutdown may block; async
+        callers must run this method off the event loop.
         """
         with self._dispose_lock:
             if self._disposed:

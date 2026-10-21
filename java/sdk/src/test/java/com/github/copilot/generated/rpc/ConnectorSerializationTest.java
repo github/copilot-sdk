@@ -6,9 +6,13 @@ package com.github.copilot.generated.rpc;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.util.List;
+
 import org.junit.jupiter.api.Test;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.exc.InvalidTypeIdException;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.github.copilot.AllowCopilotExperimental;
 
 @AllowCopilotExperimental
@@ -80,6 +84,95 @@ class ConnectorSerializationTest {
         assertEquals(500L, json.get("pollIntervalMs").asLong());
         assertEquals(10_000L, json.get("deadlineMs").asLong());
         assertEquals(params, MAPPER.treeToValue(json, SessionConnectorsContinueConnectionParams.class));
+    }
+
+    @Test
+    void connectorCapabilities_missing_and_false_flags_remain_unsupported() throws Exception {
+        var json = (ObjectNode) MAPPER.readTree("""
+                {
+                  "apiVersion": 1,
+                  "availability": "enabled",
+                  "consentContinuation": true,
+                  "opaqueAccountSelection": true,
+                  "maxPollAttempts": 5,
+                  "maxPollIntervalMs": 2000,
+                  "maxDeadlineMs": 30000
+                }
+                """);
+        var legacy = MAPPER.treeToValue(json, SessionConnectorsGetCapabilitiesResult.class);
+
+        assertNull(legacy.sessionAccountSelection());
+        assertNull(legacy.targetedReconcile());
+        assertFalse(Boolean.TRUE.equals(legacy.sessionAccountSelection()));
+        assertFalse(Boolean.TRUE.equals(legacy.targetedReconcile()));
+        assertEquals(json, MAPPER.readTree(MAPPER.writeValueAsString(legacy)));
+
+        json.put("sessionAccountSelection", false);
+        json.put("targetedReconcile", false);
+        var unsupported = MAPPER.treeToValue(json, SessionConnectorsGetCapabilitiesResult.class);
+
+        assertEquals(Boolean.FALSE, unsupported.sessionAccountSelection());
+        assertEquals(Boolean.FALSE, unsupported.targetedReconcile());
+        assertFalse(Boolean.TRUE.equals(unsupported.sessionAccountSelection()));
+        assertFalse(Boolean.TRUE.equals(unsupported.targetedReconcile()));
+        assertEquals(json, MAPPER.readTree(MAPPER.writeValueAsString(unsupported)));
+    }
+
+    @Test
+    void connectorReconcile_preserves_target_and_omits_absent_optional_fields() throws Exception {
+        var targeted = new SessionConnectorsReconcileRequest("account-1").setRefreshCatalog(false)
+                .setForceConnectorName("outlook");
+        var json = MAPPER.readTree(MAPPER.writeValueAsString(targeted));
+
+        assertEquals(MAPPER.readTree("""
+                {"accountId":"account-1","refreshCatalog":false,"forceConnectorName":"outlook"}
+                """), json);
+
+        var legacy = new SessionConnectorsReconcileParams(null, "account-1", null);
+        var legacyJson = MAPPER.readTree(MAPPER.writeValueAsString(legacy));
+        assertEquals(MAPPER.readTree("""
+                {"accountId":"account-1"}
+                """), legacyJson);
+        assertEquals(legacy, MAPPER.treeToValue(legacyJson, SessionConnectorsReconcileParams.class));
+    }
+
+    @Test
+    void connectorCatalogEntry_preserves_optional_presentation_metadata() throws Exception {
+        var json = (ObjectNode) MAPPER.readTree("""
+                {
+                  "name": "outlook",
+                  "displayName": "Outlook",
+                  "description": "Mail and calendar",
+                  "logo": "https://example.com/outlook.svg",
+                  "tier": "standard",
+                  "releaseTag": "preview",
+                  "status": "not_connected",
+                  "runtimeServerIds": []
+                }
+                """);
+        var entry = MAPPER.treeToValue(json, ConnectorCatalogEntry.class);
+
+        assertEquals("https://example.com/outlook.svg", entry.logo());
+        assertEquals("standard", entry.tier());
+        assertEquals("preview", entry.releaseTag());
+        assertEquals(json, MAPPER.valueToTree(entry));
+
+        json.remove(List.of("logo", "tier", "releaseTag"));
+        var legacy = MAPPER.treeToValue(json, ConnectorCatalogEntry.class);
+
+        assertNull(legacy.logo());
+        assertNull(legacy.tier());
+        assertNull(legacy.releaseTag());
+        assertEquals(json, MAPPER.valueToTree(legacy));
+    }
+
+    @Test
+    void connectorConnectResult_rejects_unknown_continuation_outcomes() {
+        var failure = assertThrows(InvalidTypeIdException.class, () -> MAPPER.readValue("""
+                {"kind":"verification_required","continuationId":"continuation-3"}
+                """, ConnectorConnectResult.class));
+
+        assertEquals("verification_required", failure.getTypeId());
     }
 
     private static <T extends ConnectorConnectResult> T roundTrip(String json, Class<T> expectedType) throws Exception {

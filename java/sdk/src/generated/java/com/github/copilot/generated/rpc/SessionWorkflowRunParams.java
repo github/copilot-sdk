@@ -29,6 +29,7 @@ public record SessionWorkflowRunParams(
     /** Registered workflow name. */
     @JsonProperty("name") String name,
     /** Workflow input value. */
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("args") Object args,
     /** Workflow invocation options. */
     @JsonProperty("options") WorkflowRunOptions options

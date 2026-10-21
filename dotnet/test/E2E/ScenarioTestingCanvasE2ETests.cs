@@ -33,6 +33,8 @@ public class ScenarioTestingCanvasE2ETests(E2ETestFixture fixture, ITestOutputHe
         Assert.Equal("Replaces the displayed value.", action.Description);
         Assert.Equal("object", action.InputSchema!.Value.GetProperty("type").GetString());
 
+        var canvasOpened = TestHelper.GetNextEventOfTypeAsync<SessionCanvasOpenedEvent>(
+            session, evt => evt.Data.InstanceId == "scenario-inspector-1", EventTimeout);
         var opened = await session.Rpc.Canvas.OpenAsync(
             canvasId: "scenario-inspector",
             instanceId: "scenario-inspector-1",
@@ -45,10 +47,7 @@ public class ScenarioTestingCanvasE2ETests(E2ETestFixture fixture, ITestOutputHe
         AssertRequest(handler.OpenRequests.Single(), session.SessionId, "scenario-inspector-1");
         Assert.Equal("before", handler.OpenRequests[0].Input!.Value.GetProperty("value").GetString());
 
-        await TestHelper.WaitForConditionAsync(
-            () => Task.FromResult(session.OpenCanvases.Count == 1),
-            timeout: EventTimeout,
-            timeoutMessage: "Timed out waiting for the scenario canvas snapshot.");
+        await canvasOpened;
         AssertOpenCanvas(Assert.Single(session.OpenCanvases), "scenario-inspector-1", "before");
 
         var actionResult = await session.Rpc.Canvas.Action.InvokeAsync(
@@ -64,13 +63,13 @@ public class ScenarioTestingCanvasE2ETests(E2ETestFixture fixture, ITestOutputHe
         var liveSnapshot = Assert.Single((await session.Rpc.Canvas.ListOpenAsync()).OpenCanvases);
         AssertOpenCanvas(liveSnapshot, "scenario-inspector-1", "before");
 
+        var canvasClosed = TestHelper.GetNextEventOfTypeAsync<SessionCanvasClosedEvent>(
+            session, evt => evt.Data.InstanceId == "scenario-inspector-1", EventTimeout);
         await session.Rpc.Canvas.CloseAsync("scenario-inspector-1");
 
         AssertRequest(handler.CloseRequests.Single(), session.SessionId, "scenario-inspector-1");
-        await TestHelper.WaitForConditionAsync(
-            () => Task.FromResult(session.OpenCanvases.Count == 0),
-            timeout: EventTimeout,
-            timeoutMessage: "Timed out waiting for the scenario canvas to close.");
+        await canvasClosed;
+        Assert.Empty(session.OpenCanvases);
         Assert.Empty((await session.Rpc.Canvas.ListOpenAsync()).OpenCanvases);
         Assert.Equal(
             ["open:scenario-inspector-1", "action:scenario-inspector-1:replace", "close:scenario-inspector-1"],
@@ -155,15 +154,15 @@ public class ScenarioTestingCanvasE2ETests(E2ETestFixture fixture, ITestOutputHe
         });
         Assert.Equal("SCENARIO_CANVAS_READY", response?.Data.Content);
         var canvas = Assert.Single((await WaitForCanvasRegistryAsync(session1)).Canvases);
+        var canvasOpened = TestHelper.GetNextEventOfTypeAsync<SessionCanvasOpenedEvent>(
+            session1, evt => evt.Data.InstanceId == "scenario-inspector-resume", EventTimeout);
         await session1.Rpc.Canvas.OpenAsync(
             canvasId: "scenario-inspector",
             instanceId: "scenario-inspector-resume",
             extensionId: canvas.ExtensionId,
             input: new Dictionary<string, object> { ["value"] = "persisted" });
-        await TestHelper.WaitForConditionAsync(
-            () => Task.FromResult(session1.OpenCanvases.Count == 1),
-            timeout: EventTimeout,
-            timeoutMessage: "Timed out waiting for the pre-resume canvas snapshot.");
+        await canvasOpened;
+        Assert.Single(session1.OpenCanvases);
         var snapshot = session1.OpenCanvases.ToList();
 
         await session1.Rpc.SuspendAsync();

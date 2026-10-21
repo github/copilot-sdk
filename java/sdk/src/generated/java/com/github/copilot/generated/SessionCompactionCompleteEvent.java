@@ -36,6 +36,18 @@ public final class SessionCompactionCompleteEvent extends SessionEvent {
     public record SessionCompactionCompleteEventData(
         /** Whether compaction completed successfully */
         @JsonProperty("success") Boolean success,
+        /** Typed terminal outcome for this observed compaction completion. Unknown future values are preserved. */
+        @JsonProperty("outcome") String outcome,
+        /** Bounded reason for an expected non-application outcome such as cancellation or no applicable history. Unknown future values are preserved. */
+        @JsonProperty("outcomeReason") String outcomeReason,
+        /** Bounded reason for a typed failed outcome. Unknown future values are preserved. */
+        @JsonProperty("failureReason") String failureReason,
+        /** Identifier shared with the matching compaction start event */
+        @JsonProperty("compactionAttemptId") String compactionAttemptId,
+        /** Model identifier used for compaction when provider usage does not already supply it */
+        @JsonProperty("model") String model,
+        /** Model identifier at admission when routing later changed to the reported compaction model */
+        @JsonProperty("initialModel") String initialModel,
         /** Error message if compaction failed */
         @JsonProperty("error") String error,
         /** Total tokens in conversation before compaction */
@@ -48,6 +60,8 @@ public final class SessionCompactionCompleteEvent extends SessionEvent {
         @JsonProperty("messagesRemoved") Long messagesRemoved,
         /** Number of tokens removed during compaction */
         @JsonProperty("tokensRemoved") Long tokensRemoved,
+        /** Open accounting-basis identifier for trustworthy paired pre/post token measurements. The current runtime emits local_full_context_estimate. */
+        @JsonProperty("tokenAccountingBasis") String tokenAccountingBasis,
         /** User-supplied focus instructions provided to a manual `/compact` invocation. Omitted for automatic compaction and for manual compaction with no focus text. */
         @JsonProperty("customInstructions") String customInstructions,
         /** LLM-generated summary of the compacted conversation history */
@@ -56,8 +70,6 @@ public final class SessionCompactionCompleteEvent extends SessionEvent {
         @JsonProperty("responsesReasoning") ResponsesReasoning responsesReasoning,
         /** Authoritative active-workflow reminder appended to the compacted context */
         @JsonProperty("activeWorkflowSummary") String activeWorkflowSummary,
-        /** Legacy active-workflow reminder retained for replay compatibility */
-        @JsonProperty("activeFactorySummary") String activeFactorySummary,
         /** Canonical model identifier used for model-specific behavior when replaying compaction */
         @JsonProperty("behaviorModelId") String behaviorModelId,
         /** Checkpoint snapshot number created for recovery */
@@ -80,6 +92,10 @@ public final class SessionCompactionCompleteEvent extends SessionEvent {
         @JsonProperty("statusCode") Long statusCode,
         /** Model context window token limit the compaction was targeting, when known */
         @JsonProperty("tokenLimit") Long tokenLimit,
+        /** Destination prompt-token budget when it differs from the effective compaction token limit */
+        @JsonProperty("targetPromptTokenLimit") Long targetPromptTokenLimit,
+        /** Destination model for a model-switch compaction when it differs from the compacting model; for a HydraFusion turn, the routed root model */
+        @JsonProperty("switchTargetModel") String switchTargetModel,
         /** What initiated this compaction, when known */
         @JsonProperty("trigger") CompactionTrigger trigger
     ) {

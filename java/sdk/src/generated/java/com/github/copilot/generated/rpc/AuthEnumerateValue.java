@@ -23,7 +23,8 @@ import javax.annotation.processing.Generated;
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "kind", visible = true)
 @JsonSubTypes({
     @JsonSubTypes.Type(value = AuthEnumerateValueAccounts.class, name = "accounts"),
-    @JsonSubTypes.Type(value = AuthEnumerateValueProviders.class, name = "providers")
+    @JsonSubTypes.Type(value = AuthEnumerateValueProviders.class, name = "providers"),
+    @JsonSubTypes.Type(value = AuthEnumerateValueLoginAccounts.class, name = "loginAccounts")
 })
 @CopilotExperimental
 @JsonIgnoreProperties(ignoreUnknown = true)

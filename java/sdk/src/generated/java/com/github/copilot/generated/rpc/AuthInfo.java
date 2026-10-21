@@ -25,6 +25,7 @@ import javax.annotation.processing.Generated;
     @JsonSubTypes.Type(value = TokenProviderAuthInfo.class, name = "token-provider"),
     @JsonSubTypes.Type(value = CopilotApiTokenAuthInfo.class, name = "copilot-api-token"),
     @JsonSubTypes.Type(value = UserAuthInfo.class, name = "user"),
+    @JsonSubTypes.Type(value = AccountAuthInfo.class, name = "account"),
     @JsonSubTypes.Type(value = GhCliAuthInfo.class, name = "gh-cli"),
     @JsonSubTypes.Type(value = ApiKeyAuthInfo.class, name = "api-key")
 })

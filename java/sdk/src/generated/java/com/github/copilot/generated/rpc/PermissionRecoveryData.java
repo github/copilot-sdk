@@ -24,6 +24,10 @@ import javax.annotation.processing.Generated;
 public record PermissionRecoveryData(
     /** Stable identifier shared by every transition in this recovery episode */
     @JsonProperty("episodeId") String episodeId,
+    /** Root or child execution-session identifier that owns this recovery episode; omitted for legacy snapshots */
+    @JsonProperty("ownerSessionId") String ownerSessionId,
+    /** Subagent identifier that owns this recovery episode when the request was delegated through a parent permission service */
+    @JsonProperty("ownerAgentId") String ownerAgentId,
     /** Current lifecycle state of the recovery episode */
     @JsonProperty("status") PermissionRecoveryStatus status,
     /** Policy selected from the current client's response capability; mode or client changes may update it during recovery */

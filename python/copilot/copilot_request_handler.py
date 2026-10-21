@@ -24,7 +24,7 @@ from __future__ import annotations
 import asyncio
 import base64
 from collections.abc import AsyncIterator, Awaitable, Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any
 
 from .generated.rpc import (
@@ -108,6 +108,9 @@ class CopilotRequestContext:
 
     _bridge: _CopilotWebSocketResponseBridge | None = field(default=None, repr=False)
 
+    agent_invocation_id: str | None = None
+    """Runtime-provided logical invocation identity, unchanged across physical retries."""
+
 
 @dataclass
 class CopilotWebSocketCloseStatus:
@@ -128,7 +131,10 @@ class CopilotWebSocketHandler:
 
     Subclass and override :meth:`send_request_message` (runtime → upstream) to
     mutate, drop, or inject messages, and :meth:`send_response_message`
-    (upstream → runtime) for the reverse direction. A full transport replacement
+    (upstream → runtime) for the reverse direction. Override
+    :meth:`send_request_message_with_context` to also observe each message's
+    invocation identity, which may differ from ``self.context`` on a reused
+    connection. A full transport replacement
     overrides :meth:`open` to stand up its own connection and receive loop.
     """
 
@@ -151,6 +157,16 @@ class CopilotWebSocketHandler:
     async def send_request_message(self, data: str | bytes) -> None:
         """Forward a runtime message to the upstream connection. Override to mutate."""
         raise NotImplementedError
+
+    async def send_request_message_with_context(
+        self, data: str | bytes, ctx: CopilotRequestContext
+    ) -> None:
+        """Forward a message with its own invocation identity, not the connection's.
+
+        Override to observe per-message metadata. The default calls the existing
+        single-argument hook so existing handlers continue to forward messages.
+        """
+        await self.send_request_message(data)
 
     async def close(self, status: CopilotWebSocketCloseStatus | None = None) -> None:
         """Initiate close: end the runtime response and resolve completion."""
@@ -264,6 +280,7 @@ class CopilotRequestHandler:
             request_id=exchange.request_id,
             session_id=exchange.session_id,
             agent_id=exchange.agent_id,
+            agent_invocation_id=exchange.agent_invocation_id,
             parent_agent_id=exchange.parent_agent_id,
             interaction_type=exchange.interaction_type,
             transport=exchange.transport,
@@ -310,7 +327,10 @@ class CopilotRequestHandler:
 
             async def pump_client() -> str:
                 async for chunk in exchange.request_body:
-                    await handler.send_request_message(_decode_frame(chunk))
+                    await handler.send_request_message_with_context(
+                        _decode_frame(chunk.chunk if chunk.chunk is not None else b""),
+                        replace(ctx, agent_invocation_id=chunk.agent_invocation_id),
+                    )
                 return "client-complete"
 
             client_task = asyncio.create_task(pump_client())
@@ -343,6 +363,7 @@ class CopilotRequestHandler:
 @dataclass
 class _BodyItem:
     chunk: bytes | None = None
+    agent_invocation_id: str | None = None
     end: bool = False
     cancel: bool = False
     cancel_reason: str | None = None
@@ -358,10 +379,10 @@ class _BodyQueue:
     def push(self, item: _BodyItem) -> None:
         self._queue.put_nowait(item)
 
-    def __aiter__(self) -> AsyncIterator[bytes]:
+    def __aiter__(self) -> AsyncIterator[_BodyItem]:
         return self
 
-    async def __anext__(self) -> bytes:
+    async def __anext__(self) -> _BodyItem:
         if self._done:
             raise StopAsyncIteration
         item = await self._queue.get()
@@ -376,7 +397,7 @@ class _BodyQueue:
         if item.end:
             self._done = True
             raise StopAsyncIteration
-        return item.chunk if item.chunk is not None else b""
+        return item
 
 
 class _CopilotRequestExchange:
@@ -396,6 +417,7 @@ class _CopilotRequestExchange:
         self.request_id = request_id
         self.session_id: str | None = None
         self.agent_id: str | None = None
+        self.agent_invocation_id: str | None = None
         self.parent_agent_id: str | None = None
         self.interaction_type: str | None = None
         self.method: str = "GET"
@@ -414,6 +436,7 @@ class _CopilotRequestExchange:
         """Fill in the request context once the matching start frame arrives."""
         self.session_id = params.session_id
         self.agent_id = params.agent_id
+        self.agent_invocation_id = params.agent_invocation_id
         self.parent_agent_id = params.parent_agent_id
         self.interaction_type = params.interaction_type
         self.method = params.method
@@ -538,7 +561,10 @@ class _CopilotRequestAdapterHandler:
             return
         if params.data:
             exchange._queue.push(
-                _BodyItem(chunk=_decode_chunk_data(params.data, bool(params.binary)))
+                _BodyItem(
+                    chunk=_decode_chunk_data(params.data, bool(params.binary)),
+                    agent_invocation_id=params.agent_invocation_id,
+                )
             )
         if params.end:
             exchange._queue.push(_BodyItem(end=True))
@@ -718,11 +744,11 @@ async def _build_httpx_request(exchange: _CopilotRequestExchange) -> httpx.Reque
     return httpx.Request(method, exchange.url, headers=header_pairs, content=content)
 
 
-async def _drain_async(stream: AsyncIterator[bytes]) -> bytes:
+async def _drain_async(stream: AsyncIterator[_BodyItem]) -> bytes:
     parts: list[bytes] = []
     async for chunk in stream:
-        if chunk:
-            parts.append(chunk)
+        if chunk.chunk:
+            parts.append(chunk.chunk)
     return b"".join(parts)
 
 

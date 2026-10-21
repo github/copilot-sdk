@@ -42,8 +42,10 @@ public class ProviderConfigTest {
 
         assertNull(provider.getType());
         assertNull(provider.getWireApi());
+        assertNull(provider.getModelProvider());
         assertNull(provider.getBaseUrl());
         assertNull(provider.getApiKey());
+        assertNull(provider.getApiKeyCommand());
         assertNull(provider.getBearerToken());
         assertNull(provider.getAzure());
     }
@@ -52,7 +54,7 @@ public class ProviderConfigTest {
     void testFluentSettersReturnSameInstance() {
         var provider = new ProviderConfig();
 
-        ProviderConfig result = provider.setType("openai").setWireApi("completions")
+        ProviderConfig result = provider.setType("openai").setWireApi("completions").setModelProvider("lm_studio")
                 .setBaseUrl("https://api.openai.com/v1").setApiKey("sk-test-key").setBearerToken("bearer-token")
                 .setAzure(new AzureOptions());
 
@@ -63,12 +65,13 @@ public class ProviderConfigTest {
     @Test
     void testGettersReturnSetValues() {
         var azure = new AzureOptions().setApiVersion("2024-02-01");
-        var provider = new ProviderConfig().setType("azure-openai").setWireApi("chat")
+        var provider = new ProviderConfig().setType("azure-openai").setWireApi("chat").setModelProvider("azure_openai")
                 .setBaseUrl("https://my-resource.openai.azure.com").setApiKey("my-key").setBearerToken("my-token")
                 .setAzure(azure);
 
         assertEquals("azure-openai", provider.getType());
         assertEquals("chat", provider.getWireApi());
+        assertEquals("azure_openai", provider.getModelProvider());
         assertEquals("https://my-resource.openai.azure.com", provider.getBaseUrl());
         assertEquals("my-key", provider.getApiKey());
         assertEquals("my-token", provider.getBearerToken());
@@ -133,6 +136,18 @@ public class ProviderConfigTest {
         assertNull(provider.getWireApi());
         assertNull(provider.getBearerToken());
         assertNull(provider.getAzure());
+    }
+
+    @Test
+    void testApiKeyCommandRoundTripsAndOmitsWhenAbsent() throws Exception {
+        var provider = new ProviderConfig().setBaseUrl("https://models.example.test");
+        assertEquals(provider, provider.setApiKeyCommand("credential-helper --profile sdk"));
+        JsonNode json = MAPPER.valueToTree(provider);
+        assertEquals("credential-helper --profile sdk", json.get("apiKeyCommand").asText());
+        var roundTrip = MAPPER.readValue(MAPPER.writeValueAsString(provider), ProviderConfig.class);
+        assertEquals(provider.getApiKeyCommand(), roundTrip.getApiKeyCommand());
+        provider.setApiKeyCommand(null);
+        assertTrue(MAPPER.valueToTree(provider).path("apiKeyCommand").isMissingNode());
     }
 
     // =========================================================================
@@ -253,18 +268,20 @@ public class ProviderConfigTest {
     @Test
     void testSerializeAllFields() throws Exception {
         var provider = new ProviderConfig().setType("azure-openai").setWireApi("completions")
-                .setBaseUrl("https://my-resource.openai.azure.com").setApiKey("my-api-key")
-                .setBearerToken("my-bearer-token").setAzure(new AzureOptions().setApiVersion("2024-02-01"));
+                .setModelProvider("azure_openai").setBaseUrl("https://my-resource.openai.azure.com")
+                .setApiKey("my-api-key").setBearerToken("my-bearer-token")
+                .setAzure(new AzureOptions().setApiVersion("2024-02-01"));
 
         JsonNode json = MAPPER.valueToTree(provider);
 
         assertEquals("azure-openai", json.get("type").asText());
         assertEquals("completions", json.get("wireApi").asText());
+        assertEquals("azure_openai", json.get("modelProvider").asText());
         assertEquals("https://my-resource.openai.azure.com", json.get("baseUrl").asText());
         assertEquals("my-api-key", json.get("apiKey").asText());
         assertEquals("my-bearer-token", json.get("bearerToken").asText());
         assertEquals("2024-02-01", json.get("azure").get("apiVersion").asText());
-        assertEquals(6, json.size(), "Expected exactly 6 JSON fields");
+        assertEquals(7, json.size(), "Expected exactly 7 JSON fields");
     }
 
     @Test
@@ -417,7 +434,8 @@ public class ProviderConfigTest {
     void testProviderModelIdAndWireModelSerialization() throws Exception {
         var provider = new ProviderConfig().setBaseUrl("https://example.com/provider")
                 .setHeaders(java.util.Map.of("Authorization", "Bearer provider-token")).setModelId("gpt-4o")
-                .setWireModel("my-finetune-v3").setMaxPromptTokens(100_000).setMaxOutputTokens(4096);
+                .setWireModel("my-finetune-v3").setModelProvider("lm_studio").setMaxPromptTokens(100_000)
+                .setMaxOutputTokens(4096);
 
         JsonNode json = MAPPER.valueToTree(provider);
 
@@ -425,6 +443,7 @@ public class ProviderConfigTest {
         assertEquals("Bearer provider-token", json.get("headers").get("Authorization").asText());
         assertEquals("gpt-4o", json.get("modelId").asText());
         assertEquals("my-finetune-v3", json.get("wireModel").asText());
+        assertEquals("lm_studio", json.get("modelProvider").asText());
         assertEquals(100_000, json.get("maxPromptTokens").asInt());
         assertEquals(4096, json.get("maxOutputTokens").asInt());
 
@@ -432,6 +451,7 @@ public class ProviderConfigTest {
         ProviderConfig deserialized = MAPPER.readValue(MAPPER.writeValueAsString(provider), ProviderConfig.class);
         assertEquals("gpt-4o", deserialized.getModelId());
         assertEquals("my-finetune-v3", deserialized.getWireModel());
+        assertEquals("lm_studio", deserialized.getModelProvider());
         assertEquals(100_000, deserialized.getMaxPromptTokens().getAsInt());
         assertEquals(4096, deserialized.getMaxOutputTokens().getAsInt());
     }
@@ -441,6 +461,7 @@ public class ProviderConfigTest {
         var provider = new ProviderConfig();
         assertNull(provider.getModelId());
         assertNull(provider.getWireModel());
+        assertNull(provider.getModelProvider());
         assertTrue(provider.getMaxPromptTokens().isEmpty());
         assertTrue(provider.getMaxOutputTokens().isEmpty());
     }
@@ -453,6 +474,7 @@ public class ProviderConfigTest {
 
         assertTrue(json.path("modelId").isMissingNode());
         assertTrue(json.path("wireModel").isMissingNode());
+        assertTrue(json.path("modelProvider").isMissingNode());
         assertTrue(json.path("maxPromptTokens").isMissingNode());
         assertTrue(json.path("maxOutputTokens").isMissingNode());
     }

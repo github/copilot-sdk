@@ -69,7 +69,7 @@ rust_library(
     version = "1.0.107",
     deps = [
         ":build_script_build",
-        "@sdk_vendor__unicode-ident-1.0.26//:unicode_ident",
+        "@sdk_vendor__unicode-ident-1.0.27//:unicode_ident",
     ],
 )
 

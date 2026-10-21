@@ -247,6 +247,26 @@ internal sealed partial class FfiRuntimeHost : IDisposable
         }
     }
 
+    internal void ConfigureUiThread(bool enabled)
+    {
+        if (Volatile.Read(ref _disposed) ||
+            !NativeConnectionSetUiThreadHandler(Volatile.Read(ref _connectionId), enabled))
+        {
+            throw new InvalidOperationException("Failed to configure the in-process UI dispatcher.");
+        }
+    }
+
+    internal void RunUiAction(uint actionId)
+    {
+        // Keep this synchronous, without a lifecycle lock across native UI.
+        if (Volatile.Read(ref _disposed) ||
+            !NativeConnectionRunUiAction(Volatile.Read(ref _connectionId), actionId))
+        {
+            throw new InvalidOperationException(
+                "Native UI action is retired, already executed, or not on the process main thread.");
+        }
+    }
+
     private void FeedInbound(IntPtr bytesPtr, UIntPtr bytesLen)
     {
         var length = checked((int)bytesLen.ToUInt64());
@@ -424,6 +444,8 @@ internal sealed partial class FfiRuntimeHost : IDisposable
     private static bool NativeConnectionWrite(uint connectionId, ReadOnlySpan<byte> frame) => ConnectionWrite(connectionId, frame, Len(frame.Length));
 
     private static bool NativeConnectionClose(uint connectionId) => ConnectionClose(connectionId);
+    private static bool NativeConnectionSetUiThreadHandler(uint connectionId, bool enabled) => ConnectionSetUiThreadHandler(connectionId, enabled);
+    private static bool NativeConnectionRunUiAction(uint connectionId, uint actionId) => ConnectionRunUiAction(connectionId, actionId);
 
     private void DisposeNativeCallback()
     {
@@ -476,6 +498,16 @@ internal sealed partial class FfiRuntimeHost : IDisposable
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
     [return: MarshalAs(UnmanagedType.U1)]
     private static partial bool ConnectionClose(uint connectionId);
+
+    [LibraryImport(LibraryName, EntryPoint = "copilot_runtime_connection_set_ui_thread_handler")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    [return: MarshalAs(UnmanagedType.U1)]
+    private static partial bool ConnectionSetUiThreadHandler(uint connectionId, [MarshalAs(UnmanagedType.U1)] bool enabled);
+
+    [LibraryImport(LibraryName, EntryPoint = "copilot_runtime_connection_run_ui_action")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    [return: MarshalAs(UnmanagedType.U1)]
+    private static partial bool ConnectionRunUiAction(uint connectionId, uint actionId);
 #else
     // ---- Legacy interop: delegate-based P/Invoke for netstandard2.0 ----
     // netstandard2.0 has neither LibraryImport, NativeLibrary, nor UnmanagedCallersOnly,
@@ -510,6 +542,14 @@ internal sealed partial class FfiRuntimeHost : IDisposable
     private delegate bool ConnectionCloseDelegate(uint connectionId);
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    [return: MarshalAs(UnmanagedType.U1)]
+    private delegate bool ConnectionSetUiThreadHandlerDelegate(uint connectionId, [MarshalAs(UnmanagedType.U1)] bool enabled);
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    [return: MarshalAs(UnmanagedType.U1)]
+    private delegate bool ConnectionRunUiActionDelegate(uint connectionId, uint actionId);
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     private delegate void OutboundCallbackDelegate(IntPtr userData, IntPtr bytesPtr, UIntPtr bytesLen);
 
     private static readonly object NativeLock = new();
@@ -520,6 +560,8 @@ internal sealed partial class FfiRuntimeHost : IDisposable
     private static ConnectionOpenDelegate? s_connectionOpen;
     private static ConnectionWriteDelegate? s_connectionWrite;
     private static ConnectionCloseDelegate? s_connectionClose;
+    private static ConnectionSetUiThreadHandlerDelegate? s_connectionSetUiThreadHandler;
+    private static ConnectionRunUiActionDelegate? s_connectionRunUiAction;
 
     // Held for the connection's lifetime so the marshaled function pointer handed to the
     // native side is not collected while Rust may still invoke it.
@@ -551,6 +593,8 @@ internal sealed partial class FfiRuntimeHost : IDisposable
             s_connectionOpen = Bind<ConnectionOpenDelegate>(handle, "copilot_runtime_connection_open");
             s_connectionWrite = Bind<ConnectionWriteDelegate>(handle, "copilot_runtime_connection_write");
             s_connectionClose = Bind<ConnectionCloseDelegate>(handle, "copilot_runtime_connection_close");
+            s_connectionSetUiThreadHandler = Bind<ConnectionSetUiThreadHandlerDelegate>(handle, "copilot_runtime_connection_set_ui_thread_handler");
+            s_connectionRunUiAction = Bind<ConnectionRunUiActionDelegate>(handle, "copilot_runtime_connection_run_ui_action");
             s_loaded = true;
             s_loadedPath = libraryPath;
         }
@@ -592,6 +636,8 @@ internal sealed partial class FfiRuntimeHost : IDisposable
     }
 
     private static bool NativeConnectionClose(uint connectionId) => s_connectionClose!(connectionId);
+    private static bool NativeConnectionSetUiThreadHandler(uint connectionId, bool enabled) => s_connectionSetUiThreadHandler!(connectionId, enabled);
+    private static bool NativeConnectionRunUiAction(uint connectionId, uint actionId) => s_connectionRunUiAction!(connectionId, actionId);
 
     private void DisposeNativeCallback() => _outboundDelegate = null;
 

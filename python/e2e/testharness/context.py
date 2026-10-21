@@ -106,7 +106,7 @@ class E2ETestContext:
                 "copilot_plan": "individual_pro",
                 "endpoints": {
                     "api": self.proxy_url,
-                    "telemetry": "https://localhost:1/telemetry",
+                    "telemetry": "https://sdk-hydro-collector.example.com",
                 },
                 "analytics_tracking_id": "e2e-test-tracking-id",
             },
@@ -210,15 +210,15 @@ class E2ETestContext:
         if self._client_inprocess:
             self._restore_inprocess_environment()
 
-        if self._proxy:
-            await self._proxy.stop(skip_writing_cache=test_failed)
+        try:
+            if self._proxy:
+                await self._proxy.stop(skip_writing_cache=test_failed)
+        finally:
             self._proxy = None
-
-        if self.home_dir and os.path.exists(self.home_dir):
-            shutil.rmtree(self.home_dir, ignore_errors=True)
-
-        if self.work_dir and os.path.exists(self.work_dir):
-            shutil.rmtree(self.work_dir, ignore_errors=True)
+            if self.home_dir and os.path.exists(self.home_dir):
+                shutil.rmtree(self.home_dir, ignore_errors=True)
+            if self.work_dir and os.path.exists(self.work_dir):
+                shutil.rmtree(self.work_dir, ignore_errors=True)
 
     async def configure_for_test(self, test_file: str, test_name: str):
         """

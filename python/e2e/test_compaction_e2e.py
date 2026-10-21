@@ -1,6 +1,7 @@
 """E2E Compaction Tests"""
 
 import asyncio
+import os
 
 import pytest
 
@@ -99,9 +100,27 @@ class TestCompaction:
         assert complete_event.data.compaction_tokens_used is not None, (
             "Expected compaction tokens-used data"
         )
-        assert (complete_event.data.compaction_tokens_used.input_tokens or 0) > 0, (
-            "Expected compaction call to consume input tokens"
-        )
+        # Replay has no prompt usage; recording must preserve the provider's value or absence.
+        if os.environ.get("GITHUB_ACTIONS") == "true":
+            assert (complete_event.data.compaction_tokens_used.input_tokens or 0) == 0, (
+                "Expected replay compaction input tokens to be zero or unavailable"
+            )
+        else:
+            exchanges = await ctx.get_exchanges()
+            compactions = [
+                exchange["compactionUsage"]
+                for exchange in exchanges
+                if exchange.get("compactionUsage")
+                and exchange["compactionUsage"]["summary"] == complete_event.data.summary_content
+            ]
+            assert len(compactions) == 1, (
+                f"Expected one provider compaction chain for the summary, got {compactions!r}"
+            )
+            expected_input_tokens = compactions[0].get("inputTokens")
+            actual_input_tokens = complete_event.data.compaction_tokens_used.input_tokens
+            assert actual_input_tokens == expected_input_tokens, (
+                f"Expected provider input tokens {expected_input_tokens}, got {actual_input_tokens}"
+            )
         summary = (complete_event.data.summary_content or "").lower()
         assert "<overview>" in summary, "Expected summary to contain <overview>"
         assert "<history>" in summary, "Expected summary to contain <history>"

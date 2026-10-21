@@ -10,18 +10,22 @@ package com.github.copilot.generated.rpc;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.github.copilot.CopilotExperimental;
 import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
  * Listener-scoped registration, not a copy or durable adoption of a session.
  *
+ * @apiNote This type is experimental and may change in a future version.
+ *
  * @since 1.0.0
  */
+@CopilotExperimental
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record HostRegisterSessionRequest(
+record HostRegisterSessionRequest(
     /** Canonical ID of the existing resident runtime session. */
     @JsonProperty("sessionId") String sessionId,
     /** Absolute working directory of the resident session. */

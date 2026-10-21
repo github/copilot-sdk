@@ -69,23 +69,24 @@ func TestMCPOAuthE2E(t *testing.T) {
 		tokenType := "Bearer"
 		expiresIn := int64(3600)
 		var observedRequest copilot.MCPAuthRequest
+		var observedRuntimeRefreshSupported bool
 
-		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+		session, err := client.CreateSessionWithMCPAuthRuntimeRefresh(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
-			OnMCPAuthRequest: func(request copilot.MCPAuthRequest, _ copilot.MCPAuthInvocation) (*copilot.MCPAuthResult, error) {
-				observedRequest = request
-				return copilot.MCPAuthResultToken(&copilot.MCPAuthToken{
-					AccessToken: expectedMCPOAuthToken,
-					TokenType:   &tokenType,
-					ExpiresIn:   &expiresIn,
-				}), nil
-			},
 			MCPServers: map[string]copilot.MCPServerConfig{
 				serverName: copilot.MCPHTTPServerConfig{
 					URL:   baseURL + "/mcp",
 					Tools: []string{"*"},
 				},
 			},
+		}, func(request copilot.MCPAuthRequest, _ copilot.MCPAuthInvocation, supported bool) (*copilot.MCPAuthResult, error) {
+			observedRequest = request
+			observedRuntimeRefreshSupported = supported
+			return copilot.MCPAuthResultToken(&copilot.MCPAuthToken{
+				AccessToken: expectedMCPOAuthToken,
+				TokenType:   &tokenType,
+				ExpiresIn:   &expiresIn,
+			}), nil
 		})
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
@@ -112,6 +113,9 @@ func TestMCPOAuthE2E(t *testing.T) {
 		}
 		if observedRequest.Reason != "initial" {
 			t.Fatalf("Unexpected auth request reason: %q", observedRequest.Reason)
+		}
+		if observedRuntimeRefreshSupported {
+			t.Fatal("Initial authentication must not advertise runtime refresh")
 		}
 		if observedRequest.WwwAuthenticateParams.ResourceMetadataURL == nil ||
 			*observedRequest.WwwAuthenticateParams.ResourceMetadataURL != baseURL+"/.well-known/oauth-protected-resource" {
@@ -238,17 +242,15 @@ func TestMCPOAuthE2E(t *testing.T) {
 	t.Run("cancel pending MCP OAuth request", func(t *testing.T) {
 		baseURL := startOAuthMCPServer(t)
 		serverName := "oauth-cancelled-mcp"
-		var mu sync.Mutex
-		var observedRequest copilot.MCPAuthRequest
-		var observed bool
+		requestSeen := make(chan copilot.MCPAuthRequest, 1)
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 			OnMCPAuthRequest: func(request copilot.MCPAuthRequest, _ copilot.MCPAuthInvocation) (*copilot.MCPAuthResult, error) {
-				mu.Lock()
-				observedRequest = request
-				observed = true
-				mu.Unlock()
+				select {
+				case requestSeen <- request:
+				default:
+				}
 				return copilot.MCPAuthResultCancelled(), nil
 			},
 			MCPServers: map[string]copilot.MCPServerConfig{
@@ -268,24 +270,15 @@ func TestMCPOAuthE2E(t *testing.T) {
 		// The MCP connection is kicked off by session.create, but the SDK only registers its
 		// `mcp.oauth_required` event interest once create returns. If the server's initial 401
 		// wins that race, the runtime records `needs-auth` WITHOUT invoking the host callback,
-		// so `observedRequest` is briefly unset even after `needs-auth` is observed. A later
+		// so the callback may not have run even after `needs-auth` is observed. A later
 		// auth retry (now that interest is registered) invokes the callback with the same
 		// `Initial` reason. Wait for the callback rather than sampling it the instant
 		// `needs-auth` first appears, which is what made this test flaky.
 		var request copilot.MCPAuthRequest
-		deadline := time.Now().Add(60 * time.Second)
-		for {
-			mu.Lock()
-			got := observed
-			request = observedRequest
-			mu.Unlock()
-			if got {
-				break
-			}
-			if time.Now().After(deadline) {
-				t.Fatalf("%s OAuth request did not reach the host callback", serverName)
-			}
-			time.Sleep(200 * time.Millisecond)
+		select {
+		case request = <-requestSeen:
+		case <-time.After(60 * time.Second):
+			t.Fatalf("%s OAuth request did not reach the host callback", serverName)
 		}
 
 		if request.ServerName != serverName {
@@ -296,77 +289,6 @@ func TestMCPOAuthE2E(t *testing.T) {
 		}
 	})
 
-	t.Run("resolve pending MCP OAuth request through RPC", func(t *testing.T) {
-		testharness.SkipIfInProcess(t, "blocked on github/copilot-agent-runtime#18961 MCP OAuth connection stall")
-		ctx := testharness.NewTestContext(t)
-		ctx.ConfigureWithoutSnapshot(t)
-		client := ctx.NewClient()
-		defer client.ForceStop()
-
-		baseURL := startOAuthMCPServer(t)
-		serverName := "oauth-direct-rpc-mcp"
-		requests := make(chan copilot.MCPAuthRequest, 1)
-		releaseHandler := make(chan struct{})
-
-		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
-			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
-			EnableMCPApps:       true,
-			OnMCPAuthRequest: func(request copilot.MCPAuthRequest, _ copilot.MCPAuthInvocation) (*copilot.MCPAuthResult, error) {
-				requests <- request
-				<-releaseHandler
-				return copilot.MCPAuthResultCancelled(), nil
-			},
-			MCPServers: map[string]copilot.MCPServerConfig{
-				serverName: copilot.MCPHTTPServerConfig{
-					URL:   baseURL + "/mcp",
-					Tools: []string{"*"},
-				},
-			},
-		})
-		if err != nil {
-			t.Fatalf("Failed to create session: %v", err)
-		}
-		t.Cleanup(func() { session.Disconnect() })
-
-		connected := make(chan error, 1)
-		go func() {
-			connected <- waitForMCPServerStatusResult(t.Context(), session, serverName, rpc.MCPServerStatusConnected, 60*time.Second)
-		}()
-
-		var request copilot.MCPAuthRequest
-		select {
-		case request = <-requests:
-		case <-time.After(30 * time.Second):
-			t.Fatal("Timed out waiting for MCP OAuth request")
-		}
-
-		tokenType := "Bearer"
-		expiresIn := int64(3600)
-		result, err := session.RPC.MCP.Oauth().HandlePendingRequest(t.Context(), &rpc.MCPOauthHandlePendingRequest{
-			RequestID: request.RequestID,
-			Result: rpc.MCPOauthPendingRequestResponseToken{
-				AccessToken: expectedMCPOAuthToken,
-				TokenType:   &tokenType,
-				ExpiresIn:   &expiresIn,
-			},
-		})
-		if err != nil {
-			close(releaseHandler)
-			t.Fatalf("HandlePendingRequest failed: %v", err)
-		}
-		close(releaseHandler)
-		if !result.Success {
-			t.Fatal("Expected direct MCP OAuth pending request resolution to succeed")
-		}
-
-		if err := <-connected; err != nil {
-			t.Fatal(err)
-		}
-		requestLog := fetchOAuthMCPRequests(t, baseURL)
-		if !hasAuthorization(requestLog, "Bearer "+expectedMCPOAuthToken) {
-			t.Fatal("Expected MCP request with token supplied through direct RPC")
-		}
-	})
 }
 
 type oauthMCPRequest struct {

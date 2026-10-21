@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Slash-command invocation result that submits an agent prompt, with display prompt, optional mode, optional user-facing notice, and settings-change flag.
+ * Slash-command invocation result that submits an agent prompt, with display prompt, optional mode, optional user-facing notice, settings-change flag, and opaque reservation finalization token.
  *
  * @since 1.0.0
  */
@@ -48,6 +48,10 @@ public final class SlashCommandAgentPromptResult extends SlashCommandInvocationR
     @JsonProperty("runtimeSettingsChanged")
     private Boolean runtimeSettingsChanged;
 
+    /** Opaque token used to finalize this invocation's objective prompt reservation */
+    @JsonProperty("reservationToken")
+    private String reservationToken;
+
     public String getPrompt() { return prompt; }
     public void setPrompt(String prompt) { this.prompt = prompt; }
 
@@ -62,4 +66,7 @@ public final class SlashCommandAgentPromptResult extends SlashCommandInvocationR
 
     public Boolean getRuntimeSettingsChanged() { return runtimeSettingsChanged; }
     public void setRuntimeSettingsChanged(Boolean runtimeSettingsChanged) { this.runtimeSettingsChanged = runtimeSettingsChanged; }
+
+    public String getReservationToken() { return reservationToken; }
+    public void setReservationToken(String reservationToken) { this.reservationToken = reservationToken; }
 }

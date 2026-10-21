@@ -39,6 +39,7 @@ public class MultiProviderConfigTest {
         assertNull(provider.getName());
         assertNull(provider.getType());
         assertNull(provider.getWireApi());
+        assertNull(provider.getModelProvider());
         assertNull(provider.getBaseUrl());
         assertNull(provider.getApiKey());
         assertNull(provider.getBearerToken());
@@ -51,8 +52,8 @@ public class MultiProviderConfigTest {
         var provider = new NamedProviderConfig();
 
         NamedProviderConfig result = provider.setName("my-openai").setType("openai").setWireApi("responses")
-                .setBaseUrl("https://api.openai.com/v1").setApiKey("sk-test").setBearerToken("bearer")
-                .setAzure(new AzureOptions()).setHeaders(Map.of("X-Custom", "v"));
+                .setModelProvider("ollama").setBaseUrl("https://api.openai.com/v1").setApiKey("sk-test")
+                .setBearerToken("bearer").setAzure(new AzureOptions()).setHeaders(Map.of("X-Custom", "v"));
 
         assertEquals(provider, result);
     }
@@ -60,13 +61,14 @@ public class MultiProviderConfigTest {
     @Test
     void testSerializeNamedProviderConfig() throws Exception {
         var provider = new NamedProviderConfig().setName("my-openai").setType("openai").setWireApi("responses")
-                .setBaseUrl("https://api.openai.com/v1").setApiKey("sk-test");
+                .setModelProvider("ollama").setBaseUrl("https://api.openai.com/v1").setApiKey("sk-test");
 
         JsonNode json = MAPPER.valueToTree(provider);
 
         assertEquals("my-openai", json.get("name").asText());
         assertEquals("openai", json.get("type").asText());
         assertEquals("responses", json.get("wireApi").asText());
+        assertEquals("ollama", json.get("modelProvider").asText());
         assertEquals("https://api.openai.com/v1", json.get("baseUrl").asText());
         assertEquals("sk-test", json.get("apiKey").asText());
         // Null fields must be omitted (NON_NULL)

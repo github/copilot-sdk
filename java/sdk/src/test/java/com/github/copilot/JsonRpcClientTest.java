@@ -18,12 +18,13 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.jupiter.api.Test;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.copilot.generated.rpc.ServerRpc;
+import com.github.copilot.generated.rpc.SandboxProxyCaCheckRelevanceParams;
 
 class JsonRpcClientTest {
 
@@ -102,7 +103,35 @@ class JsonRpcClientTest {
         return new String(buffer, StandardCharsets.UTF_8);
     }
 
+    private void assertReaderResponsive(SocketPair pair) throws Exception {
+        var response = pair.client.invoke("fixture.barrier", Map.of(), Boolean.class);
+        var request = MAPPER.readTree(readRpcMessage(pair.serverSide.getInputStream()));
+        writeRpcMessage(pair.serverSide.getOutputStream(),
+                "{\"jsonrpc\":\"2.0\",\"id\":" + request.get("id") + ",\"result\":true}");
+        assertTrue(response.get(5, TimeUnit.SECONDS));
+    }
+
     // ---- notify() ----
+
+    @Test
+    void testGeneratedProxyCaQueriesPreserveBooleanResponses() throws Exception {
+        try (var pair = createSocketPair()) {
+            var server = new ServerRpc(pair.client::invoke);
+            for (boolean expected : new boolean[]{true, false}) {
+                for (String method : new String[]{"sandbox.proxyCa.checkInstallationSupport",
+                        "sandbox.proxyCa.checkRelevance"}) {
+                    CompletableFuture<?> result = method.endsWith("checkInstallationSupport")
+                            ? server.sandbox.proxyCa.checkInstallationSupport()
+                            : server.sandbox.proxyCa.checkRelevance(new SandboxProxyCaCheckRelevanceParams(null));
+                    JsonNode request = MAPPER.readTree(readRpcMessage(pair.serverSide.getInputStream()));
+                    assertEquals(method, request.get("method").asText());
+                    writeRpcMessage(pair.serverSide.getOutputStream(),
+                            "{\"jsonrpc\":\"2.0\",\"id\":" + request.get("id") + ",\"result\":" + expected + "}");
+                    assertEquals(expected, result.get(5, TimeUnit.SECONDS));
+                }
+            }
+        }
+    }
 
     @Test
     void testNotify() throws Exception {
@@ -276,7 +305,6 @@ class JsonRpcClientTest {
 
         // Close the client socket so write will fail
         clientSocket.close();
-        Thread.sleep(100);
 
         CompletableFuture<?> future = client.invoke("test", Map.of(), JsonNode.class);
 
@@ -315,7 +343,7 @@ class JsonRpcClientTest {
             writeRpcMessage(pair.serverSide.getOutputStream(),
                     "{\"jsonrpc\":\"2.0\",\"id\":99999,\"result\":{\"ok\":true}}");
 
-            Thread.sleep(200);
+            assertReaderResponsive(pair);
             // No exception, just silently dropped
         }
     }
@@ -367,7 +395,7 @@ class JsonRpcClientTest {
             writeRpcMessage(pair.serverSide.getOutputStream(),
                     "{\"jsonrpc\":\"2.0\",\"method\":\"unknown.method\",\"params\":{}}");
 
-            Thread.sleep(200);
+            assertReaderResponsive(pair);
         }
     }
 
@@ -409,7 +437,9 @@ class JsonRpcClientTest {
     @Test
     void testHandlerThrowsExceptionWithoutId() throws Exception {
         try (var pair = createSocketPair()) {
+            var handled = new CompletableFuture<Void>();
             pair.client.registerMethodHandler("fail.notify", (id, params) -> {
+                handled.complete(null);
                 throw new RuntimeException("notify error");
             });
 
@@ -417,25 +447,24 @@ class JsonRpcClientTest {
             writeRpcMessage(pair.serverSide.getOutputStream(),
                     "{\"jsonrpc\":\"2.0\",\"method\":\"fail.notify\",\"params\":{}}");
 
-            Thread.sleep(200);
-            // Should not crash
+            handled.get(5, TimeUnit.SECONDS);
+            assertReaderResponsive(pair);
         }
     }
 
     @Test
     void testMethodCallWithNullId() throws Exception {
         try (var pair = createSocketPair()) {
-            var received = new AtomicReference<String>();
+            var received = new CompletableFuture<String>();
             pair.client.registerMethodHandler("test.null.id", (id, params) -> {
-                received.set(id);
+                received.complete(id);
             });
 
             // Explicit null id - should be treated as notification
             writeRpcMessage(pair.serverSide.getOutputStream(),
                     "{\"jsonrpc\":\"2.0\",\"id\":null,\"method\":\"test.null.id\",\"params\":{}}");
 
-            Thread.sleep(200);
-            assertNull(received.get());
+            assertNull(received.get(5, TimeUnit.SECONDS));
         }
     }
 
@@ -446,8 +475,7 @@ class JsonRpcClientTest {
         try (var pair = createSocketPair()) {
             writeRpcMessage(pair.serverSide.getOutputStream(), "not valid json {{{");
 
-            Thread.sleep(200);
-            // Should not crash, error is logged
+            assertReaderResponsive(pair);
         }
     }
 
@@ -457,7 +485,7 @@ class JsonRpcClientTest {
             // JSON object with id but no result/error/method - silently ignored
             writeRpcMessage(pair.serverSide.getOutputStream(), "{\"jsonrpc\":\"2.0\",\"id\":1}");
 
-            Thread.sleep(200);
+            assertReaderResponsive(pair);
         }
     }
 

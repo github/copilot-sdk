@@ -53,12 +53,14 @@ const symbolPrefix = "copilot_runtime_"
 
 // ffiLibrary binds the copilot_runtime_* C ABI exports of a loaded cdylib.
 type ffiLibrary struct {
-	handle          uintptr
-	hostStart       func(argv unsafe.Pointer, argvLen uintptr, env unsafe.Pointer, envLen uintptr) uint32
-	hostShutdown    func(serverID uint32) bool
-	connectionOpen  func(serverID uint32, cb uintptr, userData uintptr, a unsafe.Pointer, aLen uintptr, b unsafe.Pointer, bLen uintptr, c unsafe.Pointer, cLen uintptr) uint32
-	connectionWrite func(connID uint32, bytes unsafe.Pointer, length uintptr) bool
-	connectionClose func(connID uint32) bool
+	handle                       uintptr
+	hostStart                    func(argv unsafe.Pointer, argvLen uintptr, env unsafe.Pointer, envLen uintptr) uint32
+	hostShutdown                 func(serverID uint32) bool
+	connectionOpen               func(serverID uint32, cb uintptr, userData uintptr, a unsafe.Pointer, aLen uintptr, b unsafe.Pointer, bLen uintptr, c unsafe.Pointer, cLen uintptr) uint32
+	connectionWrite              func(connID uint32, bytes unsafe.Pointer, length uintptr) bool
+	connectionClose              func(connID uint32) bool
+	connectionSetUiThreadHandler func(connID uint32, enabled bool) bool
+	connectionRunUiAction        func(connID uint32, actionID uint32) bool
 }
 
 // The cdylib may only be loaded once per process; a second load of a different
@@ -173,6 +175,8 @@ func loadLibrary(libraryPath string) (lib *ffiLibrary, err error) {
 	purego.RegisterLibFunc(&bound.connectionOpen, handle, symbolPrefix+"connection_open")
 	purego.RegisterLibFunc(&bound.connectionWrite, handle, symbolPrefix+"connection_write")
 	purego.RegisterLibFunc(&bound.connectionClose, handle, symbolPrefix+"connection_close")
+	purego.RegisterLibFunc(&bound.connectionSetUiThreadHandler, handle, symbolPrefix+"connection_set_ui_thread_handler")
+	purego.RegisterLibFunc(&bound.connectionRunUiAction, handle, symbolPrefix+"connection_run_ui_action")
 
 	loadedLibrary = bound
 	loadedLibraryPath = libraryPath
@@ -304,6 +308,28 @@ func (h *Host) Writer() io.WriteCloser { return hostWriter{h} }
 
 // Reader returns the server → client frame source (plug into jsonrpc2 as stdout).
 func (h *Host) Reader() io.ReadCloser { return h.recv }
+
+// ConfigureUiThread registers this SDK connection's native UI scheduling capability.
+func (h *Host) ConfigureUiThread(enabled bool) error {
+	h.mu.Lock()
+	conn, disposed := h.connectionID, h.disposed
+	h.mu.Unlock()
+	if disposed || !h.lib.connectionSetUiThreadHandler(conn, enabled) {
+		return fmt.Errorf("failed to configure the in-process UI dispatcher")
+	}
+	return nil
+}
+
+// RunUiAction enters synchronously on the caller's UI thread, not an FFI worker.
+func (h *Host) RunUiAction(actionID uint32) error {
+	h.mu.Lock()
+	conn, disposed := h.connectionID, h.disposed
+	h.mu.Unlock()
+	if disposed || !h.lib.connectionRunUiAction(conn, actionID) {
+		return fmt.Errorf("native UI action is retired, already executed, or not on the process main thread")
+	}
+	return nil
+}
 
 func (h *Host) buildArgv() []byte {
 	argv := make([]string, 0, len(h.args)+4)

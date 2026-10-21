@@ -65,6 +65,6 @@ rust_library(
     }),
     version = "1.15.1",
     deps = [
-        "@sdk_vendor__zeroize-1.9.0//:zeroize",
+        "@sdk_vendor__zeroize-1.9.1//:zeroize",
     ],
 )

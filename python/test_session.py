@@ -10,6 +10,7 @@ import pytest
 
 from _session_test_helpers import get_next_event_of_type, wait_for_event
 from copilot import AgentMessageSource, MessageSource
+from copilot._jsonrpc import JsonRpcError
 from copilot.session import Attachment, CopilotSession
 from copilot.session_events import (
     AssistantMessageData,
@@ -20,8 +21,10 @@ from copilot.session_events import (
     SessionEventType,
     SessionIdleData,
     SessionMode,
+    SessionWarningData,
+    UserMessageData,
 )
-from copilot.tools import Tool, ToolResult
+from copilot.tools import Tool, ToolNamespace, ToolResult
 
 MESSAGE_SOURCE_CASES = [
     pytest.param(None, None, id="omitted"),
@@ -58,6 +61,32 @@ def _event(data, event_type: SessionEventType) -> SessionEvent:
     )
 
 
+def _external_tool_request(tool_name: str, request_id: str = "request-1") -> SessionEvent:
+    return _event(
+        ExternalToolRequestedData(
+            request_id=request_id,
+            session_id="session-1",
+            tool_call_id=f"{request_id}-tool-call",
+            tool_name=tool_name,
+            arguments={},
+        ),
+        SessionEventType.EXTERNAL_TOOL_REQUESTED,
+    )
+
+
+async def _wait_for_tool_result(session: CopilotSession, client: Mock, request_id: str) -> dict:
+    pending = session._pending_external_tools.get(request_id)
+    if pending is not None:
+        await asyncio.wait_for(pending, timeout=1)
+    for call in client.request.await_args_list:
+        if (
+            call.args[0] == "session.tools.handlePendingToolCall"
+            and call.args[1]["requestId"] == request_id
+        ):
+            return call.args[1]
+    raise AssertionError(f"tool result was not sent for {request_id}")
+
+
 @pytest.mark.parametrize("use_send_and_wait", [False, True])
 @pytest.mark.asyncio
 async def test_completion_captures_live_idle_before_send_reply_without_idle_in_history(
@@ -66,16 +95,24 @@ async def test_completion_captures_live_idle_before_send_reply_without_idle_in_h
     client = Mock()
     session = CopilotSession("session-1", client)
     intermediate = _event(
-        AssistantMessageData(content="working", message_id="assistant-1"),
+        AssistantMessageData(
+            content="working", message_id="assistant-1", originating_message_id="message-1"
+        ),
         SessionEventType.ASSISTANT_MESSAGE,
     )
     assistant = _event(
-        AssistantMessageData(content="done", message_id="assistant-2"),
+        AssistantMessageData(
+            content="done", message_id="assistant-2", originating_message_id="message-1"
+        ),
         SessionEventType.ASSISTANT_MESSAGE,
+    )
+    user = _event(
+        UserMessageData(content="hello", message_id="message-1"),
+        SessionEventType.USER_MESSAGE,
     )
     idle = _event(SessionIdleData(), SessionEventType.SESSION_IDLE)
     idle.ephemeral = True
-    history = [intermediate, assistant]
+    history = [user, intermediate, assistant]
     received = []
     unsubscribe = session.on(received.append)
 
@@ -85,6 +122,7 @@ async def test_completion_captures_live_idle_before_send_reply_without_idle_in_h
             return {"events": [event.to_dict() for event in history]}
         assert method == "session.send"
         # No suspension: even a create_task(async_waiter()) cannot subscribe in time.
+        session._dispatch_event(user)
         session._dispatch_event(intermediate)
         session._dispatch_event(assistant)
         session._dispatch_event(idle)
@@ -100,7 +138,7 @@ async def test_completion_captures_live_idle_before_send_reply_without_idle_in_h
             idle_task = get_next_event_of_type(session, "session.idle", timeout=1)
             try:
                 assert await session.send("hello") == "message-1"
-                assert received == [intermediate, assistant, idle]
+                assert received == [user, intermediate, assistant, idle]
                 assert await idle_task is idle
                 messages = [
                     event for event in received if event.type == SessionEventType.ASSISTANT_MESSAGE
@@ -113,6 +151,7 @@ async def test_completion_captures_live_idle_before_send_reply_without_idle_in_h
         client.request.assert_awaited_once()
         persisted = await session.get_events()
         assert [event.type for event in persisted] == [
+            SessionEventType.USER_MESSAGE,
             SessionEventType.ASSISTANT_MESSAGE,
             SessionEventType.ASSISTANT_MESSAGE,
         ]
@@ -325,6 +364,12 @@ async def test_send_and_wait_source_allows_idle_without_assistant(
         if mode is not None:
             expected["mode"] = mode
         assert params == expected
+        session._dispatch_event(
+            _event(
+                UserMessageData(content="context updated", message_id="message-1"),
+                SessionEventType.USER_MESSAGE,
+            )
+        )
         session._dispatch_event(_event(SessionIdleData(), SessionEventType.SESSION_IDLE))
         return {"messageId": "message-1"}
 
@@ -332,6 +377,65 @@ async def test_send_and_wait_source_allows_idle_without_assistant(
     assert (
         await session.send_and_wait("context updated", source=source, mode=mode, timeout=1) is None
     )
+
+
+@pytest.mark.asyncio
+async def test_send_and_wait_waits_for_matching_request_before_idle():
+    client = Mock()
+    client.request = AsyncMock(return_value={"messageId": "message-1"})
+    session = CopilotSession("session-1", client)
+
+    pending = asyncio.create_task(session.send_and_wait("queued", timeout=1))
+    await asyncio.sleep(0)
+    client.request.assert_awaited_once()
+
+    session._dispatch_event(_event(SessionIdleData(), SessionEventType.SESSION_IDLE))
+    assert not pending.done()
+
+    session._dispatch_event(
+        _event(
+            UserMessageData(content="queued", message_id="message-1"),
+            SessionEventType.USER_MESSAGE,
+        )
+    )
+    session._dispatch_event(_event(SessionIdleData(), SessionEventType.SESSION_IDLE))
+    assert await asyncio.wait_for(pending, timeout=1) is None
+
+
+@pytest.mark.asyncio
+async def test_send_and_wait_completes_policy_blocked_prompt_on_correlated_warning():
+    client = Mock()
+    client.request = AsyncMock(return_value={"messageId": "message-1"})
+    session = CopilotSession("session-1", client)
+
+    pending = asyncio.create_task(session.send_and_wait("blocked", timeout=1))
+    await asyncio.sleep(0)
+
+    session._dispatch_event(
+        _event(
+            SessionWarningData(
+                message="blocked",
+                warning_type="policy_blocked",
+                originating_message_id="other",
+            ),
+            SessionEventType.SESSION_WARNING,
+        )
+    )
+    session._dispatch_event(_event(SessionIdleData(), SessionEventType.SESSION_IDLE))
+    assert not pending.done()
+
+    session._dispatch_event(
+        _event(
+            SessionWarningData(
+                message="blocked",
+                warning_type="policy_blocked",
+                originating_message_id="message-1",
+            ),
+            SessionEventType.SESSION_WARNING,
+        )
+    )
+    session._dispatch_event(_event(SessionIdleData(), SessionEventType.SESSION_IDLE))
+    assert await asyncio.wait_for(pending, timeout=1) is None
 
 
 @pytest.mark.parametrize("mode", [None, "enqueue", "immediate"])
@@ -352,7 +456,9 @@ async def test_send_and_wait_forwards_agent_source_and_other_options(mode, monke
         "request_headers": {"X-Tag": "review"},
     }
     assistant = _event(
-        AssistantMessageData(content="done", message_id="assistant-1"),
+        AssistantMessageData(
+            content="done", message_id="assistant-1", originating_message_id="message-1"
+        ),
         SessionEventType.ASSISTANT_MESSAGE,
     )
 
@@ -371,6 +477,12 @@ async def test_send_and_wait_forwards_agent_source_and_other_options(mode, monke
             expected["mode"] = mode
         assert method == "session.send"
         assert params == expected
+        session._dispatch_event(
+            _event(
+                UserMessageData(content="Review complete", message_id="message-1"),
+                SessionEventType.USER_MESSAGE,
+            )
+        )
         session._dispatch_event(assistant)
         session._dispatch_event(_event(SessionIdleData(), SessionEventType.SESSION_IDLE))
         return {"messageId": "message-1"}
@@ -413,13 +525,25 @@ async def test_send_and_wait_source_preserves_errors(source, wire, rpc_error):
 @pytest.mark.asyncio
 async def test_send_and_wait_skips_autopilot_continuation_idle():
     client = Mock()
-    client.request = AsyncMock(return_value={"messageId": "message-1"})
+    request_sent = asyncio.Event()
+
+    async def request(*_args, **_kwargs):
+        request_sent.set()
+        return {"messageId": "message-1"}
+
+    client.request = AsyncMock(side_effect=request)
     session = CopilotSession("session-1", client)
 
     pending = asyncio.create_task(session.send_and_wait("keep going"))
-    await asyncio.sleep(0)
+    await asyncio.wait_for(request_sent.wait(), timeout=1)
     client.request.assert_awaited_once()
 
+    session._dispatch_event(
+        _event(
+            UserMessageData(content="keep going", message_id="message-1"),
+            SessionEventType.USER_MESSAGE,
+        )
+    )
     session._dispatch_event(
         _event(
             AssistantMessageData(content="intermediate", message_id="assistant-1"),
@@ -489,11 +613,395 @@ async def test_send_and_wait_ignores_child_events():
         await asyncio.sleep(0)
         assert not pending.done()
 
+        session._dispatch_event(
+            _event(
+                UserMessageData(content="delegate", message_id="message-1"),
+                SessionEventType.USER_MESSAGE,
+            )
+        )
         session._dispatch_event(_event(SessionIdleData(), SessionEventType.SESSION_IDLE))
         assert await asyncio.wait_for(pending, timeout=1) is None
     finally:
         pending.cancel()
         await asyncio.gather(pending, return_exceptions=True)
+
+
+@pytest.mark.asyncio
+async def test_set_tools_sends_complete_wire_payload_and_installs_handlers_on_success():
+    client = Mock()
+    client.request = AsyncMock(return_value={})
+    session = CopilotSession("session-1", client)
+
+    async def handled(_invocation):
+        return ToolResult(text_result_for_llm="new result")
+
+    await session.set_tools(
+        [
+            Tool(
+                name="new_tool",
+                description="",
+                parameters={"type": "object"},
+                handler=handled,
+                overrides_built_in_tool=True,
+                skip_permission=True,
+                defer="never",
+                metadata={"owner": "test"},
+                is_terminal=True,
+                namespace=ToolNamespace(name="word", description="Edit Word documents"),
+            ),
+            Tool(name="declaration_only", description=None),  # type: ignore[arg-type]
+        ]
+    )
+
+    client.request.assert_awaited_once_with(
+        "session.tools.set",
+        {
+            "sessionId": "session-1",
+            "tools": [
+                {
+                    "description": "",
+                    "name": "new_tool",
+                    "defer": "never",
+                    "isTerminal": True,
+                    "metadata": {"owner": "test"},
+                    "namespace": {"name": "word", "description": "Edit Word documents"},
+                    "overridesBuiltInTool": True,
+                    "parameters": {"type": "object"},
+                    "skipPermission": True,
+                },
+                {"description": "", "name": "declaration_only"},
+            ],
+        },
+    )
+
+    assert session._get_tool_handler("new_tool") is handled
+    assert session._get_tool_handler("declaration_only") is None
+
+
+@pytest.mark.asyncio
+async def test_set_tools_keeps_previous_handlers_while_rpc_is_pending_then_swaps():
+    rpc_started = asyncio.Event()
+    release_rpc = asyncio.Event()
+    client = Mock()
+
+    async def request(method, params):
+        if method == "session.tools.set":
+            rpc_started.set()
+            await release_rpc.wait()
+            return {}
+        return {"success": True}
+
+    client.request = AsyncMock(side_effect=request)
+    session = CopilotSession("session-1", client)
+    calls: list[str] = []
+
+    async def old_handler(_invocation):
+        calls.append("old")
+        return ToolResult(text_result_for_llm="old result")
+
+    async def new_handler(_invocation):
+        calls.append("new")
+        return ToolResult(text_result_for_llm="new result")
+
+    session._register_tools([Tool("old_tool", "Old", old_handler)])
+    replace = asyncio.create_task(session.set_tools([Tool("new_tool", "New", new_handler)]))
+    try:
+        await asyncio.wait_for(rpc_started.wait(), timeout=1)
+        session._dispatch_event(_external_tool_request("old_tool", "old-request"))
+        await _wait_for_tool_result(session, client, "old-request")
+        assert calls == ["old"]
+        assert session._get_tool_handler("new_tool") is None
+
+        release_rpc.set()
+        await asyncio.wait_for(replace, timeout=1)
+        assert session._get_tool_handler("old_tool") is None
+        assert session._get_tool_handler("new_tool") is new_handler
+
+        session._dispatch_event(_external_tool_request("new_tool", "new-request"))
+        await _wait_for_tool_result(session, client, "new-request")
+        assert calls == ["old", "new"]
+    finally:
+        release_rpc.set()
+        replace.cancel()
+        await asyncio.gather(replace, return_exceptions=True)
+
+
+@pytest.mark.asyncio
+async def test_set_tools_rejects_a_disconnected_session_without_sending():
+    client = Mock()
+    client.request = AsyncMock(return_value={})
+    session = CopilotSession("session-1", client)
+    session._mark_disconnected()
+
+    async def handler(_invocation):
+        return ToolResult(text_result_for_llm="new result")
+
+    with pytest.raises(RuntimeError, match="Session is disconnected"):
+        await session.set_tools([Tool("new_tool", "New", handler)])
+
+    client.request.assert_not_awaited()
+    assert session._tool_handlers == {}
+    assert not session._set_tools_lock.locked()
+
+
+@pytest.mark.asyncio
+async def test_set_tools_rejects_an_acknowledgement_after_disconnection():
+    rpc_started = asyncio.Event()
+    release_rpc = asyncio.Event()
+    client = Mock()
+
+    async def request(method, params):
+        assert method == "session.tools.set"
+        rpc_started.set()
+        await release_rpc.wait()
+        return {}
+
+    client.request = AsyncMock(side_effect=request)
+    session = CopilotSession("session-1", client)
+
+    async def handler(_invocation):
+        return ToolResult(text_result_for_llm="new result")
+
+    replacement = asyncio.create_task(session.set_tools([Tool("new_tool", "New", handler)]))
+    try:
+        await asyncio.wait_for(rpc_started.wait(), timeout=1)
+        session._mark_disconnected()
+        assert session._tool_handlers == {}
+        release_rpc.set()
+
+        with pytest.raises(RuntimeError, match="Session is disconnected"):
+            await asyncio.wait_for(replacement, timeout=1)
+
+        assert client.request.await_count == 1
+        assert session._tool_handlers == {}
+        assert not session._set_tools_lock.locked()
+    finally:
+        release_rpc.set()
+        replacement.cancel()
+        await asyncio.gather(replacement, return_exceptions=True)
+
+
+@pytest.mark.asyncio
+async def test_set_tools_rejects_a_queued_replacement_after_disconnection():
+    rpc_started = asyncio.Event()
+    release_rpc = asyncio.Event()
+    queued_started = asyncio.Event()
+    client = Mock()
+
+    async def request(method, params):
+        assert method == "session.tools.set"
+        rpc_started.set()
+        await release_rpc.wait()
+        return {}
+
+    client.request = AsyncMock(side_effect=request)
+    session = CopilotSession("session-1", client)
+
+    async def handler(_invocation):
+        return ToolResult(text_result_for_llm="new result")
+
+    async def replace_queued():
+        queued_started.set()
+        await session.set_tools([Tool("queued_tool", "Queued", handler)])
+
+    first = asyncio.create_task(session.set_tools([Tool("first_tool", "First", handler)]))
+    queued = None
+    try:
+        await asyncio.wait_for(rpc_started.wait(), timeout=1)
+        queued = asyncio.create_task(replace_queued())
+        await asyncio.wait_for(queued_started.wait(), timeout=1)
+        session._mark_disconnected()
+        release_rpc.set()
+        results = await asyncio.wait_for(
+            asyncio.gather(first, queued, return_exceptions=True), timeout=1
+        )
+
+        assert all(isinstance(result, RuntimeError) for result in results)
+        assert [str(result) for result in results] == ["Session is disconnected"] * 2
+        assert client.request.await_count == 1
+        assert session._tool_handlers == {}
+        assert not session._set_tools_lock.locked()
+    finally:
+        release_rpc.set()
+        pending = [first, queued] if queued is not None else [first]
+        for task in pending:
+            task.cancel()
+        await asyncio.gather(*pending, return_exceptions=True)
+
+
+@pytest.mark.asyncio
+async def test_set_tools_rejection_leaves_handlers_unchanged():
+    client = Mock()
+    client.request = AsyncMock(side_effect=JsonRpcError(-32602, "invalid params"))
+    session = CopilotSession("session-1", client)
+
+    async def old_handler(_invocation):
+        return ToolResult(text_result_for_llm="old result")
+
+    async def new_handler(_invocation):
+        return ToolResult(text_result_for_llm="new result")
+
+    session._register_tools([Tool("old_tool", "Old", old_handler)])
+
+    with pytest.raises(JsonRpcError):
+        await session.set_tools([Tool("new_tool", "New", new_handler)])
+
+    assert session._get_tool_handler("old_tool") is old_handler
+    assert session._get_tool_handler("new_tool") is None
+
+
+@pytest.mark.asyncio
+async def test_set_tools_empty_list_removes_handlers_after_success():
+    client = Mock()
+    client.request = AsyncMock(return_value={})
+    session = CopilotSession("session-1", client)
+
+    async def old_handler(_invocation):
+        return ToolResult(text_result_for_llm="old result")
+
+    session._register_tools([Tool("old_tool", "Old", old_handler)])
+
+    await session.set_tools([])
+
+    client.request.assert_awaited_once_with(
+        "session.tools.set", {"sessionId": "session-1", "tools": []}
+    )
+    assert session._get_tool_handler("old_tool") is None
+
+
+@pytest.mark.asyncio
+async def test_set_tools_serializes_concurrent_calls_and_allows_later_after_failure():
+    set_requests: list[dict] = []
+    releases = [asyncio.Event(), asyncio.Event()]
+    entered = [asyncio.Event(), asyncio.Event()]
+    client = Mock()
+
+    async def request(method, params):
+        assert method == "session.tools.set"
+        index = len(set_requests)
+        set_requests.append(params)
+        entered[index].set()
+        await releases[index].wait()
+        if index == 0:
+            raise JsonRpcError(-32602, "invalid params")
+        return {}
+
+    client.request = AsyncMock(side_effect=request)
+    session = CopilotSession("session-1", client)
+
+    async def first_handler(_invocation):
+        return ToolResult(text_result_for_llm="first")
+
+    async def second_handler(_invocation):
+        return ToolResult(text_result_for_llm="second")
+
+    first = asyncio.create_task(session.set_tools([Tool("first_tool", "First", first_handler)]))
+    second = asyncio.create_task(session.set_tools([Tool("second_tool", "Second", second_handler)]))
+    try:
+        await asyncio.wait_for(entered[0].wait(), timeout=1)
+        assert [request["tools"][0]["name"] for request in set_requests] == ["first_tool"]
+
+        releases[0].set()
+        with pytest.raises(JsonRpcError):
+            await asyncio.wait_for(first, timeout=1)
+
+        await asyncio.wait_for(entered[1].wait(), timeout=1)
+        assert [request["tools"][0]["name"] for request in set_requests] == [
+            "first_tool",
+            "second_tool",
+        ]
+
+        releases[1].set()
+        await asyncio.wait_for(second, timeout=1)
+        assert session._get_tool_handler("first_tool") is None
+        assert session._get_tool_handler("second_tool") is second_handler
+    finally:
+        for release in releases:
+            release.set()
+        first.cancel()
+        second.cancel()
+        await asyncio.gather(first, second, return_exceptions=True)
+
+
+@pytest.mark.asyncio
+async def test_set_tools_caller_cancellation_after_request_still_installs_accepted_handlers():
+    rpc_started = asyncio.Event()
+    release_rpc = asyncio.Event()
+    client = Mock()
+    replacement_task = None
+
+    async def request(method, params):
+        nonlocal replacement_task
+        assert method == "session.tools.set"
+        replacement_task = asyncio.current_task()
+        rpc_started.set()
+        await release_rpc.wait()
+        return {}
+
+    client.request = AsyncMock(side_effect=request)
+    session = CopilotSession("session-1", client)
+
+    async def new_handler(_invocation):
+        return ToolResult(text_result_for_llm="new result")
+
+    replace = asyncio.create_task(session.set_tools([Tool("new_tool", "New", new_handler)]))
+    try:
+        await asyncio.wait_for(rpc_started.wait(), timeout=1)
+        replace.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await replace
+
+        release_rpc.set()
+        assert replacement_task is not None
+        await asyncio.wait_for(replacement_task, timeout=1)
+        assert session._get_tool_handler("new_tool") is new_handler
+    finally:
+        release_rpc.set()
+
+
+@pytest.mark.asyncio
+async def test_set_tools_cancelled_while_queued_sends_nothing():
+    set_requests: list[dict] = []
+    release_first = asyncio.Event()
+    first_entered = asyncio.Event()
+    client = Mock()
+
+    async def request(method, params):
+        assert method == "session.tools.set"
+        set_requests.append(params)
+        first_entered.set()
+        await release_first.wait()
+        return {}
+
+    client.request = AsyncMock(side_effect=request)
+    session = CopilotSession("session-1", client)
+
+    async def first_handler(_invocation):
+        return ToolResult(text_result_for_llm="first")
+
+    async def queued_handler(_invocation):
+        return ToolResult(text_result_for_llm="queued")
+
+    first = asyncio.create_task(session.set_tools([Tool("first_tool", "First", first_handler)]))
+    queued = asyncio.create_task(session.set_tools([Tool("queued_tool", "Queued", queued_handler)]))
+    try:
+        await asyncio.wait_for(first_entered.wait(), timeout=1)
+        assert len(set_requests) == 1
+
+        queued.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await queued
+
+        release_first.set()
+        await asyncio.wait_for(first, timeout=1)
+        assert [request["tools"][0]["name"] for request in set_requests] == ["first_tool"]
+        assert session._get_tool_handler("first_tool") is first_handler
+        assert session._get_tool_handler("queued_tool") is None
+    finally:
+        release_first.set()
+        first.cancel()
+        queued.cancel()
+        await asyncio.gather(first, queued, return_exceptions=True)
 
 
 @pytest.mark.asyncio
@@ -536,6 +1044,52 @@ async def test_external_tool_completed_cancels_blocked_handler():
     await asyncio.wait_for(cancelled.wait(), timeout=1)
     await asyncio.sleep(0)
     client.request.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_tool_invocation_names_the_sub_agent_and_request_behind_the_call():
+    client = Mock()
+    client.request = AsyncMock()
+    session = CopilotSession("session-1", client)
+    invocations = []
+
+    def calc(invocation):
+        invocations.append(invocation)
+        return ToolResult(text_result_for_llm="ok")
+
+    session._register_tools([Tool("calc", "Calculates", calc)])
+    session._dispatch_event(
+        SessionEvent(
+            data=ExternalToolRequestedData(
+                request_id="req-sub-agent",
+                session_id="session-1",
+                tool_call_id="tc-sub-agent",
+                tool_name="calc",
+                arguments={},
+            ),
+            id=uuid4(),
+            timestamp=datetime.now(UTC),
+            type=SessionEventType.EXTERNAL_TOOL_REQUESTED,
+            agent_id="task-agent-1",
+        )
+    )
+    session._dispatch_event(_external_tool_request("calc", "req-root"))
+    blank_agent_request = _external_tool_request("calc", "req-blank-agent")
+    blank_agent_request.agent_id = ""
+    session._dispatch_event(blank_agent_request)
+    await _wait_for_tool_result(session, client, "req-sub-agent")
+    await _wait_for_tool_result(session, client, "req-root")
+    await _wait_for_tool_result(session, client, "req-blank-agent")
+
+    identities = sorted(
+        (invocation.tool_call_id, invocation.agent_id, invocation.request_id)
+        for invocation in invocations
+    )
+    assert identities == [
+        ("req-blank-agent-tool-call", None, "req-blank-agent"),
+        ("req-root-tool-call", None, "req-root"),
+        ("tc-sub-agent", "task-agent-1", "req-sub-agent"),
+    ]
 
 
 @pytest.mark.asyncio

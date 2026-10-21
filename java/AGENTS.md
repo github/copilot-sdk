@@ -62,9 +62,11 @@ Run `verify` without `-q` or piping through `grep` so failures remain visible.
 source changes. Tests must exercise public APIs, not expose internals solely
 for tests.
 
-For replay-backed Java integration tests, use the on-demand
+Add new Java E2E tests for Java SDK surface behavior, not shared runtime
+functionality; new SDK-accessible runtime E2Es belong in
+`../nodejs/test/e2e/`. For replay-backed Java integration tests, use the on-demand
 [`sdk-java-e2e-test` skill](../.github/skills/sdk-java-e2e-test/SKILL.md).
-Its snapshot workflow and companion examples are not required for unrelated
+Its snapshot workflow is not required for unrelated
 Java edits. For JDK 17 compatibility testing, run the JDK 25-built artifact on
 JDK 17 without recompiling it, following
 [Development Setup](README.md#development-setup).

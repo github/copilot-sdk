@@ -60,6 +60,12 @@ public enum SkillInstallationFailureReason {
     PAYLOAD_UNAVAILABLE("payload-unavailable"),
     /** The {@code payload-mismatch} variant. */
     PAYLOAD_MISMATCH("payload-mismatch"),
+    /** The {@code source-rate-limited} variant. */
+    SOURCE_RATE_LIMITED("source-rate-limited"),
+    /** The {@code no-credential} variant. */
+    NO_CREDENTIAL("no-credential"),
+    /** The {@code credential-rejected} variant. */
+    CREDENTIAL_REJECTED("credential-rejected"),
     /** The {@code source-changed} variant. */
     SOURCE_CHANGED("source-changed"),
     /** The {@code lifecycle-unavailable} variant. */

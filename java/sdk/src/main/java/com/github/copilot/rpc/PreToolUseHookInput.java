@@ -16,6 +16,42 @@ import com.fasterxml.jackson.databind.JsonNode;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class PreToolUseHookInput {
 
+    @JsonProperty("agentId")
+    private String agentId;
+
+    public String getAgentId() {
+        return agentId;
+    }
+
+    public PreToolUseHookInput setAgentId(String agentId) {
+        this.agentId = agentId;
+        return this;
+    }
+
+    @JsonProperty("agentType")
+    private String agentType;
+
+    public String getAgentType() {
+        return agentType;
+    }
+
+    public PreToolUseHookInput setAgentType(String agentType) {
+        this.agentType = agentType;
+        return this;
+    }
+
+    @JsonProperty("parentAgentId")
+    private String parentAgentId;
+
+    public String getParentAgentId() {
+        return parentAgentId;
+    }
+
+    public PreToolUseHookInput setParentAgentId(String parentAgentId) {
+        this.parentAgentId = parentAgentId;
+        return this;
+    }
+
     @JsonProperty("sessionId")
     private String sessionId;
 

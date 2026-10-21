@@ -38,6 +38,10 @@ rust_library(
             "WORKSPACE.bazel",
         ],
     ),
+    crate_features = [
+        "std",
+        "sys_rng",
+    ],
     crate_root = "src/lib.rs",
     edition = "2024",
     rustc_env_files = [
@@ -66,18 +70,19 @@ rust_library(
     deps = [
         ":build_script_build",
         "@sdk_vendor__cfg-if-1.0.5//:cfg_if",
+        "@sdk_vendor__rand_core-0.10.1//:rand_core",
     ] + select({
         "@rules_rust//rust/platform:aarch64-apple-darwin": [
-            "@sdk_vendor__libc-0.2.189//:libc",  # cfg(any(target_os = "macos", target_os = "openbsd", target_os = "vita", target_os = "emscripten"))
+            "@sdk_vendor__libc-0.2.191//:libc",  # cfg(any(target_os = "macos", target_os = "openbsd", target_os = "vita", target_os = "emscripten"))
         ],
         "@rules_rust//rust/platform:aarch64-unknown-linux-gnu": [
-            "@sdk_vendor__libc-0.2.189//:libc",  # cfg(all(any(target_os = "linux", target_os = "android"), not(any(all(target_os = "linux", target_env = ""), getrandom_backend = "custom", getrandom_backend = "linux_raw", getrandom_backend = "rdrand", getrandom_backend = "rndr"))))
+            "@sdk_vendor__libc-0.2.191//:libc",  # cfg(all(any(target_os = "linux", target_os = "android"), not(any(all(target_os = "linux", target_env = ""), getrandom_backend = "custom", getrandom_backend = "linux_raw", getrandom_backend = "rdrand", getrandom_backend = "rndr"))))
         ],
         "@rules_rust//rust/platform:x86_64-apple-darwin": [
-            "@sdk_vendor__libc-0.2.189//:libc",  # cfg(any(target_os = "macos", target_os = "openbsd", target_os = "vita", target_os = "emscripten"))
+            "@sdk_vendor__libc-0.2.191//:libc",  # cfg(any(target_os = "macos", target_os = "openbsd", target_os = "vita", target_os = "emscripten"))
         ],
         "@rules_rust//rust/platform:x86_64-unknown-linux-gnu": [
-            "@sdk_vendor__libc-0.2.189//:libc",  # cfg(all(any(target_os = "linux", target_os = "android"), not(any(all(target_os = "linux", target_env = ""), getrandom_backend = "custom", getrandom_backend = "linux_raw", getrandom_backend = "rdrand", getrandom_backend = "rndr"))))
+            "@sdk_vendor__libc-0.2.191//:libc",  # cfg(all(any(target_os = "linux", target_os = "android"), not(any(all(target_os = "linux", target_env = ""), getrandom_backend = "custom", getrandom_backend = "linux_raw", getrandom_backend = "rdrand", getrandom_backend = "rndr"))))
         ],
         "//conditions:default": [],
     }),
@@ -105,6 +110,10 @@ cargo_build_script(
             "WORKSPACE.bazel",
         ],
     ),
+    crate_features = [
+        "std",
+        "sys_rng",
+    ],
     crate_name = "build_script_build",
     crate_root = "build.rs",
     data = glob(

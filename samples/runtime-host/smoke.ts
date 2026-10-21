@@ -37,6 +37,7 @@ try {
         model: "claude-sonnet-5",
     });
     await using host = await owner.startAhpHost({
+        localServer: {},
         onExit: (exit) => console.log(`AHP host stopped: ${exit.reason}`),
     });
     const ahp = await connectAhp(host);
@@ -46,6 +47,7 @@ try {
         assert(runtime.pid);
         await assertRuntimeListener(host, runtime.pid, artifacts);
         console.log(`SDK app ${process.pid} -> runtime ${runtime.pid} (in-process AHP listener)`);
+        if (!host.url) throw new Error("Local hosting must return a listener URL");
         const listener = new URL(host.url);
         listener.search = "";
         console.log(`AHP listener: ${listener} (connection token intentionally not printed)`);

@@ -31,12 +31,19 @@ public class ConnectionTokenTestFixture : IAsyncLifetime
 
     public async Task DisposeAsync()
     {
+        var errors = new List<Exception>();
         if (GoodClient is not null)
         {
-            await GoodClient.ForceStopAsync();
+            try { await GoodClient.ForceStopAsync(); }
+            catch (Exception ex) { errors.Add(ex); }
         }
-
-        await Ctx.DisposeAsync();
+        if (Ctx is not null)
+        {
+            try { await Ctx.DisposeAsync(); }
+            catch (Exception ex) { errors.Add(ex); }
+        }
+        if (errors.Count == 1) throw errors[0];
+        if (errors.Count > 1) throw new AggregateException(errors);
     }
 }
 

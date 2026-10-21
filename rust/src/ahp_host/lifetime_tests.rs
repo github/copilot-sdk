@@ -140,7 +140,7 @@ async fn blocked_release_callback_cannot_lose_another_release_behind_notificatio
     let (blocked_tx, mut blocked) = mpsc::unbounded_channel();
     let (unblock, gate) = std::sync::mpsc::channel::<()>();
     let gate = std::sync::Mutex::new(gate);
-    let options = AhpHostOptions::new()
+    let options = local_options()
         .with_create_session(move |request: AhpSessionRequest, client: Client| {
             let created_tx = created_tx.clone();
             async move {

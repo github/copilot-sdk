@@ -15,6 +15,8 @@
 
 Java SDK for programmatic control of GitHub Copilot CLI, enabling you to build AI-powered applications and agentic workflows. The Java SDK tracks the official GitHub Copilot SDK family (TypeScript, Python, Go, .NET, and Rust).
 
+The generated `SessionFsSetProviderCapabilities.binary` field describes the runtime protocol, not a Java provider API. The Java SDK cannot currently register a session filesystem provider or handle `sessionFs.readFileBytes` or `sessionFs.writeFileBytes`; do not advertise binary operations from Java. Java provider and binary support is deferred until the SDK exposes provider registration and reverse-RPC dispatch. Provider-only images currently require a provider-capable SDK.
+
 ## Prerequisites
 
 To use the SDK, you'll need:
@@ -74,7 +76,7 @@ implementation 'com.github:copilot-sdk-java:1.0.15-preview.1-SNAPSHOT'
 
 ## In-process mode (experimental)
 
-The SDK supports running the Copilot runtime **in-process** as a native library instead of spawning a separate CLI process. This eliminates process management overhead and simplifies deployment. In-process mode is currently experimental and supported on **linux-x64** (glibc), **linux-arm64** (glibc), **linuxmusl-x64**, **win32-x64**, **win32-arm64**, **darwin-x64**, and **darwin-arm64**.
+The SDK supports running the Copilot runtime **in-process** as a native library instead of spawning a separate CLI process. This eliminates process management overhead and simplifies deployment. In-process mode is currently experimental and supported on **linux-x64** (glibc), **linux-arm64** (glibc), **linuxmusl-x64**, **linuxmusl-arm64**, **win32-x64**, **win32-arm64**, **darwin-x64**, and **darwin-arm64**.
 
 Because in-process mode is experimental, see the [Using experimental APIs](#using-experimental-apis) section for how to opt in.
 
@@ -97,7 +99,7 @@ Add both the SDK and the platform-specific native runtime to your project:
         <version>${copilot.version}</version>
         <classifier>linux-x64</classifier>
     </dependency>
-    <!-- Use linux-arm64, linuxmusl-x64, win32-x64, win32-arm64, darwin-x64, or darwin-arm64 on those target platforms -->
+    <!-- Use linux-arm64, linuxmusl-x64, linuxmusl-arm64, win32-x64, win32-arm64, darwin-x64, or darwin-arm64 on those target platforms -->
     <!-- JNA (required for in-process mode) -->
     <dependency>
         <groupId>net.java.dev.jna</groupId>
@@ -119,9 +121,34 @@ CopilotClient client = new CopilotClient(options);
 client.start().get();
 ```
 
+For the native standalone runtime, include
+`"COPILOT_GITHUB_TELEMETRY_DISABLED", "true"` in the environment map passed to
+`CopilotClientOptions.setEnvironment(...)` before startup to disable direct
+GitHub telemetry uploads for the entire host, including sessionless events.
+Authentication, `setOnGitHubTelemetry(...)` forwarding, and user-configured
+OpenTelemetry export remain unchanged. This is separate from
+`SessionConfig.setEnableSessionTelemetry(false)`, which disables only a session's
+pipeline. The value must be exactly `"true"`; changing it requires a runtime
+restart. The Node CLI host does not use this variable. In-process connections
+reject per-client environment maps; set the variable in the host process
+environment before starting the runtime instead.
+
 ## Quick Start
 
-For experimental in-process AHP hosting, use `client.startAhpHost(new AhpHostOptions())`.
+For experimental in-process AHP hosting, select a transport explicitly:
+`client.startAhpHost(new AhpHostOptions().setLocalServer(new HostLocalServerOptions(null, null, null, null)))`.
+The transport types are in `com.github.copilot.generated.rpc`. For GitHub Mission
+Control, use `.setGithubEnvironment(new HostGitHubEnvironmentOptions("My host", "compute-id"))`
+instead, or configure both transports. GitHub environment name and compute ID are
+required; there is no implicit local listener. The host's `getUrl()`, `getToken()`,
+and `getPid()` may return `null`; `getEnvironmentId()` returns the GitHub environment
+ID when configured. Environment list/get/delete operations are available only
+through the generated RPC API. Call `host.listSessions()` to read the complete
+advertised catalog of live and dormant sessions.
+Use `AhpHostOptions.setComputeId(...)` to reuse the durable catalog across local
+and Mission Control hosting; it must agree with the GitHub environment's compute
+ID when both are supplied. The runtime persists an omitted local-only identity.
+Publication survives host shutdown; dormant application sessions require your resume callback.
 See [runtime-supervised AHP hosting](../docs/runtime-supervised-host.md) for creation
 and resume callbacks, resident-session publication, ownership, and shared-snapshot E2Es.
 
@@ -173,6 +200,24 @@ public class CopilotSDK {
 }
 ```
 
+`client.forceStop()` retires tracked sessions locally without `session.detach`
+RPCs. Retained session objects reject new work and subscriptions, unused handler
+captures are released, and pending plain and structured response waits fail.
+Already-admitted event handlers and response continuations are not joined.
+Forced retirement also drops callbacks when a graceful `session.close()` is
+already awaiting detach. Graceful close fails pending response waits without
+joining their continuations; ordinary callbacks remain active until detach completes.
+Plain response waits preserve terminal results and errors already received before
+retirement, even when a blocked continuation delays forwarding them to the caller.
+Graceful owned-process shutdown over stdio waits for the runtime transport and
+launcher to exit. Over TCP, it closes the connection and terminates the owned
+process after the shutdown acknowledgment, without waiting for peer EOF.
+Both preserve intentionally detached services; failed or forced shutdown retains
+process-tree cleanup.
+For a custom TCP launcher that spawns the runtime as a child, graceful cleanup
+terminates only the launcher. The launcher must supervise and reap its runtime
+child; a shutdown acknowledgment alone does not prove that child exited.
+
 When targeting MCP tools configured through `setMcpServers(...)`, remember the
 runtime tool name is `<server-key>-<tool-name>`. For `setAvailableTools(...)`
 and `setExcludedTools(...)`, prefer the source-qualified filter form
@@ -181,6 +226,38 @@ and `setExcludedTools(...)`, prefer the source-qualified filter form
 directly.
 
 `CopilotClientOptions.setCwd(...)` sets the runtime process working directory, which otherwise inherits the current process working directory. `SessionConfig.setWorkingDirectory(...)` sets the session working directory, which otherwise defaults to the runtime process working directory.
+
+### Subagent lifecycle hooks
+
+Register `setOnSubagentStart` and `setOnSubagentStop` on `SessionHooks` to inspect
+the parent session and subagent metadata around each child run:
+
+```java
+import com.github.copilot.rpc.PermissionHandler;
+import com.github.copilot.rpc.SessionConfig;
+import com.github.copilot.rpc.SessionHooks;
+import com.github.copilot.rpc.SubagentStartHookOutput;
+import com.github.copilot.rpc.SubagentStopHookOutput;
+import java.util.concurrent.CompletableFuture;
+
+var hooks = new SessionHooks()
+    .setOnSubagentStart((input, invocation) ->
+        CompletableFuture.completedFuture(
+            new SubagentStartHookOutput("Check the relevant tests first.")))
+    .setOnSubagentStop((input, invocation) ->
+        CompletableFuture.completedFuture(
+            new SubagentStopHookOutput(null, null, input.response())));
+var config = new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setHooks(hooks);
+```
+
+`SubagentStartHookInput` includes the parent `sessionId`, `timestamp`, `cwd`,
+`transcriptPath`, `agentName`, and optional display name and description. Its
+`additionalContext` output is prepended to the child's first prompt.
+`SubagentStopHookInput` also includes `agentType`, optional `agentId`,
+`stopReason`, and the last assistant `response`. Return a stop output with
+`decision` set to `"block"` and a nonempty `reason` to request another child
+turn, or set `modifiedResponse` to replace the final response. A block takes
+precedence over a rewrite.
 
 `CopilotClientOptions.setExtensionLaunchProvider(...)` configures an experimental
 connection-level resolver for extension launch profiles. The client installs the
@@ -211,15 +288,33 @@ spawned UI work should observe this signal and retire itself when it completes.
 Dropping an outbound installation or OAuth future does not cancel that
 operation.
 
+`SessionConfig.setAutopilot(AutopilotOptions)` and the corresponding
+`ResumeSessionConfig` setter configure experimental Autopilot policy.
+`continuationEnabled` defaults to true and does not change session mode.
+`maxContinues` limits continuations outside an active objective: a non-negative
+integer, default five, with zero allowing none. Options updates and warm resumes
+preserve omitted fields; an empty
+policy changes nothing. Re-supply on cold resume. Pause state, prompt overrides,
+and no-progress detection remain internal.
+
 `SessionConfig.setAskUserVariant(AskUserVariant.ELICITATION)` selects the
 structured form-based `ask_user` tool when an elicitation handler is also set.
 The default is `AskUserVariant.LEGACY`. Re-supply the option and handler through
 `ResumeSessionConfig` on a cold resume.
 
-To continue a pending turn after resuming a session, pass
-`new ResumeSessionConfig().setContinuePendingWork(true)` to `resumeSession`.
-Set it to `false` to opt out explicitly, or leave it unset to use the runtime
-default.
+`ResumeSessionConfig.setContinuePendingWork(false)` interrupts work still in
+flight when resuming (the default), while preserving completed tool results
+already durably recorded by the runtime.
+Pass `new ResumeSessionConfig().setContinuePendingWork(true)` to
+`resumeSession` to keep waiting for pending tool calls and permission requests
+instead. Leave the option unset to use the runtime default. Re-register any
+external tools needed to handle continued work.
+
+`SessionConfig.setInteractiveUser(true)` declares that a person types the
+session's messages, as in an editor chat panel. This enables the runtime's
+user-message analysis telemetry for user-authored messages. Automated messages
+stay excluded. The default is off, and cloud sessions ignore it. Re-supply it
+through `ResumeSessionConfig` on a cold resume.
 
 For rotating per-session GitHub credentials, use
 `SessionConfig.setGitHubTokenProvider(...)` (or the equivalent
@@ -242,6 +337,65 @@ provider errors, and invalid token responses reject that operation instead of
 falling back to ambient authentication. Idle sessions refresh only before their
 next credential-consuming operation; there is no background refresh timer.
 
+### Skill providers (experimental)
+
+`SessionConfig.setSkillProvider(...)` registers session-scoped skills that the
+runtime can list and read on demand. The API is experimental; see
+[Using experimental APIs](#using-experimental-apis) before compiling code that
+references it.
+
+```java
+import com.github.copilot.SkillProvider;
+import com.github.copilot.SkillProviderDescriptor;
+
+SkillProvider provider = new SkillProvider() {
+    @Override
+    public CompletableFuture<List<SkillProviderDescriptor>> listSkills() {
+        return CompletableFuture.completedFuture(List.of(
+            new SkillProviderDescriptor("team-plan", "Team planning guidance", true, false, null)));
+    }
+
+    @Override
+    public CompletableFuture<String> readSkill(String name) {
+        if (!name.equals("team-plan")) {
+            return CompletableFuture.completedFuture(null); // not found
+        }
+        return CompletableFuture.completedFuture("# Team plan\nWrite a concise monthly team plan.");
+    }
+};
+
+var config = new SessionConfig()
+    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+    .setEnableSkills(true)
+    .setSkillProvider(provider);
+```
+
+Provider callbacks may be invoked concurrently, so implementations should be
+thread-safe. When the runtime cancels a call, for example after its 30-second
+limit or when the session disconnects, the SDK calls `cancel(true)` on the
+returned future; check `isCancelled()` or attach a completion callback to stop
+early. The provider is not persisted with the session; pass it again via
+`ResumeSessionConfig.setSkillProvider(...)` on every resume. Resuming without a
+provider unbinds any provider the session had. In
+`CopilotClientMode.EMPTY`, explicitly set `setEnableSkills(true)` if the
+assistant should use skills, because empty mode disables skill loading by
+default. Skill providers are local-session only and are rejected for cloud
+sessions.
+
+#### Supporting files (experimental)
+
+To give a provider skill supporting files, such as scripts, references,
+templates, and assets, set its descriptor's `directory` to the absolute path of
+the local folder that holds them:
+
+```java
+new SkillProviderDescriptor("release-notes", "Writes release notes in the team's format.",
+    null, null, null, "/srv/skills/release-notes")
+```
+
+When the skill is activated, the runtime lists the folder's files for the model.
+See [Supporting files](../docs/features/skills.md#supporting-files-experimental) for details.
+
 ### Typed MCP installation and removal payloads (breaking change)
 
 Three payloads in the experimental MCP installation and removal workflow are now sealed
@@ -253,6 +407,12 @@ with the other SDKs. No other generated type changes.
 | `InstallationConfirmationRequest.review()` | `Object` | `InstallationReview` sealed interface (`InstallationReviewMcp` / `InstallationReviewSkill`, by `resource`); the MCP variant carries `McpInstallationReview` (`McpInstallationReviewInstall` / `McpInstallationReviewUninstall`, by `action`) and the Skill variant carries `SkillInstallationReview` |
 | `McpInstallPlan.transportChoices()` | `List<Object>` | `List<McpPlanTransportChoice>` (`McpPlanTransportChoicePackage` / `McpPlanTransportChoiceRemote`, by `installMethod`) |
 | `McpInstallationManagementResultOutcome.getOutcome()` / `setOutcome(...)` | `Object` | `McpInstallationManagementOutcome`, whose operation variant carries `McpInstallationOperationStatus` (by `phase`) |
+
+## System Message Customization
+
+Use `SessionConfig.setSystemMessage(...)` with a `SystemMessageConfig` in `SystemMessageMode.CUSTOMIZE` to override individual prompt sections. Section keys are defined by `SystemMessageSections`; use `SectionOverride.setAction(...)` for static overrides or `SectionOverride.setTransform(...)` for a transform callback.
+
+`SystemMessageSections.LAST_INSTRUCTIONS` (`last_instructions`) includes configured subagent-model guidance when the `task` tool is available. Removing or replacing this section also removes that guidance; a transform callback receives the complete section, including the guidance, and its returned content is authoritative. Append, prepend, and preserve retain their usual section semantics. These overrides change prompt prose only, not configured subagent models, tool availability, or runtime dispatch policy. `SystemMessageSections.RUNTIME_INSTRUCTIONS` is a separate section: removing it does not remove `SystemMessageSections.LAST_INSTRUCTIONS`.
 
 ## Message source
 
@@ -300,6 +460,17 @@ Inventory inventory = session.sendAndWait(
 ).get();
 ```
 
+On resume, transcript recovery defaults to true in all modes.
+Use `ResumeSessionConfig.setAllowTranscriptRecovery(false)` to reject recovery.
+A repaired session exposes
+`getTranscriptRecovery()` (or null), with `plannedBackupPath`,
+`invalidLineNumbers` (including discarded torn-tail lines), and
+`sessionStartMoved`. A rejected resume retains the existing error message;
+`JsonRpcException.getCode()` and `getData()` expose the server's code and
+`invalidLineNumbers` / `sessionStartMoved` data.
+Disabling recovery still permits adding a missing newline after an intact final
+record; it rejects torn tails.
+
 Enable annotation processing with `CopilotResponseProcessor` (automatically
 discoverable alongside the SDK's existing processors), and opt in to experimental
 APIs as described below. The processor reuses the custom-tool `SchemaGenerator`,
@@ -316,7 +487,13 @@ options, and reject explicit schemas and immediate delivery.
 Schemas apply to one run, including tools, steering, and stop-hook corrections;
 independent sends and subagents do not inherit them. Streaming stays text.
 Structured waits return the last correlated root message without tool requests at
-non-autopilot idle. Concurrent waits keep their own results; queued work can delay
+non-autopilot idle or the matching root `session.autopilot_stopped`.
+All `sendAndWait` variants accept this authoritative Autopilot terminal without
+waiting for or stopping attached shells. Its `requestId` must match the original
+send ID; continuation messages do not change ownership. Missing, unrelated, or
+subagent terminals cannot complete the wait. `session.idle` remains whole-session
+quiescence; `assistant.idle` and `session.task_complete` alone are not completion.
+Concurrent waits keep their own results; queued work can delay
 idle. Aborts, session errors after the run starts, and missing final output fail.
 Cancellation and timeout stop waiting without aborting the agent.
 
@@ -324,7 +501,27 @@ Cancellation and timeout stop waiting without aborting the agent.
 
 `PermissionHandler.APPROVE_ALL` approves requests when managed settings are disabled. When `enableManagedSettings` is true, it completes exceptionally. Custom handlers can inspect `request.getManagedApprovalRequired()` for human-facing confirmation logic.
 
-When handling `PermissionRequestedEvent` directly, convert its generated event value with `PermissionRequest.fromJsonValue(event.getData().permissionRequest())` to access the typed metadata.
+When handling `PermissionRequestedEvent` directly, convert its generated event values with `PermissionRequest.fromJsonValue(...)` to access the typed metadata:
+
+```java
+if (Boolean.TRUE.equals(event.getData().resolvedByHook())) {
+    return; // The permissionRequest hook already answered this request.
+}
+
+var rawRequest = PermissionRequest.fromJsonValue(event.getData().permissionRequest());
+var promptValue = event.getData().promptRequest();
+var promptRequest = promptValue == null ? null : PermissionRequest.fromJsonValue(promptValue);
+
+var assistedApprovalClearsManagedRequirement = promptRequest != null
+        && ("commands".equals(promptRequest.getKind()) || "read".equals(promptRequest.getKind())
+                || "write".equals(promptRequest.getKind()) || "url".equals(promptRequest.getKind())
+                || "workflow".equals(promptRequest.getKind()))
+        && !Boolean.TRUE.equals(promptRequest.getManagedApprovalRequired());
+var humanApprovalRequired = Boolean.TRUE.equals(rawRequest.getManagedApprovalRequired())
+        && !assistedApprovalClearsManagedRequirement;
+```
+
+`PermissionHandler` receives the same derived prompt as `invocation.getPromptRequest()` when newer runtimes provide it. The raw request's `managedApprovalRequired` remains managed-policy provenance and enforces one-shot restrictions. Only derived `commands`, `read`, `write`, `url`, and `workflow` prompts can clear the human requirement after Assisted approval; for missing or other prompt kinds, keep the raw marker authoritative. Java represents the derived prompt as `PermissionRequest`, so prompt-only fields such as `assistedApproval` are available through `getExtensionData()`.
 
 Custom handlers must check managed approval before applying kind-specific automatic decisions:
 
@@ -335,7 +532,14 @@ import com.github.copilot.rpc.PermissionHandler;
 import com.github.copilot.rpc.PermissionRequestResult;
 
 PermissionHandler handler = (request, invocation) -> {
-    if (Boolean.TRUE.equals(request.getManagedApprovalRequired())) {
+    var prompt = invocation.getPromptRequest();
+    var assistedApprovalClearsManagedRequirement = prompt != null
+            && ("commands".equals(prompt.getKind()) || "read".equals(prompt.getKind())
+                    || "write".equals(prompt.getKind()) || "url".equals(prompt.getKind())
+                    || "workflow".equals(prompt.getKind()))
+            && !Boolean.TRUE.equals(prompt.getManagedApprovalRequired());
+    if (Boolean.TRUE.equals(request.getManagedApprovalRequired())
+            && !assistedApprovalClearsManagedRequirement) {
         return CompletableFuture.completedFuture(PermissionRequestResult.noResult());
     }
 
@@ -455,6 +659,54 @@ Chain fluent modifiers to set tool options:
 
 For design context and decision rationale, see [ADR-006](docs/adr/adr-006-tool-definition-inline.md).
 
+### String-schema `apply_patch` overrides
+
+An explicit `apply_patch` override can declare `Map.of("type", "string")`.
+The model sees a required `input` property, but the runtime restores the scalar
+patch text before dispatch. Use `ToolInvocation.getArgumentsAs(String.class)`
+to read it; `getArguments()` is for object-shaped arguments. This example
+returns trimmed patch text; replace the handler body with your own patch
+implementation:
+
+```java
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import com.github.copilot.rpc.ToolDefinition;
+
+ToolDefinition applyPatch = ToolDefinition.create("apply_patch", "Apply a patch", Map.of("type", "string"),
+        invocation -> {
+            String patch = invocation.getArgumentsAs(String.class);
+            return CompletableFuture.completedFuture(patch.trim());
+        }).overridesBuiltInTool(true);
+```
+
+Register this definition with `SessionConfig.setTools(...)`. String-schema
+`apply_patch` overrides cannot contain JSON Schema references; use an object
+schema if references are needed.
+
+## Changing tools on a live session (experimental)
+
+`CopilotSession.setTools(List<ToolDefinition>)` replaces the external tools
+registered by this Java client without recreating the session:
+
+```java
+session.setTools(List.of(
+    ToolDefinition.from("lookup_fruit", "Looks up fruit by code",
+        Param.of(Integer.class, "code", "Fruit code"),
+        code -> "dragonfruit")
+)).get();
+```
+
+The list is a complete replacement for this client only. Built-in tools, MCP
+tools, plugin tools, and tools registered by other connections are unchanged.
+Pass an empty list to remove this client's tools. Handlers switch after the
+runtime accepts the replacement; rejected replacements leave the previous
+handlers in place. Tool calls already running finish on the handler that started
+them.
+
+For cross-SDK behavior and active-turn caveats, see
+[changing tools](../docs/features/changing-tools.md).
+
 ## Auto routing tiers
 
 Use `CapiSessionOptions.setAutoTier(...)` to select `AutoTier.EFFICIENCY`,
@@ -503,6 +755,19 @@ session.setAutoTier(null).get();
 ```
 
 `setModel(SetModelOptions)` accepts the same preference through `SetModelOptions.setAutoTier(...)`, which stages the tier atomically with selecting `auto`. Call `setResetAutoTier(true)` instead to return to provider-default routing; the two options are mutually exclusive.
+
+## Reasoning-summary presentation (experimental)
+
+Read the current model's reasoning-summary policy through `session.getRpc().model.getReasoningSummaries(...)`. Load the model catalog with `session.getRpc().model.list().get()` first, or accept a result with `ready() == false`.
+
+```java
+import com.github.copilot.generated.rpc.SessionModelGetReasoningSummariesParams;
+
+var presentation = new SessionModelGetReasoningSummariesParams(null, false);
+var policy = session.getRpc().model.getReasoningSummaries(presentation).get();
+```
+
+The two constructor arguments are the persisted visibility setting (`null` when unset) and whether the host currently shows summaries (`null` defaults to false). The session wrapper supplies the session ID; callers do not need a placeholder ID. The original three-argument constructor remains available. `visibility()` can be `null` while experiment assignment is pending, and `clearRedundantSetting()` tells the host when its persisted setting matches the model default.
 
 ## Session Store
 
@@ -608,6 +873,11 @@ observers share the failed future.
 ## Using experimental APIs
 
 Some SDK APIs are marked as experimental with `@CopilotExperimental`. These APIs may change or be removed in future versions without notice.
+
+An otherwise stable session event can contain experimental properties. Generated
+event payload records preserve each property's schema stability marker on its
+record component and generated accessor; the enclosing event and its other
+properties remain stable.
 
 By default, referencing an experimental API from your code causes a **compile-time error**:
 
@@ -761,7 +1031,7 @@ CI enforces both checks. Spotless runs explicitly in CI; `mvn verify` alone does
 
 Run native-runtime Maven commands from the `java` directory. Native packaging requires Node.js in addition to JDK 25 and Maven. In a standalone SDK checkout, `copilot-native/scripts/fetch-native.mjs` retrieves the pinned runtime package from the corresponding GitHub release. When the SDK is nested in `copilot-agent-runtime`, it instead stages the same-checkout artifacts from `dist-cli`; run `pnpm run build:cli` from the runtime repository first.
 
-On a native Linux glibc host, Maven activates `native-linux-x64` or `native-linux-arm64` for the matching architecture when `copilot.native.libc=glibc` is set. On a Linux musl x64 host, Maven activates `native-linuxmusl-x64` when `copilot.native.libc=musl` is set. On Windows x64, Windows ARM64, Intel macOS, and Apple Silicon macOS, Maven activates `native-win32-x64`, `native-win32-arm64`, `native-darwin-x64`, or `native-darwin-arm64` automatically. The matching profile validates the host, runs the native script tests, stages the platform package during `generate-resources`, packages the classifier JAR during `package`, and verifies its native contents.
+On a native Linux glibc host, Maven activates `native-linux-x64` or `native-linux-arm64` for the matching architecture when `copilot.native.libc=glibc` is set. On a Linux musl host, Maven activates `native-linuxmusl-x64` or `native-linuxmusl-arm64` for the matching architecture when `copilot.native.libc=musl` is set. On Windows x64, Windows ARM64, Intel macOS, and Apple Silicon macOS, Maven activates `native-win32-x64`, `native-win32-arm64`, `native-darwin-x64`, or `native-darwin-arm64` automatically. The matching profile validates the host, runs the native script tests, stages the platform package during `generate-resources`, packages the classifier JAR during `package`, and verifies its native contents.
 
 Before opting in, validate that Node.js reports glibc for the build host:
 
@@ -796,14 +1066,14 @@ node copilot-native/scripts/validate-native-host.mjs linux-arm64
 mvn -Pinprocess clean verify -Dcopilot.native.libc=glibc
 ```
 
-The same command validates in-process mode on Linux musl x64:
+The same command validates in-process mode on Linux musl x64 or ARM64:
 
 ```bash
-node copilot-native/scripts/validate-native-host.mjs linuxmusl-x64
+node copilot-native/scripts/validate-native-host.mjs linuxmusl-x64 # Use linuxmusl-arm64 on ARM64
 mvn -Pinprocess clean verify -Dcopilot.native.libc=musl
 ```
 
-On Linux musl ARM64 and other unsupported hosts, do not set `copilot.native.libc`. A normal build produces only the OS-neutral primary, sources, and Javadoc JARs; it does not run native script tests, download or stage native files, or produce a platform classifier JAR.
+On unsupported hosts, do not set `copilot.native.libc`. A normal build produces only the OS-neutral primary, sources, and Javadoc JARs; it does not run native script tests, download or stage native files, or produce a platform classifier JAR.
 
 To build only the OS-neutral artifacts on any host, or override the glibc opt-in, disable native download and packaging:
 
@@ -825,17 +1095,18 @@ Each classifier JAR includes `runtime.node`, `platform.properties`, and `copilot
 
 ### Versioning and releases
 
-The Java SDK uses [Maven CI-friendly versions](https://maven.apache.org/maven-ci-friendly.html). Every module declares `<version>${revision}</version>`, and the single source of truth is the `<revision>` property in `java/pom.xml`. The committed value stays a `-SNAPSHOT` (for example `1.0.14-SNAPSHOT`) and is only used for local development and the daily snapshot publish.
+The Java SDK uses [Maven CI-friendly versions](https://maven.apache.org/maven-ci-friendly.html). Every module declares `<version>${revision}</version>`, and the single source of truth is the `<revision>` property in `java/pom.xml`. The committed value stays a `-SNAPSHOT` for local development. Published artifacts contain a concrete version rather than the unresolved `${revision}` property.
 
-Releasing is intentionally a **read-only** operation that never mutates the repository:
+Stable, prerelease, and public unstable releases include all six SDKs. SDK and runtime versions are numbered independently; each Java release contains the matching runtime artifacts in its native classifier JARs. Public unstable versions use `X.Y.Z-unstable.<run-id>.g<sha>`. Maven `-SNAPSHOT` builds are a separate development channel.
 
-- The release version is computed by the shared release pipeline (`.github/workflows/publish.yml`) — the same version used by every other language SDK — and injected at build time with `-Drevision=X.Y.Z`. The POM is **not** edited or committed.
-- `.github/workflows/java-publish-maven.yml` builds every native classifier and the primary artifact from a single immutable source commit and publishes to Maven Central. It creates no commits, no branch-protection bypass, and requires no elevated repository token.
-- The `java/vX.Y.Z` traceability tag and the cross-language `vX.Y.Z` GitHub Release are created by `publish.yml` **after** publication succeeds, pointing at the original release commit.
+Release artifacts and source references are public:
 
-For an independent Java publication retry, dispatch `java-publish-maven.yml` from `main` with the original `releaseVersion` and full `sourceSha`. The source must be a commit already in `main`'s history. Unmerged commits, branch names, and tag names are rejected before builds run.
+- Java packages are available from Maven Central.
+- The `java/v<SDK-version>` and `v<SDK-version>` tags identify the corresponding public SDK source snapshot in [`github/copilot-sdk`](https://github.com/github/copilot-sdk).
+- Stable/prerelease versions also have a combined `v<SDK-version>` [GitHub release](https://github.com/github/copilot-sdk/releases) and versioned Java documentation. Prerelease documentation does not replace the latest documentation.
+- Unstable releases create source tags without advancing SDK `main`, creating an SDK GitHub release announcement, or deploying Java documentation. Their runtime assets are available in the separate `runtime-<runtime-version>` release.
 
-Because there is no `maven-release-plugin` and no `release:prepare` ceremony, the POM deliberately does not track the "next" release version. To validate a build with an explicit version locally, without publishing:
+To validate a build with an explicit version locally, without changing the checked-in POM or publishing:
 
 ```bash
 # Build and verify with an explicit version, without touching the POM
@@ -847,7 +1118,7 @@ cat sdk/.flattened-pom.xml copilot-native/.flattened-pom.xml
 
 These commands do not upload artifacts. Do not use `deploy` for local validation: the Central publishing plugin is configured with `autoPublish=true`.
 
-`flatten-maven-plugin` (ossrh mode) resolves `${revision}` into the installed and published POMs, so downstream consumers never see the unresolved property. Documentation version references are updated through a normal reviewed pull request (see `scripts/update-documentation-versions.sh`), not as a side effect of publishing.
+`flatten-maven-plugin` (ossrh mode) resolves `${revision}` into the installed and published POMs. Documentation version references are updated through a normal reviewed pull request (see `scripts/update-documentation-versions.sh`), not as a side effect of publishing.
 
 ## License
 

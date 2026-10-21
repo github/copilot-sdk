@@ -1,7 +1,11 @@
+import asyncio
 import threading
 import time
 from unittest.mock import patch
 
+import pytest
+
+from copilot import CopilotClient, RuntimeConnection
 from copilot._ffi_runtime_host import FfiRuntimeHost
 
 
@@ -11,6 +15,16 @@ class _TestLibrary:
         self.close_calls = 0
         self.shutdown_calls = 0
         self.shutdown = threading.Event()
+        self.ui_calls: list[tuple[int, int | bool]] = []
+        self.ui_result = True
+
+    def connection_set_ui_thread_handler(self, connection_id: int, enabled: bool) -> bool:
+        self.ui_calls.append((connection_id, enabled))
+        return self.ui_result
+
+    def connection_run_ui_action(self, connection_id: int, action_id: int) -> bool:
+        self.ui_calls.append((connection_id, action_id))
+        return self.ui_result
 
     def connection_close(self, _connection_id: int) -> bool:
         self.close_calls += 1
@@ -54,3 +68,64 @@ def test_dispose_retains_callback_until_connection_close_succeeds():
         time.sleep(0.05)
         assert library.close_calls == close_calls_after_cleanup
         assert library.shutdown_calls == 1
+
+
+def test_ui_actions_are_synchronous_connection_scoped_and_reject_after_disposal():
+    library = _TestLibrary()
+    library.allow_close = True
+    with patch("copilot._ffi_runtime_host._load_library", return_value=library):
+        host = FfiRuntimeHost("test-runtime", None)
+    host._server_id = 11
+    host._connection_id = 21
+    try:
+        host.configure_ui_thread(True)
+        host.run_ui_action(42)
+        assert library.ui_calls == [(21, True), (21, 42)]
+        library.ui_result = False
+        with pytest.raises(RuntimeError, match="retired, already executed"):
+            host.run_ui_action(42)
+    finally:
+        host.dispose()
+    with pytest.raises(RuntimeError, match="retired, already executed"):
+        host.run_ui_action(43)
+    assert library.ui_calls == [(21, True), (21, 42), (21, 42)]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("method", ["stop", "force_stop"])
+async def test_client_shutdown_keeps_event_loop_responsive_until_native_cleanup_finishes(method):
+    loop = asyncio.get_running_loop()
+    loop_response = threading.Event()
+    loop_responded_during_shutdown = False
+
+    class BlockingLibrary(_TestLibrary):
+        def host_shutdown(self, server_id: int) -> bool:
+            nonlocal loop_responded_during_shutdown
+            loop.call_soon_threadsafe(loop_response.set)
+            loop_responded_during_shutdown = loop_response.wait(5)
+            return super().host_shutdown(server_id)
+
+    library = BlockingLibrary()
+    library.allow_close = True
+    with patch("copilot._ffi_runtime_host._load_library", return_value=library):
+        host = FfiRuntimeHost("test-runtime", None)
+    host._server_id = 11
+    host._connection_id = 21
+    host._outbound_callback = object()
+
+    client = CopilotClient(connection=RuntimeConnection.for_stdio(path="copilot"))
+    client._ffi_host = host
+    client._process = host.process
+    client._state = "connected"
+
+    await getattr(client, method)()
+
+    assert loop_responded_during_shutdown, "Native shutdown blocked the asyncio event loop"
+    assert library.shutdown.is_set(), "Client shutdown returned before native cleanup"
+    assert library.shutdown_calls == 1
+    assert host._server_id == 0
+    assert host._connection_id == 0
+    assert host._outbound_callback is None
+    assert client._ffi_host is None
+    assert client._process is None
+    assert client._state == "disconnected"

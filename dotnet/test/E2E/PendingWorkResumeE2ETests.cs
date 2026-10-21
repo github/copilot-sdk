@@ -21,9 +21,13 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
 
     [Fact]
     public async Task Should_Continue_Pending_Permission_Request_After_Resume()
+        => await WithSdkDiagnosticsAsync(async () =>
     {
+        await Ctx.ConfigureForTestAsync("pending_work_resume", replayOnly: true);
         var originalPermissionRequest = new TaskCompletionSource<PermissionRequest>(TaskCreationOptions.RunContinuationsAsynchronously);
         var releaseOriginalPermission = new TaskCompletionSource<PermissionDecision>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var originalToolInvocations = 0;
+        var resumedToolInvocations = 0;
 
         await using var server = Ctx.CreateClient(options: new CopilotClientOptions { Connection = RuntimeConnection.ForTcp(connectionToken: SharedToken) });
         await server.StartAsync();
@@ -54,7 +58,7 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
             var permissionEvent = await permissionRequested;
             Assert.IsType<PermissionRequestCustomTool>(initialRequest);
 
-            await suspendedClient.ForceStopAsync();
+            await ForceStopAfterSessionLockObservedAsync(suspendedClient, sessionId);
 
             await using var resumedTcpClient = Ctx.CreateClient(options: new CopilotClientOptions { Connection = RuntimeConnection.ForUri(cliUrl, connectionToken: SharedToken) });
             var session2 = await Ctx.ResumeSessionAsync(resumedTcpClient, sessionId, new ResumeSessionConfig
@@ -65,15 +69,42 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
                 [
                     AIFunctionFactory.Create(
                         ([Description("Value to transform")] string value) =>
-                            $"PERMISSION_RESUMED_{value.ToUpperInvariant()}",
+                        {
+                            Interlocked.Increment(ref resumedToolInvocations);
+                            return $"PERMISSION_RESUMED_{value.ToUpperInvariant()}";
+                        },
                         "resume_permission_tool")
                 ],
             });
+            var resumeEvent = await GetSingleResumeEventAsync(session2);
+            Assert.False(resumeEvent.Data.SessionWasActive);
 
+            var finalReplyObserved = false;
+            var finalResponse = TestHelper.GetNextEventOfTypeAsync<AssistantMessageEvent>(
+                session2,
+                message =>
+                {
+                    if (message.Data.Content != "Result: PERMISSION_RESUMED_ALPHA")
+                    {
+                        return false;
+                    }
+                    finalReplyObserved = true;
+                    return true;
+                },
+                PendingWorkTimeout);
+            // Observe the reply synchronously; the async waiter can complete after idle.
+            var resumedTurnIdle = TestHelper.GetNextEventOfTypeAsync<SessionIdleEvent>(
+                session2,
+                _ => finalReplyObserved,
+                PendingWorkTimeout);
             var permissionResult = await session2.Rpc.Permissions.HandlePendingPermissionRequestAsync(
                 permissionEvent.Data.RequestId,
                 new RpcPermissionDecisionApproveOnce());
             Assert.True(permissionResult.Success);
+            Assert.Equal("Result: PERMISSION_RESUMED_ALPHA", (await finalResponse).Data.Content);
+            await resumedTurnIdle;
+            Assert.Equal(1, resumedToolInvocations);
+            Assert.Equal(0, originalToolInvocations);
 
             await session2.DisposeAsync();
             await resumedTcpClient.ForceStopAsync();
@@ -84,12 +115,16 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
         }
 
         [Description("Transforms a value after permission is granted")]
-        static string ResumePermissionTool([Description("Value to transform")] string value) =>
-            $"ORIGINAL_SHOULD_NOT_RUN_{value}";
-    }
+        string ResumePermissionTool([Description("Value to transform")] string value)
+        {
+            Interlocked.Increment(ref originalToolInvocations);
+            return $"ORIGINAL_SHOULD_NOT_RUN_{value}";
+        }
+    });
 
     [Fact]
     public async Task Should_Continue_Pending_External_Tool_Request_After_Resume()
+        => await WithSdkDiagnosticsAsync(async () =>
     {
         var originalToolStarted = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
         var releaseOriginalTool = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -154,7 +189,7 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
             originalToolStarted.TrySetResult(value);
             return await releaseOriginalTool.Task.WaitAsync(Timeout.InfiniteTimeSpan, cancellationToken);
         }
-    }
+    });
 
     [Fact]
     public Task Should_Keep_Pending_External_Tool_Handleable_On_Warm_Resume_When_ContinuePendingWork_Is_False() =>
@@ -170,10 +205,39 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
             expectedSessionWasActive: false,
             expectedHandleResult: false);
 
+    private async Task ForceStopAfterSessionLockObservedAsync(CopilotClient suspendedClient, string sessionId)
+    {
+        await using var lockObserver = Ctx.CreateClient(options: new CopilotClientOptions
+        {
+            Connection = RuntimeConnection.ForStdio(),
+        });
+        await lockObserver.StartAsync();
+        await TestHelper.WaitForConditionAsync(
+            async () =>
+            {
+                var result = await lockObserver.Rpc.Sessions.CheckInUseAsync([sessionId]);
+                return result.InUse.Contains(sessionId);
+            },
+            timeout: PendingWorkTimeout,
+            timeoutMessage: $"Timed out waiting for session '{sessionId}' to acquire its lock.");
+
+        await suspendedClient.ForceStopAsync();
+
+        await TestHelper.WaitForConditionAsync(
+            async () =>
+            {
+                var result = await lockObserver.Rpc.Sessions.CheckInUseAsync([sessionId]);
+                return !result.InUse.Contains(sessionId);
+            },
+            timeout: PendingWorkTimeout,
+            timeoutMessage: $"Timed out waiting for session '{sessionId}' to release its lock.");
+    }
+
     private async Task AssertPendingExternalToolHandleableOnResumeAsync(
         bool disconnectOriginalClient,
         bool expectedSessionWasActive,
         bool expectedHandleResult)
+        => await WithSdkDiagnosticsAsync(async () =>
     {
         var originalToolStarted = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
         var releaseOriginalTool = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -210,30 +274,7 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
 
             if (disconnectOriginalClient)
             {
-                await using var lockObserver = Ctx.CreateClient(options: new CopilotClientOptions
-                {
-                    Connection = RuntimeConnection.ForStdio(),
-                });
-                await lockObserver.StartAsync();
-                await TestHelper.WaitForConditionAsync(
-                    async () =>
-                    {
-                        var result = await lockObserver.Rpc.Sessions.CheckInUseAsync([sessionId]);
-                        return result.InUse.Contains(sessionId);
-                    },
-                    timeout: PendingWorkTimeout,
-                    timeoutMessage: $"Timed out waiting for session '{sessionId}' to acquire its lock.");
-
-                await suspendedClient.ForceStopAsync();
-
-                await TestHelper.WaitForConditionAsync(
-                    async () =>
-                    {
-                        var result = await lockObserver.Rpc.Sessions.CheckInUseAsync([sessionId]);
-                        return !result.InUse.Contains(sessionId);
-                    },
-                    timeout: PendingWorkTimeout,
-                    timeoutMessage: $"Timed out waiting for session '{sessionId}' to release its lock.");
+                await ForceStopAfterSessionLockObservedAsync(suspendedClient, sessionId);
             }
 
             await using var resumedClient = Ctx.CreateClient(options: new CopilotClientOptions { Connection = RuntimeConnection.ForUri(cliUrl, connectionToken: SharedToken) });
@@ -307,10 +348,11 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
         [Description("Looks up a value after resumption")]
         string ResumedExternalTool([Description("Value to look up")] string value) =>
             throw new InvalidOperationException("Resumed-session handler should not be invoked");
-    }
+    });
 
     [Fact]
     public async Task Should_Continue_Parallel_Pending_External_Tool_Requests_After_Resume()
+        => await WithSdkDiagnosticsAsync(async () =>
     {
         var originalToolAStarted = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
         var originalToolBStarted = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -441,7 +483,7 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
             originalToolBStarted.TrySetResult(value);
             return await releaseOriginalToolB.Task.WaitAsync(Timeout.InfiniteTimeSpan, cancellationToken);
         }
-    }
+    });
 
     [Fact]
     public async Task Should_Resume_Successfully_When_No_Pending_Work_Exists()

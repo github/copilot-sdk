@@ -10,12 +10,16 @@ package com.github.copilot.generated;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
  * Session event "session.fusion_completed". Experimental durable aggregate outcome of a HydraFusion turn.
+ *
+ * @apiNote This event type is experimental and may change in a future version.
  * @since 1.0.0
  */
+@CopilotExperimental
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
@@ -31,6 +35,7 @@ public final class SessionFusionCompletedEvent extends SessionEvent {
     public void setData(SessionFusionCompletedEventData data) { this.data = data; }
 
     /** Data payload for {@link SessionFusionCompletedEvent}. */
+    @CopilotExperimental
     @JsonIgnoreProperties(ignoreUnknown = true)
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record SessionFusionCompletedEventData(
@@ -69,7 +74,10 @@ public final class SessionFusionCompletedEvent extends SessionEvent {
         /** Total normalized AI-unit cost reported across all phases, in nano-AIU. */
         @JsonProperty("totalNanoAiu") Double totalNanoAiu,
         /** Total elapsed execution time for the HydraFusion turn in milliseconds. */
-        @JsonProperty("durationMs") Double durationMs
+        @JsonProperty("durationMs") Double durationMs,
+        /** True when the committed first pass ended with background work outstanding, so that work's completion notifications continue the conversation; absent otherwise. */
+        @CopilotExperimental
+        @JsonProperty("awaitingBackgroundWork") Boolean awaitingBackgroundWork
     ) {
     }
 }

@@ -915,14 +915,8 @@ func TestSessionE2E(t *testing.T) {
 			t.Fatalf("Failed to send message to session2: %v", err)
 		}
 
-		// Small delay to ensure session files are written to disk
-		time.Sleep(200 * time.Millisecond)
-
 		// List sessions and verify they're included
-		sessions, err := client.ListSessions(t.Context(), nil)
-		if err != nil {
-			t.Fatalf("Failed to list sessions: %v", err)
-		}
+		sessions := waitForListedSessions(t, client, session1.SessionID, session2.SessionID)
 
 		// Verify it's a list
 		if sessions == nil {
@@ -983,14 +977,8 @@ func TestSessionE2E(t *testing.T) {
 
 		sessionID := session.SessionID
 
-		// Small delay to ensure session file is written to disk
-		time.Sleep(200 * time.Millisecond)
-
 		// Verify session exists in the list
-		sessions, err := client.ListSessions(t.Context(), nil)
-		if err != nil {
-			t.Fatalf("Failed to list sessions: %v", err)
-		}
+		sessions := waitForListedSessions(t, client, sessionID)
 
 		sessionIDs := make([]string, len(sessions))
 		for i, s := range sessions {
@@ -1044,14 +1032,12 @@ func TestSessionE2E(t *testing.T) {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		// Small delay to ensure session file is written to disk
-		time.Sleep(200 * time.Millisecond)
-
 		// Get metadata for the session we just created
-		metadata, err := client.GetSessionMetadata(t.Context(), session.SessionID)
-		if err != nil {
-			t.Fatalf("Failed to get session metadata: %v", err)
-		}
+		metadata := waitForPersistedValue(t, "session metadata to persist", func(ctx context.Context) (*copilot.SessionMetadata, error) {
+			return client.GetSessionMetadata(ctx, session.SessionID)
+		}, func(metadata *copilot.SessionMetadata) bool {
+			return metadata != nil
+		})
 
 		if metadata == nil {
 			t.Fatal("Expected metadata to be non-nil")
@@ -1100,13 +1086,9 @@ func TestSessionE2E(t *testing.T) {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		// Small delay to ensure session data is flushed to disk
-		time.Sleep(500 * time.Millisecond)
-
-		lastSessionID, err := client.GetLastSessionID(t.Context())
-		if err != nil {
-			t.Fatalf("Failed to get last session ID: %v", err)
-		}
+		lastSessionID := waitForPersistedValue(t, "last session ID to persist", client.GetLastSessionID, func(id *string) bool {
+			return id != nil && *id == session.SessionID
+		})
 
 		if lastSessionID == nil {
 			t.Fatal("Expected last session ID to be non-nil")
@@ -1260,13 +1242,11 @@ func TestSessionLogE2E(t *testing.T) {
 		t.Fatalf("Failed to create session: %v", err)
 	}
 
-	// Collect events
-	var events []copilot.SessionEvent
-	var mu sync.Mutex
+	events := make(chan copilot.SessionEvent, 4)
 	unsubscribe := session.On(func(event copilot.SessionEvent) {
-		mu.Lock()
-		defer mu.Unlock()
-		events = append(events, event)
+		if getEventMessage(event) != "" {
+			events <- event
+		}
 	})
 	defer unsubscribe()
 
@@ -1275,7 +1255,7 @@ func TestSessionLogE2E(t *testing.T) {
 			t.Fatalf("Log failed: %v", err)
 		}
 
-		evt := waitForEvent(t, &mu, &events, copilot.SessionEventTypeSessionInfo, "Info message", 5*time.Second)
+		evt := waitForLogEvent(t, events, copilot.SessionEventTypeSessionInfo, "Info message")
 		id, idOk := evt.Data.(*copilot.SessionInfoData)
 		if !idOk || id.InfoType != "notification" {
 			t.Errorf("Expected infoType 'notification', got %v", evt.Data)
@@ -1290,7 +1270,7 @@ func TestSessionLogE2E(t *testing.T) {
 			t.Fatalf("Log failed: %v", err)
 		}
 
-		evt := waitForEvent(t, &mu, &events, copilot.SessionEventTypeSessionWarning, "Warning message", 5*time.Second)
+		evt := waitForLogEvent(t, events, copilot.SessionEventTypeSessionWarning, "Warning message")
 		wd, wdOk := evt.Data.(*copilot.SessionWarningData)
 		if !wdOk || wd.WarningType != "notification" {
 			t.Errorf("Expected warningType 'notification', got %v", evt.Data)
@@ -1305,7 +1285,7 @@ func TestSessionLogE2E(t *testing.T) {
 			t.Fatalf("Log failed: %v", err)
 		}
 
-		evt := waitForEvent(t, &mu, &events, copilot.SessionEventTypeSessionError, "Error message", 5*time.Second)
+		evt := waitForLogEvent(t, events, copilot.SessionEventTypeSessionError, "Error message")
 		ed, edOk := evt.Data.(*copilot.SessionErrorData)
 		if !edOk || ed.ErrorType != "notification" {
 			t.Errorf("Expected errorType 'notification', got %v", evt.Data)
@@ -1320,7 +1300,7 @@ func TestSessionLogE2E(t *testing.T) {
 			t.Fatalf("Log failed: %v", err)
 		}
 
-		evt := waitForEvent(t, &mu, &events, copilot.SessionEventTypeSessionInfo, "Ephemeral message", 5*time.Second)
+		evt := waitForLogEvent(t, events, copilot.SessionEventTypeSessionInfo, "Ephemeral message")
 		id2, id2Ok := evt.Data.(*copilot.SessionInfoData)
 		if !id2Ok || id2.InfoType != "notification" {
 			t.Errorf("Expected infoType 'notification', got %v", evt.Data)
@@ -1331,23 +1311,21 @@ func TestSessionLogE2E(t *testing.T) {
 	})
 }
 
-// waitForEvent polls the collected events for a matching event type and message.
-func waitForEvent(t *testing.T, mu *sync.Mutex, events *[]copilot.SessionEvent, eventType copilot.SessionEventType, message string, timeout time.Duration) copilot.SessionEvent {
+func waitForLogEvent(t *testing.T, events <-chan copilot.SessionEvent, eventType copilot.SessionEventType, message string) copilot.SessionEvent {
 	t.Helper()
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		mu.Lock()
-		for _, evt := range *events {
+	timer := time.NewTimer(5 * time.Second)
+	defer timer.Stop()
+	for {
+		select {
+		case evt := <-events:
 			if evt.Type() == eventType && getEventMessage(evt) == message {
-				mu.Unlock()
 				return evt
 			}
+		case <-timer.C:
+			t.Fatalf("Timed out waiting for %s event with message %q", eventType, message)
+			return copilot.SessionEvent{}
 		}
-		mu.Unlock()
-		time.Sleep(50 * time.Millisecond)
 	}
-	t.Fatalf("Timed out waiting for %s event with message %q", eventType, message)
-	return copilot.SessionEvent{} // unreachable
 }
 
 // getEventMessage extracts the Message field from session info/warning/error event data.

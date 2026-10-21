@@ -15,7 +15,7 @@ import javax.annotation.processing.Generated;
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
-public enum TaskKind {
+enum TaskKind {
     /** The {@code agent} variant. */
     AGENT("agent"),
     /** The {@code shell} variant. */

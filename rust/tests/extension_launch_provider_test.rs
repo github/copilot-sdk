@@ -388,7 +388,12 @@ async fn registration_precedes_session_work_and_routes_during_start() {
     client.stop().await.unwrap();
 }
 
-async fn serve_registered_client(stream: TcpStream, request_id: u64, expected_executable: &str) {
+async fn serve_registered_client(
+    stream: TcpStream,
+    request_id: u64,
+    expected_executable: &str,
+    response_seen: &mpsc::UnboundedSender<()>,
+) {
     let (mut reader, mut writer) = stream.into_split();
     respond_to_connect(&mut reader, &mut writer).await;
     let registration = read_registration(&mut reader).await;
@@ -418,6 +423,7 @@ async fn serve_registered_client(stream: TcpStream, request_id: u64, expected_ex
         response["result"]["launch"]["executable"],
         expected_executable
     );
+    response_seen.send(()).unwrap();
     assert_eq!(read_framed(&mut reader).await, None);
 }
 
@@ -428,14 +434,15 @@ async fn shutdown_and_restart_do_not_reuse_or_duplicate_providers() {
     let first_calls = Arc::new(AtomicUsize::new(0));
     let second_calls = Arc::new(AtomicUsize::new(0));
     let (served_tx, mut served_rx) = mpsc::unbounded_channel();
+    let (response_tx, mut response_rx) = mpsc::unbounded_channel();
 
     let server = tokio::spawn(async move {
         let (first, _) = listener.accept().await.unwrap();
-        serve_registered_client(first, 601, "/app/first-copilot").await;
+        serve_registered_client(first, 601, "/app/first-copilot", &response_tx).await;
         served_tx.send(()).unwrap();
 
         let (second, _) = listener.accept().await.unwrap();
-        serve_registered_client(second, 602, "/app/second-copilot").await;
+        serve_registered_client(second, 602, "/app/second-copilot", &response_tx).await;
         served_tx.send(()).unwrap();
     });
 
@@ -450,13 +457,10 @@ async fn shutdown_and_restart_do_not_reuse_or_duplicate_providers() {
     ))
     .await
     .unwrap();
-    timeout(TEST_TIMEOUT, async {
-        while first_calls.load(Ordering::SeqCst) == 0 {
-            tokio::task::yield_now().await;
-        }
-    })
-    .await
-    .unwrap();
+    timeout(TEST_TIMEOUT, response_rx.recv())
+        .await
+        .unwrap()
+        .unwrap();
     first.stop().await.unwrap();
     timeout(TEST_TIMEOUT, served_rx.recv())
         .await
@@ -474,13 +478,10 @@ async fn shutdown_and_restart_do_not_reuse_or_duplicate_providers() {
     ))
     .await
     .unwrap();
-    timeout(TEST_TIMEOUT, async {
-        while second_calls.load(Ordering::SeqCst) == 0 {
-            tokio::task::yield_now().await;
-        }
-    })
-    .await
-    .unwrap();
+    timeout(TEST_TIMEOUT, response_rx.recv())
+        .await
+        .unwrap()
+        .unwrap();
     second.stop().await.unwrap();
     timeout(TEST_TIMEOUT, served_rx.recv())
         .await

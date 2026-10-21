@@ -50,7 +50,7 @@ async fn send_error(client: &Client, request_id: u64, code: i32, message: &str) 
             id: request_id,
             result: None,
             error: Some(crate::JsonRpcError {
-                code,
+                code: code.into(),
                 message: message.to_string(),
                 data: None,
             }),

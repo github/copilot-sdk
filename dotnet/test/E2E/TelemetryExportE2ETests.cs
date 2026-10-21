@@ -205,7 +205,8 @@ public class TelemetryExportE2ETests(E2ETestFixture fixture, ITestOutputHelper o
     private static JsonElement AssertSpanWithOperation(IEnumerable<JsonElement> spans, string operationName)
     {
         var matchingSpan = spans.FirstOrDefault(span => GetStringAttribute(span, "gen_ai.operation.name") == operationName);
-        Assert.NotEqual(JsonValueKind.Undefined, matchingSpan.ValueKind);
+        Assert.True(matchingSpan.ValueKind != JsonValueKind.Undefined,
+            $"Missing {operationName} span. Exported operations: {string.Join(", ", spans.Select(span => GetStringAttribute(span, "gen_ai.operation.name") ?? "<unnamed>"))}");
         return matchingSpan;
     }
 

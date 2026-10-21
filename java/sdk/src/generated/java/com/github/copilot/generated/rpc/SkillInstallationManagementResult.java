@@ -21,7 +21,8 @@ import javax.annotation.processing.Generated;
 @JsonSubTypes({
     @JsonSubTypes.Type(value = SkillInstallationManagementResultOutcome.class, name = "outcome"),
     @JsonSubTypes.Type(value = SkillInstallationManagementResultCatalogNegotiationRefusedError.class, name = "negotiation-refused"),
-    @JsonSubTypes.Type(value = SkillInstallationManagementResultCatalogInvalidRequestError.class, name = "invalid-request")
+    @JsonSubTypes.Type(value = SkillInstallationManagementResultCatalogInvalidRequestError.class, name = "invalid-request"),
+    @JsonSubTypes.Type(value = SkillInstallationManagementResultCatalogNetworkFailureError.class, name = "network-failure")
 })
 @JsonIgnoreProperties(ignoreUnknown = true)
 @javax.annotation.processing.Generated("copilot-sdk-codegen")

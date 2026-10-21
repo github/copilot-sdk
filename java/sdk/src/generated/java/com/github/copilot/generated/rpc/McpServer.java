@@ -27,6 +27,8 @@ public record McpServer(
     @JsonProperty("status") McpServerStatus status,
     /** Configuration source: user, workspace, plugin, builtin, or managed */
     @JsonProperty("source") McpServerSource source,
+    /** Configured URL for an HTTP/SSE server, regardless of configuration source. Omitted for local and in-memory servers. */
+    @JsonProperty("url") String url,
     /** Plugin name that provided this server, when source is plugin. */
     @JsonProperty("sourcePlugin") String sourcePlugin,
     /** Plugin version that provided this server, when source is plugin. */
@@ -63,6 +65,6 @@ public record McpServer(
         String error,
         McpServerMetadata serverMetadata
     ) {
-        this(name, status, source, sourcePlugin, sourcePluginVersion, displayName, error, serverMetadata, null);
+        this(name, status, source, null, sourcePlugin, sourcePluginVersion, displayName, error, serverMetadata, null);
     }
 }

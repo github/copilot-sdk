@@ -1,7 +1,12 @@
+use std::sync::Arc;
+
+use github_copilot_sdk::ResumeSessionConfig;
+use github_copilot_sdk::handler::ApproveAllHandler;
 use github_copilot_sdk::session_events::SessionEventType;
 
 use super::support::{
-    assistant_message_content, collect_until_idle, event_types, wait_for_condition,
+    DEFAULT_TEST_TOKEN, assistant_message_content, collect_until_idle, event_types,
+    wait_for_condition,
 };
 
 #[tokio::test]
@@ -51,6 +56,75 @@ async fn should_list_created_sessions_after_sending_a_message() {
                     .await
                     .expect("disconnect second session");
                 client.stop().await.expect("stop client");
+            })
+        },
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn should_persist_a_session_named_at_create_without_a_turn() {
+    // Dedicated context: the persisted name must survive a real CLI restart, and the
+    // shared group's client is never actually stopped.
+    super::support::with_dedicated_e2e_context(
+        "session_lifecycle",
+        "should_persist_a_session_named_at_create_without_a_turn",
+        |ctx| {
+            Box::pin(async move {
+                ctx.set_default_copilot_user();
+                let client = ctx.start_client().await;
+                let named = client
+                    .create_session(
+                        ctx.approve_all_session_config()
+                            .with_name("Named at create"),
+                    )
+                    .await
+                    .expect("create named session");
+                let named_id = named.id().clone();
+                let unnamed = client
+                    .create_session(ctx.approve_all_session_config())
+                    .await
+                    .expect("create unnamed session");
+                let unnamed_id = unnamed.id().clone();
+
+                let created_name = named.rpc().name().get().await.expect("get name").name;
+                assert_eq!(created_name.as_deref(), Some("Named at create"));
+
+                named.disconnect().await.expect("disconnect named session");
+                unnamed
+                    .disconnect()
+                    .await
+                    .expect("disconnect unnamed session");
+
+                // Neither session ran a turn: only the create-time name makes one persist.
+                let listed: std::collections::HashSet<_> = client
+                    .list_sessions(None)
+                    .await
+                    .expect("list sessions")
+                    .into_iter()
+                    .map(|session| session.session_id)
+                    .collect();
+                assert!(listed.contains(&named_id), "named session is listed");
+                assert!(!listed.contains(&unnamed_id), "unnamed session is not");
+
+                // Restart the CLI so the resume below reads the name back from disk.
+                client.stop().await.expect("stop client");
+                let cold_client = ctx.start_client().await;
+                let resumed = cold_client
+                    .resume_session(
+                        ResumeSessionConfig::new(named_id.clone())
+                            .with_permission_handler(Arc::new(ApproveAllHandler))
+                            .with_github_token(DEFAULT_TEST_TOKEN),
+                    )
+                    .await
+                    .expect("resume named session");
+                let read = resumed.rpc().name().get().await.expect("get resumed name");
+                assert_eq!(read.name.as_deref(), Some("Named at create"));
+                resumed
+                    .disconnect()
+                    .await
+                    .expect("disconnect resumed session");
+                cold_client.stop().await.expect("stop cold client");
             })
         },
     )

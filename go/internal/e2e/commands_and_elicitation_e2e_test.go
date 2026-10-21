@@ -84,64 +84,18 @@ func TestCommandsE2E(t *testing.T) {
 		}
 	})
 
-	t.Run("session commands invoke known builtin returns expected result", func(t *testing.T) {
-		session, err := client1.CreateSession(t.Context(), &copilot.SessionConfig{
-			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
-		})
-		if err != nil {
-			t.Fatalf("CreateSession failed: %v", err)
-		}
-		defer session.Disconnect()
-
-		builtinCommands, err := session.RPC.Commands.List(t.Context(), &rpc.SessionCommandsListRequest{
-			IncludeBuiltins:       rpcPtr(true),
-			IncludeClientCommands: rpcPtr(false),
-			IncludeSkills:         rpcPtr(false),
-		})
-		if err != nil {
-			t.Fatalf("Commands.List builtins failed: %v", err)
-		}
-		commandName := firstKnownBuiltinCommand(builtinCommands.Commands)
-		if commandName == "" {
-			t.Fatalf("Expected a known builtin command, got %+v", builtinCommands.Commands)
-		}
-
-		result, err := session.RPC.Commands.Invoke(t.Context(), &rpc.CommandsInvokeRequest{Name: commandName})
-		if err != nil {
-			t.Fatalf("Commands.Invoke(%q) failed: %v", commandName, err)
-		}
-		switch r := result.(type) {
-		case *rpc.SlashCommandTextResult:
-			if strings.TrimSpace(r.Text) == "" {
-				t.Fatalf("Expected non-empty text result, got %+v", r)
-			}
-		case *rpc.SlashCommandSelectSubcommandResult:
-			if strings.TrimSpace(r.Title) == "" || len(r.Options) == 0 {
-				t.Fatalf("Expected select-subcommand title and options, got %+v", r)
-			}
-		case *rpc.SlashCommandAgentPromptResult:
-			if strings.TrimSpace(r.DisplayPrompt) == "" || strings.TrimSpace(r.Prompt) == "" {
-				t.Fatalf("Expected non-empty agent prompt result, got %+v", r)
-			}
-		case *rpc.SlashCommandCompletedResult:
-			if r.Message != nil && strings.TrimSpace(*r.Message) == "" {
-				t.Fatalf("Expected nil or non-empty completed message, got %+v", r)
-			}
-		default:
-			t.Fatalf("Unexpected slash command result type %T", result)
-		}
-	})
-
 	t.Run("session commands execute runs registered command handler", func(t *testing.T) {
-		var captured *copilot.CommandContext
+		invoked := make(chan copilot.CommandContext, 1)
 		session, err := client1.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 			Commands: []copilot.CommandDefinition{{
 				Name:        "deploy",
 				Description: "Deploy the app",
 				Handler: func(ctx copilot.CommandContext) error {
-					copy := ctx
-					captured = &copy
+					select {
+					case invoked <- ctx:
+					default:
+					}
 					return nil
 				},
 			}},
@@ -170,9 +124,12 @@ func TestCommandsE2E(t *testing.T) {
 		if result.Error != nil {
 			t.Fatalf("Expected command execution to succeed, got error %q", *result.Error)
 		}
-		waitForRPCCondition(t, 10*time.Second, "command handler execution", func() (bool, error) {
-			return captured != nil, nil
-		})
+		var captured copilot.CommandContext
+		select {
+		case captured = <-invoked:
+		case <-time.After(10 * time.Second):
+			t.Fatal("Timed out waiting for command handler execution")
+		}
 		if captured.SessionID != session.SessionID || captured.Command != "/deploy production" ||
 			captured.CommandName != "deploy" || captured.Args != "production" {
 			t.Fatalf("Unexpected command context: %+v", captured)

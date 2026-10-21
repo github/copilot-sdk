@@ -21,11 +21,11 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record ModelBillingTokenPrices(
-    /** AI Credits cost per billing batch of input tokens */
+    /** Cost per billing batch of input tokens. The unit is reported by models.listTokenPriceUnits. */
     @JsonProperty("inputPrice") Double inputPrice,
-    /** AI Credits cost per billing batch of output tokens */
+    /** Cost per billing batch of output tokens. The unit is reported by models.listTokenPriceUnits. */
     @JsonProperty("outputPrice") Double outputPrice,
-    /** Use cacheReadPrice instead. AI Credits cost per billing batch of cached tokens */
+    /** Use cacheReadPrice when available. Cost per billing batch of cached tokens in the unit reported by models.listTokenPriceUnits. */
     @JsonProperty("cachePrice") Double cachePrice,
     /** AI Credits cost per billing batch of cached (read) tokens */
     @JsonProperty("cacheReadPrice") Double cacheReadPrice,

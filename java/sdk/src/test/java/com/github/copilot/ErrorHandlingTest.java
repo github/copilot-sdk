@@ -10,7 +10,9 @@ import java.util.ArrayList;
 import java.util.logging.Logger;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -61,7 +63,7 @@ public class ErrorHandlingTest {
         LOG.info("Running test: testHandlesToolCallingErrors_toolErrorDoesNotCrashSession");
         ctx.configureForTest("tools", "handles_tool_calling_errors");
 
-        var allEvents = new ArrayList<SessionEvent>();
+        var allEvents = new CopyOnWriteArrayList<SessionEvent>();
         var idleReceived = new CompletableFuture<Void>();
 
         ToolDefinition errorTool = ToolDefinition.create("get_user_location", "Gets the user's location",
@@ -176,45 +178,30 @@ public class ErrorHandlingTest {
     }
 
     /**
-     * Verifies that session error events contain proper error information.
+     * Verifies that a permission handler exception denies the tool without failing
+     * the session.
      *
-     * @see Snapshot: permissions/permission_handler_errors
+     * @see Snapshot: permissions/should_handle_permission_handler_errors_gracefully
      */
     @Test
-    void testPermissionHandlerErrors_sessionErrorEventContainsDetails() throws Exception {
-        LOG.info("Running test: testPermissionHandlerErrors_sessionErrorEventContainsDetails");
-        ctx.configureForTest("permissions", "permission_handler_errors");
+    void testPermissionHandlerErrors_sessionCompletesAfterDenial() throws Exception {
+        LOG.info("Running test: testPermissionHandlerErrors_sessionCompletesAfterDenial");
+        ctx.configureForTest("permissions", "should_handle_permission_handler_errors_gracefully");
 
-        var errorEvents = new ArrayList<SessionErrorEvent>();
-
+        var permissionRequests = new AtomicInteger();
         var config = new SessionConfig().setOnPermissionRequest((request, invocation) -> {
+            permissionRequests.incrementAndGet();
             throw new RuntimeException("Test error message");
         });
 
-        try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client.createSession(config).get();
-
-            session.on(SessionErrorEvent.class, error -> {
-                errorEvents.add(error);
-                // Verify error event has data
-                assertNotNull(error.getData(), "Error event should have data");
-            });
-
-            try {
-                // Use prompt that matches the snapshot
-                session.sendAndWait(new MessageOptions().setPrompt("Run 'echo test'. If you can't, say 'failed'."))
-                        .get(60, TimeUnit.SECONDS);
-            } catch (Exception e) {
-                // Error is expected in some cases
-            }
-
-            session.close();
+        try (CopilotClient client = ctx.createClient(); CopilotSession session = client.createSession(config).get()) {
+            var response = session
+                    .sendAndWait(new MessageOptions().setPrompt("Run 'echo test'. If you can't, say 'failed'."))
+                    .get(60, TimeUnit.SECONDS);
+            assertNotNull(response, "The session should complete after denying permission");
+            assertEquals("failed", response.getData().content());
+            assertEquals(1, permissionRequests.get(), "The failing permission handler must be invoked");
         }
-
-        // Whether error events are emitted depends on the CLI version and scenario.
-        // This test verifies the handler can receive them when they occur.
-        // Access the list to confirm it was populated (even if empty is acceptable).
-        LOG.info("Collected " + errorEvents.size() + " error event(s)");
     }
 
     /**

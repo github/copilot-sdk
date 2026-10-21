@@ -10,7 +10,7 @@ import com.sun.jna.Pointer;
  * Internal abstraction over the Copilot runtime C ABI.
  *
  * <p>
- * Defines the five {@code extern "C"} entry points exposed by the native
+ * Defines the {@code extern "C"} entry points exposed by the native
  * {@code runtime.node} library. The JNA-backed implementation
  * ({@link JnaNativeBinding}) delegates to these through JNA. A future FFM
  * implementation may be substituted via the multi-release JAR mechanism without
@@ -128,4 +128,26 @@ interface NativeBinding {
      * @return {@code true} on success
      */
     boolean connectionClose(int connectionId);
+
+    /**
+     * Configures an in-process connection's UI scheduling capability.
+     *
+     * @param connectionId
+     *            the native connection
+     * @param enabled
+     *            whether the SDK supplies a UI scheduler
+     * @return whether configuration succeeded
+     */
+    boolean connectionSetUiThreadHandler(int connectionId, boolean enabled);
+
+    /**
+     * Executes one native action synchronously on the calling UI thread.
+     *
+     * @param connectionId
+     *            the native connection
+     * @param actionId
+     *            the one-shot action
+     * @return whether the action was executed
+     */
+    boolean connectionRunUiAction(int connectionId, int actionId);
 }

@@ -27,40 +27,27 @@ public sealed partial class ReplayProxy : IAsyncDisposable
 
         async Task<string> StartCoreAsync()
         {
-            string filename;
-            string args;
-
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            {
-                filename = "cmd.exe";
-                args = "/c npm.cmd run start";
-
-            }
-            else
-            {
-                filename = "npm";
-                args = "run start";
-            }
-
+            // Spawn the server directly so a stalled npm/cmd wrapper cannot strand startup or cleanup.
             var startInfo = new ProcessStartInfo
             {
-                FileName = filename,
+                FileName = "node",
                 WorkingDirectory = Path.Join(FindRepoRoot(), "test", "harness"),
-                Arguments = args,
+                Arguments = "startup.mjs",
                 UseShellExecute = false,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 CreateNoWindow = true,
             };
 
-            _process = new Process { StartInfo = startInfo };
+            var process = new Process { StartInfo = startInfo };
+            var tcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var diagnostics = new StartupDiagnostics();
+            var elapsed = Stopwatch.StartNew();
 
-            var tcs = new TaskCompletionSource<string>();
-            var errorOutput = new StringBuilder();
-
-            _process.OutputDataReceived += (_, e) =>
+            process.OutputDataReceived += (_, e) =>
             {
                 if (e.Data == null) return;
+                diagnostics.AppendOutput(e.Data);
                 var match = Regex.Match(e.Data, @"Listening: (?<url>http://[^\s]+)\s+(?<metadata>\{.*\})$");
                 if (!match.Success)
                 {
@@ -98,56 +85,149 @@ public sealed partial class ReplayProxy : IAsyncDisposable
                 tcs.TrySetResult(match.Groups["url"].Value);
             };
 
-            _process.ErrorDataReceived += (_, e) =>
+            process.ErrorDataReceived += (_, e) =>
             {
                 if (e.Data == null) return;
-                errorOutput.AppendLine(e.Data);
-                Console.Error.WriteLine(e.Data);
+                diagnostics.AppendError(e.Data);
+                if (!e.Data.StartsWith("[SDK proxy startup]", StringComparison.Ordinal))
+                {
+                    Console.Error.WriteLine(e.Data);
+                }
             };
 
-            _process.Start();
-            _process.BeginOutputReadLine();
-            _process.BeginErrorReadLine();
-            _ = _process.WaitForExitAsync().ContinueWith(_ =>
+            try
             {
-                if (_process?.ExitCode is int exitCode && exitCode != 0)
+                process.Start();
+            }
+            catch
+            {
+                process.Dispose();
+                throw;
+            }
+            _process = process;
+            process.BeginOutputReadLine();
+            process.BeginErrorReadLine();
+            _ = process.WaitForExitAsync().ContinueWith(_ =>
+            {
+                if (!tcs.Task.IsCompleted)
                 {
-                    tcs.TrySetException(new Exception($"Proxy exited with code {_process.ExitCode}: {errorOutput}"));
+                    tcs.TrySetException(new Exception(
+                        $"Proxy exited before readiness. {diagnostics.Describe(process.Id, elapsed.Elapsed, process.ExitCode)}"));
                 }
             });
 
             // Use longer timeout on Windows due to slower process startup
             var timeoutSeconds = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? 30 : 10;
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(timeoutSeconds));
-            cts.Token.Register(() => tcs.TrySetException(new TimeoutException("Timeout waiting for proxy")));
+            using var registration = cts.Token.Register(() => tcs.TrySetException(new TimeoutException(
+                $"Timeout waiting for proxy. {diagnostics.Describe(process.Id, elapsed.Elapsed, process.HasExited ? process.ExitCode : null)}")));
 
             return await tcs.Task;
         }
     }
 
+    internal sealed class StartupDiagnostics
+    {
+        private const int OutputLimit = 4096;
+        private readonly object _gate = new();
+        private readonly StringBuilder _stdout = new();
+        private readonly StringBuilder _stderr = new();
+
+        public void AppendOutput(string line) => Append(_stdout, line);
+
+        public void AppendError(string line) => Append(_stderr, line);
+
+        private void Append(StringBuilder output, string line)
+        {
+            lock (_gate)
+            {
+                output.Append(line, Math.Max(0, line.Length - OutputLimit), Math.Min(line.Length, OutputLimit));
+                output.AppendLine();
+                if (output.Length > OutputLimit)
+                {
+                    output.Remove(0, output.Length - OutputLimit);
+                }
+            }
+        }
+
+        public string Describe(int processId, TimeSpan elapsed, int? exitCode)
+        {
+            lock (_gate)
+            {
+                var state = exitCode is int code ? $"exited with code {code}" : "running";
+                return $"PID {processId}, {state}, elapsed {elapsed.TotalSeconds:F1}s." +
+                    $"\n--- stdout tail ---\n{_stdout}\n--- stderr tail ---\n{_stderr}";
+            }
+        }
+    }
+
     public async Task StopAsync(bool skipWritingCache = false)
     {
+        Exception? shutdownFailure = null;
+        string? url = null;
         if (_startupTask != null)
         {
             try
             {
-                var url = await _startupTask;
+                url = await _startupTask;
+            }
+            catch { /* Startup failure is reported by StartAsync; cleanup still owns the process. */ }
+        }
+
+        if (url != null)
+        {
+            try
+            {
                 var stopUrl = skipWritingCache ? $"{url}/stop?skipWritingCache=true" : $"{url}/stop";
                 using var client = new HttpClient();
-                await client.PostAsync(stopUrl, null);
+                using var response = await client.PostAsync(stopUrl, null);
+                if (!response.IsSuccessStatusCode)
+                {
+                    shutdownFailure = new HttpRequestException(
+                        $"Proxy shutdown failed: HTTP {(int)response.StatusCode}: {await response.Content.ReadAsStringAsync()}");
+                }
             }
-            catch { /* Best effort */ }
+            catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException or IOException)
+            {
+                shutdownFailure = ex;
+            }
         }
 
-        if (_process is { HasExited: false })
+        try
         {
-            try { _process.Kill(entireProcessTree: true); await _process.WaitForExitAsync(); }
-            catch { /* Ignore */ }
+            if (_process is { HasExited: false })
+            {
+                using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                try
+                {
+                    await _process.WaitForExitAsync(timeout.Token);
+                }
+                catch (OperationCanceledException)
+                {
+                    _process.Kill(entireProcessTree: true);
+                    await _process.WaitForExitAsync();
+                }
+            }
+            if (url != null && _process is { HasExited: true, ExitCode: not 0 })
+            {
+                shutdownFailure ??= new InvalidOperationException($"Proxy exited with code {_process.ExitCode}");
+            }
+        }
+        catch (InvalidOperationException)
+        {
+            // Process.Start failed before this object was associated with a child.
         }
 
-        _process?.Dispose();
-        _process = null;
-        _startupTask = null;
+        finally
+        {
+            _process?.Dispose();
+            _process = null;
+            _startupTask = null;
+        }
+        if (shutdownFailure != null)
+        {
+            throw shutdownFailure;
+        }
     }
 
     public async Task ConfigureAsync(string filePath, string workDir, string backend, bool replayOnly = false)
@@ -247,7 +327,10 @@ public record CopilotUserQuotaSnapshot(
 public record ParsedHttpExchange(
     ChatCompletionRequest Request,
     ChatCompletionResponse? Response,
-    Dictionary<string, JsonElement>? RequestHeaders);
+    Dictionary<string, JsonElement>? RequestHeaders,
+    CompactionProviderUsage? CompactionUsage = null);
+
+public record CompactionProviderUsage(string InteractionId, string Summary, int ResponseCount, long? InputTokens);
 
 public record ChatCompletionRequest(
     string Model,

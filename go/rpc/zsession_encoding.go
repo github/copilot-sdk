@@ -251,6 +251,12 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
+	case SessionEventTypeHumanResponseRecorded:
+		var d HumanResponseRecordedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
 	case SessionEventTypeMCPAppToolCallComplete:
 		var d MCPAppToolCallCompleteData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
@@ -271,6 +277,12 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 		e.Data = &d
 	case SessionEventTypeMCPOauthCompleted:
 		var d MCPOauthCompletedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeMCPOauthRecoveryCompleted:
+		var d MCPOauthRecoveryCompletedData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}
@@ -301,6 +313,12 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 		e.Data = &d
 	case SessionEventTypeModelCallFailure:
 		var d ModelCallFailureData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeModelCallFinalResult:
+		var d ModelCallFinalResultData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}
@@ -403,6 +421,12 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 		e.Data = &d
 	case SessionEventTypeSessionAutopilotObjectiveChanged:
 		var d SessionAutopilotObjectiveChangedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionAutopilotStopped:
+		var d SessionAutopilotStoppedData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}
@@ -587,6 +611,12 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
+	case SessionEventTypeSessionManagedPluginProgress:
+		var d SessionManagedPluginProgressData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
 	case SessionEventTypeSessionManagedSettingsEnforced:
 		var d SessionManagedSettingsEnforcedData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
@@ -619,6 +649,12 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 		e.Data = &d
 	case SessionEventTypeSessionMCPServerStatusChanged:
 		var d SessionMCPServerStatusChangedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionMCPServerToolsLoaded:
+		var d SessionMCPServerToolsLoadedData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}
@@ -661,6 +697,12 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 		e.Data = &d
 	case SessionEventTypeSessionPlanChanged:
 		var d SessionPlanChangedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionQuotaObservation:
+		var d SessionQuotaObservationData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}
@@ -877,6 +919,12 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 		e.Data = &d
 	case SessionEventTypeToolSearchActivated:
 		var d ToolSearchActivatedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeToolShellOutput:
+		var d ToolShellOutputData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}
@@ -2332,20 +2380,26 @@ func (r PermissionPromptRequestWrite) MarshalJSON() ([]byte, error) {
 
 func (r *PermissionRequestedData) UnmarshalJSON(data []byte) error {
 	type rawPermissionRequestedData struct {
-		AgentMode         *SessionMode    `json:"agentMode,omitempty"`
-		PermissionMode    *PermissionMode `json:"permissionMode,omitempty"`
-		PermissionRequest json.RawMessage `json:"permissionRequest"`
-		PromptRequest     json.RawMessage `json:"promptRequest,omitempty"`
-		RecoveryEpisodeID *string         `json:"recoveryEpisodeId,omitempty"`
-		RequestID         string          `json:"requestId"`
-		ResolvedByHook    *bool           `json:"resolvedByHook,omitempty"`
-		RiskAssessment    any             `json:"riskAssessment,omitempty"`
+		AgentMode         *SessionMode       `json:"agentMode,omitempty"`
+		Fusion            *FusionAttribution `json:"fusion,omitempty"`
+		OwnerAgentID      *string            `json:"ownerAgentId,omitempty"`
+		OwnerSessionID    *string            `json:"ownerSessionId,omitempty"`
+		PermissionMode    *PermissionMode    `json:"permissionMode,omitempty"`
+		PermissionRequest json.RawMessage    `json:"permissionRequest"`
+		PromptRequest     json.RawMessage    `json:"promptRequest,omitempty"`
+		RecoveryEpisodeID *string            `json:"recoveryEpisodeId,omitempty"`
+		RequestID         string             `json:"requestId"`
+		ResolvedByHook    *bool              `json:"resolvedByHook,omitempty"`
+		RiskAssessment    any                `json:"riskAssessment,omitempty"`
 	}
 	var raw rawPermissionRequestedData
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return err
 	}
 	r.AgentMode = raw.AgentMode
+	r.Fusion = raw.Fusion
+	r.OwnerAgentID = raw.OwnerAgentID
+	r.OwnerSessionID = raw.OwnerSessionID
 	r.PermissionMode = raw.PermissionMode
 	if raw.PermissionRequest != nil {
 		value, err := unmarshalPermissionRequest(raw.PermissionRequest)
@@ -2632,6 +2686,110 @@ func (r *PermissionCompletedData) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		r.Result = value
+	}
+	r.ToolCallID = raw.ToolCallID
+	return nil
+}
+
+func unmarshalHumanResponseRecordedResponse(data []byte) (HumanResponseRecordedResponse, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	type rawUnion struct {
+		ResponseKind HumanResponseRecordedResponseResponseKind `json:"responseKind"`
+	}
+	var raw rawUnion
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+
+	switch raw.ResponseKind {
+	case HumanResponseRecordedResponseResponseKindAskUser:
+		var d HumanResponseRecordedResponseAskUser
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case HumanResponseRecordedResponseResponseKindExitPlanMode:
+		var d HumanResponseRecordedResponseExitPlanMode
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case HumanResponseRecordedResponseResponseKindUserInput:
+		var d HumanResponseRecordedResponseUserInput
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	default:
+		return &RawHumanResponseRecordedResponse{Discriminator: raw.ResponseKind, Raw: data}, nil
+	}
+}
+
+func (r RawHumanResponseRecordedResponse) MarshalJSON() ([]byte, error) {
+	if r.Raw != nil {
+		return r.Raw, nil
+	}
+	return json.Marshal(struct {
+		ResponseKind HumanResponseRecordedResponseResponseKind `json:"responseKind"`
+	}{
+		ResponseKind: r.Discriminator,
+	})
+}
+
+func (r HumanResponseRecordedResponseAskUser) MarshalJSON() ([]byte, error) {
+	type alias HumanResponseRecordedResponseAskUser
+	return json.Marshal(struct {
+		ResponseKind HumanResponseRecordedResponseResponseKind `json:"responseKind"`
+		alias
+	}{
+		ResponseKind: r.ResponseKind(),
+		alias:        alias(r),
+	})
+}
+
+func (r HumanResponseRecordedResponseExitPlanMode) MarshalJSON() ([]byte, error) {
+	type alias HumanResponseRecordedResponseExitPlanMode
+	return json.Marshal(struct {
+		ResponseKind HumanResponseRecordedResponseResponseKind `json:"responseKind"`
+		alias
+	}{
+		ResponseKind: r.ResponseKind(),
+		alias:        alias(r),
+	})
+}
+
+func (r HumanResponseRecordedResponseUserInput) MarshalJSON() ([]byte, error) {
+	type alias HumanResponseRecordedResponseUserInput
+	return json.Marshal(struct {
+		ResponseKind HumanResponseRecordedResponseResponseKind `json:"responseKind"`
+		alias
+	}{
+		ResponseKind: r.ResponseKind(),
+		alias:        alias(r),
+	})
+}
+
+func (r *HumanResponseRecordedData) UnmarshalJSON(data []byte) error {
+	type rawHumanResponseRecordedData struct {
+		Actor      HumanResponseActor `json:"actor"`
+		RequestID  string             `json:"requestId"`
+		Response   json.RawMessage    `json:"response"`
+		ToolCallID *string            `json:"toolCallId,omitempty"`
+	}
+	var raw rawHumanResponseRecordedData
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	r.Actor = raw.Actor
+	r.RequestID = raw.RequestID
+	if raw.Response != nil {
+		value, err := unmarshalHumanResponseRecordedResponse(raw.Response)
+		if err != nil {
+			return err
+		}
+		r.Response = value
 	}
 	r.ToolCallID = raw.ToolCallID
 	return nil

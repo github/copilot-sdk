@@ -31,7 +31,7 @@ public final class SessionOptionsApi {
     }
 
     /**
-     * Patch of mutable session options to apply to the running session.
+     * Patches the genuinely-mutable subset of session options.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.

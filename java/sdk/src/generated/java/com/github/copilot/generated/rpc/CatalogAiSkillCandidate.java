@@ -10,6 +10,7 @@ package com.github.copilot.generated.rpc;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
@@ -64,6 +65,22 @@ public final class CatalogAiSkillCandidate extends CatalogCandidate {
     @JsonProperty("provenance")
     private CatalogAiSkillCandidateProvenance provenance;
 
+    /** How many times the resource has been installed, as reported by the feed. Omitted when the feed reports no count or an invalid one. */
+    @JsonProperty("installCount")
+    private Long installCount;
+
+    /** HTTPS URL of the resource's icon on raw.githubusercontent.com, as reported by the feed. Untrusted external content: load it without credentials. Omitted when absent or outside the feed's icon host policy. */
+    @JsonProperty("iconUrl")
+    private String iconUrl;
+
+    /** Identifiers of the connectors the resource works with, as reported by the feed, without repeats. Inert untrusted text. Omitted when the feed reports none. */
+    @JsonProperty("connectorIds")
+    private List<String> connectorIds;
+
+    /** Category slugs reported by the feed, such as `build` or `review`, without repeats. Values are passed through, so clients must tolerate slugs they do not recognise. Inert untrusted text. Omitted when the feed reports none. */
+    @JsonProperty("categories")
+    private List<String> categories;
+
     /** Versioned trust metadata observed from the catalog authority. Optional for protocol-3 compatibility with runtimes that predate trust snapshots. A trust-capable runtime emits an explicit snapshot even when the authority omitted or malformed its trust field. */
     @JsonProperty("trust")
     private CatalogTrustSnapshot trust;
@@ -94,6 +111,18 @@ public final class CatalogAiSkillCandidate extends CatalogCandidate {
 
     public CatalogAiSkillCandidateProvenance getProvenance() { return provenance; }
     public void setProvenance(CatalogAiSkillCandidateProvenance provenance) { this.provenance = provenance; }
+
+    public Long getInstallCount() { return installCount; }
+    public void setInstallCount(Long installCount) { this.installCount = installCount; }
+
+    public String getIconUrl() { return iconUrl; }
+    public void setIconUrl(String iconUrl) { this.iconUrl = iconUrl; }
+
+    public List<String> getConnectorIds() { return connectorIds; }
+    public void setConnectorIds(List<String> connectorIds) { this.connectorIds = connectorIds; }
+
+    public List<String> getCategories() { return categories; }
+    public void setCategories(List<String> categories) { this.categories = categories; }
 
     public CatalogTrustSnapshot getTrust() { return trust; }
     public void setTrust(CatalogTrustSnapshot trust) { this.trust = trust; }

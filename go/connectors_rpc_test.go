@@ -1,3 +1,5 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+
 package copilot
 
 import (
@@ -82,6 +84,91 @@ func TestSessionRPCConnectors(t *testing.T) {
 			!result.OpaqueAccountSelection {
 			t.Fatalf("GetCapabilities result = %#v", result)
 		}
+		if result.SessionAccountSelection != nil || result.TargetedReconcile != nil {
+			t.Fatalf("legacy capabilities must not enable new operations: %#v", result)
+		}
+	})
+
+	t.Run("session account", func(t *testing.T) {
+		expectConnectorRPC(t, server, "session.connectors.getCapabilities", map[string]any{
+			"sessionId": "session-1",
+		}, `{
+			"apiVersion":1,"availability":"enabled","consentContinuation":true,
+			"maxDeadlineMs":60000,"maxPollAttempts":10,"maxPollIntervalMs":5000,
+			"opaqueAccountSelection":true,"sessionAccountSelection":true,"targetedReconcile":true
+		}`)
+		capabilities, err := session.RPC.Connectors.GetCapabilities(t.Context())
+		if err != nil {
+			t.Fatalf("GetCapabilities: %v", err)
+		}
+		if capabilities.SessionAccountSelection == nil || !*capabilities.SessionAccountSelection ||
+			capabilities.TargetedReconcile == nil || !*capabilities.TargetedReconcile {
+			t.Fatalf("new capabilities not enabled: %#v", capabilities)
+		}
+
+		const account = `{"accountId":"` + connectorAccountID + `","authInfo":{"type":"token","host":"github.com","login":"alice"}}`
+		expectConnectorRPC(t, server, "session.connectors.getAccount", map[string]any{
+			"sessionId": "session-1",
+		}, account)
+		result, err := session.RPC.Connectors.GetAccount(t.Context())
+		if err != nil {
+			t.Fatalf("GetAccount: %v", err)
+		}
+		if result == nil || result.AccountID != connectorAccountID || result.AuthInfo.Type != "token" ||
+			result.AuthInfo.Host != "github.com" || result.AuthInfo.Login != "alice" {
+			t.Fatalf("GetAccount result = %#v", result)
+		}
+		wire, err := json.Marshal(result)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var got, want any
+		if err := json.Unmarshal(wire, &got); err != nil {
+			t.Fatal(err)
+		}
+		if err := json.Unmarshal([]byte(account), &want); err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("credential-free account wire = %s", wire)
+		}
+	})
+
+	t.Run("unavailable session account is nil", func(t *testing.T) {
+		expectConnectorRPC(t, server, "session.connectors.getAccount", map[string]any{
+			"sessionId": "session-1",
+		}, `null`)
+		result, err := session.RPC.Connectors.GetAccount(t.Context())
+		if err != nil {
+			t.Fatalf("GetAccount: %v", err)
+		}
+		if result != nil {
+			t.Fatalf("null must not become an empty account: %#v", result)
+		}
+		// The exported result type models the schema's null branch, so it must
+		// accept GetAccount's return and a nil absent account.
+		exported := rpc.ConnectorSessionAccountResult(result)
+		if exported != nil {
+			t.Fatalf("exported result type must hold the absent account: %#v", exported)
+		}
+	})
+
+	t.Run("false capabilities remain unsupported", func(t *testing.T) {
+		expectConnectorRPC(t, server, "session.connectors.getCapabilities", map[string]any{
+			"sessionId": "session-1",
+		}, `{
+			"apiVersion":1,"availability":"enabled","consentContinuation":true,
+			"maxDeadlineMs":60000,"maxPollAttempts":10,"maxPollIntervalMs":5000,
+			"opaqueAccountSelection":true,"sessionAccountSelection":false,"targetedReconcile":false
+		}`)
+		result, err := session.RPC.Connectors.GetCapabilities(t.Context())
+		if err != nil {
+			t.Fatalf("GetCapabilities: %v", err)
+		}
+		if result.SessionAccountSelection == nil || *result.SessionAccountSelection ||
+			result.TargetedReconcile == nil || *result.TargetedReconcile {
+			t.Fatalf("false capabilities must stay false: %#v", result)
+		}
 	})
 
 	t.Run("get status", func(t *testing.T) {
@@ -143,6 +230,33 @@ func TestSessionRPCConnectors(t *testing.T) {
 			t.Fatalf("Refresh: %v", err)
 		}
 		assertConnectorCatalog(t, result, 8, rpc.ConnectorCatalogStatusNotConnected)
+		if result.Connectors[0].Logo != nil || result.Connectors[0].Tier != nil || result.Connectors[0].ReleaseTag != nil {
+			t.Fatalf("legacy catalog presentation metadata must stay absent: %#v", result.Connectors[0])
+		}
+	})
+
+	t.Run("catalog presentation metadata", func(t *testing.T) {
+		expectConnectorRPC(t, server, "session.connectors.list", map[string]any{
+			"accountId": connectorAccountID,
+			"sessionId": "session-1",
+		}, `{
+			"connectors":[{
+				"displayName":"Outlook","name":"outlook","runtimeServerIds":[],"status":"connected",
+				"logo":"https://example.com/outlook.svg","tier":"standard","releaseTag":"preview"
+			}],
+			"refreshedAtMs":1700000000100,"revision":8
+		}`)
+		result, err := session.RPC.Connectors.List(t.Context(), &rpc.ConnectorAccountRequest{AccountID: connectorAccountID})
+		if err != nil {
+			t.Fatalf("List: %v", err)
+		}
+		assertConnectorCatalog(t, result, 8, rpc.ConnectorCatalogStatusConnected)
+		entry := result.Connectors[0]
+		if entry.Logo == nil || *entry.Logo != "https://example.com/outlook.svg" ||
+			entry.Tier == nil || *entry.Tier != "standard" ||
+			entry.ReleaseTag == nil || *entry.ReleaseTag != "preview" {
+			t.Fatalf("catalog presentation metadata = %#v", entry)
+		}
 	})
 
 	t.Run("connect", func(t *testing.T) {
@@ -214,6 +328,33 @@ func TestSessionRPCConnectors(t *testing.T) {
 		assertConnectorStatus(t, &connected.Status)
 	})
 
+	t.Run("unknown continuation outcome is not connected", func(t *testing.T) {
+		expectConnectorRPC(t, server, "session.connectors.continueConnection", map[string]any{
+			"continuationId": "continuation-2",
+			"deadlineMs":     float64(30000),
+			"maxAttempts":    float64(4),
+			"pollIntervalMs": float64(500),
+			"sessionId":      "session-1",
+		}, `{"kind":"future_outcome","continuationId":"continuation-2","status":`+connectorStatusResult+`}`)
+
+		result, err := session.RPC.Connectors.ContinueConnection(t.Context(), &rpc.ConnectorContinueRequest{
+			ContinuationID: "continuation-2",
+			DeadlineMs:     30000,
+			MaxAttempts:    4,
+			PollIntervalMs: 500,
+		})
+		if err != nil {
+			t.Fatalf("ContinueConnection: %v", err)
+		}
+		raw, ok := result.(*rpc.RawConnectorConnectResultData)
+		if !ok || raw.Kind() != "future_outcome" {
+			t.Fatalf("unknown outcome must remain raw, got %#v", result)
+		}
+		if _, connected := result.(*rpc.ConnectorConnectResultConnected); connected {
+			t.Fatal("unknown outcome was treated as connected")
+		}
+	})
+
 	t.Run("disconnect", func(t *testing.T) {
 		expectConnectorRPC(t, server, "session.connectors.disconnect", map[string]any{
 			"accountId":     connectorAccountID,
@@ -244,6 +385,25 @@ func TestSessionRPCConnectors(t *testing.T) {
 		result, err := session.RPC.Connectors.Reconcile(t.Context(), &rpc.ConnectorReconcileRequest{
 			AccountID:      connectorAccountID,
 			RefreshCatalog: Bool(true),
+		})
+		if err != nil {
+			t.Fatalf("Reconcile: %v", err)
+		}
+		assertConnectorStatus(t, result)
+	})
+
+	t.Run("targeted reconcile", func(t *testing.T) {
+		expectConnectorRPC(t, server, "session.connectors.reconcile", map[string]any{
+			"accountId":          connectorAccountID,
+			"refreshCatalog":     true,
+			"forceConnectorName": "outlook",
+			"sessionId":          "session-1",
+		}, connectorStatusResult)
+
+		result, err := session.RPC.Connectors.Reconcile(t.Context(), &rpc.ConnectorReconcileRequest{
+			AccountID:          connectorAccountID,
+			RefreshCatalog:     Bool(true),
+			ForceConnectorName: String("outlook"),
 		})
 		if err != nil {
 			t.Fatalf("Reconcile: %v", err)

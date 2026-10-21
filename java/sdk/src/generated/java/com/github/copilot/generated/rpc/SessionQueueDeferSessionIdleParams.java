@@ -23,7 +23,7 @@ import javax.annotation.processing.Generated;
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record SessionQueueDeferSessionIdleParams(
+record SessionQueueDeferSessionIdleParams(
     /** Target session identifier */
     @JsonProperty("sessionId") String sessionId,
     /** Whether the deferred idle was caused by an aborted foreground turn. */

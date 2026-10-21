@@ -49,7 +49,12 @@ export interface CanvasAction {
     description?: string;
     /** Optional JSON Schema for the action's `input` payload. */
     inputSchema?: CanvasJsonSchema;
-    /** Required per-action dispatch handler. */
+    /**
+     * Required per-action dispatch handler. The returned value becomes the
+     * `invoke_canvas_action` tool result. Return a `ToolResultObject`
+     * (with `binaryResultsForLlm`) to send text and images to the model, as a
+     * tool handler would; any other value is rendered to the model as JSON text.
+     */
     handler: (ctx: CanvasProviderInvokeActionRequest) => Promise<unknown> | unknown;
 }
 

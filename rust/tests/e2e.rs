@@ -7,8 +7,6 @@ mod abort;
 mod ask_user;
 #[path = "e2e/auto_tier.rs"]
 mod auto_tier;
-#[path = "e2e/builtin_tools.rs"]
-mod builtin_tools;
 #[path = "e2e/byok_bearer_token_provider.rs"]
 mod byok_bearer_token_provider;
 #[path = "e2e/canvas.rs"]
@@ -23,8 +21,6 @@ mod client_lifecycle;
 mod client_options;
 #[path = "e2e/commands.rs"]
 mod commands;
-#[path = "e2e/compaction.rs"]
-mod compaction;
 #[path = "e2e/copilot_request_handler.rs"]
 mod copilot_request_handler;
 #[path = "e2e/elicitation.rs"]
@@ -68,56 +64,8 @@ mod per_session_auth;
 mod permissions;
 #[path = "e2e/pre_mcp_tool_call_hook.rs"]
 mod pre_mcp_tool_call_hook;
-#[path = "e2e/provider_endpoint.rs"]
-mod provider_endpoint;
-#[path = "e2e/rewind.rs"]
-mod rewind;
-#[path = "e2e/rpc_additional_edge_cases.rs"]
-mod rpc_additional_edge_cases;
-#[path = "e2e/rpc_agent.rs"]
-mod rpc_agent;
-#[path = "e2e/rpc_event_log.rs"]
-mod rpc_event_log;
-#[path = "e2e/rpc_event_side_effects.rs"]
-mod rpc_event_side_effects;
-#[path = "e2e/rpc_mcp_and_skills.rs"]
-mod rpc_mcp_and_skills;
-#[path = "e2e/rpc_mcp_config.rs"]
-mod rpc_mcp_config;
-#[path = "e2e/rpc_mcp_lifecycle.rs"]
-mod rpc_mcp_lifecycle;
-#[path = "e2e/rpc_queue.rs"]
-mod rpc_queue;
-#[path = "e2e/rpc_remote.rs"]
-mod rpc_remote;
-#[path = "e2e/rpc_schedule.rs"]
-mod rpc_schedule;
-#[path = "e2e/rpc_server.rs"]
-mod rpc_server;
-#[path = "e2e/rpc_server_misc.rs"]
-mod rpc_server_misc;
-#[path = "e2e/rpc_server_plugins.rs"]
-mod rpc_server_plugins;
-#[path = "e2e/rpc_server_remote_control.rs"]
-mod rpc_server_remote_control;
-#[path = "e2e/rpc_session_state.rs"]
-mod rpc_session_state;
-#[path = "e2e/rpc_session_state_extras.rs"]
-mod rpc_session_state_extras;
-#[path = "e2e/rpc_shell_and_fleet.rs"]
-mod rpc_shell_and_fleet;
-#[path = "e2e/rpc_shell_edge_cases.rs"]
-mod rpc_shell_edge_cases;
-#[path = "e2e/rpc_shell_user_requested.rs"]
-mod rpc_shell_user_requested;
-#[path = "e2e/rpc_surface_coverage.rs"]
-mod rpc_surface_coverage;
-#[path = "e2e/rpc_tasks_and_handlers.rs"]
-mod rpc_tasks_and_handlers;
-#[path = "e2e/rpc_ui_ephemeral_query.rs"]
-mod rpc_ui_ephemeral_query;
-#[path = "e2e/rpc_workspace_checkpoints.rs"]
-mod rpc_workspace_checkpoints;
+#[path = "e2e/rpc_smoke.rs"]
+mod rpc_smoke;
 #[path = "e2e/session.rs"]
 mod session;
 #[path = "e2e/session_config.rs"]
@@ -130,6 +78,10 @@ mod session_fs_sqlite;
 mod session_lifecycle;
 #[path = "e2e/session_todos_changed.rs"]
 mod session_todos_changed;
+#[path = "e2e/set_tools.rs"]
+mod set_tools;
+#[path = "e2e/skill_provider.rs"]
+mod skill_provider;
 #[path = "e2e/skills.rs"]
 mod skills;
 #[path = "e2e/streaming_fidelity.rs"]

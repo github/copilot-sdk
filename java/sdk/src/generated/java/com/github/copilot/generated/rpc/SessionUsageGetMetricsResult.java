@@ -12,6 +12,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.github.copilot.CopilotExperimental;
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Map;
 import javax.annotation.processing.Generated;
 
@@ -26,6 +27,8 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionUsageGetMetricsResult(
+    /** Completeness of totalNanoAiu. Numeric totals remain the reported subtotal; zero is not a claim of free usage when unavailable. */
+    @JsonProperty("aiCreditsStatus") AiCreditsStatus aiCreditsStatus,
     /** Total user-initiated premium request cost across all models (may be fractional due to multipliers) */
     @JsonProperty("totalPremiumRequestCost") Double totalPremiumRequestCost,
     /** Raw count of user-initiated API requests */
@@ -42,6 +45,9 @@ public record SessionUsageGetMetricsResult(
     @JsonProperty("codeChanges") UsageMetricsCodeChanges codeChanges,
     /** Per-model token and request metrics, keyed by model identifier */
     @JsonProperty("modelMetrics") Map<String, UsageMetricsModelMetric> modelMetrics,
+    /** Provider-attributed model metrics, ordered by first observed provider and model.
+Null attribution preserves historical usage whose provider or model was not recorded. */
+    @JsonProperty("providerModelMetrics") List<UsageMetricsProviderModelMetric> providerModelMetrics,
     /** Per-agent usage metrics, keyed by agent instance identifier. The main conversation uses the stable key `main`. */
     @JsonProperty("agentMetrics") Map<String, UsageMetricsAgentMetric> agentMetrics,
     /** Currently active model identifier */

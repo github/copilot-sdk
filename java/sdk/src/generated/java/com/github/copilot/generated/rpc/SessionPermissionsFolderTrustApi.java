@@ -31,7 +31,7 @@ public final class SessionPermissionsFolderTrustApi {
     }
 
     /**
-     * Folder path to check for trust.
+     * Reports whether a folder is trusted according to the user's folder trust state.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -47,7 +47,7 @@ public final class SessionPermissionsFolderTrustApi {
     }
 
     /**
-     * Folder path to add to trusted folders.
+     * Adds a folder to the user's trusted folders list.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.

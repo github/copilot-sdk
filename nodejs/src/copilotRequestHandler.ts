@@ -35,6 +35,8 @@ export interface CopilotRequestContext {
     readonly requestId: string;
     readonly sessionId?: string;
     readonly agentId?: string;
+    /** Runtime-provided logical invocation identity, unchanged across physical retries. */
+    readonly agentInvocationId?: string;
     readonly parentAgentId?: string;
     readonly interactionType?: string;
     readonly transport: "http" | "websocket";
@@ -113,7 +115,14 @@ export abstract class CopilotWebSocketHandler implements AsyncDisposable {
         this.#resolveCompletion(status);
     }
 
-    abstract sendRequestMessage(data: string | Uint8Array): Promise<void> | void;
+    /**
+     * Forward a runtime message. When supplied by the adapter, ctx carries this
+     * message's invocation identity, not the identity that opened the connection.
+     */
+    abstract sendRequestMessage(
+        data: string | Uint8Array,
+        ctx?: CopilotRequestContext
+    ): Promise<void> | void;
 
     async [Symbol.asyncDispose](): Promise<void> {
         if (!this[kSuppressCloseOnDispose] && !this.#closed) {
@@ -149,7 +158,7 @@ export class CopilotWebSocketForwarder extends CopilotWebSocketHandler {
         super(context);
     }
 
-    override sendRequestMessage(data: string | Uint8Array): void {
+    override sendRequestMessage(data: string | Uint8Array, _ctx?: CopilotRequestContext): void {
         if (this.#upstream?.readyState !== WebSocket.OPEN) {
             return;
         }
@@ -254,6 +263,7 @@ export class CopilotRequestHandler {
             requestId: exchange.requestId,
             sessionId: exchange.sessionId,
             agentId: exchange.agentId,
+            agentInvocationId: exchange.agentInvocationId,
             parentAgentId: exchange.parentAgentId,
             interactionType: exchange.interactionType,
             transport: exchange.transport,
@@ -293,7 +303,10 @@ export class CopilotRequestHandler {
             let cancelled: unknown;
             const clientSettled = (async () => {
                 for await (const chunk of exchange.requestBody) {
-                    await handler.sendRequestMessage(decodeFrame(chunk));
+                    await handler.sendRequestMessage(decodeFrame(chunk.chunk ?? new Uint8Array()), {
+                        ...ctx,
+                        agentInvocationId: chunk.agentInvocationId,
+                    });
                 }
                 return "client-complete" as const;
             })().catch((err) => {
@@ -442,7 +455,7 @@ function routeChunk(
         return;
     }
     if (params.data && params.data.length > 0) {
-        exchange.pushChunk(decodeChunkData(params.data, !!params.binary));
+        exchange.pushChunk(decodeChunkData(params.data, !!params.binary), params.agentInvocationId);
     }
     if (params.end) {
         exchange.pushEnd();
@@ -458,6 +471,7 @@ interface ResponseInit {
 
 interface BodyQueueItem {
     chunk?: Uint8Array;
+    agentInvocationId?: string;
     end?: boolean;
     cancel?: { reason?: string };
 }
@@ -473,6 +487,7 @@ class CopilotRequestExchange {
     readonly requestId: string;
     sessionId?: string;
     agentId?: string;
+    agentInvocationId?: string;
     parentAgentId?: string;
     interactionType?: string;
     method = "GET";
@@ -498,6 +513,7 @@ class CopilotRequestExchange {
     setContext(params: LlmInferenceHttpRequestStartRequest): void {
         this.sessionId = params.sessionId;
         this.agentId = params.agentId;
+        this.agentInvocationId = params.agentInvocationId;
         this.parentAgentId = params.parentAgentId;
         this.interactionType = params.interactionType;
         this.method = params.method;
@@ -524,8 +540,8 @@ class CopilotRequestExchange {
 
     // --- Request body feed (driven by the adapter as chunk frames arrive) ---
 
-    pushChunk(chunk: Uint8Array): void {
-        this.#push({ chunk });
+    pushChunk(chunk: Uint8Array, agentInvocationId?: string): void {
+        this.#push({ chunk, agentInvocationId });
     }
 
     pushEnd(): void {
@@ -549,10 +565,10 @@ class CopilotRequestExchange {
      * Request body bytes, yielded as they arrive. A cancel frame surfaces as a
      * thrown error so the handler's upstream call is torn down.
      */
-    get requestBody(): AsyncIterable<Uint8Array> {
+    get requestBody(): AsyncIterable<BodyQueueItem> {
         return {
-            [Symbol.asyncIterator]: (): AsyncIterator<Uint8Array> => ({
-                next: async (): Promise<IteratorResult<Uint8Array>> => {
+            [Symbol.asyncIterator]: (): AsyncIterator<BodyQueueItem> => ({
+                next: async (): Promise<IteratorResult<BodyQueueItem>> => {
                     if (this.#drained) {
                         return { value: undefined, done: true };
                     }
@@ -574,7 +590,7 @@ class CopilotRequestExchange {
                         this.#drained = true;
                         return { value: undefined, done: true };
                     }
-                    return { value: item.chunk ?? new Uint8Array(), done: false };
+                    return { value: item, done: false };
                 },
             }),
         };
@@ -695,12 +711,14 @@ async function buildFetchRequest(exchange: CopilotRequestExchange): Promise<Requ
     return new Request(exchange.url, { method, headers, body });
 }
 
-async function drainAsync(stream: AsyncIterable<Uint8Array>): Promise<Uint8Array> {
+async function drainAsync(stream: AsyncIterable<BodyQueueItem>): Promise<Uint8Array> {
     const parts: Uint8Array[] = [];
     let total = 0;
-    for await (const chunk of stream) {
-        parts.push(chunk);
-        total += chunk.byteLength;
+    for await (const item of stream) {
+        if (item.chunk) {
+            parts.push(item.chunk);
+            total += item.chunk.byteLength;
+        }
     }
     if (parts.length === 0) {
         return new Uint8Array(0);

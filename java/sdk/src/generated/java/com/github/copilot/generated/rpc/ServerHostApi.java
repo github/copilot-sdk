@@ -8,6 +8,7 @@
 package com.github.copilot.generated.rpc;
 
 import com.github.copilot.CopilotExperimental;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.processing.Generated;
 
@@ -27,7 +28,7 @@ public final class ServerHostApi {
     }
 
     /**
-     * Publishes a resident session attached to the listener's owning connection.
+     * Publishes an attached resident session for this listener's lifetime without copying it.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -38,18 +39,40 @@ public final class ServerHostApi {
     }
 
     /**
-     * One application-owned session handoff, requested by the supervised hosting participant.
+     * Withdraws a live or dormant application publication from an owned live host and revokes AHP attachments without deleting local session history, worktrees, or ongoing work. Returns false when already absent; rejects nonapplication publications.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
     @CopilotExperimental
-    CompletableFuture<HostCreateSessionResult> createSession(HostCreateSessionParams params) {
-        return caller.invoke("host.createSession", params, HostCreateSessionResult.class);
+    public CompletableFuture<HostUnpublishSessionResult> unpublishSession(HostUnpublishSessionParams params) {
+        return caller.invoke("host.unpublishSession", params, HostUnpublishSessionResult.class);
     }
 
     /**
-     * Ends one participation, not the application's session lifetime.
+     * Reads the complete advertised live and dormant session catalog of an existing host owned by this connection. Does not start hosting, subscribe to sessions, or guarantee resumability.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<HostListSessionsResult> listSessions(HostListSessionsParams params) {
+        return caller.invoke("host.listSessions", params, HostListSessionsResult.class);
+    }
+
+    /**
+     * Requests app-owned materialization over the owning SDK participant.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    CompletableFuture<HostSessionCreateResult> createSession(HostCreateSessionParams params) {
+        return caller.invoke("host.createSession", params, HostSessionCreateResult.class);
+    }
+
+    /**
+     * Releases app ownership retention after AHP detaches.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -60,7 +83,7 @@ public final class ServerHostApi {
     }
 
     /**
-     * Starts a supervised AHP listener in the runtime's configured working directory.
+     * Starts a connection-owned AHP host with explicit localServer and/or githubEnvironment transports as a supervised SDK participant.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -71,7 +94,20 @@ public final class ServerHostApi {
     }
 
     /**
-     * Stops a connection-owned listener and joins its teardown.
+     * Starts a connection-owned AHP host with explicit localServer and/or githubEnvironment transports as a supervised SDK participant.
+     * <p>
+     * Accepts the extensible request, including inputs added after the params record.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<HostStartResult> start(HostStartRequest request) {
+        return caller.invoke("host.start", Objects.requireNonNull(request, "request"), HostStartResult.class);
+    }
+
+    /**
+     * Stops a listener owned by this SDK connection and joins its cleanup without deleting sessions.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -82,18 +118,29 @@ public final class ServerHostApi {
     }
 
     /**
-     * Empty acknowledgement for a completed host lifecycle operation.
+     * Resolves current authenticated credentials and remote-control policy only for the runtime-owned Mission Control hosting participant.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
     @CopilotExperimental
-    CompletableFuture<HostGetConfigurationResult> getConfiguration() {
-        return caller.invoke("host.getConfiguration", java.util.Map.of(), HostGetConfigurationResult.class);
+    CompletableFuture<HostEnvironmentCredentials> getEnvironmentCredentials() {
+        return caller.invoke("host.getEnvironmentCredentials", java.util.Map.of(), HostEnvironmentCredentials.class);
     }
 
     /**
-     * Readiness reported by the supervised hosting participant on its own SDK connection.
+     * Returns listener settings only to the supervised hosting participant over its SDK connection.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    CompletableFuture<HostConfiguration> getConfiguration() {
+        return caller.invoke("host.getConfiguration", java.util.Map.of(), HostConfiguration.class);
+    }
+
+    /**
+     * Reports a supervised hosting participant's bound AHP endpoint after its SDK handshake.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0

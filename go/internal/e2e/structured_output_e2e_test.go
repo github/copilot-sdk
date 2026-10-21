@@ -25,7 +25,7 @@ type outputAnswer struct {
 
 func structuredSessionConfig(proxy string) *copilot.SessionConfig {
 	return &copilot.SessionConfig{
-		Model: "gpt-4.1", AvailableTools: []string{},
+		Model: "gpt-4.1", AvailableTools: []string{"custom:*"},
 		OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 		Provider: &copilot.ProviderConfig{
 			Type: "openai", WireAPI: "completions", BaseURL: proxy,
