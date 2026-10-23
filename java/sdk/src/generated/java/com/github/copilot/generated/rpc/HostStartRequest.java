@@ -54,10 +54,6 @@ public final class HostStartRequest {
     @JsonProperty("computeId")
     private String computeId;
 
-    /** Absolute directory on the runtime host to serve through AHP. Defaults to the runtime's configured working directory. Does not change process or session working directories. */
-    @JsonProperty("workspace")
-    private String workspace;
-
     /** Whether remote clients may create new sessions. Defaults to denied when omitted. Does not restrict owner work, publication, or existing sessions. */
     @JsonProperty("allowCreatingNewSessions")
     private Boolean allowCreatingNewSessions;
@@ -135,15 +131,6 @@ public final class HostStartRequest {
     }
 
     /**
-     * Returns the {@code workspace} property.
-     *
-     * @return Absolute directory on the runtime host to serve through AHP. Defaults to the runtime's configured working directory. Does not change process or session working directories.
-     */
-    public String getWorkspace() {
-        return workspace;
-    }
-
-    /**
      * Returns the {@code allowCreatingNewSessions} property.
      *
      * @return Whether remote clients may create new sessions. Defaults to denied when omitted. Does not restrict owner work, publication, or existing sessions.
@@ -215,17 +202,6 @@ public final class HostStartRequest {
      */
     public HostStartRequest setComputeId(String value) {
         this.computeId = value;
-        return this;
-    }
-
-    /**
-     * Sets the {@code workspace} property.
-     *
-     * @param value Absolute directory on the runtime host to serve through AHP. Defaults to the runtime's configured working directory. Does not change process or session working directories.
-     * @return this request
-     */
-    public HostStartRequest setWorkspace(String value) {
-        this.workspace = value;
         return this;
     }
 

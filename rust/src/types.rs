@@ -2541,10 +2541,6 @@ pub struct SessionConfig {
     /// session creation (fail-closed). When `None`, behaves exactly as before. Set via
     /// [`with_enable_managed_settings`](Self::with_enable_managed_settings).
     pub enable_managed_settings: Option<bool>,
-    /// Exact dotted setting paths excluded from fetched, device, and policy-helper
-    /// policy. Host-injected policy and availability checks are unaffected.
-    /// Not persisted; re-supply on resume. Does not enable self-fetching.
-    pub excluded_managed_settings: Option<Vec<String>>,
     /// When `Some(true)`, locked managed model controls are enforced for this
     /// session. Conflicting model changes are rejected; overridable managed
     /// defaults remain mutable. Set via
@@ -2898,7 +2894,6 @@ impl Default for SessionConfig {
             feature_flags: None,
             exp_assignments: None,
             enable_managed_settings: None,
-            excluded_managed_settings: None,
             enforce_managed_model_defaults: None,
             interactive_user: None,
             managed_settings: None,
@@ -3080,7 +3075,6 @@ impl SessionConfig {
             feature_flags: self.feature_flags,
             exp_assignments: self.exp_assignments,
             enable_managed_settings: self.enable_managed_settings,
-            excluded_managed_settings: self.excluded_managed_settings,
             enforce_managed_model_defaults: self.enforce_managed_model_defaults,
             interactive_user: self.interactive_user,
             is_experimental_mode: self.enable_experimental_mode,
@@ -3858,17 +3852,6 @@ impl SessionConfig {
         self
     }
 
-    /// Exclude exact managed-setting paths from fetched, device, and helper policy.
-    /// Re-supply on resume; does not exclude host-injected policy or availability checks.
-    pub fn with_excluded_managed_settings<I, S>(mut self, paths: I) -> Self
-    where
-        I: IntoIterator<Item = S>,
-        S: Into<String>,
-    {
-        self.excluded_managed_settings = Some(paths.into_iter().map(Into::into).collect());
-        self
-    }
-
     /// Enforce locked managed model controls for this session.
     pub fn with_enforce_managed_model_defaults(mut self, enforce: bool) -> Self {
         self.enforce_managed_model_defaults = Some(enforce);
@@ -4150,9 +4133,6 @@ pub struct ResumeSessionConfig {
     /// process restart. Set via
     /// [`with_enable_managed_settings`](Self::with_enable_managed_settings).
     pub enable_managed_settings: Option<bool>,
-    /// Exact dotted setting paths to exclude, as on [`SessionConfig`].
-    /// Omitting restores full enforcement on warm and cold resume.
-    pub excluded_managed_settings: Option<Vec<String>>,
     /// Re-applies managed model lock enforcement on resume. See
     /// [`SessionConfig::enforce_managed_model_defaults`].
     pub enforce_managed_model_defaults: Option<bool>,
@@ -4514,7 +4494,6 @@ impl ResumeSessionConfig {
             feature_flags: self.feature_flags,
             exp_assignments: self.exp_assignments,
             enable_managed_settings: self.enable_managed_settings,
-            excluded_managed_settings: self.excluded_managed_settings,
             enforce_managed_model_defaults: self.enforce_managed_model_defaults,
             interactive_user: self.interactive_user,
             is_experimental_mode: self.enable_experimental_mode,
@@ -4629,7 +4608,6 @@ impl ResumeSessionConfig {
             feature_flags: None,
             exp_assignments: None,
             enable_managed_settings: None,
-            excluded_managed_settings: None,
             enforce_managed_model_defaults: None,
             interactive_user: None,
             managed_settings: None,
@@ -5370,16 +5348,6 @@ impl ResumeSessionConfig {
     /// See [`SessionConfig::with_enable_managed_settings`].
     pub fn with_enable_managed_settings(mut self, enabled: bool) -> Self {
         self.enable_managed_settings = Some(enabled);
-        self
-    }
-
-    /// Exclude exact managed-setting paths on resume, as on [`SessionConfig`].
-    pub fn with_excluded_managed_settings<I, S>(mut self, paths: I) -> Self
-    where
-        I: IntoIterator<Item = S>,
-        S: Into<String>,
-    {
-        self.excluded_managed_settings = Some(paths.into_iter().map(Into::into).collect());
         self
     }
 

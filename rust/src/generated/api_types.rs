@@ -12003,8 +12003,6 @@ pub struct HostStartOptions {
     authentication: Option<serde_json::Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     compute_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    workspace: Option<String>,
 }
 
 impl HostStartOptions {
@@ -12021,7 +12019,6 @@ impl HostStartOptions {
             allow_creating_new_sessions: None,
             authentication: None,
             compute_id: None,
-            workspace: None,
         }
     }
 
@@ -12064,12 +12061,6 @@ impl HostStartOptions {
     /// Stable application identity selecting its durable host catalog. Defaults to the persisted runtime compute GUID; must agree with githubEnvironment.computeId when both are supplied.
     pub fn compute_id(mut self, value: impl Into<String>) -> Self {
         self.compute_id = Some(value.into());
-        self
-    }
-
-    /// Absolute directory on the runtime host to serve through AHP. Defaults to the runtime's configured working directory. Does not change process or session working directories.
-    pub fn workspace(mut self, value: impl Into<String>) -> Self {
-        self.workspace = Some(value.into());
         self
     }
 }
@@ -27909,9 +27900,6 @@ pub struct SessionOpenOptions {
     /// Built-in subagent names to exclude from this session. Excluded built-ins are hidden from agent discovery and cannot be dispatched unless a custom agent with the same name is available.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub excluded_builtin_agents: Option<Vec<String>>,
-    /// Managed-setting paths this trusted SDK host enforces externally or does not support, excluded from fetched, device, and policy-helper policy for this session. Exact dotted paths exclude a setting and its descendants (for example sandbox or permissions.disableBypassPermissionsMode); wildcards and array indices are not supported. Host-injected managedSettings and policy availability checks are not excluded. Not persisted; re-supply on resume, where omission restores full enforcement. Requires enableManagedSettings to self-fetch policy.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub excluded_managed_settings: Option<Vec<String>>,
     /// Denylist of tool names.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub excluded_tools: Option<Vec<String>>,

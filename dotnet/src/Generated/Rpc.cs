@@ -3046,10 +3046,6 @@ public sealed class HostStartRequest
     /// <summary>Ask the owning SDK application to materialize AHP sessions.</summary>
     [JsonPropertyName("sessionFactory")]
     public bool? SessionFactory { get; set; }
-
-    /// <summary>Absolute directory on the runtime host to serve through AHP. Defaults to the runtime's configured working directory. Does not change process or session working directories.</summary>
-    [JsonPropertyName("workspace")]
-    public string? Workspace { get; set; }
 }
 
 /// <summary>Empty acknowledgement for a completed host lifecycle operation.</summary>

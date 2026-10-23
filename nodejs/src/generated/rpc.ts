@@ -16327,10 +16327,6 @@ export interface HostStartRequest {
    * Stable application identity selecting its durable host catalog. Defaults to the persisted runtime compute GUID; must agree with githubEnvironment.computeId when both are supplied.
    */
   computeId?: string;
-  /**
-   * Absolute directory on the runtime host to serve through AHP. Defaults to the runtime's configured working directory. Does not change process or session working directories.
-   */
-  workspace?: string;
   localServer?: HostLocalServerOptions;
   githubEnvironment?: HostGitHubEnvironmentOptions;
   /**
@@ -29544,10 +29540,6 @@ export interface SessionOpenOptions {
    * Opt-in: self-fetch and enforce enterprise managed settings, including managed hook policies, at session bootstrap.
    */
   enableManagedSettings?: boolean;
-  /**
-   * Managed-setting paths this trusted SDK host enforces externally or does not support, excluded from fetched, device, and policy-helper policy for this session. Exact dotted paths exclude a setting and its descendants (for example sandbox or permissions.disableBypassPermissionsMode); wildcards and array indices are not supported. Host-injected managedSettings and policy availability checks are not excluded. Not persisted; re-supply on resume, where omission restores full enforcement. Requires enableManagedSettings to self-fetch policy.
-   */
-  excludedManagedSettings?: string[];
   /**
    * Opt in to enforcing non-overridable managed model controls on session model, Auto-tier, reasoning-effort, and context-tier changes. Managed defaults still apply when omitted; this option only turns conflicting changes into errors.
    */

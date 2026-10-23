@@ -226,8 +226,6 @@ pub(crate) struct SessionCreateWire {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_managed_settings: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub excluded_managed_settings: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub enforce_managed_model_defaults: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub interactive_user: Option<bool>,
@@ -416,8 +414,6 @@ pub(crate) struct SessionResumeWire {
     pub exp_assignments: Option<crate::types::CopilotExpAssignmentResponse>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_managed_settings: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub excluded_managed_settings: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enforce_managed_model_defaults: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]

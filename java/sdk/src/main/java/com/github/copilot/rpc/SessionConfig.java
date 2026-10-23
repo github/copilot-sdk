@@ -127,7 +127,6 @@ public class SessionConfig {
     private CloudSessionOptions cloud;
     private CopilotExpAssignmentResponse expAssignments;
     private Boolean enableManagedSettings;
-    private List<String> excludedManagedSettings;
     private Boolean enforceManagedModelDefaults;
     private Boolean interactiveUser;
     private Map<String, Boolean> featureFlags;
@@ -2467,29 +2466,6 @@ public class SessionConfig {
     }
 
     /**
-     * Gets managed-setting paths excluded from fetched, device, and helper policy.
-     *
-     * @return excluded paths, or {@code null} for full enforcement
-     */
-    public List<String> getExcludedManagedSettings() {
-        return excludedManagedSettings;
-    }
-
-    /**
-     * Excludes exact dotted setting paths and their descendants. Host-injected
-     * policy and availability checks are unaffected. Not persisted; re-supply on
-     * resume, where omission restores full enforcement. Does not enable fetching.
-     *
-     * @param paths
-     *            setting paths, such as {@code sandbox}
-     * @return this configuration
-     */
-    public SessionConfig setExcludedManagedSettings(List<String> paths) {
-        this.excludedManagedSettings = paths;
-        return this;
-    }
-
-    /**
      * Opts the runtime into self-fetching enterprise managed settings
      * (bypass-permissions policy) at session bootstrap.
      * <p>
@@ -2685,9 +2661,6 @@ public class SessionConfig {
         copy.featureFlags = this.featureFlags != null ? new java.util.HashMap<>(this.featureFlags) : null;
         copy.expAssignments = this.expAssignments;
         copy.enableManagedSettings = this.enableManagedSettings;
-        copy.excludedManagedSettings = this.excludedManagedSettings == null
-                ? null
-                : new ArrayList<>(this.excludedManagedSettings);
         copy.enforceManagedModelDefaults = this.enforceManagedModelDefaults;
         copy.interactiveUser = this.interactiveUser;
         copy.managedSettings = this.managedSettings;

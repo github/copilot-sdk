@@ -124,7 +124,6 @@ final class AhpHostManager {
         var policy = snapshot.getAuthentication();
         return rpc
                 .start(new HostStartRequest(host.id).setComputeId(snapshot.getComputeId())
-                        .setWorkspace(snapshot.getWorkspace())
                         .setAuthentication("custom".equals(policy.mode())
                                 ? Map.of("mode", policy.mode(), "requireIdentity", policy.requireIdentity())
                                 : Map.of("mode", policy.mode()))

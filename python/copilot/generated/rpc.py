@@ -42342,11 +42342,6 @@ class HostStartRequest:
     session_factory: bool | None = None
     """Ask the owning SDK application to materialize AHP sessions."""
 
-    workspace: str | None = field(default=None, kw_only=True)
-    """Absolute directory on the runtime host to serve through AHP. Defaults to the runtime's
-    configured working directory. Does not change process or session working directories.
-    """
-
     @staticmethod
     def from_dict(obj: Any) -> 'HostStartRequest':
         assert isinstance(obj, dict)
@@ -42358,8 +42353,7 @@ class HostStartRequest:
         local_server = from_union([HostLocalServerOptions.from_dict, from_none], obj.get("localServer"))
         resume_factory = from_union([from_bool, from_none], obj.get("resumeFactory"))
         session_factory = from_union([from_bool, from_none], obj.get("sessionFactory"))
-        workspace = from_union([from_str, from_none], obj.get("workspace"))
-        return HostStartRequest(host_id, github_environment, local_server, resume_factory, session_factory, authentication=authentication, compute_id=compute_id, workspace=workspace, allow_creating_new_sessions=allow_creating_new_sessions)
+        return HostStartRequest(host_id, github_environment, local_server, resume_factory, session_factory, authentication=authentication, compute_id=compute_id, allow_creating_new_sessions=allow_creating_new_sessions)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -42378,8 +42372,6 @@ class HostStartRequest:
             result["resumeFactory"] = from_union([from_bool, from_none], self.resume_factory)
         if self.session_factory is not None:
             result["sessionFactory"] = from_union([from_bool, from_none], self.session_factory)
-        if self.workspace is not None:
-            result["workspace"] = from_union([from_str, from_none], self.workspace)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -57488,15 +57480,6 @@ class SessionOpenOptions:
     agent discovery and cannot be dispatched unless a custom agent with the same name is
     available.
     """
-    excluded_managed_settings: list[str] | None = None
-    """Managed-setting paths this trusted SDK host enforces externally or does not support,
-    excluded from fetched, device, and policy-helper policy for this session. Exact dotted
-    paths exclude a setting and its descendants (for example sandbox or
-    permissions.disableBypassPermissionsMode); wildcards and array indices are not supported.
-    Host-injected managedSettings and policy availability checks are not excluded. Not
-    persisted; re-supply on resume, where omission restores full enforcement. Requires
-    enableManagedSettings to self-fetch policy.
-    """
     excluded_tools: list[str] | None = None
     """Denylist of tool names."""
 
@@ -57718,7 +57701,6 @@ class SessionOpenOptions:
         events_log_directory = from_union([from_str, from_none], obj.get("eventsLogDirectory"))
         events_log_includes_subagents = from_union([from_bool, from_none], obj.get("eventsLogIncludesSubagents"))
         excluded_builtin_agents = from_union([lambda x: from_list(from_str, x), from_none], obj.get("excludedBuiltinAgents"))
-        excluded_managed_settings = from_union([lambda x: from_list(from_str, x), from_none], obj.get("excludedManagedSettings"))
         excluded_tools = from_union([lambda x: from_list(from_str, x), from_none], obj.get("excludedTools"))
         exp_assignments = obj.get("expAssignments")
         feature_flags = from_union([lambda x: from_dict(from_bool, x), from_none], obj.get("featureFlags"))
@@ -57765,7 +57747,7 @@ class SessionOpenOptions:
         verbosity = from_union([Verbosity, from_none], obj.get("verbosity"))
         working_directory = from_union([from_str, from_none], obj.get("workingDirectory"))
         working_directory_context = from_union([SessionContext.from_dict, from_none], obj.get("workingDirectoryContext"))
-        return SessionOpenOptions(additional_content_exclusion_policies, additional_directories, agent_context, agent_directories, allow_all_mcp_server_instructions, ask_user_disabled, auth_client_id_metadata_url, auth_info, autopilot, auto_tier_is_explicit, available_tools, capi, client_kind, client_name, coauthor_enabled, config_dir, continue_on_auto_mode, copilot_url, custom_agents_local_only, detached_from_spawning_parent_engagement_id, detached_from_spawning_parent_session_id, disabled_instruction_sources, disabled_mcp_servers, disabled_skills, enable_citations, enable_file_change_tracking, enable_file_hooks, enable_managed_settings, enable_on_demand_instruction_discovery, enable_script_safety, enable_skills, enable_streaming, enforce_managed_model_defaults, env_value_mode, events_log_directory, events_log_includes_subagents, excluded_builtin_agents, excluded_managed_settings, excluded_tools, exp_assignments, feature_flags, has_skill_provider, hook_directories, ignored_skills_locations, included_builtin_agents, included_builtin_skills, installed_plugins, instruction_directories, integration_id, interactive_user, is_experimental_mode, log_interactive_shells, lsp_client_name, managed_mcp_servers, managed_settings, max_inline_binary_bytes, memory, model, model_capabilities_overrides, models, name, provider, providers, reasoning_effort, reasoning_summary, refresh_custom_instructions, remote_defaulted_on, remote_exporting, remote_steerable, running_in_interactive_mode, sandbox_config, sandbox_config_source, session_capabilities, session_id, session_limits, shell, shell_init_profile, shell_process_flags, skill_directories, skip_custom_instructions, trajectory_file, verbosity, working_directory, working_directory_context)
+        return SessionOpenOptions(additional_content_exclusion_policies, additional_directories, agent_context, agent_directories, allow_all_mcp_server_instructions, ask_user_disabled, auth_client_id_metadata_url, auth_info, autopilot, auto_tier_is_explicit, available_tools, capi, client_kind, client_name, coauthor_enabled, config_dir, continue_on_auto_mode, copilot_url, custom_agents_local_only, detached_from_spawning_parent_engagement_id, detached_from_spawning_parent_session_id, disabled_instruction_sources, disabled_mcp_servers, disabled_skills, enable_citations, enable_file_change_tracking, enable_file_hooks, enable_managed_settings, enable_on_demand_instruction_discovery, enable_script_safety, enable_skills, enable_streaming, enforce_managed_model_defaults, env_value_mode, events_log_directory, events_log_includes_subagents, excluded_builtin_agents, excluded_tools, exp_assignments, feature_flags, has_skill_provider, hook_directories, ignored_skills_locations, included_builtin_agents, included_builtin_skills, installed_plugins, instruction_directories, integration_id, interactive_user, is_experimental_mode, log_interactive_shells, lsp_client_name, managed_mcp_servers, managed_settings, max_inline_binary_bytes, memory, model, model_capabilities_overrides, models, name, provider, providers, reasoning_effort, reasoning_summary, refresh_custom_instructions, remote_defaulted_on, remote_exporting, remote_steerable, running_in_interactive_mode, sandbox_config, sandbox_config_source, session_capabilities, session_id, session_limits, shell, shell_init_profile, shell_process_flags, skill_directories, skip_custom_instructions, trajectory_file, verbosity, working_directory, working_directory_context)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -57843,8 +57825,6 @@ class SessionOpenOptions:
             result["eventsLogIncludesSubagents"] = from_union([from_bool, from_none], self.events_log_includes_subagents)
         if self.excluded_builtin_agents is not None:
             result["excludedBuiltinAgents"] = from_union([lambda x: from_list(from_str, x), from_none], self.excluded_builtin_agents)
-        if self.excluded_managed_settings is not None:
-            result["excludedManagedSettings"] = from_union([lambda x: from_list(from_str, x), from_none], self.excluded_managed_settings)
         if self.excluded_tools is not None:
             result["excludedTools"] = from_union([lambda x: from_list(from_str, x), from_none], self.excluded_tools)
         if self.exp_assignments is not None:

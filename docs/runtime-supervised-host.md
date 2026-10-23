@@ -72,8 +72,8 @@ All SDK hosting options require explicit authentication and a transport:
 `requireConnectionToken`. The hostname defaults to `127.0.0.1`; explicit
 non-loopback addresses are allowed. An omitted or zero port selects an available
 port; other values must be integers from 1 through 65535. The returned URL contains
-the actual bound address, including IPv6 brackets where needed. `workspace` overrides
-the runtime's configured working directory with an absolute, existing directory path.
+the actual bound address, including IPv6 brackets where needed. The host always
+uses the runtime's configured working directory, with no per-host override.
 
 Connection-token authentication defaults on: supply a nonempty token or let the
 listener generate one. `requireConnectionToken: false` disables only that

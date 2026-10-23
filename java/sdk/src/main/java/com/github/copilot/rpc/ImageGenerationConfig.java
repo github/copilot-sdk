@@ -87,11 +87,11 @@ public class ImageGenerationConfig {
     /**
      * Experimental. Saves generated and edited images under the session-state
      * directory's {@code images} folder and gives the model each path as a
-     * {@code saved_to:} line in the tool result. Defaults to true; set false to opt
-     * out. Subagents follow their parent's value unless they set their own. A
-     * failed save still returns the image. Sessions without a local session-state
-     * directory never save. Re-supply after cold resume. Does not enable image
-     * generation.
+     * {@code saved_to:} line in the tool result. Defaults to true; set false to
+     * opt out. Subagents
+     * follow their parent's value unless they set their own. A failed save still
+     * returns the image. Sessions without a local session-state directory never
+     * save. Re-supply after cold resume. Does not enable image generation.
      *
      * @param saveToDisk
      *            the preference, or null when unset

@@ -1027,7 +1027,6 @@ func (c *Client) createSession(ctx context.Context, config *SessionConfig, runti
 		req.FeatureFlags = &config.FeatureFlags
 	}
 	req.EnableManagedSettings = config.EnableManagedSettings
-	req.ExcludedManagedSettings = config.ExcludedManagedSettings
 	req.EnforceManagedModelDefaults = config.EnforceManagedModelDefaults
 	req.InteractiveUser = config.InteractiveUser
 	req.ManagedSettings = config.ManagedSettings
@@ -1526,7 +1525,6 @@ func (c *Client) resumeSession(ctx context.Context, sessionID string, config *Re
 		req.FeatureFlags = &config.FeatureFlags
 	}
 	req.EnableManagedSettings = config.EnableManagedSettings
-	req.ExcludedManagedSettings = config.ExcludedManagedSettings
 	req.EnforceManagedModelDefaults = config.EnforceManagedModelDefaults
 	req.InteractiveUser = config.InteractiveUser
 	req.ManagedSettings = config.ManagedSettings

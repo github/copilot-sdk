@@ -267,7 +267,6 @@ class AhpHostTest {
             try (var host = await(client.startAhpHost(options))) {
                 var request = await(server.startRequest);
                 assertEquals("compute", request.path("computeId").asText());
-                assertFalse(request.has("workspace"));
                 assertEquals(local, request.hasNonNull("localServer"));
                 assertEquals(github, request.hasNonNull("githubEnvironment"));
                 for (String oldField : List.of("hostname", "port", "token", "requireConnectionToken")) {
@@ -293,12 +292,12 @@ class AhpHostTest {
     void snapshotsOptionsBeforeConnecting() throws Exception {
         try (var server = new FakeRuntime(); var client = server.client()) {
             server.finishConnect = new CompletableFuture<>();
-            var options = localOptions().setComputeId("compute").setWorkspace("/runtime/workspace")
+            var options = localOptions().setComputeId("compute")
                     .setGithubEnvironment(new HostGitHubEnvironmentOptions("original", "compute"));
             var pending = client.startAhpHost(options);
             await(server.connectEntered);
             try {
-                options.setComputeId("changed").setWorkspace("/changed/workspace").setLocalServer(null)
+                options.setComputeId("changed").setLocalServer(null)
                         .setGithubEnvironment(new HostGitHubEnvironmentOptions("", ""))
                         .setAuthentication(AhpHostAuthentication.none());
             } finally {
@@ -308,7 +307,6 @@ class AhpHostTest {
                 var request = await(server.startRequest);
                 assertTrue(request.hasNonNull("localServer"));
                 assertEquals("compute", request.path("computeId").asText());
-                assertEquals("/runtime/workspace", request.path("workspace").asText());
                 assertEquals("original", request.path("githubEnvironment").path("name").asText());
                 assertEquals("compute", request.path("githubEnvironment").path("computeId").asText());
                 assertEquals("github", request.path("authentication").path("mode").asText());

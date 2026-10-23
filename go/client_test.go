@@ -5788,45 +5788,6 @@ func TestToolNamespace(t *testing.T) {
 	})
 }
 
-func TestSessionRequests_ExcludedManagedSettings(t *testing.T) {
-	for _, test := range []struct {
-		name       string
-		exclusions []string
-		want       string
-	}{
-		{name: "omitted"},
-		{name: "empty", exclusions: []string{}, want: `[]`},
-		{name: "populated", exclusions: []string{"sandbox"}, want: `["sandbox"]`},
-	} {
-		for _, request := range []struct {
-			name  string
-			value any
-		}{
-			{"create", createSessionRequest{ExcludedManagedSettings: test.exclusions}},
-			{"resume", resumeSessionRequest{SessionID: "s1", ExcludedManagedSettings: test.exclusions}},
-		} {
-			t.Run(request.name+"/"+test.name, func(t *testing.T) {
-				data, err := json.Marshal(request.value)
-				if err != nil {
-					t.Fatalf("Failed to marshal: %v", err)
-				}
-				var fields map[string]json.RawMessage
-				if err := json.Unmarshal(data, &fields); err != nil {
-					t.Fatalf("Failed to unmarshal: %v", err)
-				}
-				actual, present := fields["excludedManagedSettings"]
-				if test.want == "" {
-					if present {
-						t.Fatalf("Expected omitted exclusions, got %s", data)
-					}
-				} else if !present || string(actual) != test.want {
-					t.Fatalf("Expected excludedManagedSettings=%s, got %s", test.want, data)
-				}
-			})
-		}
-	}
-}
-
 func TestSessionRequests_ManagedSettings(t *testing.T) {
 	settings := &ManagedSettings{
 		Permissions: &ManagedSettingsPermissions{
@@ -5860,7 +5821,6 @@ func TestSessionRequests_ManagedSettings(t *testing.T) {
 	t.Run("includes managedSettings on create when set", func(t *testing.T) {
 		req := createSessionRequest{
 			EnableManagedSettings:       Bool(true),
-			ExcludedManagedSettings:     []string{"sandbox", "allowedMcpServers"},
 			EnforceManagedModelDefaults: Bool(true),
 			ManagedSettings:             settings,
 		}
@@ -5874,9 +5834,6 @@ func TestSessionRequests_ManagedSettings(t *testing.T) {
 		}
 		if m["enableManagedSettings"] != true {
 			t.Errorf("Expected enableManagedSettings true, got %v", m["enableManagedSettings"])
-		}
-		if !reflect.DeepEqual(m["excludedManagedSettings"], []any{"sandbox", "allowedMcpServers"}) {
-			t.Errorf("Unexpected exclusions: %v", m["excludedManagedSettings"])
 		}
 		if m["enforceManagedModelDefaults"] != true {
 			t.Errorf("Expected enforceManagedModelDefaults true, got %v", m["enforceManagedModelDefaults"])
@@ -5895,7 +5852,7 @@ func TestSessionRequests_ManagedSettings(t *testing.T) {
 	})
 
 	t.Run("includes managedSettings on resume when set", func(t *testing.T) {
-		req := resumeSessionRequest{SessionID: "s1", ManagedSettings: settings, ExcludedManagedSettings: []string{"deniedMcpServers"}}
+		req := resumeSessionRequest{SessionID: "s1", ManagedSettings: settings}
 		data, err := json.Marshal(req)
 		if err != nil {
 			t.Fatalf("Failed to marshal: %v", err)
@@ -5906,9 +5863,6 @@ func TestSessionRequests_ManagedSettings(t *testing.T) {
 		}
 		if _, ok := m["managedSettings"].(map[string]any); !ok {
 			t.Fatalf("Expected managedSettings object, got %v", m["managedSettings"])
-		}
-		if !reflect.DeepEqual(m["excludedManagedSettings"], []any{"deniedMcpServers"}) {
-			t.Errorf("Unexpected exclusions: %v", m["excludedManagedSettings"])
 		}
 	})
 

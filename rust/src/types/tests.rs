@@ -441,33 +441,6 @@ fn resume_session_config_new_wire_flags_off_without_handlers() {
 }
 
 #[test]
-fn session_configs_serialize_excluded_managed_settings() {
-    let (create, _) = SessionConfig::default()
-        .with_excluded_managed_settings(["sandbox", "allowedMcpServers"])
-        .into_wire(Some(SessionId::from("managed-exclusions")))
-        .unwrap();
-    assert_eq!(
-        serde_json::to_value(create).unwrap()["excludedManagedSettings"],
-        json!(["sandbox", "allowedMcpServers"])
-    );
-    let (resume, _) = ResumeSessionConfig::new(SessionId::from("managed-exclusions"))
-        .with_excluded_managed_settings(["deniedMcpServers"])
-        .into_wire()
-        .unwrap();
-    assert_eq!(
-        serde_json::to_value(resume).unwrap()["excludedManagedSettings"],
-        json!(["deniedMcpServers"])
-    );
-    let (default, _) = SessionConfig::default().into_wire(None).unwrap();
-    assert!(
-        serde_json::to_value(default)
-            .unwrap()
-            .get("excludedManagedSettings")
-            .is_none()
-    );
-}
-
-#[test]
 fn session_configs_build_debug_and_serialize_allowed_models() {
     let create = SessionConfig::default().with_allowed_models(["gpt-5.4", "claude-sonnet-4"]);
     assert_eq!(

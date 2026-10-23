@@ -7599,9 +7599,6 @@ type HostStartRequest struct {
 	ResumeFactory *bool `json:"resumeFactory,omitempty"`
 	// Ask the owning SDK application to materialize AHP sessions.
 	SessionFactory *bool `json:"sessionFactory,omitempty"`
-	// Absolute directory on the runtime host to serve through AHP. Defaults to the runtime's
-	// configured working directory. Does not change process or session working directories.
-	Workspace *string `json:"workspace,omitempty"`
 }
 
 // Listener readiness, returned only after binding and the supervised participant's SDK
@@ -20233,14 +20230,6 @@ type SessionOpenOptions struct {
 	// agent discovery and cannot be dispatched unless a custom agent with the same name is
 	// available.
 	ExcludedBuiltinAgents []string `json:"excludedBuiltinAgents,omitzero"`
-	// Managed-setting paths this trusted SDK host enforces externally or does not support,
-	// excluded from fetched, device, and policy-helper policy for this session. Exact dotted
-	// paths exclude a setting and its descendants (for example sandbox or
-	// permissions.disableBypassPermissionsMode); wildcards and array indices are not supported.
-	// Host-injected managedSettings and policy availability checks are not excluded. Not
-	// persisted; re-supply on resume, where omission restores full enforcement. Requires
-	// enableManagedSettings to self-fetch policy.
-	ExcludedManagedSettings []string `json:"excludedManagedSettings,omitzero"`
 	// Denylist of tool names.
 	ExcludedTools []string `json:"excludedTools,omitzero"`
 	// ExP assignment ('flight') data injected by an SDK integrator, in the same JSON shape the

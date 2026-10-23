@@ -2532,7 +2532,6 @@ class CopilotClient:
         feature_flags: dict[str, bool] | None = None,
         exp_assignments: CopilotExpAssignmentResponse | None = None,
         enable_managed_settings: bool | None = None,
-        excluded_managed_settings: list[str] | None = None,
         enforce_managed_model_defaults: bool | None = None,
         interactive_user: bool | None = None,
         github_mcp_tool_config: GitHubMcpToolConfig | None = None,
@@ -2744,11 +2743,6 @@ class CopilotClient:
                 expected to reject session creation (fail-closed). When unset,
                 behaves exactly as before. Sent on the wire as
                 ``enableManagedSettings``.
-            excluded_managed_settings: Exact dotted managed-setting paths to exclude
-                from fetched, device, and policy-helper policy, such as ``sandbox``.
-                Does not exclude host-injected policy or availability checks.
-                Not persisted; re-supply on resume. Requires
-                ``enable_managed_settings`` to self-fetch policy.
             enforce_managed_model_defaults: When ``True``, locked managed model
                 controls are enforced for this session. Conflicting model changes
                 are rejected, while overridable managed defaults remain mutable.
@@ -2913,8 +2907,6 @@ class CopilotClient:
         # Opt the runtime into self-fetching enterprise managed settings
         if enable_managed_settings is not None:
             payload["enableManagedSettings"] = enable_managed_settings
-        if excluded_managed_settings is not None:
-            payload["excludedManagedSettings"] = excluded_managed_settings
         if enforce_managed_model_defaults is not None:
             payload["enforceManagedModelDefaults"] = enforce_managed_model_defaults
 
@@ -3474,7 +3466,6 @@ class CopilotClient:
         feature_flags: dict[str, bool] | None = None,
         exp_assignments: CopilotExpAssignmentResponse | None = None,
         enable_managed_settings: bool | None = None,
-        excluded_managed_settings: list[str] | None = None,
         enforce_managed_model_defaults: bool | None = None,
         interactive_user: bool | None = None,
         github_mcp_tool_config: GitHubMcpToolConfig | None = None,
@@ -3678,9 +3669,6 @@ class CopilotClient:
                 expected to reject session creation (fail-closed). When unset,
                 behaves exactly as before. Sent on the wire as
                 ``enableManagedSettings``.
-            excluded_managed_settings: Exact dotted managed-setting paths to exclude.
-                Same semantics as :meth:`create_session`; omitting restores full
-                enforcement, including when resuming a live session.
             enforce_managed_model_defaults: When ``True``, locked managed model
                 controls are enforced after resume. Conflicting model changes are
                 rejected, while overridable managed defaults remain mutable. Sent
@@ -3865,8 +3853,6 @@ class CopilotClient:
         # Opt the runtime into self-fetching enterprise managed settings
         if enable_managed_settings is not None:
             payload["enableManagedSettings"] = enable_managed_settings
-        if excluded_managed_settings is not None:
-            payload["excludedManagedSettings"] = excluded_managed_settings
         if enforce_managed_model_defaults is not None:
             payload["enforceManagedModelDefaults"] = enforce_managed_model_defaults
 

@@ -111,35 +111,6 @@ func TestAhpHostTransportsAndOptionalResults(t *testing.T) {
 	}
 }
 
-func TestAhpHostWorkspaceIsForwardedWithoutSDKDefault(t *testing.T) {
-	for _, workspace := range []*string{nil, String("/runtime/workspace")} {
-		client, server, _ := ahpFixture(t)
-		server.SetRequestHandler("host.start", func(data json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
-			var params map[string]any
-			if err := json.Unmarshal(data, &params); err != nil {
-				t.Error(err)
-			}
-			value, present := params["workspace"]
-			if workspace == nil {
-				if present {
-					t.Errorf("SDK supplied a workspace default: %v", value)
-				}
-			} else if value != *workspace {
-				t.Errorf("workspace = %v, want %q", value, *workspace)
-			}
-			result, _ := json.Marshal(map[string]any{"hostId": params["hostId"]})
-			return result, nil
-		})
-		if _, err := client.StartAhpHost(t.Context(), &AhpHostOptions{
-			Authentication: AhpHostAuthentication{Mode: "none"},
-			LocalServer:    &rpc.HostLocalServerOptions{},
-			Workspace:      workspace,
-		}); err != nil {
-			t.Fatal(err)
-		}
-	}
-}
-
 func TestAhpHostListSessionsUsesOwningHost(t *testing.T) {
 	client, server, _ := ahpFixture(t)
 	host, err := client.StartAhpHost(t.Context(), &AhpHostOptions{Authentication: AhpHostAuthentication{Mode: "github"}, LocalServer: &rpc.HostLocalServerOptions{}})

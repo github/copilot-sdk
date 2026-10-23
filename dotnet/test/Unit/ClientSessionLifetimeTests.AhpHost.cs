@@ -167,26 +167,6 @@ public sealed partial class ClientSessionLifetimeTests
         Assert.Null(host.Pid);
     }
 
-    [Theory]
-    [InlineData(null)]
-    [InlineData("/runtime/workspace")]
-    public async Task Ahp_Forwards_Workspace_Without_Supplying_A_Default(string? workspace)
-    {
-        await using var server = await FakeCopilotServer.StartAsync();
-        await using var client = new CopilotClient(new() { Connection = RuntimeConnection.ForUri(server.Url) });
-        await using var host = await client.StartAhpHostAsync(new()
-        {
-            Authentication = new AhpHostAuthentication.None(),
-            LocalServer = new(),
-            Workspace = workspace,
-        });
-        var request = Assert.Single(server.Requests, request => request.Method == "host.start").Params;
-        if (workspace is null)
-            Assert.False(request.TryGetProperty("workspace", out _));
-        else
-            Assert.Equal(workspace, request.GetProperty("workspace").GetString());
-    }
-
     [Fact]
     public async Task Ahp_Legacy_Positional_Start_And_Additive_Request_Overloads()
     {

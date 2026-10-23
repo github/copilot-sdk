@@ -1674,7 +1674,6 @@ class TestCreateSessionConfig:
             session = await client.create_session(
                 on_permission_request=PermissionHandler.approve_all,
                 enable_managed_settings=True,
-                excluded_managed_settings=["sandbox", "allowedMcpServers"],
                 enforce_managed_model_defaults=True,
                 interactive_user=True,
                 managed_settings=ManagedSettings(
@@ -1691,7 +1690,6 @@ class TestCreateSessionConfig:
             resumed_session = await client.resume_session(
                 session.session_id,
                 on_permission_request=PermissionHandler.approve_all,
-                excluded_managed_settings=["deniedMcpServers"],
                 enforce_managed_model_defaults=True,
                 interactive_user=True,
                 managed_settings=ManagedSettings(
@@ -1705,11 +1703,6 @@ class TestCreateSessionConfig:
             assert session._managed_settings_enabled is True
             assert resumed_session._managed_settings_enabled is True
             assert captured["session.create"]["enableManagedSettings"] is True
-            assert captured["session.create"]["excludedManagedSettings"] == [
-                "sandbox",
-                "allowedMcpServers",
-            ]
-            assert captured["session.resume"]["excludedManagedSettings"] == ["deniedMcpServers"]
             assert captured["session.create"]["enforceManagedModelDefaults"] is True
             assert captured["session.resume"]["enforceManagedModelDefaults"] is True
             assert captured["session.create"]["interactiveUser"] is True

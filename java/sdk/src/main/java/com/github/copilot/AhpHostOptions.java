@@ -20,7 +20,6 @@ import java.util.function.Function;
 public final class AhpHostOptions {
     private AhpHostAuthentication authentication;
     private String computeId;
-    private String workspace;
     private Boolean allowCreatingNewSessions;
     private HostLocalServerOptions localServer;
     private HostGitHubEnvironmentOptions githubEnvironment;
@@ -39,7 +38,6 @@ public final class AhpHostOptions {
     AhpHostOptions(AhpHostOptions options) {
         authentication = options.authentication;
         computeId = options.computeId;
-        workspace = options.workspace;
         allowCreatingNewSessions = options.allowCreatingNewSessions;
         localServer = options.localServer;
         githubEnvironment = options.githubEnvironment;
@@ -110,30 +108,6 @@ public final class AhpHostOptions {
      */
     public AhpHostOptions setComputeId(String computeId) {
         this.computeId = computeId;
-        return this;
-    }
-
-    /**
-     * Gets the directory served through AHP.
-     *
-     * @return the absolute runtime-host path, or {@code null} for the runtime's
-     *         configured working directory
-     */
-    public String getWorkspace() {
-        return workspace;
-    }
-
-    /**
-     * Selects the directory served through AHP without changing process or session
-     * working directories.
-     *
-     * @param workspace
-     *            absolute directory on the runtime host, or {@code null} for the
-     *            runtime default
-     * @return these options
-     */
-    public AhpHostOptions setWorkspace(String workspace) {
-        this.workspace = workspace;
         return this;
     }
 

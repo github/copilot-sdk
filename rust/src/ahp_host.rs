@@ -260,9 +260,6 @@ pub struct AhpHostOptions {
     /// Stable durable catalog identity; defaults are runtime-owned.
     /// Must agree with `github_environment.compute_id` when both are supplied.
     pub compute_id: Option<String>,
-    /// Absolute directory on the runtime host to serve through AHP.
-    /// Defaults to the runtime's configured working directory; process and session working directories are unchanged.
-    pub workspace: Option<String>,
     /// Remote creation admission, independent of factories. None preserves the denied default.
     pub allow_creating_new_sessions: Option<bool>,
     /// Experimental local WebSocket listener configuration.
@@ -329,12 +326,6 @@ impl AhpHostOptions {
     /// Select the same durable catalog for local and Mission Control hosting.
     pub fn with_compute_id(mut self, compute_id: impl Into<String>) -> Self {
         self.compute_id = Some(compute_id.into());
-        self
-    }
-
-    /// Serve this absolute directory on the runtime host through AHP.
-    pub fn with_workspace(mut self, workspace: impl Into<String>) -> Self {
-        self.workspace = Some(workspace.into());
         self
     }
 
@@ -676,9 +667,6 @@ impl Client {
         }
         if let Some(compute_id) = options.compute_id {
             start_options = start_options.compute_id(compute_id);
-        }
-        if let Some(workspace) = options.workspace {
-            start_options = start_options.workspace(workspace);
         }
         if let Some(local_server) = options.local_server {
             start_options = start_options.local_server(local_server);
@@ -1309,7 +1297,6 @@ macro_rules! host_settings {
             "enableConfigDiscovery" => enable_config_discovery,
             "featureFlags" => feature_flags,
             "enableManagedSettings" => enable_managed_settings,
-            "excludedManagedSettings" => excluded_managed_settings,
             "enableSessionStore" => enable_session_store,
             "availableTools" => available_tools,
             "excludedTools" => excluded_tools,

@@ -76,11 +76,6 @@ export interface AhpHostOptions {
     authentication: AhpHostAuthentication;
     /** Stable catalog identity; must agree with githubEnvironment.computeId when both are supplied. */
     computeId?: string;
-    /**
-     * Absolute directory on the runtime host to serve through AHP.
-     * Defaults to the runtime's configured working directory; does not change process or session working directories.
-     */
-    workspace?: string;
     /** Enable a local WebSocket listener; an empty object selects loopback defaults. */
     localServer?: HostLocalServerOptions;
     /** Register a Mission Control environment and enable remote WPS connections; requires github authentication. */

@@ -81,9 +81,6 @@ type AhpHostOptions struct {
 	// ComputeID selects a durable catalog identity; defaults are runtime-owned.
 	// It must agree with GitHubEnvironment.ComputeID when both are supplied.
 	ComputeID *string
-	// Workspace is an absolute directory on the runtime host to serve through AHP.
-	// Nil uses the runtime's configured working directory; process and session working directories are unchanged.
-	Workspace *string
 	// LocalServer explicitly enables the local WebSocket listener.
 	LocalServer *rpc.HostLocalServerOptions
 	// GitHubEnvironment registers the host with Mission Control; Name, ComputeID,
@@ -223,7 +220,6 @@ func (c *Client) StartAhpHost(ctx context.Context, options *AhpHostOptions) (*Ah
 	params := &rpc.HostStartRequest{
 		Authentication: authentication,
 		HostID:         hostID, ComputeID: opts.ComputeID, LocalServer: opts.LocalServer,
-		Workspace:                opts.Workspace,
 		GitHubEnvironment:        opts.GitHubEnvironment,
 		AllowCreatingNewSessions: opts.AllowCreatingNewSessions,
 	}

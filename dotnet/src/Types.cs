@@ -3967,7 +3967,6 @@ public abstract class SessionConfigBase
             : null;
         ExpAssignments = other.ExpAssignments;
         EnableManagedSettings = other.EnableManagedSettings;
-        ExcludedManagedSettings = other.ExcludedManagedSettings?.ToList();
         EnforceManagedModelDefaults = other.EnforceManagedModelDefaults;
         InteractiveUser = other.InteractiveUser;
         ManagedSettings = other.ManagedSettings;
@@ -4555,14 +4554,6 @@ public abstract class SessionConfigBase
     /// wire as <c>enableManagedSettings</c>.
     /// </summary>
     public bool? EnableManagedSettings { get; set; }
-
-    /// <summary>
-    /// Exact dotted setting paths excluded from fetched, device, and policy-helper
-    /// policy. Host-injected policy and availability checks are unaffected.
-    /// Not persisted; re-supply on resume, where omission restores full enforcement.
-    /// Use EnableManagedSettings to enable self-fetching.
-    /// </summary>
-    public IList<string>? ExcludedManagedSettings { get; set; }
 
     /// <summary>
     /// When true, enforces locked managed model controls for this session.

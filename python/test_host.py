@@ -114,24 +114,6 @@ async def test_local_compute_identity_is_forwarded_without_sdk_defaults(compute_
     }
 
 
-@pytest.mark.parametrize("workspace", [None, "/runtime/workspace"])
-async def test_host_workspace_is_forwarded_without_an_sdk_default(workspace):
-    client, rpc = client_fixture()
-    host = await client.start_ahp_host(
-        AhpHostOptions(
-            authentication=AhpHostAuthentication("none"),
-            local_server=HostLocalServerOptions(),
-            workspace=workspace,
-        )
-    )
-    assert rpc.request.call_args.args[1] == {
-        "hostId": host.host_id,
-        "authentication": {"mode": "none"},
-        "localServer": {},
-        **({"workspace": workspace} if workspace is not None else {}),
-    }
-
-
 async def test_handle_uses_original_transport_and_forwards_every_disposal():
     client, rpc = client_fixture()
     exit_received = asyncio.Event()

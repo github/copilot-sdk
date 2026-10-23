@@ -2032,10 +2032,6 @@ type SessionConfig struct {
 	// be set; if omitted, the runtime is expected to reject session creation
 	// (fail-closed). Unset behaves exactly as before.
 	EnableManagedSettings *bool
-	// ExcludedManagedSettings contains exact dotted setting paths excluded from
-	// fetched, device, and policy-helper policy. Host-injected policy and availability
-	// checks are unaffected. Not persisted; re-supply on resume.
-	ExcludedManagedSettings []string
 	// EnforceManagedModelDefaults, when true, enforces locked managed model
 	// controls for this session. Conflicting changes are rejected; overridable
 	// managed defaults remain mutable.
@@ -2673,9 +2669,6 @@ type ResumeSessionConfig struct {
 	// SessionConfig.EnableManagedSettings. Re-supply on resume so the runtime
 	// re-applies the managed-settings self-fetch after a CLI process restart.
 	EnableManagedSettings *bool
-	// ExcludedManagedSettings excludes setting paths as on SessionConfig.
-	// Omitting it restores full enforcement on warm and cold resume.
-	ExcludedManagedSettings []string
 	// EnforceManagedModelDefaults re-applies managed model lock enforcement on
 	// resume. See SessionConfig.EnforceManagedModelDefaults.
 	EnforceManagedModelDefaults *bool
@@ -3225,7 +3218,6 @@ type createSessionRequest struct {
 	ExpAssignments                     *CopilotExpAssignmentResponse          `json:"expAssignments,omitempty"`
 	FeatureFlags                       *map[string]bool                       `json:"featureFlags,omitempty"`
 	EnableManagedSettings              *bool                                  `json:"enableManagedSettings,omitempty"`
-	ExcludedManagedSettings            []string                               `json:"excludedManagedSettings,omitzero"`
 	EnforceManagedModelDefaults        *bool                                  `json:"enforceManagedModelDefaults,omitempty"`
 	InteractiveUser                    *bool                                  `json:"interactiveUser,omitempty"`
 	ManagedSettings                    *ManagedSettings                       `json:"managedSettings,omitempty"`
@@ -3338,7 +3330,6 @@ type resumeSessionRequest struct {
 	ExpAssignments                     *CopilotExpAssignmentResponse          `json:"expAssignments,omitempty"`
 	FeatureFlags                       *map[string]bool                       `json:"featureFlags,omitempty"`
 	EnableManagedSettings              *bool                                  `json:"enableManagedSettings,omitempty"`
-	ExcludedManagedSettings            []string                               `json:"excludedManagedSettings,omitzero"`
 	EnforceManagedModelDefaults        *bool                                  `json:"enforceManagedModelDefaults,omitempty"`
 	InteractiveUser                    *bool                                  `json:"interactiveUser,omitempty"`
 	ManagedSettings                    *ManagedSettings                       `json:"managedSettings,omitempty"`

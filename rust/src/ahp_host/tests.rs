@@ -226,19 +226,6 @@ async fn explicit_local_compute_identity_is_forwarded() {
 }
 
 #[tokio::test]
-async fn explicit_host_workspace_is_forwarded() {
-    let (client, mut peer) = fixture();
-    let pending = start(
-        &client,
-        local_options().with_workspace("/runtime/workspace"),
-    );
-    let request = peer.request().await;
-    assert_eq!(request["params"]["workspace"], "/runtime/workspace");
-    peer.started(&request, None).await;
-    assert!(pending.await.unwrap().is_ok());
-}
-
-#[tokio::test]
 async fn forwards_only_generated_options_and_returns_runtime_fields() {
     let (client, mut peer) = fixture();
     let (options, _exits) = callback_options();

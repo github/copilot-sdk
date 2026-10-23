@@ -3824,7 +3824,6 @@ public sealed partial class ClientSessionLifetimeTests
 
         await using var session = await client.CreateSessionAsync(new SessionConfig
         {
-            ExcludedManagedSettings = ["sandbox", "allowedMcpServers"],
             EnforceManagedModelDefaults = true,
             InteractiveUser = true,
             ManagedSettings = new ManagedSettings
@@ -3847,10 +3846,6 @@ public sealed partial class ClientSessionLifetimeTests
         });
 
         var request = Assert.Single(server.Requests, request => request.Method == "session.create");
-        Assert.Collection(
-            request.Params.GetProperty("excludedManagedSettings").EnumerateArray(),
-            value => Assert.Equal("sandbox", value.GetString()),
-            value => Assert.Equal("allowedMcpServers", value.GetString()));
         Assert.True(request.Params.GetProperty("enforceManagedModelDefaults").GetBoolean());
         Assert.False(request.Params.TryGetProperty("enableManagedSettings", out _));
         Assert.True(request.Params.GetProperty("interactiveUser").GetBoolean());
@@ -4147,7 +4142,6 @@ public sealed partial class ClientSessionLifetimeTests
 
         await using var session = await client.ResumeSessionAsync("session-managed", new ResumeSessionConfig
         {
-            ExcludedManagedSettings = ["deniedMcpServers"],
             EnforceManagedModelDefaults = true,
             InteractiveUser = true,
             ManagedSettings = new ManagedSettings
@@ -4162,7 +4156,6 @@ public sealed partial class ClientSessionLifetimeTests
         });
 
         var request = Assert.Single(server.Requests, request => request.Method == "session.resume");
-        Assert.Equal("deniedMcpServers", Assert.Single(request.Params.GetProperty("excludedManagedSettings").EnumerateArray()).GetString());
         Assert.True(request.Params.GetProperty("enforceManagedModelDefaults").GetBoolean());
         Assert.True(request.Params.GetProperty("interactiveUser").GetBoolean());
         var permissions = request.Params.GetProperty("managedSettings").GetProperty("permissions");

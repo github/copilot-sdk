@@ -73,8 +73,6 @@ public sealed class AhpHostOptions
     public AhpHostAuthentication? Authentication { get; init; }
     /// <summary>Stable durable catalog identity; must agree with GitHubEnvironment.ComputeId when both are supplied.</summary>
     public string? ComputeId { get; init; }
-    /// <summary>Absolute directory on the runtime host to serve through AHP. Defaults to the runtime's configured working directory; does not change process or session working directories.</summary>
-    public string? Workspace { get; init; }
     /// <summary>Local WebSocket transport settings; absent disables the local listener.</summary>
     public HostLocalServerOptions? LocalServer { get; init; }
     /// <summary>GitHub Mission Control transport settings, with required Name and ComputeId; absent disables it.</summary>
@@ -206,7 +204,6 @@ public sealed partial class CopilotClient
             HostId = hostId,
             Authentication = wireAuthentication,
             ComputeId = options.ComputeId,
-            Workspace = options.Workspace,
             AllowCreatingNewSessions = options.AllowCreatingNewSessions,
             LocalServer = localServer,
             GitHubEnvironment = githubEnvironment,

@@ -4177,7 +4177,6 @@ func (r *HostStartRequest) UnmarshalJSON(data []byte) error {
 		LocalServer              *HostLocalServerOptions       `json:"localServer,omitempty"`
 		ResumeFactory            *bool                         `json:"resumeFactory,omitempty"`
 		SessionFactory           *bool                         `json:"sessionFactory,omitempty"`
-		Workspace                *string                       `json:"workspace,omitempty"`
 	}
 	var raw rawHostStartRequest
 	if err := json.Unmarshal(data, &raw); err != nil {
@@ -4197,7 +4196,6 @@ func (r *HostStartRequest) UnmarshalJSON(data []byte) error {
 	r.LocalServer = raw.LocalServer
 	r.ResumeFactory = raw.ResumeFactory
 	r.SessionFactory = raw.SessionFactory
-	r.Workspace = raw.Workspace
 	return nil
 }
 
@@ -9162,7 +9160,6 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 		EventsLogDirectory                     *string                                              `json:"eventsLogDirectory,omitempty"`
 		EventsLogIncludesSubagents             *bool                                                `json:"eventsLogIncludesSubagents,omitempty"`
 		ExcludedBuiltinAgents                  []string                                             `json:"excludedBuiltinAgents,omitzero"`
-		ExcludedManagedSettings                []string                                             `json:"excludedManagedSettings,omitzero"`
 		ExcludedTools                          []string                                             `json:"excludedTools,omitzero"`
 		ExpAssignments                         any                                                  `json:"expAssignments,omitempty"`
 		FeatureFlags                           map[string]bool                                      `json:"featureFlags,omitzero"`
@@ -9257,7 +9254,6 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 	r.EventsLogDirectory = raw.EventsLogDirectory
 	r.EventsLogIncludesSubagents = raw.EventsLogIncludesSubagents
 	r.ExcludedBuiltinAgents = raw.ExcludedBuiltinAgents
-	r.ExcludedManagedSettings = raw.ExcludedManagedSettings
 	r.ExcludedTools = raw.ExcludedTools
 	r.ExpAssignments = raw.ExpAssignments
 	r.FeatureFlags = raw.FeatureFlags

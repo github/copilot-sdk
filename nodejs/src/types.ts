@@ -3220,21 +3220,6 @@ export interface SessionConfigBase {
     enableManagedSettings?: boolean;
 
     /**
-     * Managed-setting paths this trusted host handles externally or does not
-     * support. Exact dotted paths exclude a setting and its descendants from
-     * fetched, device, and policy-helper policy (for example `"sandbox"` or
-     * `"permissions.disableBypassPermissionsMode"`). MCP allow/deny controls
-     * are `"allowedMcpServers"` and `"deniedMcpServers"`, not an `"mcp"` subtree.
-     * Wildcards and array indices are unsupported. Unknown paths are accepted
-     * for forward compatibility. Host-injected `managedSettings` and policy
-     * availability checks are unaffected.
-     *
-     * Not persisted: re-supply on resume; omission restores full enforcement.
-     * This does not enable self-fetching; use `enableManagedSettings: true`.
-     */
-    excludedManagedSettings?: string[];
-
-    /**
      * When true, locked managed model controls are enforced for this session.
      * Conflicting model changes are rejected, and locked startup values replace
      * conflicting session options. Overridable managed defaults remain mutable.

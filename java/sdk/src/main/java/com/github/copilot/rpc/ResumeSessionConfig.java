@@ -125,7 +125,6 @@ public class ResumeSessionConfig {
     private GitHubTokenProvider gitHubTokenProvider;
     private CopilotExpAssignmentResponse expAssignments;
     private Boolean enableManagedSettings;
-    private List<String> excludedManagedSettings;
     private Boolean enforceManagedModelDefaults;
     private Boolean interactiveUser;
     private Map<String, Boolean> featureFlags;
@@ -2316,29 +2315,6 @@ public class ResumeSessionConfig {
     }
 
     /**
-     * Gets the setting paths excluded on resume.
-     *
-     * @return excluded paths, or {@code null} for full enforcement
-     */
-    public List<String> getExcludedManagedSettings() {
-        return excludedManagedSettings;
-    }
-
-    /**
-     * Excludes exact dotted paths as on
-     * {@link SessionConfig#setExcludedManagedSettings(List)}. Omitting restores
-     * full enforcement on warm and cold resume.
-     *
-     * @param paths
-     *            managed-setting paths
-     * @return this configuration
-     */
-    public ResumeSessionConfig setExcludedManagedSettings(List<String> paths) {
-        this.excludedManagedSettings = paths;
-        return this;
-    }
-
-    /**
      * Opts the runtime into self-fetching enterprise managed settings on resume.
      * <p>
      * See {@link SessionConfig#setEnableManagedSettings(boolean)} for details.
@@ -2515,9 +2491,6 @@ public class ResumeSessionConfig {
         copy.featureFlags = this.featureFlags != null ? new java.util.HashMap<>(this.featureFlags) : null;
         copy.expAssignments = this.expAssignments;
         copy.enableManagedSettings = this.enableManagedSettings;
-        copy.excludedManagedSettings = this.excludedManagedSettings == null
-                ? null
-                : new ArrayList<>(this.excludedManagedSettings);
         copy.enforceManagedModelDefaults = this.enforceManagedModelDefaults;
         copy.interactiveUser = this.interactiveUser;
         copy.managedSettings = this.managedSettings;
