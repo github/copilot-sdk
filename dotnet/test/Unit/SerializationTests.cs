@@ -4,7 +4,6 @@
 
 using Xunit;
 using System.Collections.Generic;
-using System.Reflection;
 using System.Text.Json;
 #if !NET8_0_OR_GREATER
 using System.Runtime.Serialization;
@@ -603,7 +602,6 @@ public class SerializationTests
         }
     }
 
-#pragma warning disable GHCP001 // Memory injection mode is intentionally experimental.
     [Fact]
     public void SessionRequests_CanSerializeMemory_WithSdkOptions()
     {
@@ -613,64 +611,24 @@ public class SerializationTests
         var createRequest = CreateInternalRequest(
             createRequestType,
             ("SessionId", "session-id"),
-            ("Memory", new MemoryConfiguration { Enabled = true, Mode = MemoryMode.UserPrompt }));
+            ("Memory", new MemoryConfiguration { Enabled = true }));
 
         var createJson = JsonSerializer.Serialize(createRequest, createRequestType, options);
         using var createDocument = JsonDocument.Parse(createJson);
         var createRoot = createDocument.RootElement;
         Assert.True(createRoot.GetProperty("memory").GetProperty("enabled").GetBoolean());
-        Assert.Equal("user-prompt", createRoot.GetProperty("memory").GetProperty("mode").GetString());
 
         var resumeRequestType = GetNestedType(typeof(CopilotClient), "ResumeSessionRequest");
         var resumeRequest = CreateInternalRequest(
             resumeRequestType,
             ("SessionId", "session-id"),
-            ("Memory", new MemoryConfiguration { Enabled = false, Mode = MemoryMode.SystemPrompt }));
+            ("Memory", new MemoryConfiguration { Enabled = false }));
 
         var resumeJson = JsonSerializer.Serialize(resumeRequest, resumeRequestType, options);
         using var resumeDocument = JsonDocument.Parse(resumeJson);
         var resumeRoot = resumeDocument.RootElement;
         Assert.False(resumeRoot.GetProperty("memory").GetProperty("enabled").GetBoolean());
-        Assert.Equal("system-prompt", resumeRoot.GetProperty("memory").GetProperty("mode").GetString());
     }
-
-    [Theory]
-    [InlineData(null, null)]
-    [InlineData(MemoryMode.SystemPrompt, "system-prompt")]
-    [InlineData(MemoryMode.UserPrompt, "user-prompt")]
-    public void MemoryMode_RoundTrips_And_Omits_Null(MemoryMode? mode, string? wireMode)
-    {
-        var options = GetSerializerOptions();
-        var json = JsonSerializer.Serialize(new MemoryConfiguration { Enabled = true, Mode = mode }, options);
-        using var document = JsonDocument.Parse(json);
-        if (wireMode is null)
-        {
-            Assert.False(document.RootElement.TryGetProperty("mode", out _));
-        }
-        else
-        {
-            Assert.Equal(wireMode, document.RootElement.GetProperty("mode").GetString());
-        }
-        Assert.Equal(mode, JsonSerializer.Deserialize<MemoryConfiguration>(json, options)!.Mode);
-    }
-
-    [Fact]
-    public void MemoryMode_IsExperimental_WithoutMarkingExistingMemoryOptions()
-    {
-        static IEnumerable<CustomAttributeData> ExperimentalAttributes(MemberInfo member) =>
-            member.CustomAttributes.Where(attribute =>
-                attribute.AttributeType.FullName == "System.Diagnostics.CodeAnalysis.ExperimentalAttribute");
-
-        var typeAttribute = Assert.Single(ExperimentalAttributes(typeof(MemoryMode)));
-        Assert.Equal("GHCP001", Assert.Single(typeAttribute.ConstructorArguments).Value);
-        var modeAttribute = Assert.Single(ExperimentalAttributes(
-            typeof(MemoryConfiguration).GetProperty(nameof(MemoryConfiguration.Mode))!));
-        Assert.Equal("GHCP001", Assert.Single(modeAttribute.ConstructorArguments).Value);
-        Assert.Empty(ExperimentalAttributes(typeof(MemoryConfiguration)));
-        Assert.Empty(ExperimentalAttributes(
-            typeof(MemoryConfiguration).GetProperty(nameof(MemoryConfiguration.Enabled))!));
-    }
-#pragma warning restore GHCP001
 
     [Fact]
     public void SessionRequests_CanSerializeCitationAgentExclusionAndLimits_WithSdkOptions()

@@ -322,10 +322,7 @@ class MessageSourceTest {
                     }
                     var response = MAPPER.createObjectNode().put("jsonrpc", "2.0");
                     response.set("id", request.get("id"));
-                    if ("session.sendAndWait".equals(method)) {
-                        response.set("error",
-                                MAPPER.valueToTree(Map.of("code", -32601, "message", "Method not found")));
-                    } else if (send && outcome == Outcome.RPC_ERROR) {
+                    if (send && outcome == Outcome.RPC_ERROR) {
                         response.set("error", MAPPER.valueToTree(Map.of("code", -32603, "message", "send failed")));
                     } else {
                         response.set("result", MAPPER.valueToTree(result));

@@ -20,12 +20,6 @@ from ._diagnostics import elapsed_ms
 logger = logging.getLogger(__name__)
 
 
-class _CompletionCancellation:
-    def __init__(self) -> None:
-        self.cancelled = threading.Event()
-        self.written = threading.Event()
-
-
 class JsonRpcError(Exception):
     """JSON-RPC error response"""
 
@@ -46,7 +40,7 @@ class _RequestCancelledError(Exception):
     """Raised when the peer cancels an incoming request."""
 
 
-RequestHandler = Callable[[dict], dict | None | Awaitable[dict | None]]
+RequestHandler = Callable[[dict], dict | Awaitable[dict]]
 RawRequestHandler = Callable[[dict], None | Awaitable[None]]
 
 
@@ -128,10 +122,8 @@ class JsonRpcClient:
         self.notification_method_handlers: dict[str, Callable[[dict], Any]] = {}
         self.request_handlers: dict[str, RequestHandler] = {}
         self._cancellable_request_methods: set[str] = set()
-        self._ordered_request_methods: set[str] = set()
         self.raw_request_handlers: dict[str, RawRequestHandler] = {}
         self._incoming_request_cancellations: dict[int, _IncomingRequestCancellation] = {}
-        self._completion_cancellations: set[asyncio.Task[None]] = set()
         self._running = False
         self._read_thread: threading.Thread | None = None
         self._stderr_thread: threading.Thread | None = None
@@ -181,10 +173,6 @@ class JsonRpcClient:
     async def stop(self):
         """Stop listening and clean up"""
         self._running = False
-        cancellations = list(self._completion_cancellations)
-        for task in cancellations:
-            task.cancel()
-        await asyncio.gather(*cancellations, return_exceptions=True)
         if self._read_thread:
             self._read_thread.join(timeout=1.0)
         if self._stderr_thread:
@@ -245,28 +233,13 @@ class JsonRpcClient:
             "params": params or {},
         }
 
-        completion_cancellation = (
-            _CompletionCancellation() if method == "session.sendAndWait" else None
-        )
         try:
-            if completion_cancellation is None:
-                await self._send_message(message)
-            else:
-                await self._send_message(message, completion_cancellation=completion_cancellation)
+            await self._send_message(message)
             if timeout is not None:
                 result = await asyncio.wait_for(future, timeout=timeout)
             else:
                 result = await future
-        except (asyncio.CancelledError, TimeoutError):
-            if completion_cancellation is not None:
-                completion_cancellation.cancelled.set()
-            if completion_cancellation is not None and completion_cancellation.written.is_set():
-                # A blocked peer must not extend the caller's cancellation.
-                cancellation = asyncio.create_task(
-                    self.notify("$/cancelRequest", {"id": request_id})
-                )
-                self._completion_cancellations.add(cancellation)
-                cancellation.add_done_callback(self._completion_cancellation_finished)
+        except asyncio.CancelledError:
             _log_request_timing(logging.DEBUG, request_start, method, request_id, "canceled")
             raise
         except Exception:
@@ -290,12 +263,6 @@ class JsonRpcClient:
             future.add_done_callback(
                 lambda completed: None if completed.cancelled() else completed.exception()
             )
-
-    def _completion_cancellation_finished(self, task: asyncio.Task[None]) -> None:
-        self._completion_cancellations.discard(task)
-        if not task.cancelled() and (error := task.exception()) is not None:
-            level = logging.DEBUG if isinstance(error, ProcessExitedError) else logging.WARNING
-            logger.log(level, "Completion cancellation delivery failed", exc_info=error)
 
     async def notify(self, method: str, params: dict | None = None):
         """
@@ -333,34 +300,22 @@ class JsonRpcClient:
             self.notification_method_handlers[method] = handler
 
     def set_request_handler(
-        self,
-        method: str,
-        handler: RequestHandler | None,
-        *,
-        cancellable: bool = False,
-        ordered: bool = False,
+        self, method: str, handler: RequestHandler | None, *, cancellable: bool = False
     ):
         """Register a handler for incoming requests of ``method``.
 
         When ``cancellable`` is true, a ``$/cancelRequest`` for a pending request
         cancels the handler's task and fails the request with code -32800.
-        Ordered handlers synchronously register request state on the event loop
-        before later notifications run; their returned coroutine runs as a task.
         """
         if handler is None:
             self.request_handlers.pop(method, None)
             self._cancellable_request_methods.discard(method)
-            self._ordered_request_methods.discard(method)
         else:
             self.request_handlers[method] = handler
             if cancellable:
                 self._cancellable_request_methods.add(method)
             else:
                 self._cancellable_request_methods.discard(method)
-            if ordered:
-                self._ordered_request_methods.add(method)
-            else:
-                self._ordered_request_methods.discard(method)
 
     def set_raw_request_handler(self, method: str, handler: RawRequestHandler | None):
         """Register a request handler that receives the full JSON-RPC message.
@@ -385,40 +340,25 @@ class JsonRpcClient:
             return asyncio.Event()
         return signal.bind_event(self._loop)
 
-    async def _send_message(
-        self, message: dict, *, completion_cancellation: _CompletionCancellation | None = None
-    ):
+    async def _send_message(self, message: dict):
         """Send a JSON-RPC message with a Content-Length header."""
         loop = self._loop or asyncio.get_event_loop()
 
         def write():
             if hasattr(self.process, "poll") and self.process.poll() is not None:
                 raise ProcessExitedError(self._get_process_exit_error())
-
-            def write_frame(payload: dict) -> None:
-                content_bytes = json.dumps(payload, separators=(",", ":")).encode("utf-8")
-                header = f"Content-Length: {len(content_bytes)}\r\n\r\n"
-                self.process.stdin.write(header.encode("utf-8"))
-                self.process.stdin.write(content_bytes)
-                self.process.stdin.flush()
-
+            content = json.dumps(message, separators=(",", ":"))
+            content_bytes = content.encode("utf-8")
+            header = f"Content-Length: {len(content_bytes)}\r\n\r\n"
             with self._write_lock:
                 if self._transport_closed:
                     with self._pending_lock:
                         error_msg = self._process_exit_error
                     raise ProcessExitedError(error_msg or self._get_process_exit_error())
                 try:
-                    write_frame(message)
-                    if completion_cancellation is not None:
-                        completion_cancellation.written.set()
-                        if completion_cancellation.cancelled.is_set():
-                            write_frame(
-                                {
-                                    "jsonrpc": "2.0",
-                                    "method": "$/cancelRequest",
-                                    "params": {"id": message["id"]},
-                                }
-                            )
+                    self.process.stdin.write(header.encode("utf-8"))
+                    self.process.stdin.write(content_bytes)
+                    self.process.stdin.flush()
                 except (BrokenPipeError, OSError, ValueError) as exc:
                     raise ProcessExitedError(self._get_process_exit_error()) from exc
 
@@ -626,11 +566,6 @@ class JsonRpcClient:
             return
         if not self._loop:
             return
-        if method in self._ordered_request_methods:
-            self._loop.call_soon_threadsafe(
-                self._dispatch_ordered_request, message, handler, cancellation_id
-            )
-            return
         asyncio.run_coroutine_threadsafe(
             self._dispatch_request(
                 message,
@@ -639,26 +574,6 @@ class JsonRpcClient:
                 cancellable=method in self._cancellable_request_methods,
             ),
             self._loop,
-        )
-
-    def _dispatch_ordered_request(
-        self, message: dict, handler: RequestHandler, cancellation_id: int | None
-    ) -> None:
-        try:
-            outcome = handler(message.get("params", {}))
-        except Exception as error:
-
-            async def failed(error=error):
-                raise error
-
-            outcome = failed()
-        asyncio.create_task(
-            self._dispatch_request(
-                message,
-                lambda _: outcome,
-                cancellation_id,
-                cancellable=message["method"] in self._cancellable_request_methods,
-            )
         )
 
     def _handle_cancel_request(self, params: dict) -> None:

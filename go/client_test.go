@@ -324,23 +324,6 @@ func TestClient_ClientInfo(t *testing.T) {
 		return nil
 	}
 
-	t.Run("forwards the host Entra registration", func(t *testing.T) {
-		url, requests, cleanup := newStartupRPCServer(t)
-		defer cleanup()
-		client := NewClient(&ClientOptions{
-			Connection: URIConnection{URL: url},
-			Entra:      &rpc.EntraAuthConfig{ClientID: "host-entra-client"},
-		})
-		if err := client.Start(t.Context()); err != nil {
-			t.Fatalf("Start failed: %v", err)
-		}
-		defer client.ForceStop()
-		want := map[string]any{"clientId": "host-entra-client"}
-		if got := findConnect(requests())["entra"]; !reflect.DeepEqual(got, want) {
-			t.Fatalf("entra = %v, want %v", got, want)
-		}
-	})
-
 	t.Run("forwards a declared identity on the connect handshake", func(t *testing.T) {
 		url, requests, cleanup := newStartupRPCServer(t)
 		defer cleanup()
@@ -422,61 +405,6 @@ func TestClient_ClientInfo(t *testing.T) {
 			t.Fatal("clientInfo should be omitted when all fields are empty")
 		}
 	})
-}
-
-func TestClient_EntraHandshakeFailureClosesExternalConnection(t *testing.T) {
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { listener.Close() })
-	client := NewClient(&ClientOptions{
-		Connection: URIConnection{URL: listener.Addr().String()},
-		Entra:      &rpc.EntraAuthConfig{ClientID: "host-entra-client"},
-	})
-	t.Cleanup(func() { client.ForceStop() })
-
-	for attempt := range 2 {
-		closed := make(chan struct{})
-		serverReady := make(chan *jsonrpc2.Client, 1)
-		go func() {
-			conn, acceptErr := listener.Accept()
-			if acceptErr != nil {
-				serverReady <- nil
-				return
-			}
-			server := jsonrpc2.NewClient(conn, conn)
-			server.SetRequestHandler("connect", func(json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
-				return nil, &jsonrpc2.Error{Code: -32601, Message: "Method not found"}
-			})
-			server.SetOnClose(func() { close(closed) })
-			server.Start()
-			serverReady <- server
-		}()
-
-		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
-		err := client.Start(ctx)
-		server := <-serverReady
-		if server == nil {
-			cancel()
-			t.Fatal("server failed to accept the connection")
-		}
-		t.Cleanup(server.Stop)
-		if err == nil || !strings.Contains(err.Error(), "does not support Entra client configuration") {
-			cancel()
-			t.Fatalf("attempt %d: Start returned %v", attempt, err)
-		}
-		select {
-		case <-closed:
-		case <-ctx.Done():
-			cancel()
-			t.Fatalf("attempt %d: rejected connection remained open", attempt)
-		}
-		cancel()
-		if client.client != nil || client.conn != nil || client.RPC != nil || client.internalRPC != nil {
-			t.Fatalf("attempt %d: failed handshake retained connection state", attempt)
-		}
-	}
 }
 
 type startupRPCRequest struct {
@@ -2271,6 +2199,7 @@ func TestClient_InProcessConnection(t *testing.T) {
 			BaseDirectory:             "/copilot-home",
 			LogLevel:                  "debug",
 			SessionIdleTimeoutSeconds: 30,
+			EnableRemoteSessions:      true,
 			Mode:                      ModeEmpty,
 		})
 
@@ -2280,6 +2209,7 @@ func TestClient_InProcessConnection(t *testing.T) {
 			"--auth-token-env", "COPILOT_SDK_AUTH_TOKEN",
 			"--no-auto-login",
 			"--session-idle-timeout", "30",
+			"--remote",
 		}
 		if !reflect.DeepEqual(config.Args, expectedArgs) {
 			t.Fatalf("Expected managed arguments %v, got %v", expectedArgs, config.Args)
@@ -2898,7 +2828,7 @@ func TestSessionRequests_SandboxConfig(t *testing.T) {
 
 func TestSessionRequests_Memory(t *testing.T) {
 	t.Run("create includes memory in JSON when enabled", func(t *testing.T) {
-		req := createSessionRequest{Memory: &MemoryConfiguration{Enabled: true, Mode: MemoryModeUserPrompt}}
+		req := createSessionRequest{Memory: &MemoryConfiguration{Enabled: true}}
 		data, err := json.Marshal(req)
 		if err != nil {
 			t.Fatalf("Failed to marshal: %v", err)
@@ -2907,14 +2837,14 @@ func TestSessionRequests_Memory(t *testing.T) {
 		if err := json.Unmarshal(data, &m); err != nil {
 			t.Fatalf("Failed to unmarshal: %v", err)
 		}
-		expected := map[string]any{"enabled": true, "mode": "user-prompt"}
+		expected := map[string]any{"enabled": true}
 		if !reflect.DeepEqual(m["memory"], expected) {
 			t.Errorf("Expected memory %v, got %v", expected, m["memory"])
 		}
 	})
 
 	t.Run("resume includes memory in JSON when disabled", func(t *testing.T) {
-		req := resumeSessionRequest{SessionID: "s1", Memory: &MemoryConfiguration{Enabled: false, Mode: MemoryModeSystemPrompt}}
+		req := resumeSessionRequest{SessionID: "s1", Memory: &MemoryConfiguration{Enabled: false}}
 		data, err := json.Marshal(req)
 		if err != nil {
 			t.Fatalf("Failed to marshal: %v", err)
@@ -2923,7 +2853,7 @@ func TestSessionRequests_Memory(t *testing.T) {
 		if err := json.Unmarshal(data, &m); err != nil {
 			t.Fatalf("Failed to unmarshal: %v", err)
 		}
-		expected := map[string]any{"enabled": false, "mode": "system-prompt"}
+		expected := map[string]any{"enabled": false}
 		if !reflect.DeepEqual(m["memory"], expected) {
 			t.Errorf("Expected memory %v, got %v", expected, m["memory"])
 		}
@@ -5788,45 +5718,6 @@ func TestToolNamespace(t *testing.T) {
 	})
 }
 
-func TestSessionRequests_ExcludedManagedSettings(t *testing.T) {
-	for _, test := range []struct {
-		name       string
-		exclusions []string
-		want       string
-	}{
-		{name: "omitted"},
-		{name: "empty", exclusions: []string{}, want: `[]`},
-		{name: "populated", exclusions: []string{"sandbox"}, want: `["sandbox"]`},
-	} {
-		for _, request := range []struct {
-			name  string
-			value any
-		}{
-			{"create", createSessionRequest{ExcludedManagedSettings: test.exclusions}},
-			{"resume", resumeSessionRequest{SessionID: "s1", ExcludedManagedSettings: test.exclusions}},
-		} {
-			t.Run(request.name+"/"+test.name, func(t *testing.T) {
-				data, err := json.Marshal(request.value)
-				if err != nil {
-					t.Fatalf("Failed to marshal: %v", err)
-				}
-				var fields map[string]json.RawMessage
-				if err := json.Unmarshal(data, &fields); err != nil {
-					t.Fatalf("Failed to unmarshal: %v", err)
-				}
-				actual, present := fields["excludedManagedSettings"]
-				if test.want == "" {
-					if present {
-						t.Fatalf("Expected omitted exclusions, got %s", data)
-					}
-				} else if !present || string(actual) != test.want {
-					t.Fatalf("Expected excludedManagedSettings=%s, got %s", test.want, data)
-				}
-			})
-		}
-	}
-}
-
 func TestSessionRequests_ManagedSettings(t *testing.T) {
 	settings := &ManagedSettings{
 		Permissions: &ManagedSettingsPermissions{
@@ -5860,7 +5751,6 @@ func TestSessionRequests_ManagedSettings(t *testing.T) {
 	t.Run("includes managedSettings on create when set", func(t *testing.T) {
 		req := createSessionRequest{
 			EnableManagedSettings:       Bool(true),
-			ExcludedManagedSettings:     []string{"sandbox", "allowedMcpServers"},
 			EnforceManagedModelDefaults: Bool(true),
 			ManagedSettings:             settings,
 		}
@@ -5874,9 +5764,6 @@ func TestSessionRequests_ManagedSettings(t *testing.T) {
 		}
 		if m["enableManagedSettings"] != true {
 			t.Errorf("Expected enableManagedSettings true, got %v", m["enableManagedSettings"])
-		}
-		if !reflect.DeepEqual(m["excludedManagedSettings"], []any{"sandbox", "allowedMcpServers"}) {
-			t.Errorf("Unexpected exclusions: %v", m["excludedManagedSettings"])
 		}
 		if m["enforceManagedModelDefaults"] != true {
 			t.Errorf("Expected enforceManagedModelDefaults true, got %v", m["enforceManagedModelDefaults"])
@@ -5895,7 +5782,7 @@ func TestSessionRequests_ManagedSettings(t *testing.T) {
 	})
 
 	t.Run("includes managedSettings on resume when set", func(t *testing.T) {
-		req := resumeSessionRequest{SessionID: "s1", ManagedSettings: settings, ExcludedManagedSettings: []string{"deniedMcpServers"}}
+		req := resumeSessionRequest{SessionID: "s1", ManagedSettings: settings}
 		data, err := json.Marshal(req)
 		if err != nil {
 			t.Fatalf("Failed to marshal: %v", err)
@@ -5906,9 +5793,6 @@ func TestSessionRequests_ManagedSettings(t *testing.T) {
 		}
 		if _, ok := m["managedSettings"].(map[string]any); !ok {
 			t.Fatalf("Expected managedSettings object, got %v", m["managedSettings"])
-		}
-		if !reflect.DeepEqual(m["excludedManagedSettings"], []any{"deniedMcpServers"}) {
-			t.Errorf("Unexpected exclusions: %v", m["excludedManagedSettings"])
 		}
 	})
 

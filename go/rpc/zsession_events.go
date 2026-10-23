@@ -98,7 +98,6 @@ const (
 	SessionEventTypeHookProgress                SessionEventType = "hook.progress"
 	SessionEventTypeHookStart                   SessionEventType = "hook.start"
 	SessionEventTypeHumanResponseRecorded       SessionEventType = "human_response.recorded"
-	SessionEventTypeInstructionUpdate           SessionEventType = "instruction.update"
 	SessionEventTypeMCPAppToolCallComplete      SessionEventType = "mcp_app.tool_call_complete"
 	SessionEventTypeMCPHeadersRefreshCompleted  SessionEventType = "mcp.headers_refresh_completed"
 	SessionEventTypeMCPHeadersRefreshRequired   SessionEventType = "mcp.headers_refresh_required"
@@ -405,25 +404,6 @@ type SessionModeChangedData struct {
 
 func (*SessionModeChangedData) sessionEventData()      {}
 func (*SessionModeChangedData) Type() SessionEventType { return SessionEventTypeSessionModeChanged }
-
-// An authoritative developer-instruction update. Event order defines instruction order. Persistent updates are durable and restore across replay, resume, rewind, fork, and compaction; turn-scoped updates must be emitted with ephemeral=true and are never restored.
-type InstructionUpdateData struct {
-	// Authority responsible for the update.
-	Authority InstructionUpdateAuthority `json:"authority"`
-	// Earliest legal insertion boundary.
-	Boundary InstructionUpdateBoundary `json:"boundary"`
-	// Authoritative instruction text. Empty or whitespace-only content is rejected.
-	Content string `json:"content"`
-	// Deterministic behavior when the active provider cannot represent the update.
-	Fallback InstructionUpdateFallback `json:"fallback"`
-	// Whether the update persists beyond the current turn.
-	Lifetime InstructionUpdateLifetime `json:"lifetime"`
-	// Optional stable source name for diagnostics and future host-authored updates.
-	Name *string `json:"name,omitempty"`
-}
-
-func (*InstructionUpdateData) sessionEventData()      {}
-func (*InstructionUpdateData) Type() SessionEventType { return SessionEventTypeInstructionUpdate }
 
 // Assistant reasoning content for timeline display with complete thinking text
 type AssistantReasoningData struct {
@@ -748,9 +728,6 @@ type SessionCompactionCompleteData struct {
 	StatusCode *int64 `json:"statusCode,omitempty"`
 	// Whether compaction completed successfully
 	Success bool `json:"success"`
-	// How far the summarizer model calls had progressed when the outcome was decided, so a stalled summarizer can be told from a slow one
-	// Internal: SummarizerProgress is part of the SDK's internal API surface and is not intended for external use.
-	SummarizerProgress *CompactionCompleteSummarizerProgress `json:"summarizerProgress,omitempty"`
 	// LLM-generated summary of the compacted conversation history
 	SummaryContent *string `json:"summaryContent,omitempty"`
 	// Destination model for a model-switch compaction when it differs from the compacting model; for a HydraFusion turn, the routed root model
@@ -1228,8 +1205,6 @@ type SessionFusionRouteFailedData struct {
 	ErrorMessage *string `json:"errorMessage,omitempty"`
 	// Concrete model selected as the deterministic fallback.
 	FallbackModel string `json:"fallbackModel"`
-	// Identifier of the HydraFusion turn whose routing failed; its fallback phase runs under the same id. Absent on events written before it was recorded.
-	FusionID *string `json:"fusionId,omitempty"`
 	// HydraFusion routing policy requested for the turn.
 	Policy string `json:"policy"`
 	// Stable machine-readable reason for the routing failure.
@@ -1879,9 +1854,6 @@ type AssistantUsageData struct {
 	CacheDetailsReported *bool `json:"cacheDetailsReported,omitempty"`
 	// Updated prompt-cache expiration for this model call. Present only when the call establishes or refreshes known cache state.
 	CacheExpiresAt *time.Time `json:"cacheExpiresAt,omitempty"`
-	// Request-scoped prompt-cache policy lifetime in seconds; the shortest lifetime for mixed known policies. Does not establish or refresh cache state. Omitted when the policy is unknown.
-	// Internal: CachePolicyTtlSeconds is part of the SDK's internal API surface and is not intended for external use.
-	CachePolicyTtlSeconds *int64 `json:"cachePolicyTtlSeconds,omitempty"`
 	// Number of tokens read from prompt cache
 	CacheReadTokens *int64 `json:"cacheReadTokens,omitempty"`
 	// Effective prompt-cache lifetime in seconds for this call
@@ -2713,8 +2685,6 @@ func (*CommandQueuedData) Type() SessionEventType { return SessionEventTypeComma
 type SessionModeNoticeDeliveredData struct {
 	// Model-visible transition notice persisted for a mid-turn delivery
 	Content *string `json:"content,omitempty"`
-	// Whether the model-visible transition notice was persisted separately as an instruction.update event
-	InstructionUpdatePersisted *bool `json:"instructionUpdatePersisted,omitempty"`
 	// Mode established by the delivered transition notice
 	Mode SessionMode `json:"mode"`
 }
@@ -4017,56 +3987,6 @@ type CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail struct {
 	TokenCount int64 `json:"tokenCount"`
 	// Token category (e.g., "input", "output")
 	TokenType string `json:"tokenType"`
-}
-
-// How far the compaction's summarizer model calls had progressed when the compaction's outcome was decided. Stream statistics describe the latest model request; durationMs and attemptCount cover every request.
-// Internal: CompactionCompleteSummarizerProgress is an internal SDK API and is not part of the public surface.
-type CompactionCompleteSummarizerProgress struct {
-	// Time since the latest request was dispatched, whether or not it had finished, in milliseconds. Absent when no request was dispatched.
-	// Internal: AttemptAgeMs is part of the SDK's internal API surface and is not intended for external use.
-	AttemptAgeMs *int64 `json:"attemptAgeMs,omitempty"`
-	// Number of summarizer model requests dispatched, including retries
-	// Internal: AttemptCount is part of the SDK's internal API surface and is not intended for external use.
-	AttemptCount int64 `json:"attemptCount"`
-	// Whether the latest request had already returned a response or an error. False when it was still in flight, such as when the compaction deadline cut it off; absent when no request was dispatched.
-	// Internal: AttemptSettled is part of the SDK's internal API surface and is not intended for external use.
-	AttemptSettled *bool `json:"attemptSettled,omitempty"`
-	// Time from the start of the compaction to the decision of its outcome, in milliseconds
-	// Internal: DurationMs is part of the SDK's internal API surface and is not intended for external use.
-	DurationMs int64 `json:"durationMs"`
-	// Time since the latest request's last stream event, or since its dispatch if none arrived, in milliseconds. Absent when no request was dispatched.
-	// Internal: IdleMs is part of the SDK's internal API surface and is not intended for external use.
-	IdleMs *int64 `json:"idleMs,omitempty"`
-	// Whether historical attachments and reasoning were dropped from the compaction's input because the session's previous compaction ran out of time.
-	// Internal: InputShrunk is part of the SDK's internal API surface and is not intended for external use.
-	InputShrunk *bool `json:"inputShrunk,omitempty"`
-	// Longest gap between two consecutive outputs of the latest request after its first reply text or tool-call output, in milliseconds. Excludes the still-open gap reported as sinceLastOutputMs; absent without such a gap.
-	// Internal: MaxOutputGapAfterAnswerMs is part of the SDK's internal API surface and is not intended for external use.
-	MaxOutputGapAfterAnswerMs *int64 `json:"maxOutputGapAfterAnswerMs,omitempty"`
-	// Longest gap between two consecutive outputs of the latest request up to its first reply text or tool-call output, including the gap that ends there, in milliseconds. Excludes the still-open gap reported as sinceLastOutputMs; absent without such a gap.
-	// Internal: MaxOutputGapBeforeAnswerMs is part of the SDK's internal API surface and is not intended for external use.
-	MaxOutputGapBeforeAnswerMs *int64 `json:"maxOutputGapBeforeAnswerMs,omitempty"`
-	// Longest gap between two consecutive stream events of the latest request, in milliseconds. Excludes the still-open gap reported as idleMs; absent with fewer than two events.
-	// Internal: MaxStreamEventGapMs is part of the SDK's internal API surface and is not intended for external use.
-	MaxStreamEventGapMs *int64 `json:"maxStreamEventGapMs,omitempty"`
-	// Stream events of the latest request that carried observable output
-	// Internal: OutputEventCount is part of the SDK's internal API surface and is not intended for external use.
-	OutputEventCount int64 `json:"outputEventCount"`
-	// Time since the latest request's last observable output, in milliseconds. Unlike idleMs, keepalive deltas do not reset it. Absent when no output arrived.
-	// Internal: SinceLastOutputMs is part of the SDK's internal API surface and is not intended for external use.
-	SinceLastOutputMs *int64 `json:"sinceLastOutputMs,omitempty"`
-	// Token-bearing stream events the latest request received, keepalive deltas included
-	// Internal: StreamEventCount is part of the SDK's internal API surface and is not intended for external use.
-	StreamEventCount int64 `json:"streamEventCount"`
-	// Time from dispatching the latest request to its first reply text or tool-call output, in milliseconds. Reasoning does not count. Absent when no such output arrived.
-	// Internal: TimeToFirstAnswerOutputMs is part of the SDK's internal API surface and is not intended for external use.
-	TimeToFirstAnswerOutputMs *int64 `json:"timeToFirstAnswerOutputMs,omitempty"`
-	// Time from dispatching the latest request to its first observable text, reasoning, or tool-call output, in milliseconds. Absent when no output arrived.
-	// Internal: TimeToFirstOutputMs is part of the SDK's internal API surface and is not intended for external use.
-	TimeToFirstOutputMs *int64 `json:"timeToFirstOutputMs,omitempty"`
-	// Time from dispatching the latest request to its first token-bearing stream event, in milliseconds. Absent when no stream event arrived.
-	// Internal: TimeToFirstTokenMs is part of the SDK's internal API surface and is not intended for external use.
-	TimeToFirstTokenMs *int64 `json:"timeToFirstTokenMs,omitempty"`
 }
 
 // Inclusive durable event range summarized by a completion receipt.
@@ -6627,48 +6547,6 @@ const (
 	HumanResponseRecordedResponseResponseKindAskUser      HumanResponseRecordedResponseResponseKind = "ask_user"
 	HumanResponseRecordedResponseResponseKindExitPlanMode HumanResponseRecordedResponseResponseKind = "exit_plan_mode"
 	HumanResponseRecordedResponseResponseKindUserInput    HumanResponseRecordedResponseResponseKind = "user_input"
-)
-
-// Authority responsible for an instruction update
-type InstructionUpdateAuthority string
-
-const (
-	// The SDK host supplied the instruction.
-	InstructionUpdateAuthorityHost InstructionUpdateAuthority = "host"
-	// Managed policy supplied the instruction.
-	InstructionUpdateAuthorityManagedPolicy InstructionUpdateAuthority = "managedPolicy"
-	// The runtime generated the instruction.
-	InstructionUpdateAuthorityRuntime InstructionUpdateAuthority = "runtime"
-)
-
-// Earliest legal insertion boundary for an instruction update
-type InstructionUpdateBoundary string
-
-const (
-	// Insert after the current tool-result run and before the next model request.
-	InstructionUpdateBoundaryAfterToolResults InstructionUpdateBoundary = "afterToolResults"
-	// Insert immediately before the next model request at a provider-legal boundary.
-	InstructionUpdateBoundaryNextModelRequest InstructionUpdateBoundary = "nextModelRequest"
-)
-
-// Deterministic behavior when the active provider cannot represent the requested update
-type InstructionUpdateFallback string
-
-const (
-	// Rebuild the leading system prompt rather than silently dropping the update.
-	InstructionUpdateFallbackRebuildSystemPrompt InstructionUpdateFallback = "rebuildSystemPrompt"
-	// Reject the update without changing authoritative instructions.
-	InstructionUpdateFallbackReject InstructionUpdateFallback = "reject"
-)
-
-// How long an instruction update remains authoritative
-type InstructionUpdateLifetime string
-
-const (
-	// Persists in event order across replay, resume, rewind, fork, and compaction.
-	InstructionUpdateLifetimePersistent InstructionUpdateLifetime = "persistent"
-	// Applies only to the current turn and is not restored from durable history.
-	InstructionUpdateLifetimeTurn InstructionUpdateLifetime = "turn"
 )
 
 // Current phase of organization-required plugin preparation.

@@ -35,6 +35,7 @@ import type {
     DiagnosticsConfiguration,
     OpenCanvasInstance,
     ProtocolExternalToolNamespace,
+    RemoteSessionMode,
     CurrentToolMetadata,
     SandboxConfig,
 } from "./generated/rpc.js";
@@ -397,15 +398,7 @@ export interface CopilotClientInfo {
     integrationVersion?: string;
 }
 
-export type EntraAuthConfig = import("./generated/rpc.js").EntraAuthConfig;
-
 export interface CopilotClientOptions {
-    /**
-     * Host application's Microsoft Entra registration, shared by its sessions.
-     * Required for built-in Entra sign-in and token renewal; other authentication methods remain available.
-     * @experimental
-     */
-    entra?: EntraAuthConfig;
     /**
      * How to connect to the Copilot runtime. When omitted, defaults to
      * {@link RuntimeConnection.forStdio} with the bundled runtime.
@@ -582,6 +575,15 @@ export interface CopilotClientOptions {
      * @default undefined (disabled)
      */
     sessionIdleTimeoutSeconds?: number;
+
+    /**
+     * Enable remote session support (Mission Control integration).
+     * When true, sessions in a GitHub repository working directory are
+     * accessible from GitHub web and mobile.
+     * Ignored when connecting to an existing runtime via {@link RuntimeConnection.forUri}.
+     * @default false
+     */
+    enableRemoteSessions?: boolean;
 
     /**
      * Identity of the integrating application, forwarded to the runtime on the
@@ -925,16 +927,6 @@ export interface ImageGenerationConfig {
      * or enforce enterprise policy.
      */
     watermark?: boolean;
-    /**
-     * Experimental. Save generated and edited images under the session-state
-     * directory's `images` folder and give the model each path as a
-     * `saved_to:` line in the tool result. Defaults to true; set false to opt
-     * out. Subagents follow
-     * their parent's value unless they set their own. A failed save still
-     * returns the image. Sessions without a local session-state directory never
-     * save. Re-supply after cold resume. Does not enable image generation.
-     */
-    saveToDisk?: boolean;
 }
 
 /**
@@ -2227,12 +2219,6 @@ export interface MemoryConfiguration {
      * Whether the memory feature is enabled for this session.
      */
     enabled: boolean;
-    /**
-     * "system-prompt" (default) places memories in the system prompt.
-     * "user-prompt" places memories in generated user-role messages.
-     * @experimental This option may change or be removed in a future release.
-     */
-    mode?: "system-prompt" | "user-prompt";
 }
 
 /**
@@ -3220,21 +3206,6 @@ export interface SessionConfigBase {
     enableManagedSettings?: boolean;
 
     /**
-     * Managed-setting paths this trusted host handles externally or does not
-     * support. Exact dotted paths exclude a setting and its descendants from
-     * fetched, device, and policy-helper policy (for example `"sandbox"` or
-     * `"permissions.disableBypassPermissionsMode"`). MCP allow/deny controls
-     * are `"allowedMcpServers"` and `"deniedMcpServers"`, not an `"mcp"` subtree.
-     * Wildcards and array indices are unsupported. Unknown paths are accepted
-     * for forward compatibility. Host-injected `managedSettings` and policy
-     * availability checks are unaffected.
-     *
-     * Not persisted: re-supply on resume; omission restores full enforcement.
-     * This does not enable self-fetching; use `enableManagedSettings: true`.
-     */
-    excludedManagedSettings?: string[];
-
-    /**
      * When true, locked managed model controls are enforced for this session.
      * Conflicting model changes are rejected, and locked startup values replace
      * conflicting session options. Overridable managed defaults remain mutable.
@@ -3328,6 +3299,14 @@ export interface SessionConfigBase {
      * `skillDirectories` or `enableConfigDiscovery` settings.
      */
     enableSkills?: boolean;
+
+    /**
+     * Per-session remote behavior control:
+     * - `"off"` — local only, no remote export (default)
+     * - `"export"` — export session events to GitHub without enabling remote steering
+     * - `"on"` — export to GitHub AND enable remote steering
+     */
+    remoteSession?: RemoteSessionMode;
 
     /**
      * Optional event handler that is registered on the session before the

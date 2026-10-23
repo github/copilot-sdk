@@ -74,22 +74,17 @@ python chat.py
 ## Quick Start
 
 For experimental in-process AHP hosting, use `client.start_ahp_host(AhpHostOptions(...))`.
-Set `authentication=AhpHostAuthentication(mode)` with `"github"`, `"none"`, or
-`"custom"` in every client mode. Custom policies require a stable nonempty `require_identity`
-and async `authenticate(request)`: return `AhpAuthenticationResult(identity, expires_at)`
-with that exact identity and a future RFC3339 expiration, or `None` to reject.
-The request contains the decrypted admission `token` and an `asyncio.Event`
-(`cancellation_event`) set when validation ends. Exceptions reject access.
-Import these handwritten types from `copilot`. Admission tokens never configure
-GitHub authentication or inference. Factories receive trusted `request.authentication`
-beside `request.config`, never inside it. Select `local_server=HostLocalServerOptions()`,
+Select `local_server=HostLocalServerOptions()` for a local listener,
 `github_environment=HostGitHubEnvironmentOptions(name="My app", compute_id="stable-installation-id")`
-for Mission Control/WPS (GitHub authentication only), or both; import transports
-from `copilot.rpc`. At least one transport is required. GitHub-only hosts have no
-`url` or `token`; `host.environment_id` identifies their environment.
-`await host.list_sessions()` lists live and dormant sessions. Top-level `compute_id`
-reuses the durable catalog across transports and must match `github_environment.compute_id`.
-Omitted local identities persist. Dormant application publications need a resume callback.
+for Mission Control/WPS, or both. Import the transport types from `copilot.rpc`.
+At least one transport is required. GitHub-only hosts have no `url` or `token`;
+`host.environment_id` exposes their Mission Control identity.
+Call `await host.list_sessions()` to read the complete advertised catalog of live
+and dormant sessions.
+Set top-level `compute_id` to reuse the durable catalog across local and Mission
+Control hosting; it must agree with `github_environment.compute_id` when both are
+supplied. The runtime persists an omitted local-only identity. Publication
+survives host shutdown; dormant application sessions require your resume callback.
 See [runtime-supervised AHP hosting](../docs/runtime-supervised-host.md) for creation
 and resume callbacks, resident-session publication, ownership, and shared-snapshot E2Es.
 
@@ -403,6 +398,7 @@ All options are kw-only parameters:
 - `telemetry` (dict | None): OpenTelemetry configuration for the CLI process. Providing this enables telemetry — no separate flag needed. See [Telemetry](#telemetry) below.
 - `session_fs` (dict | None): Connection-level session filesystem provider configuration. To let `view` read provider-only images, set `capabilities.binary` to `True` and return a provider implementing `SessionFsBinaryProvider` (`read_file_bytes(path)` and `write_file_bytes(path, content, mode=None)`) from `create_session_fs_handler`; image reads do not fall back to local files. Binary reads and writes are limited to 50,330,880 raw bytes (approximately 48 MiB); larger results return a filesystem error before encoding or decoding.
 - `session_idle_timeout_seconds` (int | None): Server-wide session idle timeout in seconds. Set to `None` or `0` to disable.
+- `enable_remote_sessions` (bool): Enable remote/cloud session support (default: False).
 - `on_list_models` (callable | None): Custom handler for `list_models()`. When provided, the handler is called instead of querying the runtime.
 - `mode` (str): Client mode (default: `"copilot-cli"`).
 

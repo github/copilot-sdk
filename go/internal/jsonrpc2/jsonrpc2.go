@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"reflect"
 	"sync"
@@ -71,13 +70,11 @@ type RequestContextHandler func(ctx context.Context, params json.RawMessage) (js
 type Client struct {
 	reader                 *headerReader // reads frames from the remote side
 	stdout                 io.ReadCloser
-	stdin                  io.WriteCloser
 	writer                 chan *headerWriter // 1-buffered; holds the writer when not in use
 	mu                     sync.Mutex
 	pendingRequests        map[string]chan *Response
 	pendingInlineCallbacks map[string]func(json.RawMessage) error
 	requestHandlers        map[string]RequestContextHandler
-	requestPreparations    map[string]func(json.RawMessage) *Error
 	incomingRequestCancels map[string]*incomingRequestCancel
 	running                atomic.Bool
 	stopChan               chan struct{}
@@ -95,12 +92,10 @@ func NewClient(stdin io.WriteCloser, stdout io.ReadCloser) *Client {
 	c := &Client{
 		reader:                 newHeaderReader(stdout),
 		stdout:                 stdout,
-		stdin:                  stdin,
 		writer:                 make(chan *headerWriter, 1),
 		pendingRequests:        make(map[string]chan *Response),
 		pendingInlineCallbacks: make(map[string]func(json.RawMessage) error),
 		requestHandlers:        make(map[string]RequestContextHandler),
-		requestPreparations:    make(map[string]func(json.RawMessage) *Error),
 		incomingRequestCancels: make(map[string]*incomingRequestCancel),
 		stopChan:               make(chan struct{}),
 		connectionClosed:       make(chan struct{}),
@@ -141,18 +136,12 @@ func (c *Client) Start() {
 
 // Stop stops the client and cleans up
 func (c *Client) Stop() {
-	c.mu.Lock()
 	if !c.running.Load() {
-		c.mu.Unlock()
 		return
 	}
 	c.running.Store(false)
 	close(c.stopChan)
-	c.mu.Unlock()
 
-	if err := c.stdin.Close(); err != nil && !errors.Is(err, io.ErrClosedPipe) && !errors.Is(err, os.ErrClosed) {
-		log.Printf("Failed to close JSON-RPC writer: %v", err)
-	}
 	// Close stdout to unblock the readLoop
 	if c.stdout != nil {
 		c.stdout.Close()
@@ -229,21 +218,11 @@ func (c *Client) SetRequestHandler(method string, handler RequestHandler) {
 func (c *Client) SetRequestContextHandler(method string, handler RequestContextHandler) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	delete(c.requestPreparations, method)
 	if handler == nil {
 		delete(c.requestHandlers, method)
 		return
 	}
 	c.requestHandlers[method] = handler
-}
-
-// SetRequestHandlerWithPreparation registers request state in read order before
-// later notifications can run. Preparation must not block or invoke user code.
-func (c *Client) SetRequestHandlerWithPreparation(method string, handler RequestHandler, prepare func(json.RawMessage) *Error) {
-	c.SetRequestHandler(method, handler)
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.requestPreparations[method] = prepare
 }
 
 // ConnectionClosed returns a channel that closes when the JSON-RPC read loop
@@ -337,32 +316,12 @@ func (c *Client) RequestWithInlineResponse(ctx context.Context, method string, p
 		}
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
-	if method == "session.sendAndWait" {
-		defer func() {
-			if ctx.Err() != nil {
-				c.mu.Lock()
-				if c.running.Load() {
-					c.wg.Add(1)
-					go func() {
-						defer c.wg.Done()
-						if err := c.sendMessage(context.WithoutCancel(ctx), map[string]any{
-							"jsonrpc": version, "method": "$/cancelRequest",
-							"params": map[string]string{"id": requestID},
-						}); err != nil && c.running.Load() {
-							log.Printf("Failed to cancel completion request: %v", err)
-						}
-					}()
-				}
-				c.mu.Unlock()
-			}
-		}()
-	}
 
 	// Wait for response, also checking for process exit
 	if c.processDone != nil {
 		select {
 		case <-ctx.Done():
-			return responseAfterShutdown(responseChan, ctx.Err())
+			return nil, ctx.Err()
 		case response := <-responseChan:
 			if response.Error != nil {
 				return nil, response.Error
@@ -379,7 +338,7 @@ func (c *Client) RequestWithInlineResponse(ctx context.Context, method string, p
 	}
 	select {
 	case <-ctx.Done():
-		return responseAfterShutdown(responseChan, ctx.Err())
+		return nil, ctx.Err()
 	case response := <-responseChan:
 		if response.Error != nil {
 			return nil, response.Error
@@ -530,7 +489,6 @@ func (c *Client) handleRequest(request *Request) {
 
 	c.mu.Lock()
 	handler := c.requestHandlers[request.Method]
-	prepare := c.requestPreparations[request.Method]
 	c.mu.Unlock()
 
 	if handler == nil {
@@ -541,14 +499,6 @@ func (c *Client) handleRequest(request *Request) {
 			})
 		}
 		return
-	}
-	if prepare != nil {
-		if err := prepare(request.Params); err != nil {
-			if request.IsCall() {
-				c.sendErrorResponse(context.Background(), request.ID, err)
-			}
-			return
-		}
 	}
 
 	handlerCtx := context.Background()

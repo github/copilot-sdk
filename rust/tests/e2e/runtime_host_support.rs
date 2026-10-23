@@ -12,8 +12,7 @@ use base64::Engine as _;
 use base64::engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD};
 use futures_util::FutureExt;
 use github_copilot_sdk::{
-    AhpHost, AhpHostAuthentication, AhpHostExit, AhpHostOptions, CliProgram, Client, ClientOptions,
-    Transport,
+    AhpHost, AhpHostExit, AhpHostOptions, CliProgram, Client, ClientOptions, Transport,
 };
 use hpke::rand_core::SeedableRng;
 use hpke::{Deserializable, Serializable};
@@ -173,10 +172,7 @@ pub fn home(ctx: &E2eContext) -> PathBuf {
 }
 
 pub fn local_options() -> AhpHostOptions {
-    AhpHostOptions::new()
-        .with_authentication(AhpHostAuthentication::Github)
-        .with_local_server(Default::default())
-        .with_allow_creating_new_sessions(true)
+    AhpHostOptions::new().with_local_server(Default::default())
 }
 
 pub fn exit_observer() -> (
@@ -418,25 +414,21 @@ pub async fn authenticate(ahp: &Ahp) {
         .find(|resource| resource["resource_name"] == "GitHub API")
         .unwrap()["resource"]
         .clone();
-    authenticate_resource(ahp, resource.as_str().unwrap())
-        .await
-        .expect("authenticate GitHub AHP resource");
-}
-
-pub async fn authenticate_resource(ahp: &Ahp, resource: &str) -> Result<Value, ahp::ClientError> {
-    let (root, _) = ahp.client.subscribe(ROOT.into()).await.unwrap();
-    let root = serde_json::to_value(root).unwrap();
     let token = sealed_auth_token(
         &ahp.initialize_meta,
         &root["snapshot"]["state"]["_meta"],
-        resource,
+        resource.as_str().unwrap(),
     );
-    ahp.client
+    let _: Value = ahp
+        .client
         .request(
             "authenticate",
-            json!({"channel": ROOT, "resource": resource, "token": token}),
+            json!({
+                "channel": ROOT, "resource": resource, "token": token,
+            }),
         )
         .await
+        .expect("authenticate GitHub AHP resource");
 }
 
 pub fn create_params(ahp: &Ahp, ctx: &E2eContext, uri: &str) -> Value {

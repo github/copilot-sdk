@@ -1283,27 +1283,18 @@ func (s *setToolsTestServer) readRequests() {
 
 func (s *setToolsTestServer) expectRequest(t *testing.T, method string) setToolsJSONRPCRequest {
 	t.Helper()
-	deadline := time.NewTimer(2 * time.Second)
-	defer deadline.Stop()
-	for {
-		select {
-		case request := <-s.request:
-			if method == "session.send" && request.Method == "session.sendAndWait" {
-				s.respondError(t, request.ID, -32601, "Method not found")
-				continue
-			}
-			if request.Method != method {
-				t.Fatalf("method = %s, want %s", request.Method, method)
-			}
-			return request
-		case err := <-s.errs:
-			t.Fatal(err)
-			return setToolsJSONRPCRequest{}
-		case <-deadline.C:
-			t.Fatalf("timed out waiting for %s request", method)
-			return setToolsJSONRPCRequest{}
+	select {
+	case request := <-s.request:
+		if request.Method != method {
+			t.Fatalf("method = %s, want %s", request.Method, method)
 		}
+		return request
+	case err := <-s.errs:
+		t.Fatal(err)
+	case <-time.After(2 * time.Second):
+		t.Fatalf("timed out waiting for %s request", method)
 	}
+	return setToolsJSONRPCRequest{}
 }
 
 func (s *setToolsTestServer) expectNoRequest(t *testing.T) {
@@ -1406,7 +1397,7 @@ func checkSendAndWaitSkipsSubagentAndAutopilotContinuationIdle(t *testing.T, roo
 	requestReceived := make(chan struct{})
 	errCh := make(chan error, 1)
 	go func() {
-		frame, err := readLegacySessionSendFrame(stdinR, stdoutW)
+		frame, err := readTestJSONRPCFrame(stdinR)
 		if err != nil {
 			errCh <- err
 			return
