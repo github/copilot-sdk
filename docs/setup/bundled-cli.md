@@ -10,11 +10,13 @@ python -m copilot download-runtime
 
 This downloads the matching runtime and caches it locally. If you skip this step, the SDK will attempt to download it automatically on first use as a fallback.
 
+For Java, add the `copilot-sdk-java-runtime` dependency with the same version as the SDK and the classifier for your target platform. See the [Java runtime dependency](../../java/README.md#additional-dependency) for the Maven coordinates and classifiers. The SDK extracts `copilot-runtime` (`copilot-runtime.exe` on Windows) and `runtime.node` from that JAR for managed stdio and TCP connections. You do not need a separate CLI installation. To override the bundled runtime, use `setCliPath(...)` or `COPILOT_CLI_PATH`; use `setCliUrl(...)` to connect to an existing server.
+
 **Best for:** Most applications—desktop apps, standalone tools, CLI utilities, prototypes, and more.
 
 ## How it works
 
-When you install the SDK, the Copilot runtime is included automatically (Node.js, .NET) or downloaded via `python -m copilot download-runtime` (Python). The SDK starts it as a child process and communicates over stdio. There's nothing extra to configure.
+The Copilot runtime is included automatically (Node.js, .NET), downloaded via `python -m copilot download-runtime` (Python), or supplied by a platform-specific runtime JAR (Java). The SDK starts it as a child process and communicates over stdio by default.
 
 ```mermaid
 flowchart TB
@@ -147,17 +149,11 @@ Console.WriteLine(response?.Data.Content);
 <details>
 <summary><strong>Java</strong></summary>
 
-> [!NOTE]
-> The Java SDK does not bundle or embed the Copilot CLI. Install the CLI separately and either make `copilot` available on your `PATH` or set its location with `setCliPath(...)` (or connect to a running CLI server with `setCliUrl(...)`).
-
 ```java
 import com.github.copilot.CopilotClient;
 import com.github.copilot.rpc.*;
 
-var client = new CopilotClient(new CopilotClientOptions()
-    // Point to the CLI binary installed on the system
-    .setCliPath("/path/to/vendor/copilot")
-);
+var client = new CopilotClient();
 client.start().get();
 
 var session = client.createSession(new SessionConfig()
