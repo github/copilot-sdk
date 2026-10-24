@@ -1676,6 +1676,197 @@ func TestClient_ResumeSessionFailureClosesRegisteredSession(t *testing.T) {
 	}
 }
 
+func TestClient_ResumeSessionSuccessClosesReplacedSession(t *testing.T) {
+	rpcClient, server, _ := newRuntimeShutdownRpcPair(t)
+	t.Cleanup(server.Stop)
+	const sessionID = "replaced-session"
+	previous := newSession(sessionID, rpcClient, "", false)
+	previous.On(func(SessionEvent) {})
+	t.Cleanup(previous.stopEventProcessing)
+
+	client := &Client{
+		client:   rpcClient,
+		RPC:      rpc.NewServerRPC(rpcClient),
+		sessions: map[string]*Session{sessionID: previous},
+	}
+	previous.owner = client
+	server.SetRequestHandler("session.resume", func(json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		return []byte(`{"sessionId":"replaced-session"}`), nil
+	})
+	detached := make(chan struct{}, 1)
+	server.SetRequestHandler("session.detach", func(json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		detached <- struct{}{}
+		return []byte(`{"success":true}`), nil
+	})
+
+	resumed, err := client.ResumeSession(t.Context(), sessionID, nil)
+	if err != nil {
+		t.Fatalf("ResumeSession failed: %v", err)
+	}
+	t.Cleanup(resumed.stopEventProcessing)
+
+	assertSessionEventChannelClosed(t, previous)
+	previous.handlerMutex.RLock()
+	handlersRetained := previous.handlers != nil
+	previous.handlerMutex.RUnlock()
+	if handlersRetained {
+		t.Fatal("successful resume left replaced session handlers registered")
+	}
+	if err := previous.Disconnect(); err != nil {
+		t.Fatalf("disconnecting replaced session failed: %v", err)
+	}
+	select {
+	case <-detached:
+		t.Fatal("disconnecting replaced session detached the active replacement")
+	default:
+	}
+	select {
+	case <-resumed.eventDone:
+		t.Fatal("disconnecting replaced session retired the active replacement")
+	default:
+	}
+	if err := resumed.Disconnect(); err != nil {
+		t.Fatalf("disconnecting active replacement failed: %v", err)
+	}
+	select {
+	case <-detached:
+	default:
+		t.Fatal("disconnecting active replacement did not detach the session")
+	}
+}
+
+func TestClient_ResumeSessionFailureKeepsReplacedSession(t *testing.T) {
+	rpcClient, server, _ := newRuntimeShutdownRpcPair(t)
+	t.Cleanup(server.Stop)
+	const sessionID = "existing-session"
+	previous := newSession(sessionID, rpcClient, "", false)
+	t.Cleanup(previous.stopEventProcessing)
+	client := &Client{
+		client:   rpcClient,
+		RPC:      rpc.NewServerRPC(rpcClient),
+		sessions: map[string]*Session{sessionID: previous},
+	}
+	previous.owner = client
+	server.SetRequestHandler("session.resume", func(json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		return nil, &jsonrpc2.Error{Code: -32000, Message: "resume rejected"}
+	})
+	if _, err := client.ResumeSession(t.Context(), sessionID, nil); err == nil {
+		t.Fatal("ResumeSession succeeded despite rejected RPC")
+	}
+	client.sessionsMux.Lock()
+	current := client.sessions[sessionID]
+	client.sessionsMux.Unlock()
+	if current != previous {
+		t.Fatal("failed resume did not restore the previous session")
+	}
+	if previous.superseded.Load() {
+		t.Fatal("failed resume marked the previous session as superseded")
+	}
+	select {
+	case <-previous.eventDone:
+		t.Fatal("failed resume retired the previous session")
+	default:
+	}
+}
+
+func TestClient_ResumeSessionSerializesStaleDisconnect(t *testing.T) {
+	rpcClient, server, _ := newRuntimeShutdownRpcPair(t)
+	t.Cleanup(server.Stop)
+	const sessionID = "racing-session"
+	previous := newSession(sessionID, rpcClient, "", false)
+	t.Cleanup(previous.stopEventProcessing)
+	client := &Client{
+		client:   rpcClient,
+		RPC:      rpc.NewServerRPC(rpcClient),
+		sessions: map[string]*Session{sessionID: previous},
+	}
+	previous.owner = client
+	resumeEntered := make(chan struct{})
+	allowResume := make(chan struct{})
+	defer func() {
+		select {
+		case <-allowResume:
+		default:
+			close(allowResume)
+		}
+	}()
+	server.SetRequestHandler("session.resume", func(json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		close(resumeEntered)
+		<-allowResume
+		return []byte(`{"sessionId":"racing-session"}`), nil
+	})
+	detached := make(chan struct{}, 1)
+	server.SetRequestHandler("session.detach", func(json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		detached <- struct{}{}
+		return []byte(`{"success":true}`), nil
+	})
+	resumed := make(chan *Session, 1)
+	resumeErrors := make(chan error, 1)
+	go func() {
+		session, err := client.ResumeSession(t.Context(), sessionID, nil)
+		resumed <- session
+		resumeErrors <- err
+	}()
+	select {
+	case <-resumeEntered:
+	case <-time.After(time.Second):
+		t.Fatal("resume request did not start")
+	}
+	disconnectErrors := make(chan error, 1)
+	disconnectStarted := make(chan struct{})
+	go func() {
+		close(disconnectStarted)
+		disconnectErrors <- previous.Disconnect()
+	}()
+	<-disconnectStarted
+	waitForDisconnect := time.NewTicker(time.Millisecond)
+	defer waitForDisconnect.Stop()
+	waitDeadline := time.After(time.Second)
+	for {
+		client.sessionOperationsMux.Lock()
+		operation := client.sessionOperations[sessionID]
+		waiting := operation != nil && operation.users == 2
+		client.sessionOperationsMux.Unlock()
+		if waiting {
+			break
+		}
+		select {
+		case <-waitForDisconnect.C:
+		case <-waitDeadline:
+			t.Fatal("stale Disconnect did not join the session operation")
+		}
+	}
+	select {
+	case <-detached:
+		t.Fatal("stale Disconnect detached the session while resume was in flight")
+	default:
+	}
+	close(allowResume)
+	var current *Session
+	select {
+	case current = <-resumed:
+	case <-time.After(time.Second):
+		t.Fatal("resume did not finish")
+	}
+	if err := <-resumeErrors; err != nil {
+		t.Fatalf("ResumeSession failed: %v", err)
+	}
+	t.Cleanup(current.stopEventProcessing)
+	select {
+	case err := <-disconnectErrors:
+		if err != nil {
+			t.Fatalf("stale Disconnect failed: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("stale Disconnect did not finish")
+	}
+	select {
+	case <-detached:
+		t.Fatal("stale Disconnect detached the replacement")
+	default:
+	}
+}
+
 func TestClient_ResumeSessionInitializationFailureClosesRegisteredSession(t *testing.T) {
 	rpcClient, server, _ := newRuntimeShutdownRpcPair(t)
 	t.Cleanup(server.Stop)

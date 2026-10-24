@@ -63,6 +63,7 @@ type Session struct {
 	workspacePath               string
 	transcriptRecovery          *TranscriptRecoveryReport
 	client                      *jsonrpc2.Client
+	owner                       *Client
 	clientSessionAPIs           *rpc.ClientSessionAPIHandlers
 	handlers                    []*sessionHandler
 	nextHandlerID               uint64
@@ -115,6 +116,7 @@ type Session struct {
 	eventCh                  chan SessionEvent
 	eventDone                chan struct{}
 	closeOnce                sync.Once
+	superseded               atomic.Bool
 	completionRPCUnsupported atomic.Bool
 
 	// RPC provides typed session-scoped RPC methods.
@@ -2368,6 +2370,15 @@ func (s *Session) GetEvents(ctx context.Context) ([]SessionEvent, error) {
 //	    log.Printf("Failed to disconnect session: %v", err)
 //	}
 func (s *Session) Disconnect() error {
+	if s.owner != nil {
+		unlock := s.owner.lockSessionOperation(s.SessionID)
+		defer unlock()
+	}
+	// A newer wrapper for this session ID owns the runtime connection. A stale
+	// wrapper must not detach the replacement when its caller cleans it up.
+	if s.superseded.Load() {
+		return nil
+	}
 	s.clearSkillProvider()
 	s.cancelPendingExternalTools()
 	result, err := s.client.Request(context.Background(), "session.detach", sessionDetachRequest{SessionID: s.SessionID})
