@@ -935,7 +935,8 @@ fn session_config_into_wire_serializes_named_providers_and_models() {
         .with_models(vec![
             ProviderModelConfig::new("gpt-x", "my-openai")
                 .with_wire_model("gpt-x-2025")
-                .with_max_output_tokens(2048),
+                .with_max_output_tokens(2048)
+                .with_supported_reasoning_efforts(["low", "high"]),
         ]);
 
     let (wire, _) = cfg
@@ -955,6 +956,10 @@ fn session_config_into_wire_serializes_named_providers_and_models() {
     assert_eq!(wire_json["models"][0]["provider"], "my-openai");
     assert_eq!(wire_json["models"][0]["wireModel"], "gpt-x-2025");
     assert_eq!(wire_json["models"][0]["maxOutputTokens"], 2048);
+    assert_eq!(
+        wire_json["models"][0]["supportedReasoningEfforts"],
+        serde_json::json!(["low", "high"])
+    );
 
     let (empty_wire, _) = SessionConfig::default()
         .into_wire(Some(SessionId::from("empty")))
@@ -962,6 +967,41 @@ fn session_config_into_wire_serializes_named_providers_and_models() {
     let empty_json = serde_json::to_value(&empty_wire).unwrap();
     assert!(empty_json.get("providers").is_none());
     assert!(empty_json.get("models").is_none());
+}
+
+#[test]
+fn provider_model_config_preserves_omission_compatibility() {
+    let model_json = serde_json::to_value(ProviderModelConfig::new("gpt-x", "my-openai")).unwrap();
+    assert!(model_json.get("supportedReasoningEfforts").is_none());
+
+    let legacy_model: ProviderModelConfig = serde_json::from_value(serde_json::json!({
+        "id": "gpt-x",
+        "provider": "my-openai"
+    }))
+    .unwrap();
+    assert!(legacy_model.supported_reasoning_efforts.is_none());
+}
+
+#[test]
+fn generated_provider_model_config_serializes_supported_reasoning_efforts() {
+    let model = crate::rpc::ProviderModelConfig {
+        id: "gpt-x".to_string(),
+        provider: "my-openai".to_string(),
+        supported_reasoning_efforts: Some(vec!["low".to_string(), "high".to_string()]),
+        ..Default::default()
+    };
+    let model_json = serde_json::to_value(model).unwrap();
+    assert_eq!(
+        model_json["supportedReasoningEfforts"],
+        serde_json::json!(["low", "high"])
+    );
+
+    let legacy_model: crate::rpc::ProviderModelConfig = serde_json::from_value(serde_json::json!({
+        "id": "gpt-x",
+        "provider": "my-openai"
+    }))
+    .unwrap();
+    assert!(legacy_model.supported_reasoning_efforts.is_none());
 }
 
 #[test]

@@ -1895,6 +1895,9 @@ pub struct ProviderModelConfig {
     /// Overrides the resolved model's default max output tokens.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_output_tokens: Option<i64>,
+    /// Reasoning effort levels supported by the model.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub supported_reasoning_efforts: Option<Vec<String>>,
     /// Per-property overrides for model capabilities, deep-merged over
     /// runtime defaults.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1946,6 +1949,15 @@ impl ProviderModelConfig {
     /// Override the resolved model's default max output tokens.
     pub fn with_max_output_tokens(mut self, max: i64) -> Self {
         self.max_output_tokens = Some(max);
+        self
+    }
+
+    /// Set the reasoning effort levels supported by this model.
+    pub fn with_supported_reasoning_efforts(
+        mut self,
+        efforts: impl IntoIterator<Item = impl Into<String>>,
+    ) -> Self {
+        self.supported_reasoning_efforts = Some(efforts.into_iter().map(Into::into).collect());
         self
     }
 

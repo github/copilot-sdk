@@ -22462,6 +22462,10 @@ export interface ProviderModelConfig {
    * Maximum output tokens for the model.
    */
   maxOutputTokens?: number;
+  /**
+   * Reasoning effort levels supported by the model.
+   */
+  supportedReasoningEfforts?: string[];
   capabilities?: ModelCapabilitiesOverride;
   systemMessage?: ProtocolSystemMessageConfig;
   /**
