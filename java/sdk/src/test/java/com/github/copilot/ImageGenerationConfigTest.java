@@ -29,10 +29,8 @@ class ImageGenerationConfigTest {
         var options = new ProtocolImageGenerationOptions(enabled);
         assertEquals(enabled, options.enabled());
         assertNull(options.watermark());
-        assertNull(options.saveToDisk());
         JsonNode json = JsonRpcClient.getObjectMapper().valueToTree(options);
         assertFalse(json.has("watermark"));
-        assertFalse(json.has("saveToDisk"));
         if (enabled == null) {
             assertFalse(json.has("enabled"));
         } else {
@@ -45,21 +43,9 @@ class ImageGenerationConfigTest {
     void protocolOptionsForwardExplicitWatermark(boolean watermark) {
         var options = new ProtocolImageGenerationOptions(null, watermark);
         assertEquals(watermark, options.watermark());
-        assertNull(options.saveToDisk());
         JsonNode json = JsonRpcClient.getObjectMapper().valueToTree(options);
         assertEquals(watermark, json.get("watermark").booleanValue());
         assertFalse(json.has("enabled"));
-        assertFalse(json.has("saveToDisk"));
-    }
-
-    @ParameterizedTest
-    @ValueSource(booleans = {true, false})
-    void protocolOptionsForwardExplicitSaveToDisk(boolean saveToDisk) {
-        var options = new ProtocolImageGenerationOptions(null, null, saveToDisk);
-        assertEquals(saveToDisk, options.saveToDisk());
-        JsonNode json = JsonRpcClient.getObjectMapper().valueToTree(options);
-        assertEquals(saveToDisk, json.get("saveToDisk").booleanValue());
-        assertEquals(1, json.size());
     }
 
     @ParameterizedTest
@@ -103,22 +89,6 @@ class ImageGenerationConfigTest {
         for (Object request : new Object[]{create, resume}) {
             JsonNode json = JsonRpcClient.getObjectMapper().valueToTree(request);
             assertEquals(watermark, json.get("imageGeneration").get("watermark").booleanValue());
-            assertEquals(1, json.get("imageGeneration").size());
-        }
-    }
-
-    @ParameterizedTest
-    @ValueSource(booleans = {true, false})
-    void createAndResumeForwardSaveToDiskWithoutEnablingImages(boolean saveToDisk) {
-        var imageGeneration = new ImageGenerationConfig().setSaveToDisk(saveToDisk);
-        assertEquals(saveToDisk, imageGeneration.getSaveToDisk());
-        var create = SessionRequestBuilder
-                .buildCreateRequest(new SessionConfig().setImageGeneration(imageGeneration).clone(), "image-test");
-        var resume = SessionRequestBuilder.buildResumeRequest("image-test",
-                new ResumeSessionConfig().setImageGeneration(imageGeneration).clone());
-        for (Object request : new Object[]{create, resume}) {
-            JsonNode json = JsonRpcClient.getObjectMapper().valueToTree(request);
-            assertEquals(saveToDisk, json.get("imageGeneration").get("saveToDisk").booleanValue());
             assertEquals(1, json.get("imageGeneration").size());
         }
     }

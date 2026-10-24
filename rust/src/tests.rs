@@ -7,71 +7,6 @@
 use super::*;
 
 #[tokio::test]
-async fn connect_forwards_optional_entra_configuration() {
-    for entra in [
-        None,
-        Some(EntraAuthConfig {
-            client_id: "host-entra-client".into(),
-        }),
-    ] {
-        let temp = tempfile::tempdir().unwrap();
-        let (client_stream, server_stream) = tokio::io::duplex(8192);
-        let (client_read, client_write) = tokio::io::split(client_stream);
-        let (server_read, server_write) = tokio::io::split(server_stream);
-        let client = Client::from_transport(
-            client_read,
-            client_write,
-            None,
-            None,
-            temp.path().to_owned(),
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            ClientMode::default(),
-            None,
-            entra.clone(),
-            false,
-        )
-        .unwrap();
-        let (notifications, _) = tokio::sync::broadcast::channel(1);
-        let (requests, _) = tokio::sync::mpsc::unbounded_channel();
-        let server =
-            jsonrpc::JsonRpcClient::new(server_write, server_read, notifications, requests);
-        let (captured, mut received) = tokio::sync::mpsc::unbounded_channel();
-        server
-            .register_request_handler(
-                "connect",
-                Arc::new(move |params| {
-                    captured.send(params).unwrap();
-                    Box::pin(async {
-                        Ok(serde_json::json!({
-                            "ok": true, "protocolVersion": 3, "version": "test",
-                        }))
-                    })
-                }),
-            )
-            .unwrap();
-        let result =
-            tokio::time::timeout(Duration::from_secs(5), client.verify_protocol_version()).await;
-        client.force_stop();
-        server.force_close();
-        result.unwrap().unwrap();
-        let params = received.try_recv().unwrap();
-        assert_eq!(
-            params.get("entra"),
-            entra
-                .map(|config| serde_json::json!({ "clientId": config.client_id }))
-                .as_ref(),
-        );
-    }
-}
-
-#[tokio::test]
 async fn settings_apply_top_key_preserves_value_presence_on_wire() {
     use crate::generated::api_types::UserSettingsApplyTopKeyRequest;
 
@@ -151,7 +86,6 @@ fn is_transport_failure_rejects_session_error() {
 }
 
 #[test]
-#[allow(deprecated)]
 fn client_options_builder_composes() {
     let opts = ClientOptions::new()
         .with_program(CliProgram::Path(PathBuf::from("/usr/local/bin/copilot")))
@@ -161,9 +95,6 @@ fn client_options_builder_composes() {
         .with_env_remove(["UNWANTED"])
         .with_extra_args(["--quiet"])
         .with_github_token("ghp_test")
-        .with_entra(EntraAuthConfig {
-            client_id: "host-entra-client".into(),
-        })
         .with_use_logged_in_user(false)
         .with_log_level(LogLevel::Debug)
         .with_session_idle_timeout_seconds(120)
@@ -181,7 +112,6 @@ fn client_options_builder_composes() {
     assert_eq!(opts.env_remove, vec![std::ffi::OsString::from("UNWANTED")]);
     assert_eq!(opts.extra_args, vec!["--quiet".to_string()]);
     assert_eq!(opts.github_token.as_deref(), Some("ghp_test"));
-    assert_eq!(opts.entra.as_ref().unwrap().client_id, "host-entra-client");
     assert_eq!(opts.use_logged_in_user, Some(false));
     assert!(matches!(opts.log_level, Some(LogLevel::Debug)));
     assert_eq!(opts.session_idle_timeout_seconds, Some(120));
@@ -223,7 +153,6 @@ fn inprocess_rejects_process_scoped_options() {
 }
 
 #[test]
-#[allow(deprecated)]
 fn inprocess_allows_typed_runtime_options() {
     let options = ClientOptions::new()
         .with_base_directory("state")
@@ -807,7 +736,6 @@ async fn dropping_last_client_kills_spawned_cli() {
         None,
         ClientMode::default(),
         None,
-        None,
         false,
     )
     .unwrap();
@@ -923,7 +851,6 @@ fn client_with_list_models_handler(handler: Arc<dyn ListModelsHandler>) -> Clien
             effective_connection_token: None,
             mode: ClientMode::default(),
             client_info: None,
-            entra: None,
             startup_timings: OnceLock::new(),
         }),
     }

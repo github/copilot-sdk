@@ -9,12 +9,7 @@
 
 import { AsyncLocalStorage } from "node:async_hooks";
 import type { CancellationToken, MessageConnection } from "vscode-jsonrpc/node.js";
-import {
-    CancellationTokenSource,
-    ConnectionError,
-    ErrorCodes,
-    ResponseError,
-} from "vscode-jsonrpc/node.js";
+import { ConnectionError, ErrorCodes, ResponseError } from "vscode-jsonrpc/node.js";
 import { createInternalSessionRpc, createSessionRpc } from "./generated/rpc.js";
 import type {
     ClientSessionApiHandlers,
@@ -25,7 +20,6 @@ import type {
     WorkflowLogLine,
     WorkflowRunResult as WireWorkflowRunResult,
     ModelSwitchAutoTierResult,
-    SendAndWaitResult,
 } from "./generated/rpc.js";
 import { type Canvas, CanvasError } from "./canvas.js";
 import type { OpenCanvasInstance } from "./generated/rpc.js";
@@ -509,7 +503,6 @@ export class CopilotSession {
     private disconnected = false;
     private readonly pendingResponseWaits = new Set<(error: Error) => void>();
     private readonly pendingStructuredWaits = new Set<(error: Error) => void>();
-    private completionRpcUnsupported = false;
     private disconnecting = false;
     private onDisconnected?: () => void;
 
@@ -792,25 +785,9 @@ export class CopilotSession {
     async send(optionsOrPrompt: MessageOptions | string): Promise<string> {
         const options: MessageOptions =
             typeof optionsOrPrompt === "string" ? { prompt: optionsOrPrompt } : optionsOrPrompt;
-        return this.sendMessage(options);
-    }
-
-    private async sendMessage(options: MessageOptions, cancelled?: () => boolean): Promise<string> {
-        const message = await this.createSendParams(options);
-        if (cancelled?.()) {
-            throw new Error("Completion wait cancelled");
-        }
         const response = await this.connection.sendRequest("session.send", {
-            sessionId: this.sessionId,
-            ...message,
-        });
-
-        return (response as { messageId: string }).messageId;
-    }
-
-    private async createSendParams(options: MessageOptions) {
-        return {
             ...(await getTraceContext(this.traceContextProvider)),
+            sessionId: this.sessionId,
             prompt: options.prompt,
             source: options.source,
             displayPrompt: options.displayPrompt,
@@ -830,16 +807,19 @@ export class CopilotSession {
                       },
                   }
                 : {}),
-        };
+        });
+
+        return (response as { messageId: string }).messageId;
     }
 
     /**
      * Sends a message and waits for its response to complete.
      *
-     * Supported local runtimes correlate completion and the response with this
-     * message. Unsupported runtimes retain the legacy non-Autopilot `session.idle`
-     * or request-correlated `session.autopilot_stopped` wait. Autopilot completion
-     * does not wait for or stop attached shells.
+     * This is a convenience method that combines {@link send} with waiting for
+     * non-Autopilot `session.idle` or the request-correlated `session.autopilot_stopped`
+     * event. Autopilot completion does not wait for or stop attached shells.
+     * Use this when you want to block until the
+     * assistant has finished processing the message.
      *
      * Events are still delivered to handlers registered via {@link on} while waiting.
      * Sub-agent events with a non-empty `agentId` do not complete the wait or supply its reply.
@@ -849,10 +829,10 @@ export class CopilotSession {
      *
      * @param options - The message options including the prompt and optional attachments
      * @param timeout - Timeout in milliseconds (default: 60000). Controls how long to wait; does not abort in-flight agent work.
-     * @returns A promise that resolves with this message's final assistant response,
+     * @returns A promise that resolves with the final assistant message on completion,
      *          or undefined if no assistant message was received
      * @throws Error if the run is aborted before completion
-     * @throws Error if the timeout is reached before completion
+     * @throws Error if the timeout is reached before response completion
      * @throws Error if the session has been disconnected or the connection fails
      *
      * @example
@@ -899,42 +879,10 @@ export class CopilotSession {
                 "Structured output cannot be requested on an immediate steering message."
             );
         }
-        const startedAt = Date.now();
-        const completion = await this.sendWithCompletion(
-            typedSchema ? { ...options, responseSchema: typedSchema } : options,
-            effectiveTimeout
-        );
-        if (completion !== undefined) {
-            const message = completion.response;
-            if (
-                message !== undefined &&
-                (message.type !== "assistant.message" || message.agentId)
-            ) {
-                throw new Error("The runtime returned a non-assistant response.");
-            }
-            if (typedSchema || options.responseSchema) {
-                if (completion.aborted) {
-                    throw new Error(
-                        "The requested run was aborted before a structured result was completed."
-                    );
-                }
-                if (!message || message.data.toolRequests?.length || !message.data.content.trim()) {
-                    throw new Error(
-                        "The requested run completed without a structured assistant response."
-                    );
-                }
-                return typedSchema ? typedSchema.parse(JSON.parse(message.data.content)) : message;
-            }
-            if (completion.aborted) {
-                throw new Error("The requested run was aborted before completion.");
-            }
-            return message;
-        }
-        const remainingTimeout = Math.max(0, effectiveTimeout - (Date.now() - startedAt));
         if (typedSchema || options.responseSchema) {
             const message = await this.sendAndWaitForStructuredMessage(
                 typedSchema ? { ...options, responseSchema: typedSchema } : options,
-                remainingTimeout
+                effectiveTimeout
             );
             if (typedSchema) {
                 if (!message) {
@@ -1042,8 +990,15 @@ export class CopilotSession {
         this.pendingResponseWaits.add(fail);
 
         let timeoutId: ReturnType<typeof setTimeout> | undefined;
-        let waiting = true;
         try {
+            messageId = await this.send(options);
+            admitted = true;
+            for (const event of buffered) {
+                if (event instanceof Error) fail(event);
+                else observe(event);
+            }
+            buffered.length = 0;
+
             const timeoutPromise = new Promise<never>((_, reject) => {
                 timeoutId = setTimeout(
                     () =>
@@ -1052,127 +1007,22 @@ export class CopilotSession {
                                 `Timeout after ${effectiveTimeout}ms waiting for response completion`
                             )
                         ),
-                    remainingTimeout
+                    effectiveTimeout
                 );
             });
-            const outcome = await Promise.race([
-                this.sendMessage(options, () => !waiting).then((id) => {
-                    messageId = id;
-                    admitted = true;
-                    for (const event of buffered) {
-                        if (event instanceof Error) fail(event);
-                        else observe(event);
-                    }
-                    buffered.length = 0;
-                    return outcomePromise;
-                }),
-                timeoutPromise,
-            ]);
+            const outcome = await Promise.race([outcomePromise, timeoutPromise]);
             if (outcome.kind === "error") {
                 throw outcome.error;
             }
 
             return outcome.message;
         } finally {
-            waiting = false;
             if (timeoutId !== undefined) {
                 clearTimeout(timeoutId);
             }
             unsubscribe();
             buffered.length = 0;
             this.pendingResponseWaits.delete(fail);
-        }
-    }
-
-    private async sendWithCompletion(
-        options: MessageOptions,
-        timeout: number
-    ): Promise<SendAndWaitResult | undefined> {
-        if (this.completionRpcUnsupported) return undefined;
-        if (this.disconnected) throw new Error("Session is disconnected");
-
-        const cancellation = new CancellationTokenSource();
-        const dispatched = new Set<string>();
-        let completionEventId: string | undefined;
-        let resolveDispatched!: () => void;
-        const dispatchCompleted = new Promise<void>((resolve) => {
-            resolveDispatched = resolve;
-        });
-        const unsubscribe = this.on((event) => {
-            if (
-                event.agentId ||
-                (event.type !== "session.idle" &&
-                    event.type !== "session.autopilot_stopped" &&
-                    event.type !== "session.error")
-            ) {
-                return;
-            }
-            dispatched.add(event.id);
-            if (event.id === completionEventId) resolveDispatched();
-        });
-        const drain = async (id: string | undefined) => {
-            if (id && !dispatched.has(id)) {
-                completionEventId = id;
-                await dispatchCompleted;
-            }
-        };
-        let fail!: (error: Error) => void;
-        const stopped = new Promise<never>((_, reject) => {
-            fail = reject;
-        });
-        this.pendingResponseWaits.add(fail);
-        const timer = setTimeout(
-            () => fail(new Error(`Timeout after ${timeout}ms waiting for session.idle`)),
-            timeout
-        );
-        const operation = async () => {
-            try {
-                const message = await this.createSendParams(options);
-                if (cancellation.token.isCancellationRequested) {
-                    throw new Error("Completion wait cancelled");
-                }
-                const result = await this.connection.sendRequest<SendAndWaitResult>(
-                    "session.sendAndWait",
-                    {
-                        sessionId: this.sessionId,
-                        ...message,
-                    },
-                    cancellation.token
-                );
-                await drain(result.completionEventId);
-                return result;
-            } catch (error) {
-                if (error instanceof ResponseError && error.code === ErrorCodes.MethodNotFound) {
-                    this.completionRpcUnsupported = true;
-                    return undefined;
-                }
-                if (
-                    error instanceof ResponseError &&
-                    typeof error.data === "object" &&
-                    error.data !== null
-                ) {
-                    if ("stack" in error.data && typeof error.data.stack === "string") {
-                        error.stack = error.data.stack;
-                    }
-                    if (
-                        "completionEventId" in error.data &&
-                        typeof error.data.completionEventId === "string"
-                    ) {
-                        await drain(error.data.completionEventId);
-                    }
-                }
-                throw error;
-            }
-        };
-        try {
-            return await Promise.race([operation(), stopped]);
-        } finally {
-            clearTimeout(timer);
-            unsubscribe();
-            this.pendingResponseWaits.delete(fail);
-            resolveDispatched();
-            cancellation.cancel();
-            cancellation.dispose();
         }
     }
 
@@ -1251,13 +1101,12 @@ export class CopilotSession {
             }
         });
         this.pendingStructuredWaits.add(fail);
-        let waiting = true;
         const timer = setTimeout(
             () => fail(new Error(`Timeout after ${timeout}ms waiting for the structured response`)),
             timeout
         );
         try {
-            const sendOutcome = this.sendMessage(options, () => !waiting).then(
+            const sendOutcome = this.send(options).then(
                 (id) => {
                     if (!id) {
                         throw new Error(
@@ -1278,7 +1127,6 @@ export class CopilotSession {
             if (outcome.kind === "error") throw outcome.error;
             return outcome.message;
         } finally {
-            waiting = false;
             clearTimeout(timer);
             buffered.length = 0;
             unsubscribe();

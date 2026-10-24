@@ -55,7 +55,6 @@ class JsonRpcClient implements AutoCloseable {
     private final Map<Long, CompletableFuture<JsonNode>> pendingRequests = new ConcurrentHashMap<>();
     private final Map<String, BiConsumer<String, JsonNode>> notificationHandlers = new ConcurrentHashMap<>();
     private final ExecutorService readerExecutor;
-    private final ExecutorService cancellationExecutor;
     private final CountDownLatch readerExited = new CountDownLatch(1);
     private boolean peerEof;
     private final Object closeHandlerLock = new Object();
@@ -81,11 +80,6 @@ class JsonRpcClient implements AutoCloseable {
         this.ownsStreams = ownsStreams;
         this.readerExecutor = Executors.newSingleThreadExecutor(r -> {
             Thread t = new Thread(r, "jsonrpc-reader");
-            t.setDaemon(true);
-            return t;
-        });
-        this.cancellationExecutor = Executors.newSingleThreadExecutor(r -> {
-            Thread t = new Thread(r, "jsonrpc-cancellation");
             t.setDaemon(true);
             return t;
         });
@@ -174,7 +168,7 @@ class JsonRpcClient implements AutoCloseable {
             }
         }
 
-        var resultFuture = future.thenApply(result -> {
+        return future.thenApply(result -> {
             try {
                 T value = null;
                 if (responseType != Void.class && responseType != void.class) {
@@ -195,25 +189,6 @@ class JsonRpcClient implements AutoCloseable {
                     timingNanos);
             throw ex instanceof RuntimeException re ? re : new RuntimeException(ex);
         });
-        if ("session.sendAndWait".equals(method)) {
-            resultFuture.whenComplete((value, error) -> {
-                if (resultFuture.isCancelled() && pendingRequests.remove(id, future)) {
-                    future.cancel(false);
-                    try {
-                        cancellationExecutor.execute(() -> {
-                            try {
-                                notify("$/cancelRequest", Map.of("id", id));
-                            } catch (IOException failure) {
-                                LOG.log(Level.FINE, "Transport closed while cancelling completion request", failure);
-                            }
-                        });
-                    } catch (java.util.concurrent.RejectedExecutionException closed) {
-                        LOG.log(Level.FINE, "Transport closed before completion cancellation", closed);
-                    }
-                }
-            });
-        }
-        return resultFuture;
     }
 
     /**
@@ -482,7 +457,6 @@ class JsonRpcClient implements AutoCloseable {
     public void close() {
         running = false;
         readerExecutor.shutdownNow();
-        cancellationExecutor.shutdownNow();
         notifyClose();
 
         try {

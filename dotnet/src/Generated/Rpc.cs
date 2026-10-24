@@ -86,18 +86,6 @@ internal sealed class ConnectClientInfo
     public string? ExtensionVersion { get; set; }
 }
 
-/// <summary>The host application's Microsoft Entra registration, shared by its sessions. This identifies the application requesting tokens, not their target resource.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class EntraAuthConfig
-{
-    /// <summary>Application (client) ID of the host's Microsoft Entra registration. Must be nonblank. The runtime does not supply a default application.</summary>
-    [RegularExpression("\\S")]
-    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
-    [MinLength(1)]
-    [JsonPropertyName("clientId")]
-    public string ClientId { get; set; } = string.Empty;
-}
-
 /// <summary>Connection-level opt-ins for the `server.connect` handshake. Transport authentication is consumed by the native protocol boundary before dispatch.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 internal sealed class ConnectRequest
@@ -109,10 +97,6 @@ internal sealed class ConnectRequest
     /// <summary>Opt this connection in to GitHub telemetry forwarding for its lifetime. When set, the runtime forwards this host's telemetry across all its sessions, its sessionless events, and explicitly process-wide events over the `gitHubTelemetry.event` notification. Connections intentionally sharing one server receive that server's events; independently embedded runtime hosts do not receive each other's host-owned events. Regular events are also written to the runtime's normal GitHub/CTS path (dual-write); host-only compatibility events are forward-only and intentionally skip that path. Intended for first-party hosts that re-emit the events into their own telemetry stores. Both unrestricted and restricted events are forwarded, each tagged with a `restricted` discriminator; a backstop drops restricted events when restricted telemetry is disabled — using the process-global gate for ordinary events and an explicit session-scoped decision for host-only events.</summary>
     [JsonPropertyName("enableGitHubTelemetryForwarding")]
     public bool? EnableGitHubTelemetryForwarding { get; set; }
-
-    /// <summary>Entra application used by this client's authentication flows. Required to enable built-in Microsoft Entra sign-in and token renewal; other authentication methods remain available.</summary>
-    [JsonPropertyName("entra")]
-    public EntraAuthConfig? Entra { get; set; }
 
     /// <summary>Task kinds this connection can decode when observing session tasks. Omit to retain agent and shell compatibility.</summary>
     [JsonPropertyName("supportedTaskKinds")]
@@ -2799,69 +2783,10 @@ internal sealed class HostCreateSessionResult
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>Trusted admission context, not inference authentication or session configuration.</summary>
-/// <remarks>Polymorphic base type discriminated by <c>mode</c>.</remarks>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-[JsonPolymorphic(
-    TypeDiscriminatorPropertyName = "mode",
-    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
-[JsonDerivedType(typeof(HostSessionAuthenticationGitHub), "github")]
-[JsonDerivedType(typeof(HostSessionAuthenticationCustom), "custom")]
-[JsonDerivedType(typeof(HostSessionAuthenticationNone), "none")]
-public partial class HostSessionAuthentication
-{
-    /// <summary>The type discriminator.</summary>
-    [JsonPropertyName("mode")]
-    public virtual string Mode { get; set; } = string.Empty;
-}
-
-
-/// <summary>A verified GitHub owner.</summary>
-/// <remarks>The <c>github</c> variant of <see cref="HostSessionAuthentication"/>.</remarks>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public partial class HostSessionAuthenticationGitHub : HostSessionAuthentication
-{
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override string Mode => "github";
-
-    /// <summary>Verified host account identity.</summary>
-    [JsonPropertyName("identity")]
-    public required string Identity { get; set; }
-}
-
-/// <summary>An application-validated owner.</summary>
-/// <remarks>The <c>custom</c> variant of <see cref="HostSessionAuthentication"/>.</remarks>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public partial class HostSessionAuthenticationCustom : HostSessionAuthentication
-{
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override string Mode => "custom";
-
-    /// <summary>Verified application identity.</summary>
-    [JsonPropertyName("identity")]
-    public required string Identity { get; set; }
-}
-
-/// <summary>Explicitly anonymous admission.</summary>
-/// <remarks>The <c>none</c> variant of <see cref="HostSessionAuthentication"/>.</remarks>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public partial class HostSessionAuthenticationNone : HostSessionAuthentication
-{
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override string Mode => "none";
-}
-
 /// <summary>One application-owned session handoff, requested by the supervised hosting participant.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 internal sealed class HostCreateSessionRequest
 {
-    /// <summary>Trusted admission identity supplied by the hosting participant. Required by the runtime before a handoff is admitted.</summary>
-    [JsonPropertyName("authentication")]
-    public HostSessionAuthentication? Authentication { get; set; }
-
     /// <summary>Host-selected SDK creation or resume settings, without executable callbacks or tools.</summary>
     [JsonPropertyName("config")]
     public IDictionary<string, JsonElement> Config { get => field ??= new Dictionary<string, JsonElement>(); set; }
@@ -2922,57 +2847,6 @@ public sealed class HostStartResult
     public string? Url { get; set; }
 }
 
-/// <summary>Explicit host-wide session admission policy.</summary>
-/// <remarks>Polymorphic base type discriminated by <c>mode</c>.</remarks>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-[JsonPolymorphic(
-    TypeDiscriminatorPropertyName = "mode",
-    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
-[JsonDerivedType(typeof(HostAuthenticationGitHub), "github")]
-[JsonDerivedType(typeof(HostAuthenticationNone), "none")]
-[JsonDerivedType(typeof(HostAuthenticationCustom), "custom")]
-public partial class HostAuthentication
-{
-    /// <summary>The type discriminator.</summary>
-    [JsonPropertyName("mode")]
-    public virtual string Mode { get; set; } = string.Empty;
-}
-
-
-/// <summary>Admit the authenticated host's GitHub account.</summary>
-/// <remarks>The <c>github</c> variant of <see cref="HostAuthentication"/>.</remarks>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public partial class HostAuthenticationGitHub : HostAuthentication
-{
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override string Mode => "github";
-}
-
-/// <summary>Explicitly allow anonymous access.</summary>
-/// <remarks>The <c>none</c> variant of <see cref="HostAuthentication"/>.</remarks>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public partial class HostAuthenticationNone : HostAuthentication
-{
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override string Mode => "none";
-}
-
-/// <summary>Delegate token validation to the owning application.</summary>
-/// <remarks>The <c>custom</c> variant of <see cref="HostAuthentication"/>.</remarks>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public partial class HostAuthenticationCustom : HostAuthentication
-{
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override string Mode => "custom";
-
-    /// <summary>Stable nonempty owner identity; validated identities must match exactly.</summary>
-    [JsonPropertyName("requireIdentity")]
-    public required string RequireIdentity { get; set; }
-}
-
 /// <summary>GitHub Mission Control registration options. The compute ID is application-owned and stable.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public sealed class HostGitHubEnvironmentOptions
@@ -3015,14 +2889,6 @@ public sealed class HostLocalServerOptions
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public sealed class HostStartRequest
 {
-    /// <summary>Whether remote clients may create new sessions. Defaults to denied when omitted. Does not restrict owner work, publication, or existing sessions.</summary>
-    [JsonPropertyName("allowCreatingNewSessions")]
-    public bool? AllowCreatingNewSessions { get; set; }
-
-    /// <summary>Explicit admission policy, required by the runtime before hosting. Optional in the wire DTO only to preserve generated client construction.</summary>
-    [JsonPropertyName("authentication")]
-    public HostAuthentication? Authentication { get; set; }
-
     /// <summary>Stable application identity selecting its durable host catalog. Defaults to the persisted runtime compute GUID; must agree with githubEnvironment.computeId when both are supplied.</summary>
     [JsonPropertyName("computeId")]
     public string? ComputeId { get; set; }
@@ -3046,10 +2912,6 @@ public sealed class HostStartRequest
     /// <summary>Ask the owning SDK application to materialize AHP sessions.</summary>
     [JsonPropertyName("sessionFactory")]
     public bool? SessionFactory { get; set; }
-
-    /// <summary>Absolute directory on the runtime host to serve through AHP. Defaults to the runtime's configured working directory. Does not change process or session working directories.</summary>
-    [JsonPropertyName("workspace")]
-    public string? Workspace { get; set; }
 }
 
 /// <summary>Empty acknowledgement for a completed host lifecycle operation.</summary>
@@ -3063,25 +2925,6 @@ public sealed class HostDisposeResult
 internal sealed class HostDisposeRequest
 {
     /// <summary>Listener UUID. Unknown or successfully stopped IDs are harmless.</summary>
-    [JsonPropertyName("hostId")]
-    public string HostId { get; set; } = string.Empty;
-}
-
-/// <summary>Empty acknowledgement for a completed host lifecycle operation.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class HostSetSessionCreationPolicyResult
-{
-}
-
-/// <summary>Changes remote session creation admission without disconnecting clients.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class HostSetSessionCreationPolicyRequest
-{
-    /// <summary>After acknowledgement, subsequent remote creation admissions use this policy. Already-admitted requests may finish.</summary>
-    [JsonPropertyName("allowCreatingNewSessions")]
-    public bool AllowCreatingNewSessions { get; set; }
-
-    /// <summary>Listener UUID owned by the calling SDK connection.</summary>
     [JsonPropertyName("hostId")]
     public string HostId { get; set; } = string.Empty;
 }
@@ -3132,14 +2975,6 @@ public sealed class HostLocalServerConfiguration
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 internal sealed class HostGetConfigurationResult
 {
-    /// <summary>Initial remote creation policy, independent of application session factories. Defaults to denied when omitted.</summary>
-    [JsonPropertyName("allowCreatingNewSessions")]
-    public bool? AllowCreatingNewSessions { get; set; }
-
-    /// <summary>Explicit host-wide admission policy. Always supplied by the runtime after validating host.start.</summary>
-    [JsonPropertyName("authentication")]
-    public HostAuthentication? Authentication { get; set; }
-
     /// <summary>Requested GitHub Mission Control registration.</summary>
     [JsonPropertyName("githubEnvironment")]
     public HostGitHubEnvironmentOptions? GitHubEnvironment { get; set; }
@@ -3155,68 +2990,6 @@ internal sealed class HostGetConfigurationResult
     /// <summary>Whether session materialization is delegated to the owning application.</summary>
     [JsonPropertyName("sessionFactory")]
     public bool SessionFactory { get; set; }
-}
-
-/// <summary>Private credentials delivered only to a runtime-owned Mission Control hosting participant.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class HostGetAuthenticationCredentialsResult
-{
-    /// <summary>GitHub API base URL for the authenticated service.</summary>
-    [JsonPropertyName("githubApiUrl")]
-    public string GitHubApiUrl { get; set; } = string.Empty;
-
-    /// <summary>Hostname of the authenticated GitHub service.</summary>
-    [JsonPropertyName("githubHost")]
-    public string GitHubHost { get; set; } = string.Empty;
-
-    /// <summary>Mission Control API origin for environment registration and management.</summary>
-    [JsonPropertyName("missionControlUrl")]
-    public string MissionControlUrl { get; set; } = string.Empty;
-
-    /// <summary>Current bearer token for the authenticated GitHub identity.</summary>
-    [JsonPropertyName("token")]
-    public string Token { get; set; } = string.Empty;
-}
-
-/// <summary>A validated credential with a required, future RFC3339 expiration.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class HostAuthenticationResult
-{
-    /// <summary>Required future expiration in RFC3339 format.</summary>
-    [JsonPropertyName("expiresAt")]
-    public string ExpiresAt { get; set; } = string.Empty;
-
-    /// <summary>Stable identity, required to match the configured owner exactly.</summary>
-    [JsonPropertyName("identity")]
-    public string Identity { get; set; } = string.Empty;
-}
-
-/// <summary>A decrypted credential presented by a supervised hosting participant.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class HostAuthenticateRequest
-{
-    /// <summary>Unique validation attempt, scoped to this host.</summary>
-    [JsonPropertyName("requestId")]
-    public string RequestId { get; set; } = string.Empty;
-
-    /// <summary>Decrypted admission token, never an inference credential.</summary>
-    [JsonPropertyName("token")]
-    public string Token { get; set; } = string.Empty;
-}
-
-/// <summary>Empty acknowledgement for a completed host lifecycle operation.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class HostCancelAuthenticationResult
-{
-}
-
-/// <summary>Cancels a pending validation on the supervised participant's connection.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class HostCancelAuthenticationRequest
-{
-    /// <summary>Validation attempt to cancel.</summary>
-    [JsonPropertyName("requestId")]
-    public string RequestId { get; set; } = string.Empty;
 }
 
 /// <summary>Empty acknowledgement for a completed host lifecycle operation.</summary>
@@ -14843,27 +14616,6 @@ internal sealed class SendRequest
     public bool? Wait { get; set; }
 }
 
-/// <summary>Internal request-correlated completion of one submitted message.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class SendAndWaitResult
-{
-    /// <summary>Whether the request was aborted or removed before completing normally.</summary>
-    [JsonPropertyName("aborted")]
-    public bool Aborted { get; set; }
-
-    /// <summary>Existing event at the completion boundary. SDK helpers drain its synchronous subscriber delivery before returning. Absent for quiet queue removal.</summary>
-    [JsonPropertyName("completionEventId")]
-    public string? CompletionEventId { get; set; }
-
-    /// <summary>Identifier assigned to the submitted user message.</summary>
-    [JsonPropertyName("messageId")]
-    public string MessageId { get; set; } = string.Empty;
-
-    /// <summary>The exact existing root assistant event owned by this request. Absent when the request completed without an assistant response.</summary>
-    [JsonPropertyName("response")]
-    public SessionEvent? Response { get; set; }
-}
-
 /// <summary>Result of sending zero or more user messages.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public sealed class SendMessagesResult
@@ -24889,21 +24641,6 @@ public sealed class ProtocolImageGenerationOptions
     public bool? Enabled { get; set; }
 
     /// <summary>
-    /// Experimental. Save each generated or edited image under the session-state
-    /// directory's `images` folder and add a `saved_to: &lt;path&gt;` line per image to
-    /// the tool result the model sees. Defaults to true; set false to opt out.
-    /// Subagents follow their
-    /// parent's value unless they set their own. A failed save still returns the
-    /// image, without `saved_to`. Sessions without a local session-state
-    /// directory, such as those using a session filesystem provider, never save.
-    /// Re-supply after a cold resume. Does not enable image generation.
-    /// This option may change or be removed in a future release.
-    /// </summary>
-    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-    [JsonPropertyName("saveToDisk")]
-    public bool? SaveToDisk { get; set; }
-
-    /// <summary>
     /// Experimental. Request a visible "Made with AI" label on generated and edited images.
     /// This option may change or be removed in a future release.
     /// Overrides the user's imageGenerationWatermark preference for this session;
@@ -26833,6 +26570,12 @@ internal sealed class ToolsSetRequest
     public IList<ProtocolExternalToolDefinition> Tools { get => field ??= []; set; }
 }
 
+/// <summary>Empty result after applying subagent settings.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class ToolsUpdateSubagentSettingsResult
+{
+}
+
 /// <summary>Subagent model, reasoning effort, context tier, and auto-invocation settings.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public sealed class SubagentSettingsEntry
@@ -26856,23 +26599,14 @@ public sealed class SubagentSettingsEntry
     /// <summary>Whether the configured model strategy is preferred or required.</summary>
     [JsonPropertyName("modelPolicy")]
     public AgentModelPolicy? ModelPolicy { get; set; }
-
-    /// <summary>Provider identifier for the configured model override.</summary>
-    [JsonPropertyName("providerId")]
-    public string? ProviderId { get; set; }
 }
 
 /// <summary>Configured per-agent subagent overrides.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class SubagentSettingsConfig
+public sealed class UpdateSubagentSettingsRequestSubagents
 {
     /// <summary>Per-agent settings keyed by subagent agent_type.</summary>
     [JsonPropertyName("agents")]
     public IDictionary<string, SubagentSettingsEntry>? Agents { get; set; }
-
-    /// <summary>Configured opt-in for subagent context management tools; applied from persisted settings when the session starts.</summary>
-    [JsonPropertyName("contextManagementTools")]
-    public bool? ContextManagementTools { get; set; }
 
     /// <summary>Names of subagents the user has turned off; they cannot be dispatched.</summary>
     [JsonPropertyName("disabledSubagents")]
@@ -26887,30 +26621,6 @@ public sealed class SubagentSettingsConfig
     public int? MaxDepth { get; set; }
 }
 
-/// <summary>Current configured subagent settings for the session, before resolving defaults or inheritance.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class ToolsGetSubagentSettingsResult
-{
-    /// <summary>Live subagent settings override, or current persisted settings when no override is active; null when no settings block exists.</summary>
-    [JsonPropertyName("subagents")]
-    public SubagentSettingsConfig? Subagents { get; set; }
-}
-
-/// <summary>Identifies the target session.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class SessionToolsGetSubagentSettingsRequest
-{
-    /// <summary>Target session identifier.</summary>
-    [JsonPropertyName("sessionId")]
-    public string SessionId { get; set; } = string.Empty;
-}
-
-/// <summary>Empty result after applying subagent settings.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class ToolsUpdateSubagentSettingsResult
-{
-}
-
 /// <summary>Subagent settings to apply to the current session.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 internal sealed class UpdateSubagentSettingsRequest
@@ -26921,7 +26631,7 @@ internal sealed class UpdateSubagentSettingsRequest
 
     /// <summary>Subagent settings to apply, or null to clear the live session override.</summary>
     [JsonPropertyName("subagents")]
-    public SubagentSettingsConfig? Subagents { get; set; }
+    public UpdateSubagentSettingsRequestSubagents? Subagents { get; set; }
 }
 
 /// <summary>RPC data type for SessionCommandsList operations.</summary>
@@ -50916,7 +50626,6 @@ public sealed class ServerRpc
     }
 
     /// <summary>Performs the SDK server connection handshake and validates the optional connection token. Marked internal because this is JSON-RPC transport plumbing invoked automatically by an SDK client's own `connect()` wrapper, not a user-facing method. Stays internal as long as the SDK client owns the handshake; would only become public if the SDK ever exposed the raw schema surface to consumers without a connection wrapper.</summary>
-    /// <param name="entra">Entra application used by this client's authentication flows. Required to enable built-in Microsoft Entra sign-in and token renewal; other authentication methods remain available.</param>
     /// <param name="enableGitHubTelemetryForwarding">Opt this connection in to GitHub telemetry forwarding for its lifetime. When set, the runtime forwards this host's telemetry across all its sessions, its sessionless events, and explicitly process-wide events over the `gitHubTelemetry.event` notification. Connections intentionally sharing one server receive that server's events; independently embedded runtime hosts do not receive each other's host-owned events. Regular events are also written to the runtime's normal GitHub/CTS path (dual-write); host-only compatibility events are forward-only and intentionally skip that path. Intended for first-party hosts that re-emit the events into their own telemetry stores. Both unrestricted and restricted events are forwarded, each tagged with a `restricted` discriminator; a backstop drops restricted events when restricted telemetry is disabled — using the process-global gate for ordinary events and an explicit session-scoped decision for host-only events.</param>
     /// <param name="clientInfo">Identity of the integrating host. Optional; omit it to keep the default attribution.</param>
     /// <param name="supportedTaskKinds">Task kinds this connection can decode when observing session tasks. Omit to retain agent and shell compatibility.</param>
@@ -50924,9 +50633,9 @@ public sealed class ServerRpc
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Handshake result reporting the server's protocol version and package version on success.</returns>
     [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-    internal async Task<ConnectResult> ConnectAsync(EntraAuthConfig? entra = null, bool? enableGitHubTelemetryForwarding = null, ConnectClientInfo? clientInfo = null, IList<TaskKind>? supportedTaskKinds = null, string? token = null, CancellationToken cancellationToken = default)
+    internal async Task<ConnectResult> ConnectAsync(bool? enableGitHubTelemetryForwarding = null, ConnectClientInfo? clientInfo = null, IList<TaskKind>? supportedTaskKinds = null, string? token = null, CancellationToken cancellationToken = default)
     {
-        var request = new ConnectRequest { Entra = entra, EnableGitHubTelemetryForwarding = enableGitHubTelemetryForwarding, ClientInfo = clientInfo, SupportedTaskKinds = supportedTaskKinds, Token = token };
+        var request = new ConnectRequest { EnableGitHubTelemetryForwarding = enableGitHubTelemetryForwarding, ClientInfo = clientInfo, SupportedTaskKinds = supportedTaskKinds, Token = token };
         return await CopilotClient.InvokeRpcAsync<ConnectResult>(_rpc, "connect", [request], cancellationToken);
     }
 
@@ -52422,7 +52131,6 @@ public sealed class ServerHostApi
     /// <summary>Requests app-owned materialization over the owning SDK participant.</summary>
     /// <param name="handoffId">Unique identity for this participation, independent of the session lifetime.</param>
     /// <param name="config">Host-selected SDK creation or resume settings, without executable callbacks or tools.</param>
-    /// <param name="authentication">Trusted admission identity supplied by the hosting participant. Required by the runtime before a handoff is admitted.</param>
     /// <param name="resume">Resume an app-owned durable session instead of creating a new session.</param>
     /// <param name="preferResident">
     /// For an explicit publication, borrow an existing owning-connection resident
@@ -52430,12 +52138,12 @@ public sealed class ServerHostApi
     /// </param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>The resident session the application has materialized on its own connection.</returns>
-    internal async Task<HostCreateSessionResult> CreateSessionAsync(string handoffId, IDictionary<string, JsonElement> config, HostSessionAuthentication? authentication = null, bool? resume = null, bool? preferResident = null, CancellationToken cancellationToken = default)
+    internal async Task<HostCreateSessionResult> CreateSessionAsync(string handoffId, IDictionary<string, JsonElement> config, bool? resume = null, bool? preferResident = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(handoffId);
         ArgumentNullException.ThrowIfNull(config);
 
-        var request = new HostCreateSessionRequest { HandoffId = handoffId, Config = config, Authentication = authentication, Resume = resume, PreferResident = preferResident };
+        var request = new HostCreateSessionRequest { HandoffId = handoffId, Config = config, Resume = resume, PreferResident = preferResident };
         return await CopilotClient.InvokeRpcAsync<HostCreateSessionResult>(_rpc, "host.createSession", [request], cancellationToken);
     }
 
@@ -52490,19 +52198,6 @@ public sealed class ServerHostApi
         return await CopilotClient.InvokeRpcAsync<HostDisposeResult>(_rpc, "host.dispose", [request], cancellationToken);
     }
 
-    /// <summary>Changes remote creation admission on a host owned by this SDK connection without disconnecting clients. Acknowledgement means subsequent admissions use the new policy; already-admitted creation may complete.</summary>
-    /// <param name="hostId">Listener UUID owned by the calling SDK connection.</param>
-    /// <param name="allowCreatingNewSessions">After acknowledgement, subsequent remote creation admissions use this policy. Already-admitted requests may finish.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>Empty acknowledgement for a completed host lifecycle operation.</returns>
-    public async Task<HostSetSessionCreationPolicyResult> SetSessionCreationPolicyAsync(string hostId, bool allowCreatingNewSessions, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(hostId);
-
-        var request = new HostSetSessionCreationPolicyRequest { HostId = hostId, AllowCreatingNewSessions = allowCreatingNewSessions };
-        return await CopilotClient.InvokeRpcAsync<HostSetSessionCreationPolicyResult>(_rpc, "host.setSessionCreationPolicy", [request], cancellationToken);
-    }
-
     /// <summary>Resolves current authenticated credentials and remote-control policy only for the runtime-owned Mission Control hosting participant.</summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Private credentials delivered only to a runtime-owned Mission Control hosting participant.</returns>
@@ -52517,40 +52212,6 @@ public sealed class ServerHostApi
     internal async Task<HostGetConfigurationResult> GetConfigurationAsync(CancellationToken cancellationToken = default)
     {
         return await CopilotClient.InvokeRpcAsync<HostGetConfigurationResult>(_rpc, "host.getConfiguration", [], cancellationToken);
-    }
-
-    /// <summary>Resolves the host account credential without applying Mission Control transport policy, only for its supervised GitHub hosting participant.</summary>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>Private credentials delivered only to a runtime-owned Mission Control hosting participant.</returns>
-    internal async Task<HostGetAuthenticationCredentialsResult> GetAuthenticationCredentialsAsync(CancellationToken cancellationToken = default)
-    {
-        return await CopilotClient.InvokeRpcAsync<HostGetAuthenticationCredentialsResult>(_rpc, "host.getAuthenticationCredentials", [], cancellationToken);
-    }
-
-    /// <summary>Validates a decrypted admission credential through the owning application, only for its supervised custom-authentication participant.</summary>
-    /// <param name="requestId">Unique validation attempt, scoped to this host.</param>
-    /// <param name="token">Decrypted admission token, never an inference credential.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>Validated admission credential, or null when the application rejects it.</returns>
-    internal async Task<HostAuthenticationResult?> AuthenticateAsync(string requestId, string token, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(requestId);
-        ArgumentNullException.ThrowIfNull(token);
-
-        var request = new HostAuthenticateRequest { RequestId = requestId, Token = token };
-        return await CopilotClient.InvokeRpcAsync<HostAuthenticationResult?>(_rpc, "host.authenticate", [request], cancellationToken);
-    }
-
-    /// <summary>Cancels a supervised participant's pending admission validation.</summary>
-    /// <param name="requestId">Validation attempt to cancel.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>Empty acknowledgement for a completed host lifecycle operation.</returns>
-    internal async Task<HostCancelAuthenticationResult> CancelAuthenticationAsync(string requestId, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(requestId);
-
-        var request = new HostCancelAuthenticationRequest { RequestId = requestId };
-        return await CopilotClient.InvokeRpcAsync<HostCancelAuthenticationResult>(_rpc, "host.cancelAuthentication", [request], cancellationToken);
     }
 
     /// <summary>Reports a supervised hosting participant's bound AHP endpoint after its SDK handshake.</summary>
@@ -55345,33 +55006,6 @@ public sealed class SessionRpc
 
         var request = new SendRequest { SessionId = _session.SessionId, Prompt = prompt, DisplayPrompt = displayPrompt, Attachments = attachments, Mode = mode, Prepend = prepend, Billable = billable, RequiredTool = requiredTool, Source = source, AgentMode = agentMode, RequestHeaders = requestHeaders, ResponseFormat = responseFormat, Traceparent = traceparent, Tracestate = tracestate, Wait = wait };
         return await CopilotClient.InvokeRpcAsync<SendResult>(_session.Rpc, "session.send", [request], cancellationToken);
-    }
-
-    /// <summary>Submits one message through normal admission and waits for its request-owned completion. Returns the exact root assistant event, or an explicit aborted/no-response outcome. Cancelling or timing out the wait does not abort agent work. Unsupported execution hosts reject the method before admitting the message.</summary>
-    /// <param name="prompt">The user message text.</param>
-    /// <param name="displayPrompt">If provided, this is shown in the timeline instead of `prompt`.</param>
-    /// <param name="attachments">Optional attachments (files, directories, selections, blobs, GitHub references) to include with the message.</param>
-    /// <param name="mode">How to deliver the message. `enqueue` (default) appends to the message queue. `immediate` interjects during an in-progress turn.</param>
-    /// <param name="prepend">If true, adds the message to the front of the queue instead of the end.</param>
-    /// <param name="billable">If false, this message will not trigger a Premium Request Unit charge. User messages default to billable.</param>
-    /// <param name="requiredTool">If set, the request will fail if the named tool is not available when this message is among the user messages at the start of the current exchange.</param>
-    /// <param name="source">Optional provenance tag copied to the resulting user.message event. Must be `user`, `system`, `command-&lt;command-id&gt;` for command-originated messages, `schedule-&lt;numeric-id&gt;` for scheduled prompts, or `agent-&lt;agent-id&gt;` for prompts sent by another agent.</param>
-    /// <param name="agentMode">The UI mode the agent was in when this message was sent. Defaults to the session's current mode.</param>
-    /// <param name="requestHeaders">Custom HTTP headers to include in outbound model requests for this turn. Merged with session-level provider headers; per-turn headers augment and overwrite session-level headers with the same key.</param>
-    /// <param name="responseFormat">Provider-native output format for this turn, including all tool-call iterations. Not inherited by later turns or subagents. Ordinary steering inherits the active format; specifying responseFormat with mode: immediate is an error, even while idle. Returned assistant content remains text; the runtime does not parse or validate it. Unsupported models or schemas produce provider errors.</param>
-    /// <param name="traceparent">W3C Trace Context traceparent header for distributed tracing of this agent turn.</param>
-    /// <param name="tracestate">W3C Trace Context tracestate header for distributed tracing.</param>
-    /// <param name="wait">If true, await completion of the agentic loop for this message before returning. Defaults to false (fire-and-forget). When true, the result still contains the same `messageId`; the caller can rely on the agent having processed the message before the call resolves. Transport-dependent tail semantics: on a LOCAL (in-process) session the wait additionally blocks until the completed turn's event tail has been dispatched to this session's in-process subscribers, so a subsequent read of subscriber state already reflects the turn; on a REMOTE session the wait resolves once the loop completes and mirrored delivery follows over the wire. Callers that need the stronger local guarantee on remote sessions should await the event stream explicitly.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>Internal request-correlated completion of one submitted message.</returns>
-    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-    internal async Task<SendAndWaitResult> SendAndWaitAsync(string prompt, string? displayPrompt = null, IList<Attachment>? attachments = null, SendMode? mode = null, bool? prepend = null, bool? billable = null, string? requiredTool = null, string? source = null, SendAgentMode? agentMode = null, IDictionary<string, string>? requestHeaders = null, ResponseFormat? responseFormat = null, string? traceparent = null, string? tracestate = null, bool? wait = null, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(prompt);
-        _session.ThrowIfDisposed();
-
-        var request = new SendRequest { SessionId = _session.SessionId, Prompt = prompt, DisplayPrompt = displayPrompt, Attachments = attachments, Mode = mode, Prepend = prepend, Billable = billable, RequiredTool = requiredTool, Source = source, AgentMode = agentMode, RequestHeaders = requestHeaders, ResponseFormat = responseFormat, Traceparent = traceparent, Tracestate = tracestate, Wait = wait };
-        return await CopilotClient.InvokeRpcAsync<SendAndWaitResult>(_session.Rpc, "session.sendAndWait", [request], cancellationToken);
     }
 
     /// <summary>Sends zero or more user messages to the session in a single turn and returns their message IDs. All provided messages are appended to the conversation in order, then exactly one agent turn runs over the resulting history. When the list is empty, one turn runs over the existing history with no new user message. Remote-backed (Mission Control) sessions do not support this method and will return an error.</summary>
@@ -58972,22 +58606,11 @@ public sealed class ToolsApi
         return await CopilotClient.InvokeRpcAsync<ToolsSetResult>(_session.Rpc, "session.tools.set", [request], cancellationToken);
     }
 
-    /// <summary>Returns the session's live subagent settings override, or the current persisted user settings when no override is active. Returns null in subagents when no settings block exists; defaults, model inheritance, and billing limits are not resolved. Persisted settings are loaded strictly, including before the first turn, and loading errors are reported. Reading does not change the session or persist settings. Read-modify-write with updateSubagentSettings is not atomic; writing back creates a live override that ignores later persisted changes until cleared.</summary>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>Current configured subagent settings for the session, before resolving defaults or inheritance.</returns>
-    public async Task<ToolsGetSubagentSettingsResult> GetSubagentSettingsAsync(CancellationToken cancellationToken = default)
-    {
-        _session.ThrowIfDisposed();
-
-        var request = new SessionToolsGetSubagentSettingsRequest { SessionId = _session.SessionId };
-        return await CopilotClient.InvokeRpcAsync<ToolsGetSubagentSettingsResult>(_session.Rpc, "session.tools.getSubagentSettings", [request], cancellationToken);
-    }
-
-    /// <summary>Replaces the current session's complete live subagent settings override; nested fields are not merged. The override takes precedence over persisted user settings until cleared. Persisted user settings remain the source of truth for future sessions.</summary>
+    /// <summary>Sets the current session's live subagent settings override, which takes precedence over persisted user settings until cleared. Persisted user settings remain the source of truth for future sessions.</summary>
     /// <param name="subagents">Subagent settings to apply, or null to clear the live session override.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Empty result after applying subagent settings.</returns>
-    public async Task<ToolsUpdateSubagentSettingsResult> UpdateSubagentSettingsAsync(SubagentSettingsConfig? subagents = null, CancellationToken cancellationToken = default)
+    public async Task<ToolsUpdateSubagentSettingsResult> UpdateSubagentSettingsAsync(UpdateSubagentSettingsRequestSubagents? subagents = null, CancellationToken cancellationToken = default)
     {
         _session.ThrowIfDisposed();
 
@@ -61414,12 +61037,6 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.IndexedSearchIncrementalPhase), TypeInfoPropertyName = "SessionEventsIndexedSearchIncrementalPhase")]
 [JsonSerializable(typeof(GitHub.Copilot.IndexedSearchOutcome), TypeInfoPropertyName = "SessionEventsIndexedSearchOutcome")]
 [JsonSerializable(typeof(GitHub.Copilot.IndexedSearchState), TypeInfoPropertyName = "SessionEventsIndexedSearchState")]
-[JsonSerializable(typeof(GitHub.Copilot.InstructionUpdateAuthority), TypeInfoPropertyName = "SessionEventsInstructionUpdateAuthority")]
-[JsonSerializable(typeof(GitHub.Copilot.InstructionUpdateBoundary), TypeInfoPropertyName = "SessionEventsInstructionUpdateBoundary")]
-[JsonSerializable(typeof(GitHub.Copilot.InstructionUpdateData), TypeInfoPropertyName = "SessionEventsInstructionUpdateData")]
-[JsonSerializable(typeof(GitHub.Copilot.InstructionUpdateEvent), TypeInfoPropertyName = "SessionEventsInstructionUpdateEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.InstructionUpdateFallback), TypeInfoPropertyName = "SessionEventsInstructionUpdateFallback")]
-[JsonSerializable(typeof(GitHub.Copilot.InstructionUpdateLifetime), TypeInfoPropertyName = "SessionEventsInstructionUpdateLifetime")]
 [JsonSerializable(typeof(GitHub.Copilot.ManagedPermissionsContext), TypeInfoPropertyName = "SessionEventsManagedPermissionsContext")]
 [JsonSerializable(typeof(GitHub.Copilot.ManagedPluginProgressPhase), TypeInfoPropertyName = "SessionEventsManagedPluginProgressPhase")]
 [JsonSerializable(typeof(GitHub.Copilot.ManagedSettingsEnforcedAction), TypeInfoPropertyName = "SessionEventsManagedSettingsEnforcedAction")]
@@ -61987,7 +61604,6 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(DiscoveredModelList))]
 [JsonSerializable(typeof(EnqueueCommandParams))]
 [JsonSerializable(typeof(EnqueueCommandResult))]
-[JsonSerializable(typeof(EntraAuthConfig))]
 [JsonSerializable(typeof(EnvironmentCapabilities))]
 [JsonSerializable(typeof(EnvironmentsDeleteRequest))]
 [JsonSerializable(typeof(EnvironmentsDeleteResult))]
@@ -62066,17 +61682,11 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(HistoryTruncateResult))]
 [JsonSerializable(typeof(HooksDiscoverRequest))]
 [JsonSerializable(typeof(HooksDiscoverResult))]
-[JsonSerializable(typeof(HostAuthenticateRequest))]
-[JsonSerializable(typeof(HostAuthentication))]
-[JsonSerializable(typeof(HostAuthenticationResult))]
-[JsonSerializable(typeof(HostCancelAuthenticationRequest))]
-[JsonSerializable(typeof(HostCancelAuthenticationResult))]
 [JsonSerializable(typeof(HostCreateSessionRequest))]
 [JsonSerializable(typeof(HostCreateSessionResult))]
 [JsonSerializable(typeof(HostDisposeRequest))]
 [JsonSerializable(typeof(HostDisposeResult))]
 [JsonSerializable(typeof(HostExitedRequest))]
-[JsonSerializable(typeof(HostGetAuthenticationCredentialsResult))]
 [JsonSerializable(typeof(HostGetConfigurationResult))]
 [JsonSerializable(typeof(HostGetEnvironmentCredentialsResult))]
 [JsonSerializable(typeof(HostGitHubEnvironmentOptions))]
@@ -62090,10 +61700,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(HostReadyResult))]
 [JsonSerializable(typeof(HostReleaseSessionRequest))]
 [JsonSerializable(typeof(HostReleaseSessionResult))]
-[JsonSerializable(typeof(HostSessionAuthentication))]
 [JsonSerializable(typeof(HostSessionSummary))]
-[JsonSerializable(typeof(HostSetSessionCreationPolicyRequest))]
-[JsonSerializable(typeof(HostSetSessionCreationPolicyResult))]
 [JsonSerializable(typeof(HostStartRequest))]
 [JsonSerializable(typeof(HostStartResult))]
 [JsonSerializable(typeof(HostUnpublishSessionRequest))]
@@ -62667,7 +62274,6 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(ScheduleStopResult))]
 [JsonSerializable(typeof(SecretsAddFilterValuesRequest))]
 [JsonSerializable(typeof(SecretsAddFilterValuesResult))]
-[JsonSerializable(typeof(SendAndWaitResult))]
 [JsonSerializable(typeof(SendAttachmentsToMessageParams))]
 [JsonSerializable(typeof(SendMessageItem))]
 [JsonSerializable(typeof(SendMessagesRequest))]
@@ -62861,7 +62467,6 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(SessionTelemetryEngagement))]
 [JsonSerializable(typeof(SessionTelemetryGetEngagementIdRequest))]
 [JsonSerializable(typeof(SessionToolsGetCurrentMetadataRequest))]
-[JsonSerializable(typeof(SessionToolsGetSubagentSettingsRequest))]
 [JsonSerializable(typeof(SessionToolsInitializeAndValidateRequest))]
 [JsonSerializable(typeof(SessionUiRegisterDirectAutoModeSwitchHandlerRequest))]
 [JsonSerializable(typeof(SessionUpdateOptionsParams))]
@@ -62979,7 +62584,6 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(SlashCommandModelPickerDialog))]
 [JsonSerializable(typeof(SlashCommandSelectSubcommandOption))]
 [JsonSerializable(typeof(SlashCommandTimelineEntry))]
-[JsonSerializable(typeof(SubagentSettingsConfig))]
 [JsonSerializable(typeof(SubagentSettingsEntry))]
 [JsonSerializable(typeof(SystemMessageBlock))]
 [JsonSerializable(typeof(TaskClientInfo))]
@@ -63023,7 +62627,6 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(ToolsGetBuiltinDescriptorsRequest))]
 [JsonSerializable(typeof(ToolsGetBuiltinDescriptorsResult))]
 [JsonSerializable(typeof(ToolsGetCurrentMetadataResult))]
-[JsonSerializable(typeof(ToolsGetSubagentSettingsResult))]
 [JsonSerializable(typeof(ToolsInitializeAndValidateResult))]
 [JsonSerializable(typeof(ToolsListPendingRequestsRequest))]
 [JsonSerializable(typeof(ToolsListRequest))]
@@ -63053,6 +62656,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(UIUserInputResponse))]
 [JsonSerializable(typeof(UiThreadRunRequest))]
 [JsonSerializable(typeof(UpdateSubagentSettingsRequest))]
+[JsonSerializable(typeof(UpdateSubagentSettingsRequestSubagents))]
 [JsonSerializable(typeof(UserRequestedShellCommandResult))]
 [JsonSerializable(typeof(UserSettingMetadata))]
 [JsonSerializable(typeof(UserSettingsApplyTopKeyRequest))]

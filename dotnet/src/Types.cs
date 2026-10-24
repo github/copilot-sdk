@@ -418,8 +418,8 @@ public sealed class CopilotClientOptions
         InstallationConfirmationHandler = other.InstallationConfirmationHandler;
         OnGitHubTelemetry = other.OnGitHubTelemetry;
         SessionIdleTimeoutSeconds = other.SessionIdleTimeoutSeconds;
+        EnableRemoteSessions = other.EnableRemoteSessions;
         ClientInfo = other.ClientInfo;
-        Entra = other.Entra;
         Mode = other.Mode;
     }
 
@@ -570,6 +570,15 @@ public sealed class CopilotClientOptions
     public int? SessionIdleTimeoutSeconds { get; set; }
 
     /// <summary>
+    /// Enable remote session support (Mission Control integration).
+    /// When true, sessions in a GitHub repository working directory are
+    /// accessible from GitHub web and mobile.
+    /// This option is only used when the SDK spawns the runtime; it is ignored
+    /// when connecting to an external runtime via <see cref="RuntimeConnection.ForUri(string, string?)"/>.
+    /// </summary>
+    public bool EnableRemoteSessions { get; set; }
+
+    /// <summary>
     /// Declares the integrating application's identity, forwarded to the runtime on the
     /// <c>server.connect</c> handshake. Declaring it lets the telemetry the
     /// runtime emits on this connection be attributed to a consistent surface
@@ -578,14 +587,6 @@ public sealed class CopilotClientOptions
     /// the runtime's default attribution.
     /// </summary>
     public CopilotClientInfo? ClientInfo { get; set; }
-
-    /// <summary>
-    /// Host application's Entra registration, shared by its sessions.
-    /// Required for built-in Entra sign-in and token renewal; other authentication methods remain available.
-    /// </summary>
-    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public EntraAuthConfig? Entra { get; set; }
 
     /// <summary>
     /// Creates a shallow clone of this <see cref="CopilotClientOptions"/> instance.
@@ -3533,18 +3534,6 @@ public sealed class ImageGenerationConfig
     /// </summary>
     [JsonPropertyName("watermark")]
     public bool? Watermark { get; set; }
-
-    /// <summary>
-    /// Experimental. Save generated and edited images under the session-state
-    /// directory's <c>images</c> folder and give the model each path as a
-    /// <c>saved_to:</c> line in the tool result. Defaults to true; set false to
-    /// opt out. Subagents
-    /// follow their parent's value unless they set their own. A failed save still
-    /// returns the image. Sessions without a local session-state directory never
-    /// save. Re-supply after cold resume. Does not enable image generation.
-    /// </summary>
-    [JsonPropertyName("saveToDisk")]
-    public bool? SaveToDisk { get; set; }
 }
 
 /// <summary>
@@ -3572,21 +3561,6 @@ public sealed class ToolSearchConfig
 }
 
 /// <summary>
-/// Selects where retrieved memories are included in the model conversation.
-/// </summary>
-[Experimental(Diagnostics.Experimental)]
-[JsonConverter(typeof(JsonStringEnumConverter<MemoryMode>))]
-public enum MemoryMode
-{
-    /// <summary>Include memories in the system prompt (the default).</summary>
-    [JsonStringEnumMemberName("system-prompt")]
-    SystemPrompt,
-    /// <summary>Include memories in user messages.</summary>
-    [JsonStringEnumMemberName("user-prompt")]
-    UserPrompt
-}
-
-/// <summary>
 /// Configuration for session memory.
 /// </summary>
 public sealed class MemoryConfiguration
@@ -3596,15 +3570,6 @@ public sealed class MemoryConfiguration
     /// </summary>
     [JsonPropertyName("enabled")]
     public bool Enabled { get; set; }
-
-    /// <summary>
-    /// "system-prompt" (default) places memories in the system prompt.
-    /// "user-prompt" places memories in generated user-role messages.
-    /// </summary>
-    [Experimental(Diagnostics.Experimental)]
-    [JsonPropertyName("mode")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public MemoryMode? Mode { get; set; }
 }
 
 /// <summary>
@@ -3962,12 +3927,12 @@ public abstract class SessionConfigBase
         CreateSessionFsProvider = other.CreateSessionFsProvider;
         GitHubToken = other.GitHubToken;
         GitHubTokenProvider = other.GitHubTokenProvider;
+        RemoteSession = other.RemoteSession;
         FeatureFlags = other.FeatureFlags is not null
             ? new Dictionary<string, bool>(other.FeatureFlags)
             : null;
         ExpAssignments = other.ExpAssignments;
         EnableManagedSettings = other.EnableManagedSettings;
-        ExcludedManagedSettings = other.ExcludedManagedSettings?.ToList();
         EnforceManagedModelDefaults = other.EnforceManagedModelDefaults;
         InteractiveUser = other.InteractiveUser;
         ManagedSettings = other.ManagedSettings;
@@ -4524,6 +4489,16 @@ public abstract class SessionConfigBase
     public Func<GitHubTokenProviderArgs, Task<GitHubTokenProviderResult>>? GitHubTokenProvider { get; set; }
 
     /// <summary>
+    /// Per-session remote behavior control:
+    /// <list type="bullet">
+    /// <item><description><c>"off"</c> — local only, no remote export (default)</description></item>
+    /// <item><description><c>"export"</c> — export session events to GitHub without enabling remote steering</description></item>
+    /// <item><description><c>"on"</c> — export to GitHub AND enable remote steering</description></item>
+    /// </list>
+    /// </summary>
+    public RemoteSessionMode? RemoteSession { get; set; }
+
+    /// <summary>
     /// ExP assignment ("flight") data injected by a trusted integrator, in the
     /// same JSON shape the Copilot CLI fetches from the experimentation service
     /// (<c>CopilotExpAssignmentResponse</c>). When provided, the runtime feeds it
@@ -4555,14 +4530,6 @@ public abstract class SessionConfigBase
     /// wire as <c>enableManagedSettings</c>.
     /// </summary>
     public bool? EnableManagedSettings { get; set; }
-
-    /// <summary>
-    /// Exact dotted setting paths excluded from fetched, device, and policy-helper
-    /// policy. Host-injected policy and availability checks are unaffected.
-    /// Not persisted; re-supply on resume, where omission restores full enforcement.
-    /// Use EnableManagedSettings to enable self-fetching.
-    /// </summary>
-    public IList<string>? ExcludedManagedSettings { get; set; }
 
     /// <summary>
     /// When true, enforces locked managed model controls for this session.

@@ -26,8 +26,8 @@ npm install @github/copilot-sdk
 
 ## Runtime-supervised AHP host (experimental)
 
-`startAhpHost()` requires `authentication`: `github`, or direct-only `none` / `custom`
-(`requireIdentity` and a validator returning `{identity,expiresAt}` or `null`):
+`startAhpHost()` exposes copilotd's complete Agent Host Protocol server through the
+same runtime used by the SDK:
 
 ```typescript
 import { CopilotClient } from "@github/copilot-sdk";
@@ -35,7 +35,7 @@ import { CopilotClient } from "@github/copilot-sdk";
 await using client = new CopilotClient();
 await client.start();
 const host = await client.startAhpHost({
-    localServer: {}, authentication: { mode: "github" },
+    localServer: {},
     onExit: (exit) => {
         if (exit.error) console.error(exit.error);
     },
@@ -104,7 +104,7 @@ import { approveAll, CopilotClient, defineTool } from "@github/copilot-sdk";
 
 await using client = new CopilotClient();
 await using host = await client.startAhpHost({
-    localServer: {}, authentication: { mode: "github" },
+    localServer: {},
     createSession: ({ config, signal }) => {
         signal.throwIfAborted();
         return client.createSession({
@@ -275,6 +275,7 @@ Binary reads and writes are limited to 50,330,880 raw bytes (approximately 48 Mi
 larger results return a filesystem error before encoding or decoding.
 
 - `sessionIdleTimeoutSeconds?: number` - Server-wide idle timeout for sessions in seconds. Ignored when connecting via `RuntimeConnection.forUri`.
+- `enableRemoteSessions?: boolean` - Enable Mission Control remote session support. Ignored when connecting via `RuntimeConnection.forUri`.
 
 #### Installation confirmation (experimental)
 
@@ -511,11 +512,11 @@ Source is independent of delivery mode. Leaving it unset preserves the existing 
 
 ##### `sendAndWait(options: MessageOptions, timeout?: number): Promise<AssistantMessageEvent | undefined>`
 
-Send a message and wait for its request-owned response completion.
-Remote sessions retain the legacy non-Autopilot `session.idle` or correlated
-`session.autopilot_stopped` wait. Autopilot completion does not wait for or stop
-attached shells. Neither `assistant.idle` nor `session.task_complete` alone
-completes the wait.
+Send a message and wait for response completion: non-Autopilot `session.idle`,
+or the request's root `session.autopilot_stopped` event in Autopilot.
+The latter does not wait for attached shells to finish and does not stop them.
+`session.idle` still means whole-session quiescence; neither `assistant.idle`
+nor `session.task_complete` alone completes the wait.
 Sub-agent events are still delivered to listeners, but do not complete the wait or supply its reply.
 
 **Options:**
@@ -585,12 +586,19 @@ admission. Schemas larger than 32 MiB when JSON-encoded are also rejected before
 admission, using the runtime's existing request-size ceiling. This does not
 guarantee the schema plus conversation and tools fits the provider's budget.
 
-Structured and unformatted waits return their request's root-agent response when
-its execution completes. Remote sessions retain event-based completion, selecting
-the response and Autopilot terminal by originating request ID. Automatic
-continuation messages do not change ownership. Child-agent events cannot supply
-the result. Legacy errors without an ID cannot provide concurrent request-error
-isolation.
+Structured waits select the last root-agent message whose `originatingMessageId`
+matches the ID returned by their send, then return at a non-autopilot
+`session.idle` or a root `session.autopilot_stopped` whose `requestId` matches
+that original send ID. Automatic continuation messages do not change ownership.
+An absent or different `requestId` cannot complete a correlated wait.
+Other queued work can delay idle, but cannot replace the selected result.
+Unformatted waits also isolate their replies and accept idle only after their
+own request starts. Both forms ignore child-agent events and `session.error`
+events whose `originatingMessageId` belongs to another request. A matching error
+fails its own wait even before a user message is emitted. Errors without an ID
+retain legacy handling: unformatted waits treat them as session-wide, while
+structured waits require their request to have started. Older hosts that omit
+error IDs cannot provide concurrent request-error isolation.
 `turnId` identifies an individual model/tool iteration, not the whole
 run; telemetry interaction IDs are not unique run identifiers.
 

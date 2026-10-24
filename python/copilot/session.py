@@ -1566,17 +1566,6 @@ class ImageGenerationConfig(TypedDict, total=False):
     enforce enterprise policy.
     """
 
-    save_to_disk: bool
-    """**Experimental.** Save generated and edited images to the session folder.
-
-    Images go under the session-state directory's ``images`` folder, and the
-    model sees each path as a ``saved_to:`` line in the tool result. Defaults to
-    True; set False to opt out. Subagents follow their parent's value unless they set their own. A
-    failed save still returns the image. Sessions without a local session-state
-    directory never save. Re-supply after cold resume. Does not enable image
-    generation. Sent on the wire as ``saveToDisk``.
-    """
-
 
 class ToolSearchConfig(TypedDict, total=False):
     """
@@ -1609,10 +1598,6 @@ class MemoryConfiguration(TypedDict):
 
     # Whether memory is enabled for the session.
     enabled: bool
-    # "system-prompt" (default) places memories in the system prompt.
-    # "user-prompt" places memories in generated user-role messages.
-    # Experimental: this option may change or be removed in a future release.
-    mode: NotRequired[Literal["system-prompt", "user-prompt"]]
 
 
 # ============================================================================
@@ -1987,7 +1972,6 @@ class CopilotSession:
         self._destroyed = False
         self._response_waits: set[Callable[[], None]] = set()
         self._structured_waits: set[asyncio.Future[SessionEvent]] = set()
-        self._completion_rpc_unsupported = False
         self._disconnect_lock = asyncio.Lock()
         self._on_disconnect = on_disconnect
 
@@ -2148,31 +2132,10 @@ class CopilotSession:
             ...     attachments=[{"type": "file", "path": "./src/main.py"}],
             ... )
         """
-        return await self._send_params(
-            self._create_send_params(
-                prompt,
-                attachments,
-                source,
-                mode,
-                agent_mode,
-                request_headers,
-                display_prompt,
-                response_schema,
-            )
-        )
-
-    def _create_send_params(
-        self,
-        prompt: str,
-        attachments: list[Attachment] | None,
-        source: MessageSource | None,
-        mode: Literal["enqueue", "immediate"] | None,
-        agent_mode: Literal["interactive", "plan", "autopilot", "shell"] | None,
-        request_headers: dict[str, str] | None,
-        display_prompt: str | None,
-        response_schema: dict[str, Any] | type[BaseModel] | None,
-    ) -> dict[str, Any]:
-        params: dict[str, Any] = {"prompt": prompt}
+        params: dict[str, Any] = {
+            "sessionId": self.session_id,
+            "prompt": prompt,
+        }
         if attachments is not None:
             params["attachments"] = attachments
         if source is not None:
@@ -2198,13 +2161,9 @@ class CopilotSession:
                 "jsonSchema": {"name": "response", "strict": True, "schema": schema},
             }
         params.update(get_trace_context())
-        return params
 
-    async def _send_params(self, params: dict[str, Any]) -> str:
         rpc_start = time.perf_counter()
-        response = await self._client.request(
-            "session.send", {"sessionId": self.session_id, **params}
-        )
+        response = await self._client.request("session.send", params)
         message_id = response["messageId"]
         log_timing(
             logger,
@@ -2286,14 +2245,15 @@ class CopilotSession:
         timeout: float = 60.0,
     ) -> SessionEvent | None:
         """
-        Send a message to this session and wait for its processing to finish.
+        Send a message to this session and wait until the session becomes idle.
 
-        Supported local runtimes correlate completion and the response with this
-        message. Unsupported runtimes retain the legacy session.idle wait.
+        This is a convenience method that combines :meth:`send` with waiting for
+        the session.idle event. Use this when you want to block until the assistant
+        has finished processing the message.
 
         Events are still delivered to handlers registered via :meth:`on` while waiting.
         Synchronous handlers registered before this call finish processing the
-        terminal event, when present, before it returns successfully.
+        completing root terminal event before it returns successfully.
         This does not wait for asynchronous work started by a handler.
         Sub-agent events with a non-empty ``agent_id`` do not complete the wait
         or supply its reply.
@@ -2320,7 +2280,7 @@ class CopilotSession:
             The final assistant message event, or None if none was received.
 
         Raises:
-            TimeoutError: If the timeout is reached before completion.
+            TimeoutError: If the timeout is reached before session becomes idle.
             Exception: If the session has been disconnected or the connection fails.
 
         Example:
@@ -2331,47 +2291,18 @@ class CopilotSession:
             ...         case AssistantMessageData() as data:
             ...             print(data.content)
         """
-        deadline = asyncio.get_running_loop().time() + timeout
-        try:
-            async with asyncio.timeout_at(deadline):
-                params = self._create_send_params(
-                    prompt,
-                    attachments,
-                    source,
-                    mode,
-                    agent_mode,
-                    request_headers,
-                    display_prompt,
-                    response_schema,
-                )
-                if asyncio.get_running_loop().time() >= deadline:
-                    raise TimeoutError
-                return await self._send_and_wait_impl(params, timeout)
-        except TimeoutError:
-            raise TimeoutError(f"Timeout after {timeout}s waiting for session.idle") from None
-
-    async def _send_and_wait_impl(
-        self, params: dict[str, Any], timeout: float
-    ) -> SessionEvent | None:
-        completion = await self._send_with_completion(params)
-        if completion is not None:
-            response, aborted = completion
-            if "responseFormat" in params:
-                if aborted:
-                    raise RuntimeError("Session aborted before structured output completed")
-                if (
-                    response is None
-                    or not isinstance(response.data, AssistantMessageData)
-                    or response.data.tool_requests
-                    or not response.data.content.strip()
-                ):
-                    raise RuntimeError("Run completed without a structured assistant response")
-            if aborted:
-                raise RuntimeError("Session aborted before response completed")
-            return response
-        if "responseFormat" in params:
+        if response_schema is not None:
             return await self._wait_for_structured_message(
-                lambda: self._send_params(params),
+                lambda: self.send(
+                    prompt,
+                    attachments=attachments,
+                    source=source,
+                    mode=mode,
+                    agent_mode=agent_mode,
+                    request_headers=request_headers,
+                    display_prompt=display_prompt,
+                    response_schema=response_schema,
+                ),
                 timeout,
             )
         total_start = time.perf_counter()
@@ -2476,7 +2407,15 @@ class CopilotSession:
         unsubscribe = self.on(handler)
         self._response_waits.add(fail_disconnected)
         try:
-            message_id = await self._send_params(params)
+            message_id = await self.send(
+                prompt,
+                attachments=attachments,
+                source=source,
+                mode=mode,
+                agent_mode=agent_mode,
+                request_headers=request_headers,
+                display_prompt=display_prompt,
+            )
             admitted = True
             for event in pending:
                 if isinstance(event, Exception):
@@ -2519,84 +2458,6 @@ class CopilotSession:
             pending.clear()
             unsubscribe()
             self._response_waits.discard(fail_disconnected)
-
-    async def _send_with_completion(
-        self, params: dict[str, Any]
-    ) -> tuple[SessionEvent | None, bool] | None:
-        if self._completion_rpc_unsupported:
-            return None
-        if self._destroyed:
-            raise RuntimeError("Session is disconnected")
-        dispatched: set[str] = set()
-        boundary: str | None = None
-        delivered = asyncio.Event()
-        closed = asyncio.Event()
-
-        def handler(event: SessionEvent) -> None:
-            if event.agent_id or not isinstance(
-                event.data, (SessionIdleData, SessionAutopilotStoppedData, SessionErrorData)
-            ):
-                return
-            event_id = str(event.id)
-            dispatched.add(event_id)
-            if event_id == boundary:
-                delivered.set()
-
-        unsubscribe = self.on(handler)
-        self._response_waits.add(closed.set)
-        closed_task = asyncio.create_task(closed.wait())
-        request = asyncio.create_task(
-            self._client.request("session.sendAndWait", {"sessionId": self.session_id, **params})
-        )
-
-        async def drain(event_id: str | None) -> None:
-            nonlocal boundary
-            if event_id is None or event_id in dispatched:
-                return
-            boundary = event_id
-            delivery = asyncio.create_task(delivered.wait())
-            try:
-                await asyncio.wait((delivery, closed_task), return_when=asyncio.FIRST_COMPLETED)
-                if not delivered.is_set():
-                    raise RuntimeError("Session closed before response completed")
-            finally:
-                delivery.cancel()
-                await asyncio.gather(delivery, return_exceptions=True)
-
-        try:
-            await asyncio.wait((request, closed_task), return_when=asyncio.FIRST_COMPLETED)
-            if not request.done():
-                raise RuntimeError("Session closed before response completed")
-            try:
-                result = request.result()
-            except (ProcessExitedError, OSError) as error:
-                if closed.is_set():
-                    raise RuntimeError("Session closed before response completed") from error
-                raise
-            except JsonRpcError as error:
-                if error.code == -32601:
-                    self._completion_rpc_unsupported = True
-                    return None
-                if isinstance(error.data, dict):
-                    await drain(error.data.get("completionEventId"))
-                raise
-            await drain(result.get("completionEventId"))
-            response = (
-                session_event_from_dict(result["response"])
-                if result.get("response") is not None
-                else None
-            )
-            if response is not None and (
-                response.agent_id or not isinstance(response.data, AssistantMessageData)
-            ):
-                raise RuntimeError("The runtime returned a non-assistant response")
-            return response, result["aborted"]
-        finally:
-            unsubscribe()
-            self._response_waits.discard(closed.set)
-            request.cancel()
-            closed_task.cancel()
-            await asyncio.gather(request, closed_task, return_exceptions=True)
 
     async def send_and_wait_typed(
         self,

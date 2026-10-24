@@ -311,8 +311,6 @@ pub enum SessionEventType {
     SessionBinaryAsset,
     #[serde(rename = "system.message")]
     SystemMessage,
-    #[serde(rename = "instruction.update")]
-    InstructionUpdate,
     #[serde(rename = "system.notification")]
     SystemNotification,
     #[serde(rename = "permission.requested")]
@@ -865,8 +863,6 @@ pub enum SessionEventData {
     SessionBinaryAsset(SessionBinaryAssetData),
     #[serde(rename = "system.message")]
     SystemMessage(SystemMessageData),
-    #[serde(rename = "instruction.update")]
-    InstructionUpdate(InstructionUpdateData),
     #[serde(rename = "system.notification")]
     SystemNotification(SystemNotificationData),
     #[serde(rename = "permission.requested")]
@@ -1735,9 +1731,6 @@ pub struct SessionModeNoticeDeliveredData {
     /// Model-visible transition notice persisted for a mid-turn delivery
     #[serde(skip_serializing_if = "Option::is_none")]
     pub content: Option<String>,
-    /// Whether the model-visible transition notice was persisted separately as an instruction.update event
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub instruction_update_persisted: Option<bool>,
     /// Mode established by the delivered transition notice
     pub mode: SessionMode,
 }
@@ -2626,68 +2619,6 @@ pub struct ResponsesReasoning {
     pub model: String,
 }
 
-/// How far the compaction's summarizer model calls had progressed when the compaction's outcome was decided. Stream statistics describe the latest model request; durationMs and attemptCount cover every request.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct CompactionCompleteSummarizerProgress {
-    /// Time since the latest request was dispatched, whether or not it had finished, in milliseconds. Absent when no request was dispatched.
-    #[doc(hidden)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) attempt_age_ms: Option<i64>,
-    /// Number of summarizer model requests dispatched, including retries
-    #[doc(hidden)]
-    pub(crate) attempt_count: i64,
-    /// Whether the latest request had already returned a response or an error. False when it was still in flight, such as when the compaction deadline cut it off; absent when no request was dispatched.
-    #[doc(hidden)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) attempt_settled: Option<bool>,
-    /// Time from the start of the compaction to the decision of its outcome, in milliseconds
-    #[doc(hidden)]
-    pub(crate) duration_ms: i64,
-    /// Time since the latest request's last stream event, or since its dispatch if none arrived, in milliseconds. Absent when no request was dispatched.
-    #[doc(hidden)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) idle_ms: Option<i64>,
-    /// Whether historical attachments and reasoning were dropped from the compaction's input because the session's previous compaction ran out of time.
-    #[doc(hidden)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) input_shrunk: Option<bool>,
-    /// Longest gap between two consecutive outputs of the latest request after its first reply text or tool-call output, in milliseconds. Excludes the still-open gap reported as sinceLastOutputMs; absent without such a gap.
-    #[doc(hidden)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) max_output_gap_after_answer_ms: Option<i64>,
-    /// Longest gap between two consecutive outputs of the latest request up to its first reply text or tool-call output, including the gap that ends there, in milliseconds. Excludes the still-open gap reported as sinceLastOutputMs; absent without such a gap.
-    #[doc(hidden)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) max_output_gap_before_answer_ms: Option<i64>,
-    /// Longest gap between two consecutive stream events of the latest request, in milliseconds. Excludes the still-open gap reported as idleMs; absent with fewer than two events.
-    #[doc(hidden)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) max_stream_event_gap_ms: Option<i64>,
-    /// Stream events of the latest request that carried observable output
-    #[doc(hidden)]
-    pub(crate) output_event_count: i64,
-    /// Time since the latest request's last observable output, in milliseconds. Unlike idleMs, keepalive deltas do not reset it. Absent when no output arrived.
-    #[doc(hidden)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) since_last_output_ms: Option<i64>,
-    /// Token-bearing stream events the latest request received, keepalive deltas included
-    #[doc(hidden)]
-    pub(crate) stream_event_count: i64,
-    /// Time from dispatching the latest request to its first reply text or tool-call output, in milliseconds. Reasoning does not count. Absent when no such output arrived.
-    #[doc(hidden)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) time_to_first_answer_output_ms: Option<i64>,
-    /// Time from dispatching the latest request to its first observable text, reasoning, or tool-call output, in milliseconds. Absent when no output arrived.
-    #[doc(hidden)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) time_to_first_output_ms: Option<i64>,
-    /// Time from dispatching the latest request to its first token-bearing stream event, in milliseconds. Absent when no stream event arrived.
-    #[doc(hidden)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) time_to_first_token_ms: Option<i64>,
-}
-
 /// Session event "session.compaction_complete". Conversation compaction results including success status, metrics, and optional error details
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -2761,10 +2692,6 @@ pub struct SessionCompactionCompleteData {
     pub status_code: Option<i64>,
     /// Whether compaction completed successfully
     pub success: bool,
-    /// How far the summarizer model calls had progressed when the outcome was decided, so a stalled summarizer can be told from a slow one
-    #[doc(hidden)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) summarizer_progress: Option<CompactionCompleteSummarizerProgress>,
     /// LLM-generated summary of the compacted conversation history
     #[serde(skip_serializing_if = "Option::is_none")]
     pub summary_content: Option<String>,
@@ -2982,9 +2909,6 @@ pub struct SessionFusionRouteFailedData {
     pub error_message: Option<String>,
     /// Concrete model selected as the deterministic fallback.
     pub fallback_model: String,
-    /// Identifier of the HydraFusion turn whose routing failed; its fallback phase runs under the same id. Absent on events written before it was recorded.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub fusion_id: Option<String>,
     /// HydraFusion routing policy requested for the turn.
     pub policy: String,
     /// Stable machine-readable reason for the routing failure.
@@ -4211,10 +4135,6 @@ pub struct AssistantUsageData {
     /// Updated prompt-cache expiration for this model call. Present only when the call establishes or refreshes known cache state.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cache_expires_at: Option<String>,
-    /// Request-scoped prompt-cache policy lifetime in seconds; the shortest lifetime for mixed known policies. Does not establish or refresh cache state. Omitted when the policy is unknown.
-    #[doc(hidden)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) cache_policy_ttl_seconds: Option<i64>,
     /// Number of tokens read from prompt cache
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cache_read_tokens: Option<i64>,
@@ -6283,25 +6203,6 @@ pub struct SystemMessageData {
     pub name: Option<String>,
     /// Message role: "system" for system prompts, "developer" for developer-injected instructions
     pub role: SystemMessageRole,
-}
-
-/// Session event "instruction.update". An authoritative developer-instruction update. Event order defines instruction order. Persistent updates are durable and restore across replay, resume, rewind, fork, and compaction; turn-scoped updates must be emitted with ephemeral=true and are never restored.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct InstructionUpdateData {
-    /// Authority responsible for the update.
-    pub authority: InstructionUpdateAuthority,
-    /// Earliest legal insertion boundary.
-    pub boundary: InstructionUpdateBoundary,
-    /// Authoritative instruction text. Empty or whitespace-only content is rejected.
-    pub content: String,
-    /// Deterministic behavior when the active provider cannot represent the update.
-    pub fallback: InstructionUpdateFallback,
-    /// Whether the update persists beyond the current turn.
-    pub lifetime: InstructionUpdateLifetime,
-    /// Optional stable source name for diagnostics and future host-authored updates.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub name: Option<String>,
 }
 
 /// Session event "system.notification". System-generated notification for runtime events like background task completion
@@ -11646,69 +11547,6 @@ pub enum SystemMessageRole {
     /// Developer instruction message.
     #[serde(rename = "developer")]
     Developer,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// Authority responsible for an instruction update
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum InstructionUpdateAuthority {
-    /// The runtime generated the instruction.
-    #[serde(rename = "runtime")]
-    Runtime,
-    /// The SDK host supplied the instruction.
-    #[serde(rename = "host")]
-    Host,
-    /// Managed policy supplied the instruction.
-    #[serde(rename = "managedPolicy")]
-    ManagedPolicy,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// Earliest legal insertion boundary for an instruction update
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum InstructionUpdateBoundary {
-    /// Insert after the current tool-result run and before the next model request.
-    #[serde(rename = "afterToolResults")]
-    AfterToolResults,
-    /// Insert immediately before the next model request at a provider-legal boundary.
-    #[serde(rename = "nextModelRequest")]
-    NextModelRequest,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// Deterministic behavior when the active provider cannot represent the requested update
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum InstructionUpdateFallback {
-    /// Rebuild the leading system prompt rather than silently dropping the update.
-    #[serde(rename = "rebuildSystemPrompt")]
-    RebuildSystemPrompt,
-    /// Reject the update without changing authoritative instructions.
-    #[serde(rename = "reject")]
-    Reject,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// How long an instruction update remains authoritative
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum InstructionUpdateLifetime {
-    /// Persists in event order across replay, resume, rewind, fork, and compaction.
-    #[serde(rename = "persistent")]
-    Persistent,
-    /// Applies only to the current turn and is not restored from durable history.
-    #[serde(rename = "turn")]
-    Turn,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]

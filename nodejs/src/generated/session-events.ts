@@ -94,7 +94,6 @@ export type SessionEvent =
   | HookProgressEvent
   | BinaryAssetEvent
   | SystemMessageEvent
-  | InstructionUpdateEvent
   | SystemNotificationEvent
   | PermissionRequestedEvent
   | PermissionCompletedEvent
@@ -1268,40 +1267,6 @@ export type SystemMessageRole =
   | "system"
   /** Developer instruction message. */
   | "developer";
-/**
- * Authority responsible for an instruction update
- */
-export type InstructionUpdateAuthority =
-  /** The runtime generated the instruction. */
-  | "runtime"
-  /** The SDK host supplied the instruction. */
-  | "host"
-  /** Managed policy supplied the instruction. */
-  | "managedPolicy";
-/**
- * Earliest legal insertion boundary for an instruction update
- */
-export type InstructionUpdateBoundary =
-  /** Insert after the current tool-result run and before the next model request. */
-  | "afterToolResults"
-  /** Insert immediately before the next model request at a provider-legal boundary. */
-  | "nextModelRequest";
-/**
- * Deterministic behavior when the active provider cannot represent the requested update
- */
-export type InstructionUpdateFallback =
-  /** Rebuild the leading system prompt rather than silently dropping the update. */
-  | "rebuildSystemPrompt"
-  /** Reject the update without changing authoritative instructions. */
-  | "reject";
-/**
- * How long an instruction update remains authoritative
- */
-export type InstructionUpdateLifetime =
-  /** Persists in event order across replay, resume, rewind, fork, and compaction. */
-  | "persistent"
-  /** Applies only to the current turn and is not restored from durable history. */
-  | "turn";
 /**
  * Structured metadata identifying what triggered this notification
  */
@@ -3023,10 +2988,6 @@ export interface ModeNoticeDeliveredData {
    * Model-visible transition notice persisted for a mid-turn delivery
    */
   content?: string;
-  /**
-   * Whether the model-visible transition notice was persisted separately as an instruction.update event
-   */
-  instructionUpdatePersisted?: boolean;
   mode: SessionMode;
 }
 /**
@@ -4491,12 +4452,6 @@ export interface CompactionCompleteData {
    */
   success: boolean;
   /**
-   * How far the summarizer model calls had progressed when the outcome was decided, so a stalled summarizer can be told from a slow one
-   *
-   * @internal
-   */
-  summarizerProgress?: CompactionCompleteSummarizerProgress;
-  /**
    * LLM-generated summary of the compacted conversation history
    */
   summaryContent?: string;
@@ -4638,102 +4593,6 @@ export interface ResponsesReasoning {
    * Provider model whose reasoning settings this boundary records
    */
   model: string;
-}
-/**
- * How far the compaction's summarizer model calls had progressed when the compaction's outcome was decided. Stream statistics describe the latest model request; durationMs and attemptCount cover every request.
- */
-/** @internal */
-export interface CompactionCompleteSummarizerProgress {
-  /**
-   * Time since the latest request was dispatched, whether or not it had finished, in milliseconds. Absent when no request was dispatched.
-   *
-   * @internal
-   */
-  attemptAgeMs?: number;
-  /**
-   * Number of summarizer model requests dispatched, including retries
-   *
-   * @internal
-   */
-  attemptCount: number;
-  /**
-   * Whether the latest request had already returned a response or an error. False when it was still in flight, such as when the compaction deadline cut it off; absent when no request was dispatched.
-   *
-   * @internal
-   */
-  attemptSettled?: boolean;
-  /**
-   * Time from the start of the compaction to the decision of its outcome, in milliseconds
-   *
-   * @internal
-   */
-  durationMs: number;
-  /**
-   * Time since the latest request's last stream event, or since its dispatch if none arrived, in milliseconds. Absent when no request was dispatched.
-   *
-   * @internal
-   */
-  idleMs?: number;
-  /**
-   * Whether historical attachments and reasoning were dropped from the compaction's input because the session's previous compaction ran out of time.
-   *
-   * @internal
-   */
-  inputShrunk?: boolean;
-  /**
-   * Longest gap between two consecutive outputs of the latest request after its first reply text or tool-call output, in milliseconds. Excludes the still-open gap reported as sinceLastOutputMs; absent without such a gap.
-   *
-   * @internal
-   */
-  maxOutputGapAfterAnswerMs?: number;
-  /**
-   * Longest gap between two consecutive outputs of the latest request up to its first reply text or tool-call output, including the gap that ends there, in milliseconds. Excludes the still-open gap reported as sinceLastOutputMs; absent without such a gap.
-   *
-   * @internal
-   */
-  maxOutputGapBeforeAnswerMs?: number;
-  /**
-   * Longest gap between two consecutive stream events of the latest request, in milliseconds. Excludes the still-open gap reported as idleMs; absent with fewer than two events.
-   *
-   * @internal
-   */
-  maxStreamEventGapMs?: number;
-  /**
-   * Stream events of the latest request that carried observable output
-   *
-   * @internal
-   */
-  outputEventCount: number;
-  /**
-   * Time since the latest request's last observable output, in milliseconds. Unlike idleMs, keepalive deltas do not reset it. Absent when no output arrived.
-   *
-   * @internal
-   */
-  sinceLastOutputMs?: number;
-  /**
-   * Token-bearing stream events the latest request received, keepalive deltas included
-   *
-   * @internal
-   */
-  streamEventCount: number;
-  /**
-   * Time from dispatching the latest request to its first reply text or tool-call output, in milliseconds. Reasoning does not count. Absent when no such output arrived.
-   *
-   * @internal
-   */
-  timeToFirstAnswerOutputMs?: number;
-  /**
-   * Time from dispatching the latest request to its first observable text, reasoning, or tool-call output, in milliseconds. Absent when no output arrived.
-   *
-   * @internal
-   */
-  timeToFirstOutputMs?: number;
-  /**
-   * Time from dispatching the latest request to its first token-bearing stream event, in milliseconds. Absent when no stream event arrived.
-   *
-   * @internal
-   */
-  timeToFirstTokenMs?: number;
 }
 /**
  * Session event "session.task_complete". Task completion notification with summary from the agent
@@ -5043,10 +4902,6 @@ export interface FusionRouteFailedData {
    * Concrete model selected as the deterministic fallback.
    */
   fallbackModel: string;
-  /**
-   * Identifier of the HydraFusion turn whose routing failed; its fallback phase runs under the same id. Absent on events written before it was recorded.
-   */
-  fusionId?: string;
   /**
    * HydraFusion routing policy requested for the turn.
    */
@@ -7281,12 +7136,6 @@ export interface AssistantUsageData {
    * Updated prompt-cache expiration for this model call. Present only when the call establishes or refreshes known cache state.
    */
   cacheExpiresAt?: string;
-  /**
-   * Request-scoped prompt-cache policy lifetime in seconds; the shortest lifetime for mixed known policies. Does not establish or refresh cache state. Omitted when the policy is unknown.
-   *
-   * @internal
-   */
-  cachePolicyTtlSeconds?: number;
   /**
    * Number of tokens read from prompt cache
    */
@@ -9823,53 +9672,6 @@ export interface SystemMessageMetadata {
   variables?: {
     [k: string]: JsonValue | undefined;
   };
-}
-/**
- * Session event "instruction.update". An authoritative developer-instruction update. Event order defines instruction order. Persistent updates are durable and restore across replay, resume, rewind, fork, and compaction; turn-scoped updates must be emitted with ephemeral=true and are never restored.
- */
-export interface InstructionUpdateEvent {
-  /**
-   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-   */
-  agentId?: string;
-  data: InstructionUpdateData;
-  /**
-   * When true, the event is transient and not persisted to the session event log on disk
-   */
-  ephemeral?: boolean;
-  /**
-   * Unique event identifier (UUID v4), generated when the event is emitted
-   */
-  id: string;
-  /**
-   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
-   */
-  parentId: string | null;
-  /**
-   * ISO 8601 timestamp when the event was created
-   */
-  timestamp: string;
-  /**
-   * Type discriminator. Always "instruction.update".
-   */
-  type: "instruction.update";
-}
-/**
- * An authoritative developer-instruction update. Event order defines instruction order. Persistent updates are durable and restore across replay, resume, rewind, fork, and compaction; turn-scoped updates must be emitted with ephemeral=true and are never restored.
- */
-export interface InstructionUpdateData {
-  authority: InstructionUpdateAuthority;
-  boundary: InstructionUpdateBoundary;
-  /**
-   * Authoritative instruction text. Empty or whitespace-only content is rejected.
-   */
-  content: string;
-  fallback: InstructionUpdateFallback;
-  lifetime: InstructionUpdateLifetime;
-  /**
-   * Optional stable source name for diagnostics and future host-authored updates.
-   */
-  name?: string;
 }
 /**
  * Session event "system.notification". System-generated notification for runtime events like background task completion

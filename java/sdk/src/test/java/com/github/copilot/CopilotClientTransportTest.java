@@ -37,7 +37,6 @@ import org.junit.jupiter.params.provider.ValueSource;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.copilot.ffi.FfiRuntimeHost;
-import com.github.copilot.generated.rpc.EntraAuthConfig;
 import com.github.copilot.rpc.CopilotClientOptions;
 import com.github.copilot.rpc.InProcessRuntimeConnection;
 import com.github.copilot.rpc.RuntimeConnection;
@@ -54,28 +53,6 @@ import com.github.copilot.rpc.UriRuntimeConnection;
  */
 @AllowCopilotExperimental
 class CopilotClientTransportTest {
-
-    @ParameterizedTest
-    @ValueSource(booleans = {false, true})
-    void legacyPingFallbackRequiresNoEntraConfiguration(boolean entra) throws Exception {
-        var options = new CopilotClientOptions().setConnection(RuntimeConnection.forInProcess());
-        if (entra) {
-            options.setEntra(new EntraAuthConfig("host-entra-client"));
-        }
-        try (var runtime = new FakeInProcessRuntime(); var client = new CopilotClient(options)) {
-            runtime.rejectConnect = true;
-            client.setInProcessTransportFactory(runtime::open);
-            if (entra) {
-                var failure = assertThrows(java.util.concurrent.ExecutionException.class,
-                        () -> client.start().get(10, TimeUnit.SECONDS));
-                assertTrue(failure.getCause().getMessage().contains("does not support Entra client configuration"));
-                assertFalse(runtime.pingReceived.get());
-            } else {
-                client.start().get(10, TimeUnit.SECONDS);
-                assertTrue(runtime.pingReceived.get());
-            }
-        }
-    }
 
     // ===== In-process routing =====
 
@@ -363,8 +340,6 @@ class CopilotClientTransportTest {
 
         private final AtomicBoolean opened = new AtomicBoolean();
         private final AtomicBoolean closed = new AtomicBoolean();
-        private final AtomicBoolean pingReceived = new AtomicBoolean();
-        private volatile boolean rejectConnect;
         private final CompletableFuture<JsonNode> callbackResponse = new CompletableFuture<>();
         private final BytePipe toClient;
         private final BytePipe toRuntime;
@@ -413,17 +388,9 @@ class CopilotClientTransportTest {
                     var response = MAPPER.createObjectNode();
                     response.put("jsonrpc", "2.0");
                     response.set("id", request.get("id"));
-                    var method = request.path("method").asText();
-                    if ("connect".equals(method) && rejectConnect) {
-                        response.putObject("error").put("code", -32601).put("message", "Method not found");
-                    } else {
-                        var result = response.putObject("result");
-                        if ("ping".equals(method)) {
-                            pingReceived.set(true);
-                        }
-                        if ("connect".equals(method) || "ping".equals(method)) {
-                            result.put("protocolVersion", SdkProtocolVersion.get());
-                        }
+                    var result = response.putObject("result");
+                    if ("connect".equals(request.path("method").asText())) {
+                        result.put("protocolVersion", SdkProtocolVersion.get());
                     }
                     writeMessage(runtimeOutput, response);
                 }
