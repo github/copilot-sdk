@@ -873,7 +873,7 @@ session, err := client.CreateSession(ctx, &copilot.SessionConfig{
 </details>
 
 <details>
-<summary><strong>C# / .NET</strong></summary>
+<summary><strong>.NET</strong></summary>
 
 <!-- docs-validate: skip -->
 ```csharp
