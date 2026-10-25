@@ -929,16 +929,6 @@ pub struct ImageGenerationConfig {
     /// enterprise policy.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub watermark: Option<bool>,
-    /// Experimental. Save generated and edited images under the session-state
-    /// directory's `images` folder and give the model each path as a
-    /// `saved_to:` line in the tool result. Defaults to true; set false to opt
-    /// out. Subagents follow
-    /// their parent's value unless they set their own. A failed save still
-    /// returns the image. Sessions without a local session-state directory
-    /// never save. Re-supply after cold resume. Does not enable image
-    /// generation.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub save_to_disk: Option<bool>,
 }
 
 impl ImageGenerationConfig {
@@ -956,12 +946,6 @@ impl ImageGenerationConfig {
     /// Request or opt out of the visible image label for this session.
     pub fn with_watermark(mut self, watermark: bool) -> Self {
         self.watermark = Some(watermark);
-        self
-    }
-
-    /// Save generated and edited images to the session folder, or opt out.
-    pub fn with_save_to_disk(mut self, save_to_disk: bool) -> Self {
-        self.save_to_disk = Some(save_to_disk);
         self
     }
 }
@@ -1131,20 +1115,6 @@ impl InfiniteSessionConfig {
     }
 }
 
-/// Where retrieved memories enter the model conversation.
-///
-/// **Experimental.** This type may change or be removed in a future release.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-#[non_exhaustive]
-pub enum MemoryMode {
-    /// Include memories in the system prompt (default).
-    #[default]
-    SystemPrompt,
-    /// Include memories in user messages.
-    UserPrompt,
-}
-
 /// Per-session configuration for the runtime memory feature.
 ///
 /// Supplied via [`SessionConfig::with_memory`] /
@@ -1152,49 +1122,31 @@ pub enum MemoryMode {
 /// without a memory configuration, the runtime applies its own default for the
 /// memory feature.
 ///
-/// Omitted [`mode`](Self::mode) preserves the runtime's system-prompt injection.
+/// The type is extensible: today it carries [`enabled`](Self::enabled), and
+/// further tuning knobs can be added as optional fields without a breaking
+/// change.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct MemoryConfiguration {
     /// Whether the memory feature is enabled for this session.
     pub enabled: bool,
-    /// "system-prompt" (default) places memories in the system prompt.
-    /// "user-prompt" places memories in generated user-role messages.
-    ///
-    /// **Experimental.** This option may change or be removed in a future release.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub mode: Option<MemoryMode>,
 }
 
 impl MemoryConfiguration {
     /// A configuration with the memory feature enabled.
     pub fn enabled() -> Self {
-        Self {
-            enabled: true,
-            mode: None,
-        }
+        Self { enabled: true }
     }
 
     /// A configuration with the memory feature disabled.
     pub fn disabled() -> Self {
-        Self {
-            enabled: false,
-            mode: None,
-        }
+        Self { enabled: false }
     }
 
     /// Set whether the memory feature is enabled.
     pub fn with_enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
-        self
-    }
-
-    /// Choose where retrieved memories enter the model conversation.
-    ///
-    /// **Experimental.** This method may change or be removed in a future release.
-    pub fn with_mode(mut self, mode: MemoryMode) -> Self {
-        self.mode = Some(mode);
         self
     }
 }
@@ -2502,7 +2454,7 @@ pub struct SessionConfig {
     /// receives the effective host, optional assigned session ID, and acquisition
     /// reason; its opaque registration ID is never exposed.
     pub github_token_provider: Option<Arc<dyn GitHubTokenProvider>>,
-    /// Deprecated legacy v1 remote behavior control:
+    /// Per-session remote behavior control:
     /// - `Off` — local only, no remote export (default)
     /// - `Export` — export session events to GitHub without
     ///   enabling remote steering
@@ -2541,10 +2493,6 @@ pub struct SessionConfig {
     /// session creation (fail-closed). When `None`, behaves exactly as before. Set via
     /// [`with_enable_managed_settings`](Self::with_enable_managed_settings).
     pub enable_managed_settings: Option<bool>,
-    /// Exact dotted setting paths excluded from fetched, device, and policy-helper
-    /// policy. Host-injected policy and availability checks are unaffected.
-    /// Not persisted; re-supply on resume. Does not enable self-fetching.
-    pub excluded_managed_settings: Option<Vec<String>>,
     /// When `Some(true)`, locked managed model controls are enforced for this
     /// session. Conflicting model changes are rejected; overridable managed
     /// defaults remain mutable. Set via
@@ -2898,7 +2846,6 @@ impl Default for SessionConfig {
             feature_flags: None,
             exp_assignments: None,
             enable_managed_settings: None,
-            excluded_managed_settings: None,
             enforce_managed_model_defaults: None,
             interactive_user: None,
             managed_settings: None,
@@ -3080,7 +3027,6 @@ impl SessionConfig {
             feature_flags: self.feature_flags,
             exp_assignments: self.exp_assignments,
             enable_managed_settings: self.enable_managed_settings,
-            excluded_managed_settings: self.excluded_managed_settings,
             enforce_managed_model_defaults: self.enforce_managed_model_defaults,
             interactive_user: self.interactive_user,
             is_experimental_mode: self.enable_experimental_mode,
@@ -3769,9 +3715,6 @@ impl SessionConfig {
     }
 
     /// Set per-session remote behavior.
-    #[deprecated(
-        note = "Legacy v1 remote-control compatibility is temporary and may be removed in a future release"
-    )]
     pub fn with_remote_session(
         mut self,
         mode: crate::generated::api_types::RemoteSessionMode,
@@ -3855,17 +3798,6 @@ impl SessionConfig {
     /// session creation (fail-closed).
     pub fn with_enable_managed_settings(mut self, enabled: bool) -> Self {
         self.enable_managed_settings = Some(enabled);
-        self
-    }
-
-    /// Exclude exact managed-setting paths from fetched, device, and helper policy.
-    /// Re-supply on resume; does not exclude host-injected policy or availability checks.
-    pub fn with_excluded_managed_settings<I, S>(mut self, paths: I) -> Self
-    where
-        I: IntoIterator<Item = S>,
-        S: Into<String>,
-    {
-        self.excluded_managed_settings = Some(paths.into_iter().map(Into::into).collect());
         self
     }
 
@@ -4125,7 +4057,7 @@ pub struct ResumeSessionConfig {
     /// Rotating GitHub token provider on resume. See
     /// [`SessionConfig::github_token_provider`].
     pub github_token_provider: Option<Arc<dyn GitHubTokenProvider>>,
-    /// Deprecated legacy v1 remote behavior control on resume. See
+    /// Per-session remote behavior control on resume. See
     /// [`SessionConfig::remote_session`].
     pub remote_session: Option<crate::generated::api_types::RemoteSessionMode>,
     /// Forward sub-agent streaming events to this connection on resume.
@@ -4150,9 +4082,6 @@ pub struct ResumeSessionConfig {
     /// process restart. Set via
     /// [`with_enable_managed_settings`](Self::with_enable_managed_settings).
     pub enable_managed_settings: Option<bool>,
-    /// Exact dotted setting paths to exclude, as on [`SessionConfig`].
-    /// Omitting restores full enforcement on warm and cold resume.
-    pub excluded_managed_settings: Option<Vec<String>>,
     /// Re-applies managed model lock enforcement on resume. See
     /// [`SessionConfig::enforce_managed_model_defaults`].
     pub enforce_managed_model_defaults: Option<bool>,
@@ -4514,7 +4443,6 @@ impl ResumeSessionConfig {
             feature_flags: self.feature_flags,
             exp_assignments: self.exp_assignments,
             enable_managed_settings: self.enable_managed_settings,
-            excluded_managed_settings: self.excluded_managed_settings,
             enforce_managed_model_defaults: self.enforce_managed_model_defaults,
             interactive_user: self.interactive_user,
             is_experimental_mode: self.enable_experimental_mode,
@@ -4629,7 +4557,6 @@ impl ResumeSessionConfig {
             feature_flags: None,
             exp_assignments: None,
             enable_managed_settings: None,
-            excluded_managed_settings: None,
             enforce_managed_model_defaults: None,
             interactive_user: None,
             managed_settings: None,
@@ -5273,9 +5200,6 @@ impl ResumeSessionConfig {
     }
 
     /// Set per-session remote behavior on resume.
-    #[deprecated(
-        note = "Legacy v1 remote-control compatibility is temporary and may be removed in a future release"
-    )]
     pub fn with_remote_session(
         mut self,
         mode: crate::generated::api_types::RemoteSessionMode,
@@ -5370,16 +5294,6 @@ impl ResumeSessionConfig {
     /// See [`SessionConfig::with_enable_managed_settings`].
     pub fn with_enable_managed_settings(mut self, enabled: bool) -> Self {
         self.enable_managed_settings = Some(enabled);
-        self
-    }
-
-    /// Exclude exact managed-setting paths on resume, as on [`SessionConfig`].
-    pub fn with_excluded_managed_settings<I, S>(mut self, paths: I) -> Self
-    where
-        I: IntoIterator<Item = S>,
-        S: Into<String>,
-    {
-        self.excluded_managed_settings = Some(paths.into_iter().map(Into::into).collect());
         self
     }
 

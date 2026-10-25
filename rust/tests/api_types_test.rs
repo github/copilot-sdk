@@ -17,42 +17,14 @@ use github_copilot_sdk::rpc::{
     McpOauthLoginRequest, McpServer, McpStopServerRequest, ModelSetAllowedModelsRequest,
     ModelSetAllowedModelsResult, ModelSwitchAutoTierRequest, ModelSwitchAutoTierResult,
     ModelSwitchAutoTierStatus, QueuePendingItems, QueuePendingItemsKind, SandboxConfig,
-    SendAgentMode, SessionMcpListConfiguredResult, SubagentSettings, TasksStartAgentRequest,
-    ToolsGetSubagentSettingsResult, UnsupportedEnqueueCommandResult, UpdateSubagentSettingsRequest,
+    SendAgentMode, SessionMcpListConfiguredResult, TasksStartAgentRequest,
+    UnsupportedEnqueueCommandResult,
 };
 use github_copilot_sdk::session_events::{
     McpServerStatus, PermissionRequest, PermissionRequestedData, RecommendedAutoTier,
     SessionEventData, TypedSessionEvent,
 };
 use github_copilot_sdk::{AutoTier, AutoTierPreference, SetModelOptions};
-
-#[test]
-fn subagent_settings_getter_and_setter_share_settings_without_reconstruction() {
-    for subagents in [
-        serde_json::json!(null),
-        serde_json::json!({}),
-        serde_json::json!({
-            "agents": {
-                "rubber-duck": {
-                    "autoInvoke": false,
-                    "model": "review-model",
-                    "providerId": "review-provider"
-                }
-            },
-            "disabledSubagents": ["explore"],
-            "maxConcurrency": 7,
-            "maxDepth": 3
-        }),
-    ] {
-        let wire = serde_json::json!({ "subagents": subagents });
-        let result: ToolsGetSubagentSettingsResult = serde_json::from_value(wire.clone()).unwrap();
-        let settings: SubagentSettings = result.subagents;
-        let request = UpdateSubagentSettingsRequest {
-            subagents: settings,
-        };
-        assert_eq!(serde_json::to_value(request).unwrap(), wire);
-    }
-}
 
 #[test]
 fn managed_permission_results_reuse_operations_without_reconstruction() {
@@ -941,6 +913,7 @@ mod released_type_shapes {
         SessionMetadataContextInfoResultContextInfo,
         SessionMetadataGetContextAttributionResultContextAttribution,
         SessionMetadataSnapshotResultWorkspace, SessionMetadataSnapshotWorkspace,
+        UpdateSubagentSettingsRequestSubagents,
     };
 
     trait Released {
@@ -965,6 +938,7 @@ mod released_type_shapes {
         SendMessagesRequestResponseFormatType,
         SessionMetadataSnapshotWorkspace,
         SessionMetadataSnapshotResultWorkspace,
+        UpdateSubagentSettingsRequestSubagents,
     );
 
     #[test]

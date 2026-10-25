@@ -23,7 +23,6 @@ use tempfile::TempDir;
 mod windows_process_tree;
 
 #[tokio::test]
-#[allow(deprecated)]
 async fn should_forward_advanced_session_creation_options_to_the_cli() {
     let fake = FakeCli::new();
     let client = Client::start(fake.client_options("advanced-create-client-token"))

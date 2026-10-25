@@ -66,12 +66,6 @@ internal sealed partial class FfiRuntimeHost : IDisposable
     private bool _disposed;
     private bool _cleanupRetryScheduled;
 
-    // Strong handle to this host, passed to native code as the outbound callback's
-    // user_data and freed only once native code can no longer call back. Native code
-    // is not a GC root, so this handle is what keeps the host (and every task awaiting
-    // its inbound frames) alive while the caller holds no other reference to it.
-    private GCHandle _selfHandle;
-
     private FfiRuntimeHost(string libraryPath, string? cliEntrypoint, IReadOnlyDictionary<string, string>? environment, IReadOnlyList<string> args, ILogger logger)
         : this(libraryPath, cliEntrypoint, environment, args, logger, null, null, null)
     {
@@ -281,14 +275,6 @@ internal sealed partial class FfiRuntimeHost : IDisposable
         _receiveStream.Feed(buffer);
     }
 
-    private void DisposeNativeCallback()
-    {
-        if (_selfHandle.IsAllocated)
-        {
-            _selfHandle.Free();
-        }
-    }
-
     public void Dispose()
     {
         lock (_lifecycleLock)
@@ -397,6 +383,10 @@ internal sealed partial class FfiRuntimeHost : IDisposable
     private static bool s_resolverRegistered;
     private static string? s_resolvedLibraryPath;
 
+    // A normal (non-pinned) handle to this instance, passed to the native side as
+    // the callback's user_data so the static outbound callback can route back here.
+    private GCHandle _selfHandle;
+
     /// <summary>
     /// Registers (once) a process-wide <see cref="NativeLibrary.SetDllImportResolver"/>
     /// that maps <see cref="LibraryName"/> to the absolute <c>runtime.node</c> path so the
@@ -457,6 +447,14 @@ internal sealed partial class FfiRuntimeHost : IDisposable
     private static bool NativeConnectionSetUiThreadHandler(uint connectionId, bool enabled) => ConnectionSetUiThreadHandler(connectionId, enabled);
     private static bool NativeConnectionRunUiAction(uint connectionId, uint actionId) => ConnectionRunUiAction(connectionId, actionId);
 
+    private void DisposeNativeCallback()
+    {
+        if (_selfHandle.IsAllocated)
+        {
+            _selfHandle.Free();
+        }
+    }
+
     [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
     private static void OnOutboundStatic(IntPtr userData, IntPtr bytesPtr, nuint bytesLen)
     {
@@ -514,11 +512,8 @@ internal sealed partial class FfiRuntimeHost : IDisposable
     // ---- Legacy interop: delegate-based P/Invoke for netstandard2.0 ----
     // netstandard2.0 has neither LibraryImport, NativeLibrary, nor UnmanagedCallersOnly,
     // so the cdylib is loaded through a hand-rolled dlopen/LoadLibrary shim and each
-    // export is bound to a [UnmanagedFunctionPointer] delegate. As on the modern path, the
-    // outbound callback is static and reaches this instance through the _selfHandle
-    // user_data. A marshaled delegate's native thunk only weakly references the delegate,
-    // so an instance delegate stored on an unreachable host would be collected while
-    // native code can still call it.
+    // export is bound to a [UnmanagedFunctionPointer] delegate. The outbound callback is
+    // an instance delegate kept alive in a field for the connection's lifetime.
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     private delegate uint HostStartDelegate(
@@ -568,8 +563,9 @@ internal sealed partial class FfiRuntimeHost : IDisposable
     private static ConnectionSetUiThreadHandlerDelegate? s_connectionSetUiThreadHandler;
     private static ConnectionRunUiActionDelegate? s_connectionRunUiAction;
 
-    // Static so the marshaled function pointer handed to native code is never collected.
-    private static readonly OutboundCallbackDelegate s_onOutbound = OnOutboundStatic;
+    // Held for the connection's lifetime so the marshaled function pointer handed to the
+    // native side is not collected while Rust may still invoke it.
+    private OutboundCallbackDelegate? _outboundDelegate;
 
     private static void PrepareNativeLibrary(string libraryPath)
     {
@@ -619,11 +615,11 @@ internal sealed partial class FfiRuntimeHost : IDisposable
 
     private uint NativeOpenConnection(uint serverId)
     {
-        _selfHandle = GCHandle.Alloc(this);
+        _outboundDelegate = OnOutbound;
         return s_connectionOpen!(
             serverId,
-            s_onOutbound,
-            GCHandle.ToIntPtr(_selfHandle),
+            _outboundDelegate,
+            IntPtr.Zero,
             null, UIntPtr.Zero,
             null, UIntPtr.Zero,
             null, UIntPtr.Zero);
@@ -643,16 +639,15 @@ internal sealed partial class FfiRuntimeHost : IDisposable
     private static bool NativeConnectionSetUiThreadHandler(uint connectionId, bool enabled) => s_connectionSetUiThreadHandler!(connectionId, enabled);
     private static bool NativeConnectionRunUiAction(uint connectionId, uint actionId) => s_connectionRunUiAction!(connectionId, actionId);
 
-    private static void OnOutboundStatic(IntPtr userData, IntPtr bytesPtr, UIntPtr bytesLen)
+    private void DisposeNativeCallback() => _outboundDelegate = null;
+
+    private void OnOutbound(IntPtr userData, IntPtr bytesPtr, UIntPtr bytesLen)
     {
-        if (userData == IntPtr.Zero || bytesPtr == IntPtr.Zero || bytesLen == UIntPtr.Zero)
+        if (bytesPtr == IntPtr.Zero || bytesLen == UIntPtr.Zero)
         {
             return;
         }
-        if (GCHandle.FromIntPtr(userData).Target is FfiRuntimeHost self)
-        {
-            self.FeedInbound(bytesPtr, bytesLen);
-        }
+        FeedInbound(bytesPtr, bytesLen);
     }
 
     /// <summary>

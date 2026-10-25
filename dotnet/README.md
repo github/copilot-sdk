@@ -37,22 +37,20 @@ dotnet run --file dotnet/samples/ManualToolResume.cs
 
 ## Quick Start
 
-Experimental AHP hosting requires explicit admission and transport:
-`client.StartAhpHostAsync(new() { Authentication = new AhpHostAuthentication.GitHub(), LocalServer = new() })`.
-Every client mode requires `GitHub`, `None`, or `Custom`; `None` preserves listener secrets.
-`new AhpHostAuthentication.Custom("owner", async (token, cancellationToken) => ...)`
-validates decrypted admission tokens; return `new AhpAuthenticationResult("owner", futureRfc3339)`
-or null to reject. Expiration is mandatory; exceptions, malformed/expired timestamps and
-identity mismatches fail closed. Observe cancellation; late results cannot admit clients.
-Tokens never configure GitHub/inference credentials. Create/resume callbacks receive
-trusted tagged `request.Authentication` beside, never inside, `request.Config`.
-Mission Control requires `GitHub` and `GitHubEnvironment = new() { Name = "My host", ComputeId = "compute-id" }`.
-Configure either transport or both; there is no implicit local listener.
-`Url`, `Token`, and `Pid` are nullable; `EnvironmentId` identifies configured GitHub hosting.
-`ListSessionsAsync()` lists live/dormant publications. Top-level `ComputeId` selects the
-durable catalog and must agree with `GitHubEnvironment.ComputeId`; omission uses persisted identity.
-Publication survives shutdown; dormant sessions require a resume callback.
-Environment list/get/delete operations use generated RPC APIs.
+For experimental in-process AHP hosting, select a transport explicitly:
+`client.StartAhpHostAsync(new AhpHostOptions { LocalServer = new() })`.
+For GitHub Mission Control, set
+`GitHubEnvironment = new() { Name = "My host", ComputeId = "compute-id" }`
+instead, or configure both transports. GitHub environment name and compute ID are
+required; there is no implicit local listener. The host's `Url`, `Token`, and `Pid`
+are nullable; `EnvironmentId` contains the GitHub environment ID when configured.
+Call `host.ListSessionsAsync()` to read the complete advertised catalog of live
+and dormant sessions.
+Set top-level `ComputeId` to reuse the durable catalog across local and Mission
+Control hosting; it must agree with `GitHubEnvironment.ComputeId` when both are
+supplied. The runtime persists an omitted local-only identity. Publication
+survives host shutdown; dormant application sessions require your resume callback.
+Environment list/get/delete operations are available only through the generated RPC API.
 See [runtime-supervised AHP hosting](../docs/runtime-supervised-host.md) for creation
 and resume callbacks, resident-session publication, ownership, and shared-snapshot E2Es.
 
@@ -112,6 +110,7 @@ new CopilotClient(CopilotClientOptions? options = null)
 - `LogLevel` - Runtime log level. Accepts well-known values `CopilotLogLevel.None`, `Error`, `Warning`, `Info`, `Debug`, `All`. Defaults to null (the runtime's own default).
 - `WorkingDirectory` - Working directory for the runtime process. When not set, the spawned runtime inherits the calling application's current working directory.
 - `BaseDirectory` - Base directory for Copilot data (session state, config, etc.). Sets `COPILOT_HOME` on the spawned runtime process. When not set, the runtime defaults to `~/.copilot`. Useful in restricted environments where only specific directories are writable. Ignored when connecting via `RuntimeConnection.ForUri(...)`.
+- `EnableRemoteSessions` - Enables remote-session features.
 - `Environment` - Environment variables to pass to the runtime process.
 
   For the native standalone runtime, set the `Environment` dictionary entry

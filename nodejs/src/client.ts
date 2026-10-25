@@ -45,12 +45,7 @@ import type {
 } from "./generated/rpc.js";
 import { getSdkProtocolVersion } from "./sdkProtocolVersion.js";
 import { CopilotSession } from "./session.js";
-import {
-    AhpHost,
-    type AhpHostExit,
-    type AhpHostOptions,
-    type AhpSessionCreateRequest,
-} from "./host.js";
+import { AhpHost, type AhpHostExit, type AhpHostOptions } from "./host.js";
 import type { FfiRuntimeHost } from "./ffiRuntimeHost.js";
 import { ensureRuntimeBundle } from "./runtimeArtifacts.js";
 import { COPILOT_CLI_VERSION } from "./cliVersion.js";
@@ -510,20 +505,7 @@ export class CopilotClient {
     private startPromise: Promise<void> | null = null;
     private sessions: Map<string, CopilotSession> = new Map();
     private hostExitCallbacks = new Map<string, (exit: AhpHostExit) => void>();
-    private hostSessionFactories = new Map<
-        string,
-        Pick<AhpHostOptions, "createSession" | "resumeSession" | "onSessionReleased"> & {
-            policy: { mode: "github" | "none" | "custom"; requireIdentity?: string };
-        }
-    >();
-    private hostAuthenticators = new Map<
-        string,
-        Extract<AhpHostOptions["authentication"], { mode: "custom" }>
-    >();
-    private hostAuthentications = new Map<
-        string,
-        { hostId: string; controller: AbortController }
-    >();
+    private hostSessionFactories = new Map<string, AhpHostOptions>();
     private hostHandoffs = new Map<
         string,
         {
@@ -544,7 +526,6 @@ export class CopilotClient {
     /** Resolved environment passed to the spawned runtime. */
     private resolvedEnv: Record<string, string | undefined>;
     private options: {
-        entra?: CopilotClientOptions["entra"];
         workingDirectory: string;
         logLevel?: string;
         gitHubToken?: string;
@@ -552,6 +533,7 @@ export class CopilotClient {
         telemetry?: TelemetryConfig;
         baseDirectory?: string;
         sessionIdleTimeoutSeconds: number;
+        enableRemoteSessions: boolean;
         mode: CopilotClientMode;
         clientInfo?: CopilotClientInfo;
     };
@@ -802,7 +784,6 @@ export class CopilotClient {
         this.connectionExtraArgs = [...connArgs];
 
         this.options = {
-            entra: options.entra ? { ...options.entra } : undefined,
             workingDirectory: options.workingDirectory ?? process.cwd(),
             logLevel: options.logLevel,
             gitHubToken: options.gitHubToken,
@@ -811,6 +792,7 @@ export class CopilotClient {
             telemetry: options.telemetry,
             baseDirectory: options.baseDirectory,
             sessionIdleTimeoutSeconds: options.sessionIdleTimeoutSeconds ?? 0,
+            enableRemoteSessions: options.enableRemoteSessions ?? false,
             mode: options.mode ?? "copilot-cli",
             clientInfo: options.clientInfo,
         };
@@ -1932,11 +1914,11 @@ export class CopilotClient {
                 memory: config.memory,
                 gitHubToken: config.gitHubToken,
                 gitHubTokenProviderRegistrationId,
+                remoteSession: config.remoteSession,
                 cloud: config.cloud,
                 featureFlags: config.featureFlags,
                 expAssignments: config.expAssignments,
                 enableManagedSettings: config.enableManagedSettings,
-                excludedManagedSettings: config.excludedManagedSettings,
                 enforceManagedModelDefaults: config.enforceManagedModelDefaults,
                 interactiveUser: config.interactiveUser,
                 managedSettings: config.managedSettings,
@@ -2246,11 +2228,11 @@ export class CopilotClient {
                 continuePendingWork: config.continuePendingWork,
                 gitHubToken: config.gitHubToken,
                 gitHubTokenProviderRegistrationId,
+                remoteSession: config.remoteSession,
                 openCanvases: config.openCanvases,
                 featureFlags: config.featureFlags,
                 expAssignments: config.expAssignments,
                 enableManagedSettings: config.enableManagedSettings,
-                excludedManagedSettings: config.excludedManagedSettings,
                 enforceManagedModelDefaults: config.enforceManagedModelDefaults,
                 interactiveUser: config.interactiveUser,
                 managedSettings: config.managedSettings,
@@ -2339,23 +2321,6 @@ export class CopilotClient {
      * @experimental
      */
     async startAhpHost(options: AhpHostOptions): Promise<AhpHost> {
-        const authentication = options?.authentication;
-        if (!authentication || !["github", "none", "custom"].includes(authentication.mode)) {
-            throw new Error("An explicit authentication mode is required");
-        }
-        if (
-            authentication.mode === "custom" &&
-            (typeof authentication.requireIdentity !== "string" ||
-                !authentication.requireIdentity.trim() ||
-                typeof authentication.authenticate !== "function")
-        ) {
-            throw new Error(
-                "Custom authentication requires a nonempty requireIdentity and authenticate callback"
-            );
-        }
-        if (authentication.mode !== "github" && options.githubEnvironment) {
-            throw new Error("githubEnvironment requires github authentication");
-        }
         if (!options?.localServer && !options?.githubEnvironment) {
             throw new Error("At least one of localServer or githubEnvironment is required");
         }
@@ -2364,13 +2329,8 @@ export class CopilotClient {
         }
         const rpc = this.rpc;
         const hostId = randomUUID();
-        if (authentication.mode === "custom") {
-            this.hostAuthenticators.set(hostId, { ...authentication });
-        }
         const {
             computeId,
-            workspace,
-            allowCreatingNewSessions,
             localServer,
             githubEnvironment,
             onExit,
@@ -2383,13 +2343,6 @@ export class CopilotClient {
                 createSession,
                 resumeSession,
                 onSessionReleased,
-                policy: {
-                    mode: authentication.mode,
-                    requireIdentity:
-                        authentication.mode === "custom"
-                            ? authentication.requireIdentity
-                            : undefined,
-                },
             });
         }
         if (onExit) {
@@ -2398,17 +2351,11 @@ export class CopilotClient {
         try {
             const info = await rpc.host.start({
                 hostId,
-                authentication:
-                    authentication.mode === "custom"
-                        ? { mode: "custom", requireIdentity: authentication.requireIdentity }
-                        : { mode: authentication.mode },
                 computeId,
-                workspace,
                 localServer,
                 githubEnvironment,
                 sessionFactory: createSession ? true : undefined,
                 resumeFactory: resumeSession ? true : undefined,
-                allowCreatingNewSessions,
             });
             return new AhpHost(
                 info,
@@ -2417,13 +2364,7 @@ export class CopilotClient {
                 },
                 (sessionId) => rpc.host.publishSession({ hostId, sessionId }),
                 () => rpc.host.listSessions({ hostId }),
-                (sessionId) => rpc.host.unpublishSession({ hostId, sessionId }),
-                async (allowed) => {
-                    await rpc.host.setSessionCreationPolicy({
-                        hostId,
-                        allowCreatingNewSessions: allowed,
-                    });
-                }
+                (sessionId) => rpc.host.unpublishSession({ hostId, sessionId })
             );
         } catch (error) {
             this.hostExitCallbacks.delete(hostId);
@@ -2452,7 +2393,6 @@ export class CopilotClient {
         for (const hostId of new Set([
             ...this.hostExitCallbacks.keys(),
             ...this.hostSessionFactories.keys(),
-            ...this.hostAuthenticators.keys(),
         ])) {
             this.handleHostExit({
                 hostId,
@@ -2463,13 +2403,6 @@ export class CopilotClient {
     }
 
     private releaseHostSessions(hostId: string): void {
-        this.hostAuthenticators.delete(hostId);
-        for (const [requestId, entry] of this.hostAuthentications) {
-            if (entry.hostId === hostId) {
-                this.hostAuthentications.delete(requestId);
-                entry.controller.abort();
-            }
-        }
         this.hostSessionFactories.delete(hostId);
         for (const [handoffId, entry] of this.hostHandoffs) {
             if (entry.hostId === hostId) this.releaseHostSession(handoffId);
@@ -2507,30 +2440,14 @@ export class CopilotClient {
         hostId: string;
         handoffId: string;
         resume?: boolean;
-        authentication?: AhpSessionCreateRequest["authentication"];
         config: Omit<SessionConfig, "onPermissionRequest"> & { configDir?: string };
     }): Promise<{ sessionId: string }> {
-        const authentication = params.authentication;
-        if (!authentication) {
-            throw new Error("AHP session handoff authentication is required");
-        }
         const options = this.hostSessionFactories.get(params.hostId);
         if (
             !(params.resume ? options?.resumeSession : options?.createSession) ||
             this.hostHandoffs.has(params.handoffId)
         ) {
             throw new Error("AHP session factory is unavailable or handoff already exists");
-        }
-        const policy = options!.policy;
-        const identity = (authentication as { identity?: unknown }).identity;
-        if (
-            authentication.mode !== policy.mode ||
-            (authentication.mode === "none"
-                ? identity !== undefined
-                : typeof identity !== "string" || !identity.trim()) ||
-            (policy.mode === "custom" && identity !== policy.requireIdentity)
-        ) {
-            throw new Error("AHP trusted authentication does not match host policy");
         }
         const entry: {
             hostId: string;
@@ -2567,14 +2484,12 @@ export class CopilotClient {
                     const { sessionId, ...resumeConfig } = config;
                     if (!sessionId) throw new Error("AHP resume requires sessionId");
                     return options!.resumeSession!({
-                        authentication,
                         sessionId,
                         config: resumeConfig,
                         signal: entry.controller.signal,
                     });
                 }
                 return options!.createSession!({
-                    authentication,
                     config,
                     signal: entry.controller.signal,
                 });
@@ -2763,13 +2678,11 @@ export class CopilotClient {
         let serverVersion: number | undefined;
         try {
             const connectParams: {
-                entra?: CopilotClientOptions["entra"];
                 token?: string;
                 enableGitHubTelemetryForwarding?: boolean;
                 clientInfo?: ConnectClientInfo;
                 supportedTaskKinds?: TaskKind[];
             } = {
-                entra: this.options.entra,
                 token: this.effectiveConnectionToken,
                 supportedTaskKinds: ["agent", "client", "shell"],
             };
@@ -2798,9 +2711,6 @@ export class CopilotClient {
             ) {
                 // Legacy server without `connect`; fall back to `ping`. A token, if any,
                 // is silently dropped — the legacy server can't enforce one.
-                if (this.options.entra) {
-                    throw new Error("This runtime does not support Entra client configuration.");
-                }
                 serverVersion = (await raceAgainstExit(this.ping())).protocolVersion;
             } else {
                 throw err;
@@ -3217,6 +3127,10 @@ export class CopilotClient {
                 );
             }
 
+            if (this.options.enableRemoteSessions) {
+                args.push("--remote");
+            }
+
             // Suppress debug/trace output that might pollute stdout, and apply the
             // shared runtime env (auth token, connection token, COPILOT_HOME, telemetry).
             const envWithoutNodeDebug = this.buildRuntimeEnv();
@@ -3436,6 +3350,9 @@ export class CopilotClient {
         }
         if (this.options.sessionIdleTimeoutSeconds > 0) {
             args.push("--session-idle-timeout", this.options.sessionIdleTimeoutSeconds.toString());
+        }
+        if (this.options.enableRemoteSessions) {
+            args.push("--remote");
         }
         if (cliLoginSyncIntegrationId) {
             args.push(`--cli-login-sync-integration-id=${cliLoginSyncIntegrationId}`);
@@ -3668,52 +3585,6 @@ export class CopilotClient {
         this.connection.onRequest("host.materializeSession", (params) =>
             this.createHostSession(params)
         );
-        this.connection.onRequest(
-            "host.validateAuthentication",
-            async (params: { hostId: string; requestId: string; token: string }) => {
-                const authenticator = this.hostAuthenticators.get(params.hostId);
-                if (!authenticator || this.hostAuthentications.has(params.requestId)) {
-                    throw new Error("AHP authenticator is unavailable or request already exists");
-                }
-                const entry = { hostId: params.hostId, controller: new AbortController() };
-                this.hostAuthentications.set(params.requestId, entry);
-                const signal = entry.controller.signal;
-                const cancelled = new Promise<never>((_resolve, reject) => {
-                    signal.addEventListener(
-                        "abort",
-                        () => reject(new Error("AHP authentication ended")),
-                        { once: true }
-                    );
-                });
-                try {
-                    const result = await Promise.race([
-                        Promise.resolve().then(() =>
-                            authenticator.authenticate({ token: params.token, signal })
-                        ),
-                        cancelled,
-                    ]);
-                    if (
-                        signal.aborted ||
-                        this.hostAuthenticators.get(params.hostId) !== authenticator
-                    ) {
-                        throw new Error("AHP authentication ended");
-                    }
-                    return result;
-                } finally {
-                    if (this.hostAuthentications.get(params.requestId) === entry) {
-                        this.hostAuthentications.delete(params.requestId);
-                    }
-                    entry.controller.abort();
-                }
-            }
-        );
-        this.connection.onNotification(
-            "host.authenticationCancelled",
-            (params: { hostId: string; requestId: string }) => {
-                const entry = this.hostAuthentications.get(params.requestId);
-                if (entry?.hostId === params.hostId) entry.controller.abort();
-            }
-        );
         this.connection.onNotification(
             "host.sessionReleased",
             (params: { hostId: string; handoffId: string }) => {
@@ -3819,8 +3690,7 @@ export class CopilotClient {
                 // Reader EOF is authoritative for messages still buffered after process exit.
                 // A descendant can keep stdout open, so bound the fallback.
                 exitFallback = setTimeout(disconnectAfterDrain, RUNTIME_SHUTDOWN_TIMEOUT_MS);
-                // Browser-style hosts such as Electron renderers return numeric timer IDs.
-                exitFallback.unref?.();
+                exitFallback.unref();
             });
         }
         this.connection.onError(() => {

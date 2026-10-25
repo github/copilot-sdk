@@ -256,11 +256,11 @@ final class SessionRequestBuilder {
             request.setRequestAutoModeSwitch(true);
         }
         request.setGitHubToken(config.getGitHubToken());
+        request.setRemoteSession(config.getRemoteSession());
         request.setCloud(config.getCloud());
         request.setFeatureFlags(config.getFeatureFlags());
         request.setExpAssignments(config.getExpAssignments());
         config.getEnableManagedSettings().ifPresent(request::setEnableManagedSettings);
-        request.setExcludedManagedSettings(config.getExcludedManagedSettings());
         config.getEnforceManagedModelDefaults().ifPresent(request::setEnforceManagedModelDefaults);
         config.getInteractiveUser().ifPresent(request::setInteractiveUser);
         request.setManagedSettings(config.getManagedSettings());
@@ -411,10 +411,10 @@ final class SessionRequestBuilder {
             request.setRequestAutoModeSwitch(true);
         }
         request.setGitHubToken(config.getGitHubToken());
+        request.setRemoteSession(config.getRemoteSession());
         request.setFeatureFlags(config.getFeatureFlags());
         request.setExpAssignments(config.getExpAssignments());
         config.getEnableManagedSettings().ifPresent(request::setEnableManagedSettings);
-        request.setExcludedManagedSettings(config.getExcludedManagedSettings());
         config.getEnforceManagedModelDefaults().ifPresent(request::setEnforceManagedModelDefaults);
         config.getInteractiveUser().ifPresent(request::setInteractiveUser);
         request.setManagedSettings(config.getManagedSettings());

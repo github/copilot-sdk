@@ -207,18 +207,10 @@ pub mod rpc_methods {
     pub const HOST_START: &str = "host.start";
     /// `host.dispose`
     pub const HOST_DISPOSE: &str = "host.dispose";
-    /// `host.setSessionCreationPolicy`
-    pub const HOST_SETSESSIONCREATIONPOLICY: &str = "host.setSessionCreationPolicy";
     /// `host.getEnvironmentCredentials`
     pub const HOST_GETENVIRONMENTCREDENTIALS: &str = "host.getEnvironmentCredentials";
     /// `host.getConfiguration`
     pub const HOST_GETCONFIGURATION: &str = "host.getConfiguration";
-    /// `host.getAuthenticationCredentials`
-    pub const HOST_GETAUTHENTICATIONCREDENTIALS: &str = "host.getAuthenticationCredentials";
-    /// `host.authenticate`
-    pub const HOST_AUTHENTICATE: &str = "host.authenticate";
-    /// `host.cancelAuthentication`
-    pub const HOST_CANCELAUTHENTICATION: &str = "host.cancelAuthentication";
     /// `host.ready`
     pub const HOST_READY: &str = "host.ready";
     /// `ping`
@@ -555,8 +547,6 @@ pub mod rpc_methods {
     pub const SESSION_SUSPEND: &str = "session.suspend";
     /// `session.send`
     pub const SESSION_SEND: &str = "session.send";
-    /// `session.sendAndWait`
-    pub const SESSION_SENDANDWAIT: &str = "session.sendAndWait";
     /// `session.sendMessages`
     pub const SESSION_SENDMESSAGES: &str = "session.sendMessages";
     /// `session.sandbox.getEnforcementStatus`
@@ -989,8 +979,6 @@ pub mod rpc_methods {
     pub const SESSION_TOOLS_GETCURRENTMETADATA: &str = "session.tools.getCurrentMetadata";
     /// `session.tools.set`
     pub const SESSION_TOOLS_SET: &str = "session.tools.set";
-    /// `session.tools.getSubagentSettings`
-    pub const SESSION_TOOLS_GETSUBAGENTSETTINGS: &str = "session.tools.getSubagentSettings";
     /// `session.tools.updateSubagentSettings`
     pub const SESSION_TOOLS_UPDATESUBAGENTSETTINGS: &str = "session.tools.updateSubagentSettings";
     /// `session.commands.list`
@@ -8370,21 +8358,6 @@ pub struct ConnectRemoteSessionParams {
     pub session_id: SessionId,
 }
 
-/// The host application's Microsoft Entra registration, shared by its sessions. This identifies the application requesting tokens, not their target resource.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct EntraAuthConfig {
-    /// Application (client) ID of the host's Microsoft Entra registration. Must be nonblank. The runtime does not supply a default application.
-    pub client_id: String,
-}
-
 /// Connection-level opt-ins for the `server.connect` handshake. Transport authentication is consumed by the native protocol boundary before dispatch.
 ///
 /// <div class="warning">
@@ -8403,9 +8376,6 @@ pub(crate) struct ConnectRequest {
     /// Opt this connection in to GitHub telemetry forwarding for its lifetime. When set, the runtime forwards this host's telemetry across all its sessions, its sessionless events, and explicitly process-wide events over the `gitHubTelemetry.event` notification. Connections intentionally sharing one server receive that server's events; independently embedded runtime hosts do not receive each other's host-owned events. Regular events are also written to the runtime's normal GitHub/CTS path (dual-write); host-only compatibility events are forward-only and intentionally skip that path. Intended for first-party hosts that re-emit the events into their own telemetry stores. Both unrestricted and restricted events are forwarded, each tagged with a `restricted` discriminator; a backstop drops restricted events when restricted telemetry is disabled — using the process-global gate for ordinary events and an explicit session-scoped decision for host-only events.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_git_hub_telemetry_forwarding: Option<bool>,
-    /// Entra application used by this client's authentication flows. Required to enable built-in Microsoft Entra sign-in and token renewal; other authentication methods remain available.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub entra: Option<EntraAuthConfig>,
     /// Task kinds this connection can decode when observing session tasks. Omit to retain agent and shell compatibility.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub supported_task_kinds: Option<Vec<TaskKind>>,
@@ -11462,72 +11432,6 @@ pub struct HooksDiscoverResult {
     pub warnings: Vec<String>,
 }
 
-/// A decrypted credential presented by a supervised hosting participant.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct HostAuthenticateRequest {
-    /// Unique validation attempt, scoped to this host.
-    pub request_id: RequestId,
-    /// Decrypted admission token, never an inference credential.
-    pub token: String,
-}
-
-/// Notifies the owning application that validation ended.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct HostAuthenticationCancelledNotification {
-    /// Owning listener UUID.
-    pub host_id: String,
-    /// Validation attempt whose signal must be aborted.
-    pub request_id: RequestId,
-}
-
-/// A validated credential with a required, future RFC3339 expiration.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct HostAuthenticationResult {
-    /// Required future expiration in RFC3339 format.
-    pub expires_at: String,
-    /// Stable identity, required to match the configured owner exactly.
-    pub identity: String,
-}
-
-/// Cancels a pending validation on the supervised participant's connection.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct HostCancelAuthenticationRequest {
-    /// Validation attempt to cancel.
-    pub request_id: RequestId,
-}
-
 /// GitHub Mission Control registration options. The compute ID is application-owned and stable.
 ///
 /// <div class="warning">
@@ -11581,12 +11485,6 @@ pub struct HostLocalServerConfiguration {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HostConfiguration {
-    /// Initial remote creation policy, independent of application session factories. Defaults to denied when omitted.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub allow_creating_new_sessions: Option<bool>,
-    /// Explicit host-wide admission policy. Always supplied by the runtime after validating host.start.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub authentication: Option<serde_json::Value>,
     /// Requested GitHub Mission Control registration.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub github_environment: Option<HostGitHubEnvironmentOptions>,
@@ -11849,9 +11747,6 @@ pub struct HostRegisterSessionRequest {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HostSessionCreateCallback {
-    /// Trusted admission identity, separate from inference credentials. Always supplied by the runtime for admitted handoffs.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub authentication: Option<serde_json::Value>,
     /// Host-selected SDK creation or resume settings, without executable callbacks or tools.
     pub config: HashMap<String, serde_json::Value>,
     /// Unique identity of the session participation being requested.
@@ -11874,9 +11769,6 @@ pub struct HostSessionCreateCallback {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HostSessionCreateRequest {
-    /// Trusted admission identity supplied by the hosting participant. Required by the runtime before a handoff is admitted.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub authentication: Option<serde_json::Value>,
     /// Host-selected SDK creation or resume settings, without executable callbacks or tools.
     pub config: HashMap<String, serde_json::Value>,
     /// Unique identity for this participation, independent of the session lifetime.
@@ -11937,23 +11829,6 @@ pub struct HostSessionReleaseRequest {
     pub handoff_id: String,
 }
 
-/// Changes remote session creation admission without disconnecting clients.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct HostSetSessionCreationPolicyRequest {
-    /// After acknowledgement, subsequent remote creation admissions use this policy. Already-admitted requests may finish.
-    pub allow_creating_new_sessions: bool,
-    /// Listener UUID owned by the calling SDK connection.
-    pub host_id: String,
-}
-
 /// Starts a supervised AHP host with at least one explicitly selected transport.
 ///
 /// <div class="warning">
@@ -11998,13 +11873,7 @@ pub struct HostStartOptions {
     #[serde(flatten)]
     legacy: HostStartRequest,
     #[serde(skip_serializing_if = "Option::is_none")]
-    allow_creating_new_sessions: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    authentication: Option<serde_json::Value>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     compute_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    workspace: Option<String>,
 }
 
 impl HostStartOptions {
@@ -12018,10 +11887,7 @@ impl HostStartOptions {
                 session_factory: None,
                 resume_factory: None,
             },
-            allow_creating_new_sessions: None,
-            authentication: None,
             compute_id: None,
-            workspace: None,
         }
     }
 
@@ -12049,27 +11915,9 @@ impl HostStartOptions {
         self
     }
 
-    /// Whether remote clients may create new sessions. Defaults to denied when omitted. Does not restrict owner work, publication, or existing sessions.
-    pub fn allow_creating_new_sessions(mut self, value: bool) -> Self {
-        self.allow_creating_new_sessions = Some(value);
-        self
-    }
-
-    /// Explicit admission policy, required by the runtime before hosting. Optional in the wire DTO only to preserve generated client construction.
-    pub fn authentication(mut self, value: serde_json::Value) -> Self {
-        self.authentication = Some(value);
-        self
-    }
-
     /// Stable application identity selecting its durable host catalog. Defaults to the persisted runtime compute GUID; must agree with githubEnvironment.computeId when both are supplied.
     pub fn compute_id(mut self, value: impl Into<String>) -> Self {
         self.compute_id = Some(value.into());
-        self
-    }
-
-    /// Absolute directory on the runtime host to serve through AHP. Defaults to the runtime's configured working directory. Does not change process or session working directories.
-    pub fn workspace(mut self, value: impl Into<String>) -> Self {
-        self.workspace = Some(value.into());
         self
     }
 }
@@ -12146,25 +11994,6 @@ pub struct HostUnpublishSessionResult {
 pub struct HostUnregisterSessionRequest {
     /// Canonical ID of the application publication to withdraw.
     pub session_id: SessionId,
-}
-
-/// Application-owned token validation callback.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct HostValidateAuthenticationRequest {
-    /// Owning listener UUID.
-    pub host_id: String,
-    /// Unique validation attempt.
-    pub request_id: RequestId,
-    /// Decrypted admission token.
-    pub token: String,
 }
 
 /// Default-tier text and image token prices reported for an image model, in AI credits per billing batch. Missing rates remain absent; these are not per-image quotes or actual billed usage.
@@ -18386,16 +18215,6 @@ pub(crate) struct McpUnregisterExternalClientRequest {
 pub struct MemoryConfiguration {
     /// Whether memory is enabled for the session.
     pub enabled: bool,
-    /// Memory injection mode: system-prompt (default) includes memories in the system prompt; user-prompt includes them in user messages.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This type is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases.
-    ///
-    /// </div>
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub mode: Option<MemoryMode>,
 }
 
 /// The six normalized `/context` header buckets, computed from the same tokenization as `entries` so the two never disagree. Convenience rollups: `freeSpace` and `buffer` describe window capacity rather than occupied context, so the values do not sum to `totalTokens`.
@@ -23044,24 +22863,6 @@ pub struct ProtocolImageGenerationOptions {
     /// Disabled by default for SDK sessions. CAPI model access and permissions still apply.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enabled: Option<bool>,
-    /// Experimental. Save each generated or edited image under the session-state
-    /// directory's `images` folder and add a `saved_to: <path>` line per image to
-    /// the tool result the model sees. Defaults to true; set false to opt out.
-    /// Subagents follow their
-    /// parent's value unless they set their own. A failed save still returns the
-    /// image, without `saved_to`. Sessions without a local session-state
-    /// directory, such as those using a session filesystem provider, never save.
-    /// Re-supply after a cold resume. Does not enable image generation.
-    /// This option may change or be removed in a future release.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This type is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases.
-    ///
-    /// </div>
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub save_to_disk: Option<bool>,
     /// Experimental. Request a visible "Made with AI" label on generated and edited images.
     /// This option may change or be removed in a future release.
     /// Overrides the user's imageGenerationWatermark preference for this session;
@@ -25992,29 +25793,6 @@ pub struct SecretsAddFilterValuesResult {
     pub ok: bool,
 }
 
-/// Internal request-correlated completion of one submitted message.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SendAndWaitResult {
-    /// Whether the request was aborted or removed before completing normally.
-    pub aborted: bool,
-    /// Existing event at the completion boundary. SDK helpers drain its synchronous subscriber delivery before returning. Absent for quiet queue removal.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub completion_event_id: Option<String>,
-    /// Identifier assigned to the submitted user message.
-    pub message_id: String,
-    /// The exact existing root assistant event owned by this request. Absent when the request completed without an assistant response.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub response: Option<SessionEvent>,
-}
-
 /// Parameters for session.extensions.sendAttachmentsToMessage.
 ///
 /// <div class="warning">
@@ -27909,9 +27687,6 @@ pub struct SessionOpenOptions {
     /// Built-in subagent names to exclude from this session. Excluded built-ins are hidden from agent discovery and cannot be dispatched unless a custom agent with the same name is available.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub excluded_builtin_agents: Option<Vec<String>>,
-    /// Managed-setting paths this trusted SDK host enforces externally or does not support, excluded from fetched, device, and policy-helper policy for this session. Exact dotted paths exclude a setting and its descendants (for example sandbox or permissions.disableBypassPermissionsMode); wildcards and array indices are not supported. Host-injected managedSettings and policy availability checks are not excluded. Not persisted; re-supply on resume, where omission restores full enforcement. Requires enableManagedSettings to self-fetch policy.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub excluded_managed_settings: Option<Vec<String>>,
     /// Denylist of tool names.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub excluded_tools: Option<Vec<String>>,
@@ -31165,12 +30940,9 @@ pub struct SubagentSettingsEntry {
     /// Whether the configured model strategy is preferred or required
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model_policy: Option<AgentModelPolicy>,
-    /// Provider identifier for the configured model override
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub provider_id: Option<String>,
 }
 
-/// Configured per-agent subagent overrides
+/// Subagent settings to apply, or null to clear the live session override
 ///
 /// <div class="warning">
 ///
@@ -31180,13 +30952,10 @@ pub struct SubagentSettingsEntry {
 /// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SubagentSettingsConfig {
+pub struct SubagentSettings {
     /// Per-agent settings keyed by subagent agent_type
     #[serde(skip_serializing_if = "Option::is_none")]
     pub agents: Option<HashMap<String, SubagentSettingsEntry>>,
-    /// Configured opt-in for subagent context management tools; applied from persisted settings when the session starts
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub context_management_tools: Option<bool>,
     /// Names of subagents the user has turned off; they cannot be dispatched
     #[serde(skip_serializing_if = "Option::is_none")]
     pub disabled_subagents: Option<Vec<String>>,
@@ -32328,21 +32097,6 @@ pub struct ToolsGetCurrentMetadataResult {
     pub tools: Option<Vec<CurrentToolMetadata>>,
 }
 
-/// Current configured subagent settings for the session, before resolving defaults or inheritance.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ToolsGetSubagentSettingsResult {
-    /// Live subagent settings override, or current persisted settings when no override is active; null when no settings block exists
-    pub subagents: Option<SubagentSettingsConfig>,
-}
-
 /// Resolve, build, and validate the runtime tool list for this session. Subagent sessions and consumer flows that need an initialized tool set before `send` invoke this. Default base-class implementation is a no-op for sessions that don't support tool validation.
 ///
 /// <div class="warning">
@@ -33086,6 +32840,24 @@ pub struct UIUnregisterDirectAutoModeSwitchHandlerResult {
     pub unregistered: bool,
 }
 
+/// Configured per-agent subagent overrides
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateSubagentSettingsRequestSubagents {
+    /// Per-agent settings keyed by subagent agent_type
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub agents: Option<HashMap<String, SubagentSettingsEntry>>,
+    /// Names of subagents the user has turned off; they cannot be dispatched
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub disabled_subagents: Option<Vec<String>>,
+    /// Maximum number of subagents that can run concurrently; applies to usage-based billing users only
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_concurrency: Option<i32>,
+    /// Maximum subagent nesting depth; applies to usage-based billing users only
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_depth: Option<i32>,
+}
+
 /// Subagent settings to apply to the current session
 ///
 /// <div class="warning">
@@ -33098,7 +32870,7 @@ pub struct UIUnregisterDirectAutoModeSwitchHandlerResult {
 #[serde(rename_all = "camelCase")]
 pub struct UpdateSubagentSettingsRequest {
     /// Subagent settings to apply, or null to clear the live session override
-    pub subagents: Option<SubagentSettingsConfig>,
+    pub subagents: Option<UpdateSubagentSettingsRequestSubagents>,
 }
 
 /// Internal absolute code-change totals reported by the owning host.
@@ -36075,18 +35847,6 @@ pub struct HostReleaseSessionResult {}
 #[serde(rename_all = "camelCase")]
 pub struct HostDisposeResult {}
 
-/// Empty acknowledgement for a completed host lifecycle operation.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct HostSetSessionCreationPolicyResult {}
-
 /// Private credentials delivered only to a runtime-owned Mission Control hosting participant.
 ///
 /// <div class="warning">
@@ -36119,12 +35879,6 @@ pub struct HostGetEnvironmentCredentialsResult {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HostGetConfigurationResult {
-    /// Initial remote creation policy, independent of application session factories. Defaults to denied when omitted.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub allow_creating_new_sessions: Option<bool>,
-    /// Explicit host-wide admission policy. Always supplied by the runtime after validating host.start.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub authentication: Option<serde_json::Value>,
     /// Requested GitHub Mission Control registration.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub github_environment: Option<HostGitHubEnvironmentOptions>,
@@ -36136,39 +35890,6 @@ pub struct HostGetConfigurationResult {
     /// Whether session materialization is delegated to the owning application.
     pub session_factory: bool,
 }
-
-/// Private credentials delivered only to a runtime-owned Mission Control hosting participant.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct HostGetAuthenticationCredentialsResult {
-    /// GitHub API base URL for the authenticated service.
-    pub github_api_url: String,
-    /// Hostname of the authenticated GitHub service.
-    pub github_host: String,
-    /// Mission Control API origin for environment registration and management.
-    pub mission_control_url: String,
-    /// Current bearer token for the authenticated GitHub identity.
-    pub token: String,
-}
-
-/// Empty acknowledgement for a completed host lifecycle operation.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct HostCancelAuthenticationResult {}
 
 /// Empty acknowledgement for a completed host lifecycle operation.
 ///
@@ -37261,29 +36982,6 @@ pub struct SessionSuspendParams {
 pub struct SessionSendResult {
     /// Unique identifier assigned to the message
     pub message_id: String,
-}
-
-/// Internal request-correlated completion of one submitted message.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SessionSendAndWaitResult {
-    /// Whether the request was aborted or removed before completing normally.
-    pub aborted: bool,
-    /// Existing event at the completion boundary. SDK helpers drain its synchronous subscriber delivery before returning. Absent for quiet queue removal.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub completion_event_id: Option<String>,
-    /// Identifier assigned to the submitted user message.
-    pub message_id: String,
-    /// The exact existing root assistant event owned by this request. Absent when the request completed without an assistant response.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub response: Option<SessionEvent>,
 }
 
 /// Result of sending zero or more user messages
@@ -41391,36 +41089,6 @@ pub struct SessionToolsGetCurrentMetadataResult {
 #[serde(rename_all = "camelCase")]
 pub struct SessionToolsSetResult {}
 
-/// Identifies the target session.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SessionToolsGetSubagentSettingsParams {
-    /// Target session identifier
-    pub session_id: SessionId,
-}
-
-/// Current configured subagent settings for the session, before resolving defaults or inheritance.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SessionToolsGetSubagentSettingsResult {
-    /// Live subagent settings override, or current persisted settings when no override is active; null when no settings block exists
-    pub subagents: Option<SubagentSettingsConfig>,
-}
-
 /// Empty result after applying subagent settings
 ///
 /// <div class="warning">
@@ -43939,16 +43607,6 @@ pub type ClientMetadata = HashMap<String, String>;
 /// </div>
 pub type ConnectorSessionAccountResult = Option<ConnectorSessionAccount>;
 
-/// Validated admission credential, or null when the application rejects it.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-pub type HostAuthenticateResult = Option<HostAuthenticationResult>;
-
 /// HTTP headers as a map from lowercased header name to a list of values. Multi-valued headers (e.g. Set-Cookie) preserve all values.
 ///
 /// <div class="warning">
@@ -44018,16 +43676,6 @@ pub type SessionAuthInfoResult = Option<AuthIdentity>;
 ///
 /// </div>
 pub type SessionsGetClientMetadataResult = Vec<serde_json::Value>;
-
-/// Configured subagent settings, or null when absent
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-pub type SubagentSettings = Option<SubagentSettingsConfig>;
 
 /// The form values submitted by the user (present when action is 'accept')
 ///
@@ -50946,28 +50594,6 @@ pub enum OptionsUpdateToolFilterPrecedence {
     /// A tool is enabled if and only if it matches the allowlist (or the allowlist is unset) AND it does not match the denylist. Makes 'all except X' expressible by combining the two lists.
     #[serde(rename = "excluded")]
     Excluded,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// Memory injection mode. Defaults to system-prompt.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum MemoryMode {
-    /// Include memories in the system prompt (default).
-    #[serde(rename = "system-prompt")]
-    SystemPrompt,
-    /// Include memories in user messages.
-    #[serde(rename = "user-prompt")]
-    UserPrompt,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]

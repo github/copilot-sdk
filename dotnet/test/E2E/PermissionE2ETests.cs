@@ -440,10 +440,9 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
         {
             lock (lifecycleLock)
             {
-                if (Logger.IsEnabled(LogLevel.Warning))
-                    Logger.LogWarning(
-                        "Slow-permission timeout lifecycle: {Lifecycle}",
-                        string.Join(", ", lifecycle.Select(evt => $"{evt.Phase}:{evt.ToolCallId}")));
+                Logger.LogWarning(
+                    "Slow-permission timeout lifecycle: {Lifecycle}",
+                    string.Join(", ", lifecycle.Select(evt => $"{evt.Phase}:{evt.ToolCallId}")));
             }
             throw;
         }

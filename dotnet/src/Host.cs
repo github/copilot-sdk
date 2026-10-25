@@ -3,11 +3,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 using System.Diagnostics.CodeAnalysis;
-using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization.Metadata;
-using System.Text.RegularExpressions;
 using GitHub.Copilot.Rpc;
 using Microsoft.Extensions.Logging;
 
@@ -21,46 +19,18 @@ namespace GitHub.Copilot;
 [Experimental(Diagnostics.Experimental)]
 public sealed record AhpHostExit(string HostId, HostExitReason Reason, long? ExitCode, string? Error);
 
-/// <summary>Explicit host admission policy, independent of inference credentials.</summary>
-[Experimental(Diagnostics.Experimental)]
-public abstract record AhpHostAuthentication
-{
-    private AhpHostAuthentication() { }
-
-    /// <summary>Admit the authenticated host's GitHub account.</summary>
-    public sealed record GitHub : AhpHostAuthentication;
-
-    /// <summary>Allow anonymous admission without disabling the listener connection token.</summary>
-    public sealed record None : AhpHostAuthentication;
-
-    /// <summary>Validate decrypted admission tokens against a stable application owner.</summary>
-    /// <param name="RequireIdentity">Every accepted identity must match this nonempty value exactly.</param>
-    /// <param name="Authenticate">Receives only the admission token and its cancellable lifetime; return null to reject.</param>
-    public sealed record Custom(
-        string RequireIdentity,
-        Func<string, CancellationToken, Task<AhpAuthenticationResult?>> Authenticate) : AhpHostAuthentication;
-}
-
-/// <summary>Application admission identity and required future RFC3339 expiration.</summary>
-/// <param name="Identity">Must exactly match the configured owner.</param>
-/// <param name="ExpiresAt">Required future RFC3339 timestamp, including timezone.</param>
-[Experimental(Diagnostics.Experimental)]
-public sealed record AhpAuthenticationResult(string Identity, string ExpiresAt);
-
 /// <summary>Settings selected by the host; preserve Config and add application callbacks.</summary>
 /// <param name="Config">Configuration for CreateSessionAsync.</param>
 /// <param name="CancellationToken">Cancelled when participation ends, including before the factory returns.</param>
-/// <param name="Authentication">Trusted host admission context, never session configuration or inference authentication.</param>
 [Experimental(Diagnostics.Experimental)]
-public sealed record AhpSessionCreateRequest(SessionConfig Config, HostSessionAuthentication Authentication, CancellationToken CancellationToken);
+public sealed record AhpSessionCreateRequest(SessionConfig Config, CancellationToken CancellationToken);
 
 /// <summary>Resume the requested identity with Config, or return its retained original.</summary>
 /// <param name="SessionId">The durable application session identity.</param>
 /// <param name="Config">Configuration for ResumeSessionAsync.</param>
 /// <param name="CancellationToken">Cancelled when participation ends.</param>
-/// <param name="Authentication">Trusted admission context under the current host policy.</param>
 [Experimental(Diagnostics.Experimental)]
-public sealed record AhpSessionResumeRequest(string SessionId, ResumeSessionConfig Config, HostSessionAuthentication Authentication, CancellationToken CancellationToken);
+public sealed record AhpSessionResumeRequest(string SessionId, ResumeSessionConfig Config, CancellationToken CancellationToken);
 
 /// <summary>
 /// Transport options and local application callbacks for in-process AHP hosting.
@@ -69,18 +39,12 @@ public sealed record AhpSessionResumeRequest(string SessionId, ResumeSessionConf
 [Experimental(Diagnostics.Experimental)]
 public sealed class AhpHostOptions
 {
-    /// <summary>Required in every client mode. Select anonymous admission explicitly with None.</summary>
-    public AhpHostAuthentication? Authentication { get; init; }
     /// <summary>Stable durable catalog identity; must agree with GitHubEnvironment.ComputeId when both are supplied.</summary>
     public string? ComputeId { get; init; }
-    /// <summary>Absolute directory on the runtime host to serve through AHP. Defaults to the runtime's configured working directory; does not change process or session working directories.</summary>
-    public string? Workspace { get; init; }
     /// <summary>Local WebSocket transport settings; absent disables the local listener.</summary>
     public HostLocalServerOptions? LocalServer { get; init; }
     /// <summary>GitHub Mission Control transport settings, with required Name and ComputeId; absent disables it.</summary>
     public HostGitHubEnvironmentOptions? GitHubEnvironment { get; init; }
-    /// <summary>Remote creation admission, independent of factories. Null selects the denied default.</summary>
-    public bool? AllowCreatingNewSessions { get; init; }
     /// <summary>Creates the exact requested session on the owning client.</summary>
     public Func<AhpSessionCreateRequest, Task<CopilotSession>>? CreateSession { get; init; }
     /// <summary>Resumes the exact requested session on the owning client.</summary>
@@ -138,10 +102,6 @@ public sealed class AhpHost : IAsyncDisposable
     public Task<HostListSessionsResult> ListSessionsAsync(CancellationToken cancellationToken = default)
         => _rpc.ListSessionsAsync(HostId, cancellationToken);
 
-    /// <summary>Changes subsequent remote admissions without disconnecting clients. Already-admitted creation may finish.</summary>
-    public Task SetAllowCreatingNewSessionsAsync(bool allowed, CancellationToken cancellationToken = default)
-        => _rpc.SetSessionCreationPolicyAsync(HostId, allowed, cancellationToken);
-
     /// <summary>Stops and joins listener cleanup without deleting application sessions.</summary>
     public ValueTask DisposeAsync() => new(DisposeAsync(CancellationToken.None));
 
@@ -154,7 +114,6 @@ public sealed partial class CopilotClient
     private readonly object _ahpGate = new();
     private readonly Dictionary<string, AhpHostOptions> _ahpHosts = [];
     private readonly Dictionary<string, AhpHandoff> _ahpHandoffs = [];
-    private readonly Dictionary<string, AhpAuthenticationAttempt> _ahpAuthentications = [];
 
     /// <summary>
     /// Starts AHP hosting in the connected runtime, without a companion process.
@@ -166,21 +125,6 @@ public sealed partial class CopilotClient
     public async Task<AhpHost> StartAhpHostAsync(AhpHostOptions options, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(options);
-        var authentication = options.Authentication;
-        if (authentication is null)
-            throw new ArgumentException("An explicit authentication mode is required", nameof(options));
-        if (authentication is AhpHostAuthentication.Custom custom &&
-            (string.IsNullOrWhiteSpace(custom.RequireIdentity) || custom.Authenticate is null))
-            throw new ArgumentException("Custom authentication requires a nonempty RequireIdentity and Authenticate callback", nameof(options));
-        if (authentication is not AhpHostAuthentication.GitHub && options.GitHubEnvironment is not null)
-            throw new ArgumentException("GitHubEnvironment requires GitHub authentication", nameof(options));
-        HostAuthentication wireAuthentication = authentication switch
-        {
-            AhpHostAuthentication.GitHub => new HostAuthenticationGitHub(),
-            AhpHostAuthentication.None => new HostAuthenticationNone(),
-            AhpHostAuthentication.Custom policy => new HostAuthenticationCustom { RequireIdentity = policy.RequireIdentity },
-            _ => throw new ArgumentException("Invalid authentication mode", nameof(options))
-        };
         var localServer = options.LocalServer is { } local ? new HostLocalServerOptions
         {
             Hostname = local.Hostname,
@@ -204,10 +148,7 @@ public sealed partial class CopilotClient
         var startup = rpc.StartAsync(new HostStartRequest
         {
             HostId = hostId,
-            Authentication = wireAuthentication,
             ComputeId = options.ComputeId,
-            Workspace = options.Workspace,
-            AllowCreatingNewSessions = options.AllowCreatingNewSessions,
             LocalServer = localServer,
             GitHubEnvironment = githubEnvironment,
             SessionFactory = options.CreateSession is not null ? true : null,
@@ -252,130 +193,20 @@ public sealed partial class CopilotClient
             (Action<AhpReleaseRequest>)(request => ReleaseAhpSession(request.HostId, request.HandoffId)), singleObjectParam: true);
         rpc.SetLocalRpcMethod("host.exited", (Action<HostExitedRequest>)(request =>
             HandleAhpExit(new(request.HostId, request.Reason, request.ExitCode, request.Error))), singleObjectParam: true);
-        rpc.SetLocalRpcMethod("host.validateAuthentication",
-            (Func<AhpValidateAuthenticationRequest, CancellationToken, ValueTask<AhpAuthenticationResult?>>)((request, token) =>
-                new(ValidateAhpAuthenticationAsync(request, token, rpc.ConnectionClosedToken))), singleObjectParam: true);
-        rpc.SetLocalRpcMethod("host.authenticationCancelled",
-            (Action<AhpAuthenticationCancelled>)(request => CancelAhpAuthentication(request.HostId, request.RequestId)),
-            singleObjectParam: true);
     }
 
     private AhpHostOptions? ReleaseAhpHost(string hostId)
     {
         AhpHostOptions? options;
         string[] handoffs;
-        string[] authentications;
         lock (_ahpGate)
         {
             _ahpHosts.TryGetValue(hostId, out options);
             _ahpHosts.Remove(hostId);
             handoffs = _ahpHandoffs.Where(pair => pair.Value.HostId == hostId).Select(pair => pair.Key).ToArray();
-            authentications = _ahpAuthentications.Where(pair => pair.Value.HostId == hostId).Select(pair => pair.Key).ToArray();
         }
-        foreach (var id in authentications) CancelAhpAuthentication(hostId, id);
         foreach (var id in handoffs) ReleaseAhpSession(hostId, id);
         return options;
-    }
-
-    private void CancelAhpAuthentication(string hostId, string requestId, AhpAuthenticationAttempt? expected = null)
-    {
-        AhpAuthenticationAttempt? entry;
-        lock (_ahpGate)
-        {
-            if (!_ahpAuthentications.TryGetValue(requestId, out entry) || entry.HostId != hostId ||
-                (expected is not null && !ReferenceEquals(entry, expected))) return;
-            _ahpAuthentications.Remove(requestId);
-        }
-        entry.Cancelled.TrySetResult(true);
-        _ = CancelAhpAuthenticationAsync(entry);
-    }
-
-    private async Task CancelAhpAuthenticationAsync(AhpAuthenticationAttempt entry)
-    {
-        try
-        {
-#if NET8_0_OR_GREATER
-            await entry.Cancellation.CancelAsync().ConfigureAwait(false);
-#else
-            await Task.Run(() => entry.Cancellation.Cancel()).ConfigureAwait(false);
-#endif
-        }
-        catch (AggregateException)
-        {
-            // Callback exceptions may contain the application credential.
-            _logger.LogError("AHP authentication cancellation callback failed");
-        }
-        finally { entry.CancellationCompleted.TrySetResult(true); }
-    }
-
-    private async Task<AhpAuthenticationResult?> ValidateAhpAuthenticationAsync(
-        AhpValidateAuthenticationRequest request, CancellationToken requestToken, CancellationToken connectionToken)
-    {
-        AhpHostAuthentication.Custom policy;
-        AhpAuthenticationAttempt entry;
-        lock (_ahpGate)
-        {
-            if (!_ahpHosts.TryGetValue(request.HostId, out var options) ||
-                options.Authentication is not AhpHostAuthentication.Custom configured ||
-                _ahpAuthentications.ContainsKey(request.RequestId))
-                throw new InvalidOperationException("AHP authenticator is unavailable or request already exists");
-            policy = configured;
-            entry = new(request.HostId);
-            _ahpAuthentications.Add(request.RequestId, entry);
-        }
-        using var requestRegistration = requestToken.Register(() => CancelAhpAuthentication(request.HostId, request.RequestId, entry));
-        using var connectionRegistration = connectionToken.Register(() => CancelAhpAuthentication(request.HostId, request.RequestId, entry));
-        var validation = Task.Run(() => policy.Authenticate(request.Token, entry.Cancellation.Token));
-        try
-        {
-            await Task.WhenAny(validation, entry.Cancelled.Task).ConfigureAwait(false);
-            lock (_ahpGate)
-            {
-                if (!_ahpAuthentications.TryGetValue(request.RequestId, out var current) || !ReferenceEquals(current, entry) ||
-                    !_ahpHosts.TryGetValue(request.HostId, out var host) || !ReferenceEquals(host.Authentication, policy))
-                    throw new InvalidOperationException("AHP authentication ended");
-            }
-            var result = await validation.ConfigureAwait(false);
-            if (result is not null &&
-                (result.Identity != policy.RequireIdentity ||
-                 result.ExpiresAt is null ||
-                 !Regex.IsMatch(result.ExpiresAt, @"^\d{4}-\d{2}-\d{2}[Tt]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:[Zz]|[+-]\d{2}:\d{2})\z", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1)) ||
-                 !DateTimeOffset.TryParse(result.ExpiresAt, CultureInfo.InvariantCulture, DateTimeStyles.None, out var expiresAt) ||
-                 expiresAt <= DateTimeOffset.UtcNow))
-                throw new InvalidOperationException("Invalid AHP authentication result");
-            lock (_ahpGate)
-            {
-                if (!_ahpAuthentications.TryGetValue(request.RequestId, out var current) || !ReferenceEquals(current, entry) ||
-                    !_ahpHosts.ContainsKey(request.HostId) || requestToken.IsCancellationRequested || connectionToken.IsCancellationRequested)
-                    throw new InvalidOperationException("AHP authentication ended");
-                return result;
-            }
-        }
-        catch
-        {
-            throw new InvalidOperationException("AHP authentication rejected or ended");
-        }
-        finally
-        {
-            CancelAhpAuthentication(request.HostId, request.RequestId, entry);
-            _ = DisposeAhpAuthenticationAsync(entry, validation);
-        }
-    }
-
-    private async Task DisposeAhpAuthenticationAsync(AhpAuthenticationAttempt entry, Task validation)
-    {
-        try { await validation.ConfigureAwait(false); }
-        catch (OperationCanceledException)
-        {
-            // Cancellation is expected during authentication teardown.
-        }
-        catch (Exception)
-        {
-            // Observe late callback failures without exposing application credentials.
-            _logger.LogDebug("AHP authentication validator failed during cleanup");
-        }
-        await entry.CancellationCompleted.Task.ConfigureAwait(false);
-        entry.Cancellation.Dispose();
     }
 
     private void HandleAhpExit(AhpHostExit report)
@@ -447,11 +278,7 @@ public sealed partial class CopilotClient
     private async Task NotifyAhpAsync(Func<Task> callback, string label)
     {
         try { await Task.Run(callback).ConfigureAwait(false); }
-        catch (Exception error)
-        {
-            if (_logger.IsEnabled(LogLevel.Error))
-                _logger.LogError(error, "AHP {Callback} callback failed", label);
-        }
+        catch (Exception error) { _logger.LogError(error, "AHP {Callback} callback failed", label); }
     }
 
     private void CaptureAhpSession<T>(CopilotSession session, T request, JsonTypeInfo<T> typeInfo)
@@ -466,18 +293,8 @@ public sealed partial class CopilotClient
                 if (!entry.Released && entry.Configs is { } configs) configs[session] = snapshot;
     }
 
-    private static bool AhpTrustedAuthenticationMatches(AhpHostAuthentication? policy, HostSessionAuthentication trusted) =>
-        (policy, trusted) switch
-        {
-            (AhpHostAuthentication.GitHub, HostSessionAuthenticationGitHub github) => !string.IsNullOrWhiteSpace(github.Identity),
-            (AhpHostAuthentication.Custom custom, HostSessionAuthenticationCustom owner) => owner.Identity == custom.RequireIdentity,
-            (AhpHostAuthentication.None, HostSessionAuthenticationNone) => true,
-            _ => false
-        };
-
     private async Task<AhpMaterializeResult> MaterializeAhpSessionAsync(AhpMaterializeRequest request)
     {
-        ArgumentNullException.ThrowIfNull(request.Authentication);
         var sessionId = request.Config.GetProperty("sessionId").GetString();
         if (sessionId is null || sessionId.Length == 0) throw new ArgumentException("AHP handoff requires sessionId");
         AhpHandoff entry;
@@ -486,8 +303,6 @@ public sealed partial class CopilotClient
             if (!_ahpHosts.TryGetValue(request.HostId, out var options) || _ahpHandoffs.ContainsKey(request.HandoffId) ||
                 (request.Resume ? options.ResumeSession is null : options.CreateSession is null))
                 throw new InvalidOperationException("AHP session factory is unavailable or handoff already exists");
-            if (!AhpTrustedAuthenticationMatches(options.Authentication, request.Authentication))
-                throw new InvalidOperationException("AHP trusted authentication does not match host policy");
             entry = new(request.HostId, sessionId, options);
             _ahpHandoffs.Add(request.HandoffId, entry);
         }
@@ -508,13 +323,13 @@ public sealed partial class CopilotClient
                     config.Remove("sessionId");
                     var options = config.Deserialize(ClientJsonContext.Default.ResumeSessionConfig)
                         ?? throw new InvalidOperationException("Invalid AHP resume configuration");
-                    session = await entry.Options.ResumeSession!(new(sessionId, options, request.Authentication, entry.Token)).ConfigureAwait(false);
+                    session = await entry.Options.ResumeSession!(new(sessionId, options, entry.Token)).ConfigureAwait(false);
                 }
                 else
                 {
                     var options = config.Deserialize(ClientJsonContext.Default.SessionConfig)
                         ?? throw new InvalidOperationException("Invalid AHP create configuration");
-                    session = await entry.Options.CreateSession!(new(options, request.Authentication, entry.Token)).ConfigureAwait(false);
+                    session = await entry.Options.CreateSession!(new(options, entry.Token)).ConfigureAwait(false);
                 }
                 bool released;
                 lock (_ahpGate)
@@ -590,20 +405,10 @@ public sealed partial class CopilotClient
         return true;
     }
 
-    internal sealed record AhpMaterializeRequest(string HostId, string HandoffId, JsonElement Config, bool Resume, HostSessionAuthentication Authentication);
-    internal sealed record AhpValidateAuthenticationRequest(string HostId, string RequestId, string Token);
-    internal sealed record AhpAuthenticationCancelled(string HostId, string RequestId);
+    internal sealed record AhpMaterializeRequest(string HostId, string HandoffId, JsonElement Config, bool Resume);
     internal sealed record AhpMaterializeResult(string SessionId);
     internal sealed record AhpReleaseRequest(string HostId, string HandoffId);
     private sealed class AhpHandoffEndedException() : InvalidOperationException("AHP session handoff ended");
-
-    private sealed class AhpAuthenticationAttempt(string hostId)
-    {
-        public string HostId { get; } = hostId;
-        public CancellationTokenSource Cancellation { get; } = new();
-        public TaskCompletionSource<bool> Cancelled { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public TaskCompletionSource<bool> CancellationCompleted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-    }
 
     private sealed class AhpHandoff(string hostId, string sessionId, AhpHostOptions options)
     {

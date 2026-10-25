@@ -58,8 +58,6 @@ namespace GitHub.Copilot;
 /// </example>
 public sealed partial class CopilotSession : IAsyncDisposable
 {
-    private static readonly TimeSpan s_defaultSendAndWaitTimeout = TimeSpan.FromSeconds(60);
-
     private IReadOnlyDictionary<string, AIFunction> _toolHandlers = new Dictionary<string, AIFunction>(StringComparer.Ordinal);
     private Dictionary<string, Func<CommandContext, Task>> _commandHandlers = new(StringComparer.Ordinal);
     private IReadOnlyDictionary<string, Func<ProviderTokenArgs, Task<string>>> _bearerTokenProviders = new Dictionary<string, Func<ProviderTokenArgs, Task<string>>>(StringComparer.Ordinal);
@@ -104,7 +102,6 @@ public sealed partial class CopilotSession : IAsyncDisposable
     private IReadOnlyList<OpenCanvasInstance> _openCanvases = Array.Empty<OpenCanvasInstance>();
 
     private int _isDisposed;
-    private volatile bool _completionRpcUnsupported;
     private string? _gitHubTokenProviderRegistrationId;
 
     /// <summary>
@@ -330,7 +327,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     }
 
     /// <summary>
-    /// Sends a plain-text user message and waits for its processing to finish.
+    /// Sends a plain-text user message and waits until the session becomes idle.
     /// Convenience overload for <see cref="SendAndWaitAsync(MessageOptions, TimeSpan?, CancellationToken)"/>.
     /// </summary>
     /// <param name="prompt">The user message text.</param>
@@ -377,24 +374,9 @@ public sealed partial class CopilotSession : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(options);
         ThrowIfDisposed();
 
-        var request = CreateSendRequest(options);
-        var rpcTimestamp = Stopwatch.GetTimestamp();
-        var response = await InvokeRpcAsync<SendMessageResponse>(
-            "session.send", [request], cancellationToken);
-        LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
-            "CopilotSession.SendAsync completed successfully. Elapsed={Elapsed}, SessionId={SessionId}, MessageId={MessageId}",
-            rpcTimestamp,
-            SessionId,
-            response.MessageId);
-
-        return response.MessageId;
-    }
-
-    private SendMessageRequest CreateSendRequest(MessageOptions options)
-    {
         var (traceparent, tracestate) = TelemetryHelpers.GetTraceContext();
 
-        return new SendMessageRequest
+        var request = new SendMessageRequest
         {
             SessionId = SessionId,
             Prompt = options.Prompt,
@@ -417,6 +399,16 @@ public sealed partial class CopilotSession : IAsyncDisposable
             } : null,
         };
 
+        var rpcTimestamp = Stopwatch.GetTimestamp();
+        var response = await InvokeRpcAsync<SendMessageResponse>(
+            "session.send", [request], cancellationToken);
+        LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
+            "CopilotSession.SendAsync completed successfully. Elapsed={Elapsed}, SessionId={SessionId}, MessageId={MessageId}",
+            rpcTimestamp,
+            SessionId,
+            response.MessageId);
+
+        return response.MessageId;
     }
 
     /// <summary>
@@ -426,7 +418,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// <param name="timeout">Timeout duration (default: 60 seconds). Controls how long to wait; does not abort in-flight agent work.</param>
     /// <param name="cancellationToken">A <see cref="CancellationToken"/> that can be used to cancel the operation.</param>
     /// <returns>A task that resolves with the final assistant message event, or null if none was received.</returns>
-    /// <exception cref="TimeoutException">Thrown if the timeout is reached before completion.</exception>
+    /// <exception cref="TimeoutException">Thrown if the timeout is reached before the session becomes idle.</exception>
     /// <exception cref="OperationCanceledException">Thrown if the <paramref name="cancellationToken"/> is cancelled.</exception>
     /// <exception cref="InvalidOperationException">
     /// Thrown if the session has been disposed or the Autopilot request is aborted.
@@ -434,15 +426,16 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// <exception cref="IOException">Thrown if session event delivery stops before a final response arrives.</exception>
     /// <remarks>
     /// <para>
-    /// Supported local runtimes correlate completion and the response with this message.
-    /// Unsupported runtimes retain the legacy non-Autopilot <c>session.idle</c> or
-    /// request-correlated <c>session.autopilot_stopped</c> wait. Autopilot completion
-    /// does not wait for or stop attached shells.
+    /// This is a convenience method that combines <see cref="SendAsync(MessageOptions, CancellationToken)"/> with waiting for
+    /// non-Autopilot <c>session.idle</c> or the request-correlated
+    /// <c>session.autopilot_stopped</c> event. Autopilot completion does not wait
+    /// for or stop attached shells. Idle is accepted only after a correlated
+    /// user message, assistant message, or policy-block warning starts this request.
     /// </para>
     /// <para>
     /// Events are still delivered to handlers registered via <see cref="On{T}"/> while waiting.
     /// Sub-agent events with a non-empty AgentId do not complete the wait or supply its reply.
-    /// Synchronous handlers registered before this call process the terminal event, when present, before the wait completes.
+    /// Synchronous handlers registered before this call process the terminal event before the wait completes.
     /// </para>
     /// </remarks>
     /// <example>
@@ -460,141 +453,13 @@ public sealed partial class CopilotSession : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(options);
         ThrowIfDisposed();
 
-        var effectiveTimeout = timeout ?? s_defaultSendAndWaitTimeout;
-        using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        lifetime.CancelAfter(effectiveTimeout);
-        try
+        if (options.ResponseSchema is not null)
         {
-            var completion = await SendWithCompletionAsync(options, lifetime.Token);
-            if (completion is not null)
-            {
-                var response = completion.Response;
-                if (response is not null && (response is not AssistantMessageEvent || !string.IsNullOrEmpty(response.AgentId)))
-                {
-                    throw new InvalidOperationException("The runtime returned a non-assistant response.");
-                }
-                var assistant = response as AssistantMessageEvent;
-                if (options.ResponseSchema is not null)
-                {
-                    if (completion.Aborted)
-                    {
-                        throw new InvalidOperationException("The session was aborted before a final structured response was received.");
-                    }
-                    if (assistant is null || assistant.Data.ToolRequests is { Length: > 0 } || string.IsNullOrWhiteSpace(assistant.Data.Content))
-                    {
-                        throw new InvalidOperationException("The turn completed without a final structured response.");
-                    }
-                }
-                if (completion.Aborted)
-                {
-                    throw new InvalidOperationException("The session was aborted before completion.");
-                }
-                return assistant;
-            }
-            return options.ResponseSchema is not null
-                ? await SendAndWaitForStructuredMessageLegacyAsync(options, timeout, lifetime.Token)
-                : await SendAndWaitLegacyAsync(options, timeout, lifetime.Token);
-        }
-        catch (OperationCanceledException error) when (cancellationToken.IsCancellationRequested)
-        {
-            throw new OperationCanceledException(error.Message, error, cancellationToken);
-        }
-        catch (OperationCanceledException)
-        {
-            throw new TimeoutException($"SendAndWaitAsync timed out after {effectiveTimeout}");
-        }
-    }
-
-    private async Task<SendAndWaitResult?> SendWithCompletionAsync(
-        MessageOptions options, CancellationToken cancellationToken)
-    {
-        if (_completionRpcUnsupported)
-        {
-            return null;
-        }
-        var dispatched = new HashSet<string>(StringComparer.Ordinal);
-        string? boundary = null;
-        var delivered = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        using var subscription = OnCore<SessionEvent>(evt =>
-        {
-            if (evt is not (SessionIdleEvent or SessionAutopilotStoppedEvent or SessionErrorEvent))
-            {
-                return;
-            }
-            lock (dispatched)
-            {
-                var eventId = evt.Id.ToString();
-                dispatched.Add(eventId);
-                if (eventId == boundary)
-                {
-                    delivered.TrySetResult(true);
-                }
-            }
-        }, rootAgentOnly: true);
-
-        async Task DrainAsync(string? eventId)
-        {
-            lock (dispatched)
-            {
-                if (eventId is null || dispatched.Contains(eventId))
-                {
-                    return;
-                }
-                boundary = eventId;
-            }
-            await Task.WhenAny(delivered.Task, _eventDispatchStopped.Task, JsonRpc.Completion)
-                .WaitAsync(Timeout.InfiniteTimeSpan, cancellationToken);
-            if (!delivered.Task.IsCompleted)
-            {
-                throw new IOException("The session closed before a final response was received.");
-            }
-            await delivered.Task;
+            return await SendAndWaitForStructuredMessageAsync(options, timeout, cancellationToken);
         }
 
-        using var requestCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        try
-        {
-            var request = InvokeRpcAsync<SendAndWaitResult>(
-                "session.sendAndWait", [CreateSendRequest(options)], requestCancellation.Token);
-            await Task.WhenAny(request, _eventDispatchStopped.Task, JsonRpc.Completion);
-            if (!request.IsCompleted)
-            {
-                requestCancellation.Cancel();
-            }
-            var result = await request;
-            await DrainAsync(result.CompletionEventId);
-            return result;
-        }
-        catch (OperationCanceledException error) when (!cancellationToken.IsCancellationRequested && requestCancellation.IsCancellationRequested)
-        {
-            throw new IOException("The session closed before a final response was received.", error);
-        }
-        catch (ObjectDisposedException error) when (_eventDispatchStopped.Task.IsCompleted || JsonRpc.Completion.IsCompleted)
-        {
-            throw new IOException("The session closed before a final response was received.", error);
-        }
-        catch (IOException error) when (error.InnerException is RemoteRpcException remote)
-        {
-            if (remote.ErrorCode == RemoteRpcException.MethodNotFoundErrorCode)
-            {
-                _completionRpcUnsupported = true;
-                return null;
-            }
-            if (remote.ErrorData is { ValueKind: JsonValueKind.Object } data &&
-                data.TryGetProperty("completionEventId", out var id) && id.ValueKind == JsonValueKind.String)
-            {
-                await DrainAsync(id.GetString());
-                throw new InvalidOperationException($"Session error: {remote.Message}", error);
-            }
-            throw;
-        }
-    }
-
-    private async Task<AssistantMessageEvent?> SendAndWaitLegacyAsync(
-        MessageOptions options, TimeSpan? timeout, CancellationToken cancellationToken)
-    {
         var totalTimestamp = Stopwatch.GetTimestamp();
-        var effectiveTimeout = timeout ?? s_defaultSendAndWaitTimeout;
+        var effectiveTimeout = timeout ?? TimeSpan.FromSeconds(60);
         var tcs = new TaskCompletionSource<AssistantMessageEvent?>(TaskCreationOptions.RunContinuationsAsynchronously);
         AssistantMessageEvent? lastAssistantMessage = null;
         var firstAssistantMessageLogged = false;

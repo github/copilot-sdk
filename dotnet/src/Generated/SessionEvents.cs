@@ -62,7 +62,6 @@ namespace GitHub.Copilot;
 [JsonDerivedType(typeof(HookProgressEvent), "hook.progress")]
 [JsonDerivedType(typeof(HookStartEvent), "hook.start")]
 [JsonDerivedType(typeof(HumanResponseRecordedEvent), "human_response.recorded")]
-[JsonDerivedType(typeof(InstructionUpdateEvent), "instruction.update")]
 [JsonDerivedType(typeof(McpAppToolCallCompleteEvent), "mcp_app.tool_call_complete")]
 [JsonDerivedType(typeof(McpHeadersRefreshCompletedEvent), "mcp.headers_refresh_completed")]
 [JsonDerivedType(typeof(McpHeadersRefreshRequiredEvent), "mcp.headers_refresh_required")]
@@ -327,8 +326,6 @@ internal sealed partial class SessionEventJsonConverter : JsonConverter<SessionE
             case 18:
                 if (type.SequenceEqual("assistant.turn_end"u8))
                     return SessionEventsJsonContext.Default.AssistantTurnEndEvent;
-                if (type.SequenceEqual("instruction.update"u8))
-                    return SessionEventsJsonContext.Default.InstructionUpdateEvent;
                 if (type.SequenceEqual("mcp.oauth_required"u8))
                     return SessionEventsJsonContext.Default.McpOauthRequiredEvent;
                 if (type.SequenceEqual("model.call_failure"u8))
@@ -1981,19 +1978,6 @@ public sealed partial class SystemMessageEvent : SessionEvent
     public required SystemMessageData Data { get; set; }
 }
 
-/// <summary>An authoritative developer-instruction update. Event order defines instruction order. Persistent updates are durable and restore across replay, resume, rewind, fork, and compaction; turn-scoped updates must be emitted with ephemeral=true and are never restored.</summary>
-/// <remarks>Represents the <c>instruction.update</c> event.</remarks>
-public sealed partial class InstructionUpdateEvent : SessionEvent
-{
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override string Type => "instruction.update";
-
-    /// <summary>The <c>instruction.update</c> event payload.</summary>
-    [JsonPropertyName("data")]
-    public required InstructionUpdateData Data { get; set; }
-}
-
 /// <summary>System-generated notification for runtime events like background task completion.</summary>
 /// <remarks>Represents the <c>system.notification</c> event.</remarks>
 public sealed partial class SystemNotificationEvent : SessionEvent
@@ -3480,11 +3464,6 @@ public sealed partial class SessionModeNoticeDeliveredData
     [JsonPropertyName("content")]
     public string? Content { get; set; }
 
-    /// <summary>Whether the model-visible transition notice was persisted separately as an instruction.update event.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("instructionUpdatePersisted")]
-    public bool? InstructionUpdatePersisted { get; set; }
-
     /// <summary>Mode established by the delivered transition notice.</summary>
     [JsonPropertyName("mode")]
     public required SessionMode Mode { get; set; }
@@ -4066,12 +4045,6 @@ public sealed partial class SessionCompactionCompleteData
     [JsonPropertyName("success")]
     public required bool Success { get; set; }
 
-    /// <summary>How far the summarizer model calls had progressed when the outcome was decided, so a stalled summarizer can be told from a slow one.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonInclude]
-    [JsonPropertyName("summarizerProgress")]
-    internal CompactionCompleteSummarizerProgress? SummarizerProgress { get; set; }
-
     /// <summary>LLM-generated summary of the compacted conversation history.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("summaryContent")]
@@ -4229,11 +4202,6 @@ public sealed partial class SessionFusionRouteFailedData
     /// <summary>Concrete model selected as the deterministic fallback.</summary>
     [JsonPropertyName("fallbackModel")]
     public required string FallbackModel { get; set; }
-
-    /// <summary>Identifier of the HydraFusion turn whose routing failed; its fallback phase runs under the same id. Absent on events written before it was recorded.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("fusionId")]
-    public string? FusionId { get; set; }
 
     /// <summary>HydraFusion routing policy requested for the turn.</summary>
     [JsonPropertyName("policy")]
@@ -5250,12 +5218,6 @@ public sealed partial class AssistantUsageData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("cacheExpiresAt")]
     public DateTimeOffset? CacheExpiresAt { get; set; }
-
-    /// <summary>Request-scoped prompt-cache policy lifetime in seconds; the shortest lifetime for mixed known policies. Does not establish or refresh cache state. Omitted when the policy is unknown.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonInclude]
-    [JsonPropertyName("cachePolicyTtlSeconds")]
-    internal long? CachePolicyTtlSeconds { get; set; }
 
     /// <summary>Number of tokens read from prompt cache.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -6879,35 +6841,6 @@ public sealed partial class SystemMessageData
     /// <summary>Message role: "system" for system prompts, "developer" for developer-injected instructions.</summary>
     [JsonPropertyName("role")]
     public required SystemMessageRole Role { get; set; }
-}
-
-/// <summary>An authoritative developer-instruction update. Event order defines instruction order. Persistent updates are durable and restore across replay, resume, rewind, fork, and compaction; turn-scoped updates must be emitted with ephemeral=true and are never restored.</summary>
-public sealed partial class InstructionUpdateData
-{
-    /// <summary>Authority responsible for the update.</summary>
-    [JsonPropertyName("authority")]
-    public required InstructionUpdateAuthority Authority { get; set; }
-
-    /// <summary>Earliest legal insertion boundary.</summary>
-    [JsonPropertyName("boundary")]
-    public required InstructionUpdateBoundary Boundary { get; set; }
-
-    /// <summary>Authoritative instruction text. Empty or whitespace-only content is rejected.</summary>
-    [JsonPropertyName("content")]
-    public required string Content { get; set; }
-
-    /// <summary>Deterministic behavior when the active provider cannot represent the update.</summary>
-    [JsonPropertyName("fallback")]
-    public required InstructionUpdateFallback Fallback { get; set; }
-
-    /// <summary>Whether the update persists beyond the current turn.</summary>
-    [JsonPropertyName("lifetime")]
-    public required InstructionUpdateLifetime Lifetime { get; set; }
-
-    /// <summary>Optional stable source name for diagnostics and future host-authored updates.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("name")]
-    public string? Name { get; set; }
 }
 
 /// <summary>System-generated notification for runtime events like background task completion.</summary>
@@ -9185,107 +9118,6 @@ public sealed partial class ResponsesReasoning
     /// <summary>Provider model whose reasoning settings this boundary records.</summary>
     [JsonPropertyName("model")]
     public required string Model { get; set; }
-}
-
-/// <summary>How far the compaction's summarizer model calls had progressed when the compaction's outcome was decided. Stream statistics describe the latest model request; durationMs and attemptCount cover every request.</summary>
-/// <remarks>Nested data type for <c>CompactionCompleteSummarizerProgress</c>.</remarks>
-internal sealed partial class CompactionCompleteSummarizerProgress
-{
-    /// <summary>Time since the latest request was dispatched, whether or not it had finished, in milliseconds. Absent when no request was dispatched.</summary>
-    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonInclude]
-    [JsonPropertyName("attemptAgeMs")]
-    internal TimeSpan? AttemptAge { get; set; }
-
-    /// <summary>Number of summarizer model requests dispatched, including retries.</summary>
-    [JsonInclude]
-    [JsonPropertyName("attemptCount")]
-    internal required long AttemptCount { get; set; }
-
-    /// <summary>Whether the latest request had already returned a response or an error. False when it was still in flight, such as when the compaction deadline cut it off; absent when no request was dispatched.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonInclude]
-    [JsonPropertyName("attemptSettled")]
-    internal bool? AttemptSettled { get; set; }
-
-    /// <summary>Time from the start of the compaction to the decision of its outcome, in milliseconds.</summary>
-    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]
-    [JsonInclude]
-    [JsonPropertyName("durationMs")]
-    internal required TimeSpan Duration { get; set; }
-
-    /// <summary>Time since the latest request's last stream event, or since its dispatch if none arrived, in milliseconds. Absent when no request was dispatched.</summary>
-    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonInclude]
-    [JsonPropertyName("idleMs")]
-    internal TimeSpan? Idle { get; set; }
-
-    /// <summary>Whether historical attachments and reasoning were dropped from the compaction's input because the session's previous compaction ran out of time.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonInclude]
-    [JsonPropertyName("inputShrunk")]
-    internal bool? InputShrunk { get; set; }
-
-    /// <summary>Longest gap between two consecutive outputs of the latest request after its first reply text or tool-call output, in milliseconds. Excludes the still-open gap reported as sinceLastOutputMs; absent without such a gap.</summary>
-    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonInclude]
-    [JsonPropertyName("maxOutputGapAfterAnswerMs")]
-    internal TimeSpan? MaxOutputGapAfterAnswer { get; set; }
-
-    /// <summary>Longest gap between two consecutive outputs of the latest request up to its first reply text or tool-call output, including the gap that ends there, in milliseconds. Excludes the still-open gap reported as sinceLastOutputMs; absent without such a gap.</summary>
-    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonInclude]
-    [JsonPropertyName("maxOutputGapBeforeAnswerMs")]
-    internal TimeSpan? MaxOutputGapBeforeAnswer { get; set; }
-
-    /// <summary>Longest gap between two consecutive stream events of the latest request, in milliseconds. Excludes the still-open gap reported as idleMs; absent with fewer than two events.</summary>
-    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonInclude]
-    [JsonPropertyName("maxStreamEventGapMs")]
-    internal TimeSpan? MaxStreamEventGap { get; set; }
-
-    /// <summary>Stream events of the latest request that carried observable output.</summary>
-    [JsonInclude]
-    [JsonPropertyName("outputEventCount")]
-    internal required long OutputEventCount { get; set; }
-
-    /// <summary>Time since the latest request's last observable output, in milliseconds. Unlike idleMs, keepalive deltas do not reset it. Absent when no output arrived.</summary>
-    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonInclude]
-    [JsonPropertyName("sinceLastOutputMs")]
-    internal TimeSpan? SinceLastOutput { get; set; }
-
-    /// <summary>Token-bearing stream events the latest request received, keepalive deltas included.</summary>
-    [JsonInclude]
-    [JsonPropertyName("streamEventCount")]
-    internal required long StreamEventCount { get; set; }
-
-    /// <summary>Time from dispatching the latest request to its first reply text or tool-call output, in milliseconds. Reasoning does not count. Absent when no such output arrived.</summary>
-    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonInclude]
-    [JsonPropertyName("timeToFirstAnswerOutputMs")]
-    internal TimeSpan? TimeToFirstAnswerOutput { get; set; }
-
-    /// <summary>Time from dispatching the latest request to its first observable text, reasoning, or tool-call output, in milliseconds. Absent when no output arrived.</summary>
-    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonInclude]
-    [JsonPropertyName("timeToFirstOutputMs")]
-    internal TimeSpan? TimeToFirstOutput { get; set; }
-
-    /// <summary>Time from dispatching the latest request to its first token-bearing stream event, in milliseconds. Absent when no stream event arrived.</summary>
-    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonInclude]
-    [JsonPropertyName("timeToFirstTokenMs")]
-    internal TimeSpan? TimeToFirstToken { get; set; }
 }
 
 /// <summary>Nested data type for <c>PermissionRecoveryAttempt</c>.</summary>
@@ -21482,253 +21314,6 @@ public readonly struct SystemMessageRole : IEquatable<SystemMessageRole>
     }
 }
 
-/// <summary>Authority responsible for an instruction update.</summary>
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct InstructionUpdateAuthority : IEquatable<InstructionUpdateAuthority>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="InstructionUpdateAuthority"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="InstructionUpdateAuthority"/>.</param>
-    [JsonConstructor]
-    public InstructionUpdateAuthority(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="InstructionUpdateAuthority"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>The runtime generated the instruction.</summary>
-    public static InstructionUpdateAuthority Runtime { get; } = new("runtime");
-
-    /// <summary>The SDK host supplied the instruction.</summary>
-    public static InstructionUpdateAuthority Host { get; } = new("host");
-
-    /// <summary>Managed policy supplied the instruction.</summary>
-    public static InstructionUpdateAuthority ManagedPolicy { get; } = new("managedPolicy");
-
-    /// <summary>Returns a value indicating whether two <see cref="InstructionUpdateAuthority"/> instances are equivalent.</summary>
-    public static bool operator ==(InstructionUpdateAuthority left, InstructionUpdateAuthority right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="InstructionUpdateAuthority"/> instances are not equivalent.</summary>
-    public static bool operator !=(InstructionUpdateAuthority left, InstructionUpdateAuthority right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is InstructionUpdateAuthority other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(InstructionUpdateAuthority other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{InstructionUpdateAuthority}"/> for serializing <see cref="InstructionUpdateAuthority"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<InstructionUpdateAuthority>
-    {
-        /// <inheritdoc />
-        public override InstructionUpdateAuthority Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, InstructionUpdateAuthority value, JsonSerializerOptions options)
-        {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(InstructionUpdateAuthority));
-        }
-    }
-}
-
-/// <summary>Earliest legal insertion boundary for an instruction update.</summary>
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct InstructionUpdateBoundary : IEquatable<InstructionUpdateBoundary>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="InstructionUpdateBoundary"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="InstructionUpdateBoundary"/>.</param>
-    [JsonConstructor]
-    public InstructionUpdateBoundary(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="InstructionUpdateBoundary"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>Insert after the current tool-result run and before the next model request.</summary>
-    public static InstructionUpdateBoundary AfterToolResults { get; } = new("afterToolResults");
-
-    /// <summary>Insert immediately before the next model request at a provider-legal boundary.</summary>
-    public static InstructionUpdateBoundary NextModelRequest { get; } = new("nextModelRequest");
-
-    /// <summary>Returns a value indicating whether two <see cref="InstructionUpdateBoundary"/> instances are equivalent.</summary>
-    public static bool operator ==(InstructionUpdateBoundary left, InstructionUpdateBoundary right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="InstructionUpdateBoundary"/> instances are not equivalent.</summary>
-    public static bool operator !=(InstructionUpdateBoundary left, InstructionUpdateBoundary right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is InstructionUpdateBoundary other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(InstructionUpdateBoundary other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{InstructionUpdateBoundary}"/> for serializing <see cref="InstructionUpdateBoundary"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<InstructionUpdateBoundary>
-    {
-        /// <inheritdoc />
-        public override InstructionUpdateBoundary Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, InstructionUpdateBoundary value, JsonSerializerOptions options)
-        {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(InstructionUpdateBoundary));
-        }
-    }
-}
-
-/// <summary>Deterministic behavior when the active provider cannot represent the requested update.</summary>
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct InstructionUpdateFallback : IEquatable<InstructionUpdateFallback>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="InstructionUpdateFallback"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="InstructionUpdateFallback"/>.</param>
-    [JsonConstructor]
-    public InstructionUpdateFallback(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="InstructionUpdateFallback"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>Rebuild the leading system prompt rather than silently dropping the update.</summary>
-    public static InstructionUpdateFallback RebuildSystemPrompt { get; } = new("rebuildSystemPrompt");
-
-    /// <summary>Reject the update without changing authoritative instructions.</summary>
-    public static InstructionUpdateFallback Reject { get; } = new("reject");
-
-    /// <summary>Returns a value indicating whether two <see cref="InstructionUpdateFallback"/> instances are equivalent.</summary>
-    public static bool operator ==(InstructionUpdateFallback left, InstructionUpdateFallback right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="InstructionUpdateFallback"/> instances are not equivalent.</summary>
-    public static bool operator !=(InstructionUpdateFallback left, InstructionUpdateFallback right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is InstructionUpdateFallback other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(InstructionUpdateFallback other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{InstructionUpdateFallback}"/> for serializing <see cref="InstructionUpdateFallback"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<InstructionUpdateFallback>
-    {
-        /// <inheritdoc />
-        public override InstructionUpdateFallback Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, InstructionUpdateFallback value, JsonSerializerOptions options)
-        {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(InstructionUpdateFallback));
-        }
-    }
-}
-
-/// <summary>How long an instruction update remains authoritative.</summary>
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct InstructionUpdateLifetime : IEquatable<InstructionUpdateLifetime>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="InstructionUpdateLifetime"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="InstructionUpdateLifetime"/>.</param>
-    [JsonConstructor]
-    public InstructionUpdateLifetime(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="InstructionUpdateLifetime"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>Persists in event order across replay, resume, rewind, fork, and compaction.</summary>
-    public static InstructionUpdateLifetime Persistent { get; } = new("persistent");
-
-    /// <summary>Applies only to the current turn and is not restored from durable history.</summary>
-    public static InstructionUpdateLifetime Turn { get; } = new("turn");
-
-    /// <summary>Returns a value indicating whether two <see cref="InstructionUpdateLifetime"/> instances are equivalent.</summary>
-    public static bool operator ==(InstructionUpdateLifetime left, InstructionUpdateLifetime right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="InstructionUpdateLifetime"/> instances are not equivalent.</summary>
-    public static bool operator !=(InstructionUpdateLifetime left, InstructionUpdateLifetime right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is InstructionUpdateLifetime other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(InstructionUpdateLifetime other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{InstructionUpdateLifetime}"/> for serializing <see cref="InstructionUpdateLifetime"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<InstructionUpdateLifetime>
-    {
-        /// <inheritdoc />
-        public override InstructionUpdateLifetime Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, InstructionUpdateLifetime value, JsonSerializerOptions options)
-        {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(InstructionUpdateLifetime));
-        }
-    }
-}
-
 /// <summary>Whether the agent completed successfully or failed.</summary>
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
@@ -24501,7 +24086,6 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(CompactionCompleteCompactionTokensUsed))]
 [JsonSerializable(typeof(CompactionCompleteCompactionTokensUsedCopilotUsage))]
 [JsonSerializable(typeof(CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail))]
-[JsonSerializable(typeof(CompactionCompleteSummarizerProgress))]
 [JsonSerializable(typeof(CompletionReceiptEventRange))]
 [JsonSerializable(typeof(CompletionReceiptFinalTool))]
 [JsonSerializable(typeof(CustomAgentsUpdatedAgent))]
@@ -24545,8 +24129,6 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(HumanResponseRecordedResponseAskUser))]
 [JsonSerializable(typeof(HumanResponseRecordedResponseExitPlanMode))]
 [JsonSerializable(typeof(HumanResponseRecordedResponseUserInput))]
-[JsonSerializable(typeof(InstructionUpdateData))]
-[JsonSerializable(typeof(InstructionUpdateEvent))]
 [JsonSerializable(typeof(ManagedPermissionsContext))]
 [JsonSerializable(typeof(McpAppToolCallCompleteData))]
 [JsonSerializable(typeof(McpAppToolCallCompleteError))]

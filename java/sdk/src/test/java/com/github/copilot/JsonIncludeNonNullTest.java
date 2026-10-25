@@ -11,10 +11,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.EnumSource;
 
-import com.github.copilot.generated.rpc.MemoryMode;
 import com.github.copilot.rpc.CapiSessionOptions;
 import com.github.copilot.rpc.CopilotClientOptions;
 import com.github.copilot.rpc.CustomAgentConfig;
@@ -173,22 +170,6 @@ class JsonIncludeNonNullTest {
         var disabled = new MemoryConfiguration().setEnabled(false);
         assertEquals("{\"enabled\":false}", MAPPER.writeValueAsString(disabled),
                 "MemoryConfiguration should serialize enabled even when false");
-    }
-
-    @ParameterizedTest
-    @EnumSource(MemoryMode.class)
-    @AllowCopilotExperimental
-    void memoryModeRoundTripsAndForwardsToSessionConfigs(MemoryMode mode) throws JsonProcessingException {
-        var memory = new MemoryConfiguration().setEnabled(true).setMode(mode);
-        var json = MAPPER.writeValueAsString(memory);
-        assertEquals(mode.getValue(), MAPPER.readTree(json).get("mode").asText());
-        assertEquals(mode, MAPPER.readValue(json, MemoryConfiguration.class).getMode());
-        assertEquals(mode.getValue(),
-                MAPPER.valueToTree(new SessionConfig().setMemory(memory)).path("memory").path("mode").asText());
-        assertEquals(mode.getValue(),
-                MAPPER.valueToTree(new ResumeSessionConfig().setMemory(memory)).path("memory").path("mode").asText());
-        memory.setMode(null);
-        assertFalse(MAPPER.valueToTree(memory).has("mode"));
     }
 
     @Test

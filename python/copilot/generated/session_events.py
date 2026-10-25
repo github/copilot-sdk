@@ -232,7 +232,6 @@ class SessionEventType(Enum):
     # Experimental: this event is part of an experimental API and may change or be removed.
     SESSION_BINARY_ASSET = "session.binary_asset"
     SYSTEM_MESSAGE = "system.message"
-    INSTRUCTION_UPDATE = "instruction.update"
     SYSTEM_NOTIFICATION = "system.notification"
     PERMISSION_REQUESTED = "permission.requested"
     PERMISSION_COMPLETED = "permission.completed"
@@ -2573,7 +2572,6 @@ class SessionFusionRouteFailedData:
     reason: str
     synthetic_model: str
     error_message: str | None = None
-    fusion_id: str | None = None
     routing_latency_ms: float | None = None
 
     @staticmethod
@@ -2585,7 +2583,6 @@ class SessionFusionRouteFailedData:
         reason = from_str(obj.get("reason"))
         synthetic_model = from_str(obj.get("syntheticModel"))
         error_message = from_union([from_none, from_str], obj.get("errorMessage"))
-        fusion_id = from_union([from_none, from_str], obj.get("fusionId"))
         routing_latency_ms = from_union([from_none, from_float], obj.get("routingLatencyMs"))
         return SessionFusionRouteFailedData(
             attempt_id=attempt_id,
@@ -2594,7 +2591,6 @@ class SessionFusionRouteFailedData:
             reason=reason,
             synthetic_model=synthetic_model,
             error_message=error_message,
-            fusion_id=fusion_id,
             routing_latency_ms=routing_latency_ms,
         )
 
@@ -2607,8 +2603,6 @@ class SessionFusionRouteFailedData:
         result["syntheticModel"] = from_str(self.synthetic_model)
         if self.error_message is not None:
             result["errorMessage"] = from_union([from_none, from_str], self.error_message)
-        if self.fusion_id is not None:
-            result["fusionId"] = from_union([from_none, from_str], self.fusion_id)
         if self.routing_latency_ms is not None:
             result["routingLatencyMs"] = from_union([from_none, to_float], self.routing_latency_ms)
         return result
@@ -3829,8 +3823,6 @@ class AssistantUsageData:
     # Internal: this field is an internal SDK API and is not part of the public surface.
     _cache_details_reported: bool | None = None
     cache_expires_at: datetime | None = None
-    # Internal: this field is an internal SDK API and is not part of the public surface.
-    _cache_policy_ttl_seconds: int | None = None
     cache_read_tokens: int | None = None
     # Internal: this field is an internal SDK API and is not part of the public surface.
     _cache_ttl_seconds: int | None = None
@@ -3916,7 +3908,6 @@ class AssistantUsageData:
         byok_kind = from_union([from_none, from_str], obj.get("byokKind"))
         _cache_details_reported = from_union([from_none, from_bool], obj.get("cacheDetailsReported"))
         cache_expires_at = from_union([from_none, from_datetime], obj.get("cacheExpiresAt"))
-        _cache_policy_ttl_seconds = from_union([from_none, from_int], obj.get("cachePolicyTtlSeconds"))
         cache_read_tokens = from_union([from_none, from_int], obj.get("cacheReadTokens"))
         _cache_ttl_seconds = from_union([from_none, from_int], obj.get("cacheTtlSeconds"))
         cache_write_tokens = from_union([from_none, from_int], obj.get("cacheWriteTokens"))
@@ -3984,7 +3975,6 @@ class AssistantUsageData:
             byok_kind=byok_kind,
             _cache_details_reported=_cache_details_reported,
             cache_expires_at=cache_expires_at,
-            _cache_policy_ttl_seconds=_cache_policy_ttl_seconds,
             cache_read_tokens=cache_read_tokens,
             _cache_ttl_seconds=_cache_ttl_seconds,
             cache_write_tokens=cache_write_tokens,
@@ -4064,8 +4054,6 @@ class AssistantUsageData:
             result["cacheDetailsReported"] = from_union([from_none, from_bool], self._cache_details_reported)
         if self.cache_expires_at is not None:
             result["cacheExpiresAt"] = from_union([from_none, to_datetime], self.cache_expires_at)
-        if self._cache_policy_ttl_seconds is not None:
-            result["cachePolicyTtlSeconds"] = from_union([from_none, to_int], self._cache_policy_ttl_seconds)
         if self.cache_read_tokens is not None:
             result["cacheReadTokens"] = from_union([from_none, to_int], self.cache_read_tokens)
         if self._cache_ttl_seconds is not None:
@@ -5293,107 +5281,6 @@ class CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail:
 
 
 @dataclass
-class _CompactionCompleteSummarizerProgress:
-    "How far the compaction's summarizer model calls had progressed when the compaction's outcome was decided. Stream statistics describe the latest model request; durationMs and attemptCount cover every request."
-    # Internal: this field is an internal SDK API and is not part of the public surface.
-    _attempt_count: int
-    # Internal: this field is an internal SDK API and is not part of the public surface.
-    _duration: timedelta
-    # Internal: this field is an internal SDK API and is not part of the public surface.
-    _output_event_count: int
-    # Internal: this field is an internal SDK API and is not part of the public surface.
-    _stream_event_count: int
-    # Internal: this field is an internal SDK API and is not part of the public surface.
-    _attempt_age: timedelta | None = None
-    # Internal: this field is an internal SDK API and is not part of the public surface.
-    _attempt_settled: bool | None = None
-    # Internal: this field is an internal SDK API and is not part of the public surface.
-    _idle: timedelta | None = None
-    # Internal: this field is an internal SDK API and is not part of the public surface.
-    _input_shrunk: bool | None = None
-    # Internal: this field is an internal SDK API and is not part of the public surface.
-    _max_output_gap_after_answer: timedelta | None = None
-    # Internal: this field is an internal SDK API and is not part of the public surface.
-    _max_output_gap_before_answer: timedelta | None = None
-    # Internal: this field is an internal SDK API and is not part of the public surface.
-    _max_stream_event_gap: timedelta | None = None
-    # Internal: this field is an internal SDK API and is not part of the public surface.
-    _since_last_output: timedelta | None = None
-    # Internal: this field is an internal SDK API and is not part of the public surface.
-    _time_to_first_answer_output: timedelta | None = None
-    # Internal: this field is an internal SDK API and is not part of the public surface.
-    _time_to_first_output: timedelta | None = None
-    # Internal: this field is an internal SDK API and is not part of the public surface.
-    _time_to_first_token: timedelta | None = None
-
-    @staticmethod
-    def from_dict(obj: Any) -> "_CompactionCompleteSummarizerProgress":
-        assert isinstance(obj, dict)
-        _attempt_count = from_int(obj.get("attemptCount"))
-        _duration = from_timedelta(obj.get("durationMs"))
-        _output_event_count = from_int(obj.get("outputEventCount"))
-        _stream_event_count = from_int(obj.get("streamEventCount"))
-        _attempt_age = from_union([from_none, from_timedelta], obj.get("attemptAgeMs"))
-        _attempt_settled = from_union([from_none, from_bool], obj.get("attemptSettled"))
-        _idle = from_union([from_none, from_timedelta], obj.get("idleMs"))
-        _input_shrunk = from_union([from_none, from_bool], obj.get("inputShrunk"))
-        _max_output_gap_after_answer = from_union([from_none, from_timedelta], obj.get("maxOutputGapAfterAnswerMs"))
-        _max_output_gap_before_answer = from_union([from_none, from_timedelta], obj.get("maxOutputGapBeforeAnswerMs"))
-        _max_stream_event_gap = from_union([from_none, from_timedelta], obj.get("maxStreamEventGapMs"))
-        _since_last_output = from_union([from_none, from_timedelta], obj.get("sinceLastOutputMs"))
-        _time_to_first_answer_output = from_union([from_none, from_timedelta], obj.get("timeToFirstAnswerOutputMs"))
-        _time_to_first_output = from_union([from_none, from_timedelta], obj.get("timeToFirstOutputMs"))
-        _time_to_first_token = from_union([from_none, from_timedelta], obj.get("timeToFirstTokenMs"))
-        return _CompactionCompleteSummarizerProgress(
-            _attempt_count=_attempt_count,
-            _duration=_duration,
-            _output_event_count=_output_event_count,
-            _stream_event_count=_stream_event_count,
-            _attempt_age=_attempt_age,
-            _attempt_settled=_attempt_settled,
-            _idle=_idle,
-            _input_shrunk=_input_shrunk,
-            _max_output_gap_after_answer=_max_output_gap_after_answer,
-            _max_output_gap_before_answer=_max_output_gap_before_answer,
-            _max_stream_event_gap=_max_stream_event_gap,
-            _since_last_output=_since_last_output,
-            _time_to_first_answer_output=_time_to_first_answer_output,
-            _time_to_first_output=_time_to_first_output,
-            _time_to_first_token=_time_to_first_token,
-        )
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["attemptCount"] = to_int(self._attempt_count)
-        result["durationMs"] = to_timedelta_int(self._duration)
-        result["outputEventCount"] = to_int(self._output_event_count)
-        result["streamEventCount"] = to_int(self._stream_event_count)
-        if self._attempt_age is not None:
-            result["attemptAgeMs"] = from_union([from_none, to_timedelta_int], self._attempt_age)
-        if self._attempt_settled is not None:
-            result["attemptSettled"] = from_union([from_none, from_bool], self._attempt_settled)
-        if self._idle is not None:
-            result["idleMs"] = from_union([from_none, to_timedelta_int], self._idle)
-        if self._input_shrunk is not None:
-            result["inputShrunk"] = from_union([from_none, from_bool], self._input_shrunk)
-        if self._max_output_gap_after_answer is not None:
-            result["maxOutputGapAfterAnswerMs"] = from_union([from_none, to_timedelta_int], self._max_output_gap_after_answer)
-        if self._max_output_gap_before_answer is not None:
-            result["maxOutputGapBeforeAnswerMs"] = from_union([from_none, to_timedelta_int], self._max_output_gap_before_answer)
-        if self._max_stream_event_gap is not None:
-            result["maxStreamEventGapMs"] = from_union([from_none, to_timedelta_int], self._max_stream_event_gap)
-        if self._since_last_output is not None:
-            result["sinceLastOutputMs"] = from_union([from_none, to_timedelta_int], self._since_last_output)
-        if self._time_to_first_answer_output is not None:
-            result["timeToFirstAnswerOutputMs"] = from_union([from_none, to_timedelta_int], self._time_to_first_answer_output)
-        if self._time_to_first_output is not None:
-            result["timeToFirstOutputMs"] = from_union([from_none, to_timedelta_int], self._time_to_first_output)
-        if self._time_to_first_token is not None:
-            result["timeToFirstTokenMs"] = from_union([from_none, to_timedelta_int], self._time_to_first_token)
-        return result
-
-
-@dataclass
 class CompletionReceiptEventRange:
     "Inclusive durable event range summarized by a completion receipt."
     end_event_id: str
@@ -6228,46 +6115,6 @@ class HumanResponseRecordedResponse:
             result["summary"] = from_union([from_none, from_str], self.summary)
         if self.was_freeform is not None:
             result["wasFreeform"] = from_union([from_none, from_bool], self.was_freeform)
-        return result
-
-
-@dataclass
-class InstructionUpdateData:
-    "An authoritative developer-instruction update. Event order defines instruction order. Persistent updates are durable and restore across replay, resume, rewind, fork, and compaction; turn-scoped updates must be emitted with ephemeral=true and are never restored."
-    authority: InstructionUpdateAuthority
-    boundary: InstructionUpdateBoundary
-    content: str
-    fallback: InstructionUpdateFallback
-    lifetime: InstructionUpdateLifetime
-    name: str | None = None
-
-    @staticmethod
-    def from_dict(obj: Any) -> "InstructionUpdateData":
-        assert isinstance(obj, dict)
-        authority = parse_enum(InstructionUpdateAuthority, obj.get("authority"))
-        boundary = parse_enum(InstructionUpdateBoundary, obj.get("boundary"))
-        content = from_str(obj.get("content"))
-        fallback = parse_enum(InstructionUpdateFallback, obj.get("fallback"))
-        lifetime = parse_enum(InstructionUpdateLifetime, obj.get("lifetime"))
-        name = from_union([from_none, from_str], obj.get("name"))
-        return InstructionUpdateData(
-            authority=authority,
-            boundary=boundary,
-            content=content,
-            fallback=fallback,
-            lifetime=lifetime,
-            name=name,
-        )
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["authority"] = to_enum(InstructionUpdateAuthority, self.authority)
-        result["boundary"] = to_enum(InstructionUpdateBoundary, self.boundary)
-        result["content"] = from_str(self.content)
-        result["fallback"] = to_enum(InstructionUpdateFallback, self.fallback)
-        result["lifetime"] = to_enum(InstructionUpdateLifetime, self.lifetime)
-        if self.name is not None:
-            result["name"] = from_union([from_none, from_str], self.name)
         return result
 
 
@@ -9892,8 +9739,6 @@ class SessionCompactionCompleteData:
     responses_reasoning: ResponsesReasoning | None = None
     service_request_id: str | None = None
     status_code: int | None = None
-    # Internal: this field is an internal SDK API and is not part of the public surface.
-    _summarizer_progress: _CompactionCompleteSummarizerProgress | None = None
     summary_content: str | None = None
     switch_target_model: str | None = None
     system_tokens: int | None = None
@@ -9930,7 +9775,6 @@ class SessionCompactionCompleteData:
         responses_reasoning = from_union([from_none, ResponsesReasoning.from_dict], obj.get("responsesReasoning"))
         service_request_id = from_union([from_none, from_str], obj.get("serviceRequestId"))
         status_code = from_union([from_none, from_int], obj.get("statusCode"))
-        _summarizer_progress = from_union([from_none, _CompactionCompleteSummarizerProgress.from_dict], obj.get("summarizerProgress"))
         summary_content = from_union([from_none, from_str], obj.get("summaryContent"))
         switch_target_model = from_union([from_none, from_str], obj.get("switchTargetModel"))
         system_tokens = from_union([from_none, from_int], obj.get("systemTokens"))
@@ -9964,7 +9808,6 @@ class SessionCompactionCompleteData:
             responses_reasoning=responses_reasoning,
             service_request_id=service_request_id,
             status_code=status_code,
-            _summarizer_progress=_summarizer_progress,
             summary_content=summary_content,
             switch_target_model=switch_target_model,
             system_tokens=system_tokens,
@@ -10023,8 +9866,6 @@ class SessionCompactionCompleteData:
             result["serviceRequestId"] = from_union([from_none, from_str], self.service_request_id)
         if self.status_code is not None:
             result["statusCode"] = from_union([from_none, to_int], self.status_code)
-        if self._summarizer_progress is not None:
-            result["summarizerProgress"] = from_union([from_none, lambda x: to_class(_CompactionCompleteSummarizerProgress, x)], self._summarizer_progress)
         if self.summary_content is not None:
             result["summaryContent"] = from_union([from_none, from_str], self.summary_content)
         if self.switch_target_model is not None:
@@ -10839,18 +10680,15 @@ class SessionModeNoticeDeliveredData:
     "Records that a mode transition notice reached the model so cache-stable mode tools can remain offered across resume."
     mode: SessionMode
     content: str | None = None
-    instruction_update_persisted: bool | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "SessionModeNoticeDeliveredData":
         assert isinstance(obj, dict)
         mode = parse_enum(SessionMode, obj.get("mode"))
         content = from_union([from_none, from_str], obj.get("content"))
-        instruction_update_persisted = from_union([from_none, from_bool], obj.get("instructionUpdatePersisted"))
         return SessionModeNoticeDeliveredData(
             mode=mode,
             content=content,
-            instruction_update_persisted=instruction_update_persisted,
         )
 
     def to_dict(self) -> dict:
@@ -10858,8 +10696,6 @@ class SessionModeNoticeDeliveredData:
         result["mode"] = to_enum(SessionMode, self.mode)
         if self.content is not None:
             result["content"] = from_union([from_none, from_str], self.content)
-        if self.instruction_update_persisted is not None:
-            result["instructionUpdatePersisted"] = from_union([from_none, from_bool], self.instruction_update_persisted)
         return result
 
 
@@ -15752,40 +15588,6 @@ class IndexedSearchState(Enum):
     FAILED = "failed"
 
 
-class InstructionUpdateAuthority(Enum):
-    "Authority responsible for an instruction update"
-    # The runtime generated the instruction.
-    RUNTIME = "runtime"
-    # The SDK host supplied the instruction.
-    HOST = "host"
-    # Managed policy supplied the instruction.
-    MANAGED_POLICY = "managedPolicy"
-
-
-class InstructionUpdateBoundary(Enum):
-    "Earliest legal insertion boundary for an instruction update"
-    # Insert after the current tool-result run and before the next model request.
-    AFTER_TOOL_RESULTS = "afterToolResults"
-    # Insert immediately before the next model request at a provider-legal boundary.
-    NEXT_MODEL_REQUEST = "nextModelRequest"
-
-
-class InstructionUpdateFallback(Enum):
-    "Deterministic behavior when the active provider cannot represent the requested update"
-    # Rebuild the leading system prompt rather than silently dropping the update.
-    REBUILD_SYSTEM_PROMPT = "rebuildSystemPrompt"
-    # Reject the update without changing authoritative instructions.
-    REJECT = "reject"
-
-
-class InstructionUpdateLifetime(Enum):
-    "How long an instruction update remains authoritative"
-    # Persists in event order across replay, resume, rewind, fork, and compaction.
-    PERSISTENT = "persistent"
-    # Applies only to the current turn and is not restored from durable history.
-    TURN = "turn"
-
-
 class ManagedSettingsEnforcedAction(Enum):
     "The category of runtime action that enterprise managed settings governed (blocked or capped)"
     # An attempt to enter a permission mode governed by managed policy was refused or capped. The `setting` and `escalation` fields identify whether this was bypass permissions or Assisted Permissions.
@@ -16951,7 +16753,7 @@ class WorkspaceFileChangedOperation(Enum):
     UPDATE = "update"
 
 
-SessionEventData = SessionStartData | SessionResumeData | SessionRemoteSteerableChangedData | SessionErrorData | SessionIdleData | SessionAutopilotStoppedData | SessionTitleChangedData | SessionScheduleCreatedData | SessionScheduleCancelledData | SessionScheduleRearmedData | SessionAutopilotObjectiveChangedData | SessionInfoData | SessionIndexedSearchData | SessionWarningData | SessionModelChangeData | SessionModelDeselectedData | SessionAutoTierRecommendationData | SessionAutoTierSwitchFailedData | SessionModeChangedData | SessionModeNoticeDeliveredData | SessionSessionLimitsChangedData | SessionPermissionsChangedData | SessionPlanChangedData | SessionTodosChangedData | SessionWorkspaceFileChangedData | SessionHandoffData | SessionTruncationData | SessionSnapshotRewindData | SessionShutdownData | SessionUsageCheckpointData | SessionQuotaObservationData | SessionContextChangedData | SessionUsageInfoData | SessionContextClearedData | SessionCompactionStartData | SessionCompactionCompleteData | SessionTaskCompleteData | SessionCompletionReceiptData | SessionFusionRouteStartedData | SessionFusionRouteFailedData | SessionFusionResolvedData | SessionFusionCompletedData | SessionPermissionRecoveryData | UserMessageData | PendingMessagesModifiedData | AssistantTurnStartData | AssistantTurnRetryData | AgentInterruptedData | AssistantIntentData | AssistantFusionPhaseStartedData | AssistantFusionPhaseActivityData | AssistantFusionPhaseCompletedData | AssistantFusionPhaseFailedData | AssistantServerToolProgressData | AssistantReasoningData | AssistantReasoningDeltaData | AssistantToolCallDeltaData | AssistantStreamingDeltaData | AssistantMessageData | AssistantMessageStartData | AssistantMessageDeltaData | AssistantTurnEndData | AssistantIdleData | AssistantUsageData | PromptCacheBreakData | ModelCallFailureData | ModelCallFinalResultData | ModelCallFinishedData | ModelCallStartData | AbortData | ToolUserRequestedData | ToolExecutionStartData | ToolExecutionPartialResultData | ToolShellOutputData | ToolExecutionProgressData | ToolExecutionCompleteData | ToolSearchActivatedData | SkillInvokedData | SkillInvokedRefData | SkillContextDeliveredData | SkillContextDeliveredRefData | SandboxDecisionData | SubagentStartedData | SubagentConfiguredData | SubagentCompletedData | SubagentFailedData | SubagentSelectedData | SubagentDeselectedData | HookStartData | HookEndData | HookProgressData | SessionBinaryAssetData | SystemMessageData | InstructionUpdateData | SystemNotificationData | PermissionRequestedData | PermissionCompletedData | PermissionCarriedForwardData | PermissionMessageAuthorizationData | PermissionMessageAuthorizationReadData | PermissionMessageAuthorizationDegradedData | PermissionAssentDetectedData | PermissionContextualAuthorizationData | UserInputRequestedData | UserInputCompletedData | ElicitationRequestedData | ElicitationCompletedData | SamplingRequestedData | SamplingCompletedData | McpOauthRequiredData | McpOauthCompletedData | McpOauthRecoveryCompletedData | McpHeadersRefreshRequiredData | McpHeadersRefreshCompletedData | SessionCustomNotificationData | UiEphemeralQueryData | ExternalToolRequestedData | ExternalToolCompletedData | CommandQueuedData | CommandExecuteData | CommandCompletedData | AutoModeSwitchRequestedData | AutoModeSwitchCompletedData | SessionLimitsExhaustedRequestedData | SessionLimitsExhaustedCompletedData | SessionAutoModeResolvedData | SessionManagedPluginProgressData | SessionManagedSettingsResolvedData | SessionManagedSettingsEnforcedData | CommandsChangedData | CapabilitiesChangedData | ExitPlanModeRequestedData | ExitPlanModeCompletedData | HumanResponseRecordedData | SessionToolsUpdatedData | SessionBackgroundTasksChangedData | WorkflowRunUpdatedData | WorkflowRunStartedData | WorkflowRunSettledData | SessionSkillsLoadedData | SessionCustomAgentsUpdatedData | SessionMcpServersLoadedData | SessionMcpServerStatusChangedData | SessionMcpServerToolsLoadedData | SessionMcpServerRemovedData | SessionMcpServerNeedsReconnectData | McpToolsListChangedData | McpResourcesListChangedData | McpPromptsListChangedData | SessionExtensionsLoadedData | SessionCanvasOpenedData | SessionCanvasRegistryChangedData | SessionCanvasClosedData | SessionCanvasUnavailableData | SessionCanvasRecordedData | SessionCanvasRemovedData | SessionExtensionsAttachmentsPushedData | McpAppToolCallCompleteData | RawSessionEventData | Data
+SessionEventData = SessionStartData | SessionResumeData | SessionRemoteSteerableChangedData | SessionErrorData | SessionIdleData | SessionAutopilotStoppedData | SessionTitleChangedData | SessionScheduleCreatedData | SessionScheduleCancelledData | SessionScheduleRearmedData | SessionAutopilotObjectiveChangedData | SessionInfoData | SessionIndexedSearchData | SessionWarningData | SessionModelChangeData | SessionModelDeselectedData | SessionAutoTierRecommendationData | SessionAutoTierSwitchFailedData | SessionModeChangedData | SessionModeNoticeDeliveredData | SessionSessionLimitsChangedData | SessionPermissionsChangedData | SessionPlanChangedData | SessionTodosChangedData | SessionWorkspaceFileChangedData | SessionHandoffData | SessionTruncationData | SessionSnapshotRewindData | SessionShutdownData | SessionUsageCheckpointData | SessionQuotaObservationData | SessionContextChangedData | SessionUsageInfoData | SessionContextClearedData | SessionCompactionStartData | SessionCompactionCompleteData | SessionTaskCompleteData | SessionCompletionReceiptData | SessionFusionRouteStartedData | SessionFusionRouteFailedData | SessionFusionResolvedData | SessionFusionCompletedData | SessionPermissionRecoveryData | UserMessageData | PendingMessagesModifiedData | AssistantTurnStartData | AssistantTurnRetryData | AgentInterruptedData | AssistantIntentData | AssistantFusionPhaseStartedData | AssistantFusionPhaseActivityData | AssistantFusionPhaseCompletedData | AssistantFusionPhaseFailedData | AssistantServerToolProgressData | AssistantReasoningData | AssistantReasoningDeltaData | AssistantToolCallDeltaData | AssistantStreamingDeltaData | AssistantMessageData | AssistantMessageStartData | AssistantMessageDeltaData | AssistantTurnEndData | AssistantIdleData | AssistantUsageData | PromptCacheBreakData | ModelCallFailureData | ModelCallFinalResultData | ModelCallFinishedData | ModelCallStartData | AbortData | ToolUserRequestedData | ToolExecutionStartData | ToolExecutionPartialResultData | ToolShellOutputData | ToolExecutionProgressData | ToolExecutionCompleteData | ToolSearchActivatedData | SkillInvokedData | SkillInvokedRefData | SkillContextDeliveredData | SkillContextDeliveredRefData | SandboxDecisionData | SubagentStartedData | SubagentConfiguredData | SubagentCompletedData | SubagentFailedData | SubagentSelectedData | SubagentDeselectedData | HookStartData | HookEndData | HookProgressData | SessionBinaryAssetData | SystemMessageData | SystemNotificationData | PermissionRequestedData | PermissionCompletedData | PermissionCarriedForwardData | PermissionMessageAuthorizationData | PermissionMessageAuthorizationReadData | PermissionMessageAuthorizationDegradedData | PermissionAssentDetectedData | PermissionContextualAuthorizationData | UserInputRequestedData | UserInputCompletedData | ElicitationRequestedData | ElicitationCompletedData | SamplingRequestedData | SamplingCompletedData | McpOauthRequiredData | McpOauthCompletedData | McpOauthRecoveryCompletedData | McpHeadersRefreshRequiredData | McpHeadersRefreshCompletedData | SessionCustomNotificationData | UiEphemeralQueryData | ExternalToolRequestedData | ExternalToolCompletedData | CommandQueuedData | CommandExecuteData | CommandCompletedData | AutoModeSwitchRequestedData | AutoModeSwitchCompletedData | SessionLimitsExhaustedRequestedData | SessionLimitsExhaustedCompletedData | SessionAutoModeResolvedData | SessionManagedPluginProgressData | SessionManagedSettingsResolvedData | SessionManagedSettingsEnforcedData | CommandsChangedData | CapabilitiesChangedData | ExitPlanModeRequestedData | ExitPlanModeCompletedData | HumanResponseRecordedData | SessionToolsUpdatedData | SessionBackgroundTasksChangedData | WorkflowRunUpdatedData | WorkflowRunStartedData | WorkflowRunSettledData | SessionSkillsLoadedData | SessionCustomAgentsUpdatedData | SessionMcpServersLoadedData | SessionMcpServerStatusChangedData | SessionMcpServerToolsLoadedData | SessionMcpServerRemovedData | SessionMcpServerNeedsReconnectData | McpToolsListChangedData | McpResourcesListChangedData | McpPromptsListChangedData | SessionExtensionsLoadedData | SessionCanvasOpenedData | SessionCanvasRegistryChangedData | SessionCanvasClosedData | SessionCanvasUnavailableData | SessionCanvasRecordedData | SessionCanvasRemovedData | SessionExtensionsAttachmentsPushedData | McpAppToolCallCompleteData | RawSessionEventData | Data
 
 
 @dataclass
@@ -17070,7 +16872,6 @@ class SessionEvent:
             case SessionEventType.HOOK_PROGRESS: data = HookProgressData.from_dict(data_obj)
             case SessionEventType.SESSION_BINARY_ASSET: data = SessionBinaryAssetData.from_dict(data_obj)
             case SessionEventType.SYSTEM_MESSAGE: data = SystemMessageData.from_dict(data_obj)
-            case SessionEventType.INSTRUCTION_UPDATE: data = InstructionUpdateData.from_dict(data_obj)
             case SessionEventType.SYSTEM_NOTIFICATION: data = SystemNotificationData.from_dict(data_obj)
             case SessionEventType.PERMISSION_REQUESTED: data = PermissionRequestedData.from_dict(data_obj)
             case SessionEventType.PERMISSION_COMPLETED: data = PermissionCompletedData.from_dict(data_obj)
@@ -17315,11 +17116,6 @@ __all__ = [
     "IndexedSearchIncrementalPhase",
     "IndexedSearchOutcome",
     "IndexedSearchState",
-    "InstructionUpdateAuthority",
-    "InstructionUpdateBoundary",
-    "InstructionUpdateData",
-    "InstructionUpdateFallback",
-    "InstructionUpdateLifetime",
     "ManagedPermissionsContext",
     "ManagedPluginProgressPhase",
     "ManagedSettingsEnforcedAction",

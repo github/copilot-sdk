@@ -78,9 +78,7 @@ public sealed class RuntimeHostE2ETests(E2ETestFixture fixture, ITestOutputHelpe
 
         public AhpHostOptions Options() => new()
         {
-            Authentication = new AhpHostAuthentication.GitHub(),
             LocalServer = new(),
-            AllowCreatingNewSessions = true,
             CreateSession = async request =>
             {
                 Interlocked.Increment(ref Creates);

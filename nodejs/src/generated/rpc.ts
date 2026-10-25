@@ -2754,44 +2754,6 @@ export type HistoryRewindOutcome =
   | "checkpoint-cleanup-failed"
   /** Files and conversation were rewound, but obsolete file snapshots could not be removed; only conversation-and-files rewinds produce this. */
   | "snapshot-prune-failed";
-/**
- * Validated admission credential, or null when the application rejects it.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "HostAuthenticateResult".
- */
-/** @experimental */
-export type HostAuthenticateResult = HostAuthenticationResult | null;
-/**
- * Explicit host-wide session admission policy.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "HostAuthentication".
- */
-/** @experimental */
-export type HostAuthentication =
-  | {
-      /**
-       * Host-wide admission mode discriminator.
-       */
-      mode: "github";
-    }
-  | {
-      /**
-       * Host-wide admission mode discriminator.
-       */
-      mode: "none";
-    }
-  | {
-      /**
-       * Host-wide admission mode discriminator.
-       */
-      mode: "custom";
-      /**
-       * Stable nonempty owner identity; validated identities must match exactly.
-       */
-      requireIdentity: string;
-    };
 
 /** @experimental */
 export type HostExitReason =
@@ -2803,40 +2765,6 @@ export type HostExitReason =
   | "ownerDisconnected"
   /** The runtime is shutting down. */
   | "runtimeShutdown";
-/**
- * Trusted admission context, not inference authentication or session configuration.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "HostSessionAuthentication".
- */
-/** @experimental */
-export type HostSessionAuthentication =
-  | {
-      /**
-       * Trusted admission mode discriminator.
-       */
-      mode: "github";
-      /**
-       * Verified host account identity.
-       */
-      identity: string;
-    }
-  | {
-      /**
-       * Trusted admission mode discriminator.
-       */
-      mode: "custom";
-      /**
-       * Verified application identity.
-       */
-      identity: string;
-    }
-  | {
-      /**
-       * Trusted admission mode discriminator.
-       */
-      mode: "none";
-    };
 /**
  * A supported image-service operation.
  *
@@ -4299,18 +4227,6 @@ export type OptionsUpdateToolFilterPrecedence =
   | "available"
   /** A tool is enabled if and only if it matches the allowlist (or the allowlist is unset) AND it does not match the denylist. Makes 'all except X' expressible by combining the two lists. */
   | "excluded";
-/**
- * Memory injection mode. Defaults to system-prompt.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "MemoryMode".
- */
-/** @experimental */
-export type MemoryMode =
-  /** Include memories in the system prompt (default). */
-  | "system-prompt"
-  /** Include memories in user messages. */
-  | "user-prompt";
 /**
  * Per-source context-window attribution, or null if the session has not yet been initialized (no system prompt or tool metadata cached).
  *
@@ -6588,13 +6504,32 @@ export type StaffUpdateChannelMigrationStatus =
   /** The account is on the experimental channel, which the migration deliberately leaves alone, and the migration is recorded as done. */
   | "excluded-experimental";
 /**
- * Configured subagent settings, or null when absent
+ * Subagent settings to apply, or null to clear the live session override
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SubagentSettings".
  */
 /** @experimental */
-export type SubagentSettings = SubagentSettingsConfig | null;
+export type SubagentSettings = {
+  /**
+   * Per-agent settings keyed by subagent agent_type
+   */
+  agents?: {
+    [k: string]: SubagentSettingsEntry | undefined;
+  };
+  /**
+   * Names of subagents the user has turned off; they cannot be dispatched
+   */
+  disabledSubagents?: string[];
+  /**
+   * Maximum number of subagents that can run concurrently; applies to usage-based billing users only
+   */
+  maxConcurrency?: number;
+  /**
+   * Maximum subagent nesting depth; applies to usage-based billing users only
+   */
+  maxDepth?: number;
+} | null;
 /**
  * Context tier override for matching subagents
  *
@@ -12820,7 +12755,6 @@ export interface ConnectRemoteSessionParams {
 /** @experimental */
 /** @internal */
 export interface ConnectRequest {
-  entra?: EntraAuthConfig;
   /**
    * Opt this connection in to GitHub telemetry forwarding for its lifetime. When set, the runtime forwards this host's telemetry across all its sessions, its sessionless events, and explicitly process-wide events over the `gitHubTelemetry.event` notification. Connections intentionally sharing one server receive that server's events; independently embedded runtime hosts do not receive each other's host-owned events. Regular events are also written to the runtime's normal GitHub/CTS path (dual-write); host-only compatibility events are forward-only and intentionally skip that path. Intended for first-party hosts that re-emit the events into their own telemetry stores. Both unrestricted and restricted events are forwarded, each tagged with a `restricted` discriminator; a backstop drops restricted events when restricted telemetry is disabled — using the process-global gate for ordinary events and an explicit session-scoped decision for host-only events.
    */
@@ -12834,19 +12768,6 @@ export interface ConnectRequest {
    * Connection token; required when the server was started with COPILOT_CONNECTION_TOKEN
    */
   token?: string;
-}
-/**
- * The host application's Microsoft Entra registration, shared by its sessions. This identifies the application requesting tokens, not their target resource.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "EntraAuthConfig".
- */
-/** @experimental */
-export interface EntraAuthConfig {
-  /**
-   * Application (client) ID of the host's Microsoft Entra registration. Must be nonblank. The runtime does not supply a default application.
-   */
-  clientId: string;
 }
 /**
  * Handshake result reporting the server's protocol version and package version on success.
@@ -15819,70 +15740,6 @@ export interface HooksDiscoverResult {
   errors: string[];
 }
 /**
- * A decrypted credential presented by a supervised hosting participant.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "HostAuthenticateRequest".
- */
-/** @experimental */
-export interface HostAuthenticateRequest {
-  /**
-   * Unique validation attempt, scoped to this host.
-   */
-  requestId: string;
-  /**
-   * Decrypted admission token, never an inference credential.
-   */
-  token: string;
-}
-/**
- * A validated credential with a required, future RFC3339 expiration.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "HostAuthenticationResult".
- */
-/** @experimental */
-export interface HostAuthenticationResult {
-  /**
-   * Stable identity, required to match the configured owner exactly.
-   */
-  identity: string;
-  /**
-   * Required future expiration in RFC3339 format.
-   */
-  expiresAt: string;
-}
-/**
- * Notifies the owning application that validation ended.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "HostAuthenticationCancelledNotification".
- */
-/** @experimental */
-export interface HostAuthenticationCancelledNotification {
-  /**
-   * Owning listener UUID.
-   */
-  hostId: string;
-  /**
-   * Validation attempt whose signal must be aborted.
-   */
-  requestId: string;
-}
-/**
- * Cancels a pending validation on the supervised participant's connection.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "HostCancelAuthenticationRequest".
- */
-/** @experimental */
-export interface HostCancelAuthenticationRequest {
-  /**
-   * Validation attempt to cancel.
-   */
-  requestId: string;
-}
-/**
  * Normalized listener settings delivered only to the supervised hosting participant.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -15890,7 +15747,6 @@ export interface HostCancelAuthenticationRequest {
  */
 /** @experimental */
 export interface HostConfiguration {
-  authentication?: HostAuthentication;
   localServer?: HostLocalServerConfiguration;
   githubEnvironment?: HostGitHubEnvironmentOptions;
   /**
@@ -15901,10 +15757,6 @@ export interface HostConfiguration {
    * Whether app-owned durable sessions are resumed by the owning application.
    */
   resumeFactory: boolean;
-  /**
-   * Initial remote creation policy, independent of application session factories. Defaults to denied when omitted.
-   */
-  allowCreatingNewSessions?: boolean;
 }
 /**
  * Normalized local WebSocket listener settings.
@@ -16201,7 +16053,6 @@ export interface HostRegisterSessionRequest {
  */
 /** @experimental */
 export interface HostSessionCreateCallback {
-  authentication?: HostSessionAuthentication;
   /**
    * Listener UUID identifying the owning application's host.
    */
@@ -16229,7 +16080,6 @@ export interface HostSessionCreateCallback {
  */
 /** @experimental */
 export interface HostSessionCreateRequest {
-  authentication?: HostSessionAuthentication;
   /**
    * Unique identity for this participation, independent of the session lifetime.
    */
@@ -16294,23 +16144,6 @@ export interface HostSessionReleaseRequest {
   handoffId: string;
 }
 /**
- * Changes remote session creation admission without disconnecting clients.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "HostSetSessionCreationPolicyRequest".
- */
-/** @experimental */
-export interface HostSetSessionCreationPolicyRequest {
-  /**
-   * Listener UUID owned by the calling SDK connection.
-   */
-  hostId: string;
-  /**
-   * After acknowledgement, subsequent remote creation admissions use this policy. Already-admitted requests may finish.
-   */
-  allowCreatingNewSessions: boolean;
-}
-/**
  * Starts a supervised AHP host with at least one explicitly selected transport.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -16322,15 +16155,10 @@ export interface HostStartRequest {
    * Caller-generated UUID identifying this connection-owned listener.
    */
   hostId: string;
-  authentication?: HostAuthentication;
   /**
    * Stable application identity selecting its durable host catalog. Defaults to the persisted runtime compute GUID; must agree with githubEnvironment.computeId when both are supplied.
    */
   computeId?: string;
-  /**
-   * Absolute directory on the runtime host to serve through AHP. Defaults to the runtime's configured working directory. Does not change process or session working directories.
-   */
-  workspace?: string;
   localServer?: HostLocalServerOptions;
   githubEnvironment?: HostGitHubEnvironmentOptions;
   /**
@@ -16341,10 +16169,6 @@ export interface HostStartRequest {
    * Ask the owning application to resume its durable AHP sessions.
    */
   resumeFactory?: boolean;
-  /**
-   * Whether remote clients may create new sessions. Defaults to denied when omitted. Does not restrict owner work, publication, or existing sessions.
-   */
-  allowCreatingNewSessions?: boolean;
 }
 /**
  * Listener readiness, returned only after binding and the supervised participant's SDK handshake.
@@ -16417,27 +16241,6 @@ export interface HostUnregisterSessionRequest {
    * Canonical ID of the application publication to withdraw.
    */
   sessionId: string;
-}
-/**
- * Application-owned token validation callback.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "HostValidateAuthenticationRequest".
- */
-/** @experimental */
-export interface HostValidateAuthenticationRequest {
-  /**
-   * Owning listener UUID.
-   */
-  hostId: string;
-  /**
-   * Unique validation attempt.
-   */
-  requestId: string;
-  /**
-   * Decrypted admission token.
-   */
-  token: string;
 }
 /**
  * The runtime-selected image model and its account availability. Availability is independent of per-session image-generation enablement and does not override session policy or permissions.
@@ -21475,12 +21278,6 @@ export interface MemoryConfiguration {
    * Whether memory is enabled for the session.
    */
   enabled: boolean;
-  /**
-   * Memory injection mode: system-prompt (default) includes memories in the system prompt; user-prompt includes them in user messages.
-   *
-   * @experimental
-   */
-  mode?: MemoryMode;
 }
 /**
  * Per-source attribution breakdown for the session's current context window, or null if uninitialized.
@@ -25412,20 +25209,6 @@ export interface ProtocolImageGenerationOptions {
    * @experimental
    */
   watermark?: boolean;
-  /**
-   * Experimental. Save each generated or edited image under the session-state
-   * directory's `images` folder and add a `saved_to: <path>` line per image to
-   * the tool result the model sees. Defaults to true; set false to opt out.
-   * Subagents follow their
-   * parent's value unless they set their own. A failed save still returns the
-   * image, without `saved_to`. Sessions without a local session-state
-   * directory, such as those using a session filesystem provider, never save.
-   * Re-supply after a cold resume. Does not enable image generation.
-   * This option may change or be removed in a future release.
-   *
-   * @experimental
-   */
-  saveToDisk?: boolean;
 }
 /**
  * BYOK providers and/or models to add to the session's registry at runtime. Both fields are optional; provide providers, models, or both.
@@ -28086,28 +27869,6 @@ export interface SecretsAddFilterValuesResult {
   ok: true;
 }
 /**
- * Internal request-correlated completion of one submitted message.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "SendAndWaitResult".
- */
-/** @experimental */
-export interface SendAndWaitResult {
-  /**
-   * Identifier assigned to the submitted user message.
-   */
-  messageId: string;
-  response?: SessionEvent;
-  /**
-   * Whether the request was aborted or removed before completing normally.
-   */
-  aborted: boolean;
-  /**
-   * Existing event at the completion boundary. SDK helpers drain its synchronous subscriber delivery before returning. Absent for quiet queue removal.
-   */
-  completionEventId?: string;
-}
-/**
  * Parameters for session.extensions.sendAttachmentsToMessage.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -29544,10 +29305,6 @@ export interface SessionOpenOptions {
    * Opt-in: self-fetch and enforce enterprise managed settings, including managed hook policies, at session bootstrap.
    */
   enableManagedSettings?: boolean;
-  /**
-   * Managed-setting paths this trusted SDK host enforces externally or does not support, excluded from fetched, device, and policy-helper policy for this session. Exact dotted paths exclude a setting and its descendants (for example sandbox or permissions.disableBypassPermissionsMode); wildcards and array indices are not supported. Host-injected managedSettings and policy availability checks are not excluded. Not persisted; re-supply on resume, where omission restores full enforcement. Requires enableManagedSettings to self-fetch policy.
-   */
-  excludedManagedSettings?: string[];
   /**
    * Opt in to enforcing non-overridable managed model controls on session model, Auto-tier, reasoning-effort, and context-tier changes. Managed defaults still apply when omitted; this option only turns conflicting changes into errors.
    */
@@ -32539,37 +32296,6 @@ export interface SlashCommandSetPlanModelResult {
   runtimeSettingsChanged?: boolean;
 }
 /**
- * Configured per-agent subagent overrides
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "SubagentSettingsConfig".
- */
-/** @experimental */
-export interface SubagentSettingsConfig {
-  /**
-   * Per-agent settings keyed by subagent agent_type
-   */
-  agents?: {
-    [k: string]: SubagentSettingsEntry | undefined;
-  };
-  /**
-   * Configured opt-in for subagent context management tools; applied from persisted settings when the session starts
-   */
-  contextManagementTools?: boolean;
-  /**
-   * Names of subagents the user has turned off; they cannot be dispatched
-   */
-  disabledSubagents?: string[];
-  /**
-   * Maximum number of subagents that can run concurrently; applies to usage-based billing users only
-   */
-  maxConcurrency?: number;
-  /**
-   * Maximum subagent nesting depth; applies to usage-based billing users only
-   */
-  maxDepth?: number;
-}
-/**
  * Subagent model, reasoning effort, context tier, and auto-invocation settings
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -32581,10 +32307,6 @@ export interface SubagentSettingsEntry {
    * Model override for matching subagents
    */
   model?: string;
-  /**
-   * Provider identifier for the configured model override
-   */
-  providerId?: string;
   modelPolicy?: AgentModelPolicy;
   /**
    * Reasoning effort override for matching subagents
@@ -33608,19 +33330,6 @@ export interface ToolsGetCurrentMetadataResult {
    * Current tool metadata, or null when tools have not been initialized yet
    */
   tools: CurrentToolMetadata[] | null;
-}
-/**
- * Current configured subagent settings for the session, before resolving defaults or inheritance.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "ToolsGetSubagentSettingsResult".
- */
-/** @experimental */
-export interface ToolsGetSubagentSettingsResult {
-  /**
-   * Live subagent settings override, or current persisted settings when no override is active; null when no settings block exists
-   */
-  subagents?: SubagentSettings | null;
 }
 /**
  * Resolve, build, and validate the runtime tool list for this session. Subagent sessions and consumer flows that need an initialized tool set before `send` invoke this. Default base-class implementation is a no-op for sessions that don't support tool validation.
@@ -36986,7 +36695,6 @@ export interface HostCreateSessionResult {
  */
 /** @experimental */
 export interface HostCreateSessionRequest {
-  authentication?: HostSessionAuthentication;
   /**
    * Unique identity for this participation, independent of the session lifetime.
    */
@@ -37037,14 +36745,6 @@ export interface HostReleaseSessionRequest {
 /** @experimental */
 export interface HostDisposeResult {}
 /**
- * Empty acknowledgement for a completed host lifecycle operation.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "HostSetSessionCreationPolicyResult".
- */
-/** @experimental */
-export interface HostSetSessionCreationPolicyResult {}
-/**
  * Private credentials delivered only to a runtime-owned Mission Control hosting participant.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -37077,7 +36777,6 @@ export interface HostGetEnvironmentCredentialsResult {
  */
 /** @experimental */
 export interface HostGetConfigurationResult {
-  authentication?: HostAuthentication;
   localServer?: HostLocalServerConfiguration;
   githubEnvironment?: HostGitHubEnvironmentOptions;
   /**
@@ -37088,44 +36787,7 @@ export interface HostGetConfigurationResult {
    * Whether app-owned durable sessions are resumed by the owning application.
    */
   resumeFactory: boolean;
-  /**
-   * Initial remote creation policy, independent of application session factories. Defaults to denied when omitted.
-   */
-  allowCreatingNewSessions?: boolean;
 }
-/**
- * Private credentials delivered only to a runtime-owned Mission Control hosting participant.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "HostGetAuthenticationCredentialsResult".
- */
-/** @experimental */
-export interface HostGetAuthenticationCredentialsResult {
-  /**
-   * Current bearer token for the authenticated GitHub identity.
-   */
-  token: string;
-  /**
-   * Hostname of the authenticated GitHub service.
-   */
-  githubHost: string;
-  /**
-   * GitHub API base URL for the authenticated service.
-   */
-  githubApiUrl: string;
-  /**
-   * Mission Control API origin for environment registration and management.
-   */
-  missionControlUrl: string;
-}
-/**
- * Empty acknowledgement for a completed host lifecycle operation.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "HostCancelAuthenticationResult".
- */
-/** @experimental */
-export interface HostCancelAuthenticationResult {}
 /**
  * Empty acknowledgement for a completed host lifecycle operation.
  *
@@ -37677,7 +37339,6 @@ export interface HostMaterializeSessionResult {
  */
 /** @experimental */
 export interface HostMaterializeSessionRequest {
-  authentication?: HostSessionAuthentication;
   /**
    * Listener UUID identifying the owning application's host.
    */
@@ -37713,23 +37374,6 @@ export interface HostSessionReleasedRequest {
    * Identity of the handoff retaining the original application session object.
    */
   handoffId: string;
-}
-/**
- * Notifies the owning application that validation ended.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "HostAuthenticationCancelledRequest".
- */
-/** @experimental */
-export interface HostAuthenticationCancelledRequest {
-  /**
-   * Owning listener UUID.
-   */
-  hostId: string;
-  /**
-   * Validation attempt whose signal must be aborted.
-   */
-  requestId: string;
 }
 /**
  * Empty acknowledgement for a completed host lifecycle operation.
@@ -38044,15 +37688,6 @@ export function createServerRpc(connection: MessageConnection) {
              */
             dispose: async (params: HostDisposeRequest): Promise<HostDisposeResult> =>
                 connection.sendRequest("host.dispose", params),
-            /**
-             * Changes remote creation admission on a host owned by this SDK connection without disconnecting clients. Acknowledgement means subsequent admissions use the new policy; already-admitted creation may complete.
-             *
-             * @param params Changes remote session creation admission without disconnecting clients.
-             *
-             * @returns Empty acknowledgement for a completed host lifecycle operation.
-             */
-            setSessionCreationPolicy: async (params: HostSetSessionCreationPolicyRequest): Promise<HostSetSessionCreationPolicyResult> =>
-                connection.sendRequest("host.setSessionCreationPolicy", params),
         },
         /**
          * Checks server responsiveness and returns protocol information.
@@ -39709,31 +39344,6 @@ export function createInternalServerRpc(connection: MessageConnection) {
              */
             getConfiguration: async (): Promise<HostGetConfigurationResult> =>
                 connection.sendRequest("host.getConfiguration", {}),
-            /**
-             * Resolves the host account credential without applying Mission Control transport policy, only for its supervised GitHub hosting participant.
-             *
-             * @returns Private credentials delivered only to a runtime-owned Mission Control hosting participant.
-             */
-            getAuthenticationCredentials: async (): Promise<HostGetAuthenticationCredentialsResult> =>
-                connection.sendRequest("host.getAuthenticationCredentials", {}),
-            /**
-             * Validates a decrypted admission credential through the owning application, only for its supervised custom-authentication participant.
-             *
-             * @param params A decrypted credential presented by a supervised hosting participant.
-             *
-             * @returns Validated admission credential, or null when the application rejects it.
-             */
-            authenticate: async (params: HostAuthenticateRequest): Promise<HostAuthenticationResult | undefined> =>
-                connection.sendRequest("host.authenticate", params),
-            /**
-             * Cancels a supervised participant's pending admission validation.
-             *
-             * @param params Cancels a pending validation on the supervised participant's connection.
-             *
-             * @returns Empty acknowledgement for a completed host lifecycle operation.
-             */
-            cancelAuthentication: async (params: HostCancelAuthenticationRequest): Promise<HostCancelAuthenticationResult> =>
-                connection.sendRequest("host.cancelAuthentication", params),
             /**
              * Reports a supervised hosting participant's bound AHP endpoint after its SDK handshake.
              *
@@ -41830,14 +41440,7 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
             set: async (params: ToolsSetRequest): Promise<ToolsSetResult> =>
                 connection.sendRequest("session.tools.set", { ...params, sessionId }),
             /**
-             * Returns the session's live subagent settings override, or the current persisted user settings when no override is active. Returns null in subagents when no settings block exists; defaults, model inheritance, and billing limits are not resolved. Persisted settings are loaded strictly, including before the first turn, and loading errors are reported. Reading does not change the session or persist settings. Read-modify-write with updateSubagentSettings is not atomic; writing back creates a live override that ignores later persisted changes until cleared.
-             *
-             * @returns Current configured subagent settings for the session, before resolving defaults or inheritance.
-             */
-            getSubagentSettings: async (): Promise<ToolsGetSubagentSettingsResult> =>
-                connection.sendRequest("session.tools.getSubagentSettings", { sessionId }),
-            /**
-             * Replaces the current session's complete live subagent settings override; nested fields are not merged. The override takes precedence over persisted user settings until cleared. Persisted user settings remain the source of truth for future sessions.
+             * Sets the current session's live subagent settings override, which takes precedence over persisted user settings until cleared. Persisted user settings remain the source of truth for future sessions.
              *
              * @param params Subagent settings to apply to the current session
              *
@@ -42697,17 +42300,6 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
  */
 export function createInternalSessionRpc(connection: MessageConnection, sessionId: string) {
     return {
-        /**
-         * Submits one message through normal admission and waits for its request-owned completion. Returns the exact root assistant event, or an explicit aborted/no-response outcome. Cancelling or timing out the wait does not abort agent work. Unsupported execution hosts reject the method before admitting the message.
-         *
-         * @param params Parameters for sending a user message to the session
-         *
-         * @returns Internal request-correlated completion of one submitted message.
-         *
-         * @experimental
-         */
-        sendAndWait: async (params: SendRequest): Promise<SendAndWaitResult> =>
-            connection.sendRequest("session.sendAndWait", { ...params, sessionId }),
         /**
          * Queues or sends an internal system notification to the session according to its passive policy.
          *

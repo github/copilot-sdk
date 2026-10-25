@@ -65,10 +65,10 @@ behavior.
 
 `default-features = false` builds an external-stream-only client: no runtime
 download, binary discovery, launch implementation, or native runtime embedding.
-Use `Client::from_streams(reader, writer, cwd)`, or
-`Client::from_streams_with_entra(reader, writer, cwd, Some(entra))` for Entra.
-Then call `client.verify_protocol_version().await?` to complete the handshake.
-`Client::start` returns a configuration error without runtime support.
+Construct it with `Client::from_streams(reader, writer, cwd)` and explicitly call
+`client.verify_protocol_version().await?` to perform the normal SDK handshake.
+`Client::start` returns a configuration error in this build; it never falls back
+to an installed or cached runtime.
 
 The default `bundled-cli` feature still enables runtime management. To manage a
 runtime without embedding its bundle, use
@@ -165,12 +165,11 @@ RPC. It is also available with `default-features = false`: the connected
 runtime owns and launches the listener, not the SDK.
 
 ```rust,no_run
-use github_copilot_sdk::{AhpHostAuthentication, AhpHostOptions, Client};
+use github_copilot_sdk::{AhpHostOptions, Client};
 
 # async fn example(client: &Client) -> Result<(), github_copilot_sdk::Error> {
 let host = client.start_ahp_host(
     AhpHostOptions::default()
-        .with_authentication(AhpHostAuthentication::Github)
         .with_local_server(Default::default())
         .with_on_exit(|exit| {
             println!("host {} exited: {:?}", exit.host_id, exit.reason);
@@ -183,15 +182,7 @@ host.dispose().await?;
 # }
 ```
 
-`AhpHostOptions` requires explicit `with_authentication` in every client mode:
-`AhpHostAuthentication::Github`, `None`, or `custom(require_identity, validator)`.
-Custom validators receive a decrypted token and a child cancellation token, returning
-`Result<Option<AhpAuthenticationResult>, Error>`. `None` rejects; errors and panics
-fail closed. Accepted results require the exact configured identity and future
-RFC3339 `expires_at`, enforced by the host. Custom and anonymous hosting are
-direct-only; Mission Control requires GitHub authentication.
-
-At least one explicit transport is required: `with_local_server`
+`AhpHostOptions` requires at least one explicit transport: `with_local_server`
 accepts generated `rpc::HostLocalServerOptions`, and `with_github_environment`
 accepts generated `rpc::HostGitHubEnvironmentOptions` with required `name` and
 `compute_id`. Both transports may be enabled. There is no implicit local listener.
@@ -251,13 +242,12 @@ ordinary SDK sessions without replacing their tools, hooks, or event routing:
 
 ```rust,no_run
 use std::sync::Arc;
-use github_copilot_sdk::{AhpHostAuthentication, AhpHostOptions, AhpSessionRequest, Client};
+use github_copilot_sdk::{AhpHostOptions, AhpSessionRequest, Client};
 use github_copilot_sdk::handler::ApproveAllHandler;
 
 # async fn example(client: &Client) -> Result<(), github_copilot_sdk::Error> {
 let host = client.start_ahp_host(
     AhpHostOptions::new()
-        .with_authentication(AhpHostAuthentication::Github)
         .with_local_server(Default::default())
         .with_create_session(|request: AhpSessionRequest, client: Client| async move {
             // Use this request-scoped client instead of capturing the owner.
@@ -279,7 +269,7 @@ host.dispose().await?;
 ```
 
 The factory may also implement the async `AhpSessionFactory` trait. It receives
-an `AhpSessionRequest` containing trusted `authentication`, a typed `SessionConfig` (no permission handler
+an `AhpSessionRequest` containing a typed `SessionConfig` (no permission handler
 installed) and a cooperative `cancellation_token`. Preserve the supplied
 session ID, workspace, and host-selected configuration; create a **fresh**
 session using the provided client and return `Arc<session::Session>`. The SDK
@@ -689,7 +679,7 @@ complete naming disposition is:
 | `SendMessagesRequestResponseFormat` | `ResponseFormat` | Direct alias |
 | `SendRequestResponseFormat` | `ResponseFormat` | Direct alias |
 | `SessionMetadataSnapshotWorkspace` | `WorkspaceSummary` | Direct alias |
-| `UpdateSubagentSettingsRequestSubagents` | `SubagentSettingsConfig` | No alias |
+| `UpdateSubagentSettingsRequestSubagents` | `SubagentSettings` | Direct alias |
 | `SessionMetadataSnapshotResultWorkspace` | `WorkspaceSummary` | Direct alias |
 | `SessionMetadataContextInfoResultContextInfo` | `SessionContextInfo` | Direct alias |
 | `SessionMetadataGetContextAttributionResultContextAttribution` | `SessionContextAttribution` | Direct alias |
@@ -1409,7 +1399,7 @@ session.rpc().send(request).await?;
 # }
 ```
 
-`send` uses `session.send`; `send_and_wait` uses request-owned completion locally and the legacy non-Autopilot `session.idle` or correlated `session.autopilot_stopped` wait remotely. Source does not select delivery mode or billing flags. It may return `Ok(None)` without an assistant message. Genuine errors still propagate.
+Both paths use ordinary `session.send`. Source does not select a delivery mode or set billing flags; the runtime applies its existing source behavior. `send_and_wait` completes on non-Autopilot `session.idle` or a correlated `session.autopilot_stopped`, and may return `Ok(None)` when no assistant message was emitted. Genuine errors still propagate.
 
 ### Progress Reporting (`send_and_wait`)
 

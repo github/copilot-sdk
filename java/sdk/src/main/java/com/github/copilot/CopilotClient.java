@@ -735,9 +735,6 @@ public final class CopilotClient implements AutoCloseable {
                 connectParams.put("token", effectiveConnectionToken);
             }
             connectParams.put("supportedTaskKinds", List.of("agent", "client", "shell"));
-            if (this.options.getEntra() != null) {
-                connectParams.put("entra", this.options.getEntra());
-            }
             // Opt into GitHub telemetry forwarding at the connection level when a handler
             // is registered, so the runtime can forward the first session's un-replayable
             // start event. Also sent on session create/resume for backward compatibility
@@ -763,9 +760,6 @@ public final class CopilotClient implements AutoCloseable {
                 cause = cause.getCause();
             }
             if (cause instanceof JsonRpcException rpcEx && isUnsupportedConnectMethod(rpcEx)) {
-                if (this.options.getEntra() != null) {
-                    throw new IllegalStateException("This runtime does not support Entra client configuration.", cause);
-                }
                 // Legacy server without 'connect'; fall back to 'ping'.
                 // A token, if any, is silently dropped — the legacy server can't enforce one.
                 var params = new HashMap<String, Object>();
@@ -1860,8 +1854,6 @@ public final class CopilotClient implements AutoCloseable {
     /**
      * Starts in-process AHP hosting owned by this client's current connection. At
      * least one of local server or GitHub environment must be selected explicitly.
-     * An explicit admission policy is required in every client mode and validated
-     * before allocating a connection; GitHub environments require GitHub admission.
      * Application callbacks stay in this SDK process; no host executable is
      * launched. If the returned future is cancelled, a listener that subsequently
      * starts is disposed.
@@ -1872,11 +1864,6 @@ public final class CopilotClient implements AutoCloseable {
      */
     @CopilotExperimental
     public CompletableFuture<AhpHost> startAhpHost(AhpHostOptions options) {
-        try {
-            AhpHostManager.validateOptions(options);
-        } catch (IllegalArgumentException error) {
-            return CompletableFuture.failedFuture(error);
-        }
         if (options == null || (options.getLocalServer() == null && options.getGithubEnvironment() == null)) {
             return CompletableFuture
                     .failedFuture(new IllegalArgumentException("At least one AHP transport must be configured"));
