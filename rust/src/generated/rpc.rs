@@ -14746,6 +14746,42 @@ impl<'a> SessionRpcPermissions<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
+    /// Installs or revokes the owning host's dormant, identity-bound Agent Merge grant. Only the non-extension SDK connection that owns the target session (or direct runtime dispatch) is admitted. The runtime derives live conflict paths and exposes no authority while the worktree has no unmerged entries.
+    ///
+    /// Wire method: `session.permissions.configureAgentMergeGrant`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Installs a dormant identity-bound Agent Merge grant, or revokes the active grant when grant is null.
+    ///
+    /// # Returns
+    ///
+    /// Authoritative runtime acknowledgment of the applied or revoked grant revision.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn configure_agent_merge_grant(
+        &self,
+        params: ConfigureAgentMergeGrantRequest,
+    ) -> Result<ConfigureAgentMergeGrantResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_PERMISSIONS_CONFIGUREAGENTMERGEGRANT,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
     /// Provides a decision for a pending tool permission request.
     ///
     /// Wire method: `session.permissions.handlePendingPermissionRequest`.

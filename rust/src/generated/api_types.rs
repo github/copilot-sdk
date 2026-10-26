@@ -1045,6 +1045,9 @@ pub mod rpc_methods {
         "session.ui.unregisterDirectAutoModeSwitchHandler";
     /// `session.permissions.configure`
     pub const SESSION_PERMISSIONS_CONFIGURE: &str = "session.permissions.configure";
+    /// `session.permissions.configureAgentMergeGrant`
+    pub const SESSION_PERMISSIONS_CONFIGUREAGENTMERGEGRANT: &str =
+        "session.permissions.configureAgentMergeGrant";
     /// `session.permissions.handlePendingPermissionRequest`
     pub const SESSION_PERMISSIONS_HANDLEPENDINGPERMISSIONREQUEST: &str =
         "session.permissions.handlePendingPermissionRequest";
@@ -2594,6 +2597,39 @@ pub struct AgentListRequest {
     /// When true, request authored base prompt text on each AgentInfo. Prompt text may be omitted when unavailable, such as for agents projected through a relay session.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub include_prompt: Option<bool>,
+}
+
+/// A revocable Agent Merge grant bound to one live session, repository, worktree, pull request head, revision, and expiry. The runtime derives conflict paths; callers cannot supply them.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentMergeGrant {
+    /// Closed effects the runtime may authorize for live unmerged paths.
+    pub capabilities: Vec<AgentMergeGrantCapability>,
+    /// RFC 3339 expiry timestamp.
+    pub expires_at: String,
+    /// Stable host-issued identifier for this grant.
+    pub grant_id: String,
+    /// Pull request head ref bound to the session.
+    pub head_ref: String,
+    /// Original forty-character pull request head commit SHA.
+    pub head_sha: String,
+    /// Pull request number from the authenticated snapshot.
+    pub pull_request_number: i64,
+    /// Repository name from the authenticated pull request snapshot.
+    pub repository_name: String,
+    /// Repository owner from the authenticated pull request snapshot.
+    pub repository_owner: String,
+    /// Monotonically increasing host-issued revision.
+    pub revision: i64,
+    /// Absolute path of the bound worktree.
+    pub worktree_path: String,
 }
 
 /// Full registry entry for the spawned child. Lets the controller call `handleLiveTargetSelected(entry)` directly without re-reading the registry (avoids a TOCTOU window).
@@ -7754,6 +7790,40 @@ pub struct SessionCompletionItem {
 pub struct CompletionsRequestResult {
     /// Completion items in host-ranked order.
     pub items: Vec<SessionCompletionItem>,
+}
+
+/// Installs a dormant identity-bound Agent Merge grant, or revokes the active grant when grant is null.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConfigureAgentMergeGrantRequest {
+    /// Grant to install, or null to revoke the active grant.
+    pub grant: Option<AgentMergeGrant>,
+}
+
+/// Authoritative runtime acknowledgment of the applied or revoked grant revision.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConfigureAgentMergeGrantResult {
+    /// Applied or revoked grant identifier.
+    pub grant_id: String,
+    /// Applied revision, or the runtime-advanced revocation revision.
+    pub revision: i64,
+    /// Lifecycle operation completed by the runtime.
+    pub status: ConfigureAgentMergeGrantStatus,
 }
 
 /// Params to attach or detach an in-process ExtensionController delegate.
@@ -44687,6 +44757,28 @@ pub enum AgentInfoSource {
     Unknown,
 }
 
+/// One narrowly scoped Agent Merge effect the runtime may authorize for live merge-conflict paths.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AgentMergeGrantCapability {
+    /// Edit files that are currently unmerged in the authenticated worktree.
+    #[serde(rename = "resolveCurrentMergeConflicts")]
+    ResolveCurrentMergeConflicts,
+    /// Stage files that are currently unmerged in the authenticated worktree.
+    #[serde(rename = "stageResolvedMergeConflictFiles")]
+    StageResolvedMergeConflictFiles,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
 /// Kind of attention required when status === "attention". Meaningful only when status === "attention".
 ///
 /// <div class="warning">
@@ -47391,6 +47483,28 @@ pub enum CommandsInvocationEffectOutcome {
 pub enum CommandsInvocationOrigin {
     #[serde(rename = "settings")]
     Settings,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Whether the requested grant revision was installed or the active grant was revoked.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ConfigureAgentMergeGrantStatus {
+    /// The supplied grant revision was installed.
+    #[serde(rename = "applied")]
+    Applied,
+    /// The active grant was removed.
+    #[serde(rename = "revoked")]
+    Revoked,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
