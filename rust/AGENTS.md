@@ -44,8 +44,8 @@ architecture does not otherwise govern this crate.
 
 ## Generated types
 
-Do not edit `src/generated/` by hand. The generator is
-`../scripts/codegen/rust.ts`. From `<SDK_ROOT>`, regenerate with the SDK facade
+Do not edit `src/generated/` by hand.
+From `<SDK_ROOT>`, regenerate with the SDK facade
 so the runtime layout selects checked-out schemas and the standalone layout
 selects its pinned release schemas:
 
