@@ -19491,6 +19491,9 @@ pub struct ProviderModelConfig {
     pub name: Option<String>,
     /// Name of the configured provider that serves this model.
     pub provider: String,
+    /// Reasoning effort levels supported by the model.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub supported_reasoning_efforts: Option<Vec<String>>,
     /// System-message configuration used when the runtime builds the standard prompt for this provider-qualified model, including general-purpose subagents. It uses the same object hierarchy as session-level systemMessage configuration, except transform actions are rejected because the current callback protocol is not model-scoped. When present, it overrides the session-wide configuration on those prompt paths. Selected custom-agent and specialized-subagent prompts remain authoritative.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub system_message: Option<serde_json::Value>,

@@ -3784,6 +3784,11 @@ export interface ProviderModelConfig {
     maxOutputTokens?: number;
 
     /**
+     * Reasoning effort levels supported by the model.
+     */
+    supportedReasoningEfforts?: ReasoningEffort[];
+
+    /**
      * Optional capability overrides (vision, tool_calls, reasoning, etc.) for
      * the synthesized model.
      */
