@@ -175,10 +175,6 @@ Please use the [GitHub Issues](https://github.com/github/copilot-sdk/issues) pag
 [sdk-cpp]: https://github.com/0xeb/copilot-sdk-cpp
 [sdk-clojure]: https://github.com/copilot-community-sdk/copilot-sdk-clojure
 
-## Contributing
-
-See [CONTRIBUTING.md](./CONTRIBUTING.md) for contribution guidelines.
-
 ## License
 
 MIT
