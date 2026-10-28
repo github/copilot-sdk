@@ -23,7 +23,6 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.github.copilot.CopilotExperimental;
 import com.github.copilot.CopilotRequestHandler;
 import com.github.copilot.generated.rpc.GitHubTelemetryNotification;
-import com.github.copilot.generated.rpc.EntraAuthConfig;
 
 /**
  * Configuration options for creating a
@@ -57,7 +56,6 @@ public class CopilotClientOptions {
     private String cliUrl;
     private RuntimeConnection connection;
     private ClientInfo clientInfo;
-    private EntraAuthConfig entra;
     private String copilotHome;
     private String cwd;
     private Map<String, String> environment;
@@ -752,28 +750,6 @@ public class CopilotClientOptions {
     }
 
     /**
-     * Gets the host's Entra registration, or null when built-in Entra sign-in and
-     * token renewal are disabled.
-     *
-     * @return the Entra configuration
-     */
-    public EntraAuthConfig getEntra() {
-        return entra;
-    }
-
-    /**
-     * Sets the host application's Entra registration for its sessions.
-     *
-     * @param entra
-     *            the Entra configuration
-     * @return this options instance
-     */
-    public CopilotClientOptions setEntra(EntraAuthConfig entra) {
-        this.entra = Objects.requireNonNull(entra, "entra must not be null");
-        return this;
-    }
-
-    /**
      * Declares the integrating application's identity, forwarded to the runtime on
      * the {@code server.connect} handshake.
      * <p>
@@ -946,7 +922,6 @@ public class CopilotClientOptions {
         copy.cliUrl = this.cliUrl;
         copy.connection = this.connection;
         copy.clientInfo = this.clientInfo;
-        copy.entra = this.entra;
         copy.copilotHome = this.copilotHome;
         copy.cwd = this.cwd;
         copy.environment = this.environment != null ? new java.util.HashMap<>(this.environment) : null;

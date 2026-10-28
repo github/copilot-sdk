@@ -10,13 +10,12 @@ import pytest
 
 from _session_test_helpers import get_next_event_of_type, wait_for_event
 from copilot import AgentMessageSource, MessageSource
-from copilot._jsonrpc import JsonRpcError, ProcessExitedError
+from copilot._jsonrpc import JsonRpcError
 from copilot.session import Attachment, CopilotSession
 from copilot.session_events import (
     AssistantMessageData,
     ExternalToolCompletedData,
     ExternalToolRequestedData,
-    SessionAutopilotStoppedData,
     SessionErrorData,
     SessionEvent,
     SessionEventType,
@@ -121,19 +120,12 @@ async def test_completion_captures_live_idle_before_send_reply_without_idle_in_h
         assert params["sessionId"] == session.session_id
         if method == "session.getMessages":
             return {"events": [event.to_dict() for event in history]}
-        assert method in ("session.send", "session.sendAndWait")
+        assert method == "session.send"
         # No suspension: even a create_task(async_waiter()) cannot subscribe in time.
         session._dispatch_event(user)
         session._dispatch_event(intermediate)
         session._dispatch_event(assistant)
         session._dispatch_event(idle)
-        if method == "session.sendAndWait":
-            return {
-                "messageId": "message-1",
-                "response": assistant.to_dict(),
-                "aborted": False,
-                "completionEventId": str(idle.id),
-            }
         return {"messageId": "message-1"}
 
     client.request = AsyncMock(side_effect=respond)
@@ -141,7 +133,7 @@ async def test_completion_captures_live_idle_before_send_reply_without_idle_in_h
         if use_send_and_wait:
             message = await session.send_and_wait("hello", timeout=1)
             assert message is not None
-            assert message == assistant
+            assert message is assistant
         else:
             idle_task = get_next_event_of_type(session, "session.idle", timeout=1)
             try:
@@ -365,16 +357,21 @@ async def test_send_and_wait_source_allows_idle_without_assistant(
     session = CopilotSession("session-1", client)
 
     async def respond(method, params):
-        assert method == "session.sendAndWait"
+        assert method == "session.send"
         expected = {"sessionId": "session-1", "prompt": "context updated"}
         if source is not None:
             expected["source"] = wire
         if mode is not None:
             expected["mode"] = mode
         assert params == expected
-        idle = _event(SessionIdleData(), SessionEventType.SESSION_IDLE)
-        session._dispatch_event(idle)
-        return {"messageId": "message-1", "aborted": False, "completionEventId": str(idle.id)}
+        session._dispatch_event(
+            _event(
+                UserMessageData(content="context updated", message_id="message-1"),
+                SessionEventType.USER_MESSAGE,
+            )
+        )
+        session._dispatch_event(_event(SessionIdleData(), SessionEventType.SESSION_IDLE))
+        return {"messageId": "message-1"}
 
     client.request = AsyncMock(side_effect=respond)
     assert (
@@ -385,20 +382,12 @@ async def test_send_and_wait_source_allows_idle_without_assistant(
 @pytest.mark.asyncio
 async def test_send_and_wait_waits_for_matching_request_before_idle():
     client = Mock()
-    admitted = asyncio.Event()
-
-    async def request(method, _params):
-        if method == "session.sendAndWait":
-            raise JsonRpcError(-32601, "Method not found")
-        assert method == "session.send"
-        admitted.set()
-        return {"messageId": "message-1"}
-
-    client.request = AsyncMock(side_effect=request)
+    client.request = AsyncMock(return_value={"messageId": "message-1"})
     session = CopilotSession("session-1", client)
 
     pending = asyncio.create_task(session.send_and_wait("queued", timeout=1))
-    await asyncio.wait_for(admitted.wait(), timeout=1)
+    await asyncio.sleep(0)
+    client.request.assert_awaited_once()
 
     session._dispatch_event(_event(SessionIdleData(), SessionEventType.SESSION_IDLE))
     assert not pending.done()
@@ -416,20 +405,11 @@ async def test_send_and_wait_waits_for_matching_request_before_idle():
 @pytest.mark.asyncio
 async def test_send_and_wait_completes_policy_blocked_prompt_on_correlated_warning():
     client = Mock()
-    admitted = asyncio.Event()
-
-    async def request(method, _params):
-        if method == "session.sendAndWait":
-            raise JsonRpcError(-32601, "Method not found")
-        assert method == "session.send"
-        admitted.set()
-        return {"messageId": "message-1"}
-
-    client.request = AsyncMock(side_effect=request)
+    client.request = AsyncMock(return_value={"messageId": "message-1"})
     session = CopilotSession("session-1", client)
 
     pending = asyncio.create_task(session.send_and_wait("blocked", timeout=1))
-    await asyncio.wait_for(admitted.wait(), timeout=1)
+    await asyncio.sleep(0)
 
     session._dispatch_event(
         _event(
@@ -495,7 +475,7 @@ async def test_send_and_wait_forwards_agent_source_and_other_options(mode, monke
         }
         if mode is not None:
             expected["mode"] = mode
-        assert method == "session.sendAndWait"
+        assert method == "session.send"
         assert params == expected
         session._dispatch_event(
             _event(
@@ -504,19 +484,17 @@ async def test_send_and_wait_forwards_agent_source_and_other_options(mode, monke
             )
         )
         session._dispatch_event(assistant)
-        idle = _event(SessionIdleData(), SessionEventType.SESSION_IDLE)
-        session._dispatch_event(idle)
-        return {
-            "messageId": "message-1",
-            "response": assistant.to_dict(),
-            "aborted": False,
-            "completionEventId": str(idle.id),
-        }
+        session._dispatch_event(_event(SessionIdleData(), SessionEventType.SESSION_IDLE))
+        return {"messageId": "message-1"}
 
     client.request = AsyncMock(side_effect=respond)
+    send = AsyncMock(wraps=session.send)
+    monkeypatch.setattr(session, "send", send)
 
-    assert await session.send_and_wait("Review complete", **options, timeout=1) == assistant
-    client.request.assert_awaited_once()
+    assert await session.send_and_wait("Review complete", **options, timeout=1) is assistant
+    send.assert_awaited_once_with("Review complete", **options)
+    assert send.await_args is not None
+    assert send.await_args.kwargs["source"] is source
 
 
 @pytest.mark.parametrize(("source", "wire"), MESSAGE_SOURCE_CASES[2:])
@@ -527,84 +505,21 @@ async def test_send_and_wait_source_preserves_errors(source, wire, rpc_error):
     session = CopilotSession("session-1", client)
 
     async def respond(method, params):
-        assert method == "session.sendAndWait"
+        assert method == "session.send"
         assert params["source"] == wire
         if rpc_error:
             raise RuntimeError("send failed")
-        error = _event(
-            SessionErrorData(error_type="notification", message="agent failed"),
-            SessionEventType.SESSION_ERROR,
+        session._dispatch_event(
+            _event(
+                SessionErrorData(error_type="notification", message="agent failed"),
+                SessionEventType.SESSION_ERROR,
+            )
         )
-        session._dispatch_event(error)
-        raise JsonRpcError(-32603, "agent failed", data={"completionEventId": str(error.id)})
+        return {"messageId": "message-1"}
 
     client.request = AsyncMock(side_effect=respond)
     with pytest.raises(RuntimeError if rpc_error else Exception, match="send failed|agent failed"):
         await session.send_and_wait("context updated", source=source, timeout=1)
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("retired", [False, True])
-@pytest.mark.parametrize("error_type", [ProcessExitedError, OSError])
-async def test_send_and_wait_preserves_transport_failure_unless_retired(retired, error_type):
-    client = Mock()
-    session = CopilotSession("session-1", client)
-    transport_error = error_type("transport closed")
-
-    async def respond(method, _params):
-        assert method == "session.sendAndWait"
-        if retired:
-            session._mark_disconnected()
-        raise transport_error
-
-    client.request = AsyncMock(side_effect=respond)
-    if retired:
-        with pytest.raises(RuntimeError, match="Session closed before response completed"):
-            await session.send_and_wait("question", timeout=1)
-    else:
-        with pytest.raises(error_type) as failure:
-            await session.send_and_wait("question", timeout=1)
-        assert failure.value is transport_error
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("autopilot", [False, True])
-@pytest.mark.parametrize("aborted", [False, True])
-async def test_send_and_wait_preserves_completed_response_during_retirement(autopilot, aborted):
-    client = Mock()
-    session = CopilotSession("session-1", client)
-    assistant = _event(
-        AssistantMessageData(content="owned result", message_id="assistant-1"),
-        SessionEventType.ASSISTANT_MESSAGE,
-    )
-
-    async def respond(method, _params):
-        assert method == "session.sendAndWait"
-        idle = _event(
-            SessionAutopilotStoppedData(
-                reason="aborted" if aborted else "task_complete", request_id="message-1"
-            )
-            if autopilot
-            else SessionIdleData(aborted=aborted),
-            SessionEventType.SESSION_AUTOPILOT_STOPPED
-            if autopilot
-            else SessionEventType.SESSION_IDLE,
-        )
-        session._dispatch_event(idle)
-        session._mark_disconnected()
-        return {
-            "messageId": "message-1",
-            "response": assistant.to_dict(),
-            "aborted": aborted,
-            "completionEventId": str(idle.id),
-        }
-
-    client.request = AsyncMock(side_effect=respond)
-    if aborted:
-        with pytest.raises(RuntimeError, match="aborted before response completed"):
-            await session.send_and_wait("question", timeout=1)
-    else:
-        assert await session.send_and_wait("question", timeout=1) == assistant
 
 
 @pytest.mark.asyncio
@@ -613,8 +528,6 @@ async def test_send_and_wait_skips_autopilot_continuation_idle():
     request_sent = asyncio.Event()
 
     async def request(*_args, **_kwargs):
-        if _args[0] == "session.sendAndWait":
-            raise JsonRpcError(-32601, "Method not found")
         request_sent.set()
         return {"messageId": "message-1"}
 
@@ -623,7 +536,7 @@ async def test_send_and_wait_skips_autopilot_continuation_idle():
 
     pending = asyncio.create_task(session.send_and_wait("keep going"))
     await asyncio.wait_for(request_sent.wait(), timeout=1)
-    assert client.request.await_count == 2
+    client.request.assert_awaited_once()
 
     session._dispatch_event(
         _event(
@@ -670,8 +583,6 @@ async def test_send_and_wait_ignores_child_events():
     sent = asyncio.Event()
 
     async def respond(method, params):
-        if method == "session.sendAndWait":
-            raise JsonRpcError(-32601, "Method not found")
         assert method == "session.send"
         sent.set()
         return {"messageId": "message-1"}

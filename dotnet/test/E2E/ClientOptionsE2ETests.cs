@@ -363,6 +363,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
             },
             Memory = new MemoryConfiguration { Enabled = true },
             GitHubToken = "session-create-token",
+            RemoteSession = GitHub.Copilot.Rpc.RemoteSessionMode.Export,
             Cloud = new CloudSessionOptions
             {
                 Repository = new CloudSessionRepository
@@ -436,7 +437,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         Assert.Equal(outputDirectory, createRequest.GetProperty("largeOutput").GetProperty("outputDir").GetString());
         Assert.True(createRequest.GetProperty("memory").GetProperty("enabled").GetBoolean());
         Assert.Equal("session-create-token", createRequest.GetProperty("gitHubToken").GetString());
-        Assert.False(createRequest.TryGetProperty("remoteSession", out _));
+        Assert.Equal("export", createRequest.GetProperty("remoteSession").GetString());
         Assert.Equal("github", createRequest.GetProperty("cloud").GetProperty("repository").GetProperty("owner").GetString());
         Assert.True(createRequest.GetProperty("requestMcpApps").GetBoolean());
         Assert.True(createRequest.GetProperty("requestCanvasRenderer").GetBoolean());
@@ -732,6 +733,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
                 OutputDirectory = outputDirectory,
             },
             Memory = new MemoryConfiguration { Enabled = false },
+            RemoteSession = GitHub.Copilot.Rpc.RemoteSessionMode.On,
             OpenCanvases =
             [
                 new GitHub.Copilot.Rpc.OpenCanvasInstance
@@ -765,7 +767,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         Assert.Equal(2048, resumeRequest.GetProperty("largeOutput").GetProperty("maxSizeBytes").GetInt64());
         Assert.Equal(outputDirectory, resumeRequest.GetProperty("largeOutput").GetProperty("outputDir").GetString());
         Assert.False(resumeRequest.GetProperty("memory").GetProperty("enabled").GetBoolean());
-        Assert.False(resumeRequest.TryGetProperty("remoteSession", out _));
+        Assert.Equal("on", resumeRequest.GetProperty("remoteSession").GetString());
 
         var openCanvas = resumeRequest.GetProperty("openCanvases")[0];
         Assert.Equal("resume-canvas", openCanvas.GetProperty("canvasId").GetString());

@@ -2,7 +2,6 @@
 #![cfg(all(feature = "test-support", target_os = "linux"))]
 #![allow(clippy::unwrap_used)]
 
-#[allow(dead_code)]
 #[path = "e2e/runtime_host_support.rs"]
 mod host_support;
 #[allow(dead_code)]
@@ -16,9 +15,7 @@ use std::time::Duration;
 
 use ahp_ws::WebSocketTransport;
 use github_copilot_sdk::rpc::{HostDisposeRequest, HostExitReason, HostLocalServerOptions};
-use github_copilot_sdk::{
-    AhpHostAuthentication, AhpHostOptions, Client, ResumeSessionConfig, SessionId, Transport,
-};
+use github_copilot_sdk::{AhpHostOptions, Client, ResumeSessionConfig, SessionId, Transport};
 use host_support::*;
 use serde_json::{Value, json};
 
@@ -312,14 +309,12 @@ async fn listener_startup_failure_recovers_and_preserves_owner_session() {
             let port = blocker.local_addr().unwrap().port();
             assert!(
                 owner
-                    .start_ahp_host(
-                        AhpHostOptions::default()
-                            .with_authentication(AhpHostAuthentication::Github)
-                            .with_local_server(HostLocalServerOptions {
-                                port: Some(port.into()),
-                                ..Default::default()
-                            })
-                    )
+                    .start_ahp_host(AhpHostOptions::default().with_local_server(
+                        HostLocalServerOptions {
+                            port: Some(port.into()),
+                            ..Default::default()
+                        }
+                    ))
                     .await
                     .is_err()
             );
@@ -421,14 +416,12 @@ async fn listener_defaults_explicit_ports_tokens_and_invalid_combinations() {
             stopped(&host, &ahp, &owner).await;
             ahp.client.shutdown().await;
             for (hostname, port) in [("0.0.0.0", unused_port()), ("localhost", 0), ("::1", 0)] {
-                let options = AhpHostOptions::default()
-                    .with_authentication(AhpHostAuthentication::Github)
-                    .with_local_server(HostLocalServerOptions {
-                        hostname: Some(hostname.into()),
-                        port: Some(port.into()),
-                        token: Some("rust-supplied-token".into()),
-                        require_connection_token: Some(true),
-                    });
+                let options = AhpHostOptions::default().with_local_server(HostLocalServerOptions {
+                    hostname: Some(hostname.into()),
+                    port: Some(port.into()),
+                    token: Some("rust-supplied-token".into()),
+                    require_connection_token: Some(true),
+                });
                 let host = owner.start_ahp_host(options).await.unwrap();
                 let mut url =
                     reqwest::Url::parse(host.url.as_deref().expect("local listener URL")).unwrap();
@@ -496,15 +489,12 @@ async fn disabled_connection_token_still_requires_ahp_resource_authentication() 
         Box::pin(async move {
             let owner = start(ctx).await;
             let host = owner
-                .start_ahp_host(
-                    AhpHostOptions::default()
-                        .with_authentication(AhpHostAuthentication::Github)
-                        .with_local_server(HostLocalServerOptions {
-                            require_connection_token: Some(false),
-                            ..Default::default()
-                        })
-                        .with_allow_creating_new_sessions(true),
-                )
+                .start_ahp_host(AhpHostOptions::default().with_local_server(
+                    HostLocalServerOptions {
+                        require_connection_token: Some(false),
+                        ..Default::default()
+                    },
+                ))
                 .await
                 .unwrap();
             assert_eq!(host.token, None);

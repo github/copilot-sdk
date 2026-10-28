@@ -159,8 +159,6 @@ public final class AssistantUsageEvent extends SessionEvent {
         @JsonProperty("frontierSource") String frontierSource,
         /** Effective prompt-cache lifetime in seconds for this call */
         @JsonProperty("cacheTtlSeconds") Long cacheTtlSeconds,
-        /** Request-scoped prompt-cache policy lifetime in seconds; the shortest lifetime for mixed known policies. Does not establish or refresh cache state. Omitted when the policy is unknown. */
-        @JsonProperty("cachePolicyTtlSeconds") Long cachePolicyTtlSeconds,
         /** Whether the provider reported prompt-cache usage details for this call */
         @JsonProperty("cacheDetailsReported") Boolean cacheDetailsReported,
         /** Number of tool calls returned by the model */

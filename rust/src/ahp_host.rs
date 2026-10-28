@@ -19,11 +19,9 @@ pub use crate::generated::api_types::HostExitReason as AhpHostExitReason;
 /// `Exited` means hosting-task failure, not runtime process death; `exit_code` is `None`.
 pub use crate::generated::api_types::HostExitedNotification as AhpHostExit;
 use crate::generated::api_types::{
-    HostAuthenticationCancelledNotification, HostDisposeRequest, HostListSessionsRequest,
-    HostListSessionsResult, HostPublishSessionRequest, HostPublishSessionResult,
-    HostSessionCreateCallback, HostSessionReleasedNotification,
-    HostSetSessionCreationPolicyRequest, HostStartOptions, HostStartResult,
-    HostUnpublishSessionRequest, HostUnpublishSessionResult, HostValidateAuthenticationRequest,
+    HostDisposeRequest, HostListSessionsRequest, HostListSessionsResult, HostPublishSessionRequest,
+    HostPublishSessionResult, HostSessionCreateCallback, HostSessionReleasedNotification,
+    HostStartOptions, HostStartResult, HostUnpublishSessionRequest, HostUnpublishSessionResult,
 };
 use crate::session::Session;
 use crate::{
@@ -33,107 +31,6 @@ use crate::{
 /// Experimental local callback for a host's exit or owner disconnection.
 pub type AhpHostExitCallback = Arc<dyn Fn(AhpHostExit) + Send + Sync>;
 
-/// Accepted admission identity with a required future RFC3339 expiry.
-///
-/// The host verifies exact configured-owner equality and expiration. These
-/// credentials are independent of GitHub and inference authentication.
-pub use crate::generated::api_types::HostAuthenticationResult as AhpAuthenticationResult;
-
-/// Trusted admission context supplied by the host on create and resume.
-#[derive(Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[serde(tag = "mode", rename_all = "lowercase", deny_unknown_fields)]
-pub enum AhpSessionAuthentication {
-    /// Verified GitHub owner.
-    Github {
-        /// Host account identity.
-        identity: String,
-    },
-    /// Verified application owner.
-    Custom {
-        /// Identity exactly matching the configured owner.
-        identity: String,
-    },
-    /// Explicitly anonymous admission.
-    None,
-}
-
-/// Decrypted admission credential and cooperative cancellation.
-#[non_exhaustive]
-pub struct AhpAuthenticationRequest {
-    /// Application admission token, never used for inference.
-    pub token: String,
-    /// Cancelled when the request, host, or owning connection ends.
-    pub cancellation_token: CancellationToken,
-}
-
-/// Application-owned admission validator. Returning `None` rejects access.
-#[async_trait]
-pub trait AhpAuthenticator: Send + Sync + 'static {
-    /// Validate a decrypted token. Errors and panics fail closed.
-    ///
-    /// Cancellation drops the future and fences results even when application
-    /// work completes concurrently. Do not capture the owning client.
-    async fn authenticate(
-        &self,
-        request: AhpAuthenticationRequest,
-    ) -> Result<Option<AhpAuthenticationResult>, Error>;
-}
-
-#[async_trait]
-impl<F, Fut> AhpAuthenticator for F
-where
-    F: Fn(AhpAuthenticationRequest) -> Fut + Send + Sync + 'static,
-    Fut: Future<Output = Result<Option<AhpAuthenticationResult>, Error>> + Send,
-{
-    async fn authenticate(
-        &self,
-        request: AhpAuthenticationRequest,
-    ) -> Result<Option<AhpAuthenticationResult>, Error> {
-        self(request).await
-    }
-}
-
-/// Explicit host-wide admission policy, separate from the listener secret.
-#[derive(Clone)]
-pub enum AhpHostAuthentication {
-    /// Resolve the authenticated host's GitHub account.
-    Github,
-    /// Deliberately permit anonymous direct hosting.
-    None,
-    /// Application-owned admission; only the configured identity is accepted.
-    Custom {
-        /// Stable nonempty owner identity, never bound to the first client.
-        require_identity: String,
-        /// Decrypted-token validator, retained locally and never serialized.
-        authenticate: Arc<dyn AhpAuthenticator>,
-    },
-}
-
-impl AhpHostAuthentication {
-    /// Configure application admission with a validator or async closure.
-    pub fn custom(
-        require_identity: impl Into<String>,
-        authenticate: impl AhpAuthenticator,
-    ) -> Self {
-        Self::Custom {
-            require_identity: require_identity.into(),
-            authenticate: Arc::new(authenticate),
-        }
-    }
-
-    fn wire_policy(&self) -> Value {
-        match self {
-            Self::Github => serde_json::json!({"mode": "github"}),
-            Self::None => serde_json::json!({"mode": "none"}),
-            Self::Custom {
-                require_identity, ..
-            } => {
-                serde_json::json!({"mode": "custom", "requireIdentity": require_identity})
-            }
-        }
-    }
-}
-
 /// One request to create an application-owned session for an AHP participant.
 ///
 /// **Experimental.** Preserve the supplied configuration, especially the session
@@ -141,8 +38,6 @@ impl AhpHostAuthentication {
 /// calling [`Client::create_session`] on the supplied request-scoped client.
 #[non_exhaustive]
 pub struct AhpSessionRequest {
-    /// Trusted admission identity, never part of session configuration.
-    pub authentication: AhpSessionAuthentication,
     /// Host-selected settings, with no permission handler installed.
     pub config: SessionConfig,
     /// Cancelled when the handoff ends, including timeout or owner loss.
@@ -156,8 +51,6 @@ pub struct AhpSessionRequest {
 /// Host-selected settings for resuming a durable application-owned AHP session.
 #[non_exhaustive]
 pub struct AhpSessionResumeRequest {
-    /// Trusted admission context under the current application policy.
-    pub authentication: AhpSessionAuthentication,
     /// Preserve these settings and add application tools, hooks and handlers.
     pub config: ResumeSessionConfig,
     /// Cooperative cancellation; late returned sessions are still released once.
@@ -255,16 +148,9 @@ pub type AhpSessionReleasedCallback = Arc<dyn Fn(Arc<Session>) + Send + Sync>;
 #[derive(Clone, Default)]
 #[non_exhaustive]
 pub struct AhpHostOptions {
-    /// Required before starting in every client mode. No implicit auth default.
-    pub authentication: Option<AhpHostAuthentication>,
     /// Stable durable catalog identity; defaults are runtime-owned.
     /// Must agree with `github_environment.compute_id` when both are supplied.
     pub compute_id: Option<String>,
-    /// Absolute directory on the runtime host to serve through AHP.
-    /// Defaults to the runtime's configured working directory; process and session working directories are unchanged.
-    pub workspace: Option<String>,
-    /// Remote creation admission, independent of factories. None preserves the denied default.
-    pub allow_creating_new_sessions: Option<bool>,
     /// Experimental local WebSocket listener configuration.
     pub local_server: Option<crate::rpc::HostLocalServerOptions>,
     /// Experimental Mission Control registration; name and compute ID are required.
@@ -292,10 +178,6 @@ impl std::fmt::Debug for AhpHostOptions {
         f.debug_struct("AhpHostOptions")
             .field("compute_id", &self.compute_id)
             .field(
-                "allow_creating_new_sessions",
-                &self.allow_creating_new_sessions,
-            )
-            .field(
                 "local_server",
                 &self.local_server.as_ref().map(|_| "[configured]"),
             )
@@ -309,32 +191,14 @@ impl std::fmt::Debug for AhpHostOptions {
 }
 
 impl AhpHostOptions {
-    /// Select remote creation admission independently of session factories.
-    pub fn with_allow_creating_new_sessions(mut self, allowed: bool) -> Self {
-        self.allow_creating_new_sessions = Some(allowed);
-        self
-    }
-
     /// Create options with no transports enabled. Select at least one before starting.
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Explicitly select GitHub, anonymous, or application-owned admission.
-    pub fn with_authentication(mut self, authentication: AhpHostAuthentication) -> Self {
-        self.authentication = Some(authentication);
-        self
-    }
-
     /// Select the same durable catalog for local and Mission Control hosting.
     pub fn with_compute_id(mut self, compute_id: impl Into<String>) -> Self {
         self.compute_id = Some(compute_id.into());
-        self
-    }
-
-    /// Serve this absolute directory on the runtime host through AHP.
-    pub fn with_workspace(mut self, workspace: impl Into<String>) -> Self {
-        self.workspace = Some(workspace.into());
         self
     }
 
@@ -368,12 +232,11 @@ impl AhpHostOptions {
     ///
     /// ```no_run
     /// use std::sync::Arc;
-    /// use github_copilot_sdk::{AhpHostAuthentication, AhpHostOptions, AhpSessionRequest, Client};
+    /// use github_copilot_sdk::{AhpHostOptions, AhpSessionRequest, Client};
     ///
     /// # async fn example(owner: &Client) -> Result<(), github_copilot_sdk::Error> {
     /// let host = owner.start_ahp_host(
     ///     AhpHostOptions::new()
-    ///         .with_authentication(AhpHostAuthentication::Github)
     ///         .with_local_server(Default::default())
     ///         .with_create_session(|request: AhpSessionRequest, client: Client| async move {
     ///             // Add application tools and hooks without changing host settings.
@@ -502,23 +365,6 @@ impl AhpHost {
             .await
     }
 
-    /// Change subsequent remote admissions without disconnecting clients.
-    /// Already-admitted creation may finish.
-    pub async fn set_allow_creating_new_sessions(&self, allowed: bool) -> Result<(), Error> {
-        let client = Client::from_inner(self.client.upgrade().ok_or_else(|| {
-            Error::from(ErrorKind::Protocol(ProtocolErrorKind::RequestCancelled))
-        })?);
-        client
-            .rpc()
-            .host()
-            .set_session_creation_policy(HostSetSessionCreationPolicyRequest {
-                host_id: self.host_id.clone(),
-                allow_creating_new_sessions: allowed,
-            })
-            .await?;
-        Ok(())
-    }
-
     /// Forward `host.dispose` to the runtime.
     ///
     /// Every call makes its own RPC, including repeated and concurrent calls.
@@ -606,25 +452,6 @@ impl Client {
     /// Cancelling this future removes local callbacks and disposes a successfully
     /// started listener once the pending start response arrives.
     pub async fn start_ahp_host(&self, options: AhpHostOptions) -> Result<AhpHost, Error> {
-        let authentication = options
-            .authentication
-            .ok_or_else(|| handoff_error("An explicit authentication mode is required"))?;
-        if let AhpHostAuthentication::Custom {
-            require_identity, ..
-        } = &authentication
-            && require_identity.trim().is_empty()
-        {
-            return Err(handoff_error(
-                "Custom authentication requires a nonempty requireIdentity",
-            ));
-        }
-        if !matches!(authentication, AhpHostAuthentication::Github)
-            && options.github_environment.is_some()
-        {
-            return Err(handoff_error(
-                "githubEnvironment requires github authentication",
-            ));
-        }
         if options.local_server.is_none() && options.github_environment.is_none() {
             return Err(Error::with_message(
                 ErrorKind::InvalidConfig,
@@ -639,14 +466,6 @@ impl Client {
             start: None,
             client: Arc::downgrade(&self.inner),
         };
-        if let AhpHostAuthentication::Custom { authenticate, .. } = &authentication {
-            pending
-                .sessions
-                .0
-                .lock()
-                .authenticators
-                .insert(host_id.clone(), authenticate.clone());
-        }
         if let Some(callback) = options.on_exit {
             pending.callbacks.lock().insert(host_id.clone(), callback);
         }
@@ -656,29 +475,15 @@ impl Client {
             pending.sessions.0.lock().factories.insert(
                 host_id.clone(),
                 FactoryRegistration {
-                    policy: match &authentication {
-                        AhpHostAuthentication::Github => TrustedAuthenticationPolicy::Github,
-                        AhpHostAuthentication::None => TrustedAuthenticationPolicy::None,
-                        AhpHostAuthentication::Custom {
-                            require_identity, ..
-                        } => TrustedAuthenticationPolicy::Custom(require_identity.clone()),
-                    },
                     create: options.create_session,
                     resume: options.resume_session,
                     on_released: options.on_session_released,
                 },
             );
         }
-        let mut start_options =
-            HostStartOptions::new(host_id).authentication(authentication.wire_policy());
-        if let Some(allowed) = options.allow_creating_new_sessions {
-            start_options = start_options.allow_creating_new_sessions(allowed);
-        }
+        let mut start_options = HostStartOptions::new(host_id);
         if let Some(compute_id) = options.compute_id {
             start_options = start_options.compute_id(compute_id);
-        }
-        if let Some(workspace) = options.workspace {
-            start_options = start_options.workspace(workspace);
         }
         if let Some(local_server) = options.local_server {
             start_options = start_options.local_server(local_server);
@@ -768,17 +573,6 @@ impl Client {
                             sessions.release(&released.host_id, &released.handoff_id);
                         }
                     }
-                    Some(notification) if notification.method == "host.authenticationCancelled" => {
-                        if let Some(params) = notification.params
-                            && let Ok(cancelled) = serde_json::from_value::<
-                                HostAuthenticationCancelledNotification,
-                            >(params)
-                            && let Some(sessions) = sessions.upgrade()
-                        {
-                            sessions
-                                .cancel_authentication(&cancelled.host_id, &cancelled.request_id);
-                        }
-                    }
                     Some(_) => {}
                     None => break,
                 }
@@ -807,72 +601,19 @@ impl Client {
 
 #[derive(Clone)]
 struct FactoryRegistration {
-    policy: TrustedAuthenticationPolicy,
     create: Option<Arc<dyn AhpSessionFactory>>,
     resume: Option<Arc<dyn AhpSessionResumeFactory>>,
     on_released: Option<AhpSessionReleasedCallback>,
-}
-
-#[derive(Clone)]
-enum TrustedAuthenticationPolicy {
-    Github,
-    None,
-    Custom(String),
-}
-
-impl TrustedAuthenticationPolicy {
-    fn accepts(&self, trusted: &AhpSessionAuthentication) -> bool {
-        match (self, trusted) {
-            (Self::Github, AhpSessionAuthentication::Github { identity }) => {
-                !identity.trim().is_empty()
-            }
-            (Self::Custom(required), AhpSessionAuthentication::Custom { identity }) => {
-                identity == required
-            }
-            (Self::None, AhpSessionAuthentication::None) => true,
-            _ => false,
-        }
-    }
 }
 
 #[derive(Default)]
 struct HostSessionState {
     factories: HashMap<String, FactoryRegistration>,
     handoffs: HashMap<String, Arc<Handoff>>,
-    authenticators: HashMap<String, Arc<dyn AhpAuthenticator>>,
-    authentications: HashMap<String, Arc<AuthenticationAttempt>>,
-}
-
-struct AuthenticationAttempt {
-    host_id: String,
-    cancellation: CancellationToken,
-}
-
-struct AuthenticationGuard {
-    sessions: Arc<HostSessions>,
-    request_id: String,
-    attempt: Arc<AuthenticationAttempt>,
-}
-
-impl Drop for AuthenticationGuard {
-    fn drop(&mut self) {
-        self.attempt.cancellation.cancel();
-        let mut state = self.sessions.0.lock();
-        if state
-            .authentications
-            .get(&self.request_id)
-            .is_some_and(|attempt| Arc::ptr_eq(attempt, &self.attempt))
-        {
-            state.authentications.remove(&self.request_id);
-        }
-    }
 }
 
 impl Drop for HostSessionState {
     fn drop(&mut self) {
-        for attempt in self.authentications.values() {
-            attempt.cancellation.cancel();
-        }
         // Also runs when owner-drop cleanup is cancelled before its first poll.
         for handoff in self.handoffs.values() {
             handoff.release();
@@ -892,23 +633,15 @@ impl Drop for HostSessions {
         for handoff in state.handoffs.values() {
             handoff.cancellation.cancel();
         }
-        for attempt in state.authentications.values() {
-            attempt.cancellation.cancel();
-        }
         // Only the public Client handles own this retention root. Session clients
         // own the connection without pointing back here. A finite teardown task
         // keeps originals alive until their hosts detach, without a reference cycle.
-        if (!state.factories.is_empty() || !state.authenticators.is_empty())
+        if !state.factories.is_empty()
             && let Some(inner) = self.1.get_mut().upgrade()
         {
             self.2.spawn(async move {
                 let client = Client::from_inner(inner);
-                let host_ids: std::collections::HashSet<_> = state
-                    .factories
-                    .keys()
-                    .chain(state.authenticators.keys())
-                    .collect();
-                for host_id in host_ids {
+                for host_id in state.factories.keys() {
                     let disposal = async {
                         client
                             .rpc()
@@ -1026,15 +759,6 @@ impl HostSessions {
     fn release_host(&self, host_id: &str) {
         let (factory, handoffs) = {
             let mut state = self.0.lock();
-            state.authenticators.remove(host_id);
-            state.authentications.retain(|_, attempt| {
-                if attempt.host_id == host_id {
-                    attempt.cancellation.cancel();
-                    false
-                } else {
-                    true
-                }
-            });
             let factory = state.factories.remove(host_id);
             let ids: Vec<_> = state
                 .handoffs
@@ -1059,14 +783,6 @@ impl HostSessions {
         drop(state);
     }
 
-    fn cancel_authentication(&self, host_id: &str, request_id: &str) {
-        if let Some(attempt) = self.0.lock().authentications.get(request_id)
-            && attempt.host_id == host_id
-        {
-            attempt.cancellation.cancel();
-        }
-    }
-
     pub(crate) fn expects_session(&self, id: Option<&crate::SessionId>) -> bool {
         id.is_some_and(|id| {
             self.0
@@ -1083,69 +799,7 @@ fn handoff_error(message: &'static str) -> Error {
 }
 
 impl Client {
-    fn register_ahp_authenticator(&self) -> Result<(), Error> {
-        let client = Arc::downgrade(&self.inner);
-        self.inner.rpc.register_request_handler(
-            "host.validateAuthentication",
-            Arc::new(move |params| {
-                // Register before the reader can process a following cancellation.
-                let prepared = (|| {
-                    let inner = client.upgrade()
-                        .ok_or_else(|| handoff_error("AHP owner connection is closed"))?;
-                    let client = Client::from_inner(inner);
-                    let params: HostValidateAuthenticationRequest = serde_json::from_value(params)?;
-                    let request_id = params.request_id.to_string();
-                    let sessions = client.host_sessions()?;
-                    let attempt = Arc::new(AuthenticationAttempt {
-                        host_id: params.host_id.clone(),
-                        cancellation: CancellationToken::new(),
-                    });
-                    let authenticator = {
-                        let mut state = sessions.0.lock();
-                        let authenticator = state.authenticators.get(&params.host_id).cloned()
-                            .ok_or_else(|| handoff_error("AHP authenticator is unavailable"))?;
-                        if state.authentications.contains_key(&request_id) {
-                            return Err(handoff_error("AHP authentication request already exists"));
-                        }
-                        state.authentications.insert(request_id.clone(), attempt.clone());
-                        authenticator
-                    };
-                    let guard = AuthenticationGuard {
-                        sessions,
-                        request_id,
-                        attempt,
-                    };
-                    Ok::<_, Error>((authenticator, params.token, guard))
-                })();
-                Box::pin(async move {
-                    let (authenticator, token, guard) = prepared?;
-                    let request = AhpAuthenticationRequest {
-                        token,
-                        cancellation_token: guard.attempt.cancellation.child_token(),
-                    };
-                    let result = tokio::select! {
-                        biased;
-                        _ = guard.attempt.cancellation.cancelled() => {
-                            return Err(handoff_error("AHP authentication ended"));
-                        }
-                        result = std::panic::AssertUnwindSafe(authenticator.authenticate(request)).catch_unwind() => {
-                            result.map_err(|_| handoff_error("AHP authenticator panicked"))??
-                        }
-                    };
-                    if guard.attempt.cancellation.is_cancelled()
-                        || !guard.sessions.0.lock().authenticators.get(&guard.attempt.host_id)
-                            .is_some_and(|current| Arc::ptr_eq(current, &authenticator))
-                    {
-                        return Err(handoff_error("AHP authentication ended"));
-                    }
-                    Ok(serde_json::to_value(result)?)
-                })
-            }),
-        )
-    }
-
     pub(crate) fn register_ahp_session_factory(&self) -> Result<(), Error> {
-        self.register_ahp_authenticator()?;
         let client = Arc::downgrade(&self.inner);
         self.inner.rpc.register_request_handler(
             "host.materializeSession",
@@ -1175,12 +829,6 @@ impl Client {
         &self,
         params: &HostSessionCreateCallback,
     ) -> Result<(FactoryRegistration, Arc<Handoff>), Error> {
-        let trusted: AhpSessionAuthentication = serde_json::from_value(
-            params
-                .authentication
-                .clone()
-                .ok_or_else(|| handoff_error("AHP session handoff authentication is required"))?,
-        )?;
         let resume = params.resume.unwrap_or(false);
         let requested_session_id = params
             .config
@@ -1198,11 +846,6 @@ impl Client {
                 .ok_or_else(|| handoff_error("AHP session factory is unavailable"))?;
             if (resume && factory.resume.is_none()) || (!resume && factory.create.is_none()) {
                 return Err(handoff_error("AHP session factory is unavailable"));
-            }
-            if !factory.policy.accepts(&trusted) {
-                return Err(handoff_error(
-                    "AHP trusted authentication does not match host policy",
-                ));
             }
             if state.handoffs.contains_key(&params.handoff_id) {
                 return Err(handoff_error("AHP session handoff already exists"));
@@ -1240,13 +883,8 @@ impl Client {
         // original session must still be delivered to on_session_released.
         let work = tokio::spawn(async move {
             let result = std::panic::AssertUnwindSafe(async {
-                let authentication: AhpSessionAuthentication =
-                    serde_json::from_value(params.authentication.clone().ok_or_else(|| {
-                        handoff_error("AHP session handoff authentication is required")
-                    })?)?;
                 if resume {
                     let request = AhpSessionResumeRequest {
-                        authentication,
                         config: resume_config_from_host(&params.config)?,
                         cancellation_token,
                     };
@@ -1258,7 +896,6 @@ impl Client {
                         .await
                 } else {
                     let request = AhpSessionRequest {
-                        authentication,
                         config: config_from_host(&params.config)?,
                         cancellation_token,
                     };
@@ -1309,7 +946,6 @@ macro_rules! host_settings {
             "enableConfigDiscovery" => enable_config_discovery,
             "featureFlags" => feature_flags,
             "enableManagedSettings" => enable_managed_settings,
-            "excludedManagedSettings" => excluded_managed_settings,
             "enableSessionStore" => enable_session_store,
             "availableTools" => available_tools,
             "excludedTools" => excluded_tools,

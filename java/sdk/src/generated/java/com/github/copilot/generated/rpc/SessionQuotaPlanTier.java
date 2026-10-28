@@ -28,8 +28,6 @@ public enum SessionQuotaPlanTier {
     BUSINESS("business"),
     /** The {@code enterprise} variant. */
     ENTERPRISE("enterprise"),
-    /** The {@code access} variant. */
-    ACCESS("access"),
     /** The {@code max} variant. */
     MAX("max"),
     /** The {@code unknown} variant. */

@@ -123,9 +123,9 @@ class ClientOptionsE2ETest {
                         .setEnableOnDemandInstructionDiscovery(false).setEnableFileHooks(true)
                         .setEnableHostGitOperations(false).setEnableSessionStore(true).setEnableSkills(false)
                         .setEmbeddingCacheStorage("in-memory").setGitHubToken("java-session-token")
-                        .setSkipCustomInstructions(true).setCustomAgentsLocalOnly(false).setCoauthorEnabled(true)
-                        .setManageScheduleEnabled(true).setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
-                        .get(30, TimeUnit.SECONDS);
+                        .setRemoteSession("export").setSkipCustomInstructions(true).setCustomAgentsLocalOnly(false)
+                        .setCoauthorEnabled(true).setManageScheduleEnabled(true)
+                        .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get(30, TimeUnit.SECONDS);
                 session.close();
             }
 
@@ -157,7 +157,7 @@ class ClientOptionsE2ETest {
             assertEquals(MAPPER.valueToTree(false), create.get("enableSkills"));
             assertEquals("in-memory", create.path("embeddingCacheStorage").asText());
             assertEquals("java-session-token", create.path("gitHubToken").asText());
-            assertFalse(create.has("remoteSession"));
+            assertEquals("export", create.path("remoteSession").asText());
             assertEquals("direct", create.path("envValueMode").asText());
             assertEquals(MAPPER.valueToTree(true), create.get("requestPermission"));
 
@@ -217,8 +217,8 @@ class ClientOptionsE2ETest {
                                 .setEnableOnDemandInstructionDiscovery(false).setEnableFileHooks(true)
                                 .setEnableHostGitOperations(false).setEnableSessionStore(true).setEnableSkills(false)
                                 .setEmbeddingCacheStorage("in-memory").setGitHubToken("java-resume-token")
-                                .setSkipCustomInstructions(false).setCustomAgentsLocalOnly(true)
-                                .setCoauthorEnabled(false).setManageScheduleEnabled(true)
+                                .setRemoteSession("export").setSkipCustomInstructions(false)
+                                .setCustomAgentsLocalOnly(true).setCoauthorEnabled(false).setManageScheduleEnabled(true)
                                 .setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
                         .get(30, TimeUnit.SECONDS);
                 session.close();
@@ -245,7 +245,7 @@ class ClientOptionsE2ETest {
             assertEquals(MAPPER.valueToTree(false), resume.get("enableSkills"));
             assertEquals("in-memory", resume.path("embeddingCacheStorage").asText());
             assertEquals("java-resume-token", resume.path("gitHubToken").asText());
-            assertFalse(resume.has("remoteSession"));
+            assertEquals("export", resume.path("remoteSession").asText());
             assertEquals("direct", resume.path("envValueMode").asText());
             assertEquals(MAPPER.valueToTree(true), resume.get("requestPermission"));
 

@@ -97,9 +97,7 @@ public final class SessionCompactionCompleteEvent extends SessionEvent {
         /** Destination model for a model-switch compaction when it differs from the compacting model; for a HydraFusion turn, the routed root model */
         @JsonProperty("switchTargetModel") String switchTargetModel,
         /** What initiated this compaction, when known */
-        @JsonProperty("trigger") CompactionTrigger trigger,
-        /** How far the summarizer model calls had progressed when the outcome was decided, so a stalled summarizer can be told from a slow one */
-        @JsonProperty("summarizerProgress") CompactionCompleteSummarizerProgress summarizerProgress
+        @JsonProperty("trigger") CompactionTrigger trigger
     ) {
     }
 }

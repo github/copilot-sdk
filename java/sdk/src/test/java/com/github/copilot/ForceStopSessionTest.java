@@ -31,7 +31,6 @@ import java.util.function.Consumer;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
-import org.junit.jupiter.params.provider.ValueSource;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -168,15 +167,13 @@ class ForceStopSessionTest {
     }
 
     @ParameterizedTest
-    @CsvSource({"false, false, false", "false, true, false", "true, false, false", "true, true, false",
-            "false, false, true", "false, true, true", "true, false, true", "true, true, true"})
-    void retirementPreservesTerminalOutcomeWhileSchedulerHandoffIsBlocked(boolean terminalError, boolean force,
-            boolean firstFallback) throws Exception {
+    @CsvSource({"false, false", "false, true", "true, false", "true, true"})
+    void retirementPreservesTerminalOutcomeWhileSchedulerHandoffIsBlocked(boolean terminalError, boolean force)
+            throws Exception {
         var entered = new CountDownLatch(1);
         var release = new CountDownLatch(1);
         try (var server = new Server(); var client = server.createClient()) {
             var session = createSession(client);
-            server.completionSupported = firstFallback;
             var occupying = session.sendAndWait(new MessageOptions().setPrompt("occupy scheduler"), 0);
             var continuation = occupying.whenComplete((value, error) -> {
                 entered.countDown();
@@ -184,24 +181,12 @@ class ForceStopSessionTest {
             });
             try (var gate = (AutoCloseable) release::countDown) {
                 client.ping("first send acknowledgment").get(5, TimeUnit.SECONDS);
-                if (firstFallback) {
-                    var request = server.completions.poll(5, TimeUnit.SECONDS);
-                    assertNotNull(request, "The occupying call must use the supported completion RPC");
-                    server.completionSupported = false;
-                    server.writeMessage(Map.of("jsonrpc", "2.0", "id", request.get("id"), "result",
-                            Map.of("messageId", "occupying-request", "aborted", false)));
-                } else {
-                    server.emitEvent(session.getSessionId(), "user.message",
-                            Map.of("messageId", "occupy scheduler", "content", "occupy scheduler"));
-                    server.emitIdle(session.getSessionId());
-                }
+                server.emitEvent(session.getSessionId(), "user.message",
+                        Map.of("messageId", "occupy scheduler", "content", "occupy scheduler"));
+                server.emitIdle(session.getSessionId());
                 assertTrue(entered.await(5, TimeUnit.SECONDS), "A continuation must occupy the session scheduler");
 
                 var completed = session.sendAndWait(new MessageOptions().setPrompt("completed terminal"), 0);
-                if (firstFallback) {
-                    assertEquals("completed terminal", server.sends.poll(5, TimeUnit.SECONDS),
-                            "The first fallback must admit its legacy wait before the terminal event");
-                }
                 client.ping("second send acknowledgment").get(5, TimeUnit.SECONDS);
                 if (terminalError) {
                     server.emitEvent(session.getSessionId(), "session.error",
@@ -240,8 +225,6 @@ class ForceStopSessionTest {
             var session = createSession(client);
             var plain = session.sendAndWait(new MessageOptions().setPrompt("plain"), 0);
             var structured = session.sendAndWait(new MessageOptions().setPrompt("structured"), Answer.class, 0);
-            assertNotNull(server.sends.poll(5, TimeUnit.SECONDS), "First legacy send must be admitted");
-            assertNotNull(server.sends.poll(5, TimeUnit.SECONDS), "Second legacy send must be admitted");
             client.ping("send acknowledgment barrier").get(5, TimeUnit.SECONDS);
             assertFalse(plain.isDone());
             assertFalse(structured.isDone());
@@ -278,8 +261,6 @@ class ForceStopSessionTest {
             var session = createSession(client);
             var plain = session.sendAndWait(new MessageOptions().setPrompt("plain"), 0);
             var structured = session.sendAndWait(new MessageOptions().setPrompt("structured"), Answer.class, 0);
-            assertNotNull(server.sends.poll(5, TimeUnit.SECONDS), "First legacy send must be admitted");
-            assertNotNull(server.sends.poll(5, TimeUnit.SECONDS), "Second legacy send must be admitted");
             client.ping("send acknowledgment barrier").get(5, TimeUnit.SECONDS);
             assertFalse(plain.isDone());
             assertFalse(structured.isDone());
@@ -335,62 +316,6 @@ class ForceStopSessionTest {
                 TimeUnit.SECONDS);
     }
 
-    @ParameterizedTest
-    @ValueSource(booleans = {false, true})
-    void sendAndWaitUsesOnlyTheRuntimeOwnedResponse(boolean typed) throws Exception {
-        try (var server = new Server(); var client = server.createClient()) {
-            server.completionSupported = true;
-            try (var session = createSession(client)) {
-                var idles = new AtomicInteger();
-                try (var subscription = session.on(SessionIdleEvent.class, event -> idles.incrementAndGet())) {
-                    var options = new MessageOptions().setPrompt("question");
-                    var waiting = typed
-                            ? session.sendAndWait(options, Answer.class, 5000)
-                            : session.sendAndWait(options, 5000);
-                    var request = server.completions.poll(5, TimeUnit.SECONDS);
-                    assertNotNull(request, "The existing helper must use the private completion RPC");
-                    assertEquals("question", request.path("params").path("prompt").asText());
-                    server.emitEvent(session.getSessionId(), "session.error",
-                            Map.of("errorType", "diagnostic", "message", "unrelated error"));
-                    server.emitIdle(session.getSessionId());
-                    var response = server.emitEvent(session.getSessionId(), "assistant.message",
-                            Map.of("messageId", "owned-response", "content", "{\"value\":42}"));
-                    var idle = server.emitEvent(session.getSessionId(), "session.autopilot_stopped",
-                            Map.of("reason", "task_complete", "requestId", "owned-request"));
-                    server.writeMessage(Map.of("jsonrpc", "2.0", "id", request.get("id"), "result",
-                            Map.of("messageId", "owned-request", "response", response, "aborted", false,
-                                    "completionEventId", idle.get("id"))));
-                    Object result = waiting.get(5, TimeUnit.SECONDS);
-                    if (typed) {
-                        assertEquals(new Answer(42), result);
-                    } else {
-                        var assistant = assertInstanceOf(com.github.copilot.generated.AssistantMessageEvent.class,
-                                result);
-                        assertEquals(response.get("id"), assistant.getId().toString());
-                        assertEquals("{\"value\":42}", assistant.getData().content());
-                    }
-                    assertEquals(1, idles.get());
-                }
-            }
-        }
-    }
-
-    @Test
-    void cancellingSendAndWaitCancelsOnlyItsPrivateRequest() throws Exception {
-        try (var server = new Server(); var client = server.createClient()) {
-            server.completionSupported = true;
-            try (var session = createSession(client)) {
-                var waiting = session.sendAndWait(new MessageOptions().setPrompt("question"), 0);
-                var request = server.completions.poll(5, TimeUnit.SECONDS);
-                assertNotNull(request);
-                assertTrue(waiting.cancel(true));
-                assertEquals(request.get("id"), server.cancellations.poll(5, TimeUnit.SECONDS));
-                assertEquals(0, server.detaches.get(), "Cancelling a wait must not close the session");
-                assertNotNull(client.ping("still connected").get(5, TimeUnit.SECONDS));
-            }
-        }
-    }
-
     private static void awaitRelease(CountDownLatch release) {
         boolean interrupted = false;
         try {
@@ -420,10 +345,6 @@ class ForceStopSessionTest {
         private volatile boolean closed;
         private volatile boolean emitDetachCallbacks;
         private volatile boolean holdDetachResponse;
-        private volatile boolean completionSupported;
-        private final java.util.concurrent.BlockingQueue<JsonNode> completions = new java.util.concurrent.LinkedBlockingQueue<>();
-        private final java.util.concurrent.BlockingQueue<JsonNode> cancellations = new java.util.concurrent.LinkedBlockingQueue<>();
-        private final java.util.concurrent.BlockingQueue<String> sends = new java.util.concurrent.LinkedBlockingQueue<>();
         private volatile Exception failure;
 
         Server() throws IOException {
@@ -441,13 +362,12 @@ class ForceStopSessionTest {
             emitEvent(sessionId, "session.idle", Map.of());
         }
 
-        Map<String, Object> emitEvent(String sessionId, String type, Map<String, Object> data) throws IOException {
+        void emitEvent(String sessionId, String type, Map<String, Object> data) throws IOException {
             assertNotNull(socket, "Session creation must establish the connection before events");
-            var event = Map.<String, Object>of("type", type, "id", java.util.UUID.randomUUID().toString(), "timestamp",
-                    "2026-10-05T00:00:00Z", "data", data);
             writeMessage(Map.of("jsonrpc", "2.0", "method", "session.event", "params",
-                    Map.of("sessionId", sessionId, "event", event)));
-            return event;
+                    Map.of("sessionId", sessionId, "event",
+                            Map.of("type", type, "id", "00000000-0000-0000-0000-000000000001", "timestamp",
+                                    "2026-10-05T00:00:00Z", "data", data))));
         }
 
         private void serve() {
@@ -460,19 +380,6 @@ class ForceStopSessionTest {
                         return;
                     }
                     JsonNode params = request.path("params");
-                    if (request.path("method").asText().equals("session.sendAndWait")) {
-                        if (completionSupported) {
-                            completions.add(request);
-                        } else {
-                            writeMessage(Map.of("jsonrpc", "2.0", "id", request.get("id"), "error",
-                                    Map.of("code", -32601, "message", "Method not found")));
-                        }
-                        continue;
-                    }
-                    if (request.path("method").asText().equals("$/cancelRequest")) {
-                        cancellations.add(params.get("id"));
-                        continue;
-                    }
                     if (holdDetachResponse && request.path("method").asText().equals("session.detach")) {
                         detaches.incrementAndGet();
                         detachEntered.countDown();
@@ -503,10 +410,7 @@ class ForceStopSessionTest {
                     Object result = switch (request.path("method").asText()) {
                         case "connect" -> Map.of("protocolVersion", SdkProtocolVersion.get());
                         case "session.create" -> Map.of("sessionId", params.path("sessionId").asText());
-                        case "session.send" -> {
-                            sends.add(params.path("prompt").asText());
-                            yield Map.of("messageId", params.path("prompt").asText());
-                        }
+                        case "session.send" -> Map.of("messageId", params.path("prompt").asText());
                         case "session.detach" -> {
                             detaches.incrementAndGet();
                             yield Map.of("success", true);

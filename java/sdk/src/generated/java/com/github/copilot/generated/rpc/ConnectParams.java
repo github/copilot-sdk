@@ -25,8 +25,6 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 record ConnectParams(
-    /** Entra application used by this client's authentication flows. Required to enable built-in Microsoft Entra sign-in and token renewal; other authentication methods remain available. */
-    @JsonProperty("entra") EntraAuthConfig entra,
     /** Opt this connection in to GitHub telemetry forwarding for its lifetime. When set, the runtime forwards this host's telemetry across all its sessions, its sessionless events, and explicitly process-wide events over the `gitHubTelemetry.event` notification. Connections intentionally sharing one server receive that server's events; independently embedded runtime hosts do not receive each other's host-owned events. Regular events are also written to the runtime's normal GitHub/CTS path (dual-write); host-only compatibility events are forward-only and intentionally skip that path. Intended for first-party hosts that re-emit the events into their own telemetry stores. Both unrestricted and restricted events are forwarded, each tagged with a `restricted` discriminator; a backstop drops restricted events when restricted telemetry is disabled — using the process-global gate for ordinary events and an explicit session-scoped decision for host-only events. */
     @JsonProperty("enableGitHubTelemetryForwarding") Boolean enableGitHubTelemetryForwarding,
     /** Identity of the integrating host. Optional; omit it to keep the default attribution. */

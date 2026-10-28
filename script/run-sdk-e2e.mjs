@@ -284,9 +284,7 @@ export async function runTests(language, connection, command, env = process.env,
     try {
         if (language === "go" || language === "rust") {
             // Regular files cannot hold the command open when descendants inherit its output handles.
-            const consoleLog = env.SDK_E2E_CONSOLE_LOG || path.join(temporaryDirectory, "console.log");
-            await mkdir(path.dirname(consoleLog), { recursive: true });
-            const log = await open(consoleLog, "w+");
+            const log = await open(path.join(temporaryDirectory, "console.log"), "w+");
             const output = new PassThrough();
             if (language !== "go") output.on("data", (chunk) => process.stdout.write(chunk));
             const lines = createInterface({ input: output });
@@ -407,44 +405,6 @@ export async function runTests(language, connection, command, env = process.env,
     return exitCode;
 }
 
-export async function runCapturedCommand(command, logPath, env = process.env, cwd = process.cwd()) {
-    if (command.length === 0 || !logPath) {
-        throw new Error("Expected a log path and command.");
-    }
-    await mkdir(path.dirname(logPath), { recursive: true });
-    const log = await open(logPath, "w+");
-    const output = new PassThrough();
-    output.on("data", (chunk) => process.stdout.write(chunk));
-    const buffer = Buffer.alloc(64 * 1024);
-    let position = 0;
-    const flush = () => {
-        let bytes;
-        while ((bytes = readSync(log.fd, buffer, 0, buffer.length, position)) > 0) {
-            position += bytes;
-            output.write(Buffer.from(buffer.subarray(0, bytes)));
-        }
-    };
-    const timer = setInterval(flush, 100);
-    try {
-        return await new Promise((resolve, reject) => {
-            const child = spawn(command[0], command.slice(1), {
-                cwd,
-                env,
-                stdio: ["inherit", log.fd, log.fd],
-            });
-            child.on("error", reject);
-            child.on("close", (code, signal) => resolve(code ?? (signal ? 128 + (constants.signals[signal] ?? 0) : 1)));
-        });
-    } finally {
-        clearInterval(timer);
-        flush();
-        const closed = once(output, "end");
-        output.end();
-        await closed;
-        await log.close();
-    }
-}
-
 export async function publish(directory, env = process.env, submit = submitDatadogMetric) {
     let files;
     try {
@@ -508,14 +468,10 @@ export async function main(args = process.argv.slice(2)) {
         }
         return 0;
     }
-    if (args[0] === "--capture-log" && args[2] === "--") {
-        return runCapturedCommand(args.slice(3), path.resolve(args[1]));
-    }
     console.log(
         "Usage: node script/run-sdk-e2e.mjs --run <language> <subprocess|inprocess> -- <command> [args...]\n" +
-            "       node script/run-sdk-e2e.mjs --capture-log <path> -- <command> [args...]\n" +
             "       node script/run-sdk-e2e.mjs --publish\n" +
-            "SDK_E2E_REPORT selects the Vitest JSON/pytest JUnit report path; SDK_E2E_CONSOLE_LOG preserves Go/Rust output.\n" +
+            "SDK_E2E_REPORT selects the Vitest JSON/pytest JUnit report path; the child receives an automatic path otherwise.\n" +
             "Publication reads .sdk-e2e-metrics in GITHUB_WORKSPACE and uses DATADOG_API_KEY and optional DATADOG_SITE.",
     );
     return args.length === 0 || args[0] === "--help" ? 0 : 2;

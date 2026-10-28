@@ -118,9 +118,7 @@ func (a *ahpApplication) createConfig(config *copilot.SessionConfig) {
 
 func (a *ahpApplication) options() *copilot.AhpHostOptions {
 	return &copilot.AhpHostOptions{
-		Authentication:           copilot.AhpHostAuthentication{Mode: "github"},
-		LocalServer:              &rpc.HostLocalServerOptions{},
-		AllowCreatingNewSessions: copilot.Bool(true),
+		LocalServer: &rpc.HostLocalServerOptions{},
 		CreateSession: func(ctx context.Context, request copilot.AhpSessionCreateRequest) (*copilot.Session, error) {
 			a.creates.Add(1)
 			if ctx.Err() != nil || request.Config.WorkingDirectory != a.workDir {

@@ -31,7 +31,7 @@ from copilot import (
     StdioRuntimeConnection,
     define_tool,
 )
-from copilot._jsonrpc import JsonRpcClient, JsonRpcError
+from copilot._jsonrpc import JsonRpcClient
 from copilot.client import (
     CloudSessionOptions,
     CloudSessionRepository,
@@ -68,12 +68,6 @@ from copilot.session_events import (
 from copilot.session_fs_provider import SessionFsProvider, create_session_fs_adapter
 from copilot.tools import Tool
 from e2e.testharness import CLI_PATH
-
-
-def test_high_level_configs_omit_legacy_remote_control():
-    assert "enable_remote_sessions" not in inspect.signature(CopilotClient).parameters
-    assert "remote_session" not in inspect.signature(CopilotClient.create_session).parameters
-    assert "remote_session" not in inspect.signature(CopilotClient.resume_session).parameters
 
 
 def test_session_fs_capabilities_preserve_positional_sqlite():
@@ -121,11 +115,7 @@ async def test_inprocess_ui_thread_rpc_waits_for_scheduler(
     client._ffi_host = host
     client._client = Mock(spec=JsonRpcClient)
     handlers = {}
-    client._client.set_request_handler.side_effect = (
-        lambda method, handler, *, cancellable=False, ordered=False: handlers.__setitem__(
-            method, handler
-        )
-    )
+    client._client.set_request_handler.side_effect = handlers.__setitem__
     client._register_client_global_handlers()
     host.configure_ui_thread.assert_called_once_with(True)
 
@@ -158,11 +148,7 @@ async def test_inprocess_ui_thread_rpc_rejects_out_of_range_action_ids(
     client._ffi_host = host
     client._client = Mock(spec=JsonRpcClient)
     handlers = {}
-    client._client.set_request_handler.side_effect = (
-        lambda method, handler, *, cancellable=False, ordered=False: handlers.__setitem__(
-            method, handler
-        )
-    )
+    client._client.set_request_handler.side_effect = handlers.__setitem__
     client._register_client_global_handlers()
 
     with pytest.raises(ValueError, match="unsigned 32-bit integer"):
@@ -257,92 +243,6 @@ class TestBuiltinPluginDirectories:
                 connection=RuntimeConnection.for_uri("localhost:1234"),
                 builtin_plugin_directories=["plugins/core"],
             )
-
-
-class TestClientStartup:
-    @pytest.mark.asyncio
-    async def test_handshake_error_survives_owned_process_cleanup_failure(self):
-        from copilot import EntraAuthConfig
-
-        client = CopilotClient(
-            connection=RuntimeConnection.for_stdio(path="copilot"),
-            entra=EntraAuthConfig(client_id="host-entra-client"),
-        )
-        cleanup_error = subprocess.TimeoutExpired("copilot", 5)
-        child = Mock(poll=Mock(return_value=None), wait=Mock(side_effect=cleanup_error))
-        rpc = Mock(
-            request=AsyncMock(side_effect=JsonRpcError(-32601, "Unhandled method connect")),
-            stop=AsyncMock(),
-        )
-
-        async def connect():
-            client._cli_process = child
-            client._process = child
-            client._client = rpc
-
-        client._start_cli_server = AsyncMock()
-        client._connect_to_server = AsyncMock(side_effect=connect)
-        try:
-            with pytest.raises(
-                RuntimeError, match="does not support Entra client configuration"
-            ) as error:
-                await client.start()
-            assert error.value.__cause__ is cleanup_error
-            assert client._state == "error"
-            assert client._client is None
-            assert client._cli_process is child
-            rpc.stop.assert_awaited_once()
-        finally:
-            child.wait.side_effect = None
-            await client.force_stop()
-
-    @pytest.mark.asyncio
-    @pytest.mark.parametrize("transport", ["stdio", "tcp"])
-    async def test_unsupported_entra_handshake_cleans_up_owned_runtime(self, transport):
-        from copilot import EntraAuthConfig
-
-        connection = (
-            RuntimeConnection.for_stdio(path="copilot")
-            if transport == "stdio"
-            else RuntimeConnection.for_tcp(path="copilot")
-        )
-        client = CopilotClient(
-            connection=connection,
-            entra=EntraAuthConfig(client_id="host-entra-client"),
-        )
-        child = Mock(poll=Mock(return_value=None))
-        stream = child if transport == "stdio" else Mock()
-        rpc = Mock(
-            request=AsyncMock(side_effect=JsonRpcError(-32601, "Unhandled method connect")),
-            stop=AsyncMock(),
-        )
-
-        async def spawn():
-            client._cli_process = child
-
-        async def connect():
-            client._process = stream
-            client._client = rpc
-            client._rpc = Mock()
-
-        client._start_cli_server = AsyncMock(side_effect=spawn)
-        client._connect_to_server = AsyncMock(side_effect=connect)
-        try:
-            with pytest.raises(RuntimeError, match="does not support Entra client configuration"):
-                await client.start()
-
-            child.kill.assert_called_once()
-            if transport == "tcp":
-                stream.terminate.assert_called_once()
-            rpc.stop.assert_awaited_once()
-            assert rpc.request.call_args.args[0] == "connect"
-            assert client._cli_process is None
-            assert client._process is None
-            assert client._client is None
-            assert client._rpc is None
-            assert client._state == "error"
-        finally:
-            await client.force_stop()
 
 
 class TestClientShutdown:
@@ -1674,7 +1574,6 @@ class TestCreateSessionConfig:
             session = await client.create_session(
                 on_permission_request=PermissionHandler.approve_all,
                 enable_managed_settings=True,
-                excluded_managed_settings=["sandbox", "allowedMcpServers"],
                 enforce_managed_model_defaults=True,
                 interactive_user=True,
                 managed_settings=ManagedSettings(
@@ -1691,7 +1590,6 @@ class TestCreateSessionConfig:
             resumed_session = await client.resume_session(
                 session.session_id,
                 on_permission_request=PermissionHandler.approve_all,
-                excluded_managed_settings=["deniedMcpServers"],
                 enforce_managed_model_defaults=True,
                 interactive_user=True,
                 managed_settings=ManagedSettings(
@@ -1705,11 +1603,6 @@ class TestCreateSessionConfig:
             assert session._managed_settings_enabled is True
             assert resumed_session._managed_settings_enabled is True
             assert captured["session.create"]["enableManagedSettings"] is True
-            assert captured["session.create"]["excludedManagedSettings"] == [
-                "sandbox",
-                "allowedMcpServers",
-            ]
-            assert captured["session.resume"]["excludedManagedSettings"] == ["deniedMcpServers"]
             assert captured["session.create"]["enforceManagedModelDefaults"] is True
             assert captured["session.resume"]["enforceManagedModelDefaults"] is True
             assert captured["session.create"]["interactiveUser"] is True
@@ -4610,26 +4503,6 @@ class TestGitHubTelemetry:
         client._client = _FakeClient()
         await client._verify_protocol_version()
         assert "clientInfo" not in captured["connect"]
-        assert "entra" not in captured["connect"]
-
-    @pytest.mark.asyncio
-    async def test_connect_forwards_entra_configuration(self):
-        from copilot import EntraAuthConfig
-
-        client = CopilotClient(
-            connection=RuntimeConnection.for_stdio(path=CLI_PATH),
-            entra=EntraAuthConfig(client_id="host-entra-client"),
-        )
-        captured = {}
-
-        class _FakeClient:
-            async def request(self, method, params, **kwargs):
-                captured[method] = params
-                return {"ok": True, "protocolVersion": 3, "version": "test"}
-
-        client._client = _FakeClient()
-        await client._verify_protocol_version()
-        assert captured["connect"]["entra"] == {"clientId": "host-entra-client"}
 
     @pytest.mark.asyncio
     async def test_connect_forwards_partial_client_info_with_forwarding(self):

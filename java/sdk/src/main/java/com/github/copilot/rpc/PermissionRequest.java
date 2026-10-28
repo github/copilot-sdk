@@ -49,9 +49,6 @@ public class PermissionRequest {
     @JsonProperty("readOnlyDirectories")
     private List<String> readOnlyDirectories;
 
-    @JsonProperty("serverDisplayName")
-    private String serverDisplayName;
-
     private Map<String, Object> extensionData;
 
     @JsonAnySetter
@@ -173,27 +170,6 @@ public class PermissionRequest {
      */
     public void setReadOnlyDirectories(List<String> readOnlyDirectories) {
         this.readOnlyDirectories = readOnlyDirectories;
-    }
-
-    /**
-     * Gets the trusted Connector label for an MCP server, such as "Work IQ".
-     * Present only for Connector-owned servers; the server name stays the identity
-     * for approvals and rules.
-     *
-     * @return the server display name, or {@code null} when absent
-     */
-    public String getServerDisplayName() {
-        return serverDisplayName;
-    }
-
-    /**
-     * Sets the trusted Connector label for an MCP server.
-     *
-     * @param serverDisplayName
-     *            the server display name
-     */
-    public void setServerDisplayName(String serverDisplayName) {
-        this.serverDisplayName = serverDisplayName;
     }
 
     /**

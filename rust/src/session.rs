@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::panic::AssertUnwindSafe;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
 use futures_util::FutureExt;
@@ -299,14 +299,6 @@ impl IdleWaiter {
         None
     }
 }
-
-#[derive(Default)]
-struct CompletionDispatch {
-    dispatched: ParkingLotMutex<std::collections::HashSet<String>>,
-    changed: tokio::sync::Notify,
-}
-
-type CompletionObservers = Arc<ParkingLotMutex<Vec<std::sync::Weak<CompletionDispatch>>>>;
 
 fn structured_output_error(message: impl Into<String>) -> Error {
     Error::with_message(
@@ -748,9 +740,6 @@ pub struct Session {
     /// in `send_and_wait` remove its entry from a `Drop` impl on caller-side
     /// cancellation. See RFD-400 review (cancel-safety hardening).
     idle_waiter: IdleWaiters,
-    /// Scoped, lossless receipts independent of the public observer buffer.
-    completion_observers: CompletionObservers,
-    completion_rpc_unsupported: AtomicBool,
     /// Capabilities negotiated with the CLI, updated on `capabilities.changed` events.
     capabilities: Arc<parking_lot::RwLock<SessionCapabilities>>,
     /// Canvas instances currently known to be open for this session.
@@ -1023,24 +1012,6 @@ impl Session {
     }
 
     async fn send_inner(&self, opts: MessageOptions) -> Result<String, Error> {
-        let params = self.create_send_params(opts).await?;
-        let rpc_start = Instant::now();
-        let result = self.client.call("session.send", Some(params)).await?;
-        let message_id = result
-            .get("messageId")
-            .and_then(|v| v.as_str())
-            .map(|s| s.to_string())
-            .unwrap_or_default();
-        tracing::debug!(
-            elapsed_ms = rpc_start.elapsed().as_millis(),
-            session_id = %self.id,
-            message_id = %message_id,
-            "Session::send completed successfully"
-        );
-        Ok(message_id)
-    }
-
-    async fn create_send_params(&self, opts: MessageOptions) -> Result<serde_json::Value, Error> {
         let mut params = serde_json::json!({
             "sessionId": self.id,
             "prompt": opts.prompt,
@@ -1081,7 +1052,20 @@ impl Session {
             self.client.resolve_trace_context().await
         };
         inject_trace_context(&mut params, &trace_ctx);
-        Ok(params)
+        let rpc_start = Instant::now();
+        let result = self.client.call("session.send", Some(params)).await?;
+        let message_id = result
+            .get("messageId")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string())
+            .unwrap_or_default();
+        tracing::debug!(
+            elapsed_ms = rpc_start.elapsed().as_millis(),
+            session_id = %self.id,
+            message_id = %message_id,
+            "Session::send completed successfully"
+        );
+        Ok(message_id)
     }
 
     /// Send a user message and wait for the agent to finish processing.
@@ -1093,15 +1077,13 @@ impl Session {
     /// shells on Autopilot completion. Aborted and error terminals fail the
     /// wait; successful completion returns the last `assistant.message` event
     /// captured during streaming.
-    /// Supported local runtimes correlate completion and the response with this
-    /// message. Unsupported runtimes retain the legacy event-based wait.
     /// Times out after `MessageOptions::wait_timeout` (default 60 seconds).
     ///
     /// Child events with a non-empty `agentId` are still delivered to
     /// [`subscribe`](Self::subscribe) but cannot supply the reply or complete
     /// the wait. Root-agent events have no `agentId` (or an empty one).
-    /// The terminal event, when present, is queued to existing subscriptions before
-    /// this wait completes; subscribers need not have consumed it yet.
+    /// The terminal event is queued to existing subscriptions before this wait
+    /// completes; subscribers need not have consumed it yet.
     ///
     /// Unformatted waits are correlated by originating message ID and may run
     /// concurrently with each other and with [`send`](Self::send) calls.
@@ -1120,32 +1102,11 @@ impl Session {
         &self,
         opts: impl Into<MessageOptions>,
     ) -> Result<Option<SessionEvent>, Error> {
+        let total_start = Instant::now();
         let opts = opts.into();
         if opts.response_schema.is_some() {
             return self.send_and_wait_structured(opts).await.map(Some);
         }
-        let duration = opts.wait_timeout.unwrap_or(Duration::from_secs(60));
-        tokio::time::timeout(duration, async {
-            let params = self.create_send_params(opts.clone()).await?;
-            if let Some(completed) = self.send_with_completion(params).await? {
-                if completed.aborted {
-                    return Err(structured_output_error(
-                        "session aborted before send_and_wait completed",
-                    ));
-                }
-                return Ok(completed.response);
-            }
-            self.send_and_wait_legacy(opts).await
-        })
-        .await
-        .map_err(|_| Error::from(ErrorKind::Session(SessionErrorKind::Timeout(duration))))?
-    }
-
-    async fn send_and_wait_legacy(
-        &self,
-        opts: MessageOptions,
-    ) -> Result<Option<SessionEvent>, Error> {
-        let total_start = Instant::now();
         let timeout_duration = opts.wait_timeout.unwrap_or(Duration::from_secs(60));
         let (tx, rx) = oneshot::channel();
         let waiter_id = NEXT_IDLE_WAITER_ID.fetch_add(1, Ordering::Relaxed);
@@ -1262,131 +1223,6 @@ impl Session {
     }
 
     async fn send_and_wait_structured(&self, opts: MessageOptions) -> Result<SessionEvent, Error> {
-        let duration = opts.wait_timeout.unwrap_or(Duration::from_secs(60));
-        tokio::time::timeout(duration, async {
-            let params = self.create_send_params(opts.clone()).await?;
-            if let Some(completed) = self.send_with_completion(params).await? {
-                if completed.aborted {
-                    return Err(structured_output_error(
-                        "session aborted before structured output completed",
-                    ));
-                }
-                let response = completed.response.ok_or_else(|| {
-                    structured_output_error("run completed without a structured assistant response")
-                })?;
-                let data: crate::session_events::AssistantMessageData =
-                    serde_json::from_value(response.data.clone())?;
-                if data
-                    .tool_requests
-                    .is_some_and(|requests| !requests.is_empty())
-                    || data.content.trim().is_empty()
-                {
-                    return Err(structured_output_error(
-                        "run completed without a structured assistant response",
-                    ));
-                }
-                return Ok(response);
-            }
-            self.send_and_wait_structured_legacy(opts).await
-        })
-        .await
-        .map_err(|_| Error::from(ErrorKind::Session(SessionErrorKind::Timeout(duration))))?
-    }
-
-    async fn send_with_completion(
-        &self,
-        params: serde_json::Value,
-    ) -> Result<Option<crate::generated::api_types::SendAndWaitResult>, Error> {
-        if self.completion_rpc_unsupported.load(Ordering::Acquire) {
-            return Ok(None);
-        }
-        if self.shutdown.is_cancelled() {
-            return Err(ErrorKind::Session(SessionErrorKind::EventLoopClosed).into());
-        }
-        let receipts = Arc::new(CompletionDispatch::default());
-        {
-            let mut observers = self.completion_observers.lock();
-            observers.retain(|observer| observer.strong_count() > 0);
-            observers.push(Arc::downgrade(&receipts));
-        }
-        let result = tokio::select! {
-            biased;
-            result = self.client.call("session.sendAndWait", Some(params)) => result,
-            _ = self.shutdown.cancelled() => return Err(ErrorKind::Session(SessionErrorKind::EventLoopClosed).into()),
-        };
-        if result
-            .as_ref()
-            .err()
-            .is_some_and(|error| error.rpc_code() == Some(-32601))
-        {
-            self.completion_rpc_unsupported
-                .store(true, Ordering::Release);
-            return Ok(None);
-        }
-        let completed = result
-            .as_ref()
-            .ok()
-            .map(|value| {
-                serde_json::from_value::<crate::generated::api_types::SendAndWaitResult>(
-                    value.clone(),
-                )
-            })
-            .transpose()?;
-        let boundary = completed
-            .as_ref()
-            .and_then(|result| result.completion_event_id.as_deref())
-            .or_else(|| {
-                result
-                    .as_ref()
-                    .err()
-                    .and_then(|error| error.rpc_data())
-                    .and_then(|data| data.get("completionEventId"))
-                    .and_then(serde_json::Value::as_str)
-            });
-        if let Some(boundary) = boundary {
-            loop {
-                let changed = receipts.changed.notified();
-                tokio::pin!(changed);
-                changed.as_mut().enable();
-                if receipts.dispatched.lock().contains(boundary) {
-                    break;
-                }
-                tokio::select! {
-                    biased;
-                    _ = &mut changed => {},
-                    _ = self.shutdown.cancelled() => return Err(ErrorKind::Session(SessionErrorKind::EventLoopClosed).into()),
-                }
-            }
-        }
-        result.map_err(|error| {
-            if error
-                .rpc_data()
-                .and_then(|data| data.get("completionEventId"))
-                .is_some()
-            {
-                structured_output_error(error.message().unwrap_or("message execution failed"))
-            } else {
-                error
-            }
-        })?;
-        if completed
-            .as_ref()
-            .and_then(|result| result.response.as_ref())
-            .is_some_and(|event| {
-                event.event_type != "assistant.message" || !is_root_agent_event(event)
-            })
-        {
-            return Err(structured_output_error(
-                "the runtime returned a non-assistant response",
-            ));
-        }
-        Ok(completed)
-    }
-
-    async fn send_and_wait_structured_legacy(
-        &self,
-        opts: MessageOptions,
-    ) -> Result<SessionEvent, Error> {
         let duration = opts.wait_timeout.unwrap_or(Duration::from_secs(60));
         // Internal request observers must not claim the caller's resume backlog.
         let mut events = self
@@ -2275,14 +2111,12 @@ impl Client {
         let setup_start = Instant::now();
         let capabilities = Arc::new(parking_lot::RwLock::new(SessionCapabilities::default()));
         let idle_waiter = Arc::new(ParkingLotMutex::new(HashMap::new()));
-        let completion_observers: CompletionObservers = Arc::default();
         let open_canvases = Arc::new(parking_lot::RwLock::new(Vec::new()));
         let external_tools_shutdown = self.inner.rpc.connection_closed_token();
 
         let spawn_loop: EventLoopSpawner = {
             let client = Client::from_inner(self.inner.clone());
             let idle_waiter = idle_waiter.clone();
-            let completion_observers = completion_observers.clone();
             let capabilities = capabilities.clone();
             let open_canvases = open_canvases.clone();
             let event_tx = event_tx.clone();
@@ -2304,7 +2138,6 @@ impl Client {
                         bearer_token_providers,
                         channels,
                         idle_waiter,
-                        completion_observers,
                         capabilities,
                         open_canvases,
                         event_tx,
@@ -2446,8 +2279,6 @@ impl Client {
             set_tools_lock: Arc::default(),
             installed_tools_generation: Arc::default(),
             idle_waiter,
-            completion_observers,
-            completion_rpc_unsupported: AtomicBool::new(false),
             capabilities,
             open_canvases,
             event_tx: event_tx.downgrade(),
@@ -2633,7 +2464,6 @@ impl Client {
         let registration_token = registration.token;
         let channels = registration.channels;
         let idle_waiter = Arc::new(ParkingLotMutex::new(HashMap::new()));
-        let completion_observers: CompletionObservers = Arc::default();
         let open_canvases = Arc::new(parking_lot::RwLock::new(Vec::new()));
         let external_tools_shutdown = self.inner.rpc.connection_closed_token();
         let registration = PendingSessionRegistration::new(
@@ -2656,7 +2486,6 @@ impl Client {
             bearer_token_providers,
             channels,
             idle_waiter.clone(),
-            completion_observers.clone(),
             capabilities.clone(),
             open_canvases.clone(),
             event_tx.clone(),
@@ -2768,8 +2597,6 @@ impl Client {
             set_tools_lock: Arc::default(),
             installed_tools_generation: Arc::default(),
             idle_waiter,
-            completion_observers,
-            completion_rpc_unsupported: AtomicBool::new(false),
             capabilities,
             open_canvases,
             event_tx: event_tx.downgrade(),
@@ -3061,7 +2888,6 @@ fn spawn_event_loop(
     bearer_token_providers: HashMap<String, Arc<dyn BearerTokenProvider>>,
     channels: crate::router::SessionChannels,
     idle_waiter: IdleWaiters,
-    completion_observers: CompletionObservers,
     capabilities: Arc<parking_lot::RwLock<SessionCapabilities>>,
     open_canvases: Arc<parking_lot::RwLock<Vec<OpenCanvasInstance>>>,
     event_tx: tokio::sync::broadcast::Sender<SessionEvent>,
@@ -3133,7 +2959,7 @@ fn spawn_event_loop(
                             continue;
                         };
                         handle_notification(
-                            &session_id, &client, &handlers, &command_handlers, notification, &idle_waiter, &completion_observers, &capabilities, &open_canvases, &event_tx, resume_bootstrap.as_ref(), &shutdown, &external_tools_shutdown, &pending_external_tools, startup_tasks.as_ref(),
+                            &session_id, &client, &handlers, &command_handlers, notification, &idle_waiter, &capabilities, &open_canvases, &event_tx, resume_bootstrap.as_ref(), &shutdown, &external_tools_shutdown, &pending_external_tools, startup_tasks.as_ref(),
                         ).await;
                     }
                     request = requests.recv(), if requests_open => {
@@ -3296,7 +3122,6 @@ async fn handle_notification(
     command_handlers: &Arc<CommandHandlerMap>,
     notification: SessionEventNotification,
     idle_waiter: &IdleWaiters,
-    completion_observers: &CompletionObservers,
     capabilities: &Arc<parking_lot::RwLock<SessionCapabilities>>,
     open_canvases: &Arc<parking_lot::RwLock<Vec<OpenCanvasInstance>>>,
     event_tx: &tokio::sync::broadcast::Sender<SessionEvent>,
@@ -3377,23 +3202,6 @@ async fn handle_notification(
     } else {
         // No receivers is normal before any consumer subscribes.
         let _ = event_tx.send(event.clone());
-    }
-    if is_root_agent_event(event)
-        && matches!(
-            event_type,
-            SessionEventType::SessionIdle
-                | SessionEventType::SessionAutopilotStopped
-                | SessionEventType::SessionError
-        )
-    {
-        completion_observers.lock().retain(|observer| {
-            let Some(observer) = observer.upgrade() else {
-                return false;
-            };
-            observer.dispatched.lock().insert(event.id.clone());
-            observer.changed.notify_waiters();
-            true
-        });
     }
     for (tx, result) in completions {
         let _ = tx.send(result);

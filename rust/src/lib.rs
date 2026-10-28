@@ -6,10 +6,9 @@
 /// Experimental runtime-owned Agent Host Protocol listeners.
 pub mod ahp_host;
 pub use ahp_host::{
-    AhpAuthenticationRequest, AhpAuthenticationResult, AhpAuthenticator, AhpHost,
-    AhpHostAuthentication, AhpHostExit, AhpHostExitCallback, AhpHostExitReason, AhpHostOptions,
-    AhpSessionAuthentication, AhpSessionFactory, AhpSessionReleasedCallback, AhpSessionRequest,
-    AhpSessionResumeFactory, AhpSessionResumeRequest,
+    AhpHost, AhpHostExit, AhpHostExitCallback, AhpHostExitReason, AhpHostOptions,
+    AhpSessionFactory, AhpSessionReleasedCallback, AhpSessionRequest, AhpSessionResumeFactory,
+    AhpSessionResumeRequest,
 };
 
 // Outside tests, `cache_paths`'s only caller is `resolve::extracted_program`, which
@@ -144,7 +143,6 @@ pub mod test_support {
         error_codes,
     };
 }
-pub use generated::api_types::EntraAuthConfig;
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "runtime")]
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -448,9 +446,11 @@ pub struct ClientOptions {
     /// Otherwise defaults to the SDK's ordinary runtime resolver.
     #[doc(hidden)]
     pub in_process_runtime_library_path: Option<PathBuf>,
-    /// Deprecated legacy v1 remote-control compatibility option. This enables
-    /// export and polling-based steering for SDK-managed runtimes; it is
-    /// ignored when connecting to an external server via [`Transport::External`].
+    /// Enable remote session support (Mission Control integration).
+    /// When `true`, the SDK passes `--remote` to the spawned CLI process so
+    /// sessions in a GitHub repository working directory are accessible from
+    /// GitHub web and mobile. Ignored when connecting to an external server
+    /// via [`Transport::External`].
     pub enable_remote_sessions: bool,
     /// Override the directory where the bundled CLI binary is extracted on
     /// first use.
@@ -482,9 +482,6 @@ pub struct ClientOptions {
     /// build. All fields are optional; leave it `None` to keep the runtime's
     /// default attribution.
     pub client_info: Option<ClientInfo>,
-    /// Host's Entra registration, shared by its sessions. Omission disables
-    /// built-in Entra sign-in and token renewal; other auth methods remain available.
-    pub entra: Option<EntraAuthConfig>,
 }
 
 /// Identity of the integrating application, declared on the `server.connect`
@@ -642,7 +639,6 @@ impl std::fmt::Debug for ClientOptions {
             .field("enable_remote_sessions", &self.enable_remote_sessions)
             .field("bundled_cli_extract_dir", &self.bundled_cli_extract_dir)
             .field("client_info", &self.client_info)
-            .field("entra", &self.entra)
             .finish()
     }
 }
@@ -923,7 +919,6 @@ impl Default for ClientOptions {
             bundled_cli_extract_dir: None,
             mode: ClientMode::default(),
             client_info: None,
-            entra: None,
         }
     }
 }
@@ -1134,12 +1129,8 @@ impl ClientOptions {
         self
     }
 
-    /// Enable the deprecated legacy v1 remote-control compatibility mode.
-    ///
-    /// This option is temporary and may be removed in a future release.
-    #[deprecated(
-        note = "Legacy v1 remote-control compatibility is temporary and may be removed in a future release"
-    )]
+    /// Enable remote session support (Mission Control). Passes `--remote`
+    /// to the spawned CLI process.
     pub fn with_enable_remote_sessions(mut self, enabled: bool) -> Self {
         self.enable_remote_sessions = enabled;
         self
@@ -1173,12 +1164,6 @@ impl ClientOptions {
     /// consistent surface. See [`Self::client_info`].
     pub fn with_client_info(mut self, client_info: ClientInfo) -> Self {
         self.client_info = Some(client_info);
-        self
-    }
-
-    /// Configure the host's Microsoft Entra application for its sessions.
-    pub fn with_entra(mut self, entra: EntraAuthConfig) -> Self {
-        self.entra = Some(entra);
         self
     }
 }
@@ -1367,7 +1352,6 @@ struct ClientInner {
     /// [`ClientOptions::client_info`]. `None` keeps the runtime's default
     /// telemetry attribution.
     client_info: Option<ClientInfo>,
-    entra: Option<EntraAuthConfig>,
     /// SDK [`ClientMode`] captured at start time. Drives empty-mode safe
     /// defaults inside `create_session` / `resume_session`.
     pub(crate) mode: ClientMode,
@@ -1641,7 +1625,6 @@ impl Client {
                     effective_connection_token.clone(),
                     options.mode,
                     options.client_info,
-                    options.entra,
                     false,
                 )?
             }
@@ -1678,7 +1661,6 @@ impl Client {
                     effective_connection_token.clone(),
                     options.mode,
                     options.client_info,
-                    options.entra,
                     false,
                 )?
             }
@@ -1705,7 +1687,6 @@ impl Client {
                     effective_connection_token.clone(),
                     options.mode,
                     options.client_info,
-                    options.entra,
                     true,
                 )?
             }
@@ -1783,7 +1764,6 @@ impl Client {
                         effective_connection_token.clone(),
                         options.mode,
                         options.client_info,
-                        options.entra,
                         false,
                     )?;
                     let ui_handler = options.run_on_ui_thread;
@@ -1978,21 +1958,6 @@ impl Client {
         writer: impl AsyncWrite + Unpin + Send + 'static,
         cwd: PathBuf,
     ) -> Result<Self> {
-        Self::from_streams_with_entra(reader, writer, cwd, None)
-    }
-
-    /// Create a client from a custom transport with optional host Entra configuration.
-    ///
-    /// Supplying `entra` enables built-in Entra sign-in and renewal using the host's
-    /// registration. `None` retains the behavior of [`Self::from_streams`].
-    /// Call [`Self::verify_protocol_version`] before using the client to send the
-    /// configuration and reject legacy servers that cannot accept it.
-    pub fn from_streams_with_entra(
-        reader: impl AsyncRead + Unpin + Send + 'static,
-        writer: impl AsyncWrite + Unpin + Send + 'static,
-        cwd: PathBuf,
-        entra: Option<EntraAuthConfig>,
-    ) -> Result<Self> {
         Self::from_transport(
             reader,
             writer,
@@ -2009,7 +1974,6 @@ impl Client {
             None,
             ClientMode::default(),
             None,
-            entra,
             false,
         )
     }
@@ -2042,7 +2006,6 @@ impl Client {
             None,
             ClientMode::default(),
             None,
-            None,
             false,
         )
     }
@@ -2072,7 +2035,6 @@ impl Client {
             None,
             None,
             ClientMode::default(),
-            None,
             None,
             false,
         )
@@ -2125,7 +2087,6 @@ impl Client {
             None,
             ClientMode::default(),
             None,
-            None,
             false,
         )
     }
@@ -2156,7 +2117,6 @@ impl Client {
             token,
             ClientMode::default(),
             None,
-            None,
             false,
         )
     }
@@ -2186,7 +2146,6 @@ impl Client {
             Some(on_github_telemetry),
             None,
             ClientMode::default(),
-            None,
             None,
             false,
         )
@@ -2229,7 +2188,6 @@ impl Client {
             None,
             ClientMode::default(),
             client_info,
-            None,
             false,
         )
     }
@@ -2246,7 +2204,7 @@ impl Client {
     ) -> Result<Self> {
         Self::from_transport(
             reader, writer, None, None, cwd, None, None, false, false, false, None, None, None,
-            mode, None, None, false,
+            mode, None, false,
         )
     }
 
@@ -2269,7 +2227,6 @@ impl Client {
         effective_connection_token: Option<String>,
         mode: ClientMode,
         client_info: Option<ClientInfo>,
-        entra: Option<EntraAuthConfig>,
         owns_stdio: bool,
     ) -> Result<Self> {
         let setup_start = Instant::now();
@@ -2329,7 +2286,6 @@ impl Client {
                 effective_connection_token,
                 mode,
                 client_info,
-                entra,
                 startup_timings: OnceLock::new(),
             }),
         };
@@ -2921,12 +2877,6 @@ impl Client {
         let server_version = match self.connect_handshake().await {
             Ok(v) => v,
             Err(ref e) if e.rpc_code() == Some(error_codes::METHOD_NOT_FOUND) => {
-                if self.inner.entra.is_some() {
-                    return Err(Error::with_message(
-                        ErrorKind::InvalidConfig,
-                        "This runtime does not support Entra client configuration",
-                    ));
-                }
                 used_fallback_ping = true;
                 self.ping(None).await?.protocol_version
             }
@@ -2977,7 +2927,6 @@ impl Client {
     /// started with `COPILOT_CONNECTION_TOKEN`.
     async fn connect_handshake(&self) -> Result<Option<u32>> {
         let params = crate::generated::api_types::ConnectRequest {
-            entra: self.inner.entra.clone(),
             token: self.inner.effective_connection_token.clone(),
             enable_git_hub_telemetry_forwarding: self
                 .inner

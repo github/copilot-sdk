@@ -37,7 +37,6 @@ try {
         model: "claude-sonnet-5",
     });
     await using host = await owner.startAhpHost({
-        authentication: { mode: "github" },
         localServer: {},
         onExit: (exit) => console.log(`AHP host stopped: ${exit.reason}`),
     });

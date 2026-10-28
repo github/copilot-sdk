@@ -47,8 +47,8 @@ func TestAhpHostTransportsAndOptionalResults(t *testing.T) {
 	for _, transport := range []string{"local", "github", "both"} {
 		t.Run(transport, func(t *testing.T) {
 			client, server, _ := ahpFixture(t)
-			options := &AhpHostOptions{Authentication: AhpHostAuthentication{Mode: "github"}, ComputeID: String("compute")}
-			want := map[string]any{"computeId": "compute", "authentication": map[string]any{"mode": "github"}}
+			options := &AhpHostOptions{ComputeID: String("compute")}
+			want := map[string]any{"computeId": "compute"}
 			if transport != "github" {
 				port := int32(0)
 				options.LocalServer = &rpc.HostLocalServerOptions{
@@ -111,38 +111,9 @@ func TestAhpHostTransportsAndOptionalResults(t *testing.T) {
 	}
 }
 
-func TestAhpHostWorkspaceIsForwardedWithoutSDKDefault(t *testing.T) {
-	for _, workspace := range []*string{nil, String("/runtime/workspace")} {
-		client, server, _ := ahpFixture(t)
-		server.SetRequestHandler("host.start", func(data json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
-			var params map[string]any
-			if err := json.Unmarshal(data, &params); err != nil {
-				t.Error(err)
-			}
-			value, present := params["workspace"]
-			if workspace == nil {
-				if present {
-					t.Errorf("SDK supplied a workspace default: %v", value)
-				}
-			} else if value != *workspace {
-				t.Errorf("workspace = %v, want %q", value, *workspace)
-			}
-			result, _ := json.Marshal(map[string]any{"hostId": params["hostId"]})
-			return result, nil
-		})
-		if _, err := client.StartAhpHost(t.Context(), &AhpHostOptions{
-			Authentication: AhpHostAuthentication{Mode: "none"},
-			LocalServer:    &rpc.HostLocalServerOptions{},
-			Workspace:      workspace,
-		}); err != nil {
-			t.Fatal(err)
-		}
-	}
-}
-
 func TestAhpHostListSessionsUsesOwningHost(t *testing.T) {
 	client, server, _ := ahpFixture(t)
-	host, err := client.StartAhpHost(t.Context(), &AhpHostOptions{Authentication: AhpHostAuthentication{Mode: "github"}, LocalServer: &rpc.HostLocalServerOptions{}})
+	host, err := client.StartAhpHost(t.Context(), &AhpHostOptions{LocalServer: &rpc.HostLocalServerOptions{}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -163,7 +134,7 @@ func TestAhpHostListSessionsUsesOwningHost(t *testing.T) {
 
 func TestAhpHostUnpublishSessionForwardsOwningHostAndResults(t *testing.T) {
 	client, server, _ := ahpFixture(t)
-	host, err := client.StartAhpHost(t.Context(), &AhpHostOptions{Authentication: AhpHostAuthentication{Mode: "github"}, LocalServer: &rpc.HostLocalServerOptions{}})
+	host, err := client.StartAhpHost(t.Context(), &AhpHostOptions{LocalServer: &rpc.HostLocalServerOptions{}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -198,8 +169,7 @@ func TestAhpFactoryCancellationLogging(t *testing.T) {
 		entered := make(chan struct{}, 1)
 		finish := make(chan struct{})
 		host, err := client.StartAhpHost(t.Context(), &AhpHostOptions{
-			Authentication: AhpHostAuthentication{Mode: "github"},
-			LocalServer:    &rpc.HostLocalServerOptions{},
+			LocalServer: &rpc.HostLocalServerOptions{},
 			CreateSession: func(ctx context.Context, _ AhpSessionCreateRequest) (*Session, error) {
 				entered <- struct{}{}
 				<-finish
@@ -216,8 +186,7 @@ func TestAhpFactoryCancellationLogging(t *testing.T) {
 		done := make(chan error, 1)
 		go func() {
 			_, err := server.Request(t.Context(), "host.materializeSession", &rpc.HostSessionCreateCallback{
-				Authentication: rpc.HostSessionAuthenticationGitHub{Identity: "123"},
-				HostID:         host.HostID, HandoffID: "cancelled", Config: map[string]any{"sessionId": "requested"},
+				HostID: host.HostID, HandoffID: "cancelled", Config: map[string]any{"sessionId": "requested"},
 			})
 			done <- err
 		}()
@@ -257,7 +226,7 @@ func TestAhpCancelledStartupDisposesAfterStartCompletes(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan error, 1)
 	go func() {
-		_, err := client.StartAhpHost(ctx, &AhpHostOptions{Authentication: AhpHostAuthentication{Mode: "github"}, LocalServer: &rpc.HostLocalServerOptions{}})
+		_, err := client.StartAhpHost(ctx, &AhpHostOptions{LocalServer: &rpc.HostLocalServerOptions{}})
 		done <- err
 	}()
 	hostID := awaitAhpTest(t, entered)
@@ -330,7 +299,7 @@ func awaitAhpTest[T any](t *testing.T, values <-chan T) T {
 func TestAhpHostOriginalTransportAndExitOnce(t *testing.T) {
 	client, _, disposals := ahpFixture(t)
 	exits := make(chan AhpHostExit, 4)
-	host, err := client.StartAhpHost(t.Context(), &AhpHostOptions{Authentication: AhpHostAuthentication{Mode: "github"}, LocalServer: &rpc.HostLocalServerOptions{}, OnExit: func(event AhpHostExit) error {
+	host, err := client.StartAhpHost(t.Context(), &AhpHostOptions{LocalServer: &rpc.HostLocalServerOptions{}, OnExit: func(event AhpHostExit) error {
 		exits <- event
 		return nil
 	}})
@@ -371,8 +340,7 @@ func TestAhpFactoriesPreserveSettingsAndReleaseExactOriginal(t *testing.T) {
 			original := make(chan *Session, 1)
 			factoryCtx := make(chan context.Context, 1)
 			host, err := client.StartAhpHost(t.Context(), &AhpHostOptions{
-				Authentication: AhpHostAuthentication{Mode: "github"},
-				LocalServer:    &rpc.HostLocalServerOptions{},
+				LocalServer: &rpc.HostLocalServerOptions{},
 				CreateSession: func(ctx context.Context, request AhpSessionCreateRequest) (*Session, error) {
 					factoryCtx <- ctx
 					session, err := client.CreateSession(ctx, request.Config)
@@ -403,8 +371,7 @@ func TestAhpFactoriesPreserveSettingsAndReleaseExactOriginal(t *testing.T) {
 				config["suppressResumeEvent"] = enabled
 			}
 			if _, err := server.Request(t.Context(), "host.materializeSession", &rpc.HostSessionCreateCallback{
-				Authentication: rpc.HostSessionAuthenticationGitHub{Identity: "123"},
-				HostID:         host.HostID, HandoffID: "handoff", Resume: Bool(resume), Config: config,
+				HostID: host.HostID, HandoffID: "handoff", Resume: Bool(resume), Config: config,
 			}); err != nil {
 				t.Fatal(err)
 			}
@@ -437,8 +404,7 @@ func TestAhpRejectsChangedBooleanSettings(t *testing.T) {
 			t.Run(fmt.Sprintf("%s=%t", setting, expected), func(t *testing.T) {
 				client, server, _ := ahpFixture(t)
 				host, err := client.StartAhpHost(t.Context(), &AhpHostOptions{
-					Authentication: AhpHostAuthentication{Mode: "github"},
-					LocalServer:    &rpc.HostLocalServerOptions{},
+					LocalServer: &rpc.HostLocalServerOptions{},
 					ResumeSession: func(ctx context.Context, request AhpSessionResumeRequest) (*Session, error) {
 						switch setting {
 						case "streaming":
@@ -455,8 +421,7 @@ func TestAhpRejectsChangedBooleanSettings(t *testing.T) {
 					t.Fatal(err)
 				}
 				_, err = server.Request(t.Context(), "host.materializeSession", &rpc.HostSessionCreateCallback{
-					Authentication: rpc.HostSessionAuthenticationGitHub{Identity: "123"},
-					HostID:         host.HostID, HandoffID: "changed", Resume: Bool(true),
+					HostID: host.HostID, HandoffID: "changed", Resume: Bool(true),
 					Config: map[string]any{"sessionId": "changed", setting: expected},
 				})
 				if err == nil || !strings.Contains(err.Error(), "preserve") {
@@ -474,8 +439,7 @@ func TestAhpCancellationReleasesLateResultAndRejectsDuplicate(t *testing.T) {
 	released := make(chan *Session, 2)
 	late := &Session{SessionID: "late"}
 	host, err := client.StartAhpHost(t.Context(), &AhpHostOptions{
-		Authentication: AhpHostAuthentication{Mode: "github"},
-		LocalServer:    &rpc.HostLocalServerOptions{},
+		LocalServer: &rpc.HostLocalServerOptions{},
 		CreateSession: func(ctx context.Context, _ AhpSessionCreateRequest) (*Session, error) {
 			entered <- ctx
 			<-unblock
@@ -487,8 +451,7 @@ func TestAhpCancellationReleasesLateResultAndRejectsDuplicate(t *testing.T) {
 		t.Fatal(err)
 	}
 	params := &rpc.HostSessionCreateCallback{
-		Authentication: rpc.HostSessionAuthenticationGitHub{Identity: "123"},
-		HostID:         host.HostID, HandoffID: "pending", Config: map[string]any{"sessionId": "late"},
+		HostID: host.HostID, HandoffID: "pending", Config: map[string]any{"sessionId": "late"},
 	}
 	done := make(chan error, 1)
 	go func() { _, err := server.Request(t.Context(), "host.materializeSession", params); done <- err }()
@@ -513,8 +476,7 @@ func TestAhpRejectsModifiedSettingsAndAllowsRetainedResume(t *testing.T) {
 	released := make(chan *Session, 1)
 	var original *Session
 	host, err := client.StartAhpHost(t.Context(), &AhpHostOptions{
-		Authentication: AhpHostAuthentication{Mode: "github"},
-		LocalServer:    &rpc.HostLocalServerOptions{},
+		LocalServer: &rpc.HostLocalServerOptions{},
 		CreateSession: func(ctx context.Context, request AhpSessionCreateRequest) (*Session, error) {
 			request.Config.WorkingDirectory = "/wrong"
 			session, err := client.CreateSession(ctx, request.Config)
@@ -528,8 +490,7 @@ func TestAhpRejectsModifiedSettingsAndAllowsRetainedResume(t *testing.T) {
 		t.Fatal(err)
 	}
 	params := &rpc.HostSessionCreateCallback{
-		Authentication: rpc.HostSessionAuthenticationGitHub{Identity: "123"},
-		HostID:         host.HostID, HandoffID: "create", Config: map[string]any{"sessionId": "retained", "workingDirectory": "/selected"},
+		HostID: host.HostID, HandoffID: "create", Config: map[string]any{"sessionId": "retained", "workingDirectory": "/selected"},
 	}
 	if _, err := server.Request(t.Context(), "host.materializeSession", params); err == nil || !strings.Contains(err.Error(), "configuration") {
 		t.Fatalf("modified settings accepted: %v", err)

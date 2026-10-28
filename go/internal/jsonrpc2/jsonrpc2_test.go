@@ -22,34 +22,6 @@ type writeFunc func([]byte) (int, error)
 
 func (w writeFunc) Write(data []byte) (int, error) { return w(data) }
 
-func TestRequestPreparationPrecedesFollowingNotification(t *testing.T) {
-	client := NewClient(writeCloser{io.Discard}, io.NopCloser(bytes.NewReader(nil)))
-	release, finished := make(chan struct{}), make(chan struct{})
-	prepared := false
-	client.SetRequestHandlerWithPreparation("validate", func(json.RawMessage) (json.RawMessage, *Error) {
-		defer close(finished)
-		<-release
-		return json.RawMessage(`null`), nil
-	}, func(json.RawMessage) *Error {
-		prepared = true
-		return nil
-	})
-	client.SetRequestHandler("cancel", func(json.RawMessage) (json.RawMessage, *Error) {
-		if !prepared {
-			t.Error("cancellation overtook request registration")
-		}
-		return nil, nil
-	})
-	client.handleRequest(&Request{ID: json.RawMessage(`1`), Method: "validate"})
-	client.handleRequest(&Request{Method: "cancel"})
-	close(release)
-	select {
-	case <-finished:
-	case <-time.After(time.Second):
-		t.Fatal("request did not finish")
-	}
-}
-
 func TestOnCloseCalledOnUnexpectedExit(t *testing.T) {
 	stdinR, stdinW := io.Pipe()
 	stdoutR, stdoutW := io.Pipe()
@@ -124,7 +96,6 @@ func TestRequestReturnsWhenConnectionCloses(t *testing.T) {
 	if _, err := newHeaderReader(stdinR).Read(); err != nil {
 		t.Fatalf("Read request failed: %v", err)
 	}
-
 	if err := stdoutW.Close(); err != nil {
 		t.Fatalf("Close response stream failed: %v", err)
 	}
@@ -139,84 +110,6 @@ func TestRequestReturnsWhenConnectionCloses(t *testing.T) {
 	}
 }
 
-func TestCompletionCancellationDoesNotWaitForPeerToRead(t *testing.T) {
-	stdinR, stdinW := io.Pipe()
-	stdoutR, stdoutW := io.Pipe()
-	t.Cleanup(func() {
-		stdinR.Close()
-		stdoutW.Close()
-	})
-	client := NewClient(stdinW, stdoutR)
-	client.Start()
-	t.Cleanup(client.Stop)
-	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
-	result := make(chan error, 1)
-	go func() {
-		_, err := client.Request(ctx, "session.sendAndWait", map[string]string{"prompt": "question"})
-		result <- err
-	}()
-	if _, err := newHeaderReader(stdinR).Read(); err != nil {
-		t.Fatalf("Read request: %v", err)
-	}
-	cancel()
-	select {
-	case err := <-result:
-		if !errors.Is(err, context.Canceled) {
-			t.Fatalf("Request error = %v, want context.Canceled", err)
-		}
-	case <-time.After(5 * time.Second):
-		t.Fatal("Completion cancellation waited for the peer to read the cancellation frame")
-	}
-}
-
-func TestCompletionCancellationUsesTheWrittenRequestID(t *testing.T) {
-	stdinR, stdinW := io.Pipe()
-	stdoutR, stdoutW := io.Pipe()
-	t.Cleanup(func() {
-		stdinR.Close()
-		stdoutW.Close()
-	})
-	client := NewClient(stdinW, stdoutR)
-	client.Start()
-	t.Cleanup(client.Stop)
-	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
-	result := make(chan error, 1)
-	go func() {
-		_, err := client.Request(ctx, "session.sendAndWait", nil)
-		result <- err
-	}()
-	reader := newHeaderReader(stdinR)
-	frame, err := reader.Read()
-	if err != nil {
-		t.Fatalf("Read request: %v", err)
-	}
-	var request Request
-	if err := json.Unmarshal(frame, &request); err != nil {
-		t.Fatalf("Decode request: %v", err)
-	}
-	cancel()
-	frame, err = reader.Read()
-	if err != nil {
-		t.Fatalf("Read cancellation: %v", err)
-	}
-	var notification struct {
-		Method string `json:"method"`
-		Params struct {
-			ID json.RawMessage `json:"id"`
-		} `json:"params"`
-	}
-	if err := json.Unmarshal(frame, &notification); err != nil {
-		t.Fatalf("Decode cancellation: %v", err)
-	}
-	if notification.Method != "$/cancelRequest" || !bytes.Equal(notification.Params.ID, request.ID) {
-		t.Fatalf("Cancellation = %s, want $/cancelRequest for ID %s", frame, request.ID)
-	}
-	if err := <-result; !errors.Is(err, context.Canceled) {
-		t.Fatalf("Request error = %v, want context.Canceled", err)
-	}
-}
 func TestRequestUnacknowledgedShutdown(t *testing.T) {
 	for _, shutdown := range []string{"stop", "connection closed", "process exited", "process error"} {
 		t.Run(shutdown, func(t *testing.T) {
