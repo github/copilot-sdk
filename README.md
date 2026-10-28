@@ -1,6 +1,9 @@
-# GitHub Copilot CLI SDKs
+# Microsoft Copilot SDK
 
-![GitHub Copilot SDK](./assets/RepoHeader_01.png)
+> [!IMPORTANT]
+> **GitHub Copilot SDK is becoming Microsoft Copilot SDK**, the programmable interface for the Microsoft Copilot harness, the shared agent foundation used across Microsoft and GitHub products.
+>
+> The SDK repository will move to the Microsoft organization as part of a phased transition. Existing package names, namespaces, and some documentation may continue to reference GitHub Copilot SDK during the transition. **No immediate changes are required for existing users.** [Learn more about the transition](https://aka.ms/copilot-harness/announce).
 
 [![NPM Downloads](https://img.shields.io/npm/dm/%40github%2Fcopilot-sdk?label=npm)](https://www.npmjs.com/package/@github/copilot-sdk)
 [![PyPI - Downloads](https://img.shields.io/pypi/dm/github-copilot-sdk?label=PyPI)](https://pypi.org/project/github-copilot-sdk/)
@@ -171,6 +174,10 @@ Please use the [GitHub Issues](https://github.com/github/copilot-sdk/issues) pag
 
 [sdk-cpp]: https://github.com/0xeb/copilot-sdk-cpp
 [sdk-clojure]: https://github.com/copilot-community-sdk/copilot-sdk-clojure
+
+## Contributing
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for contribution guidelines.
 
 ## License
 
