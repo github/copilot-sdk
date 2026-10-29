@@ -441,33 +441,6 @@ fn resume_session_config_new_wire_flags_off_without_handlers() {
 }
 
 #[test]
-fn session_configs_serialize_excluded_managed_settings() {
-    let (create, _) = SessionConfig::default()
-        .with_excluded_managed_settings(["sandbox", "allowedMcpServers"])
-        .into_wire(Some(SessionId::from("managed-exclusions")))
-        .unwrap();
-    assert_eq!(
-        serde_json::to_value(create).unwrap()["excludedManagedSettings"],
-        json!(["sandbox", "allowedMcpServers"])
-    );
-    let (resume, _) = ResumeSessionConfig::new(SessionId::from("managed-exclusions"))
-        .with_excluded_managed_settings(["deniedMcpServers"])
-        .into_wire()
-        .unwrap();
-    assert_eq!(
-        serde_json::to_value(resume).unwrap()["excludedManagedSettings"],
-        json!(["deniedMcpServers"])
-    );
-    let (default, _) = SessionConfig::default().into_wire(None).unwrap();
-    assert!(
-        serde_json::to_value(default)
-            .unwrap()
-            .get("excludedManagedSettings")
-            .is_none()
-    );
-}
-
-#[test]
 fn session_configs_build_debug_and_serialize_allowed_models() {
     let create = SessionConfig::default().with_allowed_models(["gpt-5.4", "claude-sonnet-4"]);
     assert_eq!(
@@ -610,68 +583,6 @@ fn memory_configuration_constructors_and_serde() {
 
     let json = serde_json::to_value(MemoryConfiguration::enabled()).unwrap();
     assert_eq!(json, serde_json::json!({ "enabled": true }));
-    let user_prompt = MemoryConfiguration::enabled().with_mode(super::MemoryMode::UserPrompt);
-    assert_eq!(
-        serde_json::to_value(user_prompt).unwrap(),
-        serde_json::json!({ "enabled": true, "mode": "user-prompt" })
-    );
-}
-
-#[test]
-fn review_memory_request_default_serializes_a_supported_mode() {
-    let memory = MemoryConfiguration::enabled().with_mode(super::MemoryMode::default());
-    let (create, _) = SessionConfig::default()
-        .with_memory(memory.clone())
-        .into_wire(Some(SessionId::from("default-memory-mode")))
-        .unwrap();
-    let (resume, _) = ResumeSessionConfig::new(SessionId::from("default-memory-mode"))
-        .with_memory(memory)
-        .into_wire()
-        .unwrap();
-    for request in [
-        serde_json::to_value(create).unwrap(),
-        serde_json::to_value(resume).unwrap(),
-    ] {
-        assert_eq!(request["memory"]["mode"], "system-prompt");
-    }
-}
-
-#[test]
-fn review_memory_request_rejects_unsupported_modes() {
-    for mode in ["Unknown", "sidekick", "future-mode"] {
-        assert!(
-            serde_json::from_value::<MemoryConfiguration>(
-                serde_json::json!({ "enabled": true, "mode": mode }),
-            )
-            .is_err(),
-            "{mode}"
-        );
-    }
-}
-
-#[test]
-fn memory_mode_is_forwarded_on_create_and_resume() {
-    let memory = MemoryConfiguration::enabled().with_mode(super::MemoryMode::UserPrompt);
-    let (create, _) = SessionConfig::default()
-        .with_memory(memory.clone())
-        .into_wire(Some(SessionId::from("create-user-memory")))
-        .unwrap();
-    let (resume, _) = ResumeSessionConfig::new(SessionId::from("resume-user-memory"))
-        .with_memory(memory)
-        .into_wire()
-        .unwrap();
-    for request in [
-        serde_json::to_value(create).unwrap(),
-        serde_json::to_value(resume).unwrap(),
-    ] {
-        assert_eq!(
-            request["memory"],
-            serde_json::json!({
-                "enabled": true,
-                "mode": "user-prompt",
-            })
-        );
-    }
 }
 
 #[test]
@@ -868,21 +779,20 @@ fn resume_session_config_clone_preserves_exp_assignments() {
 }
 
 #[test]
-#[allow(deprecated)]
 #[allow(clippy::field_reassign_with_default)]
 fn session_config_into_wire_serializes_bucket_b_fields() {
     use std::path::PathBuf;
 
     use super::{CloudSessionOptions, CloudSessionRepository};
 
-    let mut cfg = SessionConfig::default()
-        .with_remote_session(crate::generated::api_types::RemoteSessionMode::Export);
+    let mut cfg = SessionConfig::default();
     cfg.config_directory = Some(PathBuf::from("/tmp/cfg"));
     cfg.working_directory = Some(PathBuf::from("/tmp/work"));
     cfg.github_token = Some("ghs_secret".to_string());
     cfg.include_sub_agent_streaming_events = Some(false);
     cfg.enable_session_telemetry = Some(false);
     cfg.reasoning_summary = Some(ReasoningSummary::Concise);
+    cfg.remote_session = Some(crate::generated::api_types::RemoteSessionMode::Export);
     cfg.enable_on_demand_instruction_discovery = Some(false);
     cfg.cloud = Some(CloudSessionOptions::with_repository(
         CloudSessionRepository::new("github", "copilot-sdk").with_branch("main"),
@@ -1037,18 +947,17 @@ fn session_config_into_wire_serializes_plugin_directories_and_large_output() {
 }
 
 #[test]
-#[allow(deprecated)]
 fn resume_session_config_into_wire_serializes_bucket_b_fields() {
     use std::path::PathBuf;
 
-    let mut cfg = ResumeSessionConfig::new(SessionId::from("sess-1"))
-        .with_remote_session(crate::generated::api_types::RemoteSessionMode::On);
+    let mut cfg = ResumeSessionConfig::new(SessionId::from("sess-1"));
     cfg.working_directory = Some(PathBuf::from("/tmp/work"));
     cfg.config_directory = Some(PathBuf::from("/tmp/cfg"));
     cfg.github_token = Some("ghs_secret".to_string());
     cfg.include_sub_agent_streaming_events = Some(true);
     cfg.enable_session_telemetry = Some(false);
     cfg.reasoning_summary = Some(ReasoningSummary::Detailed);
+    cfg.remote_session = Some(crate::generated::api_types::RemoteSessionMode::On);
     cfg.enable_on_demand_instruction_discovery = Some(false);
 
     let (wire, _) = cfg.into_wire().expect("no duplicate handlers");
@@ -2365,29 +2274,5 @@ fn session_configs_redact_sandbox_config_in_debug() {
             "{debug}"
         );
         assert!(!debug.contains("proxy-secret"), "{debug}");
-    }
-}
-
-#[test]
-fn image_save_to_disk_create_and_resume_does_not_enable_images() {
-    for save_to_disk in [true, false] {
-        let config = ImageGenerationConfig::new().with_save_to_disk(save_to_disk);
-        let (create, _) = SessionConfig::default()
-            .with_image_generation(config.clone())
-            .into_wire(Some(SessionId::from("image-test")))
-            .unwrap();
-        let (resume, _) = ResumeSessionConfig::new(SessionId::from("image-test"))
-            .with_image_generation(config)
-            .into_wire()
-            .unwrap();
-        for wire in [
-            serde_json::to_value(create).unwrap(),
-            serde_json::to_value(resume).unwrap(),
-        ] {
-            assert_eq!(
-                wire["imageGeneration"],
-                json!({ "saveToDisk": save_to_disk })
-            );
-        }
     }
 }

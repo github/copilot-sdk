@@ -12,61 +12,6 @@ import (
 	"github.com/github/copilot-sdk/go/internal/jsonrpc2"
 )
 
-func TestSubagentSettingsValuePresenceOnWire(t *testing.T) {
-	for _, test := range []struct {
-		name     string
-		settings SubagentSettings
-	}{
-		{name: "clear"},
-		{name: "empty override", settings: &SubagentSettingsConfig{}},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			clientConn, serverConn := net.Pipe()
-			defer clientConn.Close()
-			defer serverConn.Close()
-			client := jsonrpc2.NewClient(clientConn, clientConn)
-			server := jsonrpc2.NewClient(serverConn, serverConn)
-			requests := make(chan json.RawMessage, 1)
-			server.SetRequestHandler("session.tools.updateSubagentSettings", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
-				requests <- params
-				return json.RawMessage(`{}`), nil
-			})
-			client.Start()
-			server.Start()
-			defer client.Stop()
-			defer server.Stop()
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
-			_, err := NewSessionRPC(client, "settings-session").Tools.UpdateSubagentSettings(ctx, &UpdateSubagentSettingsRequest{
-				Subagents: test.settings,
-			})
-			if err != nil {
-				t.Fatal(err)
-			}
-			select {
-			case raw := <-requests:
-				var fields map[string]json.RawMessage
-				if err := json.Unmarshal(raw, &fields); err != nil {
-					t.Fatal(err)
-				}
-				if string(fields["sessionId"]) != `"settings-session"` {
-					t.Fatalf("wrong session: %s", raw)
-				}
-				value, present := fields["subagents"]
-				expected, err := json.Marshal(test.settings)
-				if err != nil {
-					t.Fatal(err)
-				}
-				if !present || string(value) != string(expected) {
-					t.Fatalf("subagents = %s (present %v), want %s; wire params: %s", value, present, expected, raw)
-				}
-			case <-ctx.Done():
-				t.Fatal(ctx.Err())
-			}
-		})
-	}
-}
-
 func TestSettingsValuePresenceOnWire(t *testing.T) {
 	for _, method := range []string{"user.settings.applyTopKey", "repo.settings.writeKey", "user.settings.edit"} {
 		for _, test := range []struct {

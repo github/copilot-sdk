@@ -105,20 +105,6 @@ public class PermissionRequestResultTest {
     }
 
     @Test
-    void testPermissionRequestExposesServerDisplayName() throws Exception {
-        var request = MAPPER.readValue("""
-                {
-                    "kind": "mcp",
-                    "serverName": "github-copilot-connector-1",
-                    "serverDisplayName": "Work IQ"
-                }
-                """, PermissionRequest.class);
-
-        assertEquals("Work IQ", request.getServerDisplayName());
-        assertEquals("github-copilot-connector-1", request.getExtensionData().get("serverName"));
-    }
-
-    @Test
     void testMalformedManagedApprovalRequiredFailsClosed() throws Exception {
         var request = MAPPER.readValue("""
                 {

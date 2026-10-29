@@ -4673,9 +4673,6 @@ type ConnectRequest struct {
 	// using the process-global gate for ordinary events and an explicit session-scoped decision
 	// for host-only events.
 	EnableGitHubTelemetryForwarding *bool `json:"enableGitHubTelemetryForwarding,omitempty"`
-	// Entra application used by this client's authentication flows. Required to enable built-in
-	// Microsoft Entra sign-in and token renewal; other authentication methods remain available.
-	Entra *EntraAuthConfig `json:"entra,omitempty"`
 	// Task kinds this connection can decode when observing session tasks. Omit to retain agent
 	// and shell compatibility.
 	SupportedTaskKinds []TaskKind `json:"supportedTaskKinds,omitzero"`
@@ -5479,15 +5476,6 @@ type UnsupportedEnqueueCommandResult struct {
 func (UnsupportedEnqueueCommandResult) enqueueCommandResult() {}
 func (UnsupportedEnqueueCommandResult) Queued() bool {
 	return false
-}
-
-// The host application's Microsoft Entra registration, shared by its sessions. This
-// identifies the application requesting tokens, not their target resource.
-// Experimental: EntraAuthConfig is part of an experimental API and may change or be removed.
-type EntraAuthConfig struct {
-	// Application (client) ID of the host's Microsoft Entra registration. Must be nonblank. The
-	// runtime does not supply a default application.
-	ClientID string `json:"clientId"`
 }
 
 // Hosting capabilities and session capacity advertised by an environment.
@@ -7050,117 +7038,10 @@ type HooksDiscoverResult struct {
 	Warnings []string `json:"warnings"`
 }
 
-// A decrypted credential presented by a supervised hosting participant.
-// Experimental: HostAuthenticateRequest is part of an experimental API and may change or be
-// removed.
-type HostAuthenticateRequest struct {
-	// Unique validation attempt, scoped to this host.
-	RequestID string `json:"requestId"`
-	// Decrypted admission token, never an inference credential.
-	Token string `json:"token"`
-}
-
-// Validated admission credential, or null when the application rejects it.
-// Experimental: HostAuthenticateResult is part of an experimental API and may change or be
-// removed.
-type HostAuthenticateResult = *HostAuthenticationResult
-
-// Explicit host-wide session admission policy.
-// Experimental: HostAuthentication is part of an experimental API and may change or be
-// removed.
-type HostAuthentication interface {
-	hostAuthentication()
-	Mode() HostAuthenticationMode
-}
-
-type RawHostAuthenticationData struct {
-	Discriminator HostAuthenticationMode
-	Raw           json.RawMessage
-}
-
-func (RawHostAuthenticationData) hostAuthentication() {}
-func (r RawHostAuthenticationData) Mode() HostAuthenticationMode {
-	return r.Discriminator
-}
-
-// Delegate token validation to the owning application.
-type HostAuthenticationCustom struct {
-	// Stable nonempty owner identity; validated identities must match exactly.
-	RequireIdentity string `json:"requireIdentity"`
-}
-
-func (HostAuthenticationCustom) hostAuthentication() {}
-func (HostAuthenticationCustom) Mode() HostAuthenticationMode {
-	return HostAuthenticationModeCustom
-}
-
-// Admit the authenticated host's GitHub account.
-type HostAuthenticationGitHub struct {
-}
-
-func (HostAuthenticationGitHub) hostAuthentication() {}
-func (HostAuthenticationGitHub) Mode() HostAuthenticationMode {
-	return HostAuthenticationModeGitHub
-}
-
-// Explicitly allow anonymous access.
-type HostAuthenticationNone struct {
-}
-
-func (HostAuthenticationNone) hostAuthentication() {}
-func (HostAuthenticationNone) Mode() HostAuthenticationMode {
-	return HostAuthenticationModeNone
-}
-
-// Notifies the owning application that validation ended.
-// Experimental: HostAuthenticationCancelledNotification is part of an experimental API and
-// may change or be removed.
-type HostAuthenticationCancelledNotification struct {
-	// Owning listener UUID.
-	HostID string `json:"hostId"`
-	// Validation attempt whose signal must be aborted.
-	RequestID string `json:"requestId"`
-}
-
-// Experimental: HostAuthenticationCancelledResult is part of an experimental API and may
-// change or be removed.
-type HostAuthenticationCancelledResult struct {
-}
-
-// A validated credential with a required, future RFC3339 expiration.
-// Experimental: HostAuthenticationResult is part of an experimental API and may change or
-// be removed.
-type HostAuthenticationResult struct {
-	// Required future expiration in RFC3339 format.
-	ExpiresAt string `json:"expiresAt"`
-	// Stable identity, required to match the configured owner exactly.
-	Identity string `json:"identity"`
-}
-
-// Cancels a pending validation on the supervised participant's connection.
-// Experimental: HostCancelAuthenticationRequest is part of an experimental API and may
-// change or be removed.
-type HostCancelAuthenticationRequest struct {
-	// Validation attempt to cancel.
-	RequestID string `json:"requestId"`
-}
-
-// Empty acknowledgement for a completed host lifecycle operation.
-// Experimental: HostCancelAuthenticationResult is part of an experimental API and may
-// change or be removed.
-type HostCancelAuthenticationResult struct {
-}
-
 // Normalized listener settings delivered only to the supervised hosting participant.
 // Experimental: HostConfiguration is part of an experimental API and may change or be
 // removed.
 type HostConfiguration struct {
-	// Initial remote creation policy, independent of application session factories. Defaults to
-	// denied when omitted.
-	AllowCreatingNewSessions *bool `json:"allowCreatingNewSessions,omitempty"`
-	// Explicit host-wide admission policy. Always supplied by the runtime after validating
-	// host.start.
-	Authentication HostAuthentication `json:"authentication,omitempty"`
 	// Requested GitHub Mission Control registration.
 	GitHubEnvironment *HostGitHubEnvironmentOptions `json:"githubEnvironment,omitempty"`
 	// Normalized local listener settings, absent for relay-only hosts.
@@ -7231,30 +7112,10 @@ type HostExitedNotification struct {
 type HostExitedResult struct {
 }
 
-// Private credentials delivered only to a runtime-owned Mission Control hosting participant.
-// Experimental: HostGetAuthenticationCredentialsResult is part of an experimental API and
-// may change or be removed.
-type HostGetAuthenticationCredentialsResult struct {
-	// GitHub API base URL for the authenticated service.
-	GitHubAPIURL string `json:"githubApiUrl"`
-	// Hostname of the authenticated GitHub service.
-	GitHubHost string `json:"githubHost"`
-	// Mission Control API origin for environment registration and management.
-	MissionControlURL string `json:"missionControlUrl"`
-	// Current bearer token for the authenticated GitHub identity.
-	Token string `json:"token"`
-}
-
 // Normalized listener settings delivered only to the supervised hosting participant.
 // Experimental: HostGetConfigurationResult is part of an experimental API and may change or
 // be removed.
 type HostGetConfigurationResult struct {
-	// Initial remote creation policy, independent of application session factories. Defaults to
-	// denied when omitted.
-	AllowCreatingNewSessions *bool `json:"allowCreatingNewSessions,omitempty"`
-	// Explicit host-wide admission policy. Always supplied by the runtime after validating
-	// host.start.
-	Authentication HostAuthentication `json:"authentication,omitempty"`
 	// Requested GitHub Mission Control registration.
 	GitHubEnvironment *HostGitHubEnvironmentOptions `json:"githubEnvironment,omitempty"`
 	// Normalized local listener settings, absent for relay-only hosts.
@@ -7419,62 +7280,10 @@ type HostRegisterSessionResult struct {
 type HostReleaseSessionResult struct {
 }
 
-// Trusted admission context, not inference authentication or session configuration.
-// Experimental: HostSessionAuthentication is part of an experimental API and may change or
-// be removed.
-type HostSessionAuthentication interface {
-	hostSessionAuthentication()
-	Mode() HostSessionAuthenticationMode
-}
-
-type RawHostSessionAuthenticationData struct {
-	Discriminator HostSessionAuthenticationMode
-	Raw           json.RawMessage
-}
-
-func (RawHostSessionAuthenticationData) hostSessionAuthentication() {}
-func (r RawHostSessionAuthenticationData) Mode() HostSessionAuthenticationMode {
-	return r.Discriminator
-}
-
-// An application-validated owner.
-type HostSessionAuthenticationCustom struct {
-	// Verified application identity.
-	Identity string `json:"identity"`
-}
-
-func (HostSessionAuthenticationCustom) hostSessionAuthentication() {}
-func (HostSessionAuthenticationCustom) Mode() HostSessionAuthenticationMode {
-	return HostSessionAuthenticationModeCustom
-}
-
-// A verified GitHub owner.
-type HostSessionAuthenticationGitHub struct {
-	// Verified host account identity.
-	Identity string `json:"identity"`
-}
-
-func (HostSessionAuthenticationGitHub) hostSessionAuthentication() {}
-func (HostSessionAuthenticationGitHub) Mode() HostSessionAuthenticationMode {
-	return HostSessionAuthenticationModeGitHub
-}
-
-// Explicitly anonymous admission.
-type HostSessionAuthenticationNone struct {
-}
-
-func (HostSessionAuthenticationNone) hostSessionAuthentication() {}
-func (HostSessionAuthenticationNone) Mode() HostSessionAuthenticationMode {
-	return HostSessionAuthenticationModeNone
-}
-
 // Application callback routed over its existing SDK connection.
 // Experimental: HostSessionCreateCallback is part of an experimental API and may change or
 // be removed.
 type HostSessionCreateCallback struct {
-	// Trusted admission identity, separate from inference credentials. Always supplied by the
-	// runtime for admitted handoffs.
-	Authentication HostSessionAuthentication `json:"authentication,omitempty"`
 	// Host-selected SDK creation or resume settings, without executable callbacks or tools.
 	Config map[string]any `json:"config"`
 	// Unique identity of the session participation being requested.
@@ -7489,9 +7298,6 @@ type HostSessionCreateCallback struct {
 // Experimental: HostSessionCreateRequest is part of an experimental API and may change or
 // be removed.
 type HostSessionCreateRequest struct {
-	// Trusted admission identity supplied by the hosting participant. Required by the runtime
-	// before a handoff is admitted.
-	Authentication HostSessionAuthentication `json:"authentication,omitempty"`
 	// Host-selected SDK creation or resume settings, without executable callbacks or tools.
 	Config map[string]any `json:"config"`
 	// Unique identity for this participation, independent of the session lifetime.
@@ -7553,23 +7359,6 @@ type HostSessionSummary struct {
 	Title string `json:"title"`
 }
 
-// Changes remote session creation admission without disconnecting clients.
-// Experimental: HostSetSessionCreationPolicyRequest is part of an experimental API and may
-// change or be removed.
-type HostSetSessionCreationPolicyRequest struct {
-	// After acknowledgement, subsequent remote creation admissions use this policy.
-	// Already-admitted requests may finish.
-	AllowCreatingNewSessions bool `json:"allowCreatingNewSessions"`
-	// Listener UUID owned by the calling SDK connection.
-	HostID string `json:"hostId"`
-}
-
-// Empty acknowledgement for a completed host lifecycle operation.
-// Experimental: HostSetSessionCreationPolicyResult is part of an experimental API and may
-// change or be removed.
-type HostSetSessionCreationPolicyResult struct {
-}
-
 // Empty acknowledgement for a completed host lifecycle operation.
 // Experimental: HostShutdownResult is part of an experimental API and may change or be
 // removed.
@@ -7580,12 +7369,6 @@ type HostShutdownResult struct {
 // Experimental: HostStartRequest is part of an experimental API and may change or be
 // removed.
 type HostStartRequest struct {
-	// Whether remote clients may create new sessions. Defaults to denied when omitted. Does not
-	// restrict owner work, publication, or existing sessions.
-	AllowCreatingNewSessions *bool `json:"allowCreatingNewSessions,omitempty"`
-	// Explicit admission policy, required by the runtime before hosting. Optional in the wire
-	// DTO only to preserve generated client construction.
-	Authentication HostAuthentication `json:"authentication,omitempty"`
 	// Stable application identity selecting its durable host catalog. Defaults to the persisted
 	// runtime compute GUID; must agree with githubEnvironment.computeId when both are supplied.
 	ComputeID *string `json:"computeId,omitempty"`
@@ -7599,9 +7382,6 @@ type HostStartRequest struct {
 	ResumeFactory *bool `json:"resumeFactory,omitempty"`
 	// Ask the owning SDK application to materialize AHP sessions.
 	SessionFactory *bool `json:"sessionFactory,omitempty"`
-	// Absolute directory on the runtime host to serve through AHP. Defaults to the runtime's
-	// configured working directory. Does not change process or session working directories.
-	Workspace *string `json:"workspace,omitempty"`
 }
 
 // Listener readiness, returned only after binding and the supervised participant's SDK
@@ -7653,18 +7433,6 @@ type HostUnregisterSessionRequest struct {
 type HostUnregisterSessionResult struct {
 	// True when a publication was removed; false when it was already absent.
 	Unpublished bool `json:"unpublished"`
-}
-
-// Application-owned token validation callback.
-// Experimental: HostValidateAuthenticationRequest is part of an experimental API and may
-// change or be removed.
-type HostValidateAuthenticationRequest struct {
-	// Owning listener UUID.
-	HostID string `json:"hostId"`
-	// Unique validation attempt.
-	RequestID string `json:"requestId"`
-	// Decrypted admission token.
-	Token string `json:"token"`
 }
 
 // The runtime-selected image model and its account availability. Availability is
@@ -12600,10 +12368,6 @@ type MCPUnregisterExternalClientRequest struct {
 type MemoryConfiguration struct {
 	// Whether memory is enabled for the session.
 	Enabled bool `json:"enabled"`
-	// Memory injection mode: system-prompt (default) includes memories in the system prompt;
-	// user-prompt includes them in user messages.
-	// Experimental: Mode is part of an experimental API and may change or be removed.
-	Mode *MemoryMode `json:"mode,omitempty"`
 }
 
 // Per-source attribution breakdown for the session's current context window, or null if
@@ -16143,17 +15907,6 @@ type ProtocolExternalToolNamespace struct {
 type ProtocolImageGenerationOptions struct {
 	// Disabled by default for SDK sessions. CAPI model access and permissions still apply.
 	Enabled *bool `json:"enabled,omitempty"`
-	// Experimental. Save each generated or edited image under the session-state
-	// directory's `images` folder and add a `saved_to: <path>` line per image to
-	// the tool result the model sees. Defaults to true; set false to opt out.
-	// Subagents follow their
-	// parent's value unless they set their own. A failed save still returns the
-	// image, without `saved_to`. Sessions without a local session-state
-	// directory, such as those using a session filesystem provider, never save.
-	// Re-supply after a cold resume. Does not enable image generation.
-	// This option may change or be removed in a future release.
-	// Experimental: SaveToDisk is part of an experimental API and may change or be removed.
-	SaveToDisk *bool `json:"saveToDisk,omitempty"`
 	// Experimental. Request a visible "Made with AI" label on generated and edited images.
 	// This option may change or be removed in a future release.
 	// Overrides the user's imageGenerationWatermark preference for this session;
@@ -18542,22 +18295,6 @@ type SecretsAddFilterValuesResult struct {
 	Ok bool `json:"ok"`
 }
 
-// Internal request-correlated completion of one submitted message.
-// Experimental: SendAndWaitResult is part of an experimental API and may change or be
-// removed.
-type SendAndWaitResult struct {
-	// Whether the request was aborted or removed before completing normally.
-	Aborted bool `json:"aborted"`
-	// Existing event at the completion boundary. SDK helpers drain its synchronous subscriber
-	// delivery before returning. Absent for quiet queue removal.
-	CompletionEventID *string `json:"completionEventId,omitempty"`
-	// Identifier assigned to the submitted user message.
-	MessageID string `json:"messageId"`
-	// The exact existing root assistant event owned by this request. Absent when the request
-	// completed without an assistant response.
-	Response *SessionEvent `json:"response,omitempty"`
-}
-
 // Parameters for session.extensions.sendAttachmentsToMessage.
 // Experimental: SendAttachmentsToMessageParams is part of an experimental API and may
 // change or be removed.
@@ -20233,14 +19970,6 @@ type SessionOpenOptions struct {
 	// agent discovery and cannot be dispatched unless a custom agent with the same name is
 	// available.
 	ExcludedBuiltinAgents []string `json:"excludedBuiltinAgents,omitzero"`
-	// Managed-setting paths this trusted SDK host enforces externally or does not support,
-	// excluded from fetched, device, and policy-helper policy for this session. Exact dotted
-	// paths exclude a setting and its descendants (for example sandbox or
-	// permissions.disableBypassPermissionsMode); wildcards and array indices are not supported.
-	// Host-injected managedSettings and policy availability checks are not excluded. Not
-	// persisted; re-supply on resume, where omission restores full enforcement. Requires
-	// enableManagedSettings to self-fetch policy.
-	ExcludedManagedSettings []string `json:"excludedManagedSettings,omitzero"`
 	// Denylist of tool names.
 	ExcludedTools []string `json:"excludedTools,omitzero"`
 	// ExP assignment ('flight') data injected by an SDK integrator, in the same JSON shape the
@@ -23445,20 +23174,12 @@ type SlashCommandTimelineEntry struct {
 	URL *string `json:"url,omitempty"`
 }
 
-// Configured subagent settings, or null when absent
+// Configured per-agent subagent overrides
 // Experimental: SubagentSettings is part of an experimental API and may change or be
 // removed.
-type SubagentSettings = *SubagentSettingsConfig
-
-// Configured per-agent subagent overrides
-// Experimental: SubagentSettingsConfig is part of an experimental API and may change or be
-// removed.
-type SubagentSettingsConfig struct {
+type SubagentSettings struct {
 	// Per-agent settings keyed by subagent agent_type
 	Agents map[string]SubagentSettingsEntry `json:"agents,omitzero"`
-	// Configured opt-in for subagent context management tools; applied from persisted settings
-	// when the session starts
-	ContextManagementTools *bool `json:"contextManagementTools,omitempty"`
 	// Names of subagents the user has turned off; they cannot be dispatched
 	DisabledSubagents []string `json:"disabledSubagents,omitzero"`
 	// Maximum number of subagents that can run concurrently; applies to usage-based billing
@@ -23483,8 +23204,6 @@ type SubagentSettingsEntry struct {
 	Model *string `json:"model,omitempty"`
 	// Whether the configured model strategy is preferred or required
 	ModelPolicy *AgentModelPolicy `json:"modelPolicy,omitempty"`
-	// Provider identifier for the configured model override
-	ProviderID *string `json:"providerId,omitempty"`
 }
 
 // Experimental: SystemMessageBlock is part of an experimental API and may change or be
@@ -24296,16 +24015,6 @@ type ToolsGetCurrentMetadataResult struct {
 	Tools []CurrentToolMetadata `json:"tools"`
 }
 
-// Current configured subagent settings for the session, before resolving defaults or
-// inheritance.
-// Experimental: ToolsGetSubagentSettingsResult is part of an experimental API and may
-// change or be removed.
-type ToolsGetSubagentSettingsResult struct {
-	// Live subagent settings override, or current persisted settings when no override is
-	// active; null when no settings block exists
-	Subagents SubagentSettings `json:"subagents,omitempty"`
-}
-
 // Resolve, build, and validate the runtime tool list for this session. Subagent sessions
 // and consumer flows that need an initialized tool set before `send` invoke this. Default
 // base-class implementation is a no-op for sessions that don't support tool validation.
@@ -24874,7 +24583,7 @@ type UIUserInputResponse struct {
 // or be removed.
 type UpdateSubagentSettingsRequest struct {
 	// Subagent settings to apply, or null to clear the live session override
-	Subagents SubagentSettings `json:"subagents,omitempty"`
+	Subagents *SubagentSettings `json:"subagents,omitempty"`
 }
 
 // Accumulated session usage metrics, including premium request cost, token counts, model
@@ -29156,17 +28865,6 @@ const (
 	HookTypeUserPromptTransformed HookType = "userPromptTransformed"
 )
 
-// Mode discriminator for HostAuthentication.
-// Experimental: HostAuthenticationMode is part of an experimental API and may change or be
-// removed.
-type HostAuthenticationMode string
-
-const (
-	HostAuthenticationModeCustom HostAuthenticationMode = "custom"
-	HostAuthenticationModeGitHub HostAuthenticationMode = "github"
-	HostAuthenticationModeNone   HostAuthenticationMode = "none"
-)
-
 // Experimental: HostExitReason is part of an experimental API and may change or be removed.
 type HostExitReason string
 
@@ -29180,17 +28878,6 @@ const (
 	HostExitReasonOwnerDisconnected HostExitReason = "ownerDisconnected"
 	// The runtime is shutting down.
 	HostExitReasonRuntimeShutdown HostExitReason = "runtimeShutdown"
-)
-
-// Mode discriminator for HostSessionAuthentication.
-// Experimental: HostSessionAuthenticationMode is part of an experimental API and may change
-// or be removed.
-type HostSessionAuthenticationMode string
-
-const (
-	HostSessionAuthenticationModeCustom HostSessionAuthenticationMode = "custom"
-	HostSessionAuthenticationModeGitHub HostSessionAuthenticationMode = "github"
-	HostSessionAuthenticationModeNone   HostSessionAuthenticationMode = "none"
 )
 
 // Account availability of the runtime image model. Discovery errors are returned as errors,
@@ -30392,17 +30079,6 @@ const (
 	MCPToolUIVisibilityApp MCPToolUIVisibility = "app"
 	// The model may call the tool.
 	MCPToolUIVisibilityModel MCPToolUIVisibility = "model"
-)
-
-// Memory injection mode. Defaults to system-prompt.
-// Experimental: MemoryMode is part of an experimental API and may change or be removed.
-type MemoryMode string
-
-const (
-	// Include memories in the system prompt (default).
-	MemoryModeSystemPrompt MemoryMode = "system-prompt"
-	// Include memories in user messages.
-	MemoryModeUserPrompt MemoryMode = "user-prompt"
 )
 
 // The current agent mode for this session (e.g., 'interactive', 'plan', 'autopilot')
@@ -32024,8 +31700,6 @@ const (
 type SessionQuotaPlanTier string
 
 const (
-	// Copilot Access.
-	SessionQuotaPlanTierAccess SessionQuotaPlanTier = "access"
 	// Copilot Business.
 	SessionQuotaPlanTierBusiness SessionQuotaPlanTier = "business"
 	// Copilot education entitlement.
@@ -34020,27 +33694,6 @@ func (a *ServerHostAPI) PublishSession(ctx context.Context, params *HostPublishS
 		return nil, err
 	}
 	var result HostPublishSessionResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// SetSessionCreationPolicy changes remote creation admission on a host owned by this SDK
-// connection without disconnecting clients. Acknowledgement means subsequent admissions use
-// the new policy; already-admitted creation may complete.
-//
-// RPC method: host.setSessionCreationPolicy.
-//
-// Parameters: Changes remote session creation admission without disconnecting clients.
-//
-// Returns: Empty acknowledgement for a completed host lifecycle operation.
-func (a *ServerHostAPI) SetSessionCreationPolicy(ctx context.Context, params *HostSetSessionCreationPolicyRequest) (*HostSetSessionCreationPolicyResult, error) {
-	raw, err := a.client.Request(ctx, "host.setSessionCreationPolicy", params)
-	if err != nil {
-		return nil, err
-	}
-	var result HostSetSessionCreationPolicyResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -37051,49 +36704,6 @@ func (a *InternalServerGlobalStateAPI) WriteKey(ctx context.Context, params *Glo
 // removed.
 type InternalServerHostAPI internalServerAPI
 
-// Authenticate validates a decrypted admission credential through the owning application,
-// only for its supervised custom-authentication participant.
-//
-// RPC method: host.authenticate.
-//
-// Parameters: A decrypted credential presented by a supervised hosting participant.
-//
-// Returns: Validated admission credential, or null when the application rejects it.
-// Internal: Authenticate is part of the SDK's internal handshake/plumbing; external callers
-// should not use it.
-func (a *InternalServerHostAPI) Authenticate(ctx context.Context, params *HostAuthenticateRequest) (*HostAuthenticationResult, error) {
-	raw, err := a.client.Request(ctx, "host.authenticate", params)
-	if err != nil {
-		return nil, err
-	}
-	var result *HostAuthenticationResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return result, nil
-}
-
-// CancelAuthentication cancels a supervised participant's pending admission validation.
-//
-// RPC method: host.cancelAuthentication.
-//
-// Parameters: Cancels a pending validation on the supervised participant's connection.
-//
-// Returns: Empty acknowledgement for a completed host lifecycle operation.
-// Internal: CancelAuthentication is part of the SDK's internal handshake/plumbing; external
-// callers should not use it.
-func (a *InternalServerHostAPI) CancelAuthentication(ctx context.Context, params *HostCancelAuthenticationRequest) (*HostCancelAuthenticationResult, error) {
-	raw, err := a.client.Request(ctx, "host.cancelAuthentication", params)
-	if err != nil {
-		return nil, err
-	}
-	var result HostCancelAuthenticationResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
 // CreateSession requests app-owned materialization over the owning SDK participant.
 //
 // RPC method: host.createSession.
@@ -37110,27 +36720,6 @@ func (a *InternalServerHostAPI) CreateSession(ctx context.Context, params *HostS
 		return nil, err
 	}
 	var result HostCreateSessionResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// GetAuthenticationCredentials resolves the host account credential without applying
-// Mission Control transport policy, only for its supervised GitHub hosting participant.
-//
-// RPC method: host.getAuthenticationCredentials.
-//
-// Returns: Private credentials delivered only to a runtime-owned Mission Control hosting
-// participant.
-// Internal: GetAuthenticationCredentials is part of the SDK's internal handshake/plumbing;
-// external callers should not use it.
-func (a *InternalServerHostAPI) GetAuthenticationCredentials(ctx context.Context) (*HostGetAuthenticationCredentialsResult, error) {
-	raw, err := a.client.Request(ctx, "host.getAuthenticationCredentials", nil)
-	if err != nil {
-		return nil, err
-	}
-	var result HostGetAuthenticationCredentialsResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -45848,31 +45437,6 @@ func (a *ToolsAPI) GetCurrentMetadata(ctx context.Context) (*ToolsGetCurrentMeta
 	return &result, nil
 }
 
-// GetSubagentSettings returns the session's live subagent settings override, or the current
-// persisted user settings when no override is active. Returns null in subagents when no
-// settings block exists; defaults, model inheritance, and billing limits are not resolved.
-// Persisted settings are loaded strictly, including before the first turn, and loading
-// errors are reported. Reading does not change the session or persist settings.
-// Read-modify-write with updateSubagentSettings is not atomic; writing back creates a live
-// override that ignores later persisted changes until cleared.
-//
-// RPC method: session.tools.getSubagentSettings.
-//
-// Returns: Current configured subagent settings for the session, before resolving defaults
-// or inheritance.
-func (a *ToolsAPI) GetSubagentSettings(ctx context.Context) (*ToolsGetSubagentSettingsResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request(ctx, "session.tools.getSubagentSettings", req)
-	if err != nil {
-		return nil, err
-	}
-	var result ToolsGetSubagentSettingsResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
 // HandlePendingToolCall provides the result for a pending external tool call.
 //
 // RPC method: session.tools.handlePendingToolCall.
@@ -45997,10 +45561,9 @@ func (a *ToolsAPI) TaskCompleteEventData(ctx context.Context, params *ToolsTaskC
 	return &result, nil
 }
 
-// UpdateSubagentSettings replaces the current session's complete live subagent settings
-// override; nested fields are not merged. The override takes precedence over persisted user
-// settings until cleared. Persisted user settings remain the source of truth for future
-// sessions.
+// UpdateSubagentSettings sets the current session's live subagent settings override, which
+// takes precedence over persisted user settings until cleared. Persisted user settings
+// remain the source of truth for future sessions.
 //
 // RPC method: session.tools.updateSubagentSettings.
 //
@@ -46010,7 +45573,9 @@ func (a *ToolsAPI) TaskCompleteEventData(ctx context.Context, params *ToolsTaskC
 func (a *ToolsAPI) UpdateSubagentSettings(ctx context.Context, params *UpdateSubagentSettingsRequest) (*ToolsUpdateSubagentSettingsResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
-		req["subagents"] = params.Subagents
+		if params.Subagents != nil {
+			req["subagents"] = *params.Subagents
+		}
 	}
 	raw, err := a.client.Request(ctx, "session.tools.updateSubagentSettings", req)
 	if err != nil {
@@ -48802,75 +48367,6 @@ type InternalSessionRPC struct {
 	Workflow   *InternalWorkflowAPI
 }
 
-// SendAndWait submits one message through normal admission and waits for its request-owned
-// completion. Returns the exact root assistant event, or an explicit aborted/no-response
-// outcome. Cancelling or timing out the wait does not abort agent work. Unsupported
-// execution hosts reject the method before admitting the message.
-//
-// RPC method: session.sendAndWait.
-//
-// Parameters: Parameters for sending a user message to the session
-//
-// Returns: Internal request-correlated completion of one submitted message.
-// Experimental: SendAndWait is an experimental API and may change or be removed in future
-// versions.
-// Internal: SendAndWait is part of the SDK's internal handshake/plumbing; external callers
-// should not use it.
-func (a *InternalSessionRPC) SendAndWait(ctx context.Context, params *SendRequest) (*SendAndWaitResult, error) {
-	req := map[string]any{"sessionId": a.common.sessionID}
-	if params != nil {
-		if params.AgentMode != nil {
-			req["agentMode"] = *params.AgentMode
-		}
-		if params.Attachments != nil {
-			req["attachments"] = params.Attachments
-		}
-		if params.Billable != nil {
-			req["billable"] = *params.Billable
-		}
-		if params.DisplayPrompt != nil {
-			req["displayPrompt"] = *params.DisplayPrompt
-		}
-		if params.Mode != nil {
-			req["mode"] = *params.Mode
-		}
-		if params.Prepend != nil {
-			req["prepend"] = *params.Prepend
-		}
-		req["prompt"] = params.Prompt
-		if params.RequestHeaders != nil {
-			req["requestHeaders"] = params.RequestHeaders
-		}
-		if params.RequiredTool != nil {
-			req["requiredTool"] = *params.RequiredTool
-		}
-		if params.ResponseFormat != nil {
-			req["responseFormat"] = *params.ResponseFormat
-		}
-		if params.Source != nil {
-			req["source"] = *params.Source
-		}
-		if params.Traceparent != nil {
-			req["traceparent"] = *params.Traceparent
-		}
-		if params.Tracestate != nil {
-			req["tracestate"] = *params.Tracestate
-		}
-		if params.Wait != nil {
-			req["wait"] = *params.Wait
-		}
-	}
-	raw, err := a.common.client.Request(ctx, "session.sendAndWait", req)
-	if err != nil {
-		return nil, err
-	}
-	var result SendAndWaitResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
 // SendSystemNotification queues or sends an internal system notification to the session
 // according to its passive policy.
 //
@@ -49658,12 +49154,6 @@ type HooksHandler interface {
 
 // Experimental: HostHandler contains experimental APIs that may change or be removed.
 type HostHandler interface {
-	// AuthenticationCancelled aborts the application's pending admission validation signal.
-	//
-	// RPC method: host.authenticationCancelled.
-	//
-	// Parameters: Notifies the owning application that validation ended.
-	AuthenticationCancelled(request *HostAuthenticationCancelledNotification) error
 	// Exited reports termination of a connection-owned host listener.
 	//
 	// RPC method: host.exited.
@@ -49712,15 +49202,6 @@ type HostHandler interface {
 	// Returns: Publication withdrawal outcome; local history, worktrees and ongoing work are
 	// preserved.
 	UnregisterSession(request *HostUnregisterSessionRequest) (*HostUnpublishSessionResult, error)
-	// ValidateAuthentication validates a decrypted admission credential in the owning
-	// application.
-	//
-	// RPC method: host.validateAuthentication.
-	//
-	// Parameters: Application-owned token validation callback.
-	//
-	// Returns: Validated admission credential, or null when the application rejects it.
-	ValidateAuthentication(request *HostValidateAuthenticationRequest) (*HostAuthenticationResult, error)
 }
 
 // Experimental: InstallationsHandler contains experimental APIs that may change or be
@@ -49883,19 +49364,6 @@ func RegisterClientGlobalAPIHandlers(client *jsonrpc2.Client, handlers *ClientGl
 		}
 		return raw, nil
 	})
-	client.SetRequestHandler("host.authenticationCancelled", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
-		var request HostAuthenticationCancelledNotification
-		if err := json.Unmarshal(params, &request); err != nil {
-			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
-		}
-		if handlers == nil || handlers.Host == nil {
-			return nil, nil
-		}
-		if err := handlers.Host.AuthenticationCancelled(&request); err != nil {
-			return nil, clientGlobalHandlerError(err)
-		}
-		return nil, nil
-	})
 	client.SetRequestHandler("host.exited", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
 		var request HostExitedNotification
 		if err := json.Unmarshal(params, &request); err != nil {
@@ -49985,24 +49453,6 @@ func RegisterClientGlobalAPIHandlers(client *jsonrpc2.Client, handlers *ClientGl
 			return nil, &jsonrpc2.Error{Code: -32603, Message: "No host client-global handler registered"}
 		}
 		result, err := handlers.Host.UnregisterSession(&request)
-		if err != nil {
-			return nil, clientGlobalHandlerError(err)
-		}
-		raw, err := json.Marshal(result)
-		if err != nil {
-			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("Failed to marshal response: %v", err)}
-		}
-		return raw, nil
-	})
-	client.SetRequestHandler("host.validateAuthentication", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
-		var request HostValidateAuthenticationRequest
-		if err := json.Unmarshal(params, &request); err != nil {
-			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
-		}
-		if handlers == nil || handlers.Host == nil {
-			return nil, &jsonrpc2.Error{Code: -32603, Message: "No host client-global handler registered"}
-		}
-		result, err := handlers.Host.ValidateAuthentication(&request)
 		if err != nil {
 			return nil, clientGlobalHandlerError(err)
 		}

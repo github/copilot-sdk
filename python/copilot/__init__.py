@@ -92,7 +92,6 @@ from .copilot_request_handler import (
 from .generated.rpc import (
     CurrentModel,
     CurrentToolMetadata,
-    EntraAuthConfig,
     ExtensionLaunchProfile,
     ExtensionLaunchProviderHandler,
     ExtensionLaunchProviderResolveRequest,
@@ -122,13 +121,9 @@ from .generated.session_events import (
     SessionEventType,
 )
 from .host import (
-    AhpAuthenticationRequest,
-    AhpAuthenticationResult,
     AhpHost,
-    AhpHostAuthentication,
     AhpHostExit,
     AhpHostOptions,
-    AhpSessionAuthentication,
     AhpSessionCreateRequest,
     AhpSessionResumeRequest,
 )
@@ -268,10 +263,6 @@ except PackageNotFoundError:
     __version__ = "0.0.0.dev0"
 
 __all__ = [
-    "AhpAuthenticationRequest",
-    "AhpAuthenticationResult",
-    "AhpHostAuthentication",
-    "AhpSessionAuthentication",
     "AhpHost",
     "AhpHostExit",
     "AhpHostOptions",
@@ -304,7 +295,6 @@ __all__ = [
     "CapiSessionOptions",
     "ChildProcessRuntimeConnection",
     "ClientInfo",
-    "EntraAuthConfig",
     "CloudSessionOptions",
     "CloudSessionRepository",
     "CommandContext",

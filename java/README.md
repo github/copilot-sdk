@@ -136,17 +136,7 @@ environment before starting the runtime instead.
 ## Quick Start
 
 For experimental in-process AHP hosting, select a transport explicitly:
-`client.startAhpHost(new AhpHostOptions().setAuthentication(AhpHostAuthentication.github()).setLocalServer(new HostLocalServerOptions(null, null, null, null)))`.
-Admission is explicit in every client mode: select `github()`, `none()`, or
-`custom("stable-owner", request -> CompletableFuture.completedFuture(new AhpAuthenticationResult("stable-owner", "2099-01-01T00:00:00Z")))`.
-Custom validators receive the decrypted admission token and a cancellation
-stage. Return a matching identity and required future RFC3339 `expiresAt`, or
-reject with null/an exceptional future. Cancellation completes on timeout,
-disconnect, or validation completion; late results cannot admit a client.
-`none()` does not disable the independent WebSocket connection secret.
-Mission Control requires `github()`. Create/resume callbacks receive trusted
-`request.authentication()` separately from `request.config()`; custom tokens
-never become GitHub or model-provider credentials.
+`client.startAhpHost(new AhpHostOptions().setLocalServer(new HostLocalServerOptions(null, null, null, null)))`.
 The transport types are in `com.github.copilot.generated.rpc`. For GitHub Mission
 Control, use `.setGithubEnvironment(new HostGitHubEnvironmentOptions("My host", "compute-id"))`
 instead, or configure both transports. GitHub environment name and compute ID are
