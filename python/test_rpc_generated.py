@@ -41,51 +41,7 @@ from copilot.rpc import (
     SlashCommandTextResult,
     TaskAgentInfo,
     UIElicitationSchemaType,
-    UpdateSubagentSettingsRequest,
 )
-
-
-@pytest.mark.parametrize(
-    "context_settings",
-    [{}, {"contextManagementTools": True}, {"contextManagementTools": False}],
-    ids=["absent", "enabled", "disabled"],
-)
-async def test_subagent_settings_getter_setter_preserve_context_management_tools(context_settings):
-    settings = {
-        "agents": {
-            "rubber-duck": {
-                "model": "model-id",
-                "providerId": "provider-id",
-                "autoInvoke": False,
-            },
-            "task": {"model": "task-model", "contextTier": "long_context"},
-        },
-        "disabledSubagents": ["explore"],
-        "maxConcurrency": 7,
-        "maxDepth": 3,
-        **context_settings,
-    }
-    client = Mock(request=AsyncMock(side_effect=[{"subagents": settings}, {}]))
-    api = SessionRpc(client, "settings-session").tools
-
-    result = await api.get_subagent_settings()
-    assert result.subagents is not None
-    assert result.subagents.agents is not None
-    result.subagents.agents["rubber-duck"].auto_invoke = True
-    await api.update_subagent_settings(UpdateSubagentSettingsRequest(subagents=result.subagents))
-
-    expected = {
-        **settings,
-        "agents": {
-            **settings["agents"],
-            "rubber-duck": {**settings["agents"]["rubber-duck"], "autoInvoke": True},
-        },
-    }
-    assert client.request.await_count == 2
-    client.request.assert_awaited_with(
-        "session.tools.updateSubagentSettings",
-        {"sessionId": "settings-session", "subagents": expected},
-    )
 
 
 async def test_session_usage_get_metrics_deserializes_shared_event_type():

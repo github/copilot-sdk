@@ -25,8 +25,6 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 record HostCreateSessionParams(
-    /** Trusted admission identity supplied by the hosting participant. Required by the runtime before a handoff is admitted. */
-    @JsonProperty("authentication") Object authentication,
     /** Unique identity for this participation, independent of the session lifetime. */
     @JsonProperty("handoffId") String handoffId,
     /** Resume an app-owned durable session instead of creating a new session. */

@@ -209,6 +209,11 @@ type ClientOptions struct {
 	// automatically cleaned up. Set to 0 or leave unset to disable.
 	// Ignored when connecting to an existing runtime via [URIConnection].
 	SessionIdleTimeoutSeconds int
+	// EnableRemoteSessions enables remote session support (Mission Control
+	// integration). When true, sessions in a GitHub repository working
+	// directory are accessible from GitHub web and mobile.
+	// Ignored when connecting to an existing runtime via [URIConnection].
+	EnableRemoteSessions bool
 	// ClientInfo declares the integrating application's identity, forwarded to the
 	// runtime on the `server.connect` handshake. Declaring it lets the
 	// telemetry the runtime emits on this connection be attributed to a
@@ -216,10 +221,6 @@ type ClientOptions struct {
 	// the runtime's own build. All fields are optional; leave it nil to keep the
 	// runtime's default attribution.
 	ClientInfo *ClientInfo
-
-	// Entra configures the host's Entra application for its sessions.
-	// Required for built-in Entra sign-in and token renewal; other authentication methods remain available.
-	Entra *rpc.EntraAuthConfig
 	// Mode controls the default tool surface and feature flags presented to
 	// sessions created by this client. The zero value ([ModeCopilotCli])
 	// matches legacy CLI defaults. Set to [ModeEmpty] to opt in to
@@ -1442,26 +1443,10 @@ type InfiniteSessionConfig struct {
 	BufferExhaustionThreshold *float64 `json:"bufferExhaustionThreshold,omitempty"`
 }
 
-// MemoryMode selects where retrieved memories are included in the model conversation.
-// Experimental: this type may change or be removed in a future release.
-type MemoryMode = rpc.MemoryMode
-
-const (
-	// MemoryModeSystemPrompt includes memories in the system prompt (the default).
-	MemoryModeSystemPrompt = rpc.MemoryModeSystemPrompt
-	// MemoryModeUserPrompt includes memories in user messages.
-	MemoryModeUserPrompt = rpc.MemoryModeUserPrompt
-)
-
 // MemoryConfiguration configures the memory feature for a session.
 type MemoryConfiguration struct {
 	// Enabled controls whether the memory feature is enabled for this session.
 	Enabled bool `json:"enabled"`
-	// Mode selects where memories are placed.
-	// "system-prompt" (default) places memories in the system prompt.
-	// "user-prompt" places memories in generated user-role messages.
-	// Experimental: this option may change or be removed in a future release.
-	Mode MemoryMode `json:"mode,omitempty"`
 }
 
 // LargeToolOutputConfig configures handling of large tool outputs. When a tool
@@ -1492,14 +1477,6 @@ type ImageGenerationConfig struct {
 	// false). Re-supply after cold resume. Does not enable image generation or
 	// enforce enterprise policy.
 	Watermark *bool `json:"watermark,omitempty"`
-	// SaveToDisk is experimental. It saves generated and edited images under the
-	// session-state directory's images folder and gives the model each path as a
-	// "saved_to:" line in the tool result. Defaults to true; set false to opt
-	// out. Subagents follow
-	// their parent's value unless they set their own. A failed save still returns
-	// the image. Sessions without a local session-state directory never save.
-	// Re-supply after cold resume. Does not enable image generation.
-	SaveToDisk *bool `json:"saveToDisk,omitempty"`
 }
 
 // ToolSearchConfig allows to configure tool search behavior.
@@ -1984,6 +1961,11 @@ type SessionConfig struct {
 	// When provided, the session authenticates as the token's owner instead of
 	// using the global client-level auth.
 	GitHubToken string `json:"-"`
+	// RemoteSession controls per-session remote behavior:
+	//   - "off" — local only, no remote export (default)
+	//   - "export" — export session events to GitHub without enabling remote steering
+	//   - "on" — export to GitHub AND enable remote steering
+	RemoteSession rpc.RemoteSessionMode
 	// Cloud creates a remote session in the cloud instead of a local session.
 	// The optional repository is associated with the cloud session.
 	Cloud *CloudSessionOptions
@@ -2032,10 +2014,6 @@ type SessionConfig struct {
 	// be set; if omitted, the runtime is expected to reject session creation
 	// (fail-closed). Unset behaves exactly as before.
 	EnableManagedSettings *bool
-	// ExcludedManagedSettings contains exact dotted setting paths excluded from
-	// fetched, device, and policy-helper policy. Host-injected policy and availability
-	// checks are unaffected. Not persisted; re-supply on resume.
-	ExcludedManagedSettings []string
 	// EnforceManagedModelDefaults, when true, enforces locked managed model
 	// controls for this session. Conflicting changes are rejected; overridable
 	// managed defaults remain mutable.
@@ -2306,9 +2284,6 @@ type ElicitationContext struct {
 	Mode *ElicitationRequestedMode
 	// ElicitationSource is the source that initiated the request (e.g. MCP server name).
 	ElicitationSource *string
-	// ElicitationSourceDisplayName is the trusted display label of a Connector-owned
-	// MCP server that initiated the request, such as "Work IQ".
-	ElicitationSourceDisplayName *string
 	// URL to open in the user's browser (url mode only).
 	URL *string
 }
@@ -2595,6 +2570,9 @@ type ResumeSessionConfig struct {
 	// When provided, the session authenticates as the token's owner instead of
 	// using the global client-level auth.
 	GitHubToken string `json:"-"`
+	// RemoteSession controls per-session remote behavior.
+	// See SessionConfig.RemoteSession for details.
+	RemoteSession rpc.RemoteSessionMode
 	// SuppressResumeEvent, when true, skips emitting the session.resume event.
 	// Useful for reconnecting to a session without triggering resume-related side effects.
 	SuppressResumeEvent bool
@@ -2676,9 +2654,6 @@ type ResumeSessionConfig struct {
 	// SessionConfig.EnableManagedSettings. Re-supply on resume so the runtime
 	// re-applies the managed-settings self-fetch after a CLI process restart.
 	EnableManagedSettings *bool
-	// ExcludedManagedSettings excludes setting paths as on SessionConfig.
-	// Omitting it restores full enforcement on warm and cold resume.
-	ExcludedManagedSettings []string
 	// EnforceManagedModelDefaults re-applies managed model lock enforcement on
 	// resume. See SessionConfig.EnforceManagedModelDefaults.
 	EnforceManagedModelDefaults *bool
@@ -3228,7 +3203,6 @@ type createSessionRequest struct {
 	ExpAssignments                     *CopilotExpAssignmentResponse          `json:"expAssignments,omitempty"`
 	FeatureFlags                       *map[string]bool                       `json:"featureFlags,omitempty"`
 	EnableManagedSettings              *bool                                  `json:"enableManagedSettings,omitempty"`
-	ExcludedManagedSettings            []string                               `json:"excludedManagedSettings,omitzero"`
 	EnforceManagedModelDefaults        *bool                                  `json:"enforceManagedModelDefaults,omitempty"`
 	InteractiveUser                    *bool                                  `json:"interactiveUser,omitempty"`
 	ManagedSettings                    *ManagedSettings                       `json:"managedSettings,omitempty"`
@@ -3341,7 +3315,6 @@ type resumeSessionRequest struct {
 	ExpAssignments                     *CopilotExpAssignmentResponse          `json:"expAssignments,omitempty"`
 	FeatureFlags                       *map[string]bool                       `json:"featureFlags,omitempty"`
 	EnableManagedSettings              *bool                                  `json:"enableManagedSettings,omitempty"`
-	ExcludedManagedSettings            []string                               `json:"excludedManagedSettings,omitzero"`
 	EnforceManagedModelDefaults        *bool                                  `json:"enforceManagedModelDefaults,omitempty"`
 	InteractiveUser                    *bool                                  `json:"interactiveUser,omitempty"`
 	ManagedSettings                    *ManagedSettings                       `json:"managedSettings,omitempty"`

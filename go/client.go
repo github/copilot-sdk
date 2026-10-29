@@ -510,11 +510,6 @@ func (c *Client) Start(ctx context.Context) error {
 
 	// Verify protocol version compatibility
 	if err := c.verifyProtocolVersion(ctx); err != nil {
-		c.client.Stop()
-		c.client = nil
-		c.conn = nil
-		c.RPC = nil
-		c.internalRPC = nil
 		killErr := c.killProcess()
 		c.state = stateError
 		return errors.Join(err, killErr)
@@ -1014,6 +1009,7 @@ func (c *Client) createSession(ctx context.Context, config *SessionConfig, runti
 	req.Memory = config.Memory
 	req.GitHubToken = config.GitHubToken
 	req.GitHubTokenProviderRegistrationID = registrationID
+	req.RemoteSession = config.RemoteSession
 	req.Cloud = config.Cloud
 	req.Canvases = config.Canvases
 	req.ExtensionInfo = config.ExtensionInfo
@@ -1027,7 +1023,6 @@ func (c *Client) createSession(ctx context.Context, config *SessionConfig, runti
 		req.FeatureFlags = &config.FeatureFlags
 	}
 	req.EnableManagedSettings = config.EnableManagedSettings
-	req.ExcludedManagedSettings = config.ExcludedManagedSettings
 	req.EnforceManagedModelDefaults = config.EnforceManagedModelDefaults
 	req.InteractiveUser = config.InteractiveUser
 	req.ManagedSettings = config.ManagedSettings
@@ -1513,6 +1508,7 @@ func (c *Client) resumeSession(ctx context.Context, sessionID string, config *Re
 	req.Memory = config.Memory
 	req.GitHubToken = config.GitHubToken
 	req.GitHubTokenProviderRegistrationID = registrationID
+	req.RemoteSession = config.RemoteSession
 	req.Canvases = config.Canvases
 	req.OpenCanvases = config.OpenCanvases
 	req.ExtensionInfo = config.ExtensionInfo
@@ -1526,7 +1522,6 @@ func (c *Client) resumeSession(ctx context.Context, sessionID string, config *Re
 		req.FeatureFlags = &config.FeatureFlags
 	}
 	req.EnableManagedSettings = config.EnableManagedSettings
-	req.ExcludedManagedSettings = config.ExcludedManagedSettings
 	req.EnforceManagedModelDefaults = config.EnforceManagedModelDefaults
 	req.InteractiveUser = config.InteractiveUser
 	req.ManagedSettings = config.ManagedSettings
@@ -2174,7 +2169,6 @@ func (c *Client) verifyProtocolVersion(ctx context.Context) error {
 		tokenPtr = &t
 	}
 	connectReq := &connectHandshakeRequest{
-		Entra: c.options.Entra,
 		Token: tokenPtr,
 		SupportedTaskKinds: []rpc.TaskKind{
 			rpc.TaskKindAgent,
@@ -2197,9 +2191,6 @@ func (c *Client) verifyProtocolVersion(ctx context.Context) error {
 	if err != nil {
 		var rpcErr *jsonrpc2.Error
 		if errors.As(err, &rpcErr) && (rpcErr.Code == jsonrpc2.ErrMethodNotFound.Code || rpcErr.Message == "Unhandled method connect") {
-			if c.options.Entra != nil {
-				return fmt.Errorf("this runtime does not support Entra client configuration: %w", err)
-			}
 			// Legacy server without `connect`; fall back to `ping`. A token, if any,
 			// is silently dropped — the legacy server can't enforce one.
 			pingResult, perr := c.Ping(ctx, "")
@@ -2232,7 +2223,6 @@ func (c *Client) verifyProtocolVersion(ctx context.Context) error {
 }
 
 type connectHandshakeRequest struct {
-	Entra                           *rpc.EntraAuthConfig   `json:"entra,omitempty"`
 	Token                           *string                `json:"token,omitempty"`
 	EnableGitHubTelemetryForwarding *bool                  `json:"enableGitHubTelemetryForwarding,omitempty"`
 	ClientInfo                      *rpc.ConnectClientInfo `json:"clientInfo,omitempty"`
@@ -2295,6 +2285,10 @@ func (c *Client) startCLIServer(ctx context.Context) error {
 
 	if c.options.SessionIdleTimeoutSeconds > 0 {
 		args = append(args, "--session-idle-timeout", strconv.Itoa(c.options.SessionIdleTimeoutSeconds))
+	}
+
+	if c.options.EnableRemoteSessions {
+		args = append(args, "--remote")
 	}
 
 	// If CLIPath is a .js file, run it with node
@@ -2532,6 +2526,9 @@ func (c *Client) inProcessHostConfig(cliLoginSyncIntegrationID string) inProcess
 	if c.options.SessionIdleTimeoutSeconds > 0 {
 		args = append(args, "--session-idle-timeout", strconv.Itoa(c.options.SessionIdleTimeoutSeconds))
 	}
+	if c.options.EnableRemoteSessions {
+		args = append(args, "--remote")
+	}
 	if cliLoginSyncIntegrationID != "" {
 		args = append(args, "--cli-login-sync-integration-id="+cliLoginSyncIntegrationID)
 	}
@@ -2727,14 +2724,6 @@ func (c *Client) setupNotificationHandler() {
 		c.client.SetRequestContextHandler("installations.confirm", adapter.handle)
 	}
 	c.client.SetRequestHandler("host.materializeSession", jsonrpc2.RequestHandlerFor(c.materializeAhpSession))
-	c.client.SetRequestHandlerWithPreparation("host.validateAuthentication", jsonrpc2.RequestHandlerFor(c.validateAhpAuthentication), func(raw json.RawMessage) *jsonrpc2.Error {
-		var request rpc.HostValidateAuthenticationRequest
-		if err := json.Unmarshal(raw, &request); err != nil {
-			return jsonrpc2.ErrInvalidParams
-		}
-		return c.prepareAhpAuthentication(&request)
-	})
-	c.client.SetRequestHandler("host.authenticationCancelled", jsonrpc2.NotificationHandlerFor(c.cancelAhpAuthentication))
 	c.client.SetRequestHandler("host.sessionReleased", jsonrpc2.NotificationHandlerFor(c.releaseAhpSession))
 	c.client.SetRequestHandler("host.exited", jsonrpc2.NotificationHandlerFor(c.handleAhpExit))
 }

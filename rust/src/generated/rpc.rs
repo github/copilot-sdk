@@ -2541,40 +2541,6 @@ impl<'a> ClientRpcHost<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
-    /// Changes remote creation admission on a host owned by this SDK connection without disconnecting clients. Acknowledgement means subsequent admissions use the new policy; already-admitted creation may complete.
-    ///
-    /// Wire method: `host.setSessionCreationPolicy`.
-    ///
-    /// # Parameters
-    ///
-    /// * `params` - Changes remote session creation admission without disconnecting clients.
-    ///
-    /// # Returns
-    ///
-    /// Empty acknowledgement for a completed host lifecycle operation.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This API is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases. Pin both the
-    /// SDK and CLI versions if your code depends on it.
-    ///
-    /// </div>
-    pub async fn set_session_creation_policy(
-        &self,
-        params: HostSetSessionCreationPolicyRequest,
-    ) -> Result<HostEmptyResult, Error> {
-        let wire_params = serde_json::to_value(params)?;
-        let _value = self
-            .client
-            .call(
-                rpc_methods::HOST_SETSESSIONCREATIONPOLICY,
-                Some(wire_params),
-            )
-            .await?;
-        Ok(serde_json::from_value(_value)?)
-    }
-
     /// Resolves current authenticated credentials and remote-control policy only for the runtime-owned Mission Control hosting participant.
     ///
     /// Wire method: `host.getEnvironmentCredentials`.
@@ -2624,97 +2590,6 @@ impl<'a> ClientRpcHost<'a> {
         let _value = self
             .client
             .call(rpc_methods::HOST_GETCONFIGURATION, Some(wire_params))
-            .await?;
-        Ok(serde_json::from_value(_value)?)
-    }
-
-    /// Resolves the host account credential without applying Mission Control transport policy, only for its supervised GitHub hosting participant.
-    ///
-    /// Wire method: `host.getAuthenticationCredentials`.
-    ///
-    /// # Returns
-    ///
-    /// Private credentials delivered only to a runtime-owned Mission Control hosting participant.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This API is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases. Pin both the
-    /// SDK and CLI versions if your code depends on it.
-    ///
-    /// </div>
-    pub(crate) async fn get_authentication_credentials(
-        &self,
-    ) -> Result<HostEnvironmentCredentials, Error> {
-        let wire_params = serde_json::json!({});
-        let _value = self
-            .client
-            .call(
-                rpc_methods::HOST_GETAUTHENTICATIONCREDENTIALS,
-                Some(wire_params),
-            )
-            .await?;
-        Ok(serde_json::from_value(_value)?)
-    }
-
-    /// Validates a decrypted admission credential through the owning application, only for its supervised custom-authentication participant.
-    ///
-    /// Wire method: `host.authenticate`.
-    ///
-    /// # Parameters
-    ///
-    /// * `params` - A decrypted credential presented by a supervised hosting participant.
-    ///
-    /// # Returns
-    ///
-    /// Validated admission credential, or null when the application rejects it.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This API is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases. Pin both the
-    /// SDK and CLI versions if your code depends on it.
-    ///
-    /// </div>
-    pub(crate) async fn authenticate(
-        &self,
-        params: HostAuthenticateRequest,
-    ) -> Result<HostAuthenticateResult, Error> {
-        let wire_params = serde_json::to_value(params)?;
-        let _value = self
-            .client
-            .call(rpc_methods::HOST_AUTHENTICATE, Some(wire_params))
-            .await?;
-        Ok(serde_json::from_value(_value)?)
-    }
-
-    /// Cancels a supervised participant's pending admission validation.
-    ///
-    /// Wire method: `host.cancelAuthentication`.
-    ///
-    /// # Parameters
-    ///
-    /// * `params` - Cancels a pending validation on the supervised participant's connection.
-    ///
-    /// # Returns
-    ///
-    /// Empty acknowledgement for a completed host lifecycle operation.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This API is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases. Pin both the
-    /// SDK and CLI versions if your code depends on it.
-    ///
-    /// </div>
-    pub(crate) async fn cancel_authentication(
-        &self,
-        params: HostCancelAuthenticationRequest,
-    ) -> Result<HostEmptyResult, Error> {
-        let wire_params = serde_json::to_value(params)?;
-        let _value = self
-            .client
-            .call(rpc_methods::HOST_CANCELAUTHENTICATION, Some(wire_params))
             .await?;
         Ok(serde_json::from_value(_value)?)
     }
@@ -9100,39 +8975,6 @@ impl<'a> SessionRpc<'a> {
             .session
             .client()
             .call(rpc_methods::SESSION_SEND, Some(wire_params))
-            .await?;
-        Ok(serde_json::from_value(_value)?)
-    }
-
-    /// Submits one message through normal admission and waits for its request-owned completion. Returns the exact root assistant event, or an explicit aborted/no-response outcome. Cancelling or timing out the wait does not abort agent work. Unsupported execution hosts reject the method before admitting the message.
-    ///
-    /// Wire method: `session.sendAndWait`.
-    ///
-    /// # Parameters
-    ///
-    /// * `params` - Parameters for sending a user message to the session
-    ///
-    /// # Returns
-    ///
-    /// Internal request-correlated completion of one submitted message.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This API is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases. Pin both the
-    /// SDK and CLI versions if your code depends on it.
-    ///
-    /// </div>
-    pub(crate) async fn send_and_wait(
-        &self,
-        params: SendRequest,
-    ) -> Result<SendAndWaitResult, Error> {
-        let mut wire_params = serde_json::to_value(params)?;
-        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
-        let _value = self
-            .session
-            .client()
-            .call(rpc_methods::SESSION_SENDANDWAIT, Some(wire_params))
             .await?;
         Ok(serde_json::from_value(_value)?)
     }
@@ -18776,35 +18618,7 @@ impl<'a> SessionRpcTools<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
-    /// Returns the session's live subagent settings override, or the current persisted user settings when no override is active. Returns null in subagents when no settings block exists; defaults, model inheritance, and billing limits are not resolved. Persisted settings are loaded strictly, including before the first turn, and loading errors are reported. Reading does not change the session or persist settings. Read-modify-write with updateSubagentSettings is not atomic; writing back creates a live override that ignores later persisted changes until cleared.
-    ///
-    /// Wire method: `session.tools.getSubagentSettings`.
-    ///
-    /// # Returns
-    ///
-    /// Current configured subagent settings for the session, before resolving defaults or inheritance.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This API is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases. Pin both the
-    /// SDK and CLI versions if your code depends on it.
-    ///
-    /// </div>
-    pub async fn get_subagent_settings(&self) -> Result<ToolsGetSubagentSettingsResult, Error> {
-        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
-        let _value = self
-            .session
-            .client()
-            .call(
-                rpc_methods::SESSION_TOOLS_GETSUBAGENTSETTINGS,
-                Some(wire_params),
-            )
-            .await?;
-        Ok(serde_json::from_value(_value)?)
-    }
-
-    /// Replaces the current session's complete live subagent settings override; nested fields are not merged. The override takes precedence over persisted user settings until cleared. Persisted user settings remain the source of truth for future sessions.
+    /// Sets the current session's live subagent settings override, which takes precedence over persisted user settings until cleared. Persisted user settings remain the source of truth for future sessions.
     ///
     /// Wire method: `session.tools.updateSubagentSettings`.
     ///

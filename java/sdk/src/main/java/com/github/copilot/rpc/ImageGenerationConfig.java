@@ -26,9 +26,6 @@ public class ImageGenerationConfig {
     @JsonProperty("watermark")
     private Boolean watermark;
 
-    @JsonProperty("saveToDisk")
-    private Boolean saveToDisk;
-
     /**
      * Gets the image generation opt-in.
      *
@@ -71,34 +68,6 @@ public class ImageGenerationConfig {
      */
     public ImageGenerationConfig setWatermark(Boolean watermark) {
         this.watermark = watermark;
-        return this;
-    }
-
-    /**
-     * Gets the experimental save-to-disk preference.
-     *
-     * @return true to save images, false to opt out, or null when unset (default
-     *         true)
-     */
-    public Boolean getSaveToDisk() {
-        return saveToDisk;
-    }
-
-    /**
-     * Experimental. Saves generated and edited images under the session-state
-     * directory's {@code images} folder and gives the model each path as a
-     * {@code saved_to:} line in the tool result. Defaults to true; set false to opt
-     * out. Subagents follow their parent's value unless they set their own. A
-     * failed save still returns the image. Sessions without a local session-state
-     * directory never save. Re-supply after cold resume. Does not enable image
-     * generation.
-     *
-     * @param saveToDisk
-     *            the preference, or null when unset
-     * @return this config for method chaining
-     */
-    public ImageGenerationConfig setSaveToDisk(Boolean saveToDisk) {
-        this.saveToDisk = saveToDisk;
         return this;
     }
 }

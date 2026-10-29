@@ -40,18 +40,7 @@ Select at least one explicit transport: `LocalServer: &rpc.HostLocalServerOption
 enables a local listener; `GitHubEnvironment: &rpc.HostGitHubEnvironmentOptions{Name: "My host", ComputeID: "my-compute"}`
 registers a Mission Control environment. Both can be enabled. Import `rpc` from
 `github.com/github/copilot-sdk/go/rpc`. No transport is enabled by default.
-Local hostname, port, and WebSocket connection-token settings belong inside `LocalServer`.
-Set top-level `Authentication: copilot.AhpHostAuthentication{Mode: "github"}`,
-`{Mode: "none"}`, or `{Mode: "custom", RequireIdentity: "owner", Authenticate: validator}`
-in every client mode. Mission Control requires `github`; `none` does not disable
-the independent WebSocket connection token.
-The custom validator takes `(context.Context, string)` (the decrypted admission
-token) and returns `(*copilot.AhpAuthenticationResult, error)`: return nil to reject,
-or the exact configured `Identity` and a mandatory future RFC3339 `ExpiresAt`.
-Its context is cancelled when validation ends; late results cannot grant access.
-Create/resume requests expose trusted, tagged `Authentication` alongside `Config`,
-never inside it. Admission tokens are not GitHub or inference credentials; use
-`Config.Provider` for BYOK inference independently of host admission.
+Local hostname, port, token, and authentication settings belong inside `LocalServer`.
 The returned handle's `URL`, `Token`, `PID`, and `EnvironmentID` are optional pointers;
 Mission Control-only hosting has no local URL. These APIs are experimental.
 Call `host.ListSessions(ctx)` to read the complete advertised catalog of live and
@@ -411,6 +400,7 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
 
 - `GitHubToken` (string): GitHub token for authentication. When provided, takes priority over other auth methods.
 - `UseLoggedInUser` (\*bool): Whether to use logged-in user for authentication (default: true, but false when `GitHubToken` is provided). Cannot be used with `URIConnection`.
+- `EnableRemoteSessions` (bool): Enable remote session support (Mission Control integration). Ignored with `URIConnection`.
 - `Telemetry` (\*TelemetryConfig): OpenTelemetry configuration for the runtime. Providing this enables telemetry — no separate flag needed. See [Telemetry](#telemetry) below.
 - `SessionFS` (\*SessionFSConfig): Custom session filesystem provider configuration. For the `view` tool to read provider-only images, set `Capabilities.Binary` and return a provider implementing `SessionFSBinaryProvider` (`ReadFileBytes` and `WriteFileBytes`) from `CreateSessionFSProvider`. Image reads do not fall back to local files. Binary reads and writes are limited to 50,330,880 bytes before encoding or decoding.
 

@@ -75,7 +75,6 @@ from .generated.rpc import (
     ClientGlobalApiHandlers,
     ClientSessionApiHandlers,
     DiagnosticsConfiguration,
-    EntraAuthConfig,
     ExtensionLaunchProviderHandler,
     GitHubTelemetryNotification,
     GitHubTokenAcquireReason,
@@ -84,7 +83,7 @@ from .generated.rpc import (
     ModelBillingTokenPrices,
     ModelBillingTokenPricesLongContext,  # noqa: F401
     OpenCanvasInstance,
-    RemoteSessionMode,  # noqa: F401
+    RemoteSessionMode,
     SandboxConfig,
     ServerRpc,
     UIThreadRunRequest,
@@ -493,10 +492,7 @@ def _large_output_to_wire(config: Mapping[str, Any]) -> dict[str, Any]:
 
 def _memory_to_wire(config: Mapping[str, Any]) -> dict[str, Any]:
     """Convert a ``MemoryConfiguration`` mapping to wire format."""
-    wire: dict[str, Any] = {"enabled": config["enabled"]}
-    if "mode" in config:
-        wire["mode"] = config["mode"]
-    return wire
+    return {"enabled": config["enabled"]}
 
 
 def _autopilot_to_wire(config: AutopilotOptions) -> dict[str, Any]:
@@ -523,14 +519,6 @@ def _tool_search_to_wire(config: Mapping[str, Any]) -> dict[str, Any]:
         wire["enabled"] = config["enabled"]
     if "defer_threshold" in config:
         wire["deferThreshold"] = config["defer_threshold"]
-    return wire
-
-
-def _image_generation_to_wire(config: Mapping[str, Any]) -> dict[str, Any]:
-    """Convert an ``ImageGenerationConfig`` mapping to wire format."""
-    wire = dict(config)
-    if "save_to_disk" in wire:
-        wire["saveToDisk"] = wire.pop("save_to_disk")
     return wire
 
 
@@ -906,7 +894,6 @@ class _CopilotClientOptions:
     these options as keyword arguments directly.
     """
 
-    entra: EntraAuthConfig | None = None
     connection: RuntimeConnection | None = None
     working_directory: str | None = None
     log_level: LogLevel = "info"
@@ -921,6 +908,7 @@ class _CopilotClientOptions:
     session_fs: SessionFsConfig | None = None
     request_handler: CopilotRequestHandler | None = None
     session_idle_timeout_seconds: int | None = None
+    enable_remote_sessions: bool = False
     client_info: ClientInfo | None = None
     on_list_models: Callable[[], list[ModelInfo] | Awaitable[list[ModelInfo]]] | None = None
     on_github_telemetry: Callable[[GitHubTelemetryNotification], None | Awaitable[None]] | None = (
@@ -1664,7 +1652,6 @@ class CopilotClient:
     def __init__(
         self,
         *,
-        entra: EntraAuthConfig | None = None,
         connection: RuntimeConnection | None = None,
         working_directory: str | None = None,
         log_level: LogLevel = "info",
@@ -1679,6 +1666,7 @@ class CopilotClient:
         session_fs: SessionFsConfig | None = None,
         request_handler: CopilotRequestHandler | None = None,
         session_idle_timeout_seconds: int | None = None,
+        enable_remote_sessions: bool = False,
         client_info: ClientInfo | None = None,
         on_list_models: Callable[[], list[ModelInfo] | Awaitable[list[ModelInfo]]] | None = None,
         on_github_telemetry: Callable[[GitHubTelemetryNotification], None | Awaitable[None]]
@@ -1687,10 +1675,6 @@ class CopilotClient:
     ):
         """
         Initialize a new CopilotClient.
-
-        ``entra`` selects the host's Microsoft Entra registration for its sessions.
-        Required for built-in Entra sign-in and token renewal;
-        other authentication methods remain available.
 
         Runtime options apply to locally hosted connections. The in-process
         transport supports typed runtime options such as ``log_level``,
@@ -1737,6 +1721,10 @@ class CopilotClient:
             session_idle_timeout_seconds: Server-wide session idle timeout in
                 seconds. Sessions without activity for this duration are
                 automatically cleaned up. Set to ``None`` or ``0`` to disable.
+            enable_remote_sessions: Enable remote session support (Mission
+                Control integration). When ``True``, sessions in a GitHub
+                repository working directory are accessible from GitHub web
+                and mobile.
             client_info: Identity of the integrating application, forwarded to the
                 runtime on the ``server.connect`` handshake. Declaring it lets
                 the telemetry the runtime emits on this connection be attributed
@@ -1766,7 +1754,6 @@ class CopilotClient:
             ... )
         """
         options = _CopilotClientOptions(
-            entra=entra,
             connection=connection,
             working_directory=working_directory,
             log_level=log_level,
@@ -1781,6 +1768,7 @@ class CopilotClient:
             session_fs=session_fs,
             request_handler=request_handler,
             session_idle_timeout_seconds=session_idle_timeout_seconds,
+            enable_remote_sessions=enable_remote_sessions,
             client_info=client_info,
             on_list_models=on_list_models,
             on_github_telemetry=on_github_telemetry,
@@ -2092,14 +2080,7 @@ class CopilotClient:
             )
 
             # Verify protocol version compatibility
-            try:
-                await self._verify_protocol_version()
-            except Exception as handshake_error:
-                try:
-                    await self.force_stop()
-                except Exception as cleanup_error:
-                    raise handshake_error from cleanup_error
-                raise
+            await self._verify_protocol_version()
             log_timing(
                 logger,
                 logging.DEBUG,
@@ -2521,6 +2502,7 @@ class CopilotClient:
         create_session_fs_handler: CreateSessionFsHandler | None = None,
         github_token: str | None = None,
         github_token_provider: GitHubTokenProvider | None = None,
+        remote_session: RemoteSessionMode | None = None,
         cloud: CloudSessionOptions | None = None,
         canvases: list[CanvasDeclaration] | None = None,
         request_canvas_renderer: bool | None = None,
@@ -2532,7 +2514,6 @@ class CopilotClient:
         feature_flags: dict[str, bool] | None = None,
         exp_assignments: CopilotExpAssignmentResponse | None = None,
         enable_managed_settings: bool | None = None,
-        excluded_managed_settings: list[str] | None = None,
         enforce_managed_model_defaults: bool | None = None,
         interactive_user: bool | None = None,
         github_mcp_tool_config: GitHubMcpToolConfig | None = None,
@@ -2744,11 +2725,6 @@ class CopilotClient:
                 expected to reject session creation (fail-closed). When unset,
                 behaves exactly as before. Sent on the wire as
                 ``enableManagedSettings``.
-            excluded_managed_settings: Exact dotted managed-setting paths to exclude
-                from fetched, device, and policy-helper policy, such as ``sandbox``.
-                Does not exclude host-injected policy or availability checks.
-                Not persisted; re-supply on resume. Requires
-                ``enable_managed_settings`` to self-fetch policy.
             enforce_managed_model_defaults: When ``True``, locked managed model
                 controls are enforced for this session. Conflicting model changes
                 are rejected, while overridable managed defaults remain mutable.
@@ -2857,7 +2833,7 @@ class CopilotClient:
         if tool_search is not None:
             payload["toolSearch"] = _tool_search_to_wire(tool_search)
         if image_generation is not None:
-            payload["imageGeneration"] = _image_generation_to_wire(image_generation)
+            payload["imageGeneration"] = dict(image_generation)
 
         if available_tools is not None:
             payload["availableTools"] = available_tools
@@ -2899,6 +2875,10 @@ class CopilotClient:
         if github_token is not None:
             payload["gitHubToken"] = github_token
 
+        # Add remote session mode if provided
+        if remote_session is not None:
+            payload["remoteSession"] = remote_session.value
+
         # Add cloud session options if provided
         if cloud is not None:
             payload["cloud"] = _cloud_session_options_to_dict(cloud)
@@ -2913,8 +2893,6 @@ class CopilotClient:
         # Opt the runtime into self-fetching enterprise managed settings
         if enable_managed_settings is not None:
             payload["enableManagedSettings"] = enable_managed_settings
-        if excluded_managed_settings is not None:
-            payload["excludedManagedSettings"] = excluded_managed_settings
         if enforce_managed_model_defaults is not None:
             payload["enforceManagedModelDefaults"] = enforce_managed_model_defaults
 
@@ -3460,6 +3438,7 @@ class CopilotClient:
         create_session_fs_handler: CreateSessionFsHandler | None = None,
         github_token: str | None = None,
         github_token_provider: GitHubTokenProvider | None = None,
+        remote_session: RemoteSessionMode | None = None,
         continue_pending_work: bool | None = None,
         suppress_resume_event: bool | None = None,
         allow_transcript_recovery: bool | None = None,
@@ -3474,7 +3453,6 @@ class CopilotClient:
         feature_flags: dict[str, bool] | None = None,
         exp_assignments: CopilotExpAssignmentResponse | None = None,
         enable_managed_settings: bool | None = None,
-        excluded_managed_settings: list[str] | None = None,
         enforce_managed_model_defaults: bool | None = None,
         interactive_user: bool | None = None,
         github_mcp_tool_config: GitHubMcpToolConfig | None = None,
@@ -3678,9 +3656,6 @@ class CopilotClient:
                 expected to reject session creation (fail-closed). When unset,
                 behaves exactly as before. Sent on the wire as
                 ``enableManagedSettings``.
-            excluded_managed_settings: Exact dotted managed-setting paths to exclude.
-                Same semantics as :meth:`create_session`; omitting restores full
-                enforcement, including when resuming a live session.
             enforce_managed_model_defaults: When ``True``, locked managed model
                 controls are enforced after resume. Conflicting model changes are
                 rejected, while overridable managed defaults remain mutable. Sent
@@ -3780,7 +3755,7 @@ class CopilotClient:
         if tool_search is not None:
             payload["toolSearch"] = _tool_search_to_wire(tool_search)
         if image_generation is not None:
-            payload["imageGeneration"] = _image_generation_to_wire(image_generation)
+            payload["imageGeneration"] = dict(image_generation)
         if available_tools is not None:
             payload["availableTools"] = available_tools
         if excluded_tools is not None:
@@ -3855,6 +3830,10 @@ class CopilotClient:
         if github_token is not None:
             payload["gitHubToken"] = github_token
 
+        # Add remote session mode if provided
+        if remote_session is not None:
+            payload["remoteSession"] = remote_session.value
+
         if feature_flags is not None:
             payload["featureFlags"] = feature_flags
 
@@ -3865,8 +3844,6 @@ class CopilotClient:
         # Opt the runtime into self-fetching enterprise managed settings
         if enable_managed_settings is not None:
             payload["enableManagedSettings"] = enable_managed_settings
-        if excluded_managed_settings is not None:
-            payload["excludedManagedSettings"] = excluded_managed_settings
         if enforce_managed_model_defaults is not None:
             payload["enforceManagedModelDefaults"] = enforce_managed_model_defaults
 
@@ -4169,9 +4146,8 @@ class CopilotClient:
         If canceled during startup, cleanup continues on the owning connection
         and disposes the listener once startup settles.
         """
-        from .host import _validate_options
-
-        _validate_options(options)
+        if options is None or (options.local_server is None and options.github_environment is None):
+            raise ValueError("At least one of local_server or github_environment is required")
         if self._state != "connected":
             await self.start()
         if self._client is None:
@@ -4581,8 +4557,6 @@ class CopilotClient:
             connect_params: dict[str, Any] = {
                 "supportedTaskKinds": ["agent", "client", "shell"],
             }
-            if self._options.entra is not None:
-                connect_params["entra"] = self._options.entra.to_dict()
             if self._effective_connection_token is not None:
                 connect_params["token"] = self._effective_connection_token
             # Opt in to GitHub telemetry forwarding at the connection level when a
@@ -4603,10 +4577,6 @@ class CopilotClient:
             server_version = connect_result.protocol_version
         except JsonRpcError as err:
             if err.code == -32601 or err.message == "Unhandled method connect":
-                if self._options.entra is not None:
-                    raise RuntimeError(
-                        "This runtime does not support Entra client configuration."
-                    ) from err
                 # Legacy server without `connect`; fall back to `ping`. A token, if any,
                 # is silently dropped — the legacy server can't enforce one.
                 used_fallback_ping = True
@@ -4843,6 +4813,9 @@ class CopilotClient:
         if opts.session_idle_timeout_seconds is not None and opts.session_idle_timeout_seconds > 0:
             args.extend(["--session-idle-timeout", str(opts.session_idle_timeout_seconds)])
 
+        if opts.enable_remote_sessions:
+            args.append("--remote")
+
         # If cli_path is a .js file, run it with node
         # Note that we can't rely on the shebang as Windows doesn't support it
         if cli_path.endswith(".js"):
@@ -5009,6 +4982,8 @@ class CopilotClient:
             args.append("--no-auto-login")
         if opts.session_idle_timeout_seconds is not None and opts.session_idle_timeout_seconds > 0:
             args.extend(["--session-idle-timeout", str(opts.session_idle_timeout_seconds)])
+        if opts.enable_remote_sessions:
+            args.append("--remote")
         if self._cli_login_sync_integration_id is not None:
             args.append(f"--cli-login-sync-integration-id={self._cli_login_sync_integration_id}")
 
@@ -5351,13 +5326,6 @@ class CopilotClient:
         )
         self._installation_confirmation_adapter.register()
         self._client.set_request_handler("host.materializeSession", self._ahp_hosts.materialize)
-        self._client.set_request_handler(
-            "host.validateAuthentication", self._ahp_hosts.validate_authentication, ordered=True
-        )
-        self._client.set_notification_method_handler(
-            "host.authenticationCancelled",
-            lambda params: self._ahp_hosts.notification("host.authenticationCancelled", params),
-        )
         self._client.set_notification_method_handler(
             "host.sessionReleased",
             lambda params: self._ahp_hosts.notification("host.sessionReleased", params),

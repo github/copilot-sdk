@@ -2683,7 +2683,7 @@ public class SessionEventDeserializationTest {
         assertTrue(castedEvent.getData().requestedSchema().required().contains("name"));
 
         // Verify setData round-trip
-        castedEvent.setData(new ElicitationRequestedEvent.ElicitationRequestedEventData("elix-002", null, null, null,
+        castedEvent.setData(new ElicitationRequestedEvent.ElicitationRequestedEventData("elix-002", null, null,
                 "Enter URL", ElicitationRequestedMode.URL, null, "https://example.com"));
         assertEquals("elix-002", castedEvent.getData().requestId());
         assertEquals(ElicitationRequestedMode.URL, castedEvent.getData().mode());

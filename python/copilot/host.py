@@ -8,21 +8,10 @@ import asyncio
 import copy
 import inspect
 import logging
-import re
 import types
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Literal,
-    Union,
-    get_args,
-    get_origin,
-    get_type_hints,
-    is_typeddict,
-)
+from typing import TYPE_CHECKING, Any, Union, get_args, get_origin, get_type_hints, is_typeddict
 from uuid import uuid4
 from weakref import WeakKeyDictionary
 
@@ -44,41 +33,6 @@ logger = logging.getLogger(__name__)
 AhpHostExit = HostExitedNotification
 
 
-@dataclass(frozen=True)
-class AhpAuthenticationRequest:
-    """Decrypted admission credential and cooperative cancellation, never inference auth."""
-
-    token: str = field(repr=False)
-    cancellation_event: asyncio.Event
-
-
-@dataclass(frozen=True)
-class AhpAuthenticationResult:
-    """Accepted owner identity with a required future RFC3339 expiration."""
-
-    identity: str
-    expires_at: str
-
-
-@dataclass(frozen=True)
-class AhpHostAuthentication:
-    """Explicit host admission policy; custom callbacks remain local to the application."""
-
-    mode: Literal["github", "none", "custom"]
-    require_identity: str | None = None
-    authenticate: (
-        Callable[[AhpAuthenticationRequest], Awaitable[AhpAuthenticationResult | None]] | None
-    ) = None
-
-
-@dataclass(frozen=True)
-class AhpSessionAuthentication:
-    """Trusted credential-free admission context, separate from session configuration."""
-
-    mode: Literal["github", "none", "custom"]
-    identity: str | None = None
-
-
 class _HandoffEnded(RuntimeError):
     pass
 
@@ -93,7 +47,6 @@ class AhpSessionCreateRequest:
 
     config: dict[str, Any]
     cancellation_event: asyncio.Event
-    authentication: AhpSessionAuthentication
 
 
 @dataclass(frozen=True)
@@ -103,7 +56,6 @@ class AhpSessionResumeRequest:
     session_id: str
     config: dict[str, Any]
     cancellation_event: asyncio.Event
-    authentication: AhpSessionAuthentication
 
 
 @dataclass(frozen=True)
@@ -124,16 +76,6 @@ class AhpHost:
     async def dispose(self) -> None:
         """Stop and join the listener, including on repeated/concurrent calls."""
         await self._rpc.request("host.dispose", {"hostId": self.host_id})
-
-    async def set_allow_creating_new_sessions(self, allowed: bool) -> None:
-        """Change subsequent remote admissions; already-admitted creation may finish.
-
-        Existing connections and sessions are unchanged.
-        """
-        await self._rpc.request(
-            "host.setSessionCreationPolicy",
-            {"hostId": self.host_id, "allowCreatingNewSessions": allowed},
-        )
 
     async def publish_session(self, session_id: str) -> HostPublishSessionResult:
         """Publish an attached session into the durable compute-scoped catalog."""
@@ -171,17 +113,12 @@ class AhpHostOptions:
 
     Select ``local_server``, ``github_environment``, or both. An empty local
     server selects loopback defaults. GitHub-only hosting has no local URL.
-    Explicit ``authentication`` is required in every client mode; only GitHub
-    authentication supports ``github_environment``.
     Factories must return the exact requested session from the owning client.
     Release callbacks receive that same object once per handoff, including late
     results. The SDK never disconnects or destroys it on the application's behalf.
     ``compute_id`` selects a durable catalog across transports; omitted local-only
     identities are persisted by the runtime. It must agree with the GitHub
     environment's compute identity when both are supplied.
-    ``workspace`` is an absolute directory on the runtime host to serve through
-    AHP. Omission uses the runtime's configured working directory; it does not
-    change process or session working directories.
     """
 
     local_server: HostLocalServerOptions | None = None
@@ -191,34 +128,6 @@ class AhpHostOptions:
     on_session_released: Callable[[CopilotSession], Awaitable[None] | None] | None = None
     on_exit: Callable[[AhpHostExit], Awaitable[None] | None] | None = None
     compute_id: str | None = None
-    authentication: AhpHostAuthentication | None = None
-    # None preserves the denied default; independent of session factories.
-    allow_creating_new_sessions: bool | None = None
-    workspace: str | None = None
-
-
-def _validate_options(options: AhpHostOptions) -> None:
-    if options is None or (options.local_server is None and options.github_environment is None):
-        raise ValueError("At least one of local_server or github_environment is required")
-    auth = options.authentication
-    if not isinstance(auth, AhpHostAuthentication) or auth.mode not in ("github", "none", "custom"):
-        raise ValueError("Explicit AHP authentication (github, none or custom) is required")
-    if auth.mode == "custom" and (
-        not isinstance(auth.require_identity, str)
-        or not auth.require_identity.strip()
-        or not callable(auth.authenticate)
-    ):
-        raise ValueError(
-            "Custom authentication requires nonempty require_identity and authenticate"
-        )
-    if options.github_environment is not None and auth.mode != "github":
-        raise ValueError("github_environment requires github authentication")
-
-
-@dataclass
-class _Authentication:
-    host_id: str
-    cancellation: asyncio.Event = field(default_factory=asyncio.Event)
 
 
 @dataclass
@@ -311,7 +220,6 @@ class _AhpHostManager:
         self._hosts: dict[str, AhpHostOptions] = {}
         self._handoffs: dict[str, _Handoff] = {}
         self._tasks: set[asyncio.Task[Any]] = set()
-        self._authentications: dict[str, _Authentication] = {}
 
     def capture(self, session: CopilotSession, config: dict[str, Any]) -> None:
         for entry in self._handoffs.values():
@@ -319,20 +227,13 @@ class _AhpHostManager:
                 entry.configs[session] = copy.deepcopy(config)
 
     async def start(self, rpc: JsonRpcClient, options: AhpHostOptions) -> AhpHost:
-        _validate_options(options)
-        options = copy.copy(options)
-        assert options.authentication is not None
-        authentication: dict[str, Any] = {"mode": options.authentication.mode}
-        if options.authentication.mode == "custom":
-            authentication["requireIdentity"] = options.authentication.require_identity
+        if options.local_server is None and options.github_environment is None:
+            raise ValueError("At least one of local_server or github_environment is required")
         host_id = str(uuid4())
         self._hosts[host_id] = options
         params = {
             "hostId": host_id,
-            "authentication": authentication,
             "computeId": options.compute_id,
-            "workspace": options.workspace,
-            "allowCreatingNewSessions": options.allow_creating_new_sessions,
             "localServer": (
                 options.local_server.to_dict() if options.local_server is not None else None
             ),
@@ -376,11 +277,6 @@ class _AhpHostManager:
             raise
 
     def notification(self, method: str, params: dict[str, Any]) -> bool:
-        if method == "host.authenticationCancelled":
-            authentication = self._authentications.get(params["requestId"])
-            if authentication is not None and authentication.host_id == params["hostId"]:
-                authentication.cancellation.set()
-            return True
         if method == "host.sessionReleased":
             entry = self._handoffs.get(params["handoffId"])
             if entry is not None and entry.host_id == params["hostId"]:
@@ -413,97 +309,10 @@ class _AhpHostManager:
 
     def _release_host(self, host_id: str) -> AhpHostOptions | None:
         options = self._hosts.pop(host_id, None)
-        for entry in self._authentications.values():
-            if entry.host_id == host_id:
-                entry.cancellation.set()
         for handoff_id, entry in list(self._handoffs.items()):
             if entry.host_id == host_id:
                 self._release(handoff_id)
         return options
-
-    def validate_authentication(self, params: dict[str, Any]) -> Awaitable[dict[str, str] | None]:
-        host_id, request_id = params["hostId"], params["requestId"]
-        options = self._hosts.get(host_id)
-        auth = options.authentication if options else None
-        if (
-            auth is None
-            or auth.mode != "custom"
-            or auth.authenticate is None
-            or request_id in self._authentications
-        ):
-            raise ValueError("AHP authenticator is unavailable or request already exists")
-        entry = _Authentication(host_id)
-        self._authentications[request_id] = entry
-        return self._validate_authentication(params, options, auth, entry)
-
-    async def _validate_authentication(
-        self,
-        params: dict[str, Any],
-        options: AhpHostOptions | None,
-        auth: AhpHostAuthentication,
-        entry: _Authentication,
-    ) -> dict[str, str] | None:
-        host_id, request_id = params["hostId"], params["requestId"]
-
-        async def invoke() -> AhpAuthenticationResult | None:
-            assert auth.authenticate is not None
-            return await auth.authenticate(
-                AhpAuthenticationRequest(params["token"], entry.cancellation)
-            )
-
-        work: asyncio.Task[Any] | None = None
-        cancelled: asyncio.Task[bool] | None = None
-        try:
-            if entry.cancellation.is_set() or self._hosts.get(host_id) is not options:
-                raise RuntimeError("AHP authentication ended")
-            if entry.cancellation.is_set() or self._hosts.get(host_id) is not options:
-                raise RuntimeError("AHP authentication ended")
-            work = asyncio.create_task(invoke())
-            self._tasks.add(work)
-
-            def completed(task: asyncio.Task[Any]) -> None:
-                self._tasks.discard(task)
-                if not task.cancelled():
-                    task.exception()
-
-            work.add_done_callback(completed)
-            cancelled = asyncio.create_task(entry.cancellation.wait())
-            await asyncio.wait([work, cancelled], return_when=asyncio.FIRST_COMPLETED)
-            if entry.cancellation.is_set() or self._hosts.get(host_id) is not options:
-                raise RuntimeError("AHP authentication ended")
-            try:
-                result = work.result()
-            except asyncio.CancelledError:
-                raise RuntimeError("AHP authentication was cancelled") from None
-            except Exception:
-                raise RuntimeError("AHP authentication failed") from None
-            if result is None:
-                return None
-            if (
-                not isinstance(result, AhpAuthenticationResult)
-                or result.identity != auth.require_identity
-                or not isinstance(result.expires_at, str)
-                or not re.fullmatch(
-                    r"\d{4}-\d{2}-\d{2}[Tt]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:[Zz]|[+-]\d{2}:\d{2})",
-                    result.expires_at,
-                )
-            ):
-                return None
-            try:
-                expiry = datetime.fromisoformat(result.expires_at.upper().replace("Z", "+00:00"))
-            except ValueError:
-                return None
-            if expiry <= datetime.now(UTC):
-                return None
-            return {"identity": result.identity, "expiresAt": result.expires_at}
-        finally:
-            if self._authentications.get(request_id) is entry:
-                del self._authentications[request_id]
-            entry.cancellation.set()
-            if cancelled is not None:
-                cancelled.cancel()
-            if work is not None:
-                work.cancel()
 
     def _release(self, handoff_id: str) -> None:
         entry = self._handoffs.pop(handoff_id, None)
@@ -545,23 +354,6 @@ class _AhpHostManager:
             raise ValueError("AHP session factory is unavailable or handoff already exists")
         if not (options.resume_session if resume else options.create_session):
             raise ValueError("AHP session factory is unavailable")
-        context = params.get("authentication", {})
-        assert options.authentication is not None
-        if (
-            context.get("mode") != options.authentication.mode
-            or (
-                context.get("mode") != "none"
-                and (
-                    not isinstance(context.get("identity"), str) or not context["identity"].strip()
-                )
-            )
-            or (
-                context.get("mode") == "custom"
-                and context.get("identity") != options.authentication.require_identity
-            )
-        ):
-            raise ValueError("Invalid trusted AHP authentication context")
-        authentication = AhpSessionAuthentication(context["mode"], context.get("identity"))
         expected = copy.deepcopy(params["config"])
         for public, wire in {
             "suppressResumeEvent": "disableResume",
@@ -584,14 +376,12 @@ class _AhpHostManager:
                     config.pop("session_id")
                     assert options.resume_session is not None
                     session = await options.resume_session(
-                        AhpSessionResumeRequest(
-                            session_id, config, entry.cancellation, authentication
-                        )
+                        AhpSessionResumeRequest(session_id, config, entry.cancellation)
                     )
                 else:
                     assert options.create_session is not None
                     session = await options.create_session(
-                        AhpSessionCreateRequest(config, entry.cancellation, authentication)
+                        AhpSessionCreateRequest(config, entry.cancellation)
                     )
                 entry.session = session
                 if entry.released:

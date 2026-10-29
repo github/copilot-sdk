@@ -8,7 +8,6 @@ from uuid import uuid4
 import pytest
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from copilot._jsonrpc import JsonRpcError
 from copilot.session import CopilotSession
 from copilot.session_events import SessionEvent
 
@@ -51,8 +50,6 @@ def fake_session(events=(), admission_error=None):
     session = CopilotSession("session-1", client)
 
     async def request(method, params):
-        if method == "session.sendAndWait":
-            raise JsonRpcError(-32601, "Method not found")
         assert method == "session.send"
         for item in events:
             session._dispatch_event(item)
@@ -149,9 +146,6 @@ async def test_plain_wait_ignores_prior_idle_and_correlates_its_start(before_ack
     sending = asyncio.Event()
 
     async def request(method, params):
-        if method == "session.sendAndWait":
-            raise JsonRpcError(-32601, "Method not found")
-        assert method == "session.send"
         sending.set()
         return await admission
 
@@ -228,9 +222,6 @@ async def test_plain_wait_preserves_pre_ack_outcome_through_retirement(terminal)
     final = assistant()
 
     async def request(method, params):
-        if method == "session.sendAndWait":
-            raise JsonRpcError(-32601, "Method not found")
-        assert method == "session.send"
         session._dispatch_event(final)
         session._dispatch_event(
             event("session.autopilot_stopped", {"reason": "task_complete", "requestId": "user-1"})
@@ -306,9 +297,6 @@ async def test_autopilot_terminal_isolates_concurrent_waits(structured):
     admitted = asyncio.Queue()
 
     async def request(method, params):
-        if method == "session.sendAndWait":
-            raise JsonRpcError(-32601, "Method not found")
-        assert method == "session.send"
         admitted.put_nowait(params["prompt"])
         return {"messageId": params["prompt"]}
 
@@ -467,8 +455,6 @@ async def test_wait_cleanup(kind):
     admitted = asyncio.Event()
 
     async def request(method, params):
-        if method == "session.sendAndWait":
-            raise JsonRpcError(-32601, "Method not found")
         admitted.set()
         return {"messageId": "user-1"}
 
@@ -498,8 +484,6 @@ async def test_concurrent_typed_waits_keep_their_own_origin():
     admitted = asyncio.Queue()
 
     async def request(method, params):
-        if method == "session.sendAndWait":
-            raise JsonRpcError(-32601, "Method not found")
         origin = params["prompt"]
         admitted.put_nowait(origin)
         return {"messageId": origin}

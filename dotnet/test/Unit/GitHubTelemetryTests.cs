@@ -17,32 +17,6 @@ namespace GitHub.Copilot.Test.Unit;
 
 public sealed class GitHubTelemetryTests
 {
-    [Fact]
-    public void Entra_Option_Is_Experimental()
-    {
-        var property = typeof(CopilotClientOptions).GetProperty(nameof(CopilotClientOptions.Entra))!;
-        var attribute = Assert.Single(property.GetCustomAttributes(
-            typeof(System.Diagnostics.CodeAnalysis.ExperimentalAttribute), inherit: false));
-        Assert.Equal("GHCP001",
-            ((System.Diagnostics.CodeAnalysis.ExperimentalAttribute)attribute).DiagnosticId);
-    }
-
-    [Fact]
-    public async Task Connect_Forwards_Entra_Configuration()
-    {
-        await using var server = await FakeTelemetryServer.StartAsync();
-        await using var client = new CopilotClient(new CopilotClientOptions
-        {
-            Connection = RuntimeConnection.ForUri(server.Url),
-            Entra = new EntraAuthConfig { ClientId = "host-entra-client" },
-        });
-        await client.StartAsync();
-
-        var parameters = server.LastConnectParams
-            ?? throw new InvalidOperationException("connect was not captured.");
-        Assert.Equal("host-entra-client", parameters.GetProperty("entra").GetProperty("clientId").GetString());
-    }
-
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

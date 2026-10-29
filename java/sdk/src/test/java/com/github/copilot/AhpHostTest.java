@@ -35,191 +35,8 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 @AllowCopilotExperimental
 class AhpHostTest {
-    @Test
-    void rejectsMissingInvalidAndIncompatibleAdmissionBeforeConnecting() throws Exception {
-        for (var mode : com.github.copilot.rpc.CopilotClientMode.values()) {
-            try (var server = new FakeRuntime();
-                    var client = new CopilotClient(new CopilotClientOptions().setMode(mode)
-                            .setCliUrl("127.0.0.1:" + server.listener.getLocalPort()))) {
-                for (var policy : Arrays.asList(null, new AhpHostAuthentication("invalid", null, null),
-                        AhpHostAuthentication.custom(" ", request -> null),
-                        new AhpHostAuthentication("custom", "owner", null))) {
-                    var error = assertThrows(Exception.class,
-                            () -> await(client.startAhpHost(localOptions().setAuthentication(policy))));
-                    assertInstanceOf(IllegalArgumentException.class, error.getCause());
-                }
-                for (var policy : List.of(AhpHostAuthentication.none(),
-                        AhpHostAuthentication.custom("owner", request -> null))) {
-                    assertThrows(Exception.class,
-                            () -> await(client.startAhpHost(localOptions().setAuthentication(policy)
-                                    .setGithubEnvironment(new HostGitHubEnvironmentOptions("host", "compute")))));
-                }
-                assertFalse(server.connected.isDone());
-            }
-        }
-    }
-
-    @ParameterizedTest
-    @ValueSource(strings = {"null", "throw", "null-future", "identity", "invalid", "past", "missing"})
-    void customValidationFailsClosed(String failure) throws Exception {
-        try (var server = new FakeRuntime(); var client = server.client()) {
-            var options = localOptions().setAuthentication(AhpHostAuthentication.custom("owner", request -> {
-                assertEquals("decrypted-token", request.token());
-                assertFalse(request.cancellation().toCompletableFuture().isDone());
-                if ("throw".equals(failure)) {
-                    throw new IllegalStateException("validator unavailable");
-                }
-                if ("null-future".equals(failure)) {
-                    return null;
-                }
-                return CompletableFuture.completedFuture("null".equals(failure)
-                        ? null
-                        : new AhpAuthenticationResult("identity".equals(failure) ? "other" : "owner",
-                                "invalid".equals(failure)
-                                        ? "not-a-date"
-                                        : "missing".equals(failure)
-                                                ? null
-                                                : "past".equals(failure)
-                                                        ? "2000-01-01T00:00:00Z"
-                                                        : "2099-01-01T00:00:00Z"));
-            }));
-            try (var host = await(client.startAhpHost(options))) {
-                assertThrows(Exception.class, () -> await(server.authenticate(host, "validation", "decrypted-token")));
-                assertEquals(Map.of("mode", "custom", "requireIdentity", "owner"), JsonRpcClient.getObjectMapper()
-                        .convertValue(await(server.startRequest).get("authentication"), Map.class));
-                assertFalse(await(server.startRequest).toString().contains("authenticate"));
-            }
-        }
-    }
-
-    @ParameterizedTest
-    @ValueSource(booleans = {true, false})
-    void cancelsAuthenticationAndFencesLateResults(boolean disconnect) throws Exception {
-        try (var server = new FakeRuntime(); var client = server.client()) {
-            var entered = new CompletableFuture<AhpAuthenticationRequest>();
-            var validator = new CompletableFuture<AhpAuthenticationResult>();
-            var host = await(client
-                    .startAhpHost(localOptions().setAuthentication(AhpHostAuthentication.custom("owner", request -> {
-                        entered.complete(request);
-                        return validator;
-                    }))));
-            var response = server.authenticate(host, "pending", "decrypted-token");
-            var request = await(entered);
-            assertThrows(Exception.class, () -> await(server.authenticate(host, "pending", "duplicate")));
-            if (disconnect) {
-                await(client.stop());
-            } else {
-                await(server.connected).notify("host.authenticationCancelled",
-                        Map.of("hostId", host.getHostId(), "requestId", "pending"));
-            }
-            await(request.cancellation().toCompletableFuture());
-            assertThrows(Exception.class, () -> await(response));
-            validator.complete(new AhpAuthenticationResult("owner", "2099-01-01T00:00:00Z"));
-            assertTrue(response.isCompletedExceptionally());
-            if (!disconnect) {
-                host.close();
-            }
-        }
-    }
-
-    @ParameterizedTest
-    @ValueSource(booleans = {true, false})
-    void customAndAnonymousCallbacksReceiveTrustedSiblingOnCreateAndResume(boolean custom) throws Exception {
-        try (var server = new FakeRuntime(); var client = server.client()) {
-            var policy = custom
-                    ? AhpHostAuthentication.custom("owner",
-                            request -> CompletableFuture
-                                    .completedFuture(new AhpAuthenticationResult("owner", "2099-01-01T00:00:00Z")))
-                    : AhpHostAuthentication.none();
-            var context = custom ? Map.of("mode", "custom", "identity", "owner") : Map.of("mode", "none");
-            var options = localOptions().setAuthentication(policy).setCreateSession(request -> {
-                assertEquals(policy.mode(), request.authentication().mode());
-                assertEquals(custom ? "owner" : null, request.authentication().identity());
-                assertNull(request.config().getGitHubToken());
-                return client.createSession(request.config().setOnPermissionRequest(PermissionHandler.APPROVE_ALL));
-            }).setResumeSession(request -> {
-                assertEquals(policy.mode(), request.authentication().mode());
-                assertEquals(custom ? "owner" : null, request.authentication().identity());
-                assertNull(request.config().getGitHubToken());
-                return client.resumeSession(request.sessionId(),
-                        request.config().setOnPermissionRequest(PermissionHandler.APPROVE_ALL));
-            });
-            try (var host = await(client.startAhpHost(options))) {
-                if (custom) {
-                    assertEquals("owner",
-                            await(server.authenticate(host, "valid", "decrypted-token")).path("identity").asText());
-                }
-
-                assertEquals("test-token", host.getToken());
-                for (boolean resume : List.of(false, true)) {
-                    String id = UUID.randomUUID().toString();
-                    var response = await(server.connected).invoke(
-                            "host.materializeSession", Map.of("hostId", host.getHostId(), "handoffId", id, "resume",
-                                    resume, "authentication", context, "config", Map.of("sessionId", id)),
-                            JsonNode.class);
-                    assertEquals(id, await(response).path("sessionId").asText());
-                    server.release(host, id);
-                }
-            }
-        }
-    }
-
-    @Test
-    void rejectsUntrustedOrMisplacedFactoryAuthentication() throws Exception {
-        try (var server = new FakeRuntime(); var client = server.client()) {
-            var calls = new AtomicInteger();
-            try (var host = await(
-                    client.startAhpHost(localOptions()
-                            .setAuthentication(AhpHostAuthentication.custom("owner",
-                                    request -> CompletableFuture.completedFuture(
-                                            new AhpAuthenticationResult("owner", "2099-01-01T00:00:00Z"))))
-                            .setCreateSession(request -> {
-                                calls.incrementAndGet();
-                                return CompletableFuture.failedFuture(new IllegalStateException("must not run"));
-                            })))) {
-                for (var context : List.of(Map.of("mode", "none"), Map.of("mode", "custom", "identity", "other"),
-                        Map.of("mode", "github", "identity", "owner"))) {
-                    assertThrows(Exception.class,
-                            () -> await(await(server.connected).invoke("host.materializeSession",
-                                    Map.of("hostId", host.getHostId(), "handoffId", UUID.randomUUID().toString(),
-                                            "authentication", context, "config", Map.of("sessionId", "requested")),
-                                    JsonNode.class)));
-                }
-                assertThrows(Exception.class,
-                        () -> await(await(server.connected).invoke("host.materializeSession",
-                                Map.of("hostId", host.getHostId(), "handoffId", UUID.randomUUID().toString(),
-                                        "authentication", Map.of("mode", "custom", "identity", "owner"), "config",
-                                        Map.of("sessionId", "requested", "authentication", Map.of("mode", "none"))),
-                                JsonNode.class)));
-                assertEquals(0, calls.get());
-            }
-        }
-    }
-
-    @Test
-    void rejectsMissingOrBlankGithubFactoryIdentity() throws Exception {
-        try (var server = new FakeRuntime(); var client = server.client()) {
-            var calls = new AtomicInteger();
-            try (var host = await(client.startAhpHost(localOptions().setCreateSession(request -> {
-                calls.incrementAndGet();
-                return CompletableFuture.failedFuture(new IllegalStateException("must not run"));
-            })))) {
-                for (var context : List.of(Map.of("mode", "github"), Map.of("mode", "github", "identity", ""),
-                        Map.of("mode", "github", "identity", " \t"))) {
-                    assertThrows(Exception.class,
-                            () -> await(await(server.connected).invoke("host.materializeSession",
-                                    Map.of("hostId", host.getHostId(), "handoffId", UUID.randomUUID().toString(),
-                                            "authentication", context, "config", Map.of("sessionId", "requested")),
-                                    JsonNode.class)));
-                }
-                assertEquals(0, calls.get());
-            }
-        }
-    }
-
     private static AhpHostOptions localOptions() {
-        return new AhpHostOptions().setAuthentication(AhpHostAuthentication.github())
-                .setLocalServer(new HostLocalServerOptions(null, null, null, null));
+        return new AhpHostOptions().setLocalServer(new HostLocalServerOptions(null, null, null, null));
     }
 
     private static <T> T await(CompletableFuture<T> future) throws Exception {
@@ -242,9 +59,8 @@ class AhpHostTest {
         for (String[] fields : new String[][]{{"", "compute"}, {" ", "compute"}, {"host", ""}, {"host", " "}}) {
             try (var server = new FakeRuntime();
                     var client = server.client();
-                    var host = await(
-                            client.startAhpHost(new AhpHostOptions().setAuthentication(AhpHostAuthentication.github())
-                                    .setGithubEnvironment(new HostGitHubEnvironmentOptions(fields[0], fields[1]))))) {
+                    var host = await(client.startAhpHost(new AhpHostOptions()
+                            .setGithubEnvironment(new HostGitHubEnvironmentOptions(fields[0], fields[1]))))) {
                 var environment = await(server.startRequest).path("githubEnvironment");
                 assertEquals(fields[0], environment.path("name").asText());
                 assertEquals(fields[1], environment.path("computeId").asText());
@@ -256,8 +72,7 @@ class AhpHostTest {
     @CsvSource({"true,false", "false,true", "true,true"})
     void forwardsExplicitTransportsAndOptionalReadiness(boolean local, boolean github) throws Exception {
         try (var server = new FakeRuntime(); var client = server.client()) {
-            var options = new AhpHostOptions().setAuthentication(AhpHostAuthentication.github())
-                    .setComputeId("compute");
+            var options = new AhpHostOptions().setComputeId("compute");
             if (local) {
                 options.setLocalServer(new HostLocalServerOptions("127.0.0.1", 0L, "test-token", true));
             }
@@ -267,7 +82,6 @@ class AhpHostTest {
             try (var host = await(client.startAhpHost(options))) {
                 var request = await(server.startRequest);
                 assertEquals("compute", request.path("computeId").asText());
-                assertFalse(request.has("workspace"));
                 assertEquals(local, request.hasNonNull("localServer"));
                 assertEquals(github, request.hasNonNull("githubEnvironment"));
                 for (String oldField : List.of("hostname", "port", "token", "requireConnectionToken")) {
@@ -293,14 +107,13 @@ class AhpHostTest {
     void snapshotsOptionsBeforeConnecting() throws Exception {
         try (var server = new FakeRuntime(); var client = server.client()) {
             server.finishConnect = new CompletableFuture<>();
-            var options = localOptions().setComputeId("compute").setWorkspace("/runtime/workspace")
+            var options = localOptions().setComputeId("compute")
                     .setGithubEnvironment(new HostGitHubEnvironmentOptions("original", "compute"));
             var pending = client.startAhpHost(options);
             await(server.connectEntered);
             try {
-                options.setComputeId("changed").setWorkspace("/changed/workspace").setLocalServer(null)
-                        .setGithubEnvironment(new HostGitHubEnvironmentOptions("", ""))
-                        .setAuthentication(AhpHostAuthentication.none());
+                options.setComputeId("changed").setLocalServer(null)
+                        .setGithubEnvironment(new HostGitHubEnvironmentOptions("", ""));
             } finally {
                 server.finishConnect.complete(null);
             }
@@ -308,10 +121,8 @@ class AhpHostTest {
                 var request = await(server.startRequest);
                 assertTrue(request.hasNonNull("localServer"));
                 assertEquals("compute", request.path("computeId").asText());
-                assertEquals("/runtime/workspace", request.path("workspace").asText());
                 assertEquals("original", request.path("githubEnvironment").path("name").asText());
                 assertEquals("compute", request.path("githubEnvironment").path("computeId").asText());
-                assertEquals("github", request.path("authentication").path("mode").asText());
             }
         }
     }
@@ -320,9 +131,8 @@ class AhpHostTest {
     void legacyEnvironmentOptionsOmitConnectionBinding() throws Exception {
         try (var server = new FakeRuntime();
                 var client = server.client();
-                var host = await(
-                        client.startAhpHost(new AhpHostOptions().setAuthentication(AhpHostAuthentication.github())
-                                .setGithubEnvironment(new HostGitHubEnvironmentOptions("test host", "compute"))))) {
+                var host = await(client.startAhpHost(new AhpHostOptions()
+                        .setGithubEnvironment(new HostGitHubEnvironmentOptions("test host", "compute"))))) {
             assertFalse(await(server.startRequest).path("githubEnvironment").has("requireConnectionBinding"));
         }
     }
@@ -332,9 +142,8 @@ class AhpHostTest {
     void forwardsExplicitConnectionBinding(boolean required) throws Exception {
         try (var server = new FakeRuntime();
                 var client = server.client();
-                var host = await(client.startAhpHost(
-                        new AhpHostOptions().setAuthentication(AhpHostAuthentication.github()).setGithubEnvironment(
-                                new HostGitHubEnvironmentOptions("test host", "compute", required))))) {
+                var host = await(client.startAhpHost(new AhpHostOptions()
+                        .setGithubEnvironment(new HostGitHubEnvironmentOptions("test host", "compute", required))))) {
             assertEquals(required,
                     await(server.startRequest).path("githubEnvironment").path("requireConnectionBinding").asBoolean());
         }
@@ -345,8 +154,7 @@ class AhpHostTest {
         var methods = Arrays.stream(ServerHostApi.class.getMethods())
                 .filter(method -> method.getDeclaringClass() == ServerHostApi.class).map(method -> method.getName())
                 .collect(Collectors.toSet());
-        assertEquals(Set.of("start", "dispose", "publishSession", "unpublishSession", "listSessions",
-                "setSessionCreationPolicy"), methods);
+        assertEquals(Set.of("start", "dispose", "publishSession", "unpublishSession", "listSessions"), methods);
     }
 
     @Test
@@ -654,15 +462,9 @@ class AhpHostTest {
 
         CompletableFuture<JsonNode> materialize(AhpHost host, String handoff, boolean resume,
                 Map<String, Object> config) throws Exception {
-            return await(connected).invoke(
-                    "host.materializeSession", Map.of("hostId", host.getHostId(), "handoffId", handoff, "resume",
-                            resume, "config", config, "authentication", Map.of("mode", "github", "identity", "owner")),
+            return await(connected).invoke("host.materializeSession",
+                    Map.of("hostId", host.getHostId(), "handoffId", handoff, "resume", resume, "config", config),
                     JsonNode.class);
-        }
-
-        CompletableFuture<JsonNode> authenticate(AhpHost host, String requestId, String token) throws Exception {
-            return await(connected).invoke("host.validateAuthentication",
-                    Map.of("hostId", host.getHostId(), "requestId", requestId, "token", token), JsonNode.class);
         }
 
         void release(AhpHost host, String handoff) throws Exception {
