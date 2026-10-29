@@ -1134,6 +1134,7 @@ func (c *Client) createSession(ctx context.Context, config *SessionConfig, runti
 			"",
 			hasManagedSettings(config.EnableManagedSettings, config.ManagedSettings),
 		)
+		s.owner = c
 
 		s.registerTools(config.Tools)
 		s.registerPermissionHandler(config.OnPermissionRequest)
@@ -1567,6 +1568,7 @@ func (c *Client) resumeSession(ctx context.Context, sessionID string, config *Re
 		"",
 		hasManagedSettings(config.EnableManagedSettings, config.ManagedSettings),
 	)
+	session.owner = c
 
 	session.registerTools(config.Tools)
 	session.registerPermissionHandler(config.OnPermissionRequest)
@@ -1701,7 +1703,14 @@ func (c *Client) resumeSession(ctx context.Context, sessionID string, config *Re
 		registrationTransferred = true
 	}
 	if replacedSession != nil && replacedSession != session {
+		replacedSession.superseded.Store(true)
 		replacedSession.releaseGitHubTokenProviderRegistration()
+		// A successful resume replaces the local wrapper for this session ID.
+		// Retire the old wrapper now that it is no longer routed by the client;
+		// otherwise its event consumer and session-scoped callbacks remain alive
+		// until the caller happens to disconnect the stale wrapper.
+		replacedSession.cancelPendingExternalTools()
+		replacedSession.stopEventProcessing()
 	}
 	return session, nil
 }
