@@ -428,6 +428,7 @@ struct OAuthMcpRequest {
 struct OAuthMcpServer {
     child: Child,
     url: String,
+    port: u16,
 }
 
 impl OAuthMcpServer {
@@ -456,16 +457,34 @@ impl OAuthMcpServer {
             .expect("OAuth MCP server startup timeout")
             .expect("read OAuth MCP startup line")
             .expect("OAuth MCP server stdout closed");
-        let url = line
-            .strip_prefix("Listening: ")
+        let port = line
+            .strip_prefix("Listening: http://127.0.0.1:")
             .unwrap_or_else(|| panic!("unexpected OAuth MCP startup line: {line}"))
-            .to_string();
-        Self { child, url }
+            .parse::<u16>()
+            .expect("OAuth MCP server port");
+        let url = format!("http://127.0.0.1:{port}");
+        Self { child, url, port }
     }
 
     async fn requests(&self) -> Vec<OAuthMcpRequest> {
+        let client = reqwest::Client::builder();
+        // macOS reqwest has no default rustls provider; this plain-HTTP client never handshakes.
+        #[cfg(target_os = "macos")]
+        let client = client.tls_backend_preconfigured(
+            rustls::ClientConfig::builder_with_provider(std::sync::Arc::new(
+                rustls::crypto::aws_lc_rs::default_provider(),
+            ))
+            .with_safe_default_protocol_versions()
+            .expect("OAuth MCP request TLS versions")
+            .with_root_certificates(rustls::RootCertStore::empty())
+            .with_no_client_auth(),
+        );
         // This test-only server binds to 127.0.0.1 and never sends request logs off-host.
-        let text = reqwest::get(format!("{}/__requests", self.url)) // codeql[rust/cleartext-transmission]
+        let text = client
+            .build()
+            .expect("build OAuth MCP request client")
+            .get(format!("http://127.0.0.1:{}/__requests", self.port)) // codeql[rust/cleartext-transmission]
+            .send()
             .await
             .expect("fetch OAuth MCP requests")
             .error_for_status()

@@ -43,7 +43,6 @@ rust_library(
     ),
     crate_features = [
         "default",
-        "vendored",
     ],
     crate_root = "src/lib.rs",
     edition = "2021",
@@ -107,7 +106,6 @@ cargo_build_script(
     ),
     crate_features = [
         "default",
-        "vendored",
     ],
     crate_name = "build_script_build",
     crate_root = "build.rs",

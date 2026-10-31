@@ -155,4 +155,20 @@ public final class SessionCommandsApi {
         return caller.invoke("session.commands.respondToQueuedCommand", _p, SessionCommandsRespondToQueuedCommandResult.class);
     }
 
+    /**
+     * Reports that the host's execution of a queued command started or stopped waiting for runtime state, so lifecycle progress can attribute the wait. Observational only: it never changes command execution.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    CompletableFuture<CommandsReportQueuedCommandWaitResult> reportQueuedCommandWait(SessionCommandsReportQueuedCommandWaitParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.commands.reportQueuedCommandWait", _p, CommandsReportQueuedCommandWaitResult.class);
+    }
+
 }

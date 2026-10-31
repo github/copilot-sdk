@@ -8,48 +8,54 @@ import { once } from "node:events";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { createMessageConnection } from "vscode-jsonrpc/node.js";
+import { createMessageConnection } from "vscode-jsonrpc/node";
 import { createInternalServerRpc } from "../src/generated/rpc.js";
 
 async function showFeatureFlags(rpc: ReturnType<typeof createInternalServerRpc>) {
     await rpc.connect({});
     const { flags } = await rpc.featureFlags.listMetadata();
-    assert.equal(flags.TASK_ANALYTICS.name, "TASK_ANALYTICS");
-    assert.equal(flags.TASK_ANALYTICS.expFlagEnvVar, "COPILOT_EXP_COPILOT_CLI_TASK_ANALYTICS");
+    assert.equal(
+        flags.DYNAMIC_INSTRUCTIONS_RETRIEVAL_MCP.name,
+        "DYNAMIC_INSTRUCTIONS_RETRIEVAL_MCP"
+    );
+    assert.equal(
+        flags.DYNAMIC_INSTRUCTIONS_RETRIEVAL_MCP.expFlagEnvVar,
+        "COPILOT_EXP_COPILOT_CLI_DYNAMIC_INSTRUCTIONS_RETRIEVAL_MCP"
+    );
 
     const population = { isStaff: false, isExperimental: false, isTeam: false };
     const experimentOnly = await rpc.featureFlags.resolve({
         ...population,
-        environment: { COPILOT_EXP_COPILOT_CLI_TASK_ANALYTICS: "true" },
+        environment: { COPILOT_EXP_COPILOT_CLI_DYNAMIC_INSTRUCTIONS_RETRIEVAL_MCP: "true" },
     });
-    assert.equal(experimentOnly.TASK_ANALYTICS, false);
+    assert.equal(experimentOnly.DYNAMIC_INSTRUCTIONS_RETRIEVAL_MCP, false);
 
     const request = {
         ...population,
-        baseFlags: { TASK_ANALYTICS: false },
-        environment: { TASK_ANALYTICS: "true" },
+        baseFlags: { DYNAMIC_INSTRUCTIONS_RETRIEVAL_MCP: false },
+        environment: { DYNAMIC_INSTRUCTIONS_RETRIEVAL_MCP: "true" },
     };
     const environment = await rpc.featureFlags.resolve(request);
-    const config = { enabledFeatureFlags: { TASK_ANALYTICS: false } };
+    const config = { enabledFeatureFlags: { DYNAMIC_INSTRUCTIONS_RETRIEVAL_MCP: false } };
     const settings = await rpc.featureFlags.resolve({ ...request, config });
     const explicit = await rpc.featureFlags.resolve({
         ...request,
         config,
-        flagOverrides: { TASK_ANALYTICS: true },
+        flagOverrides: { DYNAMIC_INSTRUCTIONS_RETRIEVAL_MCP: true },
     });
-    assert.deepEqual(environment, { TASK_ANALYTICS: true });
-    assert.deepEqual(settings, { TASK_ANALYTICS: false });
-    assert.deepEqual(explicit, { TASK_ANALYTICS: true });
+    assert.deepEqual(environment, { DYNAMIC_INSTRUCTIONS_RETRIEVAL_MCP: true });
+    assert.deepEqual(settings, { DYNAMIC_INSTRUCTIONS_RETRIEVAL_MCP: false });
+    assert.deepEqual(explicit, { DYNAMIC_INSTRUCTIONS_RETRIEVAL_MCP: true });
 
     console.log(
         JSON.stringify({
             declaredFlags: Object.keys(flags).length,
-            metadata: flags.TASK_ANALYTICS,
+            metadata: flags.DYNAMIC_INSTRUCTIONS_RETRIEVAL_MCP,
             staticResolution: {
-                experimentOnly: experimentOnly.TASK_ANALYTICS,
-                environment: environment.TASK_ANALYTICS,
-                settings: settings.TASK_ANALYTICS,
-                explicit: explicit.TASK_ANALYTICS,
+                experimentOnly: experimentOnly.DYNAMIC_INSTRUCTIONS_RETRIEVAL_MCP,
+                environment: environment.DYNAMIC_INSTRUCTIONS_RETRIEVAL_MCP,
+                settings: settings.DYNAMIC_INSTRUCTIONS_RETRIEVAL_MCP,
+                explicit: explicit.DYNAMIC_INSTRUCTIONS_RETRIEVAL_MCP,
             },
         })
     );

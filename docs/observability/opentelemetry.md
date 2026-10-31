@@ -112,6 +112,25 @@ let client = Client::start(ClientOptions::new()
 
 The OTLP protocol field configures the CLI's `"otlp-http"` exporter for all signals. Leave it unset to use the CLI default, or set it to `"http/protobuf"` to export protobuf over HTTP.
 
+### Images and multimodal tool results
+
+Content remains opt-in. Prompt capture includes supported user image attachments
+as base64 `blob` parts with `modality=image` and the image MIME type. Tool output
+capture records `gen_ai.tool.call.result` as an object, including available
+client-facing multimodal content. The subsequent conversation inference instead
+records the model-facing tool response: client-only images are not substituted
+for model input. Interned images are resolved locally; unavailable, unsupported,
+and oversized model-facing images retain their omission behavior. Local asset
+hashes are never reported as provider file IDs.
+Telemetry does not read image paths: attachments need materialized bytes or
+resolvable asset data.
+
+Multimodal tool results use the existing session events and INTERNAL
+`execute_tool` spans, regardless of which tool produced the image.
+Tool-origin images require tool-output capture, not assistant-response capture.
+Changing capture policy clears the binary cache. The existing feature-gated
+image HTTP trace carrier continues to identify the tool span.
+
 ### Skill and command telemetry
 
 The runtime follows the [GenAI skill semantic conventions](https://github.com/open-telemetry/semantic-conventions-genai/commit/771e3210f7518694666834f7243573b8018c7a4f)
@@ -167,6 +186,8 @@ The SDK can propagate W3C Trace Context (`traceparent`/`tracestate`) on JSON-RPC
 
 For cost attribution alongside traces, subscribe to `assistant.usage` events and inspect `apiEndpoint` (`AssistantUsageApiEndpoint`) to see whether a turn used Chat Completions, Responses, or Anthropic Messages; see [Streaming events](../features/streaming-events.md).
 
+Manual and automatic conversation compaction also emit a separate `chat {model}` span for each logical model dispatch, falling back to `chat` when the model is unavailable, and mark it with `github.copilot.request.type = "compaction"`. The span covers retries and ends on success, failure, or cancellation. Successful responses include provider-reported token usage and AI credits when available, even if the resulting summary is not applied. Compaction contributes to the existing `gen_ai.client.inference.usage.*` token counters, `gen_ai.client.inference.operation.input_tokens` and `gen_ai.client.inference.operation.output_tokens` histograms, and `gen_ai.client.inference.duration` histogram. These metrics aggregate foreground and compaction work; `github.copilot.request.type` is only a span attribute, not a metric dimension for separating them. Each dispatch counts once toward the originating active agent or subagent's `gen_ai.invoke_agent.inference_calls`, including failures; idle manual compaction has no active invocation to charge. Compaction does not emit an additional `assistant.usage` event or change session billing, and its spans do not capture the conversation or summary text. Charges not reported by the provider cannot be recovered from these spans.
+
 #### SDK → CLI (outbound)
 
 For **Node.js**, provide an `onGetTraceContext` callback on the client options. This is only needed if your application already uses `@opentelemetry/api` and you want to link your spans with the CLI's spans. The SDK calls this callback before `session.create`, `session.resume`, and `session.send` RPCs:
@@ -194,7 +215,7 @@ When the CLI invokes a tool handler, the `traceparent` and `tracestate` from the
 
 * **Go**: The `ToolInvocation.TraceContext` field is a `context.Context` with the trace already restored—use it directly as the parent for your spans.
 * **Python**: Trace context is automatically restored around the handler via `trace_context()`—child spans are parented to the CLI's span automatically.
-* **.NET**: Trace context is automatically restored via `RestoreTraceContext()`—child `Activity` instances are parented to the CLI's span automatically.
+* **.NET**: Configure `AddSource("github.copilot")` to export `copilot.tool_handler` parents under CLI spans; without listeners, only context propagates.
 * **Node.js**: Since the SDK has no OpenTelemetry dependency, `traceparent` and `tracestate` are passed as raw strings on the `ToolInvocation` object. Restore the context manually if needed:
 
 <!-- docs-validate: skip -->

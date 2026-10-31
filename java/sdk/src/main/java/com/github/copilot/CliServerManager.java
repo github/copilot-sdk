@@ -478,6 +478,8 @@ final class CliServerManager {
                 pb.environment().put("COPILOT_OTEL_SOURCE_NAME", telemetry.getSourceName());
             }
             if (telemetry.getCaptureContent().isPresent()) {
+                pb.environment().put("OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT",
+                        telemetry.getCaptureContent().get() ? "SPAN_ONLY" : "NO_CONTENT");
                 pb.environment().put("OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT",
                         telemetry.getCaptureContent().get() ? "true" : "false");
             }

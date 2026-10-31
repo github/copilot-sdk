@@ -209,6 +209,7 @@ client.stop().get();
 | `bearerTokenProvider` / `bearer_token_provider` | callback | Returns a bearer token on demand (takes precedence over `apiKey`, `apiKeyCommand`, and `bearerToken`; the command does not run) |
 | `wireApi` / `wire_api` | `"completions"` \| `"responses"` | Select `"completions"` for broad model compatibility (the Chat Completions API); select `"responses"` for multi-turn state management, tool namespacing, and reasoning support (the Responses API). Anthropic models always use the Messages API regardless of this setting. |
 | `azure.apiVersion` / `azure.api_version` | string | Azure API version. When set, the runtime uses the versioned deployment route; when omitted, it uses the GA versionless `v1` route. |
+| `modelProvider` / `model_provider` | string | The product serving the model, reported in telemetry. Set `"azure_openai"` for a proxy or custom domain in front of Azure OpenAI: like an Azure OpenAI host, it makes Responses requests omit explicit `prompt_cache_breakpoint` markers, which limit cross-turn cache reuse on Azure. |
 
 ### Wire API format
 

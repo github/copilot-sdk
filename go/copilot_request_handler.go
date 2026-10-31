@@ -287,6 +287,11 @@ func (h *CopilotRequestHandler) handleWebSocket(rctx *CopilotRequestContext, sin
 	clientDone := make(chan struct{})
 	go func() {
 		defer close(clientDone)
+		defer func() {
+			if failure := recover(); failure != nil {
+				_ = writer.fail(fmt.Sprintf("CopilotWebSocketHandler.SendRequestMessage panicked: %v", failure), "")
+			}
+		}()
 		for {
 			select {
 			case frame, ok := <-rctx.body:
@@ -438,6 +443,11 @@ func (f *CopilotWebSocketForwarder) dialHeaders() http.Header {
 
 func (f *CopilotWebSocketForwarder) receiveLoop(ctx context.Context) {
 	defer close(f.done)
+	defer func() {
+		if failure := recover(); failure != nil {
+			f.err = fmt.Errorf("CopilotWebSocketForwarder panicked while forwarding a response message: %v", failure)
+		}
+	}()
 	for {
 		typ, data, err := f.conn.Read(ctx)
 		if err != nil {
@@ -680,10 +690,21 @@ func (a *copilotRequestAdapter) routeChunk(exchange *pendingExchange, params *rp
 	}
 }
 
+// callHandler runs the handler and returns a panic as an error, so the request
+// fails like any other handler error instead of the panic ending the process.
+func (a *copilotRequestAdapter) callHandler(rctx *CopilotRequestContext, sink *responseSink) (err error) {
+	defer func() {
+		if failure := recover(); failure != nil {
+			err = fmt.Errorf("CopilotRequestHandler panicked: %v", failure)
+		}
+	}()
+	return a.handler.handle(rctx, sink)
+}
+
 func (a *copilotRequestAdapter) runHandler(rctx *CopilotRequestContext, sink *responseSink, exchange *pendingExchange) {
 	defer exchange.cancel(nil)
 
-	err := a.handler.handle(rctx, sink)
+	err := a.callHandler(rctx, sink)
 	if err != nil {
 		cause := context.Cause(exchange.ctx)
 		if errors.Is(cause, errRuntimeRequestCancelled) {

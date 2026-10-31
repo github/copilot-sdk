@@ -24,6 +24,17 @@ fn rejects_client_and_configuration_failures() {
     assert!(!download::is_transient(&ureq::Error::TlsRequired));
 }
 
+#[cfg(not(target_os = "macos"))]
+#[test]
+fn native_tls_configuration_failures_remain_terminal() {
+    let error = native_tls::Certificate::from_der(b"invalid certificate")
+        .err()
+        .expect("invalid DER must be rejected");
+    let error: ureq::Error = error.into();
+    assert!(matches!(&error, ureq::Error::NativeTls(_)));
+    assert!(!download::is_transient(&error));
+}
+
 #[test]
 fn reports_http_reason_and_distinguishes_other_errors() {
     assert_eq!(
@@ -34,6 +45,25 @@ fn reports_http_reason_and_distinguishes_other_errors() {
         download::message(&ureq::Error::InvalidProxyUrl),
         "download error: invalid proxy url"
     );
+}
+
+#[test]
+fn builds_platform_tls_agent() {
+    let agent = download::agent();
+    #[cfg(target_os = "macos")]
+    assert_eq!(
+        agent.config().tls_config().provider(),
+        ureq::tls::TlsProvider::Rustls
+    );
+    #[cfg(not(target_os = "macos"))]
+    assert_eq!(
+        agent.config().tls_config().provider(),
+        ureq::tls::TlsProvider::NativeTls
+    );
+    assert!(matches!(
+        agent.config().tls_config().root_certs(),
+        ureq::tls::RootCerts::PlatformVerifier
+    ));
 }
 
 #[test]

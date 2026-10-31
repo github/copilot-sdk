@@ -46,10 +46,7 @@ class ManagedSettingsTest {
         assertTrue(resume.getEnforceManagedModelDefaults());
         assertEquals(Boolean.TRUE, create.getInteractiveUser());
         assertEquals(Boolean.TRUE, resume.getInteractiveUser());
-        var mapper = new ObjectMapper();
-        var json = mapper.writeValueAsString(create);
-        var resumeJson = mapper.readTree(mapper.writeValueAsString(resume));
-        assertEquals(mapper.valueToTree(List.of("deniedMcpServers")), resumeJson.get("excludedManagedSettings"));
+        var json = new ObjectMapper().writeValueAsString(create);
         assertTrue(json.contains("\"enableManagedSettings\":true"));
         assertTrue(json.contains("\"excludedManagedSettings\":[\"sandbox\",\"allowedMcpServers\"]"));
         assertTrue(json.contains("\"enforceManagedModelDefaults\":true"));
@@ -58,32 +55,6 @@ class ManagedSettingsTest {
         assertTrue(json.contains("\"disableBypassPermissionsMode\":\"disable\""));
         assertTrue(json.contains("\"limitTo\":[\"Domain(github.com)\"]"));
         assertTrue(json.contains("\"disableAssistedPermissionsMode\":true"));
-    }
-
-    @Test
-    void omitsExcludedManagedSettingsWhenUnset() throws Exception {
-        var create = SessionRequestBuilder.buildCreateRequest(new SessionConfig(), "default-create");
-        var resume = SessionRequestBuilder.buildResumeRequest("default-resume", new ResumeSessionConfig());
-        var mapper = new ObjectMapper();
-
-        for (var request : List.of(create, resume)) {
-            var json = mapper.readTree(mapper.writeValueAsString(request));
-            assertFalse(json.has("excludedManagedSettings"), json.toString());
-        }
-    }
-
-    @Test
-    void preservesExplicitEmptyExcludedManagedSettings() throws Exception {
-        var create = SessionRequestBuilder.buildCreateRequest(new SessionConfig().setExcludedManagedSettings(List.of()),
-                "empty-exclusions-create");
-        var resume = SessionRequestBuilder.buildResumeRequest("empty-exclusions-resume",
-                new ResumeSessionConfig().setExcludedManagedSettings(List.of()));
-        var mapper = new ObjectMapper();
-
-        for (var request : List.of(create, resume)) {
-            var json = mapper.readTree(mapper.writeValueAsString(request));
-            assertEquals(mapper.readTree("[]"), json.get("excludedManagedSettings"), json.toString());
-        }
     }
 
     @Test

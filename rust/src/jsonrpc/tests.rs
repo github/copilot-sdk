@@ -129,6 +129,52 @@ fn deserialize_rejects_non_object() {
 }
 
 #[test]
+fn frame_decoder_preserves_message_classification_payloads_and_errors() {
+    for body in [
+        r#"{"jsonrpc":"2.0","id":1,"result":{}}"#,
+        r#"{"jsonrpc":"2.0","id":1,"result":null}"#,
+        r#"{"jsonrpc":"2.0","id":1,"result":[false,{"value":0.125}]}"#,
+        r#"{"jsonrpc":"2.0","id":1,"error":{"code":4294967296,"message":"wide","data":{"nested":[null,true]}}}"#,
+        r#"{"jsonrpc":"2.0","id":null,"error":{"code":-32700,"message":"uncorrelated"}}"#,
+        r#"{"jsonrpc":"2.0","method":"notify","params":{"text":"value"}}"#,
+        r#"{"jsonrpc":"2.0","method":"notify","params":null,"result":false,"error":false}"#,
+        r#"{"jsonrpc":"2.0","id":2,"method":"request","params":[1,null,true]}"#,
+        r#"{"jsonrpc":"2.0","id":2,"method":"request","result":false,"error":false}"#,
+        r#"{"jsonrpc":"2.0","id":2,"met\u0068od":"request","params":{}}"#,
+        r#"{"jsonrpc":"2.0","id":1,"result":{},"extra":{"nested":[1,2]}}"#,
+        r#"{"jsonrpc":"2.0","id":1,"id":2,"result":{}}"#,
+        r#"{"jsonrpc":"2.0","method":false,"method":"notify","params":{}}"#,
+        r#"{"jsonrpc":"2.0","method":"notify","params":{},"params":[1,2]}"#,
+        r#"{"jsonrpc":"1.0","id":1,"result":{}}"#,
+        r#"{"jsonrpc":false,"id":1,"result":{}}"#,
+        r#"{"id":1,"result":{}}"#,
+        r#"{"jsonrpc":"2.0","id":null,"result":{}}"#,
+        r#"{"jsonrpc":"2.0","id":null,"method":"request"}"#,
+        r#"{"jsonrpc":"2.0","id":1,"method":null}"#,
+        r#"{"jsonrpc":"2.0","id":-1,"result":{}}"#,
+        r#"{"jsonrpc":"2.0","id":1.5,"result":{}}"#,
+        r#"{"jsonrpc":"2.0","id":"string","result":{}}"#,
+        r#"{"jsonrpc":"2.0","id":1,"error":false}"#,
+        r#"{"jsonrpc":"2.0","id":null,"error":null}"#,
+        r#"{"jsonrpc":"2.0","result":{}}"#,
+        r#"["2.0",1,"request",{},null,null]"#,
+        r#"null"#,
+        r#""text""#,
+        r#"{"jsonrpc":"2.0","id":1,"result":"\ud83d"}"#,
+        r#"{"jsonrpc":"2.0","id":1,"result":{}} trailing"#,
+        r#"{"jsonrpc":"2.0","id":1,"result":{},}"#,
+    ] {
+        let expected = serde_json::from_str::<JsonRpcMessage>(body)
+            .map(|message| serde_json::to_value(message).unwrap())
+            .map_err(|error| error.to_string());
+        let actual = JsonRpcMessage::from_slice(body.as_bytes())
+            .map(|message| serde_json::to_value(message).unwrap())
+            .map_err(|error| error.to_string());
+        assert_eq!(actual, expected, "{body}");
+    }
+}
+
+#[test]
 fn deserialize_preserves_optional_payloads() {
     for payload in [
         None,
@@ -382,4 +428,75 @@ fn response_without_error_omits_field() {
     };
     let json = serde_json::to_string(&r).unwrap();
     assert!(!json.contains("error"));
+}
+
+#[tokio::test]
+async fn request_after_the_read_loop_ended_leaves_no_pending_entry() {
+    for eager in [false, true] {
+        let (client_write, _server_read) = tokio::io::duplex(4096);
+        let (server_write, client_read) = tokio::io::duplex(4096);
+        let (notification_tx, _) = broadcast::channel(16);
+        let (request_tx, _request_rx) = mpsc::unbounded_channel();
+        let client = JsonRpcClient::new(client_write, client_read, notification_tx, request_tx);
+        let closed = client.connection_closed_token();
+        // The peer closes its side: the read loop ends and drains its requests.
+        drop(server_write);
+        tokio::time::timeout(std::time::Duration::from_secs(5), closed.cancelled())
+            .await
+            .expect("the read loop did not end");
+
+        let error = if eager {
+            match client.begin_request_with_inline_callback("ping", None, None) {
+                Err(error) => error,
+                Ok(_) => panic!("the eager request after the close was not refused"),
+            }
+        } else {
+            tokio::time::timeout(
+                std::time::Duration::from_secs(5),
+                client.send_request("ping", None),
+            )
+            .await
+            .expect("the request after the close was not refused")
+            .unwrap_err()
+        };
+        assert_eq!(error.kind(), &ErrorKind::Io);
+        assert!(
+            client.pending_requests.read().is_empty(),
+            "the refused request left its entry (eager: {eager})"
+        );
+    }
+}
+
+#[tokio::test]
+async fn notification_receivers_share_one_parsed_notification() {
+    let (client_write, _server_read) = tokio::io::duplex(4096);
+    let (mut server_write, client_read) = tokio::io::duplex(4096);
+    let (notification_tx, mut first) = broadcast::channel(16);
+    let mut second = notification_tx.subscribe();
+    let (request_tx, _request_rx) = mpsc::unbounded_channel();
+    let _client = JsonRpcClient::new(client_write, client_read, notification_tx, request_tx);
+
+    let body = br#"{"jsonrpc":"2.0","method":"session.event","params":{"sessionId":"s1","event":{"data":{"deltaContent":"hi"}}}}"#;
+    server_write
+        .write_all(format!("Content-Length: {}\r\n\r\n", body.len()).as_bytes())
+        .await
+        .unwrap();
+    server_write.write_all(body).await.unwrap();
+
+    let deadline = std::time::Duration::from_secs(5);
+    let first = tokio::time::timeout(deadline, first.recv())
+        .await
+        .expect("first receiver got no notification")
+        .unwrap();
+    let second = tokio::time::timeout(deadline, second.recv())
+        .await
+        .expect("second receiver got no notification")
+        .unwrap();
+    // Each receiver gets the same parsed notification, not a deep copy of it.
+    assert!(Arc::ptr_eq(&first, &second));
+    assert_eq!(first.method, "session.event");
+    assert_eq!(
+        first.params.as_ref().unwrap()["event"]["data"]["deltaContent"],
+        "hi"
+    );
 }

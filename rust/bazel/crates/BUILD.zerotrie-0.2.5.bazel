@@ -67,7 +67,7 @@ rust_library(
     }),
     version = "0.2.5",
     deps = [
-        "@sdk_vendor__yoke-0.8.3//:yoke",
+        "@sdk_vendor__yoke-0.8.4//:yoke",
         "@sdk_vendor__zerofrom-0.1.8//:zerofrom",
     ],
 )

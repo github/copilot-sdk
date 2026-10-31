@@ -170,8 +170,12 @@ func TestTelemetryE2E(t *testing.T) {
 		if got := stringAttr(toolSpan, "gen_ai.tool.call.arguments"); got != expectedArgs {
 			t.Errorf("Expected gen_ai.tool.call.arguments=%q, got %q", expectedArgs, got)
 		}
-		if got := stringAttr(toolSpan, "gen_ai.tool.call.result"); got != marker {
-			t.Errorf("Expected gen_ai.tool.call.result=%q, got %q", marker, got)
+		var toolResult map[string]string
+		if err := json.Unmarshal([]byte(stringAttr(toolSpan, "gen_ai.tool.call.result")), &toolResult); err != nil {
+			t.Fatalf("Invalid gen_ai.tool.call.result JSON: %v", err)
+		}
+		if len(toolResult) != 1 || toolResult["content"] != marker {
+			t.Errorf("Expected gen_ai.tool.call.result={\"content\":%q}, got %#v", marker, toolResult)
 		}
 	})
 

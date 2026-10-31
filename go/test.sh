@@ -9,7 +9,7 @@ echo
 
 # Check prerequisites
 if ! command -v go &> /dev/null; then
-    echo "❌ Go is not installed. Please install Go 1.24 or later."
+    echo "❌ Go is not installed. Please install Go 1.26.0 or later."
     echo "   Visit: https://golang.org/dl/"
     exit 1
 fi

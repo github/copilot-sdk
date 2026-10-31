@@ -17,7 +17,7 @@ use std::sync::{Arc, OnceLock};
 use std::task::{Context, Poll};
 
 use libloading::Library;
-use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
+use tokio::io::{AsyncRead, ReadBuf};
 use tokio::sync::mpsc;
 use tracing::{debug, warn};
 
@@ -63,7 +63,7 @@ extern "C" fn on_outbound(user_data: *mut c_void, bytes: *const u8, len: usize) 
 }
 
 /// Bound exports and connection lifecycle state, shared between the
-/// [`FfiWriter`] and the owning [`Client`]. The cdylib itself is loaded
+/// synchronous frame sender and the owning [`Client`]. The cdylib itself is loaded
 /// process-globally and never unloaded (see [`load_library`]), so this holds
 /// only the bound fn pointers and connection state.
 pub(crate) struct FfiShared {
@@ -134,23 +134,28 @@ impl FfiShared {
     /// Close the connection, shut down an owned host, and free the callback state.
     /// Idempotent; called from [`Client::stop`], drop, and on startup failure.
     pub(crate) fn close(&self) {
-        let _operation = self.operation_lock.lock();
-        if self.closed.swap(true, Ordering::SeqCst) {
-            return;
-        }
-        let state = self.callback_state.load(Ordering::SeqCst);
-        if !state.is_null() {
-            unsafe { &*state }.closing.store(true, Ordering::SeqCst);
-        }
-        let conn = self.connection_id.load(Ordering::SeqCst);
+        let (conn, server, state) = {
+            let _operation = self.operation_lock.lock();
+            if self.closed.swap(true, Ordering::SeqCst) {
+                return;
+            }
+            let state = self
+                .callback_state
+                .swap(std::ptr::null_mut(), Ordering::SeqCst);
+            if !state.is_null() {
+                unsafe { &*state }.closing.store(true, Ordering::SeqCst);
+            }
+            (
+                self.connection_id.swap(0, Ordering::SeqCst),
+                self.server_id.swap(0, Ordering::SeqCst),
+                state as usize,
+            )
+        };
+        // New sends now fail without waiting for native close or host shutdown.
+        // The callback state remains alive until native callbacks are quiescent.
         if conn != 0 {
             let quiesced = unsafe { (self.connection_close)(conn) };
             if !quiesced {
-                let conn = self.connection_id.swap(0, Ordering::SeqCst);
-                let server = self.server_id.swap(0, Ordering::SeqCst);
-                let state =
-                    self.callback_state
-                        .swap(std::ptr::null_mut(), Ordering::SeqCst) as usize;
                 let connection_close = self.connection_close;
                 let host_shutdown = self.host_shutdown;
                 let owns_host = self.owns_host;
@@ -180,12 +185,7 @@ impl FfiShared {
                 }
                 return;
             }
-            self.connection_id.store(0, Ordering::SeqCst);
         }
-        let server = self.server_id.swap(0, Ordering::SeqCst);
-        let state = self
-            .callback_state
-            .swap(std::ptr::null_mut(), Ordering::SeqCst) as usize;
         release_callback_state(state);
         if self.owns_host && server != 0 && !unsafe { (self.host_shutdown)(server) } {
             warn!(
@@ -197,17 +197,20 @@ impl FfiShared {
         debug!(library = %self.library_path.display(), "FFI runtime connection closed");
     }
 
-    fn write_frame(&self, frame: &[u8]) -> bool {
+    pub(crate) fn write_frame(&self, frame: &[u8]) -> std::io::Result<()> {
         let _operation = self.operation_lock.lock();
-        if self.closed.load(Ordering::SeqCst) {
-            return false;
-        }
-
         let conn = self.connection_id.load(Ordering::SeqCst);
-        if conn == 0 {
-            return false;
+        if !self.closed.load(Ordering::SeqCst)
+            && conn != 0
+            && unsafe { (self.connection_write)(conn, frame.as_ptr(), frame.len()) }
+        {
+            Ok(())
+        } else {
+            Err(std::io::Error::new(
+                std::io::ErrorKind::BrokenPipe,
+                "failed to write a frame to the in-process runtime connection",
+            ))
         }
-        unsafe { (self.connection_write)(conn, frame.as_ptr(), frame.len()) }
     }
 }
 
@@ -254,37 +257,6 @@ impl AsyncRead for FfiReader {
         let start = self.pos;
         buf.put_slice(&self.leftover[start..start + n]);
         self.pos += n;
-        Poll::Ready(Ok(()))
-    }
-}
-
-/// Write side of the FFI transport. Each frame is forwarded synchronously to
-/// the native `connection_write` export (native copies before returning).
-pub(crate) struct FfiWriter {
-    shared: Arc<FfiShared>,
-}
-
-impl AsyncWrite for FfiWriter {
-    fn poll_write(
-        self: Pin<&mut Self>,
-        _cx: &mut Context<'_>,
-        buf: &[u8],
-    ) -> Poll<std::io::Result<usize>> {
-        if self.shared.write_frame(buf) {
-            Poll::Ready(Ok(buf.len()))
-        } else {
-            Poll::Ready(Err(std::io::Error::new(
-                std::io::ErrorKind::BrokenPipe,
-                "failed to write a frame to the in-process runtime connection",
-            )))
-        }
-    }
-
-    fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
-        Poll::Ready(Ok(()))
-    }
-
-    fn poll_shutdown(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
         Poll::Ready(Ok(()))
     }
 }
@@ -397,7 +369,7 @@ impl FfiHost {
     }
 
     /// Start the native runtime and open the FFI JSON-RPC connection.
-    pub(crate) async fn start(self) -> Result<(FfiReader, FfiWriter, Arc<FfiShared>), Error> {
+    pub(crate) async fn start(self) -> Result<(FfiReader, Arc<FfiShared>), Error> {
         tokio::task::spawn_blocking(move || self.start_blocking())
             .await
             .map_err(|e| {
@@ -408,7 +380,7 @@ impl FfiHost {
             })?
     }
 
-    fn start_blocking(self) -> Result<(FfiReader, FfiWriter, Arc<FfiShared>), Error> {
+    fn start_blocking(self) -> Result<(FfiReader, Arc<FfiShared>), Error> {
         let argv = build_argv_json(
             self.cli_entrypoint.as_deref(),
             self.integration_id.as_deref(),
@@ -491,10 +463,7 @@ impl FfiHost {
             leftover: Vec::new(),
             pos: 0,
         };
-        let writer = FfiWriter {
-            shared: Arc::clone(&shared),
-        };
-        Ok((reader, writer, shared))
+        Ok((reader, shared))
     }
 }
 
@@ -694,6 +663,9 @@ fn build_env_json(environment: &[(String, String)]) -> Option<Vec<u8>> {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod initiation_tests;
 
 #[cfg(test)]
 mod shutdown_tests;

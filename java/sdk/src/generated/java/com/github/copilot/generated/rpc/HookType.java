@@ -32,10 +32,6 @@ public enum HookType {
     SESSIONSTART("sessionStart"),
     /** The {@code sessionEnd} variant. */
     SESSIONEND("sessionEnd"),
-    /** The {@code postResult} variant. */
-    POSTRESULT("postResult"),
-    /** The {@code prePRDescription} variant. */
-    PREPRDESCRIPTION("prePRDescription"),
     /** The {@code errorOccurred} variant. */
     ERROROCCURRED("errorOccurred"),
     /** The {@code agentStop} variant. */

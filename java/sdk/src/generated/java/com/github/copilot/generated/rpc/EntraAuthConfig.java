@@ -26,6 +26,8 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record EntraAuthConfig(
     /** Application (client) ID of the host's Microsoft Entra registration. Must be nonblank. The runtime does not supply a default application. */
-    @JsonProperty("clientId") String clientId
+    @JsonProperty("clientId") String clientId,
+    /** Application name reported by OneAuth to Microsoft Auth Telemetry System (MATS). Omit or leave blank to disable MATS telemetry without disabling authentication. OneAuth normalizes the name and may group applications into shared event tables. */
+    @JsonProperty("matsAppName") String matsAppName
 ) {
 }

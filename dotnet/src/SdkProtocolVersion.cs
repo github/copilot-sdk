@@ -4,7 +4,7 @@ namespace GitHub.Copilot;
 
 /// <summary>
 /// Provides the SDK protocol version.
-/// This must match the version expected by the copilot-agent-runtime server.
+/// This must match the version expected by the Copilot runtime server.
 /// </summary>
 internal static class SdkProtocolVersion
 {

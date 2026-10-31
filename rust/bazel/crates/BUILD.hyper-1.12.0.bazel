@@ -76,8 +76,8 @@ rust_library(
         "@sdk_vendor__httparse-1.10.1//:httparse",
         "@sdk_vendor__itoa-1.0.18//:itoa",
         "@sdk_vendor__pin-project-lite-0.2.17//:pin_project_lite",
-        "@sdk_vendor__smallvec-1.16.3//:smallvec",
-        "@sdk_vendor__tokio-1.53.3//:tokio",
+        "@sdk_vendor__smallvec-1.16.4//:smallvec",
+        "@sdk_vendor__tokio-1.54.1//:tokio",
         "@sdk_vendor__want-0.3.2//:want",
     ],
 )

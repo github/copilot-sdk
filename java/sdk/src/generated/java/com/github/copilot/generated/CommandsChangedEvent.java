@@ -14,7 +14,7 @@ import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * Session event "commands.changed". SDK command registration change notification
+ * Session event "commands.changed". Session command list change notification, for SDK command registration or built-in command availability; `session.commands.list` returns the full list
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

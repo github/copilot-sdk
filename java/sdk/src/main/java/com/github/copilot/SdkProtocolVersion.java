@@ -8,7 +8,7 @@ package com.github.copilot;
 
 /**
  * Provides the SDK protocol version. This must match the version expected by
- * the copilot-agent-runtime server.
+ * the Copilot runtime server.
  *
  * @since 1.0.0
  */

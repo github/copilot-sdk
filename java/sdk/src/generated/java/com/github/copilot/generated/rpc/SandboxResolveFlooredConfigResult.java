@@ -22,6 +22,7 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 record SandboxResolveFlooredConfigResult(
     /** The floored sandbox config, normalized through the declared sandbox shape so only declared fields in a fixed order are present. */
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("sandboxJson") Object sandboxJson
 ) {
 }

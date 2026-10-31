@@ -32,6 +32,7 @@ import com.github.copilot.rpc.CopilotClientMode;
 import com.github.copilot.rpc.CopilotClientOptions;
 import com.github.copilot.rpc.ExtensionLaunchProvider;
 import com.github.copilot.rpc.InstallationConfirmationHandler;
+import com.github.copilot.rpc.KerberosAuthConfig;
 import com.github.copilot.rpc.InProcessRuntimeConnection;
 import com.github.copilot.rpc.RuntimeConnection;
 import com.github.copilot.rpc.StdioRuntimeConnection;
@@ -41,6 +42,7 @@ import com.github.copilot.rpc.CreateSessionResponse;
 import com.github.copilot.generated.rpc.SessionOptionsUpdateParams;
 import com.github.copilot.generated.rpc.SessionInstalledPlugin;
 import com.github.copilot.generated.rpc.GitHubTelemetryNotification;
+import com.github.copilot.generated.rpc.KerberosAuthSetProviderParams;
 import com.github.copilot.generated.rpc.ServerRpc;
 import com.github.copilot.generated.rpc.SessionEventLogRegisterInterestParams;
 import com.github.copilot.rpc.DeleteSessionResponse;
@@ -614,12 +616,30 @@ public final class CopilotClient implements AutoCloseable {
                 installationConfirmationAdapter.registerHandlers(connectedRpc);
             }
             InstallationConfirmationAdapter connectedInstallationConfirmationAdapter = installationConfirmationAdapter;
+            var entraProvider = this.options.getEntra() == null ? null : this.options.getEntra().getTokenProvider();
+            var entraAdapter = entraProvider == null ? null : new EntraTokenAdapter(entraProvider, executor);
+            if (entraAdapter != null) {
+                entraAdapter.registerHandlers(connectedRpc);
+            }
+            KerberosAuthConfig kerberosAuth = this.options.getKerberosAuth();
+            KerberosAuthAdapter kerberosAuthAdapter = null;
+            if (kerberosAuth != null) {
+                kerberosAuthAdapter = new KerberosAuthAdapter(kerberosAuth.callback(), executor);
+                kerberosAuthAdapter.registerHandlers(connectedRpc);
+            }
+            KerberosAuthAdapter connectedKerberosAuthAdapter = kerberosAuthAdapter;
             // JsonRpcClient keeps one handler per method, so this one serves every request
             // that honors cancellation.
             connectedRpc.registerMethodHandler("$/cancelRequest", (rpcId, params) -> {
                 dispatcher.handleCancelRequest(params);
+                if (entraAdapter != null) {
+                    entraAdapter.handleCancel(connectedRpc, params);
+                }
                 if (connectedInstallationConfirmationAdapter != null) {
                     connectedInstallationConfirmationAdapter.handleCancel(connectedRpc, params);
+                }
+                if (connectedKerberosAuthAdapter != null) {
+                    connectedKerberosAuthAdapter.handleCancel(connectedRpc, params);
                 }
             });
             connectedRpc.setCloseHandler(() -> {
@@ -629,11 +649,17 @@ public final class CopilotClient implements AutoCloseable {
                     session.clearSkillProvider();
                 });
                 dispatcher.cancelSkillProviderCalls();
+                if (entraAdapter != null) {
+                    entraAdapter.closePending();
+                }
                 if (connectedLlmAdapter != null) {
                     connectedLlmAdapter.cancelPending();
                 }
                 if (connectedInstallationConfirmationAdapter != null) {
                     connectedInstallationConfirmationAdapter.closePending();
+                }
+                if (connectedKerberosAuthAdapter != null) {
+                    connectedKerberosAuthAdapter.closePending();
                 }
             });
 
@@ -654,6 +680,12 @@ public final class CopilotClient implements AutoCloseable {
             verifyProtocolVersion(connection);
             LoggingHelpers.logTiming(LOG, Level.FINE,
                     "CopilotClient.start protocol verification complete. Elapsed={Elapsed}", startNanos);
+
+            if (kerberosAuth != null) {
+                connection.serverRpc().kerberosAuth
+                        .setProvider(new KerberosAuthSetProviderParams(kerberosAuth.mode(), kerberosAuth.scope()))
+                        .join();
+            }
 
             if (extensionLaunchProvider != null) {
                 connection.serverRpc().registerExtensionLaunchProvider().join();
@@ -736,7 +768,11 @@ public final class CopilotClient implements AutoCloseable {
             }
             connectParams.put("supportedTaskKinds", List.of("agent", "client", "shell"));
             if (this.options.getEntra() != null) {
-                connectParams.put("entra", this.options.getEntra());
+                connectParams.put("entra", new com.github.copilot.generated.rpc.EntraAuthConfig(
+                        this.options.getEntra().getClientId(), this.options.getEntra().getMatsAppName()));
+                if (this.options.getEntra().getTokenProvider() != null) {
+                    connectParams.put("entraTokenProvider", true);
+                }
             }
             // Opt into GitHub telemetry forwarding at the connection level when a handler
             // is registered, so the runtime can forward the first session's un-replayable
@@ -754,6 +790,11 @@ public final class CopilotClient implements AutoCloseable {
             }
             var connectResponse = connection.rpc.invoke("connect", connectParams, JsonNode.class).get(30,
                     TimeUnit.SECONDS);
+            if (this.options.getEntra() != null && this.options.getEntra().getTokenProvider() != null
+                    && (!connectResponse.path("entraTokenProvider").isBoolean()
+                            || !connectResponse.path("entraTokenProvider").booleanValue())) {
+                throw new IllegalStateException("This runtime does not support host-owned Entra token providers.");
+            }
             var protocolVersion = connectResponse.get("protocolVersion");
             serverVersion = protocolVersion != null && !protocolVersion.isNull() ? protocolVersion.intValue() : null;
         } catch (Exception e) {

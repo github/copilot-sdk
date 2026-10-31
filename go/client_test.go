@@ -28,6 +28,34 @@ import (
 
 // This file is for unit tests. Where relevant, prefer to add e2e tests in e2e/*.test.go instead
 
+func TestGetStatusResponseHostDiagnostics(t *testing.T) {
+	for _, state := range []string{"", "pending", "enabled", "disabled"} {
+		t.Run(state, func(t *testing.T) {
+			payload := `{"version":"1.2.3","protocolVersion":2}`
+			if state != "" {
+				payload = fmt.Sprintf(`{"version":"1.2.3","protocolVersion":2,"hostDiagnostics":{"errorReporting":%q}}`, state)
+			}
+			var response GetStatusResponse
+			if err := json.Unmarshal([]byte(payload), &response); err != nil {
+				t.Fatal(err)
+			}
+			if response.Version != "1.2.3" || response.ProtocolVersion != 2 {
+				t.Fatalf("status version fields = %s, %d", response.Version, response.ProtocolVersion)
+			}
+			if (response.HostDiagnostics == nil) != (state == "") {
+				t.Fatalf("host diagnostics = %+v, state = %q", response.HostDiagnostics, state)
+			}
+			encoded, err := json.Marshal(response)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(encoded) != payload {
+				t.Fatalf("status round trip = %s, want %s", encoded, payload)
+			}
+		})
+	}
+}
+
 func TestResolveRuntimeExecutable(t *testing.T) {
 	t.Run("managed launch requires bundled runtime pair", func(t *testing.T) {
 		_, err := resolveRuntimeExecutable("", "")
@@ -329,13 +357,13 @@ func TestClient_ClientInfo(t *testing.T) {
 		defer cleanup()
 		client := NewClient(&ClientOptions{
 			Connection: URIConnection{URL: url},
-			Entra:      &rpc.EntraAuthConfig{ClientID: "host-entra-client"},
+			Entra:      &EntraAuthOptions{ClientID: "host-entra-client", MatsAppName: String("TestHost")},
 		})
 		if err := client.Start(t.Context()); err != nil {
 			t.Fatalf("Start failed: %v", err)
 		}
 		defer client.ForceStop()
-		want := map[string]any{"clientId": "host-entra-client"}
+		want := map[string]any{"clientId": "host-entra-client", "matsAppName": "TestHost"}
 		if got := findConnect(requests())["entra"]; !reflect.DeepEqual(got, want) {
 			t.Fatalf("entra = %v, want %v", got, want)
 		}
@@ -432,7 +460,7 @@ func TestClient_EntraHandshakeFailureClosesExternalConnection(t *testing.T) {
 	t.Cleanup(func() { listener.Close() })
 	client := NewClient(&ClientOptions{
 		Connection: URIConnection{URL: listener.Addr().String()},
-		Entra:      &rpc.EntraAuthConfig{ClientID: "host-entra-client"},
+		Entra:      &EntraAuthOptions{ClientID: "host-entra-client"},
 	})
 	t.Cleanup(func() { client.ForceStop() })
 
@@ -783,6 +811,163 @@ func TestClient_ConnectionCloseCancelsPendingExternalTools(t *testing.T) {
 		t.Fatal("Stop did not clean up the retained session")
 	}
 	server.Stop()
+}
+
+func TestClient_StopDoesNotDeadlockWithLifecycleHandlerCallingClient(t *testing.T) {
+	clientConn, serverConn := net.Pipe()
+	t.Cleanup(func() {
+		clientConn.Close()
+		serverConn.Close()
+	})
+	rpcClient := jsonrpc2.NewClient(clientConn, clientConn)
+	client := NewClient(nil)
+	client.client, client.RPC, client.state = rpcClient, rpc.NewServerRPC(rpcClient), stateConnected
+	client.setupNotificationHandler()
+	rpcClient.Start()
+	// Stop closes the transport only after acquiring startStopMux.
+	transportClosed := make(chan struct{})
+	go func() {
+		defer close(transportClosed)
+		_, _ = io.Copy(io.Discard, serverConn)
+	}()
+
+	entered := make(chan struct{})
+	proceed := make(chan struct{})
+	releaseHandler := sync.OnceFunc(func() { close(proceed) })
+	t.Cleanup(releaseHandler)
+	handlerErr := make(chan error, 1)
+	client.On(func(SessionLifecycleEvent) {
+		close(entered)
+		<-proceed
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		_, err := client.GetSessionMetadata(ctx, "session-1")
+		handlerErr <- err
+	})
+	body := `{"jsonrpc":"2.0","method":"session.lifecycle","params":{"type":"session.created","sessionId":"session-1"}}`
+	if _, err := fmt.Fprintf(serverConn, "Content-Length: %d\r\n\r\n%s", len(body), body); err != nil {
+		t.Fatalf("write lifecycle notification: %v", err)
+	}
+	select {
+	case <-entered:
+	case <-time.After(5 * time.Second):
+		t.Fatal("lifecycle handler was not dispatched")
+	}
+
+	stopped := make(chan error, 1)
+	go func() { stopped <- client.Stop() }()
+	select {
+	case <-transportClosed:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Stop did not close the transport")
+	}
+	// Stop now holds startStopMux and is joining the reader running this handler.
+	releaseHandler()
+	select {
+	case err := <-stopped:
+		if err != nil {
+			t.Fatalf("Stop failed: %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Stop deadlocked with a lifecycle handler calling the client")
+	}
+	if err := <-handlerErr; !errors.Is(err, context.Canceled) {
+		t.Fatalf("GetSessionMetadata error = %v, want %v", err, context.Canceled)
+	}
+}
+
+func TestClient_CallAdmittedDuringStopFailsInsteadOfPanicking(t *testing.T) {
+	clientConn, serverConn := net.Pipe()
+	t.Cleanup(func() {
+		clientConn.Close()
+		serverConn.Close()
+	})
+	rpcClient := jsonrpc2.NewClient(clientConn, clientConn)
+	client := NewClient(nil)
+	client.client, client.RPC, client.state = rpcClient, rpc.NewServerRPC(rpcClient), stateConnected
+	client.setupNotificationHandler()
+	admitted := make(chan struct{})
+	proceed := make(chan struct{})
+	releaseCall := sync.OnceFunc(func() { close(proceed) })
+	t.Cleanup(releaseCall)
+	client.testHookTransportAcquired = func() {
+		close(admitted)
+		<-proceed
+	}
+	rpcClient.Start()
+	transportClosed := make(chan struct{})
+	go func() {
+		defer close(transportClosed)
+		_, _ = io.Copy(io.Discard, serverConn)
+	}()
+
+	// Hold the reader so Stop stays in teardown with the transport still published.
+	readerBlocked := make(chan struct{})
+	unblockReader := make(chan struct{})
+	releaseReader := sync.OnceFunc(func() { close(unblockReader) })
+	t.Cleanup(releaseReader)
+	client.On(func(SessionLifecycleEvent) {
+		close(readerBlocked)
+		<-unblockReader
+	})
+	body := `{"jsonrpc":"2.0","method":"session.lifecycle","params":{"type":"session.created","sessionId":"session-1"}}`
+	if _, err := fmt.Fprintf(serverConn, "Content-Length: %d\r\n\r\n%s", len(body), body); err != nil {
+		t.Fatalf("write lifecycle notification: %v", err)
+	}
+	select {
+	case <-readerBlocked:
+	case <-time.After(5 * time.Second):
+		t.Fatal("lifecycle handler was not dispatched")
+	}
+	stopped := make(chan error, 1)
+	go func() { stopped <- client.Stop() }()
+	select {
+	case <-transportClosed:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Stop did not close the transport")
+	}
+
+	type callResult struct {
+		err      error
+		panicked any
+	}
+	result := make(chan callResult, 1)
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				result <- callResult{panicked: r}
+			}
+		}()
+		_, err := client.GetSessionMetadata(context.Background(), "session-1")
+		result <- callResult{err: err}
+	}()
+	select {
+	case <-admitted:
+	case <-time.After(5 * time.Second):
+		t.Fatal("GetSessionMetadata was not admitted while Stop was tearing down")
+	}
+	// Let Stop join the reader and retire the transport before the admitted call uses it.
+	releaseReader()
+	select {
+	case err := <-stopped:
+		if err != nil {
+			t.Fatalf("Stop failed: %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Stop did not finish")
+	}
+	releaseCall()
+	select {
+	case r := <-result:
+		if r.panicked != nil {
+			t.Fatalf("GetSessionMetadata panicked after Stop retired the transport: %v", r.panicked)
+		}
+		if r.err == nil {
+			t.Fatal("GetSessionMetadata succeeded on a stopped transport")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("GetSessionMetadata did not fail on a stopped transport")
+	}
 }
 
 func newRuntimeShutdownRpcPair(t *testing.T) (*jsonrpc2.Client, *jsonrpc2.Client, chan struct{}) {
@@ -2190,6 +2375,34 @@ func TestClient_ProcessFileLoggingEnvironment(t *testing.T) {
 	}
 }
 
+func TestClient_TelemetryCaptureOverridesEnvironment(t *testing.T) {
+	for _, capture := range []bool{false, true} {
+		t.Run(strconv.FormatBool(capture), func(t *testing.T) {
+			client := NewClient(&ClientOptions{
+				Connection:       StdioConnection{Path: os.Args[0]},
+				BaseDirectory:    t.TempDir(),
+				WorkingDirectory: filepath.Join(t.TempDir(), "missing"),
+				Env:              []string{"OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT=SPAN_AND_EVENT"},
+				Telemetry:        &TelemetryConfig{CaptureContent: Bool(capture)},
+			})
+			err := client.startCLIServer(context.Background())
+			if err == nil || !strings.Contains(err.Error(), "failed to start CLI server") {
+				t.Fatalf("expected process start to fail in missing working directory, got %v", err)
+			}
+			want := "NO_CONTENT"
+			if capture {
+				want = "SPAN_ONLY"
+			}
+			if got := getEnvValue(client.process.Env, "OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT"); got != want {
+				t.Errorf("content capture mode = %q, want %q", got, want)
+			}
+			if got := getEnvValue(client.process.Env, "OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT"); got != strconv.FormatBool(capture) {
+				t.Errorf("legacy content capture = %q, want %q", got, strconv.FormatBool(capture))
+			}
+		})
+	}
+}
+
 func TestClient_InProcessConnection(t *testing.T) {
 	t.Run("requires build tag", func(t *testing.T) {
 		if inProcessAvailable {
@@ -2295,14 +2508,14 @@ func TestClient_InProcessConnection(t *testing.T) {
 	})
 
 	t.Run("forwards supported CLI login sync integrations", func(t *testing.T) {
-		t.Setenv("GITHUB_COPILOT_INTEGRATION_ID", "github/github-app")
+		t.Setenv("GITHUB_COPILOT_INTEGRATION_ID", "microsoft/vscode")
 		client := NewClient(&ClientOptions{Connection: InProcessConnection{}})
 		t.Setenv("GITHUB_COPILOT_INTEGRATION_ID", "changed/after-construction")
 
 		integrationID := getEnvValue(client.options.Env, "GITHUB_COPILOT_INTEGRATION_ID")
 		config := client.inProcessHostConfig(integrationID)
 
-		expectedArgs := []string{"--cli-login-sync-integration-id=github/github-app"}
+		expectedArgs := []string{"--cli-login-sync-integration-id=microsoft/vscode"}
 		if !reflect.DeepEqual(config.Args, expectedArgs) {
 			t.Fatalf("Expected CLI login sync arguments %v, got %v", expectedArgs, config.Args)
 		}
@@ -3315,6 +3528,46 @@ func TestModelInfoPreservesProviderMetadata(t *testing.T) {
 	}
 	if model.Metadata["provider"] != "acme" || model.Metadata["contextWindow"] != float64(200000) {
 		t.Fatalf("metadata = %#v", model.Metadata)
+	}
+}
+
+func TestModelInfoPreservesNativeProvider(t *testing.T) {
+	for _, provider := range []string{
+		`{"id":"copilot","kind":"copilot","label":"GitHub Copilot"}`,
+		`{"id":"loki:opaque","kind":"loki","label":"Microsoft 365 Copilot"}`,
+		`null`,
+	} {
+		t.Run(provider, func(t *testing.T) {
+			var model ModelInfo
+			if err := json.Unmarshal([]byte(`{"id":"shared-model","name":"Shared Model","capabilities":{},"provider":`+provider+`}`), &model); err != nil {
+				t.Fatal(err)
+			}
+			var expected *rpc.ModelProviderRef
+			if err := json.Unmarshal([]byte(provider), &expected); err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(model.Provider, expected) {
+				t.Fatalf("provider = %#v, want %#v", model.Provider, expected)
+			}
+			encoded, err := json.Marshal(model)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var wire map[string]json.RawMessage
+			if err := json.Unmarshal(encoded, &wire); err != nil {
+				t.Fatal(err)
+			}
+			if expected == nil {
+				if _, present := wire["provider"]; present {
+					t.Fatal("unattributed model must omit provider")
+				}
+			} else {
+				var actual rpc.ModelProviderRef
+				if err := json.Unmarshal(wire["provider"], &actual); err != nil || !reflect.DeepEqual(actual, *expected) {
+					t.Fatalf("encoded provider = %s, want %s: %v", wire["provider"], provider, err)
+				}
+			}
+		})
 	}
 }
 
@@ -5786,45 +6039,6 @@ func TestToolNamespace(t *testing.T) {
 			t.Error("Expected namespace to be omitted when nil")
 		}
 	})
-}
-
-func TestSessionRequests_ExcludedManagedSettings(t *testing.T) {
-	for _, test := range []struct {
-		name       string
-		exclusions []string
-		want       string
-	}{
-		{name: "omitted"},
-		{name: "empty", exclusions: []string{}, want: `[]`},
-		{name: "populated", exclusions: []string{"sandbox"}, want: `["sandbox"]`},
-	} {
-		for _, request := range []struct {
-			name  string
-			value any
-		}{
-			{"create", createSessionRequest{ExcludedManagedSettings: test.exclusions}},
-			{"resume", resumeSessionRequest{SessionID: "s1", ExcludedManagedSettings: test.exclusions}},
-		} {
-			t.Run(request.name+"/"+test.name, func(t *testing.T) {
-				data, err := json.Marshal(request.value)
-				if err != nil {
-					t.Fatalf("Failed to marshal: %v", err)
-				}
-				var fields map[string]json.RawMessage
-				if err := json.Unmarshal(data, &fields); err != nil {
-					t.Fatalf("Failed to unmarshal: %v", err)
-				}
-				actual, present := fields["excludedManagedSettings"]
-				if test.want == "" {
-					if present {
-						t.Fatalf("Expected omitted exclusions, got %s", data)
-					}
-				} else if !present || string(actual) != test.want {
-					t.Fatalf("Expected excludedManagedSettings=%s, got %s", test.want, data)
-				}
-			})
-		}
-	}
 }
 
 func TestSessionRequests_ManagedSettings(t *testing.T) {

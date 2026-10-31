@@ -42,6 +42,168 @@ class CopilotRequestHandlerProtocolTest {
     private static final int DEADLINE_SECONDS = 5;
 
     @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void upstreamObservesAbnormalWebSocketClosure(boolean reset) throws Exception {
+        try (var upstream = new FakeUpstreamServer("unused", "unused")) {
+            try (var socket = new Socket("127.0.0.1", upstream.port())) {
+                socket.setSoTimeout(DEADLINE_SECONDS * 1000);
+                var out = socket.getOutputStream();
+                out.write(("GET /responses HTTP/1.1\r\n" + "Host: 127.0.0.1\r\n" + "Upgrade: websocket\r\n"
+                        + "Connection: Upgrade\r\n" + "Sec-WebSocket-Version: 13\r\n"
+                        + "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\r\n").getBytes(StandardCharsets.US_ASCII));
+                out.flush();
+                var header = new ByteArrayOutputStream();
+                while (!header.toString(StandardCharsets.US_ASCII).endsWith("\r\n\r\n")) {
+                    int b = socket.getInputStream().read();
+                    assertNotEquals(-1, b, "Unexpected WebSocket handshake EOF");
+                    header.write(b);
+                }
+                assertTrue(header.toString(StandardCharsets.US_ASCII).startsWith("HTTP/1.1 101 "),
+                        header.toString(StandardCharsets.US_ASCII));
+                if (reset) {
+                    socket.setSoLinger(true, 0);
+                } else {
+                    // End mid-mask so the frame reader exits through its exceptional path.
+                    out.write(new byte[]{(byte) 0x81, (byte) 0x84, 0, 0});
+                    out.flush();
+                    socket.shutdownOutput();
+                }
+            }
+            upstream.awaitWebSocketClose(DEADLINE_SECONDS, TimeUnit.SECONDS);
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"http", "websocket-open", "websocket-message", "websocket-handshake"})
+    void callbackFailureFinalizesResponse(String callback) throws Exception {
+        BlockingQueue<String> closed = new LinkedBlockingQueue<>();
+        var handler = new CopilotRequestHandler() {
+            @Override
+            protected HttpResponse<InputStream> sendRequest(HttpRequest request, CopilotRequestContext ctx) {
+                throw new AssertionError("callback failed");
+            }
+
+            @Override
+            protected CopilotWebSocketHandler openWebSocket(CopilotRequestContext ctx) {
+                if (callback.equals("websocket-open")) {
+                    throw new AssertionError("callback failed");
+                }
+                if (callback.equals("websocket-handshake")) {
+                    return new CopilotWebSocketForwarder(ctx.withUrl("invalid://upstream.test"));
+                }
+                return new CopilotWebSocketHandler(ctx) {
+                    @Override
+                    public void sendRequestMessage(CopilotWebSocketMessage message) {
+                        throw new AssertionError("callback failed");
+                    }
+
+                    @Override
+                    public void close() {
+                        try {
+                            super.close();
+                        } finally {
+                            closed.add(ctx.requestId());
+                        }
+                    }
+                };
+            }
+        };
+        try (var peer = new ProtocolPeer(handler)) {
+            for (String requestId : List.of("first-failure", "next-failure")) {
+                boolean websocket = !callback.equals("http");
+                peer.startRequest(requestId, null, websocket);
+                if (!websocket) {
+                    peer.sendChunk(requestId, "", null, true);
+                }
+                JsonNode head = peer.nextMethod();
+                assertEquals("llmInference.httpResponseStart", head.path("method").asText());
+                assertEquals(callback.equals("websocket-message") ? 101 : 502,
+                        head.path("params").path("status").asInt());
+                peer.ack(head);
+                if (callback.equals("websocket-message")) {
+                    peer.sendChunk(requestId, "message", null, true);
+                }
+                JsonNode error = peer.nextMethod();
+                assertEquals("llmInference.httpResponseChunk", error.path("method").asText());
+                assertEquals(requestId, error.path("params").path("requestId").asText());
+                assertTrue(error.path("params").path("end").asBoolean(), error.toString());
+                String expectedError = switch (callback) {
+                    case "websocket-message" -> "java.lang.AssertionError: callback failed";
+                    case "websocket-handshake" -> "invalid URI scheme: invalid";
+                    default -> "callback failed";
+                };
+                assertEquals(expectedError, error.path("params").path("error").path("message").asText());
+                peer.ack(error);
+                if (callback.equals("websocket-message")) {
+                    assertEquals(requestId, closed.poll(DEADLINE_SECONDS, TimeUnit.SECONDS));
+                }
+            }
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"response-exception", "response-assertion", "request-exception", "request-assertion"})
+    void forwardingCallbackFailureFinalizesResponseAndClosesUpstream(String callback) throws Exception {
+        BlockingQueue<String> closed = new LinkedBlockingQueue<>();
+        try (var upstream = new FakeUpstreamServer("unused", "upstream response")) {
+            var handler = new CopilotRequestHandler() {
+                @Override
+                protected CopilotWebSocketHandler openWebSocket(CopilotRequestContext ctx) {
+                    return new CopilotWebSocketForwarder(ctx.withUrl(upstream.wsUrl())) {
+                        @Override
+                        public void sendRequestMessage(CopilotWebSocketMessage message) throws Exception {
+                            if (callback.startsWith("request")) {
+                                failCallback();
+                            }
+                            super.sendRequestMessage(message);
+                        }
+
+                        @Override
+                        public void sendResponseMessage(CopilotWebSocketMessage message) throws Exception {
+                            failCallback();
+                        }
+
+                        private void failCallback() throws Exception {
+                            if (callback.endsWith("assertion")) {
+                                throw new AssertionError("forwarding callback failed");
+                            }
+                            throw new Exception("forwarding callback failed");
+                        }
+
+                        @Override
+                        public void close() {
+                            try {
+                                super.close();
+                            } finally {
+                                closed.add(ctx.requestId());
+                            }
+                        }
+                    };
+                }
+            };
+            try (var peer = new ProtocolPeer(handler)) {
+                peer.startRequest("forwarding-failure", null, true);
+                JsonNode head = peer.nextMethod();
+                assertEquals(101, head.path("params").path("status").asInt());
+                peer.ack(head);
+                peer.sendChunk("forwarding-failure", "request", null, false);
+                JsonNode error = peer.nextMethod();
+                assertEquals("llmInference.httpResponseChunk", error.path("method").asText());
+                assertTrue(error.path("params").path("end").asBoolean(), error.toString());
+                String expectedError = switch (callback) {
+                    case "request-assertion" -> "java.lang.AssertionError: forwarding callback failed";
+                    case "response-exception" -> "java.lang.Exception: forwarding callback failed";
+                    default -> "forwarding callback failed";
+                };
+                assertEquals(expectedError, error.path("params").path("error").path("message").asText());
+                peer.ack(error);
+                assertEquals("forwarding-failure", closed.poll(DEADLINE_SECONDS, TimeUnit.SECONDS));
+                upstream.awaitWebSocketClose(DEADLINE_SECONDS, TimeUnit.SECONDS);
+            }
+        }
+    }
+
+    @ParameterizedTest
     @NullSource
     @ValueSource(strings = {"logical-invocation", ""})
     void httpStartPreservesInvocationIdentityAcrossPhysicalRetries(String invocationId) throws Exception {

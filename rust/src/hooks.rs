@@ -21,7 +21,7 @@ pub struct HookContext {
     pub session_id: SessionId,
 }
 
-/// Runtime-provided actor metadata for a hook invocation.
+/// Runtime-provided actor, tool-call, and tracing metadata for a hook invocation.
 ///
 /// Available through [`SessionHooks::on_hook_with_actor`] without changing
 /// legacy hook input structs or their construction patterns.
@@ -34,6 +34,12 @@ pub struct HookActor {
     agent_type: Option<String>,
     #[serde(default)]
     parent_agent_id: Option<String>,
+    #[serde(default)]
+    tool_call_id: Option<String>,
+    #[serde(default)]
+    traceparent: Option<String>,
+    #[serde(default)]
+    tracestate: Option<String>,
 }
 
 impl HookActor {
@@ -50,6 +56,23 @@ impl HookActor {
     /// Immediate parent actor ID, when supplied by the runtime.
     pub fn parent_agent_id(&self) -> Option<&str> {
         self.parent_agent_id.as_deref()
+    }
+
+    /// Existing tool-call ID for tool hooks, absent on older runtimes.
+    ///
+    /// Correlate with the typed input's `session_id`, not [`HookContext::session_id`].
+    pub fn tool_call_id(&self) -> Option<&str> {
+        self.tool_call_id.as_deref()
+    }
+
+    /// W3C trace context for the runtime span associated with this hook, when available.
+    pub fn traceparent(&self) -> Option<&str> {
+        self.traceparent.as_deref()
+    }
+
+    /// W3C vendor trace state associated with `traceparent`, when available.
+    pub fn tracestate(&self) -> Option<&str> {
+        self.tracestate.as_deref()
     }
 }
 
@@ -697,7 +720,7 @@ impl HookOutput {
 /// sets automatically).
 #[async_trait]
 pub trait SessionHooks: Send + Sync + 'static {
-    /// Receives typed hook input and runtime-provided actor metadata.
+    /// Receives typed hook input and runtime-provided actor, tool-call, and tracing metadata.
     ///
     /// The default delegates to [`Self::on_hook`], preserving existing
     /// whole-event and per-hook implementations.

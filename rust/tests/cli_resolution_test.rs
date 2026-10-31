@@ -23,6 +23,11 @@ use github_copilot_sdk::{
 use github_copilot_sdk::{SessionConfig, Transport};
 use serial_test::serial;
 
+#[cfg(all(not(feature = "bundled-cli"), has_extracted_cli))]
+#[allow(dead_code)]
+#[path = "../src/platform_dirs/mod.rs"]
+mod platform_dirs;
+
 fn unset_env(key: &str) {
     // SAFETY: these tests are serialized with #[serial(copilot_cli_path)]
     // so no other test in this binary mutates COPILOT_CLI_PATH while
@@ -124,8 +129,8 @@ fn extracted_binary_present_at_conventional_path() {
         "copilot-runtime"
     };
     let sanitized = sanitize_cache_identity_for_test(cache_identity);
-    let path = dirs::cache_dir()
-        .expect("platform cache dir")
+    let path = platform_dirs::cache_dir()
+        .unwrap_or_else(std::env::temp_dir)
         .join("github-copilot-sdk")
         .join("runtime")
         .join(sanitized)

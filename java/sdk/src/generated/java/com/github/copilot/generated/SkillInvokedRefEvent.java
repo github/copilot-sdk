@@ -52,12 +52,18 @@ public final class SkillInvokedRefEvent extends SessionEvent {
         @JsonProperty("contentId") String contentId,
         /** UTF-16 code unit length of the referenced skill content. Derived from the referenced body and validated against it when the reference is expanded; a reference whose length disagrees with the body it names is rejected instead of expanded */
         @JsonProperty("contentLength") Long contentLength,
+        /** Exact invocation arguments preserved from this invocation's inline event data, not from the referenced reusable body */
+        @JsonProperty("arguments") String arguments,
         /** Tool names that should be auto-approved when this skill is active */
         @JsonProperty("allowedTools") List<String> allowedTools,
         /** Whether model invocation is disabled for this skill */
         @JsonProperty("disableModelInvocation") Boolean disableModelInvocation,
         /** Source identifier for where the skill was discovered */
         @JsonProperty("source") String source,
+        /** Held MCP skill origin and manifest, preserved from the inline invocation. */
+        @JsonProperty("mcpOrigin") Object mcpOrigin,
+        /** MCP resource metadata preserved from the inline invocation. */
+        @JsonProperty("mcpMeta") Object mcpMeta,
         /** Name of the plugin this skill originated from, when applicable */
         @JsonProperty("pluginName") String pluginName,
         /** Version of the plugin this skill originated from, when applicable */

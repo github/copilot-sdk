@@ -7,7 +7,9 @@ package com.github.copilot.rpc;
 import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.github.copilot.generated.rpc.ModelProviderRef;
 
 /**
  * Information about an available model.
@@ -28,6 +30,13 @@ public class ModelInfo {
      */
     @JsonProperty("name")
     private String name;
+
+    /**
+     * Native serving provider; absent for unattributed and configured BYOK models.
+     */
+    @JsonProperty("provider")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private ModelProviderRef provider;
 
     /**
      * Model capabilities and limits.
@@ -76,6 +85,27 @@ public class ModelInfo {
 
     public ModelInfo setName(String name) {
         this.name = name;
+        return this;
+    }
+
+    /**
+     * Returns the native serving provider, or {@code null} when unattributed.
+     *
+     * @return the provider reference
+     */
+    public ModelProviderRef getProvider() {
+        return provider;
+    }
+
+    /**
+     * Sets the provider reference returned by the runtime.
+     *
+     * @param provider
+     *            the provider reference, or {@code null} when absent
+     * @return this model
+     */
+    public ModelInfo setProvider(ModelProviderRef provider) {
+        this.provider = provider;
         return this;
     }
 

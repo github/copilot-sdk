@@ -26,6 +26,7 @@ public record ModelBillingTokenPricesLongContext(
     /** AI Credits cost per billing batch of output tokens */
     @JsonProperty("outputPrice") Double outputPrice,
     /** Use cacheReadPrice instead. AI Credits cost per billing batch of cached tokens */
+    @Deprecated
     @JsonProperty("cachePrice") Double cachePrice,
     /** AI Credits cost per billing batch of cached (read) tokens */
     @JsonProperty("cacheReadPrice") Double cacheReadPrice,
@@ -34,6 +35,7 @@ public record ModelBillingTokenPricesLongContext(
     /** AI Credits cost per billing batch of 1-hour cache-write (cache creation) tokens. */
     @JsonProperty("cacheWrite1hPrice") Double cacheWrite1hPrice,
     /** Use maxPromptTokens instead. Prompt token budget for the long context tier. The total context window is this value plus the model's max_output_tokens. */
+    @Deprecated
     @JsonProperty("contextMax") Long contextMax,
     /** Prompt token budget for the long context tier. The total context window is this value plus the model's max_output_tokens. */
     @JsonProperty("maxPromptTokens") Long maxPromptTokens

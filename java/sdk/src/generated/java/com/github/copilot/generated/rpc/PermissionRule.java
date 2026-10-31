@@ -24,6 +24,7 @@ public record PermissionRule(
     /** The rule kind, such as Shell or GitHubMCP */
     @JsonProperty("kind") String kind,
     /** Argument value matched against the request, or null when the rule kind has no argument (e.g. 'read', 'write', 'memory'). */
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("argument") String argument
 ) {
 }

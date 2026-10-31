@@ -41,7 +41,9 @@ public final class AssistantTurnStartEvent extends SessionEvent {
         /** CAPI interaction ID for correlating this turn with upstream telemetry */
         @JsonProperty("interactionId") String interactionId,
         /** Parent task tool call ID when this turn belongs to a sub-agent */
-        @JsonProperty("parentToolCallId") String parentToolCallId
+        @JsonProperty("parentToolCallId") String parentToolCallId,
+        /** Agent mode whose tools this turn's run was offered. Absent on historical events and sub-agent turns. */
+        @JsonProperty("agentMode") SessionMode agentMode
     ) {
     }
 }

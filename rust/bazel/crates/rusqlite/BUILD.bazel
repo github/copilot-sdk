@@ -10,6 +10,6 @@ package(default_visibility = ["//visibility:public"])
 
 alias(
     name = "rusqlite",
-    actual = "@sdk_vendor__rusqlite-0.40.2//:rusqlite",
+    actual = "@sdk_vendor__rusqlite-0.41.1//:rusqlite",
     tags = ["manual"],
 )

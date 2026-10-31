@@ -10,6 +10,7 @@ import json
 import os
 import subprocess
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import fields
 from datetime import UTC, datetime
 from tempfile import TemporaryDirectory
@@ -81,7 +82,12 @@ def test_session_fs_capabilities_preserve_positional_sqlite():
 
     assert capabilities.sqlite is True
     assert capabilities.binary is None
-    assert [field.name for field in fields(capabilities)] == ["sqlite", "binary"]
+    assert capabilities.read_file_range is None
+    assert [field.name for field in fields(capabilities)] == [
+        "sqlite",
+        "binary",
+        "read_file_range",
+    ]
     assert capabilities.to_dict() == {"sqlite": True}
     assert SessionFSSetProviderCapabilities.from_dict(
         {"sqlite": True, "binary": False}
@@ -547,6 +553,115 @@ class TestClientShutdown:
         finally:
             release_exit.set()
             await asyncio.gather(stopping, return_exceptions=True)
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("release_before_timeout", [True, False])
+    async def test_force_stop_bounds_stdin_close_without_blocking_event_loop(
+        self, release_before_timeout
+    ):
+        process = Mock()
+        process.args = ["copilot"]
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path="copilot"))
+        client._process = process
+        client._cli_process = process
+        loop = asyncio.get_running_loop()
+        event_loop_thread = threading.current_thread()
+        close_entered = asyncio.Event()
+        wait_entered = asyncio.Event()
+        release_close = threading.Event()
+        close_finished = threading.Event()
+
+        def close():
+            loop.call_soon_threadsafe(close_entered.set)
+            try:
+                assert threading.current_thread() is not event_loop_thread
+                assert release_close.wait(15), "stdin closer was not released"
+            finally:
+                close_finished.set()
+
+        def wait(*, timeout):
+            assert threading.current_thread() is not event_loop_thread
+            loop.call_soon_threadsafe(wait_entered.set)
+            return 0
+
+        process.stdin.close.side_effect = close
+        process.wait.side_effect = wait
+        stopping = asyncio.create_task(client.force_stop())
+        try:
+            await asyncio.wait_for(close_entered.wait(), timeout=5)
+            assert not stopping.done(), "force_stop failed before stdin closure was released"
+            await asyncio.wait_for(wait_entered.wait(), timeout=5)
+            if release_before_timeout:
+                release_close.set()
+                await asyncio.wait_for(stopping, timeout=5)
+                assert client._process is None
+                assert client._cli_process is None
+            else:
+                with pytest.raises(subprocess.TimeoutExpired) as raised:
+                    await asyncio.wait_for(
+                        stopping, timeout=client_module._CLI_PROCESS_EXIT_TIMEOUT_SECONDS + 5
+                    )
+                assert raised.value.cmd == process.args
+                assert raised.value.timeout == client_module._CLI_PROCESS_EXIT_TIMEOUT_SECONDS
+                assert client._process is process
+                assert client._cli_process is process
+                assert client._state == "disconnected"
+            process.kill.assert_called_once()
+            process.wait.assert_called_once_with(
+                timeout=client_module._CLI_PROCESS_EXIT_TIMEOUT_SECONDS
+            )
+        finally:
+            release_close.set()
+            await asyncio.gather(stopping, return_exceptions=True)
+            assert await asyncio.to_thread(close_finished.wait, 5), "stdin closer did not finish"
+            process.stdin.close.side_effect = None
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_force_stop_preserves_queued_cleanup_after_timeout(self):
+        process = Mock()
+        process.args = ["copilot"]
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path="copilot"))
+        client._process = process
+        client._cli_process = process
+        loop = asyncio.get_running_loop()
+        worker_entered = asyncio.Event()
+        stdin_closed = asyncio.Event()
+        process_reaped = asyncio.Event()
+        release_worker = threading.Event()
+
+        def occupy_worker():
+            loop.call_soon_threadsafe(worker_entered.set)
+            assert release_worker.wait(15), "executor worker was not released"
+
+        process.stdin.close.side_effect = lambda: loop.call_soon_threadsafe(stdin_closed.set)
+        process.wait.side_effect = lambda **_: loop.call_soon_threadsafe(process_reaped.set)
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            loop.set_default_executor(executor)
+            occupied = loop.run_in_executor(None, occupy_worker)
+            try:
+                await asyncio.wait_for(worker_entered.wait(), timeout=5)
+                with pytest.raises(subprocess.TimeoutExpired):
+                    await asyncio.wait_for(
+                        client.force_stop(),
+                        timeout=client_module._CLI_PROCESS_EXIT_TIMEOUT_SECONDS + 5,
+                    )
+                process.kill.assert_called_once()
+                process.stdin.close.assert_not_called()
+                process.wait.assert_not_called()
+
+                release_worker.set()
+                await asyncio.wait_for(occupied, timeout=5)
+                await asyncio.wait_for(stdin_closed.wait(), timeout=5)
+                await asyncio.wait_for(process_reaped.wait(), timeout=5)
+                process.stdin.close.assert_called_once()
+                process.wait.assert_called_once_with(
+                    timeout=client_module._CLI_PROCESS_EXIT_TIMEOUT_SECONDS
+                )
+            finally:
+                release_worker.set()
+                await occupied
+                await client.force_stop()
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("failure", ["kill", "wait", "timeout"])

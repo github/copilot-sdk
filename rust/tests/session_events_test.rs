@@ -9,6 +9,7 @@ use github_copilot_sdk::session_events::{
     ToolExecutionCompleteData, ToolExecutionCompleteFileEdit, ToolExecutionCompleteFileEditKind,
     TypedSessionEvent, UserMessageData,
 };
+use github_copilot_sdk::{SessionEvent, SessionEventWithMetadata};
 
 #[test]
 fn future_file_edit_kind_retains_its_wire_value() {
@@ -35,6 +36,58 @@ fn event_envelope(event_type: &str, data: serde_json::Value) -> serde_json::Valu
         "type": event_type,
         "data": data
     })
+}
+
+#[test]
+fn checkpoint_marker_round_trips_in_session_event_envelopes() {
+    for checkpoint in [None, Some(false), Some(true)] {
+        let mut wire = event_envelope(
+            "session.info",
+            serde_json::json!({"infoType": "status", "message": "Checkpoint state"}),
+        );
+        if let Some(checkpoint) = checkpoint {
+            wire["checkpoint"] = serde_json::json!(checkpoint);
+        }
+
+        let event: SessionEventWithMetadata = serde_json::from_value(wire.clone()).unwrap();
+        assert_eq!(event.checkpoint, checkpoint);
+        assert_eq!(event.event.event_type, "session.info");
+        assert_eq!(serde_json::to_value(event).unwrap(), wire);
+        let typed: SessionEventWithMetadata<TypedSessionEvent> =
+            serde_json::from_value(wire.clone()).unwrap();
+        assert_eq!(typed.checkpoint, checkpoint);
+        assert_eq!(serde_json::to_value(typed).unwrap(), wire);
+    }
+}
+
+#[test]
+fn session_events_preserve_existing_struct_literals() {
+    let wire = event_envelope(
+        "user.message",
+        serde_json::json!({"content": "Existing application"}),
+    );
+    let event = SessionEvent {
+        id: wire["id"].as_str().unwrap().to_owned(),
+        timestamp: wire["timestamp"].as_str().unwrap().to_owned(),
+        parent_id: Some(wire["parentId"].as_str().unwrap().to_owned()),
+        ephemeral: Some(true),
+        agent_id: Some("test-agent".to_owned()),
+        debug_cli_received_at_ms: None,
+        debug_ws_forwarded_at_ms: None,
+        event_type: "user.message".to_owned(),
+        data: wire["data"].clone(),
+    };
+    let decoded: TypedSessionEvent = serde_json::from_value(wire.clone()).unwrap();
+    let typed = TypedSessionEvent {
+        id: decoded.id,
+        timestamp: decoded.timestamp,
+        parent_id: decoded.parent_id,
+        ephemeral: decoded.ephemeral,
+        agent_id: decoded.agent_id,
+        payload: decoded.payload,
+    };
+    assert_eq!(serde_json::to_value(event).unwrap(), wire);
+    assert_eq!(serde_json::to_value(typed).unwrap(), wire);
 }
 
 #[test]
@@ -303,7 +356,7 @@ fn human_response_variants_round_trip_as_typed_event_data() {
                     }
                 },
                 "content": {
-                    "answer": "github/st-mcp-poc"
+                    "answer": "github/copilot-sdk"
                 }
             }
         }),
@@ -346,7 +399,7 @@ fn human_response_variants_round_trip_as_typed_event_data() {
             HumanResponseRecordedResponse::AskUser(response) => {
                 assert_eq!(
                     response.content.get("answer"),
-                    Some(&serde_json::json!("github/st-mcp-poc"))
+                    Some(&serde_json::json!("github/copilot-sdk"))
                 );
                 "ask_user"
             }

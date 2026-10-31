@@ -34,6 +34,10 @@ rust_library(
             "WORKSPACE.bazel",
         ],
     ),
+    crate_features = [
+        "aws_lc_rs",
+        "tls12",
+    ],
     crate_root = "src/lib.rs",
     edition = "2021",
     rustc_env_files = [
@@ -61,6 +65,6 @@ rust_library(
     version = "0.26.6",
     deps = [
         "@sdk_vendor__rustls-0.23.46//:rustls",
-        "@sdk_vendor__tokio-1.53.3//:tokio",
+        "@sdk_vendor__tokio-1.54.1//:tokio",
     ],
 )

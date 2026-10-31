@@ -39,4 +39,15 @@ public final class SessionManagedSettingsApi {
         return caller.invoke("session.managedSettings.get", java.util.Map.of("sessionId", this.sessionId), SessionManagedSettingsGetResult.class);
     }
 
+    /**
+     * Runs a fresh Policy Helper evaluation for the live session's current account, registration, working directory, repository and client context, bypassing only a completed cached helper result for that exact context while coalescing an equivalent execution already in flight. The previous failure and safeguards remain active until fresh success is applied. Returns the same retained snapshot as session.managedSettings.get after the recheck settles.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionManagedSettingsGetResult> recheckPolicyHelper() {
+        return caller.invoke("session.managedSettings.recheckPolicyHelper", java.util.Map.of("sessionId", this.sessionId), SessionManagedSettingsGetResult.class);
+    }
+
 }

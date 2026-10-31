@@ -3408,6 +3408,184 @@ func (r UnsupportedEnqueueCommandResult) MarshalJSON() ([]byte, error) {
 	})
 }
 
+func unmarshalEntraTokenAcquireRequest(data []byte) (EntraTokenAcquireRequest, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	type rawUnion struct {
+		Kind EntraTokenAcquireRequestKind `json:"kind"`
+	}
+	var raw rawUnion
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+
+	switch raw.Kind {
+	case EntraTokenAcquireRequestKindIdentity:
+		var d EntraTokenAcquireRequestIdentity
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case EntraTokenAcquireRequestKindToken:
+		var d EntraTokenAcquireRequestToken
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	default:
+		return &RawEntraTokenAcquireRequestData{Discriminator: raw.Kind, Raw: data}, nil
+	}
+}
+
+func (r RawEntraTokenAcquireRequestData) MarshalJSON() ([]byte, error) {
+	if r.Raw != nil {
+		return r.Raw, nil
+	}
+	return json.Marshal(struct {
+		Kind EntraTokenAcquireRequestKind `json:"kind"`
+	}{
+		Kind: r.Discriminator,
+	})
+}
+
+func (r EntraTokenAcquireRequestIdentity) MarshalJSON() ([]byte, error) {
+	type alias EntraTokenAcquireRequestIdentity
+	return json.Marshal(struct {
+		Kind EntraTokenAcquireRequestKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r EntraTokenAcquireRequestToken) MarshalJSON() ([]byte, error) {
+	type alias EntraTokenAcquireRequestToken
+	return json.Marshal(struct {
+		Kind EntraTokenAcquireRequestKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func unmarshalEntraTokenAcquireResult(data []byte) (EntraTokenAcquireResult, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	type rawUnion struct {
+		Kind EntraTokenAcquireResultKind `json:"kind"`
+	}
+	var raw rawUnion
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+
+	switch raw.Kind {
+	case EntraTokenAcquireResultKindCancelled:
+		var d EntraTokenAcquireResultCancelled
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case EntraTokenAcquireResultKindIdentity:
+		var d EntraTokenAcquireResultIdentity
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case EntraTokenAcquireResultKindToken:
+		var d EntraTokenAcquireResultToken
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case EntraTokenAcquireResultKindUnavailable:
+		var d EntraTokenAcquireResultUnavailable
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	default:
+		return &RawEntraTokenAcquireResultData{Discriminator: raw.Kind, Raw: data}, nil
+	}
+}
+
+func (r RawEntraTokenAcquireResultData) MarshalJSON() ([]byte, error) {
+	if r.Raw != nil {
+		return r.Raw, nil
+	}
+	return json.Marshal(struct {
+		Kind EntraTokenAcquireResultKind `json:"kind"`
+	}{
+		Kind: r.Discriminator,
+	})
+}
+
+func (r EntraTokenAcquireResultCancelled) MarshalJSON() ([]byte, error) {
+	type alias EntraTokenAcquireResultCancelled
+	return json.Marshal(struct {
+		Kind EntraTokenAcquireResultKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r EntraTokenAcquireResultIdentity) MarshalJSON() ([]byte, error) {
+	type alias EntraTokenAcquireResultIdentity
+	return json.Marshal(struct {
+		Kind EntraTokenAcquireResultKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r EntraTokenAcquireResultToken) MarshalJSON() ([]byte, error) {
+	type alias EntraTokenAcquireResultToken
+	return json.Marshal(struct {
+		Kind EntraTokenAcquireResultKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r EntraTokenAcquireResultUnavailable) MarshalJSON() ([]byte, error) {
+	type alias EntraTokenAcquireResultUnavailable
+	return json.Marshal(struct {
+		Kind EntraTokenAcquireResultKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r *EntraTokenGetTokenRequest) UnmarshalJSON(data []byte) error {
+	type rawEntraTokenGetTokenRequest struct {
+		Request json.RawMessage `json:"request"`
+	}
+	var raw rawEntraTokenGetTokenRequest
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	if raw.Request != nil {
+		value, err := unmarshalEntraTokenAcquireRequest(raw.Request)
+		if err != nil {
+			return err
+		}
+		r.Request = value
+	}
+	return nil
+}
+
 func (r EventLogTypes) MarshalJSON() ([]byte, error) {
 	if r.String != nil {
 		return json.Marshal(r.String)
@@ -6685,6 +6863,36 @@ func (r *ProtocolSectionOverride) UnmarshalJSON(data []byte) error {
 	return errors.New("data did not match any union variant for ProtocolSectionOverride")
 }
 
+func (r *PendingPermissionRequest) UnmarshalJSON(data []byte) error {
+	type rawPendingPermissionRequest struct {
+		AssistedApprovalAssessment json.RawMessage `json:"assistedApprovalAssessment,omitempty"`
+		RecoveryEpisodeID          *string         `json:"recoveryEpisodeId,omitempty"`
+		Request                    json.RawMessage `json:"request"`
+		RequestID                  string          `json:"requestId"`
+	}
+	var raw rawPendingPermissionRequest
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	if raw.AssistedApprovalAssessment != nil {
+		value, err := unmarshalAssistedApprovalAssessment(raw.AssistedApprovalAssessment)
+		if err != nil {
+			return err
+		}
+		r.AssistedApprovalAssessment = value
+	}
+	r.RecoveryEpisodeID = raw.RecoveryEpisodeID
+	if raw.Request != nil {
+		value, err := unmarshalPermissionPromptRequest(raw.Request)
+		if err != nil {
+			return err
+		}
+		r.Request = value
+	}
+	r.RequestID = raw.RequestID
+	return nil
+}
+
 func unmarshalPermissionDecision(data []byte) (PermissionDecision, error) {
 	if string(data) == "null" {
 		return nil, nil
@@ -9176,6 +9384,7 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 		IntegrationID                          *string                                              `json:"integrationId,omitempty"`
 		InteractiveUser                        *bool                                                `json:"interactiveUser,omitempty"`
 		IsExperimentalMode                     *bool                                                `json:"isExperimentalMode,omitempty"`
+		LifecycleDiagnostics                   *LifecycleDiagnosticsConfiguration                   `json:"lifecycleDiagnostics,omitempty"`
 		LogInteractiveShells                   *bool                                                `json:"logInteractiveShells,omitempty"`
 		LspClientName                          *string                                              `json:"lspClientName,omitempty"`
 		ManagedMCPServers                      map[string]ManagedMCPServerConfig                    `json:"managedMcpServers,omitzero"`
@@ -9271,6 +9480,7 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 	r.IntegrationID = raw.IntegrationID
 	r.InteractiveUser = raw.InteractiveUser
 	r.IsExperimentalMode = raw.IsExperimentalMode
+	r.LifecycleDiagnostics = raw.LifecycleDiagnostics
 	r.LogInteractiveShells = raw.LogInteractiveShells
 	r.LspClientName = raw.LspClientName
 	r.ManagedMCPServers = raw.ManagedMCPServers

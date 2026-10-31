@@ -16,7 +16,7 @@ Extensions add custom tools, hooks, and behaviors to the Copilot CLI. They run a
 └─────────────────────┘                                      └──────────────────────┘
 ```
 
-1. **Discovery**: The CLI scans `.github/extensions/` (project) and the user's copilot config extensions directory for subdirectories containing `extension.mjs`.
+1. **Discovery**: The CLI scans `.github/extensions/` (project) and the user's copilot config extensions directory for subdirectories containing an `extension.mjs`, `extension.cjs` or `extension.js` entry file.
 2. **Launch**: Each extension is forked as a child process with `@github/copilot-sdk` available via an automatic module resolver.
 3. **Connection**: The extension calls `joinSession()` which establishes a JSON-RPC connection over stdio to the CLI and attaches to the user's current foreground session.
 4. **Registration**: Tools and hooks declared in the session options are registered with the CLI and become available to the agent.
@@ -27,10 +27,11 @@ Extensions add custom tools, hooks, and behaviors to the Copilot CLI. They run a
 ```
 .github/extensions/
   my-extension/
-    extension.mjs      ← Entry point (required, must be .mjs)
+    extension.mjs      ← Entry point (required)
 ```
 
-- Only `.mjs` files are supported (ES modules). The file must be named `extension.mjs`.
+- The entry file must be named `extension.mjs`, `extension.cjs` or `extension.js`. If a directory holds more than one, the first in that order is used.
+- `.mjs` (ES modules) is the recommended form and is what the scaffold generates. `.cjs` is CommonJS, and `.js` is loaded under Node's usual module-type rules. TypeScript (`.ts`) is not supported.
 - Each extension lives in its own subdirectory.
 - The `@github/copilot-sdk` import is resolved automatically — you don't install it.
 

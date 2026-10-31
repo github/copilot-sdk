@@ -40,9 +40,16 @@ public final class AuthReadValueActiveAccount extends AuthReadValue {
     @JsonProperty("authInfo")
     private AuthIdentity authInfo;
 
+    /** Opaque credential selection id for the active authentication. This remains available when the canonical account is not currently switchable. */
+    @JsonProperty("authSelectionId")
+    private String authSelectionId;
+
     public AccountStatus getAccount() { return account; }
     public void setAccount(AccountStatus account) { this.account = account; }
 
     public AuthIdentity getAuthInfo() { return authInfo; }
     public void setAuthInfo(AuthIdentity authInfo) { this.authInfo = authInfo; }
+
+    public String getAuthSelectionId() { return authSelectionId; }
+    public void setAuthSelectionId(String authSelectionId) { this.authSelectionId = authSelectionId; }
 }

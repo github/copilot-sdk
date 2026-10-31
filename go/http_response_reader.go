@@ -3,6 +3,7 @@ package copilot
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"runtime"
 	"sync"
@@ -42,6 +43,15 @@ func newHTTPResponseReader(body io.ReadCloser) *httpResponseReader {
 
 func (r *httpResponseReader) readLoop() {
 	defer close(r.done)
+	defer func() {
+		// A panicking response body fails the request like a read error.
+		if failure := recover(); failure != nil {
+			r.mu.Lock()
+			r.err = fmt.Errorf("HTTP response body read panicked: %v", failure)
+			r.mu.Unlock()
+			signal(r.notify)
+		}
+	}()
 	scratch := make([]byte, httpResponseReadAheadSize)
 	for {
 		select {

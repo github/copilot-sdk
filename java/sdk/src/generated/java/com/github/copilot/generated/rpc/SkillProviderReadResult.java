@@ -22,6 +22,7 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 record SkillProviderReadResult(
     /** SKILL.md text, with or without YAML frontmatter, or null when the provider has no skill with the requested name. The runtime enforces a 1 MiB UTF-8 byte limit. */
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("markdown") String markdown
 ) {
 }

@@ -10,6 +10,76 @@ use tokio::time::timeout;
 
 use super::*;
 
+#[cfg(target_os = "macos")]
+async fn assert_tls13_client_hello(
+    socket: &mut tokio::net::TcpStream,
+    mut record: [u8; 5],
+    expected_alpn: &[&[u8]],
+) {
+    let mut acceptor = rustls::server::Acceptor::default();
+    loop {
+        let mut bytes = record.to_vec();
+        let length = usize::from(u16::from_be_bytes([record[3], record[4]]));
+        bytes.resize(5 + length, 0);
+        socket.read_exact(&mut bytes[5..]).await.unwrap();
+        acceptor.read_tls(&mut std::io::Cursor::new(bytes)).unwrap();
+        if let Some(accepted) = acceptor.accept().unwrap() {
+            let hello = accepted.client_hello();
+            for suite in [
+                rustls::CipherSuite::TLS13_AES_128_GCM_SHA256,
+                rustls::CipherSuite::TLS13_AES_256_GCM_SHA384,
+                rustls::CipherSuite::TLS13_CHACHA20_POLY1305_SHA256,
+                rustls::CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+                rustls::CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+                rustls::CipherSuite::TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
+                rustls::CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+                rustls::CipherSuite::TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+                rustls::CipherSuite::TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
+            ] {
+                assert!(hello.cipher_suites().contains(&suite), "missing {suite:?}");
+            }
+            for scheme in [
+                rustls::SignatureScheme::ECDSA_NISTP256_SHA256,
+                rustls::SignatureScheme::ECDSA_NISTP384_SHA384,
+                rustls::SignatureScheme::ECDSA_NISTP521_SHA512,
+                rustls::SignatureScheme::RSA_PSS_SHA256,
+                rustls::SignatureScheme::RSA_PSS_SHA384,
+                rustls::SignatureScheme::RSA_PSS_SHA512,
+                rustls::SignatureScheme::RSA_PKCS1_SHA256,
+                rustls::SignatureScheme::RSA_PKCS1_SHA384,
+                rustls::SignatureScheme::RSA_PKCS1_SHA512,
+                rustls::SignatureScheme::ED25519,
+                rustls::SignatureScheme::ML_DSA_44,
+                rustls::SignatureScheme::ML_DSA_65,
+                rustls::SignatureScheme::ML_DSA_87,
+            ] {
+                assert!(
+                    hello.signature_schemes().contains(&scheme),
+                    "missing {scheme:?}"
+                );
+            }
+            let groups = hello.named_groups().expect("missing supported groups");
+            for group in [
+                rustls::NamedGroup::X25519,
+                rustls::NamedGroup::secp256r1,
+                rustls::NamedGroup::secp384r1,
+                rustls::NamedGroup::X25519MLKEM768,
+            ] {
+                assert!(groups.contains(&group), "missing {group:?}");
+            }
+            assert_eq!(
+                hello
+                    .alpn()
+                    .map(|protocols| protocols.collect::<Vec<_>>())
+                    .unwrap_or_default(),
+                expected_alpn
+            );
+            return;
+        }
+        socket.read_exact(&mut record).await.unwrap();
+    }
+}
+
 #[tokio::test]
 async fn secure_http_rejects_a_plaintext_endpoint_without_panicking() {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -19,6 +89,8 @@ async fn secure_http_rejects_a_plaintext_endpoint_without_panicking() {
         let mut record = [0; 5];
         socket.read_exact(&mut record).await.unwrap();
         assert_eq!(record[0], 0x16, "expected a TLS handshake: {record:?}");
+        #[cfg(target_os = "macos")]
+        assert_tls13_client_hello(&mut socket, record, &[b"h2", b"http/1.1"]).await;
         socket
             .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
             .await
@@ -98,6 +170,8 @@ async fn secure_websocket_rejects_a_plaintext_endpoint_without_panicking() {
         let mut record = [0; 5];
         socket.read_exact(&mut record).await.unwrap();
         assert_eq!(record[0], 0x16, "expected a TLS handshake: {record:?}");
+        #[cfg(target_os = "macos")]
+        assert_tls13_client_hello(&mut socket, record, &[]).await;
         socket
             .write_all(b"HTTP/1.1 101 Switching Protocols\r\n\r\n")
             .await

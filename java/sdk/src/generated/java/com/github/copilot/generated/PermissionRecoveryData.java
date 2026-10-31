@@ -37,6 +37,33 @@ public record PermissionRecoveryData(
     /** Maximum number of distinct autonomous permission attempts allowed before escalation */
     @JsonProperty("maxAttempts") Long maxAttempts,
     /** Ordered privacy-safe record of permission attempts and the successful alternative, when any */
-    @JsonProperty("attempts") List<PermissionRecoveryAttempt> attempts
+    @JsonProperty("attempts") List<PermissionRecoveryAttempt> attempts,
+    /** Optional replay checkpoint for the epoch-scoped permission-recovery breaker. New runtimes persist it on state-changing recovery snapshots; older runtimes ignore it. */
+    @JsonProperty("runState") PermissionRecoveryRunState runState
 ) {
+
+    /**
+     * Creates a record with the components it had before later optional fields were added.
+     *
+     * @param episodeId Stable identifier shared by every transition in this recovery episode
+     * @param ownerSessionId Root or child execution-session identifier that owns this recovery episode; omitted for legacy snapshots
+     * @param ownerAgentId Subagent identifier that owns this recovery episode when the request was delegated through a parent permission service
+     * @param status Current lifecycle state of the recovery episode
+     * @param onBlocked Policy selected from the current client's response capability; mode or client changes may update it during recovery
+     * @param reason Controlled reason for the latest episode transition
+     * @param maxAttempts Maximum number of distinct autonomous permission attempts allowed before escalation
+     * @param attempts Ordered privacy-safe record of permission attempts and the successful alternative, when any
+     */
+    public PermissionRecoveryData(
+        String episodeId,
+        String ownerSessionId,
+        String ownerAgentId,
+        PermissionRecoveryStatus status,
+        PermissionRecoveryOnBlocked onBlocked,
+        PermissionRecoveryReason reason,
+        Long maxAttempts,
+        List<PermissionRecoveryAttempt> attempts
+    ) {
+        this(episodeId, ownerSessionId, ownerAgentId, status, onBlocked, reason, maxAttempts, attempts, null);
+    }
 }

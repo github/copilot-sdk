@@ -176,7 +176,7 @@ public class ScenarioTestingProvidersE2ETests(E2ETestFixture fixture, ITestOutpu
     }
 
     [Fact]
-    public async Task Should_Resolve_Legacy_Bare_Model_Id_When_Scenario_Resumes_With_Named_Provider()
+    public async Task Should_Reject_Unregistered_Legacy_Model_Id_When_Scenario_Resumes_With_Named_Provider()
     {
         var initialHandler = new ScenarioProviderRequestHandler();
         var initialClient = CreateProviderClient(initialHandler);
@@ -234,14 +234,14 @@ public class ScenarioTestingProvidersE2ETests(E2ETestFixture fixture, ITestOutpu
         });
 
         Assert.Equal("legacy-scenario-model", (await resumed.Rpc.Model.GetCurrentAsync()).ModelId);
-        var response = await resumed.SendAndWaitAsync(new MessageOptions
-        {
-            Prompt = "Continue the legacy scenario session.",
-        });
-        Assert.Contains(ScenarioProviderRequestHandler.SyntheticText, response?.Data.Content ?? string.Empty);
-        var routed = Assert.Single(resumedHandler.InferenceRequests);
-        Assert.NotEqual("legacy.scenario.invalid", routed.Host);
-        Assert.Contains("\"model\":\"claude-sonnet-5\"", routed.Body, StringComparison.Ordinal);
+        var error = await Assert.ThrowsAnyAsync<Exception>(() =>
+            resumed.SendAndWaitAsync(new MessageOptions
+            {
+                Prompt = "Continue the legacy scenario session.",
+            }));
+        Assert.Contains("Model \"legacy-scenario-model\" is not available.", error.ToString(), StringComparison.Ordinal);
+        Assert.Equal("legacy-scenario-model", (await resumed.Rpc.Model.GetCurrentAsync()).ModelId);
+        Assert.Empty(resumedHandler.InferenceRequests);
     }
 
     [Fact]

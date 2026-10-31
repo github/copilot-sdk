@@ -230,11 +230,21 @@ class GitHubTelemetryTest {
 
     @Test
     void connectForwardsEntraConfiguration() throws Exception {
-        try (var server = new FakeRuntimeServer();
-                var client = new CopilotClient(new CopilotClientOptions().setCliUrl(server.url())
-                        .setEntra(new com.github.copilot.generated.rpc.EntraAuthConfig("host-entra-client")))) {
-            client.start().get(15, TimeUnit.SECONDS);
-            assertEquals("host-entra-client", server.awaitConnect().path("entra").path("clientId").asText());
+        for (boolean generated : new boolean[]{false, true}) {
+            var options = new CopilotClientOptions();
+            if (generated) {
+                options.setEntra(new com.github.copilot.generated.rpc.EntraAuthConfig("host-entra-client", "TestHost"));
+            } else {
+                options.setEntra(new com.github.copilot.rpc.EntraAuthOptions().setClientId("host-entra-client")
+                        .setMatsAppName("TestHost"));
+            }
+            try (var server = new FakeRuntimeServer();
+                    var client = new CopilotClient(options.setCliUrl(server.url()))) {
+                client.start().get(15, TimeUnit.SECONDS);
+                JsonNode entra = server.awaitConnect().path("entra");
+                assertEquals("host-entra-client", entra.path("clientId").asText());
+                assertEquals("TestHost", entra.path("matsAppName").asText());
+            }
         }
     }
 

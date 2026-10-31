@@ -23,6 +23,8 @@ use github_copilot_sdk::{
     Client, ClientOptions, LogLevel, McpHttpServerConfig, McpServerConfig, SessionConfig, Transport,
 };
 use serde_json::{Value, json};
+#[cfg(target_os = "macos")]
+use tokio_rustls::rustls;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 const FIRST: &str = "ghu_connector_session_first";
@@ -47,7 +49,18 @@ fn persistent_config(label: &str) -> Result<Option<Vec<u8>>> {
 
 async fn control(update: Option<Value>) -> Result<Value> {
     let url = format!("{}/local-test-control", setting("CONNECTOR_LOCAL_API"));
-    let client = reqwest::Client::new();
+    let client = reqwest::Client::builder();
+    // macOS reqwest needs an explicit provider even for this plain-HTTP fixture.
+    #[cfg(target_os = "macos")]
+    let client = client.tls_backend_preconfigured(
+        rustls::ClientConfig::builder_with_provider(Arc::new(
+            rustls::crypto::aws_lc_rs::default_provider(),
+        ))
+        .with_safe_default_protocol_versions()?
+        .with_root_certificates(rustls::RootCertStore::empty())
+        .with_no_client_auth(),
+    );
+    let client = client.build()?;
     let response = match update {
         Some(update) => {
             client

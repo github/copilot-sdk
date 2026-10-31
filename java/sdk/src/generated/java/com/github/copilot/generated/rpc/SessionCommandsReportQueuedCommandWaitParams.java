@@ -1,0 +1,39 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+// AUTO-GENERATED FILE - DO NOT EDIT
+// Generated from: api.schema.json
+
+package com.github.copilot.generated.rpc;
+
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.github.copilot.CopilotExperimental;
+import javax.annotation.processing.Generated;
+
+/**
+ * Host report that its execution of a queued command started or stopped waiting for runtime state. The report is observational and never changes command execution.
+ *
+ * @apiNote This method is experimental and may change in a future version.
+ * @since 1.0.0
+ */
+@CopilotExperimental
+@javax.annotation.processing.Generated("copilot-sdk-codegen")
+@JsonInclude(JsonInclude.Include.NON_NULL)
+@JsonIgnoreProperties(ignoreUnknown = true)
+record SessionCommandsReportQueuedCommandWaitParams(
+    /** Target session identifier */
+    @JsonProperty("sessionId") String sessionId,
+    /** Request ID from the `command.queued` event the host is executing. */
+    @JsonProperty("requestId") String requestId,
+    /** Stable identity of the account whose managed policy the host awaits. */
+    @JsonInclude(JsonInclude.Include.ALWAYS)
+    @JsonProperty("accountIdentity") String accountIdentity,
+    /** Runtime state the host waits for. */
+    @JsonProperty("requirement") QueuedCommandWaitRequirement requirement,
+    /** True when the wait starts and false when it ends. */
+    @JsonProperty("waiting") Boolean waiting
+) {
+}

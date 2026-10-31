@@ -15,6 +15,54 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class AgentStopHookInput {
 
+    @JsonProperty("traceparent")
+    private String traceparent;
+
+    @JsonProperty("tracestate")
+    private String tracestate;
+
+    /**
+     * Gets the existing W3C trace context associated with this hook.
+     *
+     * @return the trace context, or {@code null} when unavailable
+     */
+    public String getTraceparent() {
+        return traceparent;
+    }
+
+    /**
+     * Sets the existing W3C trace context.
+     *
+     * @param traceparent
+     *            the trace context, or {@code null}
+     * @return this instance for method chaining
+     */
+    public AgentStopHookInput setTraceparent(String traceparent) {
+        this.traceparent = traceparent;
+        return this;
+    }
+
+    /**
+     * Gets the existing W3C vendor trace state associated with this hook.
+     *
+     * @return the trace state, or {@code null} when unavailable
+     */
+    public String getTracestate() {
+        return tracestate;
+    }
+
+    /**
+     * Sets the existing W3C vendor trace state.
+     *
+     * @param tracestate
+     *            the trace state, or {@code null}
+     * @return this instance for method chaining
+     */
+    public AgentStopHookInput setTracestate(String tracestate) {
+        this.tracestate = tracestate;
+        return this;
+    }
+
     @JsonProperty("agentId")
     private String agentId;
 

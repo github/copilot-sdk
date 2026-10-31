@@ -14,6 +14,8 @@ from copilot.generated.rpc import (
     CustomizationReloadStatus,
     CustomizationReloadSubsystem,
     UsageGetMetricsResult,
+    _InternalServerRpc,
+    _SettingsRedactValueForDisplayRequest,
     register_client_global_api_handlers,
 )
 from copilot.rpc import (
@@ -43,6 +45,19 @@ from copilot.rpc import (
     UIElicitationSchemaType,
     UpdateSubagentSettingsRequest,
 )
+
+
+async def test_settings_redaction_keeps_required_opaque_null():
+    client = Mock(request=AsyncMock(return_value={"value": None}))
+
+    result = await _InternalServerRpc(client).settings._redact_value_for_display(
+        _SettingsRedactValueForDisplayRequest(value=None, base_path=[])
+    )
+
+    client.request.assert_awaited_once_with(
+        "settings.redactValueForDisplay", {"value": None, "basePath": []}
+    )
+    assert result.value is None
 
 
 @pytest.mark.parametrize(
@@ -202,6 +217,49 @@ def test_sandbox_config_round_trips_allow_bypass_and_omits_when_absent():
     assert SandboxConfig(enabled=True).to_dict() == {"enabled": True}
 
 
+def test_sandbox_extensions_preserve_existing_positional_parameters():
+    legacy_fields = [
+        "enabled",
+        "add_current_working_directory",
+        "allow_bypass",
+        "allow_dev_tool_access",
+        "auth",
+        "credentials",
+        "managed_lsp_routing_locked",
+        "managed_mcp_routing_locked",
+        "sandbox_lsp_servers",
+        "sandbox_mcp_servers",
+        "user_policy",
+    ]
+    parameters = list(inspect.signature(SandboxConfig).parameters)
+    assert parameters[: len(legacy_fields)] == legacy_fields
+
+    config = SandboxConfig(True, None, None, None, None, None, None, None, False, True)
+    assert config.to_dict() == {
+        "enabled": True,
+        "sandboxLspServers": False,
+        "sandboxMcpServers": True,
+    }
+    assert SandboxConfig.from_dict(config.to_dict()) == config
+    extended = SandboxConfig(
+        True,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        False,
+        True,
+        sandbox_extensions=False,
+        managed_extensions_routing_locked=True,
+    )
+    assert SandboxConfig.from_dict(extended.to_dict()) == extended
+    assert extended.to_dict()["sandboxExtensions"] is False
+    assert extended.to_dict()["managedExtensionsRoutingLocked"] is True
+
+
 def test_slash_command_prompt_preserves_existing_positional_parameters():
     result = SlashCommandAgentPromptResult("Display prompt", "Agent prompt", None, None, True)
 
@@ -246,6 +304,7 @@ def test_auth_read_value_preserves_existing_positional_parameters():
         "status",
         "errors",
         "auth_info",
+        "auth_selection_id",
     ]
     payload = {
         "kind": "activeAccount",

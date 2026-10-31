@@ -8,6 +8,8 @@ namespace GitHub.Copilot;
 
 internal static class TelemetryHelpers
 {
+    private static readonly ActivitySource s_activitySource = new("github.copilot");
+
     internal static (string? Traceparent, string? Tracestate) GetTraceContext()
     {
         return Activity.Current is { } activity
@@ -16,25 +18,29 @@ internal static class TelemetryHelpers
     }
 
     /// <summary>
-    /// Sets <see cref="Activity.Current"/> to reflect the trace context from the given
-    /// W3C <paramref name="traceparent"/> / <paramref name="tracestate"/> headers.
-    /// The runtime already owns the <c>execute_tool</c> span; this just ensures
-    /// user code runs under the correct parent so any child activities are properly parented.
+    /// Starts a tool-handler activity under the remote W3C
+    /// <paramref name="traceparent"/> / <paramref name="tracestate"/> context.
     /// Dispose the returned <see cref="Activity"/> to restore the previous <see cref="Activity.Current"/>.
     /// </summary>
     /// <remarks>
-    /// Because this Activity is not created via an <see cref="ActivitySource"/>, it will not
-    /// be sampled or exported by any standard OpenTelemetry exporter — it is invisible in
-    /// trace backends.  It exists only to carry the remote parent context through
-    /// <see cref="Activity.Current"/> so that child activities created by user tool
-    /// handlers are parented to the CLI's span.
+    /// Listeners for <c>github.copilot</c> can sample and export this activity so child
+    /// spans have an observable parent. Without a listener, or when sampling returns
+    /// <see cref="ActivitySamplingResult.None"/>, a propagation-only activity preserves
+    /// the remote context without recording data.
     /// </remarks>
     internal static Activity? RestoreTraceContext(string? traceparent, string? tracestate)
     {
         if (traceparent is not null &&
-            ActivityContext.TryParse(traceparent, tracestate, out ActivityContext parent))
+            ActivityContext.TryParse(traceparent, tracestate, isRemote: true, out ActivityContext parent))
         {
-            Activity activity = new("copilot.tool_handler");
+            Activity? activity = s_activitySource.StartActivity("copilot.tool_handler", ActivityKind.Internal, parent);
+            if (activity is not null)
+            {
+                return activity;
+            }
+
+            // ActivitySource returns null when no listener requests an activity.
+            activity = new Activity("copilot.tool_handler") { IsAllDataRequested = false };
             activity.SetParentId(parent.TraceId, parent.SpanId, parent.TraceFlags);
             if (tracestate is not null)
             {

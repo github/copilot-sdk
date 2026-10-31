@@ -23,12 +23,16 @@ import javax.annotation.processing.Generated;
 public record Skill(
     /** Unique identifier for the skill */
     @JsonProperty("name") String name,
+    /** Original frontmatter name for an MCP skill, for display only. Use name for identity and enable/disable operations. */
+    @JsonProperty("declaredName") String declaredName,
     /** Canonical slash command name used to invoke the skill, without the leading '/' */
     @JsonProperty("commandName") String commandName,
     /** Description of what the skill does */
     @JsonProperty("description") String description,
     /** Source location type (e.g., project, personal-copilot, plugin, builtin) */
     @JsonProperty("source") SkillSource source,
+    /** MCP server and skill resource address when source is 'mcp'. Contains no activation grants or internal verification metadata. */
+    @JsonProperty("mcpOrigin") McpSkillOrigin mcpOrigin,
     /** Whether the skill can be invoked by the user as a slash command */
     @JsonProperty("userInvocable") Boolean userInvocable,
     /** Whether the skill is currently enabled */

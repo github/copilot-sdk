@@ -24,6 +24,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -40,6 +42,7 @@ import com.github.copilot.generated.SessionIdleEvent;
 import com.github.copilot.rpc.CopilotClientOptions;
 import com.github.copilot.rpc.MessageOptions;
 import com.github.copilot.rpc.PermissionHandler;
+import com.github.copilot.rpc.ResumeSessionConfig;
 import com.github.copilot.rpc.SessionConfig;
 import com.github.copilot.rpc.SessionHooks;
 
@@ -72,6 +75,185 @@ class ForceStopSessionTest {
                 assertThrows(IllegalStateException.class, () -> session.on(event -> fail("Retired handler")));
                 session.close();
                 assertEquals(1, server.detaches.get(), "Repeated close must not detach again");
+            }
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"success", "rejected", "rpc-error"})
+    void timedOutClosePreservesEventsUntilDetachAcknowledgement(String outcome) throws Exception {
+        var events = new AtomicInteger();
+        var hooks = new AtomicInteger();
+        try (var server = new Server(); var client = server.createClient()) {
+            server.holdDetachResponse = true;
+            var session = client.createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+                    .setHooks(new SessionHooks().setOnSessionEnd((input, invocation) -> {
+                        assertEquals("user_exit", input.reason());
+                        hooks.incrementAndGet();
+                        return CompletableFuture.completedFuture(null);
+                    }))).get(5, TimeUnit.SECONDS);
+            try (var subscription = session.on(event -> events.incrementAndGet())) {
+                var closing = CompletableFuture.runAsync(session::close);
+                var detach = server.heldDetaches.poll(5, TimeUnit.SECONDS);
+                assertNotNull(detach, "The peer must receive the actual detach request");
+                try (var acknowledgement = (AutoCloseable) () -> {
+                    server.completeDetach(detach, outcome);
+                    client.ping("detach acknowledgement barrier").get(5, TimeUnit.SECONDS);
+                }) {
+                    server.emitIdle(session.getSessionId());
+                    client.ping("before close timeout barrier").get(5, TimeUnit.SECONDS);
+                    assertEquals(1, events.get());
+                    var error = assertThrows(ExecutionException.class, () -> closing.get(10, TimeUnit.SECONDS));
+                    var closeError = assertInstanceOf(IllegalStateException.class, error.getCause());
+                    assertEquals("Failed to detach session " + session.getSessionId(), closeError.getMessage());
+                    assertInstanceOf(TimeoutException.class, closeError.getCause());
+
+                    server.emitIdle(session.getSessionId());
+                    client.ping("after close timeout barrier").get(5, TimeUnit.SECONDS);
+                    assertEquals(2, events.get(), "A caller timeout must not retire callbacks before the detach ACK");
+                    server.invokeSessionEnd(session.getSessionId());
+                    assertEquals(1, hooks.get(), "The session-end hook must survive the caller's timeout too");
+                    session.close();
+                    assertEquals(1, server.detaches.get(), "Timed-out close must not issue another detach");
+                }
+                server.emitIdle(session.getSessionId());
+                client.ping("after detach acknowledgement barrier").get(5, TimeUnit.SECONDS);
+                assertEquals(2, events.get(), "The actual detach ACK must retire callbacks");
+            }
+        }
+    }
+
+    @Test
+    void interruptedCloseKeepsCallbacksAndLateAcknowledgementDoesNotRetireReplacement() throws Exception {
+        var events = new AtomicInteger();
+        var replacementEvents = new AtomicInteger();
+        var closeFailure = new AtomicReference<RuntimeException>();
+        var interrupted = new AtomicBoolean();
+        try (var server = new Server(); var client = server.createClient()) {
+            server.holdDetachResponse = true;
+            var session = createSession(client);
+            var closing = new Thread(() -> {
+                try {
+                    session.close();
+                } catch (RuntimeException error) {
+                    closeFailure.set(error);
+                    interrupted.set(Thread.currentThread().isInterrupted());
+                }
+            }, "interrupted-session-close");
+            try (var subscription = session.on(event -> events.incrementAndGet())) {
+                var detach = new AtomicReference<JsonNode>();
+                try (var join = (AutoCloseable) () -> {
+                    closing.join(10000);
+                    assertFalse(closing.isAlive(), "The owned close thread must stop");
+                }; var acknowledgement = (AutoCloseable) () -> {
+                    if (detach.get() != null) {
+                        server.completeDetach(detach.get(), "success");
+                    }
+                }) {
+                    closing.start();
+                    detach.set(server.heldDetaches.poll(5, TimeUnit.SECONDS));
+                    assertNotNull(detach.get(), "The peer must admit detach before interruption");
+                    closing.interrupt();
+                    closing.join(5000);
+                    assertFalse(closing.isAlive(), "Interrupted close must finish without waiting for the ACK");
+                    var error = assertInstanceOf(IllegalStateException.class, closeFailure.get());
+                    assertEquals("Failed to detach session " + session.getSessionId(), error.getMessage());
+                    assertInstanceOf(InterruptedException.class, error.getCause());
+                    assertTrue(interrupted.get(), "Close must restore the caller's interrupt flag");
+                    server.emitIdle(session.getSessionId());
+                    client.ping("interrupted close callback barrier").get(5, TimeUnit.SECONDS);
+                    assertEquals(1, events.get(), "Interrupting the caller must not retire pending detach callbacks");
+
+                    var replacement = client
+                            .resumeSession(session.getSessionId(),
+                                    new ResumeSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
+                            .get(5, TimeUnit.SECONDS);
+                    try (var replacementSubscription = replacement.on(event -> replacementEvents.incrementAndGet())) {
+                        server.emitIdle(replacement.getSessionId());
+                        client.ping("replacement callback barrier").get(5, TimeUnit.SECONDS);
+                        assertEquals(1, replacementEvents.get());
+                        server.completeDetach(detach.get(), "success");
+                        detach.set(null);
+                        server.emitIdle(replacement.getSessionId());
+                        client.ping("old detach settled barrier").get(5, TimeUnit.SECONDS);
+                        assertEquals(2, replacementEvents.get(),
+                                "An old detach completion must not retire the replacement's callbacks");
+                        assertEquals(1, events.get(), "New-generation events must not reach old subscriptions");
+                        client.forceStop().get(5, TimeUnit.SECONDS);
+                    }
+                }
+            }
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void transportFailureSettlesPendingDetach(boolean timeoutFirst) throws Exception {
+        try (var server = new Server(); var client = server.createClient()) {
+            server.holdDetachResponse = true;
+            var session = createSession(client);
+            var closing = CompletableFuture.runAsync(session::close);
+            assertNotNull(server.heldDetaches.poll(5, TimeUnit.SECONDS), "Detach must be pending on the real peer");
+            if (timeoutFirst) {
+                var error = assertThrows(ExecutionException.class, () -> closing.get(10, TimeUnit.SECONDS));
+                assertInstanceOf(TimeoutException.class, error.getCause().getCause());
+            }
+            server.socket.shutdownOutput();
+            if (!timeoutFirst) {
+                var error = assertThrows(ExecutionException.class, () -> closing.get(5, TimeUnit.SECONDS));
+                var closeError = assertInstanceOf(IllegalStateException.class, error.getCause());
+                var rpcError = assertInstanceOf(ExecutionException.class, closeError.getCause());
+                assertInstanceOf(IOException.class, rpcError.getCause());
+                assertEquals("Client closed", rpcError.getCause().getMessage());
+            }
+            var pingError = assertThrows(ExecutionException.class,
+                    () -> client.ping("closed transport barrier").get(5, TimeUnit.SECONDS));
+            assertInstanceOf(IOException.class, pingError.getCause());
+            assertThrows(IllegalStateException.class, () -> session.send("after transport failure"));
+            session.close();
+            assertEquals(1, server.detaches.get(), "A settled failed detach must not be sent again");
+            client.forceStop().get(5, TimeUnit.SECONDS);
+        }
+    }
+
+    @Test
+    void forceStopAfterCloseTimeoutDropsUnadmittedCallbacks() throws Exception {
+        var entered = new CountDownLatch(1);
+        var release = new CountDownLatch(1);
+        var dispatchThread = new AtomicReference<Thread>();
+        var laterCalls = new AtomicInteger();
+        var errorCalls = new AtomicInteger();
+        try (var server = new Server(); var client = server.createClient()) {
+            server.holdDetachResponse = true;
+            var session = createSession(client);
+            session.setEventErrorHandler((event, error) -> errorCalls.incrementAndGet());
+            try (var first = session.on(event -> {
+                dispatchThread.set(Thread.currentThread());
+                entered.countDown();
+                awaitRelease(release);
+                throw new IllegalStateException("Admitted callback failed after forced retirement");
+            }); var second = session.on(event -> laterCalls.incrementAndGet())) {
+                var closing = CompletableFuture.runAsync(session::close);
+                assertNotNull(server.heldDetaches.poll(5, TimeUnit.SECONDS));
+                var error = assertThrows(ExecutionException.class, () -> closing.get(10, TimeUnit.SECONDS));
+                assertInstanceOf(TimeoutException.class, error.getCause().getCause());
+                try (var gate = (AutoCloseable) () -> {
+                    release.countDown();
+                    var thread = dispatchThread.get();
+                    if (thread != null) {
+                        thread.join(5000);
+                        assertFalse(thread.isAlive(), "The owned reader must exit after callback release");
+                    }
+                }) {
+                    server.emitIdle(session.getSessionId());
+                    assertTrue(entered.await(5, TimeUnit.SECONDS), "Post-timeout callback must still be admitted");
+                    client.forceStop().get(5, TimeUnit.SECONDS);
+                    assertEquals(1, release.getCount(), "Force stop must not join the admitted callback");
+                }
+                assertEquals(0, laterCalls.get(), "Force stop must drop the remaining dispatch snapshot");
+                assertEquals(0, errorCalls.get(), "Force stop must also retire the error callback");
+                session.close();
+                assertEquals(1, server.detaches.get(), "Force stop must not resend the pending detach");
             }
         }
     }
@@ -416,6 +598,8 @@ class ForceStopSessionTest {
         private final Thread thread;
         private final AtomicInteger detaches = new AtomicInteger();
         private final CountDownLatch detachEntered = new CountDownLatch(1);
+        private final java.util.concurrent.BlockingQueue<JsonNode> heldDetaches = new java.util.concurrent.LinkedBlockingQueue<>();
+        private final java.util.concurrent.BlockingQueue<JsonNode> hookReplies = new java.util.concurrent.LinkedBlockingQueue<>();
         private volatile Socket socket;
         private volatile boolean closed;
         private volatile boolean emitDetachCallbacks;
@@ -441,6 +625,29 @@ class ForceStopSessionTest {
             emitEvent(sessionId, "session.idle", Map.of());
         }
 
+        void completeDetach(JsonNode request, String outcome) throws IOException {
+            var response = MAPPER.createObjectNode().put("jsonrpc", "2.0");
+            response.set("id", request.get("id"));
+            switch (outcome) {
+                case "success" -> response.set("result", MAPPER.valueToTree(Map.of("success", true)));
+                case "rejected" -> response.set("result",
+                        MAPPER.valueToTree(Map.of("success", false, "error", "controlled detach rejection")));
+                case "rpc-error" -> response.set("error",
+                        MAPPER.valueToTree(Map.of("code", -32603, "message", "controlled detach RPC error")));
+                default -> throw new IllegalArgumentException("Unexpected detach outcome: " + outcome);
+            }
+            writeMessage(response);
+        }
+
+        void invokeSessionEnd(String sessionId) throws Exception {
+            writeMessage(Map.of("jsonrpc", "2.0", "id", 9_000_001L, "method", "hooks.invoke", "params",
+                    Map.of("sessionId", sessionId, "hookType", "sessionEnd", "input",
+                            Map.of("sessionId", sessionId, "timestamp", 0, "cwd", ".", "reason", "user_exit"))));
+            var reply = hookReplies.poll(5, TimeUnit.SECONDS);
+            assertNotNull(reply, "The SDK must acknowledge the session-end hook");
+            assertFalse(reply.has("error"), "Session-end hook failed: " + reply);
+        }
+
         Map<String, Object> emitEvent(String sessionId, String type, Map<String, Object> data) throws IOException {
             assertNotNull(socket, "Session creation must establish the connection before events");
             var event = Map.<String, Object>of("type", type, "id", java.util.UUID.randomUUID().toString(), "timestamp",
@@ -459,7 +666,14 @@ class ForceStopSessionTest {
                     if (request == null) {
                         return;
                     }
+                    if (accepted.isOutputShutdown()) {
+                        continue;
+                    }
                     JsonNode params = request.path("params");
+                    if (!request.has("method") && request.path("id").asLong() == 9_000_001L) {
+                        hookReplies.add(request);
+                        continue;
+                    }
                     if (request.path("method").asText().equals("session.sendAndWait")) {
                         if (completionSupported) {
                             completions.add(request);
@@ -475,6 +689,7 @@ class ForceStopSessionTest {
                     }
                     if (holdDetachResponse && request.path("method").asText().equals("session.detach")) {
                         detaches.incrementAndGet();
+                        heldDetaches.add(request);
                         detachEntered.countDown();
                         continue;
                     }
@@ -502,7 +717,8 @@ class ForceStopSessionTest {
                     }
                     Object result = switch (request.path("method").asText()) {
                         case "connect" -> Map.of("protocolVersion", SdkProtocolVersion.get());
-                        case "session.create" -> Map.of("sessionId", params.path("sessionId").asText());
+                        case "session.create", "session.resume" ->
+                            Map.of("sessionId", params.path("sessionId").asText());
                         case "session.send" -> {
                             sends.add(params.path("prompt").asText());
                             yield Map.of("messageId", params.path("prompt").asText());

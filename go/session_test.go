@@ -50,6 +50,10 @@ func TestPermissionHandlerReceivesDerivedPromptContext(t *testing.T) {
 			Recommendation: rpc.AssistedApprovalRecommendationApprove,
 		},
 	}
+	assessment := &rpc.AssistedApprovalAssessmentCompleted{
+		Recommendation: rpc.AssistedApprovalCompletedRecommendationRequireApproval,
+		Rationale:      ptr("The command modifies protected files."),
+	}
 	var observed PermissionHandlerInvocation
 	session.registerPermissionHandlerWithPrompt(func(_ PermissionRequest, invocation PermissionHandlerInvocation) (rpc.PermissionDecision, error) {
 		observed = invocation
@@ -65,7 +69,8 @@ func TestPermissionHandlerReceivesDerivedPromptContext(t *testing.T) {
 				Intention:               "List files",
 				ManagedApprovalRequired: &managedApprovalRequired,
 			},
-			PromptRequest: promptRequest,
+			PromptRequest:              promptRequest,
+			AssistedApprovalAssessment: assessment,
 		},
 	})
 
@@ -74,6 +79,9 @@ func TestPermissionHandlerReceivesDerivedPromptContext(t *testing.T) {
 	}
 	if !observed.ManagedSettingsEnabled {
 		t.Fatal("expected managed settings context")
+	}
+	if observed.AssistedApprovalAssessment != assessment {
+		t.Fatalf("expected assisted approval assessment, got %#v", observed.AssistedApprovalAssessment)
 	}
 }
 
@@ -1961,12 +1969,7 @@ func TestSession_Capabilities(t *testing.T) {
 			},
 		})
 
-		// Capabilities are updated by handleBroadcastEvent which runs in a goroutine.
-		// Poll instead of sleep so the test is bound by event processing, not arbitrary
-		// timing — fast machines exit immediately, slow ones still get 2s.
-		caps = waitForCapability(t, session, func(c SessionCapabilities) bool {
-			return c.UI != nil && c.UI.Elicitation
-		}, 2*time.Second)
+		caps = session.Capabilities()
 		if caps.UI == nil || !caps.UI.Elicitation {
 			t.Error("Expected UI.Elicitation to be true after capabilities.changed event")
 		}
@@ -1979,9 +1982,7 @@ func TestSession_Capabilities(t *testing.T) {
 			},
 		})
 
-		caps = waitForCapability(t, session, func(c SessionCapabilities) bool {
-			return c.UI != nil && !c.UI.Elicitation
-		}, 2*time.Second)
+		caps = session.Capabilities()
 		if caps.UI == nil || caps.UI.Elicitation {
 			t.Error("Expected UI.Elicitation to be false after second capabilities.changed event")
 		}
@@ -2172,6 +2173,80 @@ func TestSession_ElicitationCapabilityGating(t *testing.T) {
 			t.Errorf("Expected no error when elicitation capability is present, got %v", err)
 		}
 	})
+}
+
+func TestSession_CapabilitiesChangedKeepsCapabilitiesItDoesNotName(t *testing.T) {
+	changed := func(session *Session, ui CapabilitiesChangedUI) {
+		session.dispatchEvent(SessionEvent{Data: &CapabilitiesChangedData{UI: &ui}})
+	}
+
+	t.Run("an elicitation change keeps mcpApps", func(t *testing.T) {
+		session, cleanup := newTestSession()
+		defer cleanup()
+		session.setCapabilities(&SessionCapabilities{UI: &UICapabilities{MCPApps: true}})
+		before := session.Capabilities()
+
+		changed(session, CapabilitiesChangedUI{Elicitation: Bool(true)})
+
+		caps := waitForCapability(t, session, func(c SessionCapabilities) bool {
+			return c.UI != nil && c.UI.Elicitation
+		}, 2*time.Second)
+		if caps.UI == nil || !caps.UI.Elicitation || !caps.UI.MCPApps {
+			t.Fatalf("expected elicitation applied and mcpApps kept, got %+v", caps.UI)
+		}
+		if before.UI.Elicitation {
+			t.Error("capabilities read before the event were modified in place")
+		}
+	})
+
+	t.Run("an mcpApps change is applied and keeps elicitation", func(t *testing.T) {
+		session, cleanup := newTestSession()
+		defer cleanup()
+		session.setCapabilities(&SessionCapabilities{UI: &UICapabilities{Elicitation: true}})
+
+		changed(session, CapabilitiesChangedUI{MCPApps: Bool(true)})
+
+		caps := waitForCapability(t, session, func(c SessionCapabilities) bool {
+			return c.UI != nil && c.UI.MCPApps
+		}, 2*time.Second)
+		if caps.UI == nil || !caps.UI.MCPApps || !caps.UI.Elicitation {
+			t.Fatalf("expected mcpApps applied and elicitation kept, got %+v", caps.UI)
+		}
+	})
+
+	t.Run("a change to false keeps the other capability", func(t *testing.T) {
+		session, cleanup := newTestSession()
+		defer cleanup()
+		session.setCapabilities(&SessionCapabilities{UI: &UICapabilities{Elicitation: true, MCPApps: true}})
+
+		changed(session, CapabilitiesChangedUI{Elicitation: Bool(false)})
+
+		caps := waitForCapability(t, session, func(c SessionCapabilities) bool {
+			return c.UI != nil && !c.UI.Elicitation
+		}, 2*time.Second)
+		if caps.UI == nil || caps.UI.Elicitation || !caps.UI.MCPApps {
+			t.Fatalf("expected elicitation off and mcpApps kept, got %+v", caps.UI)
+		}
+	})
+}
+
+func TestSession_CapabilitiesChangedAppliesInNotificationOrder(t *testing.T) {
+	session, cleanup := newTestSession()
+	defer cleanup()
+	session.setCapabilities(&SessionCapabilities{UI: &UICapabilities{Elicitation: true}})
+
+	for _, enabled := range []bool{true, false, true, false} {
+		session.dispatchEvent(SessionEvent{
+			Data: &CapabilitiesChangedData{
+				UI: &CapabilitiesChangedUI{MCPApps: Bool(enabled)},
+			},
+		})
+
+		caps := session.Capabilities()
+		if caps.UI == nil || caps.UI.MCPApps != enabled || !caps.UI.Elicitation {
+			t.Fatalf("expected mcpApps=%v and elicitation kept immediately after dispatch, got %+v", enabled, caps.UI)
+		}
+	}
 }
 
 func TestSession_ElicitationHandler(t *testing.T) {
@@ -2597,35 +2672,4 @@ func TestSession_ElicitationRequestSchema(t *testing.T) {
 			t.Fatalf("Expected typed property to be preserved, got %T", rpcSchema.Properties["name"])
 		}
 	})
-}
-
-func TestElicitationHandlerReceivesConnectorDisplayName(t *testing.T) {
-	session, cleanup := newTestSession()
-	defer cleanup()
-	contexts := make(chan ElicitationContext, 1)
-	// The handler never returns: answering would need a live RPC connection.
-	session.registerElicitationHandler(func(ctx ElicitationContext) (ElicitationResult, error) {
-		contexts <- ctx
-		select {}
-	})
-	source := "github-copilot-connector-1"
-	label := "Work IQ"
-	session.dispatchEvent(SessionEvent{Data: &ElicitationRequestedData{
-		RequestID:                    "request-1",
-		Message:                      "Pick one",
-		ElicitationSource:            &source,
-		ElicitationSourceDisplayName: &label,
-	}})
-
-	select {
-	case ctx := <-contexts:
-		if ctx.ElicitationSource == nil || *ctx.ElicitationSource != source {
-			t.Errorf("ElicitationSource = %v, want %q", ctx.ElicitationSource, source)
-		}
-		if ctx.ElicitationSourceDisplayName == nil || *ctx.ElicitationSourceDisplayName != label {
-			t.Errorf("ElicitationSourceDisplayName = %v, want %q", ctx.ElicitationSourceDisplayName, label)
-		}
-	case <-time.After(2 * time.Second):
-		t.Fatal("elicitation handler was not called")
-	}
 }

@@ -25,6 +25,9 @@ export type JsonValue =
     | JsonValue[]
     | { [key: string]: JsonValue };
 export type {
+    WorkflowAgentContextObservation,
+    WorkflowAgentModelObservation,
+    WorkflowAgentReasoningEffortObservation,
     WorkflowAgentSummary,
     WorkflowPhaseStatus,
     WorkflowPhaseObservation,

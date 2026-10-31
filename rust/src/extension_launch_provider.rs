@@ -3,6 +3,7 @@
 use std::sync::{Arc, OnceLock, Weak};
 
 use async_trait::async_trait;
+use futures_util::FutureExt;
 use parking_lot::RwLock;
 use serde::Serialize;
 use serde_json::Value;
@@ -18,6 +19,7 @@ use crate::{
 
 pub(crate) const RESOLVE_METHOD: &str = "extensionLaunchProvider.resolve";
 const MISSING_HANDLER_MESSAGE: &str = "No extensionLaunchProvider client-global handler registered";
+const PANICKED_HANDLER_MESSAGE: &str = "Extension launch provider panicked";
 
 /// Resolves process launch profiles for extension entrypoints discovered by the runtime.
 ///
@@ -95,11 +97,24 @@ impl ExtensionLaunchProviderDispatcher {
             }
         };
 
-        match handler.resolve(request).await {
-            Ok(result) => self.respond(request_id, result).await,
-            Err(error) => {
+        // A panic in the provider must still answer the runtime, which
+        // otherwise waits on this request until its own timeout.
+        match std::panic::AssertUnwindSafe(handler.resolve(request))
+            .catch_unwind()
+            .await
+        {
+            Ok(Ok(result)) => self.respond(request_id, result).await,
+            Ok(Err(error)) => {
                 self.send_error(request_id, error_codes::INTERNAL_ERROR, &error.to_string())
                     .await;
+            }
+            Err(_) => {
+                self.send_error(
+                    request_id,
+                    error_codes::INTERNAL_ERROR,
+                    PANICKED_HANDLER_MESSAGE,
+                )
+                .await;
             }
         }
     }

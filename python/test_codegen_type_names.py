@@ -2,7 +2,7 @@ import re
 import types
 
 from copilot import rpc as public_rpc
-from copilot.generated import rpc
+from copilot.generated import rpc, session_events
 
 
 def test_permission_approval_exports_are_union_aliases():
@@ -28,6 +28,59 @@ def test_permission_approval_union_loaders_deserialize_expected_variants():
 
     assert isinstance(session, rpc.PermissionDecisionApproveForSessionApprovalCommands)
     assert isinstance(location, rpc.PermissionDecisionApproveForLocationApprovalRead)
+
+
+def test_assisted_approval_assessment_is_a_discriminated_union():
+    assert isinstance(session_events.AssistedApprovalAssessment, types.UnionType)
+
+    assessment = session_events._load_AssistedApprovalAssessment(
+        {
+            "status": "completed",
+            "recommendation": "requireApproval",
+            "rationale": "The command modifies protected files.",
+        }
+    )
+
+    assert isinstance(
+        assessment,
+        session_events.AssistedApprovalAssessmentCompleted,
+    )
+    assert (
+        assessment.recommendation
+        is session_events.AssistedApprovalCompletedRecommendation.REQUIRE_APPROVAL
+    )
+    assert assessment.rationale == "The command modifies protected files."
+    assert assessment.to_dict() == {
+        "status": "completed",
+        "recommendation": "requireApproval",
+        "rationale": "The command modifies protected files.",
+    }
+
+    not_run = session_events._load_AssistedApprovalAssessment(
+        {"status": "not-run", "reason": "inactive"}
+    )
+    assert isinstance(not_run, session_events.AssistedApprovalAssessmentNotRun)
+    assert not_run.reason == "inactive"
+    assert not_run.to_dict() == {"status": "not-run", "reason": "inactive"}
+
+    pending = rpc.PendingPermissionRequest.from_dict(
+        {
+            "request": {
+                "kind": "commands",
+                "canOfferSessionApproval": False,
+                "commandIdentifiers": ["git status"],
+                "fullCommandText": "git status",
+                "intention": "Inspect the repository.",
+            },
+            "requestId": "permission-1",
+            "assistedApprovalAssessment": assessment.to_dict(),
+        }
+    )
+    assert isinstance(
+        pending.assisted_approval_assessment,
+        session_events.AssistedApprovalAssessmentCompleted,
+    )
+    assert pending.to_dict()["assistedApprovalAssessment"] == assessment.to_dict()
 
 
 def test_login_account_enumeration_deserializes_concrete_identities():

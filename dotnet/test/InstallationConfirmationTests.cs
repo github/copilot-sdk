@@ -459,7 +459,7 @@ public class InstallationConfirmationTests
         }
     }
 
-    private sealed class Peer
+    internal sealed class Peer
     {
         private readonly TcpListener _listener;
         private readonly TcpClient _tcpClient;
@@ -480,7 +480,7 @@ public class InstallationConfirmationTests
 
         public CopilotClient Client { get; }
 
-        public static async Task<Peer> ConnectAsync(InstallationConfirmationHandler? handler)
+        public static async Task<Peer> ConnectAsync(InstallationConfirmationHandler? handler, EntraAuthOptions? entra = null)
         {
             var listener = new TcpListener(IPAddress.Loopback, 0);
             listener.Start();
@@ -489,6 +489,7 @@ public class InstallationConfirmationTests
             {
                 Connection = RuntimeConnection.ForUri($"127.0.0.1:{port}"),
                 InstallationConfirmationHandler = handler,
+                Entra = entra,
             });
             var start = client.StartAsync();
             var tcpClient = await WithTimeoutAsync(listener.AcceptTcpClientAsync());
@@ -504,6 +505,7 @@ public class InstallationConfirmationTests
                     ["ok"] = true,
                     ["protocolVersion"] = 3,
                     ["version"] = "installation-confirmation-test",
+                    ["entraTokenProvider"] = entra?.TokenProvider is not null,
                 },
             });
             await WithTimeoutAsync(start);

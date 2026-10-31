@@ -42,7 +42,7 @@ duplicating them in these contributor instructions.
 ## Build, format, and test
 
 Prefer the checked-in Maven wrapper (`./mvnw`, or `.\mvnw.cmd` on Windows).
-Follow [SDK setup](../CONTRIBUTING.md#developing-an-sdk) for the JDK and
+Follow the SDK contributor guide's "Developing an SDK" setup for the JDK and
 layout-appropriate Node.js version. Tests use Node.js for the replay harness and
 runtime preparation tooling. Maven's `generate-test-resources` phase installs
 their dependencies from the SDK tree. In the runtime repository, prefer
@@ -65,7 +65,7 @@ for tests.
 Add new Java E2E tests for Java SDK surface behavior, not shared runtime
 functionality; new SDK-accessible runtime E2Es belong in
 `../nodejs/test/e2e/`. For replay-backed Java integration tests, use the on-demand
-[`sdk-java-e2e-test` skill](../.github/skills/sdk-java-e2e-test/SKILL.md).
+`sdk-java-e2e-test` skill.
 Its snapshot workflow is not required for unrelated
 Java edits. For JDK 17 compatibility testing, run the JDK 25-built artifact on
 JDK 17 without recompiling it, following

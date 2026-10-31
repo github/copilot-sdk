@@ -42,7 +42,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio_tungstenite::tungstenite::Message;
 
-use super::support::{collect_until_idle, with_e2e_context_no_snapshot};
+use super::support::{capi_meta_body, collect_until_idle, with_e2e_context_no_snapshot};
 
 const SYNTHETIC_TEXT: &str = "OK from the synthetic stream.";
 const HANDLER_HTTP_TEXT: &str = "OK from synthetic HTTP upstream.";
@@ -104,6 +104,14 @@ fn sse(event_type: &str, data: &Value) -> String {
 }
 
 fn model_catalog(supported_endpoints: Option<&[&str]>) -> String {
+    serde_json::to_string(&model_catalog_value(supported_endpoints)).unwrap()
+}
+
+fn meta_catalog(supported_endpoints: Option<&[&str]>) -> String {
+    serde_json::to_string(&capi_meta_body(model_catalog_value(supported_endpoints))).unwrap()
+}
+
+fn model_catalog_value(supported_endpoints: Option<&[&str]>) -> Value {
     let mut model = json!({
         "id": "claude-sonnet-5",
         "name": "Claude Sonnet 5",
@@ -131,7 +139,7 @@ fn model_catalog(supported_endpoints: Option<&[&str]>) -> String {
     if let Some(endpoints) = supported_endpoints {
         model["supported_endpoints"] = json!(endpoints);
     }
-    serde_json::to_string(&json!({ "data": [model] })).unwrap()
+    json!({ "data": [model] })
 }
 
 /// The ordered `/responses` event objects the runtime's reducer expects. Used
@@ -191,6 +199,13 @@ fn synth_non_inference_response(
     supported_endpoints: Option<&[&str]>,
 ) -> CopilotHttpResponse {
     let lower = url.to_lowercase();
+    if lower.ends_with("/meta") {
+        return http_response(
+            200,
+            json_headers(),
+            vec![meta_catalog(supported_endpoints).into_bytes()],
+        );
+    }
     if lower.ends_with("/models") {
         return http_response(
             200,
@@ -365,7 +380,13 @@ fn find_subsequence(haystack: &[u8], needle: &[u8]) -> Option<usize> {
 }
 
 fn route_http_upstream(path: &str) -> (u16, &'static str, String) {
-    if path.ends_with("/models") {
+    if path.ends_with("/meta") {
+        (
+            200,
+            "application/json",
+            meta_catalog(Some(WS_SUPPORTED_ENDPOINTS)),
+        )
+    } else if path.ends_with("/models") {
         (
             200,
             "application/json",

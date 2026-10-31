@@ -48,6 +48,8 @@ public final class SessionCompactionCompleteEvent extends SessionEvent {
         @JsonProperty("model") String model,
         /** Model identifier at admission when routing later changed to the reported compaction model */
         @JsonProperty("initialModel") String initialModel,
+        /** Reasoning effort level the compaction summarizer request used, if applicable (e.g. "none", "low", "medium", "high", "xhigh", "max") */
+        @JsonProperty("reasoningEffort") String reasoningEffort,
         /** Error message if compaction failed */
         @JsonProperty("error") String error,
         /** Total tokens in conversation before compaction */
@@ -82,6 +84,8 @@ public final class SessionCompactionCompleteEvent extends SessionEvent {
         @JsonProperty("requestId") String requestId,
         /** Copilot service request ID (x-copilot-service-request-id header) for the compaction LLM call */
         @JsonProperty("serviceRequestId") String serviceRequestId,
+        /** Client-generated request ID (X-Request-Id header) the runtime sent with the latest compaction LLM request. Present even when the request failed before any response arrived. */
+        @JsonProperty("clientRequestId") String clientRequestId,
         /** Token count from system message(s) after compaction */
         @JsonProperty("systemTokens") Long systemTokens,
         /** Token count from non-system messages (user, assistant, tool) after compaction */
@@ -98,8 +102,14 @@ public final class SessionCompactionCompleteEvent extends SessionEvent {
         @JsonProperty("switchTargetModel") String switchTargetModel,
         /** What initiated this compaction, when known */
         @JsonProperty("trigger") CompactionTrigger trigger,
+        /** How the compaction ran relative to the conversation: "background" (alongside the turn), "turn_blocking" (the turn waited for it), "pre_prompt" (a non-interactive run waited before recording its prompt), or "direct" (an explicit compaction request). Open set; readers must tolerate other values. */
+        @JsonProperty("execution") String execution,
         /** How far the summarizer model calls had progressed when the outcome was decided, so a stalled summarizer can be told from a slow one */
-        @JsonProperty("summarizerProgress") CompactionCompleteSummarizerProgress summarizerProgress
+        @JsonProperty("summarizerProgress") CompactionCompleteSummarizerProgress summarizerProgress,
+        /** How long the compaction attempt took end to end, how long it blocked the user, and the configuration it ran under */
+        @JsonProperty("attemptMetrics") CompactionCompleteAttemptMetrics attemptMetrics,
+        /** Evidence about the summarizer's latest model call for a failed compaction, so a failure its reason alone does not explain can be diagnosed */
+        @JsonProperty("failureDiagnostics") CompactionCompleteFailureDiagnostics failureDiagnostics
     ) {
     }
 }

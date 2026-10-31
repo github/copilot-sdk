@@ -194,6 +194,8 @@ Set `notifyOnComplete` to `true` for workflows that are likely to be invoked by 
 
 Both resolve with the run envelope (`WorkflowRunResult`) for **every** outcome—`completed`, `error`, `halted`, `paused`, and `cancelled` alike. Inspect `status` and read `result` only when the run completed; a limit breach carries a typed `failure`. A `paused` envelope means that the current attempt settled, not that the durable run is permanently finished. Resume the same run ID to start another attempt with its journal and accounting intact. SDK-initiated `run` and `resume` do not request permission, so they have no declined outcome. They still enforce execution eligibility, input validation, and active-run limits. Recognized pre-execution resume failures throw `WorkflowResumeError`, whose `code` is one of `not_found`, `non_resumable`, `workflow_run_not_resumable`, `already_active`, `workflow_already_running`, `workflow_limits_invalid`, `workflow_session_disposed`, `workflow_storage_unavailable`, or `workflow_storage_corrupt`.
 
+If the runtime that owns a started run disappears, the run remains active until its existing lease expires. The next observation reconciles it to `halted`, after which it can be resumed through the same API. Resume reuses durable journal entries and durable AI credit spend; spend that was not durably stored before the runtime disappeared is not reconstructed.
+
 Pause a running attempt from outside its workflow body:
 
 ```ts
@@ -238,7 +240,7 @@ const progressPage = await session.workflow.getRunProgress(runId, {
 
 - `listRuns()` returns only the runs array from the newest default page of this session's durable workflow runs. This overload preserves the original convenience API.
 - `listRuns({ afterSeq, beforeSeq, limit })` returns the full page. Its `oldestSeq`, `newestSeq`, `hasMoreNewer`, and `omittedOlder` fields let callers continue paging without raw RPC calls.
-- `getRunDetail(runId)` returns phases, prompt-safe agent summaries, and the latest progress page.
+- `getRunDetail(runId)` returns phases, prompt-safe agent summaries, and the latest progress page. Each current-runtime agent summary includes `consumedNanoAiu`, the known spend from that direct agent and its descendants. Older runtimes omit the field, and historical agents without attributable charge rows also omit it when the run contains unattributed spend.
 - `getRunProgress(runId, options?)` pages progress forward, backward, by phase, or from the latest tail.
 
 `getRun(runId)` reads the latest run envelope. `pause(runId)` pauses a running attempt and returns its `paused` envelope. `cancel(runId)` cancels a run and returns its terminal envelope.

@@ -25,6 +25,7 @@ public record McpPromptMessage(
     /** The role of the message sender */
     @JsonProperty("role") McpPromptRole role,
     /** The original MCP content block, including nested metadata and unfamiliar content types */
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("content") Object content,
     /** Message-level metadata */
     @JsonProperty("_meta") Map<String, Object> meta,

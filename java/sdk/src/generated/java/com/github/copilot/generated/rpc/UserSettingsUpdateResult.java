@@ -22,6 +22,7 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 record UserSettingsUpdateResult(
     /** The key's stored value after the write: the merged object when both the stored value and the supplied value are objects, otherwise the supplied value. */
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("value") Object value
 ) {
 }

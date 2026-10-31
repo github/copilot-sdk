@@ -41,6 +41,14 @@ rust_library(
             "WORKSPACE.bazel",
         ],
     ),
+    crate_features = [
+        "aws-lc-rs",
+        "aws_lc_rs",
+        "log",
+        "logging",
+        "std",
+        "tls12",
+    ],
     crate_root = "src/lib.rs",
     edition = "2021",
     rustc_env_files = [
@@ -68,6 +76,8 @@ rust_library(
     version = "0.23.46",
     deps = [
         ":build_script_build",
+        "@sdk_vendor__aws-lc-rs-1.19.0//:aws_lc_rs",
+        "@sdk_vendor__log-0.4.34//:log",
         "@sdk_vendor__once_cell-1.21.4//:once_cell",
         "@sdk_vendor__rustls-pki-types-1.15.1//:rustls_pki_types",
         "@sdk_vendor__rustls-webpki-0.103.16//:webpki",
@@ -98,6 +108,14 @@ cargo_build_script(
             "WORKSPACE.bazel",
         ],
     ),
+    crate_features = [
+        "aws-lc-rs",
+        "aws_lc_rs",
+        "log",
+        "logging",
+        "std",
+        "tls12",
+    ],
     crate_name = "build_script_build",
     crate_root = "build.rs",
     data = glob(
@@ -114,6 +132,9 @@ cargo_build_script(
     ),
     edition = "2021",
     emit_warnings = False,
+    link_deps = [
+        "@sdk_vendor__aws-lc-rs-1.19.0//:aws_lc_rs",
+    ],
     pkg_name = "rustls",
     rustc_env_files = [
         ":cargo_toml_env_vars",

@@ -175,6 +175,7 @@ Create `main.py`:
 import asyncio
 from copilot import CopilotClient
 from copilot.session import PermissionHandler
+from copilot.session_events import AssistantMessageData
 
 async def main():
     client = CopilotClient()
@@ -182,7 +183,8 @@ async def main():
 
     session = await client.create_session(on_permission_request=PermissionHandler.approve_all, model="auto")
     response = await session.send_and_wait("What is 2 + 2?")
-    print(response.data.content)
+    if response and isinstance(response.data, AssistantMessageData):
+        print(response.data.content)
 
     await client.stop()
 
@@ -324,7 +326,6 @@ dotnet run
 
 Create `HelloCopilot.java`:
 
-<!-- docs-validate: skip -->
 ```java
 import com.github.copilot.CopilotClient;
 import com.github.copilot.rpc.*;
@@ -589,9 +590,10 @@ await session.SendAndWaitAsync(new MessageOptions { Prompt = "Tell me a short jo
 
 Update `HelloCopilot.java`:
 
-<!-- docs-validate: skip -->
 ```java
 import com.github.copilot.CopilotClient;
+import com.github.copilot.generated.AssistantMessageDeltaEvent;
+import com.github.copilot.generated.SessionIdleEvent;
 import com.github.copilot.rpc.*;
 
 public class HelloCopilot {
@@ -664,8 +666,9 @@ unsubscribeIdle();
 
 <!-- docs-validate: hidden -->
 ```python
-from copilot import CopilotClient, PermissionDecisionApproveOnce
-from copilot.session_events import SessionEvent, SessionEventType
+from copilot import CopilotClient
+from copilot.session import PermissionDecisionApproveOnce
+from copilot.session_events import AssistantMessageData, SessionEvent, SessionEventType
 
 client = CopilotClient()
 
@@ -678,7 +681,7 @@ unsubscribe = session.on(lambda event: print(f"Event: {event.type}"))
 def handle_event(event: SessionEvent) -> None:
     if event.type == SessionEventType.SESSION_IDLE:
         print("Session is idle")
-    elif event.type == SessionEventType.ASSISTANT_MESSAGE:
+    elif isinstance(event.data, AssistantMessageData):
         print(f"Message: {event.data.content}")
 
 unsubscribe = session.on(handle_event)
@@ -689,6 +692,8 @@ unsubscribe()
 <!-- /docs-validate: hidden -->
 
 ```python
+from copilot.session_events import AssistantMessageData, SessionEventType
+
 # Subscribe to all events
 unsubscribe = session.on(lambda event: print(f"Event: {event.type}"))
 
@@ -696,7 +701,7 @@ unsubscribe = session.on(lambda event: print(f"Event: {event.type}"))
 def handle_event(event):
     if event.type == SessionEventType.SESSION_IDLE:
         print("Session is idle")
-    elif event.type == SessionEventType.ASSISTANT_MESSAGE:
+    elif isinstance(event.data, AssistantMessageData):
         print(f"Message: {event.data.content}")
 
 unsubscribe = session.on(handle_event)
@@ -725,7 +730,7 @@ func main() {
 
 	// Subscribe to all events
 	unsubscribe := session.On(func(event copilot.SessionEvent) {
-		fmt.Println("Event:", event.Type)
+		fmt.Println("Event:", event.Type())
 	})
 
 	// Filter by event type in your handler
@@ -748,7 +753,7 @@ func main() {
 ```go
 // Subscribe to all events
 unsubscribe := session.On(func(event copilot.SessionEvent) {
-    fmt.Println("Event:", event.Type)
+    fmt.Println("Event:", event.Type())
 })
 
 // Filter by event type in your handler
@@ -855,8 +860,48 @@ unsubscribe.Dispose();
 <details>
 <summary><strong>Java</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
 ```java
+import com.github.copilot.CopilotClient;
+import com.github.copilot.generated.AssistantMessageEvent;
+import com.github.copilot.generated.SessionIdleEvent;
+import com.github.copilot.rpc.*;
+
+public class SubscribeToEvents {
+    public static void main(String[] args) throws Exception {
+        try (var client = new CopilotClient()) {
+            client.start().get();
+
+            var session = client.createSession(
+                new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+            ).get();
+
+            // Subscribe to all events
+            var unsubscribe = session.on(event -> {
+                System.out.println("Event: " + event.getType());
+            });
+
+            // Subscribe to a specific event type
+            session.on(AssistantMessageEvent.class, msg -> {
+                System.out.println("Message: " + msg.getData().content());
+            });
+
+            session.on(SessionIdleEvent.class, idle -> {
+                System.out.println("Session is idle");
+            });
+
+            // Later, to unsubscribe:
+            unsubscribe.close();
+        }
+    }
+}
+```
+<!-- /docs-validate: hidden -->
+
+```java
+import com.github.copilot.generated.AssistantMessageEvent;
+import com.github.copilot.generated.SessionIdleEvent;
+
 // Subscribe to all events
 var unsubscribe = session.on(event -> {
     System.out.println("Event: " + event.getType());
@@ -1215,9 +1260,10 @@ await session.SendAndWaitAsync(new MessageOptions
 
 Update `HelloCopilot.java`:
 
-<!-- docs-validate: skip -->
 ```java
 import com.github.copilot.CopilotClient;
+import com.github.copilot.generated.AssistantMessageDeltaEvent;
+import com.github.copilot.generated.SessionIdleEvent;
 import com.github.copilot.rpc.*;
 
 import java.util.List;
@@ -1500,7 +1546,8 @@ func main() {
 	})
 
 	fmt.Println("🌤️  Weather Assistant (type 'exit' to quit)")
-	fmt.Println("   Try: 'What's the weather in Paris?' or 'Compare weather in NYC and LA'\n")
+	fmt.Println("   Try: 'What's the weather in Paris?' or 'Compare weather in NYC and LA'")
+	fmt.Println()
 
 	scanner := bufio.NewScanner(os.Stdin)
 	for {
@@ -1721,9 +1768,10 @@ dotnet run
 
 Create `WeatherAssistant.java`:
 
-<!-- docs-validate: skip -->
 ```java
 import com.github.copilot.CopilotClient;
+import com.github.copilot.generated.AssistantMessageDeltaEvent;
+import com.github.copilot.generated.SessionIdleEvent;
 import com.github.copilot.rpc.*;
 
 import java.util.List;
@@ -1766,9 +1814,7 @@ public class WeatherAssistant {
                 new SessionConfig()
                     .setModel("auto")
                     .setStreaming(true)
-                    .setOnPermissionRequest(request ->
-                        CompletableFuture.completedFuture(PermissionDecision.allow())
-                    )
+                    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
                     .setTools(List.of(getWeather))
             ).get();
 
@@ -1922,7 +1968,7 @@ Available section IDs: `preamble`, `identity`, `tone`, `tool_efficiency`, `envir
 
 `identity` and `tool_instructions` are section *groups*: they target a collection of related sub-sections as a unit. Use `preamble` to target just the identity preamble without affecting its sibling sub-sections.
 
-Each override supports five actions: `replace`, `remove`, `append`, `prepend`, and `preserve`. The `preserve` action is a no-op that opts an individually-addressable section out of a group-level `remove` (for example, keep `tone` when removing the `identity` group). Unknown section IDs are handled gracefully: content from `replace`/`append`/`prepend` overrides is appended to additional instructions, and `remove` overrides are silently ignored.
+Each override supports five static actions: `replace`, `remove`, `append`, `prepend`, and `preserve`. The `preserve` action is a no-op that opts an individually-addressable section out of a group-level `remove` (for example, keep `tone` when removing the `identity` group). Every SDK also lets you register a transform for a section instead of a static action: it receives the section's current content and returns the new content (see the language-specific READMEs below). Unknown section IDs are handled gracefully: content from `replace`/`append`/`prepend` overrides is appended to additional instructions, and `remove` overrides are silently ignored.
 
 See the language-specific SDK READMEs for examples in [TypeScript](../nodejs/README.md), [Python](../python/README.md), [Go](../go/README.md), [Rust](../rust/README.md), [Java](../java/README.md), and [C#](../dotnet/README.md).
 
@@ -1962,10 +2008,10 @@ Once the CLI is running in server mode, configure your SDK client to connect to 
 <summary><strong>Node.js / TypeScript</strong></summary>
 
 ```typescript
-import { CopilotClient, approveAll } from "@github/copilot-sdk";
+import { CopilotClient, RuntimeConnection, approveAll } from "@github/copilot-sdk";
 
 const client = new CopilotClient({
-    cliUrl: "localhost:4321"
+    connection: RuntimeConnection.forUri("localhost:4321"),
 });
 
 // Use the client normally
@@ -2115,7 +2161,7 @@ var session = client.createSession(
 
 </details>
 
-**Note:** When `cli_url` / `cliUrl` / Go's `URIConnection` is provided, or Rust uses `Transport::External`, the SDK will not spawn or manage a CLI process - it will only connect to the existing server at the specified URL.
+**Note:** When a URI connection is provided (`RuntimeConnection.forUri` in Node.js, `RuntimeConnection.for_uri` in Python, `RuntimeConnection.ForUri` in .NET, Go's `URIConnection`, or Java's `setCliUrl`), or Rust uses `Transport::External`, the SDK will not spawn or manage a CLI process - it will only connect to the existing server at the specified URL.
 
 ## Telemetry and observability
 
@@ -2148,13 +2194,13 @@ Optional peer dependency: `@opentelemetry/api`
 
 <!-- docs-validate: skip -->
 ```python
-from copilot import CopilotClient, CopilotClientOptions
+from copilot import CopilotClient
 
-client = CopilotClient(CopilotClientOptions(
+client = CopilotClient(
     telemetry={
         "otlp_endpoint": "http://localhost:4318",
     },
-))
+)
 ```
 
 Install with telemetry extras: `pip install copilot-sdk[telemetry]` (provides `opentelemetry-api`)
@@ -2200,7 +2246,6 @@ No extra dependencies—the SDK injects telemetry environment variables for the 
 <details>
 <summary><strong>.NET</strong></summary>
 
-<!-- docs-validate: skip -->
 ```csharp
 var client = new CopilotClient(new CopilotClientOptions
 {
@@ -2218,7 +2263,6 @@ No extra dependencies—uses built-in `System.Diagnostics.Activity`.
 <details>
 <summary><strong>Java</strong></summary>
 
-<!-- docs-validate: skip -->
 ```java
 import com.github.copilot.CopilotClient;
 import com.github.copilot.rpc.*;

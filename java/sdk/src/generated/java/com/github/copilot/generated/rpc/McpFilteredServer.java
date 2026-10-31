@@ -28,6 +28,7 @@ record McpFilteredServer(
     /** PII-free filter reason */
     @JsonProperty("redactedReason") String redactedReason,
     /** Deprecated. This field is no longer populated. */
+    @Deprecated
     @JsonProperty("enterpriseName") String enterpriseName
 ) {
 }

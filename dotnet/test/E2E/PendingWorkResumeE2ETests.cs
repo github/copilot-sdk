@@ -84,7 +84,7 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
                 session2,
                 message =>
                 {
-                    if (message.Data.Content != "Result: PERMISSION_RESUMED_ALPHA")
+                    if (message.Data.Content != "Result: `PERMISSION_RESUMED_ALPHA`")
                     {
                         return false;
                     }
@@ -101,7 +101,7 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
                 permissionEvent.Data.RequestId,
                 new RpcPermissionDecisionApproveOnce());
             Assert.True(permissionResult.Success);
-            Assert.Equal("Result: PERMISSION_RESUMED_ALPHA", (await finalResponse).Data.Content);
+            Assert.Equal("Result: `PERMISSION_RESUMED_ALPHA`", (await finalResponse).Data.Content);
             await resumedTurnIdle;
             Assert.Equal(1, resumedToolInvocations);
             Assert.Equal(0, originalToolInvocations);

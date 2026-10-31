@@ -11,16 +11,18 @@ use serde_json::json;
 
 use super::{
     AgentMode, Attachment, AttachmentLineRange, AttachmentSelectionPosition,
-    AttachmentSelectionRange, AutoTier, AzureProviderOptions, CapiSessionOptions, ConnectionState,
+    AttachmentSelectionRange, AutoTier, AzureProviderOptions, CapiSessionOptions,
     CopilotExpAssignmentResponse, CustomAgentConfig, DeliveryMode, ExpConfigEntry, ExpFlagValue,
     ExtensionInfo, GitHubMcpToolConfig, GitHubReferenceType, ImageGenerationConfig,
     InfiniteSessionConfig, LargeToolOutputConfig, McpServerConfig, McpStdioServerConfig,
-    MemoryConfiguration, NamedProviderConfig, PermissionResponseCapability, ProviderConfig,
-    ProviderModelConfig, ReasoningSummary, ResumeSessionConfig, SessionConfig, SessionEvent,
-    SessionId, SystemMessageConfig, Tool, ToolBinaryResult, ToolResult, ToolResultExpanded,
-    ToolResultResponse, ensure_attachment_display_names,
+    MemoryConfiguration, NamedProviderConfig, PermissionRequestData, PermissionResponseCapability,
+    ProviderConfig, ProviderModelConfig, ReasoningSummary, ResumeSessionConfig, SessionConfig,
+    SessionEvent, SessionId, SystemMessageConfig, Tool, ToolBinaryResult, ToolResult,
+    ToolResultExpanded, ToolResultResponse, ensure_attachment_display_names,
 };
-use crate::generated::session_events::TypedSessionEvent;
+use crate::generated::session_events::{
+    AssistedApprovalAssessment, AssistedApprovalCompletedRecommendation, TypedSessionEvent,
+};
 use crate::rpc::SandboxConfig;
 
 #[test]
@@ -28,6 +30,36 @@ fn permission_response_capability_is_publicly_exported() {
     assert_eq!(
         serde_json::to_value(PermissionResponseCapability::Interactive).unwrap(),
         json!("interactive")
+    );
+}
+
+#[test]
+fn permission_request_exposes_assisted_approval_assessment() {
+    let data = PermissionRequestData {
+        extra: json!({
+            "assistedApprovalAssessment": {
+                "status": "completed",
+                "recommendation": "requireApproval",
+                "rationale": "The command modifies protected files."
+            }
+        }),
+        ..Default::default()
+    };
+
+    let assessment = data
+        .assisted_approval_assessment()
+        .unwrap()
+        .expect("assessment");
+    let AssistedApprovalAssessment::Completed(completed) = assessment else {
+        panic!("expected completed assessment");
+    };
+    assert_eq!(
+        completed.recommendation,
+        AssistedApprovalCompletedRecommendation::RequireApproval
+    );
+    assert_eq!(
+        completed.rationale.as_deref(),
+        Some("The command modifies protected files.")
     );
 }
 
@@ -570,32 +602,46 @@ fn github_mcp_tool_config_serializes_for_create_and_resume() {
         .with_enable_insiders_mode(true)
         .with_disable_form_deferral(true);
 
+    let expected = serde_json::json!({
+        "enableAllTools": true,
+        "additionalToolsets": ["repos"],
+        "additionalTools": ["get_issue"],
+        "enableInsidersMode": true,
+        "disableFormDeferral": true,
+    });
+
     let (create_wire, _) = SessionConfig::default()
         .with_github_mcp_tool_config(github_config.clone())
         .into_wire(Some(SessionId::from("github-mcp")))
         .expect("create config has no duplicate handlers");
     assert_eq!(
         serde_json::to_value(&create_wire).unwrap()["githubMcpToolConfig"],
-        serde_json::json!({
-            "enableAllTools": true,
-            "additionalToolsets": ["repos"],
-            "additionalTools": ["get_issue"],
-            "enableInsidersMode": true,
-            "disableFormDeferral": true,
-        })
+        expected
     );
 
     let (resume_wire, _) = ResumeSessionConfig::new(SessionId::from("github-mcp"))
         .with_github_mcp_tool_config(github_config)
         .into_wire()
         .expect("resume config has no duplicate handlers");
-    assert!(resume_wire.github_mcp_tool_config.is_some());
+    assert_eq!(
+        serde_json::to_value(&resume_wire).unwrap()["githubMcpToolConfig"],
+        expected
+    );
 
     let (unset_wire, _) = SessionConfig::default()
         .into_wire(Some(SessionId::from("github-mcp-unset")))
         .expect("default config has no duplicate handlers");
     assert!(
         serde_json::to_value(&unset_wire)
+            .unwrap()
+            .get("githubMcpToolConfig")
+            .is_none()
+    );
+    let (unset_resume_wire, _) = ResumeSessionConfig::new(SessionId::from("github-mcp-unset"))
+        .into_wire()
+        .expect("default resume config has no duplicate handlers");
+    assert!(
+        serde_json::to_value(&unset_resume_wire)
             .unwrap()
             .get("githubMcpToolConfig")
             .is_none()
@@ -1899,13 +1945,6 @@ fn agent_mode_serializes_to_kebab_case_strings() {
     assert_eq!(parsed, AgentMode::Plan);
 }
 
-#[test]
-fn connection_state_distinguishes_variants() {
-    // ConnectionState is now an internal type; verify we can construct
-    // and compare the variants used by the lifecycle code paths.
-    assert_ne!(ConnectionState::Connected, ConnectionState::Disconnected);
-}
-
 /// `agentId` is the sub-agent attribution field added in copilot-sdk
 /// commit f8cf846 ("Derive session event envelopes from schema").
 /// Every other SDK (Node, Python, Go, .NET) carries it on the event
@@ -1960,17 +1999,6 @@ fn typed_session_event_round_trips_agent_id_on_envelope() {
 
     let roundtripped = serde_json::to_value(&event).unwrap();
     assert_eq!(roundtripped["agentId"], "sub-agent-42");
-}
-
-#[test]
-fn connection_state_variants_compile() {
-    // Defensive smoke test: all variants must be constructable from
-    // within the crate. (The enum was demoted from pub to pub(crate)
-    // in Phase D; this test guards against accidental removal.)
-    let _ = ConnectionState::Disconnected;
-    let _ = ConnectionState::Connecting;
-    let _ = ConnectionState::Connected;
-    let _ = ConnectionState::Error;
 }
 
 #[test]
@@ -2126,6 +2154,16 @@ fn ensures_display_names_for_variants_that_support_them() {
             state: "open".to_string(),
             url: "https://example.com/issues/7".to_string(),
         },
+        Attachment::File {
+            path: PathBuf::from("/tmp/notes.md"),
+            display_name: Some("Release notes".to_string()),
+            line_range: None,
+        },
+        Attachment::File {
+            path: PathBuf::from("/tmp/blank.md"),
+            display_name: Some("  ".to_string()),
+            line_range: None,
+        },
     ];
 
     ensure_attachment_display_names(&mut attachments);
@@ -2138,6 +2176,9 @@ fn ensures_display_names_for_variants_that_support_them() {
         attachments[3].label(),
         Some("Track regressions".to_string())
     );
+    // A caller's label is kept; only a blank one is replaced.
+    assert_eq!(attachments[4].display_name(), Some("Release notes"));
+    assert_eq!(attachments[5].display_name(), Some("blank.md"));
 }
 
 #[test]

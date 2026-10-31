@@ -50,6 +50,9 @@ func startFakeUpstreams(t *testing.T, counters *handlerCounters) (httpURL, wsURL
 		path := strings.ToLower(strings.SplitN(r.URL.Path, "?", 2)[0])
 		defer func() { _ = r.Body.Close() }()
 		switch {
+		case strings.HasSuffix(path, "/meta"):
+			w.Header().Set("content-type", "application/json")
+			_, _ = w.Write([]byte(metaCatalogJSON(wsSupportedEndpoints)))
 		case strings.HasSuffix(path, "/models"):
 			w.Header().Set("content-type", "application/json")
 			_, _ = w.Write([]byte(modelCatalogJSON(wsSupportedEndpoints)))

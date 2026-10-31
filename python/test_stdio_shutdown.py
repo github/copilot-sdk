@@ -83,14 +83,21 @@ async def test_exit_probe_distinguishes_running_and_exited_child(tmp_path, monke
         child.wait(timeout=10)
 
 
-def _client(directory: Path, mode: str) -> CopilotClient:
+def _client(directory: Path, mode: str, *, windows_launcher: bool = False) -> CopilotClient:
     node = shutil.which("node")
     assert node is not None, "Node.js is required for the shared SDK shutdown fixture"
+    path = node
+    args = [str(_RUNTIME)]
+    if windows_launcher:
+        launcher = directory / "copilot.cmd"
+        launcher.write_text(f'@"{node}" "{_RUNTIME}" %*\n')
+        path = str(launcher)
+        args = []
     return CopilotClient(
         connection=RuntimeConnection.for_stdio(
-            path=node,
-            args=[
-                str(_RUNTIME),
+            path=path,
+            args=args
+            + [
                 str(directory / "cleanup.jsonl"),
                 mode,
                 str(directory / "pid"),
@@ -133,6 +140,28 @@ async def test_force_stop_does_not_run_graceful_host_cleanup(tmp_path):
             _ = client.rpc
     finally:
         await client.force_stop()
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows batch launcher regression")
+@pytest.mark.timeout(60)
+async def test_force_stop_closes_input_inherited_by_windows_launcher_child(tmp_path):
+    client = _client(tmp_path, "force", windows_launcher=True)
+    process = None
+    try:
+        await client.start()
+        process = client._cli_process
+        assert process is not None
+        assert process.pid != int((tmp_path / "pid").read_text())
+
+        await client.force_stop()
+
+        await _assert_child_exited(tmp_path, wait_millis=5000)
+        assert not (tmp_path / "cleanup.jsonl").exists()
+    finally:
+        await client.force_stop()
+        if process is not None and process.stdin is not None:
+            process.stdin.close()
+            await _assert_child_exited(tmp_path, wait_millis=5000)
 
 
 @pytest.mark.timeout(60)

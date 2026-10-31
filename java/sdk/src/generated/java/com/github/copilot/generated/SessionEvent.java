@@ -25,6 +25,7 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "type", visible = true, defaultImpl = UnknownSessionEvent.class)
 @JsonSubTypes({
+    @JsonSubTypes.Type(value = SessionJournalLinkEvent.class, name = "session.journal_link"),
     @JsonSubTypes.Type(value = SessionStartEvent.class, name = "session.start"),
     @JsonSubTypes.Type(value = SessionResumeEvent.class, name = "session.resume"),
     @JsonSubTypes.Type(value = SessionRemoteSteerableChangedEvent.class, name = "session.remote_steerable_changed"),
@@ -186,6 +187,7 @@ import javax.annotation.processing.Generated;
 })
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 public abstract sealed class SessionEvent permits
+        SessionJournalLinkEvent,
         SessionStartEvent,
         SessionResumeEvent,
         SessionRemoteSteerableChangedEvent,
@@ -366,6 +368,10 @@ public abstract sealed class SessionEvent permits
     @JsonProperty("ephemeral")
     private Boolean ephemeral;
 
+    /** When true, the event is synthetic replay state in a linked journal head. */
+    @JsonProperty("checkpoint")
+    private Boolean checkpoint;
+
     /**
      * Returns the event-type discriminator string (e.g., {@code "session.idle"}).
      *
@@ -387,4 +393,7 @@ public abstract sealed class SessionEvent permits
 
     public Boolean getEphemeral() { return ephemeral; }
     public void setEphemeral(Boolean ephemeral) { this.ephemeral = ephemeral; }
+
+    public Boolean getCheckpoint() { return checkpoint; }
+    public void setCheckpoint(Boolean checkpoint) { this.checkpoint = checkpoint; }
 }

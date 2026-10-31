@@ -93,35 +93,35 @@ impl<'a> ClientRpc<'a> {
     }
 
     /// `featureFlags.*` sub-namespace.
-    pub fn feature_flags(&self) -> ClientRpcFeatureFlags<'a> {
+    pub(crate) fn feature_flags(&self) -> ClientRpcFeatureFlags<'a> {
         ClientRpcFeatureFlags {
             client: self.client,
         }
     }
 
     /// `git.*` sub-namespace.
-    pub fn git(&self) -> ClientRpcGit<'a> {
+    pub(crate) fn git(&self) -> ClientRpcGit<'a> {
         ClientRpcGit {
             client: self.client,
         }
     }
 
     /// `gitHubOwners.*` sub-namespace.
-    pub fn git_hub_owners(&self) -> ClientRpcGitHubOwners<'a> {
+    pub(crate) fn git_hub_owners(&self) -> ClientRpcGitHubOwners<'a> {
         ClientRpcGitHubOwners {
             client: self.client,
         }
     }
 
     /// `gitHubRepository.*` sub-namespace.
-    pub fn git_hub_repository(&self) -> ClientRpcGitHubRepository<'a> {
+    pub(crate) fn git_hub_repository(&self) -> ClientRpcGitHubRepository<'a> {
         ClientRpcGitHubRepository {
             client: self.client,
         }
     }
 
     /// `globalState.*` sub-namespace.
-    pub fn global_state(&self) -> ClientRpcGlobalState<'a> {
+    pub(crate) fn global_state(&self) -> ClientRpcGlobalState<'a> {
         ClientRpcGlobalState {
             client: self.client,
         }
@@ -144,6 +144,13 @@ impl<'a> ClientRpc<'a> {
     /// `instructions.*` sub-namespace.
     pub fn instructions(&self) -> ClientRpcInstructions<'a> {
         ClientRpcInstructions {
+            client: self.client,
+        }
+    }
+
+    /// `kerberosAuth.*` sub-namespace.
+    pub fn kerberos_auth(&self) -> ClientRpcKerberosAuth<'a> {
+        ClientRpcKerberosAuth {
             client: self.client,
         }
     }
@@ -177,14 +184,14 @@ impl<'a> ClientRpc<'a> {
     }
 
     /// `permissions.*` sub-namespace.
-    pub fn permissions(&self) -> ClientRpcPermissions<'a> {
+    pub(crate) fn permissions(&self) -> ClientRpcPermissions<'a> {
         ClientRpcPermissions {
             client: self.client,
         }
     }
 
     /// `persistence.*` sub-namespace.
-    pub fn persistence(&self) -> ClientRpcPersistence<'a> {
+    pub(crate) fn persistence(&self) -> ClientRpcPersistence<'a> {
         ClientRpcPersistence {
             client: self.client,
         }
@@ -198,7 +205,7 @@ impl<'a> ClientRpc<'a> {
     }
 
     /// `repo.*` sub-namespace.
-    pub fn repo(&self) -> ClientRpcRepo<'a> {
+    pub(crate) fn repo(&self) -> ClientRpcRepo<'a> {
         ClientRpcRepo {
             client: self.client,
         }
@@ -235,6 +242,13 @@ impl<'a> ClientRpc<'a> {
     /// `sessions.*` sub-namespace.
     pub fn sessions(&self) -> ClientRpcSessions<'a> {
         ClientRpcSessions {
+            client: self.client,
+        }
+    }
+
+    /// `settings.*` sub-namespace.
+    pub(crate) fn settings(&self) -> ClientRpcSettings<'a> {
+        ClientRpcSettings {
             client: self.client,
         }
     }
@@ -658,6 +672,99 @@ impl<'a> ClientRpcAgentRegistry<'a> {
         let _value = self
             .client
             .call(rpc_methods::AGENTREGISTRY_SPAWN, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Creates the local agent registry with mode 0700. Requires a trusted SDK host or runtime-direct caller.
+    ///
+    /// Wire method: `agentRegistry.ensureDir`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - The location of a local agent registry.
+    ///
+    /// # Returns
+    ///
+    /// The resolved registry directory and any creation failure.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn ensure_dir(
+        &self,
+        params: AgentRegistryLocationRequest,
+    ) -> Result<AgentRegistryEnsureDirResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::AGENTREGISTRY_ENSUREDIR, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Removes a local agent entry. An absent entry succeeds. Requires a trusted SDK host or runtime-direct caller.
+    ///
+    /// Wire method: `agentRegistry.removeEntry`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - A local agent entry identified by its publisher.
+    ///
+    /// # Returns
+    ///
+    /// The outcome of removing a registry entry, with no success payload.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn remove_entry(
+        &self,
+        params: AgentRegistryPidRequest,
+    ) -> Result<AgentRegistryRemoveEntryResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::AGENTREGISTRY_REMOVEENTRY, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Lists live local agents without connection credentials. Only stale entries are removed; dead-pid entries remain on disk. Requires a trusted SDK host or runtime-direct caller.
+    ///
+    /// Wire method: `agentRegistry.listEntries`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Options for local agent discovery.
+    ///
+    /// # Returns
+    ///
+    /// Live agent metadata without connection credentials.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn list_entries(
+        &self,
+        params: AgentRegistryListEntriesRequest,
+    ) -> Result<AgentRegistryListEntriesResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::AGENTREGISTRY_LISTENTRIES, Some(wire_params))
             .await?;
         Ok(serde_json::from_value(_value)?)
     }
@@ -1802,7 +1909,7 @@ impl<'a> ClientRpcExtensions<'a> {
 
 /// `featureFlags.*` RPCs.
 #[derive(Clone, Copy)]
-pub struct ClientRpcFeatureFlags<'a> {
+pub(crate) struct ClientRpcFeatureFlags<'a> {
     pub(crate) client: &'a Client,
 }
 
@@ -1899,7 +2006,7 @@ impl<'a> ClientRpcFeatureFlags<'a> {
 
 /// `git.*` RPCs.
 #[derive(Clone, Copy)]
-pub struct ClientRpcGit<'a> {
+pub(crate) struct ClientRpcGit<'a> {
     pub(crate) client: &'a Client,
 }
 
@@ -2000,7 +2107,7 @@ impl<'a> ClientRpcGit<'a> {
 
 /// `gitHubOwners.*` RPCs.
 #[derive(Clone, Copy)]
-pub struct ClientRpcGitHubOwners<'a> {
+pub(crate) struct ClientRpcGitHubOwners<'a> {
     pub(crate) client: &'a Client,
 }
 
@@ -2094,7 +2201,7 @@ impl<'a> ClientRpcGitHubOwners<'a> {
 
 /// `gitHubRepository.*` RPCs.
 #[derive(Clone, Copy)]
-pub struct ClientRpcGitHubRepository<'a> {
+pub(crate) struct ClientRpcGitHubRepository<'a> {
     pub(crate) client: &'a Client,
 }
 
@@ -2133,7 +2240,7 @@ impl<'a> ClientRpcGitHubRepository<'a> {
 
 /// `globalState.*` RPCs.
 #[derive(Clone, Copy)]
-pub struct ClientRpcGlobalState<'a> {
+pub(crate) struct ClientRpcGlobalState<'a> {
     pub(crate) client: &'a Client,
 }
 
@@ -2968,6 +3075,38 @@ impl<'a> ClientRpcInstructions<'a> {
     }
 }
 
+/// `kerberosAuth.*` RPCs.
+#[derive(Clone, Copy)]
+pub struct ClientRpcKerberosAuth<'a> {
+    pub(crate) client: &'a Client,
+}
+
+impl<'a> ClientRpcKerberosAuth<'a> {
+    /// Registers the calling SDK client's Kerberos callback. The callback authenticates requests made for the client's sessions and, with `runtime` scope, the runtime's shared background traffic; only one connection may hold `runtime` scope. The registration ends when the connection closes.
+    ///
+    /// Wire method: `kerberosAuth.setProvider`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Registers the calling SDK connection's Kerberos credential provider.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn set_provider(&self, params: KerberosAuthSetProviderRequest) -> Result<(), Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::KERBEROSAUTH_SETPROVIDER, Some(wire_params))
+            .await?;
+        Ok(())
+    }
+}
+
 /// `llmInference.*` RPCs.
 #[derive(Clone, Copy)]
 pub struct ClientRpcLlmInference<'a> {
@@ -3652,14 +3791,14 @@ impl<'a> ClientRpcMcp<'a> {
     }
 
     /// `mcp.oauth.*` sub-namespace.
-    pub fn oauth(&self) -> ClientRpcMcpOauth<'a> {
+    pub(crate) fn oauth(&self) -> ClientRpcMcpOauth<'a> {
         ClientRpcMcpOauth {
             client: self.client,
         }
     }
 
     /// `mcp.registry.*` sub-namespace.
-    pub fn registry(&self) -> ClientRpcMcpRegistry<'a> {
+    pub(crate) fn registry(&self) -> ClientRpcMcpRegistry<'a> {
         ClientRpcMcpRegistry {
             client: self.client,
         }
@@ -4245,7 +4384,7 @@ impl<'a> ClientRpcMcpInstallations<'a> {
 
 /// `mcp.oauth.*` RPCs.
 #[derive(Clone, Copy)]
-pub struct ClientRpcMcpOauth<'a> {
+pub(crate) struct ClientRpcMcpOauth<'a> {
     pub(crate) client: &'a Client,
 }
 
@@ -4383,7 +4522,7 @@ impl<'a> ClientRpcMcpOauth<'a> {
 
 /// `mcp.registry.*` RPCs.
 #[derive(Clone, Copy)]
-pub struct ClientRpcMcpRegistry<'a> {
+pub(crate) struct ClientRpcMcpRegistry<'a> {
     pub(crate) client: &'a Client,
 }
 
@@ -4515,7 +4654,7 @@ impl<'a> ClientRpcModels<'a> {
     ///
     /// # Parameters
     ///
-    /// * `params` - Optional opaque account selection or compatibility GitHub token used to list models.
+    /// * `params` - Optional opaque account selection, compatibility GitHub token, or streamer-mode masking used to list models.
     ///
     /// # Returns
     ///
@@ -4591,7 +4730,7 @@ impl<'a> ClientRpcModels<'a> {
     ///
     /// # Parameters
     ///
-    /// * `params` - Optional opaque account selection or compatibility GitHub token used to list models.
+    /// * `params` - Optional opaque account selection, compatibility GitHub token, or streamer-mode masking used to list models.
     ///
     /// # Returns
     ///
@@ -4619,20 +4758,20 @@ impl<'a> ClientRpcModels<'a> {
 
 /// `permissions.*` RPCs.
 #[derive(Clone, Copy)]
-pub struct ClientRpcPermissions<'a> {
+pub(crate) struct ClientRpcPermissions<'a> {
     pub(crate) client: &'a Client,
 }
 
 impl<'a> ClientRpcPermissions<'a> {
     /// `permissions.folderTrust.*` sub-namespace.
-    pub fn folder_trust(&self) -> ClientRpcPermissionsFolderTrust<'a> {
+    pub(crate) fn folder_trust(&self) -> ClientRpcPermissionsFolderTrust<'a> {
         ClientRpcPermissionsFolderTrust {
             client: self.client,
         }
     }
 
     /// `permissions.locations.*` sub-namespace.
-    pub fn locations(&self) -> ClientRpcPermissionsLocations<'a> {
+    pub(crate) fn locations(&self) -> ClientRpcPermissionsLocations<'a> {
         ClientRpcPermissionsLocations {
             client: self.client,
         }
@@ -4675,7 +4814,7 @@ impl<'a> ClientRpcPermissions<'a> {
 
 /// `permissions.folderTrust.*` RPCs.
 #[derive(Clone, Copy)]
-pub struct ClientRpcPermissionsFolderTrust<'a> {
+pub(crate) struct ClientRpcPermissionsFolderTrust<'a> {
     pub(crate) client: &'a Client,
 }
 
@@ -4717,7 +4856,7 @@ impl<'a> ClientRpcPermissionsFolderTrust<'a> {
 
 /// `permissions.locations.*` RPCs.
 #[derive(Clone, Copy)]
-pub struct ClientRpcPermissionsLocations<'a> {
+pub(crate) struct ClientRpcPermissionsLocations<'a> {
     pub(crate) client: &'a Client,
 }
 
@@ -4752,7 +4891,7 @@ impl<'a> ClientRpcPermissionsLocations<'a> {
 
 /// `persistence.*` RPCs.
 #[derive(Clone, Copy)]
-pub struct ClientRpcPersistence<'a> {
+pub(crate) struct ClientRpcPersistence<'a> {
     pub(crate) client: &'a Client,
 }
 
@@ -5269,13 +5408,13 @@ impl<'a> ClientRpcPluginsMarketplaces<'a> {
 
 /// `repo.*` RPCs.
 #[derive(Clone, Copy)]
-pub struct ClientRpcRepo<'a> {
+pub(crate) struct ClientRpcRepo<'a> {
     pub(crate) client: &'a Client,
 }
 
 impl<'a> ClientRpcRepo<'a> {
     /// `repo.settings.*` sub-namespace.
-    pub fn settings(&self) -> ClientRpcRepoSettings<'a> {
+    pub(crate) fn settings(&self) -> ClientRpcRepoSettings<'a> {
         ClientRpcRepoSettings {
             client: self.client,
         }
@@ -5284,7 +5423,7 @@ impl<'a> ClientRpcRepo<'a> {
 
 /// `repo.settings.*` RPCs.
 #[derive(Clone, Copy)]
-pub struct ClientRpcRepoSettings<'a> {
+pub(crate) struct ClientRpcRepoSettings<'a> {
     pub(crate) client: &'a Client,
 }
 
@@ -5426,6 +5565,33 @@ impl<'a> ClientRpcRuntime<'a> {
             .await?;
         Ok(())
     }
+
+    /// Opens an authorization URL using the same browser policy as the runtime's OAuth flows, including BROWSER and COPILOT_DEBUG_BROWSER. Refuses extension callers.
+    ///
+    /// Wire method: `runtime.openBrowser`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - An authorization URL for the host browser.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn open_browser(
+        &self,
+        params: RuntimeOpenBrowserRequest,
+    ) -> Result<(), Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::RUNTIME_OPENBROWSER, Some(wire_params))
+            .await?;
+        Ok(())
+    }
 }
 
 /// `sandbox.*` RPCs.
@@ -5443,14 +5609,14 @@ impl<'a> ClientRpcSandbox<'a> {
     }
 
     /// `sandbox.proxySecret.*` sub-namespace.
-    pub fn proxy_secret(&self) -> ClientRpcSandboxProxySecret<'a> {
+    pub(crate) fn proxy_secret(&self) -> ClientRpcSandboxProxySecret<'a> {
         ClientRpcSandboxProxySecret {
             client: self.client,
         }
     }
 
     /// `sandbox.settings.*` sub-namespace.
-    pub fn settings(&self) -> ClientRpcSandboxSettings<'a> {
+    pub(crate) fn settings(&self) -> ClientRpcSandboxSettings<'a> {
         ClientRpcSandboxSettings {
             client: self.client,
         }
@@ -5726,6 +5892,37 @@ impl<'a> ClientRpcSandbox<'a> {
                 rpc_methods::SANDBOX_GETUNSUPPORTEDSTARTUPNOTICE,
                 Some(wire_params),
             )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// The warning to show before a user adds a sandbox path grant, when the sandbox backend cannot honor it. On Windows a read/write grant on a drive root such as `C:\` or `V:\` is accepted but gives no access to the files inside it, so the warning steers the user to a specific folder. A read-only grant on a drive root works and gets no warning. The grant is still stored as written: this only advises. Returns no warning on other platforms and for paths that are not a drive root, so a host can call it unconditionally while the user types. A host must ask rather than test the path itself, because which volume shapes the backend honors is a property of the backend, and a host-side check goes stale when it changes.
+    ///
+    /// Wire method: `sandbox.getPathGrantWarning`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - The path a user is about to grant.
+    ///
+    /// # Returns
+    ///
+    /// Advice for a path grant, when it needs any.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn get_path_grant_warning(
+        &self,
+        params: SandboxPathGrantWarningParams,
+    ) -> Result<SandboxPathGrantWarningResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::SANDBOX_GETPATHGRANTWARNING, Some(wire_params))
             .await?;
         Ok(serde_json::from_value(_value)?)
     }
@@ -6034,7 +6231,7 @@ impl<'a> ClientRpcSandboxProxyCa<'a> {
 
 /// `sandbox.proxySecret.*` RPCs.
 #[derive(Clone, Copy)]
-pub struct ClientRpcSandboxProxySecret<'a> {
+pub(crate) struct ClientRpcSandboxProxySecret<'a> {
     pub(crate) client: &'a Client,
 }
 
@@ -6144,7 +6341,7 @@ impl<'a> ClientRpcSandboxProxySecret<'a> {
 
 /// `sandbox.settings.*` RPCs.
 #[derive(Clone, Copy)]
-pub struct ClientRpcSandboxSettings<'a> {
+pub(crate) struct ClientRpcSandboxSettings<'a> {
     pub(crate) client: &'a Client,
 }
 
@@ -7389,6 +7586,79 @@ impl<'a> ClientRpcSessions<'a> {
     }
 }
 
+/// `settings.*` RPCs.
+#[derive(Clone, Copy)]
+pub(crate) struct ClientRpcSettings<'a> {
+    pub(crate) client: &'a Client,
+}
+
+impl<'a> ClientRpcSettings<'a> {
+    /// Removes one key from a settings file addressed by path, leaving every other key untouched. Takes the key exactly as written rather than a canonical setting path, because its purpose is to delete a key the loader refused: a misspelling, or a setting that no longer exists. Refuses rather than overwrites when the file does not parse, so a malformed file is never replaced by a rewrite that drops everything it could not read.
+    ///
+    /// Wire method: `settings.removeRawKey`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - One key to remove from a settings file, named exactly as it appears in the file.
+    ///
+    /// # Returns
+    ///
+    /// The outcome of the settings-file edit.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn remove_raw_key(
+        &self,
+        params: SettingsRemoveRawKeyRequest,
+    ) -> Result<SettingsRemoveRawKeyResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::SETTINGS_REMOVERAWKEY, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Replaces the secret-bearing parts of a settings value with a redacted placeholder, so the value can be shown to a user or written to a log. `basePath` is where the value sits in the settings tree, which is what decides whether a field is secret.
+    ///
+    /// Wire method: `settings.redactValueForDisplay`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - A settings value to redact before showing it.
+    ///
+    /// # Returns
+    ///
+    /// A settings value with its secret-bearing parts replaced.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn redact_value_for_display(
+        &self,
+        params: SettingsRedactValueForDisplayRequest,
+    ) -> Result<SettingsRedactValueForDisplayResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(
+                rpc_methods::SETTINGS_REDACTVALUEFORDISPLAY,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+}
+
 /// `skills.*` RPCs.
 #[derive(Clone, Copy)]
 pub struct ClientRpcSkills<'a> {
@@ -7868,6 +8138,13 @@ pub struct ClientRpcTools<'a> {
 }
 
 impl<'a> ClientRpcTools<'a> {
+    /// `tools.largeOutput.*` sub-namespace.
+    pub(crate) fn large_output(&self) -> ClientRpcToolsLargeOutput<'a> {
+        ClientRpcToolsLargeOutput {
+            client: self.client,
+        }
+    }
+
     /// Lists built-in tools available for a model.
     ///
     /// Wire method: `tools.list`.
@@ -7894,6 +8171,34 @@ impl<'a> ClientRpcTools<'a> {
             .call(rpc_methods::TOOLS_LIST, Some(wire_params))
             .await?;
         Ok(serde_json::from_value(_value)?)
+    }
+}
+
+/// `tools.largeOutput.*` RPCs.
+#[derive(Clone, Copy)]
+pub(crate) struct ClientRpcToolsLargeOutput<'a> {
+    pub(crate) client: &'a Client,
+}
+
+impl<'a> ClientRpcToolsLargeOutput<'a> {
+    /// Removes expired tool output files using the runtime's retention policy. Refuses extension callers.
+    ///
+    /// Wire method: `tools.largeOutput.cleanup`.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn cleanup(&self) -> Result<(), Error> {
+        let wire_params = serde_json::json!({});
+        let _value = self
+            .client
+            .call(rpc_methods::TOOLS_LARGEOUTPUT_CLEANUP, Some(wire_params))
+            .await?;
+        Ok(())
     }
 }
 
@@ -8738,6 +9043,13 @@ impl<'a> SessionRpc<'a> {
         }
     }
 
+    /// `session.autopilot.*` sub-namespace.
+    pub(crate) fn autopilot(&self) -> SessionRpcAutopilot<'a> {
+        SessionRpcAutopilot {
+            session: self.session,
+        }
+    }
+
     /// `session.autopilotObjective.*` sub-namespace.
     pub fn autopilot_objective(&self) -> SessionRpcAutopilotObjective<'a> {
         SessionRpcAutopilotObjective {
@@ -8977,7 +9289,7 @@ impl<'a> SessionRpc<'a> {
     }
 
     /// `session.settings.*` sub-namespace.
-    pub fn settings(&self) -> SessionRpcSettings<'a> {
+    pub(crate) fn settings(&self) -> SessionRpcSettings<'a> {
         SessionRpcSettings {
             session: self.session,
         }
@@ -9785,6 +10097,44 @@ impl<'a> SessionRpcAgent<'a> {
     }
 }
 
+/// `session.autopilot.*` RPCs.
+#[derive(Clone, Copy)]
+pub(crate) struct SessionRpcAutopilot<'a> {
+    pub(crate) session: &'a Session,
+}
+
+impl<'a> SessionRpcAutopilot<'a> {
+    /// Applies the runtime-owned Autopilot continuation policy at the session-idle decision point and routes any admitted continuation through the normal session send lifecycle. Only the SDK connection that owns the session can invoke this method.
+    ///
+    /// Wire method: `session.autopilot.evaluateIdleContinuation`.
+    ///
+    /// # Returns
+    ///
+    /// Result of applying the ordinary session-idle Autopilot continuation decision.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn evaluate_idle_continuation(
+        &self,
+    ) -> Result<AutopilotEvaluateIdleContinuationResult, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_AUTOPILOT_EVALUATEIDLECONTINUATION,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+}
+
 /// `session.autopilotObjective.*` RPCs.
 #[derive(Clone, Copy)]
 pub struct SessionRpcAutopilotObjective<'a> {
@@ -9836,7 +10186,7 @@ impl<'a> SessionRpcCanvas<'a> {
     }
 
     /// `session.canvas.provider.*` sub-namespace.
-    pub fn provider(&self) -> SessionRpcCanvasProvider<'a> {
+    pub(crate) fn provider(&self) -> SessionRpcCanvasProvider<'a> {
         SessionRpcCanvasProvider {
             session: self.session,
         }
@@ -9992,7 +10342,7 @@ impl<'a> SessionRpcCanvasAction<'a> {
 
 /// `session.canvas.provider.*` RPCs.
 #[derive(Clone, Copy)]
-pub struct SessionRpcCanvasProvider<'a> {
+pub(crate) struct SessionRpcCanvasProvider<'a> {
     pub(crate) session: &'a Session,
 }
 
@@ -10328,6 +10678,42 @@ impl<'a> SessionRpcCommands<'a> {
             .client()
             .call(
                 rpc_methods::SESSION_COMMANDS_RESPONDTOQUEUEDCOMMAND,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Reports that the host's execution of a queued command started or stopped waiting for runtime state, so lifecycle progress can attribute the wait. Observational only: it never changes command execution.
+    ///
+    /// Wire method: `session.commands.reportQueuedCommandWait`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Host report that its execution of a queued command started or stopped waiting for runtime state. The report is observational and never changes command execution.
+    ///
+    /// # Returns
+    ///
+    /// Whether the runtime recorded the queued-command wait.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn report_queued_command_wait(
+        &self,
+        params: CommandsReportQueuedCommandWaitRequest,
+    ) -> Result<CommandsReportQueuedCommandWaitResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_COMMANDS_REPORTQUEUEDCOMMANDWAIT,
                 Some(wire_params),
             )
             .await?;
@@ -10959,6 +11345,13 @@ pub struct SessionRpcDiagnostics<'a> {
 }
 
 impl<'a> SessionRpcDiagnostics<'a> {
+    /// `session.diagnostics.lifecycle.*` sub-namespace.
+    pub(crate) fn lifecycle(&self) -> SessionRpcDiagnosticsLifecycle<'a> {
+        SessionRpcDiagnosticsLifecycle {
+            session: self.session,
+        }
+    }
+
     /// Patches configured session diagnostic sources without restarting their producers. Setting a source level to off clears its retained diagnostics and invalidates cursors selecting that source.
     ///
     /// Wire method: `session.diagnostics.configure`.
@@ -11029,6 +11422,50 @@ impl<'a> SessionRpcDiagnostics<'a> {
     }
 }
 
+/// `session.diagnostics.lifecycle.*` RPCs.
+#[derive(Clone, Copy)]
+pub(crate) struct SessionRpcDiagnosticsLifecycle<'a> {
+    pub(crate) session: &'a Session,
+}
+
+impl<'a> SessionRpcDiagnosticsLifecycle<'a> {
+    /// Reads a bounded page of retained experimental runtime lifecycle diagnostic events. The read is passive and never prepares conversation history or starts subsystem work.
+    ///
+    /// Wire method: `session.diagnostics.lifecycle.read`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Cursor-based request for experimental runtime lifecycle diagnostic events. The default max is 100 (maximum 500); the default waitMs is zero (maximum 30000).
+    ///
+    /// # Returns
+    ///
+    /// One cursor-addressed page of retained experimental runtime lifecycle diagnostic events.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn read(
+        &self,
+        params: LifecycleDiagnosticsReadRequest,
+    ) -> Result<LifecycleDiagnosticsReadResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_DIAGNOSTICS_LIFECYCLE_READ,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+}
+
 /// `session.eventLog.*` RPCs.
 #[derive(Clone, Copy)]
 pub struct SessionRpcEventLog<'a> {
@@ -11056,6 +11493,41 @@ impl<'a> SessionRpcEventLog<'a> {
     ///
     /// </div>
     pub async fn read(&self, params: EventLogReadRequest) -> Result<EventsReadResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_EVENTLOG_READ, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Reads a batch of session events from a cursor, optionally waiting for new events. Supports tail-first reads via `direction: backward`.
+    ///
+    /// Wire method: `session.eventLog.read`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Cursor, batch size, and optional long-poll/filter parameters for reading session events.
+    ///
+    /// # Returns
+    ///
+    /// Batch of session events returned by a read, with cursor and continuation metadata.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    ///
+    /// Accepts [`EventLogReadOptions`], including inputs added after [`EventLogReadRequest`].
+    pub async fn read_with_options(
+        &self,
+        params: EventLogReadOptions,
+    ) -> Result<crate::types::EventsReadResultWithMetadata, Error> {
         let mut wire_params = serde_json::to_value(params)?;
         wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
         let _value = self
@@ -11171,6 +11643,31 @@ pub struct SessionRpcExtensions<'a> {
 }
 
 impl<'a> SessionRpcExtensions<'a> {
+    /// Returns the runtime-derived standalone extension admission policy for the session's actual project and managed-settings context. enforcementVersion 1 means this runtime enforces strictPluginOnlyCustomization for executable extensions. Hosts executing independent extension targets must deny standalone targets unless standalone is allowed; plugin_only requires runtime-verified eligible plugin provenance, not a caller-supplied source label or transport bridge. pending is not confirmed absence. Older runtimes return method-not-found and must not be represented as enforcing this restriction. Re-read on managed-settings changes; a snapshot is not a launch authorization token.
+    ///
+    /// Wire method: `session.extensions.getPolicy`.
+    ///
+    /// # Returns
+    ///
+    /// Runtime support and session-context standalone executable extension policy.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn get_policy(&self) -> Result<ExtensionManagedPolicy, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_EXTENSIONS_GETPOLICY, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
     /// Lists extensions discovered for the session and their current status.
     ///
     /// Wire method: `session.extensions.list`.
@@ -12180,6 +12677,34 @@ impl<'a> SessionRpcManagedSettings<'a> {
             .session
             .client()
             .call(rpc_methods::SESSION_MANAGEDSETTINGS_GET, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Runs a fresh Policy Helper evaluation for the live session's current account, registration, working directory, repository and client context, bypassing only a completed cached helper result for that exact context while coalescing an equivalent execution already in flight. The previous failure and safeguards remain active until fresh success is applied. Returns the same retained snapshot as session.managedSettings.get after the recheck settles.
+    ///
+    /// Wire method: `session.managedSettings.recheckPolicyHelper`.
+    ///
+    /// # Returns
+    ///
+    /// Effective enterprise managed settings and contributing channels. Session events report applied policy; sessionless resolve reports an account/device snapshot, and compose reports a non-applying preview of candidate documents. Device values take precedence over server values, then the policy helper, per ordinary key, while permissions compose restrictively. Session-local SDK-client policy is included only in session results. Marked experimental while the managed-settings surface stabilizes.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn recheck_policy_helper(&self) -> Result<ManagedSettingsResolvedData, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_MANAGEDSETTINGS_RECHECKPOLICYHELPER,
+                Some(wire_params),
+            )
             .await?;
         Ok(serde_json::from_value(_value)?)
     }
@@ -14672,7 +15197,7 @@ impl<'a> SessionRpcPermissions<'a> {
         }
     }
 
-    /// Replaces selected permission policy fields (rules, paths, URLs, exclusions, allow-all flags) on the session.
+    /// Replaces selected session permission fields, including rules, paths, URLs, exclusions, allow-all flags, user-authored judge instructions, bounded host-supplied advisory judge context, owner-authenticated session authority, and the owner's host-policy declaration for its own tools.
     ///
     /// Wire method: `session.permissions.configure`.
     ///
@@ -14708,7 +15233,7 @@ impl<'a> SessionRpcPermissions<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
-    /// Replaces selected permission policy fields (rules, paths, URLs, exclusions, allow-all flags) on the session.
+    /// Replaces selected session permission fields, including rules, paths, URLs, exclusions, allow-all flags, user-authored judge instructions, bounded host-supplied advisory judge context, owner-authenticated session authority, and the owner's host-policy declaration for its own tools.
     ///
     /// Wire method: `session.permissions.configure`.
     ///
@@ -15006,6 +15531,36 @@ impl<'a> SessionRpcPermissions<'a> {
             .client()
             .call(
                 rpc_methods::SESSION_PERMISSIONS_RESETSESSIONAPPROVALS,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Clears, in memory only, the allow-all and assisted-approval posture that resuming the session restored from its history. No permission event is recorded, so a later resume restores the user's choice again. A headless caller, which has no one to approve requests, calls it before configuring permissions from its own flags.
+    ///
+    /// Wire method: `session.permissions.clearResumeEscalation`.
+    ///
+    /// # Returns
+    ///
+    /// Indicates whether the operation succeeded.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn clear_resume_escalation(
+        &self,
+    ) -> Result<PermissionsClearResumeEscalationResult, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_PERMISSIONS_CLEARRESUMEESCALATION,
                 Some(wire_params),
             )
             .await?;
@@ -17156,7 +17711,7 @@ impl<'a> SessionRpcRemote<'a> {
     ///
     /// # Returns
     ///
-    /// GitHub URL for the session and a flag indicating whether remote steering is enabled.
+    /// GitHub URL and remote export and steering state, with an optional warning when cloud session storage policy refuses export.
     ///
     /// <div class="warning">
     ///
@@ -17654,7 +18209,7 @@ impl<'a> SessionRpcSchedule<'a> {
 
 /// `session.settings.*` RPCs.
 #[derive(Clone, Copy)]
-pub struct SessionRpcSettings<'a> {
+pub(crate) struct SessionRpcSettings<'a> {
     pub(crate) session: &'a Session,
 }
 
@@ -18950,7 +19505,7 @@ impl<'a> SessionRpcUi<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
-    /// Resolves a pending elicitation request after direct interaction in the trusted in-process client. Only an accepted response to the built-in ask_user tool can become trusted human evidence.
+    /// Resolves a pending elicitation request after direct interaction in the trusted in-process client or authenticated owning host. Only an accepted response to the built-in ask_user tool can become trusted human evidence.
     ///
     /// Wire method: `session.ui.handleHumanAskUser`.
     ///
@@ -19022,7 +19577,7 @@ impl<'a> SessionRpcUi<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
-    /// Resolves a pending `user_input.requested` event after direct interaction in the trusted in-process client.
+    /// Resolves a pending `user_input.requested` event after direct interaction in the trusted in-process client or authenticated owning host.
     ///
     /// Wire method: `session.ui.handleHumanUserInput`.
     ///
@@ -19202,7 +19757,7 @@ impl<'a> SessionRpcUi<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
-    /// Resolves a pending `exit_plan_mode.requested` event after direct interaction in the trusted in-process client.
+    /// Resolves a pending `exit_plan_mode.requested` event after direct interaction in the trusted in-process client or authenticated owning host.
     ///
     /// Wire method: `session.ui.handleHumanExitPlanMode`.
     ///

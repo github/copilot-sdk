@@ -10,7 +10,7 @@ Use it when you need to inspect or replace the exact model-facing prompt. The `p
 | --- | --- | --- |
 | `sessionId` | string | Runtime session ID |
 | `timestamp` | date/time | Time the hook was invoked |
-| `cwd` / `workingDirectory` | string | Current working directory |
+| `workingDirectory` | string | Current working directory |
 | `prompt` | string | Prompt after `userPromptSubmitted` hooks |
 | `transformedPrompt` | string | Model-facing prompt after runtime transformations |
 

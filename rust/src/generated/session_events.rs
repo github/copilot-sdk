@@ -11,6 +11,8 @@ use crate::types::{RequestId, SessionId};
 /// Identifies the kind of session event.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum SessionEventType {
+    #[serde(rename = "session.journal_link")]
+    SessionJournalLink,
     #[serde(rename = "session.start")]
     SessionStart,
     #[serde(rename = "session.resume")]
@@ -593,6 +595,8 @@ pub enum SessionEventType {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", content = "data")]
 pub enum SessionEventData {
+    #[serde(rename = "session.journal_link")]
+    SessionJournalLink(SessionJournalLinkData),
     #[serde(rename = "session.start")]
     SessionStart(SessionStartData),
     #[serde(rename = "session.resume")]
@@ -1164,6 +1168,18 @@ pub struct TypedSessionEvent {
     pub payload: SessionEventData,
 }
 
+/// Session event "session.journal_link". Links a standalone replay head to its complete preceding numbered journal archive.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionJournalLinkData {
+    /// Numbered predecessor filename in the same session directory.
+    pub previous_file: String,
+    /// Session owning this journal chain.
+    pub session_id: SessionId,
+    /// Journal checkpoint format version.
+    pub version: i64,
+}
+
 /// Working directory and git context at session start
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -1669,6 +1685,9 @@ pub struct SessionModelChangeData {
     /// Model that owns effort embedded in an authored model selection. Omitted for independent reasoning-effort overrides and legacy events.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_effort_model: Option<String>,
+    /// True when prior reasoning is incompatible with the selected provider routing even though model and provider identifiers are unchanged. Omitted for compatible or legacy selections.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning_invalidated: Option<bool>,
     /// Reasoning summary mode after the model change, if applicable
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_summary: Option<ReasoningSummary>,
@@ -1858,6 +1877,9 @@ pub struct SessionHandoffData {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionTruncationData {
+    /// Identifier of the automatic compaction applied just before this truncation, when one was
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub compaction_attempt_id: Option<String>,
     /// Number of messages removed by truncation
     pub messages_removed_during_truncation: i64,
     /// Identifier of the component that performed truncation (e.g., "BasicTruncator")
@@ -2517,6 +2539,10 @@ pub struct SessionCompactionStartData {
     /// Total context tokens (system + conversation + tool definitions) at compaction start, when known
     #[serde(skip_serializing_if = "Option::is_none")]
     pub current_tokens: Option<i64>,
+    /// How the compaction ran relative to the conversation: "background" (alongside the turn), "turn_blocking" (the turn waited for it), "pre_prompt" (a non-interactive run waited before recording its prompt), or "direct" (an explicit compaction request). Open set; readers must tolerate other values.
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) execution: Option<String>,
     /// Model identifier used for compaction, when known
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
@@ -2538,6 +2564,87 @@ pub struct SessionCompactionStartData {
     /// What initiated this compaction, when known
     #[serde(skip_serializing_if = "Option::is_none")]
     pub trigger: Option<CompactionTrigger>,
+}
+
+/// End-to-end timing of a compaction attempt and the configuration it ran under, measured from the start of the compaction to its terminal event.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct CompactionCompleteAttemptMetrics {
+    /// Time from the decision of the compaction's outcome to this event, in milliseconds. Absent when no outcome was decided.
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) apply_delay_ms: Option<i64>,
+    /// Time a turn, or a prompt-mode run's prompt, spent blocked waiting for this compaction, in milliseconds. Absent for compactions that block nothing.
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) blocking_wait_ms: Option<i64>,
+    /// Summarizer requests cancelled while in flight, one per model call cancellation reported for this compaction. Not counted in failedRequestCount. Absent when none was cancelled.
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) cancelled_request_count: Option<i64>,
+    /// The deadline limit that ended the compaction, in milliseconds. Absent unless a deadline fired.
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) deadline_limit_ms: Option<i64>,
+    /// How long after its limit the deadline was observed to fire, in milliseconds. Absent unless a deadline fired.
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) deadline_overshoot_ms: Option<i64>,
+    /// Deadline policy bounding the summarizer, such as "fixed" or "progress_aware"
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) deadline_policy: Option<String>,
+    /// Time from the start of the compaction to this event, in milliseconds, whatever the outcome
+    #[doc(hidden)]
+    pub(crate) duration_ms: i64,
+    /// Summarizer requests that failed with a provider or transport error. Absent when none failed.
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) failed_request_count: Option<i64>,
+    /// Sum of the sampled input token estimates of the summarizer requests that failed, whose usage the provider never reported. Absent when none failed.
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) failed_request_input_tokens_estimate: Option<i64>,
+    /// Step whose failure ended the compaction before or after its summarizer request: "session_read", "auth_hydration", "model_resolution", "context_breakdown", "token_limit", "start_publication", "pre_compact_hook", "output_hydration", "auth_missing", "agent_context_missing", "summarizer_setup", "summary_parse", "plan_read", "history_write" or "background_apply". Absent when the summarizer request itself failed, or nothing failed.
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) failure_operation: Option<String>,
+    /// Retry-After of the latest failed summarizer request, in milliseconds. Absent when that request sent none.
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) last_retry_after_ms: Option<i64>,
+    /// Output token limit of the latest summarizer request. Absent when no request was sent.
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) max_output_tokens: Option<f64>,
+    /// Reasoning effort the summarizer would have used before any compaction-specific reduction
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) requested_reasoning_effort: Option<String>,
+    /// Total time from a failed summarizer request settling to the next one starting, which includes the retry backoff, in milliseconds. Absent when no request was retried.
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) retry_wait_ms: Option<i64>,
+    /// Historical attachments removed from the summarizer input when it was shrunk. Absent unless the input was shrunk.
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) shrink_removed_attachments: Option<i64>,
+    /// Historical reasoning items stripped from the summarizer input when it was shrunk. Absent unless the input was shrunk.
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) shrink_stripped_reasoning: Option<i64>,
+    /// Reasoning effort the summarizer requests were sent with
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) summarizer_reasoning_effort: Option<String>,
+    /// Estimated time the machine spent suspended or asleep during the compaction, in milliseconds
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) suspended_ms: Option<i64>,
+    /// Context utilization threshold, as a fraction of the token limit, whose crossing started this compaction. Absent for compactions not started by a threshold.
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) trigger_threshold: Option<f64>,
 }
 
 /// Token usage detail for a single billing category
@@ -2614,6 +2721,28 @@ pub struct CompactionCompleteCompactionTokensUsed {
     pub request_count: Option<i64>,
 }
 
+/// Evidence about the summarizer's latest model call when a compaction failed. Every value is a string so that new values stay readable by older runtimes.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct CompactionCompleteFailureDiagnostics {
+    /// Finish reason of the summarizer's latest successful response, such as stop, length, or content_filter
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) finish_reason: Option<String>,
+    /// Failure reason of the summarizer's latest failed model call, kept when a later attempt or the compaction deadline ended the compaction. Uses the failureReason values.
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) last_attempt_failure_reason: Option<String>,
+    /// Error code the provider returned for that call, or its error type when it gave no code
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) provider_error_code: Option<String>,
+    /// Bounded kind of that call's transport failure, such as dns, tls, proxy, connection_refused, connection_reset, connect_timeout, or timeout
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) transport_error_kind: Option<String>,
+}
+
 /// Original request-level and effective conversation reasoning effort for a provider history boundary; the historical type name is retained for compatibility
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -2630,6 +2759,10 @@ pub struct ResponsesReasoning {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct CompactionCompleteSummarizerProgress {
+    /// Characters of reply text the latest request streamed, counted as received, so it measures output even when the request was cut off before reporting usage. Tool-call arguments and reasoning are not counted. Absent when no request was dispatched.
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) answer_chars: Option<i64>,
     /// Time since the latest request was dispatched, whether or not it had finished, in milliseconds. Absent when no request was dispatched.
     #[doc(hidden)]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -2652,6 +2785,10 @@ pub(crate) struct CompactionCompleteSummarizerProgress {
     #[doc(hidden)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) input_shrunk: Option<bool>,
+    /// Sampled estimate of the input tokens the latest request sent, taken at dispatch, so it is known even when the request was cut off before reporting usage. Absent when no request was dispatched.
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) input_tokens_estimate: Option<i64>,
     /// Longest gap between two consecutive outputs of the latest request after its first reply text or tool-call output, in milliseconds. Excludes the still-open gap reported as sinceLastOutputMs; absent without such a gap.
     #[doc(hidden)]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -2667,6 +2804,10 @@ pub(crate) struct CompactionCompleteSummarizerProgress {
     /// Stream events of the latest request that carried observable output
     #[doc(hidden)]
     pub(crate) output_event_count: i64,
+    /// Characters of reasoning text, summarized or raw, the latest request streamed, counted as received. Encrypted reasoning is not counted. Absent when no request was dispatched.
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) reasoning_chars: Option<i64>,
     /// Time since the latest request's last observable output, in milliseconds. Unlike idleMs, keepalive deltas do not reset it. Absent when no output arrived.
     #[doc(hidden)]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -2696,6 +2837,10 @@ pub struct SessionCompactionCompleteData {
     #[doc(hidden)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) active_workflow_summary: Option<String>,
+    /// How long the compaction attempt took end to end, how long it blocked the user, and the configuration it ran under
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) attempt_metrics: Option<Box<CompactionCompleteAttemptMetrics>>,
     /// Canonical model identifier used for model-specific behavior when replaying compaction
     #[serde(skip_serializing_if = "Option::is_none")]
     pub behavior_model_id: Option<String>,
@@ -2705,6 +2850,10 @@ pub struct SessionCompactionCompleteData {
     /// File path where the checkpoint was stored
     #[serde(skip_serializing_if = "Option::is_none")]
     pub checkpoint_path: Option<String>,
+    /// Client-generated request ID (X-Request-Id header) the runtime sent with the latest compaction LLM request. Present even when the request failed before any response arrived.
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) client_request_id: Option<String>,
     /// Identifier shared with the matching compaction start event
     #[serde(skip_serializing_if = "Option::is_none")]
     pub compaction_attempt_id: Option<String>,
@@ -2720,6 +2869,14 @@ pub struct SessionCompactionCompleteData {
     /// Error message if compaction failed
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
+    /// How the compaction ran relative to the conversation: "background" (alongside the turn), "turn_blocking" (the turn waited for it), "pre_prompt" (a non-interactive run waited before recording its prompt), or "direct" (an explicit compaction request). Open set; readers must tolerate other values.
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) execution: Option<String>,
+    /// Evidence about the summarizer's latest model call for a failed compaction, so a failure its reason alone does not explain can be diagnosed
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) failure_diagnostics: Option<CompactionCompleteFailureDiagnostics>,
     /// Bounded reason for a typed failed outcome. Unknown future values are preserved.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub failure_reason: Option<String>,
@@ -2747,6 +2904,9 @@ pub struct SessionCompactionCompleteData {
     /// Total tokens in conversation before compaction
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pre_compaction_tokens: Option<i64>,
+    /// Reasoning effort level the compaction summarizer request used, if applicable (e.g. "none", "low", "medium", "high", "xhigh", "max")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning_effort: Option<String>,
     /// GitHub request tracing ID (x-github-request-id header) for the compaction LLM call
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_id: Option<RequestId>,
@@ -2794,6 +2954,28 @@ pub struct SessionCompactionCompleteData {
     pub trigger: Option<CompactionTrigger>,
 }
 
+/// Privacy-safe reference to a permission-protected action that remains blocked for the current Autopilot epoch
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BlockedPermissionAction {
+    /// Permission-recovery episode that owns this blocked action
+    pub episode_id: String,
+    /// Controlled permission request kind for the blocked action
+    pub permission_kind: String,
+    /// Recovery transition that made the action binding for the epoch
+    pub recovery_reason: PermissionRecoveryReason,
+    /// Tool call that produced the final blocked permission request. Consumers can join this identifier to labeled permission and tool events for user-facing details.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_call_id: Option<String>,
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PermissionRecoveryAttempt {
@@ -2816,6 +2998,28 @@ pub struct PermissionRecoveryAttempt {
     pub tool_call_id: Option<String>,
 }
 
+/// Replay-safe epoch counters for Autopilot Assisted Permissions recovery
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PermissionRecoveryRunState {
+    /// Number of blocked recovery episodes since the latest successful permitted effectful tool call
+    pub consecutive_blocked_episodes: i64,
+    /// Whether the claimed epoch terminal is an authoritative permission-recovery block that remains latched until the next genuine root user message
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub permission_recovery_terminal_claimed: Option<bool>,
+    /// Whether a permission-recovery terminal completion has already been claimed for the epoch
+    pub terminal_outcome_claimed: bool,
+    /// Total deferred, denied, or blocked attempt transitions in the current genuine-user-message epoch
+    pub total_denial_dispositions: i64,
+}
+
 /// Authoritative snapshot of an Autopilot permission-recovery episode
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -2836,6 +3040,9 @@ pub struct PermissionRecoveryData {
     pub owner_session_id: Option<String>,
     /// Controlled reason for the latest episode transition
     pub reason: PermissionRecoveryReason,
+    /// Optional replay checkpoint for the epoch-scoped permission-recovery breaker. New runtimes persist it on state-changing recovery snapshots; older runtimes ignore it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub run_state: Option<PermissionRecoveryRunState>,
     /// Current lifecycle state of the recovery episode
     pub status: PermissionRecoveryStatus,
 }
@@ -2856,7 +3063,7 @@ pub struct TaskBlocker {
     /// Permission-recovery episode that produced this blocker
     pub permission_recovery: PermissionRecoveryData,
     /// Controlled reason for the current blocked state
-    pub reason: PermissionRecoveryReason,
+    pub reason: TaskBlockerReason,
     /// Whether a later user response or steering message can resume the task
     pub resumable: bool,
 }
@@ -2865,6 +3072,9 @@ pub struct TaskBlocker {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionTaskCompleteData {
+    /// Permission-protected actions that remained blocked for this genuine-user-message epoch. Present on successful completion when the objective was completed without them and on blocked completion when one or more were required.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub blocked_actions: Option<Vec<BlockedPermissionAction>>,
     /// Structured blocker details when outcome is blocked
     #[serde(skip_serializing_if = "Option::is_none")]
     pub blocker: Option<TaskBlocker>,
@@ -3298,6 +3508,9 @@ pub struct SessionPermissionRecoveryData {
     pub owner_session_id: Option<String>,
     /// Controlled reason for the latest episode transition
     pub reason: PermissionRecoveryReason,
+    /// Optional replay checkpoint for the epoch-scoped permission-recovery breaker. New runtimes persist it on state-changing recovery snapshots; older runtimes ignore it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub run_state: Option<PermissionRecoveryRunState>,
     /// Current lifecycle state of the recovery episode
     pub status: PermissionRecoveryStatus,
 }
@@ -3358,6 +3571,9 @@ pub struct PendingMessagesModifiedData {}
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AssistantTurnStartData {
+    /// Agent mode whose tools this turn's run was offered. Absent on historical events and sub-agent turns.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub agent_mode: Option<SessionMode>,
     /// CAPI interaction ID for correlating this turn with upstream telemetry
     #[serde(skip_serializing_if = "Option::is_none")]
     pub interaction_id: Option<String>,
@@ -3681,13 +3897,25 @@ pub struct AssistantServerToolProgressData {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AssistantReasoningData {
+    /// Provider's completion / response identifier of the model call that produced this reasoning, matching the apiCallId of that call's assistant.message
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub api_call_id: Option<String>,
     /// The complete extended thinking text from the model
     pub content: String,
+    /// Whether the model call that produced this reasoning used a user-managed provider or an on-device model
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub is_byok: Option<bool>,
+    /// Model that produced this reasoning, if known
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
     /// Unique identifier for this reasoning block
     pub reasoning_id: String,
     /// Per-request treatment/eligibility signal returned by the Copilot API in the `X-GitHub-Copilot-Request-TE` response header for the associated model call; `false` when the header was absent or unparseable.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rte: Option<bool>,
+    /// Identifier for the agent loop turn that produced this reasoning, matching the corresponding assistant.turn_start event
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub turn_id: Option<String>,
 }
 
 /// Session event "assistant.reasoning_delta". Streaming reasoning delta for incremental extended thinking updates
@@ -3926,7 +4154,10 @@ pub struct AssistantMessageToolRequest {
     /// Resolved intention summary describing what this specific call does
     #[serde(skip_serializing_if = "Option::is_none")]
     pub intention_summary: Option<String>,
-    /// Name of the MCP server hosting this tool, when the tool is an MCP tool
+    /// Explicitly configured MCP server display name.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mcp_server_display_name: Option<String>,
+    /// Configured key of the MCP server hosting this tool. Legacy events may contain the display name instead.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mcp_server_name: Option<String>,
     /// Original tool name on the MCP server, when the tool is an MCP tool
@@ -4265,12 +4496,23 @@ pub struct AssistantUsageData {
     /// </div>
     #[serde(skip_serializing_if = "Option::is_none")]
     pub fusion: Option<FusionAttribution>,
+    /// Whether this dispatched request selected the managed inference gateway. Absent for older producers or when no request was dispatched; not proof of gateway receipt.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub inference_gateway: Option<bool>,
     /// What initiated this API call (e.g., "sub-agent", "mcp-sampling"); absent for user-initiated calls
     #[serde(skip_serializing_if = "Option::is_none")]
     pub initiator: Option<String>,
     /// Number of input tokens consumed
     #[serde(skip_serializing_if = "Option::is_none")]
     pub input_tokens: Option<i64>,
+    /// Internal correlation identifier for the qualifying instruction-update delivery consumed by this model request.
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) instruction_update_delivery_id: Option<String>,
+    /// Event identifier of the latest canonical instruction update included in this model request.
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) instruction_update_latest_event_id: Option<String>,
     /// Coarse classification of the interaction that produced this call, mirroring the session's per-request agent context (e.g. `conversation-agent`, `conversation-subagent`, `conversation-sampling`, `conversation-background`, `conversation-compaction`, `conversation-user`). Non-billing; lets consumers attribute a model call to a call class (e.g. sub-agent/sidekick) independently of the billing initiator. Absent when the runtime did not classify the request.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub interaction_type: Option<String>,
@@ -4316,6 +4558,14 @@ pub struct AssistantUsageData {
     #[deprecated]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parent_tool_call_id: Option<String>,
+    /// Bucket of AI credits the session had billed before this call, for the adaptive Anthropic prompt-cache policy. Omitted outside the adaptive TTL experiment.
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) prompt_cache_credits_bucket: Option<String>,
+    /// Why the adaptive Anthropic prompt-cache policy chose this call's TTL: warmup, l1_first, l1_lapsed, l1_hot, g_guard, or ineligible. Omitted outside the adaptive TTL experiment.
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) prompt_cache_ttl_reason: Option<String>,
     /// Provider identity and product label captured by the actual call's dispatch path.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub provider: Option<ModelProviderRef>,
@@ -4360,6 +4610,9 @@ pub struct AssistantUsageData {
     /// Byte length of the request body actually sent on the wire for the attempt that produced this outcome, after any Content-Encoding. Equals requestBodyBytes when the body was not compressed.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_body_wire_bytes: Option<i64>,
+    /// Model identifier returned by the provider, absent when the response does not identify it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub response_model: Option<String>,
     /// Per-request treatment/eligibility signal returned by the Copilot API in the `X-GitHub-Copilot-Request-TE` response header for the associated model call; `false` when the header was absent or unparseable.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rte: Option<bool>,
@@ -4585,9 +4838,23 @@ pub struct ModelCallFailureData {
     /// </div>
     #[serde(skip_serializing_if = "Option::is_none")]
     pub fusion: Option<FusionAttribution>,
+    /// Why a chat-completions stream that the server ended could not be assembled into a response, as a fixed snake_case reason such as `missing_finish_reason`, `missing_tool_call_id` or `no_chunks`; absent for other failures. New reasons may be added
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub incomplete_stream_reason: Option<String>,
+    /// Whether this failed dispatched request selected the managed inference gateway. Absent for older producers or when no request was dispatched; not proof of gateway receipt.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub inference_gateway: Option<bool>,
     /// What initiated this API call (e.g., "sub-agent", "mcp-sampling"); absent for user-initiated calls
     #[serde(skip_serializing_if = "Option::is_none")]
     pub initiator: Option<String>,
+    /// Internal correlation identifier for the qualifying instruction-update delivery consumed by this failed model request.
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) instruction_update_delivery_id: Option<String>,
+    /// Event identifier of the latest canonical instruction update included in this failed model request.
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) instruction_update_latest_event_id: Option<String>,
     /// Authoritative interaction classification for the failed call, matching `assistant.usage.interactionType` (for example `conversation-agent`, `conversation-subagent`, or `conversation-sampling`). Absent when the producer cannot classify the interaction.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub interaction_type: Option<String>,
@@ -4612,6 +4879,10 @@ pub struct ModelCallFailureData {
     /// Parent task tool call ID when this failed model call belongs to a sub-agent
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parent_tool_call_id: Option<String>,
+    /// Bounded product-state failure classified before telemetry projection.
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) product_state_error: Option<ModelCallProductStateError>,
     /// GitHub request tracing ID (x-github-request-id header) for server-side log correlation
     #[serde(skip_serializing_if = "Option::is_none")]
     pub provider_call_id: Option<String>,
@@ -4661,6 +4932,9 @@ pub struct ModelCallFailureData {
     /// HTTP status code from the failed request
     #[serde(skip_serializing_if = "Option::is_none")]
     pub status_code: Option<i32>,
+    /// Whether the incomplete stream ended with the `[DONE]` sentinel; present only with incompleteStreamReason
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stream_done_received: Option<bool>,
     /// Transport used for the failed model call (http or websocket)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub transport: Option<ModelCallFailureTransport>,
@@ -4844,13 +5118,16 @@ pub struct ToolExecutionStartData {
     /// </div>
     #[serde(skip_serializing_if = "Option::is_none")]
     pub fusion: Option<FusionAttribution>,
-    /// Preferred lookup name for the MCP server hosting this tool: the configured (namespaced) config-map key when the tool carries one, otherwise the display name from `mcpServerName`. Present when the tool is an MCP tool; this is the name unrestricted provenance telemetry hashes so it joins with `mcp_server_setup`, which keys off the configured name too.
+    /// Configured MCP server key, retained for compatibility. New events write the same value as mcpServerName; on legacy events this field distinguishes the configured key from the display name in mcpServerName. Unrestricted provenance telemetry hashes this key to join with mcp_server_setup.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mcp_config_server_name: Option<String>,
     /// Where the MCP server's configuration came from (`user`, `workspace`, `plugin`, or `builtin`), when the tool is an MCP tool and the server is configured
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mcp_config_source: Option<McpServerSource>,
-    /// Name of the MCP server hosting this tool, when the tool is an MCP tool
+    /// Explicitly configured MCP server display name.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mcp_server_display_name: Option<String>,
+    /// Configured key of the MCP server hosting this tool. Legacy events may contain the display name instead; prefer mcpConfigServerName for their identity when available.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mcp_server_name: Option<String>,
     /// Original tool name on the MCP server, when the tool is an MCP tool
@@ -4867,6 +5144,9 @@ pub struct ToolExecutionStartData {
     #[deprecated]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parent_tool_call_id: Option<String>,
+    /// Whether the selected tool descriptor explicitly classifies this call as read-only.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub read_only: Option<bool>,
     /// Per-request treatment/eligibility signal returned by the Copilot API in the `X-GitHub-Copilot-Request-TE` response header for the associated model call; `false` when the header was absent or unparseable.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rte: Option<bool>,
@@ -5374,6 +5654,16 @@ pub struct ToolExecutionCompleteResult {
     /// </div>
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mcp_meta: Option<serde_json::Value>,
+    /// MCP `CallToolResult._meta` returned verbatim by an MCP Apps tool, for delivery to the app UI only; never sent to the model. Experimental.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mcp_result_meta: Option<HashMap<String, serde_json::Value>>,
     /// Structured content (arbitrary JSON) returned verbatim by the MCP tool
     #[serde(skip_serializing_if = "Option::is_none")]
     pub structured_content: Option<serde_json::Value>,
@@ -5599,6 +5889,9 @@ pub struct SkillInvokedData {
     /// Tool names that should be auto-approved when this skill is active
     #[serde(skip_serializing_if = "Option::is_none")]
     pub allowed_tools: Option<Vec<String>>,
+    /// Exact invocation arguments when recorded, retained separately from the reusable skill body
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub arguments: Option<String>,
     /// Full content of the skill file, injected into the conversation for the model
     pub content: String,
     /// Description of the skill from its SKILL.md frontmatter
@@ -5610,6 +5903,12 @@ pub struct SkillInvokedData {
     /// Projected chat-message count when the skill was invoked. New writers persist this so replay does not need to reconstruct superseded history; readers derive it for legacy events when absent.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub invoked_at_turn: Option<i64>,
+    /// MCP resource metadata associated with the verified skill content.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mcp_meta: Option<serde_json::Value>,
+    /// Held MCP skill origin and manifest. Remote execution restrictions survive replay while this provenance remains in the session.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mcp_origin: Option<serde_json::Value>,
     /// Model identifier active when the skill was invoked, when known
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
@@ -5638,6 +5937,9 @@ pub struct SkillInvokedRefData {
     /// Tool names that should be auto-approved when this skill is active
     #[serde(skip_serializing_if = "Option::is_none")]
     pub allowed_tools: Option<Vec<String>>,
+    /// Exact invocation arguments preserved from this invocation's inline event data, not from the referenced reusable body
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub arguments: Option<String>,
     /// Content identifier of an earlier inline skill event in this session, in the prefixed form `sha256:<lowercase hex digest>` over the UTF-8 bytes of that event's `content`
     pub content_id: String,
     /// UTF-16 code unit length of the referenced skill content. Derived from the referenced body and validated against it when the reference is expanded; a reference whose length disagrees with the body it names is rejected instead of expanded
@@ -5651,6 +5953,12 @@ pub struct SkillInvokedRefData {
     /// Projected chat-message count when the skill was invoked. Preserved from the inline event data when the authored body is deduplicated.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub invoked_at_turn: Option<i64>,
+    /// MCP resource metadata preserved from the inline invocation.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mcp_meta: Option<serde_json::Value>,
+    /// Held MCP skill origin and manifest, preserved from the inline invocation.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mcp_origin: Option<serde_json::Value>,
     /// Model identifier active when the skill was invoked, when known
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
@@ -6302,6 +6610,10 @@ pub struct InstructionUpdateData {
     /// Optional stable source name for diagnostics and future host-authored updates.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
+    /// Whether this update was recorded after the conversation's initial user message.
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) post_initial: Option<bool>,
 }
 
 /// Session event "system.notification". System-generated notification for runtime events like background task completion
@@ -6315,6 +6627,92 @@ pub struct SystemNotificationData {
     /// Provider reasoning settings anchored before this model-facing message for cache-stable replay; the historical responsesReasoning name is retained for compatibility
     #[serde(skip_serializing_if = "Option::is_none")]
     pub responses_reasoning: Option<ResponsesReasoning>,
+}
+
+/// No trusted Assisted Permissions assessment is available, including for historical events.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AssistedApprovalAssessmentUnavailable {
+    /// Assisted Permissions assessment outcome discriminator.
+    pub status: AssistedApprovalAssessmentUnavailableStatus,
+}
+
+/// The request did not reach the Assisted Permissions judge.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AssistedApprovalAssessmentNotRun {
+    /// Machine-readable reason. Current runtimes emit `inactive` or `not-reached`; consumers must tolerate future strings.
+    pub reason: String,
+    /// Assisted Permissions assessment outcome discriminator.
+    pub status: AssistedApprovalAssessmentNotRunStatus,
+}
+
+/// A deterministic runtime or policy gate prevented automatic approval without consulting the judge.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AssistedApprovalAssessmentExcluded {
+    /// Machine-readable exclusion reason. Current runtimes emit `managed-approval-required`, `sandbox-bypass`, `extension-permission-access`, `action-too-long`, `authorization-history-incomplete`, `path-not-authorized`, or `content-excluded`; consumers must tolerate future strings.
+    pub reason: String,
+    /// Assisted Permissions assessment outcome discriminator.
+    pub status: AssistedApprovalAssessmentExcludedStatus,
+}
+
+/// The Assisted Permissions judge returned a usable verdict.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AssistedApprovalAssessmentCompleted {
+    /// Judge-authored human-readable rationale. A bare ALLOW or DENY verdict legitimately leaves this absent.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rationale: Option<String>,
+    /// Judge verdict for this request.
+    pub recommendation: AssistedApprovalCompletedRecommendation,
+    /// Assisted Permissions assessment outcome discriminator.
+    pub status: AssistedApprovalAssessmentCompletedStatus,
+}
+
+/// The judge path produced no usable verdict.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AssistedApprovalAssessmentFailed {
+    /// Machine-readable failure reason. Current runtimes emit `timeout`, `abort`, `empty_response`, `model_error`, `parse_error`, or `context_too_large`; consumers must tolerate future strings.
+    pub reason: String,
+    /// Assisted Permissions assessment outcome discriminator.
+    pub status: AssistedApprovalAssessmentFailedStatus,
 }
 
 /// A parsed command identifier in a shell permission request, including whether it is read-only.
@@ -7376,6 +7774,16 @@ pub struct PermissionRequestedData {
     /// Agent mode captured from the owning turn when permission evaluation began.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub agent_mode: Option<SessionMode>,
+    /// Canonical runtime-owned Assisted Permissions assessment. New runtimes emit this for every permission request; absence means the event predates this field. Consumers must use `permission.completed` for the final permission result.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub assisted_approval_assessment: Option<AssistedApprovalAssessment>,
     /// Experimental HydraFusion attribution of the staged phase whose tool call raised this request. Absent outside a staged phase.
     ///
     /// <div class="warning">
@@ -8385,7 +8793,7 @@ pub struct SessionLimitsExhaustedCompletedData {
     pub response: SessionLimitsExhaustedResponse,
 }
 
-/// Session event "session.auto_mode_resolved". Auto Intent resolution: the concrete model the session settled on for the first prompt of an auto-mode session, and why. Lets SDK clients render the chosen model and the full reason it was picked. The core selection fields (chosenModel/reasoningBucket/categoryScores) are stable; the routing-analytics fields (predictedLabel/confidence/candidateModels) mirror the upstream intent service and may evolve, hence the event's experimental stability.
+/// Session event "session.auto_mode_resolved". Auto Intent resolution: the concrete model an auto-mode session settled on, and why. Published when Auto settles on a model that differs from the one it last published in the current Auto selection, so a routing check that keeps the same model does not repeat it; selecting a model, switching Auto tiers, or returning to Auto starts a new selection. Lets SDK clients render the chosen model and the full reason it was picked. The core selection fields (chosenModel/reasoningBucket/categoryScores) are stable; the routing-analytics fields (predictedLabel/confidence/candidateModels) mirror the upstream intent service and may evolve, hence the event's experimental stability.
 ///
 /// <div class="warning">
 ///
@@ -8396,6 +8804,9 @@ pub struct SessionLimitsExhaustedCompletedData {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionAutoModeResolvedData {
+    /// The effective Auto routing preference at publication, including managed defaults. Recorded so resume can distinguish an unchanged preference from a tier switch. Absent when no preference is known or in older session histories.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auto_tier: Option<AutoTier>,
     /// Models offered to the router for this resolution
     #[serde(skip_serializing_if = "Option::is_none")]
     pub available_models: Option<Vec<String>>,
@@ -8473,6 +8884,74 @@ pub struct ManagedPermissionsContext {
     pub permissions: Option<serde_json::Value>,
 }
 
+/// Policy Helper failure and recovery features implemented by this runtime. Capability presence, not absence of an optional failure, determines whether a client may rely on these contracts.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PolicyHelperCapabilities {
+    /// The runtime supports session.managedSettings.recheckPolicyHelper for a fresh scoped helper evaluation.
+    pub recheck: bool,
+    /// The runtime emits PolicyHelperFailure on shared managed-settings snapshots and applicable structured operation errors.
+    pub structured_failure: bool,
+}
+
+/// One bounded field-specific finding reported by a Policy Helper. The path is a helper-defined logical configuration path, not necessarily a filesystem path.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PolicyHelperFailureDetail {
+    /// Bounded helper-authored plain-text explanation for this finding.
+    pub message: String,
+    /// Optional helper-defined logical configuration path.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
+}
+
+/// An explicit bounded absolute HTTP(S) destination supplied by a Policy Helper. The runtime validates but never fetches, previews, resolves redirects for, or opens it; clients must sanitize it again before navigation.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PolicyHelperHelpLink {
+    /// Optional bounded helper-authored plain-text label. Clients may use localized fallback text when absent.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
+    /// Validated absolute HTTP(S) URL.
+    pub url: String,
+}
+
+/// The latest unresolved Policy Helper failure for this policy context. Helper-authored text is bounded display-intended content but remains untrusted; render it as plain text, keep diagnostics secondary, and do not automatically log, persist, export, execute, or inject it into model context.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PolicyHelperFailure {
+    /// Managed authority that registered the helper, when known. Known values are device and server; clients must tolerate future values.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub authority: Option<String>,
+    /// Stable runtime classification. Known values are helper-reported, registration-undetermined, working-directory, resolve, resolve-task, spawn, timeout, exit-status, output-too-large, envelope, schema, and internal. This is not a closed set; clients must tolerate unknown values.
+    pub category: String,
+    /// Stable bounded helper-defined identifier for a valid structured helper error. Absent for runtime-detected failures and not globally unique.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub code: Option<String>,
+    /// Optional bounded field-specific findings supplied by the helper.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub details: Option<Vec<PolicyHelperFailureDetail>>,
+    /// Optional bounded untrusted secondary troubleshooting text, such as trimmed stderr. Do not use it as primary UI copy.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub diagnostic: Option<String>,
+    /// Effective runtime behavior: ignore continues with remaining or retained policy, while failClosed activates restrictive safeguards. This is runtime-owned, not helper-authored.
+    pub failure_mode: String,
+    /// Optional explicit validated additional-information link. URLs embedded in other text are not links.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub help_link: Option<PolicyHelperHelpLink>,
+    /// Bounded plain-text primary explanation. Runtime-authored for runtime failures and helper-authored for a valid structured helper error.
+    pub message: String,
+    /// True when an earlier successful helper-derived layer still contributes to this effective snapshot. This does not promise that every relaxation from the old layer was retained.
+    pub previous_policy_retained: bool,
+    /// Invocation reason. Known values are sessionStart and pluginActivation; clients must tolerate future values.
+    pub reason: String,
+    /// Optional bounded helper-authored plain-text recovery guidance. It is explanatory and must not be executed automatically.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub remediation: Option<String>,
+    /// Runtime-calculated presentation severity: warning for ignore and error for failClosed. Error severity does not imply that session creation failed.
+    pub severity: String,
+}
+
 /// Session event "session.managed_settings_resolved". Effective enterprise managed settings applied to the session and their contributing channels. Emitted whenever managed policy is applied or reapplied, including session start, resume, and account switch. This ephemeral live snapshot is delivered to subscribers but not persisted to the session event log; initial resolution occurs before session.start.
 ///
 /// <div class="warning">
@@ -8501,6 +8980,12 @@ pub struct SessionManagedSettingsResolvedData {
     /// Reusable retained managed permission policy for managedSettings.permissions.evaluate, including source composition and session-local injection. Provided by live session snapshots; absent in older events. Refresh the context when managed policy changes.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub permissions_context: Option<ManagedPermissionsContext>,
+    /// Explicit Policy Helper structured-failure and recheck capabilities supported by this runtime.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub policy_helper_capabilities: Option<PolicyHelperCapabilities>,
+    /// The latest unresolved Policy Helper failure for this exact policy context. It remains present across retained-policy refresh failures and clears only after fresh success or authoritative removal.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub policy_helper_failure: Option<PolicyHelperFailure>,
     /// Whether the policy-helper managed-settings layer was present. The policy helper is the weakest channel: it fills keys no enterprise source set and can never replace one.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub policy_helper_managed: Option<bool>,
@@ -8551,7 +9036,7 @@ pub struct CommandsChangedCommand {
     pub name: String,
 }
 
-/// Session event "commands.changed". SDK command registration change notification
+/// Session event "commands.changed". Session command list change notification, for SDK command registration or built-in command availability; `session.commands.list` returns the full list
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CommandsChangedData {
@@ -8770,6 +9255,16 @@ pub struct WorkflowRunSettledData {
     pub status: WorkflowRunSettledStatus,
 }
 
+/// Public MCP skill provenance. The server name and resource URI address session.mcp.resources.read without invoking the skill; they do not grant permission or identify a durable server registration.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpSkillOrigin {
+    /// Name of the MCP server hosting the skill, matching serverName in session.mcp.resources.read.
+    pub server_name: String,
+    /// Exact URI of the skill's SKILL.md resource, matching uri in session.mcp.resources.read.
+    pub uri: String,
+}
+
 /// A single resolved skill in `session.skills_loaded`, including source, invocability, enabled state, path, and argument hint.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -8780,10 +9275,16 @@ pub struct SkillsLoadedSkill {
     /// Canonical slash command name used to invoke the skill, without the leading '/'
     #[serde(skip_serializing_if = "Option::is_none")]
     pub command_name: Option<String>,
+    /// Original frontmatter name for an MCP skill, for display only. Use name for identity and enable/disable operations.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub declared_name: Option<String>,
     /// Description of what the skill does
     pub description: String,
     /// Whether the skill is currently enabled
     pub enabled: bool,
+    /// MCP server and skill resource address when source is 'mcp'. Contains no activation grants or internal verification metadata.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mcp_origin: Option<McpSkillOrigin>,
     /// Unique identifier for the skill
     pub name: String,
     /// Absolute path to the skill file, if available
@@ -10053,6 +10554,36 @@ pub enum CompactionTrigger {
     Unknown,
 }
 
+/// Controlled reason for a permission-recovery episode transition
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PermissionRecoveryReason {
+    /// An action required permission that Assisted Permissions could not grant.
+    #[serde(rename = "permission_required")]
+    PermissionRequired,
+    /// The agent repeated an equivalent permission request instead of making progress.
+    #[serde(rename = "repeated_attempt")]
+    RepeatedAttempt,
+    /// The bounded number of distinct permission attempts was exhausted.
+    #[serde(rename = "attempts_exhausted")]
+    AttemptsExhausted,
+    /// A responder approved the escalated permission request.
+    #[serde(rename = "permission_approved")]
+    PermissionApproved,
+    /// A responder denied the escalated permission request.
+    #[serde(rename = "permission_denied")]
+    PermissionDenied,
+    /// The response-capable client became unavailable while escalation was pending.
+    #[serde(rename = "responder_unavailable")]
+    ResponderUnavailable,
+    /// A later tool call succeeded without requiring the blocked permission.
+    #[serde(rename = "equivalent_alternative_succeeded")]
+    EquivalentAlternativeSucceeded,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
 /// Category of structured task blocker
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TaskBlockerKind {
@@ -10155,36 +10686,6 @@ pub enum PermissionRecoveryOnBlocked {
     Unknown,
 }
 
-/// Controlled reason for a permission-recovery episode transition
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum PermissionRecoveryReason {
-    /// An action required permission that Assisted Permissions could not grant.
-    #[serde(rename = "permission_required")]
-    PermissionRequired,
-    /// The agent repeated an equivalent permission request instead of making progress.
-    #[serde(rename = "repeated_attempt")]
-    RepeatedAttempt,
-    /// The bounded number of distinct permission attempts was exhausted.
-    #[serde(rename = "attempts_exhausted")]
-    AttemptsExhausted,
-    /// A responder approved the escalated permission request.
-    #[serde(rename = "permission_approved")]
-    PermissionApproved,
-    /// A responder denied the escalated permission request.
-    #[serde(rename = "permission_denied")]
-    PermissionDenied,
-    /// The response-capable client became unavailable while escalation was pending.
-    #[serde(rename = "responder_unavailable")]
-    ResponderUnavailable,
-    /// A later tool call succeeded without requiring the blocked permission.
-    #[serde(rename = "equivalent_alternative_succeeded")]
-    EquivalentAlternativeSucceeded,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
 /// Lifecycle state of a permission-recovery episode
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PermissionRecoveryStatus {
@@ -10200,6 +10701,39 @@ pub enum PermissionRecoveryStatus {
     /// No autonomous path remains and the task requires intervention.
     #[serde(rename = "blocked")]
     Blocked,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Controlled reason that a task is blocked by permission recovery
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum TaskBlockerReason {
+    /// A required action is waiting on or could not obtain permission.
+    #[serde(rename = "permission_required")]
+    PermissionRequired,
+    /// The agent repeated an equivalent denied permission request.
+    #[serde(rename = "repeated_attempt")]
+    RepeatedAttempt,
+    /// The bounded autonomous attempts for one permission-recovery episode were exhausted.
+    #[serde(rename = "attempts_exhausted")]
+    AttemptsExhausted,
+    /// Historical compatibility value for a recovery resolved by permission approval; new task blockers do not emit it.
+    #[serde(rename = "permission_approved")]
+    PermissionApproved,
+    /// A responder denied the escalated permission request.
+    #[serde(rename = "permission_denied")]
+    PermissionDenied,
+    /// No response-capable client remained available for the permission request.
+    #[serde(rename = "responder_unavailable")]
+    ResponderUnavailable,
+    /// Historical compatibility value for a recovery resolved by an equivalent permitted alternative; new task blockers do not emit it.
+    #[serde(rename = "equivalent_alternative_succeeded")]
+    EquivalentAlternativeSucceeded,
+    /// The epoch-wide consecutive-block or total-denial limit was reached.
+    #[serde(rename = "permission_recovery_run_limit")]
+    PermissionRecoveryRunLimit,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
@@ -10518,7 +11052,7 @@ pub enum FusionPhaseActivityKind {
 ///
 /// </div>
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum FusionProjectionMode {
+pub(crate) enum FusionProjectionMode {
     /// Append the exact root message immediately.
     #[serde(rename = "append")]
     Append,
@@ -10772,6 +11306,18 @@ pub enum ModelCallFailureKind {
     /// The request transport failed before a usable API response completed.
     #[serde(rename = "transport")]
     Transport,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Bounded product-state failure classified before telemetry projection.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) enum ModelCallProductStateError {
+    /// A Responses input item belongs to a different transport connection.
+    #[serde(rename = "input_item_connection_mismatch")]
+    InputItemConnectionMismatch,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
@@ -11727,6 +12273,86 @@ pub enum InstructionUpdateLifetime {
     Unknown,
 }
 
+/// Assisted Permissions assessment outcome discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AssistedApprovalAssessmentUnavailableStatus {
+    #[serde(rename = "unavailable")]
+    #[default]
+    Unavailable,
+}
+
+/// Assisted Permissions assessment outcome discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AssistedApprovalAssessmentNotRunStatus {
+    #[serde(rename = "not-run")]
+    #[default]
+    NotRun,
+}
+
+/// Assisted Permissions assessment outcome discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AssistedApprovalAssessmentExcludedStatus {
+    #[serde(rename = "excluded")]
+    #[default]
+    Excluded,
+}
+
+/// Usable verdict returned by the Assisted Permissions judge.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AssistedApprovalCompletedRecommendation {
+    /// The judge recommends automatic approval.
+    #[serde(rename = "approve")]
+    Approve,
+    /// The judge requires an explicit permission decision.
+    #[serde(rename = "requireApproval")]
+    RequireApproval,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Assisted Permissions assessment outcome discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AssistedApprovalAssessmentCompletedStatus {
+    #[serde(rename = "completed")]
+    #[default]
+    Completed,
+}
+
+/// Assisted Permissions assessment outcome discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AssistedApprovalAssessmentFailedStatus {
+    #[serde(rename = "failed")]
+    #[default]
+    Failed,
+}
+
+/// Canonical runtime-owned Assisted Permissions assessment for one permission request. This assessment is advisory; `permission.completed` remains the authoritative final permission decision.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum AssistedApprovalAssessment {
+    Unavailable(AssistedApprovalAssessmentUnavailable),
+    NotRun(AssistedApprovalAssessmentNotRun),
+    Excluded(AssistedApprovalAssessmentExcluded),
+    Completed(AssistedApprovalAssessmentCompleted),
+    Failed(AssistedApprovalAssessmentFailed),
+}
+
 /// Permission kind discriminator
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PermissionRequestShellKind {
@@ -11969,6 +12595,9 @@ pub enum PermissionApprovalEvaluationReasonCode {
     /// The judge interface returned an error.
     #[serde(rename = "judge-error")]
     JudgeError,
+    /// The fully assembled judge request exceeded the selected model's input capacity after reserving output headroom.
+    #[serde(rename = "judge-context-too-large")]
+    JudgeContextTooLarge,
     /// The request inherited an outcome from another decision.
     #[serde(rename = "inherited")]
     Inherited,
@@ -12957,7 +13586,7 @@ pub enum WorkflowRunSettledStatus {
     Unknown,
 }
 
-/// Source location type (e.g., project, personal-copilot, plugin, builtin, sdk)
+/// Source location type (e.g., project, personal-copilot, plugin, builtin, sdk, mcp)
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SkillSource {
     /// Skill defined in the current project's skill directories.
@@ -12984,6 +13613,9 @@ pub enum SkillSource {
     /// Pathless skill supplied lazily by an SDK skill provider.
     #[serde(rename = "sdk")]
     Sdk,
+    /// Pathless skill discovered from an MCP server through the skills extension.
+    #[serde(rename = "mcp")]
+    Mcp,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]

@@ -172,13 +172,17 @@ public class CopilotClientTest {
                     .completedFuture(new PermissionRequestResult().setKind(PermissionRequestResultKind.NO_RESULT));
         });
 
+        var assistedApprovalAssessment = new com.github.copilot.generated.AssistedApprovalAssessmentCompleted();
+        assistedApprovalAssessment.setRecommendation(
+                com.github.copilot.generated.AssistedApprovalCompletedRecommendation.REQUIREAPPROVAL);
+        assistedApprovalAssessment.setRationale("The command modifies protected files.");
         var event = new PermissionRequestedEvent();
         event.setData(new PermissionRequestedEvent.PermissionRequestedEventData("permission-1",
                 Map.of("kind", "shell", "managedApprovalRequired", true, "fullCommandText", "ls"),
                 Map.of("kind", "commands", "fullCommandText", "ls", "intention", "List files", "commandIdentifiers",
                         List.of("ls"), "canOfferSessionApproval", false, "assistedApproval",
                         Map.of("recommendation", "approve")),
-                null, null, null, null, null, null, null, null));
+                assistedApprovalAssessment, null, null, null, null, null, null, null, null));
 
         session.dispatchEvent(event);
 
@@ -190,6 +194,10 @@ public class CopilotClientTest {
         assertEquals("commands", observed.getPromptRequest().getKind());
         assertEquals(Map.of("recommendation", "approve"),
                 observed.getPromptRequest().getExtensionData().get("assistedApproval"));
+        var assessment = assertInstanceOf(com.github.copilot.generated.AssistedApprovalAssessmentCompleted.class,
+                observed.getAssistedApprovalAssessment());
+        assertEquals("requireApproval", assessment.getRecommendation().getValue());
+        assertEquals("The command modifies protected files.", assessment.getRationale());
     }
 
     @Test

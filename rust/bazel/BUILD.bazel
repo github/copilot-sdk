@@ -1,30 +1,40 @@
 load("@rules_rust//crate_universe:defs.bzl", "crate", "crates_vendor")
+load("//bazel:system_openssl.bzl", "system_openssl_annotation")
 
 # Keep the Rust SDK's independent Cargo manifest and lockfile authoritative.
 crates_vendor(
     name = "vendor",
     annotations = {
-        "openssl-sys": [crate.annotation(
-            build_script_data = ["@openssl//:gen_dir"],
-            build_script_env = {
-                "OPENSSL_DIR": "$(execpath @openssl//:gen_dir)",
-                "OPENSSL_NO_VENDOR": "1",
-                "OPENSSL_STATIC": "1",
-            },
+        "aws-lc-sys": [crate.annotation(
+            build_script_data = crate.select(
+                [],
+                {
+                    "aarch64-pc-windows-msvc": [
+                        "@windows_host_clang_cl//:all",
+                        "@windows_host_clang_cl//:clang_cl",
+                    ],
+                },
+            ),
+            build_script_env = crate.select(
+                {"NUM_JOBS": "8"},
+                {
+                    "aarch64-pc-windows-msvc": {
+                        "CC_aarch64_pc_windows_msvc": "$(execpath @windows_host_clang_cl//:clang_cl)",
+                    },
+                },
+            ),
+            patch_args = ["-p1"],
+            patches = [
+                "@copilot_agent_runtime//bazel/patches:aws-lc-sys_windows_short_jitterentropy_include.patch",
+                "@copilot_agent_runtime//bazel/patches:aws-lc-sys_windows_source_roots.patch",
+            ],
         )],
+        "openssl-sys": [system_openssl_annotation()],
     },
     cargo_lockfile = "//src/sdk/rust:Cargo.lock",
     generate_build_scripts = True,
     manifests = ["//src/sdk/rust:Cargo.toml"],
     mode = "remote",
-    packages = {
-        # Optional in Cargo and therefore absent from the default resolved
-        # workspace graph, but required by the Bazel all-features build.
-        "sdk-libloading": crate.spec(
-            package = "libloading",
-            version = "=0.9.0",
-        ),
-    },
     repository_name = "sdk_vendor",
     supported_platform_triples = [
         "aarch64-apple-darwin",

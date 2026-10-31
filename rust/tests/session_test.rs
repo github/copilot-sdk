@@ -23,12 +23,13 @@ use github_copilot_sdk::rpc::{
     ConnectorCapabilities, ConnectorCatalogResult, ConnectorCatalogStatus, ConnectorConnectRequest,
     ConnectorConnectResult, ConnectorContinueRequest, ConnectorDisconnectResult,
     ConnectorMcpStatus, ConnectorReconcileOptions, ConnectorReconcileRequest,
-    ConnectorSessionAccount, ConnectorStatus, ModelSetAllowedModelsRequest, OpenCanvasInstance,
-    SendAgentMode, SendMode, SendRequest, SessionRpcConnectors,
+    ConnectorSessionAccount, ConnectorStatus, ManagedSettingsResolveRequest,
+    ModelSetAllowedModelsRequest, OpenCanvasInstance, SendAgentMode, SendMode, SendRequest,
+    SessionRpcConnectors,
 };
 use github_copilot_sdk::session_events::{
-    ManagedSettingsResolvedSource, McpOauthRequiredData, ReasoningSummary, SessionLimitsConfig,
-    SessionManagedSettingsResolvedData,
+    ManagedSettingsResolvedSource, McpOauthRequiredData, PolicyHelperCapabilities,
+    PolicyHelperFailure, ReasoningSummary, SessionLimitsConfig, SessionManagedSettingsResolvedData,
 };
 use github_copilot_sdk::types::{
     AskUserVariant, CanvasProviderIdentity, CloudSessionOptions, CloudSessionRepository,
@@ -387,11 +388,26 @@ impl FakeServer {
     }
 
     async fn respond_error(&mut self, request: &Value, code: i64, message: &str) {
+        self.respond_error_with_data(request, code, message, None)
+            .await;
+    }
+
+    async fn respond_error_with_data(
+        &mut self,
+        request: &Value,
+        code: i64,
+        message: &str,
+        data: Option<Value>,
+    ) {
         let id = request["id"].as_u64().unwrap();
+        let mut error = serde_json::json!({ "code": code, "message": message });
+        if let Some(data) = data {
+            error["data"] = data;
+        }
         let response = serde_json::json!({
             "jsonrpc": "2.0",
             "id": id,
-            "error": { "code": code, "message": message },
+            "error": error,
         });
         write_framed(&mut self.write, &serde_json::to_vec(&response).unwrap()).await;
     }
@@ -497,7 +513,11 @@ where
         }
     });
 
-    let create_req = server.read_request().await;
+    // Bounded so a create that fails before writing `session.create` fails
+    // the test instead of hanging it: the client keeps the stream open.
+    let create_req = timeout(TIMEOUT, server.read_request())
+        .await
+        .expect("session.create request");
     assert_eq!(create_req["method"], "session.create");
     server.session_id = requested_session_id(&create_req).to_string();
     let mut result = serde_json::json!({
@@ -2009,6 +2029,160 @@ fn managed_settings_resolved_event_preserves_client_provenance() {
     assert!(serialized.get("clientManaged").is_none());
 }
 
+fn policy_helper_failure_json() -> Value {
+    serde_json::json!({
+        "authority": "future-authority",
+        "category": "future-category",
+        "code": "helper.future-code",
+        "details": [{
+            "path": "allowedRepositories",
+            "message": "Expected an array.",
+        }],
+        "diagnostic": "bounded diagnostic",
+        "failureMode": "future-mode",
+        "helpLink": {
+            "url": "https://docs.example.com/policy-helper",
+            "label": "Review configuration",
+        },
+        "message": "The Policy Helper rejected the current configuration.",
+        "previousPolicyRetained": true,
+        "reason": "future-reason",
+        "remediation": "Update the configuration and recheck managed policy.",
+        "severity": "future-severity",
+    })
+}
+
+fn policy_helper_snapshot_json() -> Value {
+    serde_json::json!({
+        "bypassPermissionsDisabled": true,
+        "deviceManaged": false,
+        "failClosed": true,
+        "managedKeys": ["permissions"],
+        "policyHelperCapabilities": {
+            "recheck": true,
+            "structuredFailure": true,
+        },
+        "policyHelperFailure": policy_helper_failure_json(),
+        "policyHelperManaged": true,
+        "serverManaged": true,
+        "source": "policyHelper",
+    })
+}
+
+#[test]
+fn managed_settings_resolved_event_round_trips_policy_helper_failure() {
+    let data: SessionManagedSettingsResolvedData =
+        serde_json::from_value(policy_helper_snapshot_json()).unwrap();
+
+    let capabilities = data.policy_helper_capabilities.as_ref().unwrap();
+    assert!(capabilities.recheck);
+    assert!(capabilities.structured_failure);
+    let failure = data.policy_helper_failure.as_ref().unwrap();
+    assert_eq!(failure.category, "future-category");
+    assert_eq!(failure.failure_mode, "future-mode");
+    assert_eq!(failure.severity, "future-severity");
+    assert_eq!(failure.reason, "future-reason");
+    assert_eq!(failure.authority.as_deref(), Some("future-authority"));
+    assert_eq!(failure.code.as_deref(), Some("helper.future-code"));
+    assert_eq!(
+        serde_json::to_value(data).unwrap(),
+        policy_helper_snapshot_json()
+    );
+
+    let legacy: SessionManagedSettingsResolvedData = serde_json::from_value(serde_json::json!({
+        "bypassPermissionsDisabled": false,
+        "deviceManaged": false,
+        "failClosed": false,
+        "managedKeys": [],
+        "serverManaged": false,
+        "source": "none",
+    }))
+    .unwrap();
+    assert!(legacy.policy_helper_capabilities.is_none());
+    assert!(legacy.policy_helper_failure.is_none());
+}
+
+#[tokio::test]
+async fn managed_settings_recheck_policy_helper_binds_session_and_round_trips_failure() {
+    let (session, mut server) = create_session_pair().await;
+    let recheck = tokio::spawn(async move {
+        session
+            .rpc()
+            .managed_settings()
+            .recheck_policy_helper()
+            .await
+    });
+
+    let request = server.read_request().await;
+    assert_eq!(
+        request["method"],
+        "session.managedSettings.recheckPolicyHelper"
+    );
+    assert_eq!(request["params"]["sessionId"], server.session_id);
+    server
+        .respond(&request, policy_helper_snapshot_json())
+        .await;
+
+    let result = timeout(TIMEOUT, recheck).await.unwrap().unwrap().unwrap();
+    let capabilities: &PolicyHelperCapabilities =
+        result.policy_helper_capabilities.as_ref().unwrap();
+    assert!(capabilities.recheck);
+    assert!(capabilities.structured_failure);
+    let failure: &PolicyHelperFailure = result.policy_helper_failure.as_ref().unwrap();
+    assert_eq!(failure.category, "future-category");
+    assert_eq!(
+        failure.message,
+        "The Policy Helper rejected the current configuration."
+    );
+}
+
+#[tokio::test]
+async fn managed_settings_resolve_returns_policy_helper_failure_in_snapshot() {
+    let (client, server_read, server_write) = make_client();
+    let mut server = FakeServer {
+        read: server_read,
+        write: server_write,
+        session_id: String::new(),
+    };
+    let resolve = tokio::spawn({
+        let client = client.clone();
+        async move {
+            client
+                .rpc()
+                .managed_settings()
+                .resolve_with_params(ManagedSettingsResolveRequest {
+                    working_directory: Some("/workspace".to_string()),
+                    ..Default::default()
+                })
+                .await
+        }
+    });
+
+    let request = server.read_request().await;
+    assert_eq!(request["method"], "managedSettings.resolve");
+    assert_eq!(request["params"]["workingDirectory"], "/workspace");
+    assert!(request["params"].get("policyHelperReason").is_none());
+    server
+        .respond(
+            &request,
+            serde_json::json!({
+                "resolved": policy_helper_snapshot_json(),
+                "layers": [],
+                "diagnostics": [],
+            }),
+        )
+        .await;
+
+    let result = timeout(TIMEOUT, resolve).await.unwrap().unwrap().unwrap();
+    assert_eq!(
+        serde_json::to_value(&result.resolved).unwrap(),
+        policy_helper_snapshot_json()
+    );
+    let failure: PolicyHelperFailure = result.resolved.policy_helper_failure.unwrap();
+    assert_eq!(failure.category, "future-category");
+    assert_eq!(failure.reason, "future-reason");
+}
+
 fn make_client_with_telemetry(
     callback: github_copilot_sdk::github_telemetry::GitHubTelemetryCallback,
 ) -> (Client, tokio::io::DuplexStream, tokio::io::DuplexStream) {
@@ -2665,6 +2839,65 @@ async fn send_omits_request_headers_when_unset_or_empty() {
     );
     server.respond(&request, serde_json::json!({})).await;
     timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap();
+}
+
+#[tokio::test]
+async fn typed_replay_read_preserves_checkpoint_metadata() {
+    use github_copilot_sdk::rpc::{EventLogReadOptions, EventsReadView};
+
+    let (session, mut server) = create_session_pair().await;
+    let session = Arc::new(session);
+    let handle = tokio::spawn({
+        let session = session.clone();
+        async move {
+            session
+                .rpc()
+                .event_log()
+                .read_with_options(EventLogReadOptions::new().view(EventsReadView::Replay))
+                .await
+        }
+    });
+    let request = server.read_request().await;
+    assert_eq!(request["method"], "session.eventLog.read");
+    assert_eq!(request["params"]["view"], "replay");
+    let events: Vec<_> = [Some(true), Some(false), None]
+        .into_iter()
+        .enumerate()
+        .map(|(index, checkpoint)| {
+            let mut event = serde_json::json!({
+                "id":format!("event-{index}"),"timestamp":"2026-10-29T00:00:00Z",
+                "parentId":null,"type":"session.info",
+                "data":{"infoType":"status","message":"Persisted replay state"},
+            });
+            if let Some(checkpoint) = checkpoint {
+                event["checkpoint"] = serde_json::json!(checkpoint);
+            }
+            event
+        })
+        .collect();
+    server
+        .respond(
+            &request,
+            serde_json::json!({
+                "cursor":"replay-cursor","cursorStatus":"ok","hasMore":false,"events":events,
+            }),
+        )
+        .await;
+    let result = timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap();
+    assert_eq!(result.cursor, "replay-cursor");
+    assert_eq!(
+        result
+            .events
+            .iter()
+            .map(|event| event.checkpoint)
+            .collect::<Vec<_>>(),
+        vec![Some(true), Some(false), None],
+    );
+    assert_eq!(result.events[0].event.event_type, "session.info");
+    assert_eq!(
+        serde_json::to_value(&result.events).unwrap(),
+        serde_json::to_value(events).unwrap()
+    );
 }
 
 #[tokio::test]
@@ -4001,7 +4234,7 @@ async fn default_exit_plan_mode_response_omits_optional_fields() {
 #[tokio::test]
 async fn user_input_requested_notification_does_not_double_dispatch() {
     use std::sync::atomic::{AtomicUsize, Ordering};
-    // Regression for github/github-app#4249. The CLI sends BOTH a
+    // Regression for a double-dispatched prompt. The CLI sends BOTH a
     // `user_input.requested` notification (for observers) AND a
     // `userInput.request` JSON-RPC call (the actual prompt) for every
     // user-input prompt. Only the JSON-RPC path should reach the
@@ -4738,6 +4971,13 @@ async fn send_and_wait_returns_last_assistant_message_on_idle() {
     assert_eq!(request["method"], "session.send");
     server.respond(&request, serde_json::json!({})).await;
 
+    // Two root replies, so keeping the first instead of the last is visible.
+    server
+        .send_event(
+            "assistant.message",
+            serde_json::json!({ "message": "Working on it" }),
+        )
+        .await;
     server
         .send_event(
             "assistant.message",
@@ -5750,7 +5990,25 @@ async fn structured_output_raw_schema_and_concurrent_waits_are_independent() {
 
 #[tokio::test]
 async fn structured_output_rejects_aborted_missing_and_tool_only_responses() {
-    for kind in ["missing", "aborted", "tool", "error"] {
+    // Each row isolates one rejection: the aborted row carries a valid
+    // structured reply, so only the abort can fail it, and the completed row
+    // is the same reply with `aborted: false`.
+    for (kind, expected) in [
+        (
+            "missing",
+            Some("run completed without a structured assistant response"),
+        ),
+        (
+            "aborted",
+            Some("session aborted before structured output completed"),
+        ),
+        (
+            "tool",
+            Some("run completed without a structured assistant response"),
+        ),
+        ("error", Some("session error: provider failed")),
+        ("completed", None),
+    ] {
         let (session, mut server) = create_session_pair().await;
         let waiting = tokio::spawn(async move {
             session
@@ -5776,6 +6034,17 @@ async fn structured_output_rejects_aborted_missing_and_tool_only_responses() {
                 "toolRequests":[{"toolCallId":"tool-1","name":"tool"}]
             })).await;
         }
+        if kind == "aborted" || kind == "completed" {
+            server
+                .send_event(
+                    "assistant.message",
+                    serde_json::json!({
+                        "messageId":"assistant", "originatingMessageId":"user-1",
+                        "content":"{\"items\":[]}"
+                    }),
+                )
+                .await;
+        }
         if kind == "error" {
             server
                 .send_event(
@@ -5791,10 +6060,17 @@ async fn structured_output_rejects_aborted_missing_and_tool_only_responses() {
                 )
                 .await;
         }
-        assert!(
-            timeout(TIMEOUT, waiting).await.unwrap().unwrap().is_err(),
-            "{kind}"
-        );
+        let result = timeout(TIMEOUT, waiting).await.unwrap().unwrap();
+        match expected {
+            Some(expected) => {
+                let error = result.expect_err(kind);
+                assert_eq!(error.message(), Some(expected), "{kind}");
+            }
+            None => {
+                let event = result.expect(kind).expect("structured reply");
+                assert_eq!(event.data["content"], "{\"items\":[]}");
+            }
+        }
     }
 }
 
@@ -8192,6 +8468,46 @@ async fn capabilities_changed_event_updates_session() {
 }
 
 #[tokio::test]
+async fn capabilities_changed_event_keeps_capabilities_it_does_not_name() {
+    let (session, mut server) = create_session_pair_with_capabilities(serde_json::json!({
+        "ui": { "canvases": true, "mcpApps": true }
+    }))
+    .await;
+    let mut events = session.subscribe();
+
+    for ui in [
+        serde_json::json!({ "elicitation": true }),
+        serde_json::json!({ "canvases": false }),
+    ] {
+        server
+            .send_event("capabilities.changed", serde_json::json!({ "ui": ui }))
+            .await;
+        timeout(TIMEOUT, events.recv())
+            .await
+            .expect("capabilities should update within timeout")
+            .expect("capabilities changed event");
+    }
+
+    let ui = session.capabilities().ui.expect("ui capabilities");
+    assert_eq!(ui.elicitation, Some(true));
+    assert_eq!(ui.mcp_apps, Some(true));
+    assert_eq!(ui.canvases, Some(false));
+
+    // An event that names no UI capability changes nothing.
+    server
+        .send_event("capabilities.changed", serde_json::json!({}))
+        .await;
+    timeout(TIMEOUT, events.recv())
+        .await
+        .expect("capabilities event within timeout")
+        .expect("capabilities changed event");
+    let ui = session.capabilities().ui.expect("ui capabilities");
+    assert_eq!(ui.elicitation, Some(true));
+    assert_eq!(ui.mcp_apps, Some(true));
+    assert_eq!(ui.canvases, Some(false));
+}
+
+#[tokio::test]
 async fn request_elicitation_sent_in_create_params() {
     let (client, mut server_read, mut server_write) = make_client();
 
@@ -9851,6 +10167,111 @@ async fn command_execute_handler_error_propagates_to_ack() {
         .await;
 }
 
+#[derive(Clone, Copy, Debug)]
+enum CommandPanicPhase {
+    Construction,
+    Poll,
+    Drop,
+}
+
+struct PanickingCommandHandler(CommandPanicPhase);
+
+// Implement the expanded trait directly so construction and drop happen outside polling.
+impl CommandHandler for PanickingCommandHandler {
+    fn on_command<'life0, 'async_trait>(
+        &'life0 self,
+        _ctx: CommandContext,
+    ) -> std::pin::Pin<
+        Box<
+            dyn std::future::Future<Output = Result<(), github_copilot_sdk::Error>>
+                + Send
+                + 'async_trait,
+        >,
+    >
+    where
+        'life0: 'async_trait,
+        Self: 'async_trait,
+    {
+        if matches!(self.0, CommandPanicPhase::Construction) {
+            panic!("slash command future construction exploded");
+        }
+        Box::pin(PanickingCommandFuture(self.0))
+    }
+}
+
+struct PanickingCommandFuture(CommandPanicPhase);
+
+impl std::future::Future for PanickingCommandFuture {
+    type Output = Result<(), github_copilot_sdk::Error>;
+
+    fn poll(
+        self: std::pin::Pin<&mut Self>,
+        _cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Self::Output> {
+        if matches!(self.0, CommandPanicPhase::Poll) {
+            panic!("slash command future polling exploded");
+        }
+        std::task::Poll::Ready(Ok(()))
+    }
+}
+
+impl Drop for PanickingCommandFuture {
+    fn drop(&mut self) {
+        if matches!(self.0, CommandPanicPhase::Drop) {
+            panic!("slash command future drop exploded");
+        }
+    }
+}
+
+async fn assert_command_handler_panic_acks_with_error(phase: CommandPanicPhase) {
+    let commands = vec![CommandDefinition::new(
+        "boom",
+        Arc::new(PanickingCommandHandler(phase)),
+    )];
+
+    let (_session, mut server, _) = create_session_pair_with_commands(commands).await;
+
+    server
+        .send_event(
+            "command.execute",
+            serde_json::json!({
+                "requestId": "req-panic-1",
+                "command": "/boom",
+                "commandName": "boom",
+                "args": "",
+            }),
+        )
+        .await;
+
+    let ack = timeout(TIMEOUT, server.read_request())
+        .await
+        .expect("a panicking command handler must still answer the pending command");
+    assert_eq!(ack["method"], "session.commands.handlePendingCommand");
+    assert_eq!(ack["params"]["requestId"], "req-panic-1");
+    assert_eq!(
+        ack["params"]["error"], "command handler panicked",
+        "got: {ack}"
+    );
+    server
+        .respond(&ack, serde_json::json!({ "success": false }))
+        .await;
+}
+
+#[tokio::test]
+async fn command_execute_handler_panic_acks_with_error() {
+    assert_command_handler_panic_acks_with_error(CommandPanicPhase::Poll).await;
+}
+
+#[tokio::test]
+async fn command_execute_handler_construction_panic_acks_with_error() {
+    assert_command_handler_panic_acks_with_error(CommandPanicPhase::Construction).await;
+}
+
+#[tokio::test]
+async fn command_execute_handler_drop_panic_acks_with_error() {
+    assert_command_handler_panic_acks_with_error(CommandPanicPhase::Drop).await;
+}
+
 // SessionFsProvider tests --------------------------------------------------
 
 use github_copilot_sdk::session_fs::{
@@ -9908,6 +10329,8 @@ async fn binary_capability_rejects_text_only_provider_on_create_and_resume() {
 
 struct RecordingFsProvider {
     files: parking_lot::Mutex<std::collections::HashMap<String, String>>,
+    /// The `mode` each `write_file` call received, by path.
+    write_modes: parking_lot::Mutex<std::collections::HashMap<String, Option<i64>>>,
     blocked_stat: Option<(Arc<Notify>, Arc<Notify>)>,
 }
 
@@ -9915,6 +10338,7 @@ impl RecordingFsProvider {
     fn new() -> Self {
         Self {
             files: parking_lot::Mutex::new(std::collections::HashMap::new()),
+            write_modes: parking_lot::Mutex::new(std::collections::HashMap::new()),
             blocked_stat: None,
         }
     }
@@ -9946,11 +10370,12 @@ impl SessionFsProvider for RecordingFsProvider {
         &self,
         path: &str,
         content: &str,
-        _mode: Option<i64>,
+        mode: Option<i64>,
     ) -> Result<(), FsError> {
         self.files
             .lock()
             .insert(path.to_string(), content.to_string());
+        self.write_modes.lock().insert(path.to_string(), mode);
         Ok(())
     }
 
@@ -10980,6 +11405,10 @@ async fn session_fs_dispatches_write_file_with_mode() {
     assert_eq!(response["id"], 10);
     assert!(response["result"].get("error").is_none() || response["result"]["error"].is_null());
     assert_eq!(provider.files.lock().get("/out.txt").unwrap(), "abc");
+    assert_eq!(
+        provider.write_modes.lock().get("/out.txt"),
+        Some(&Some(420))
+    );
 }
 
 #[tokio::test]
@@ -11044,12 +11473,46 @@ async fn validate_session_fs_config_rejects_empty_initial_cwd() {
 
 #[tokio::test]
 async fn create_session_errors_when_provider_required_but_missing() {
-    // Without a CLI we can't exercise the configured-but-missing-provider path
-    // through Client::start; the unit-level behavior is covered by the
-    // SessionError::SessionFsProviderRequired variant being constructible.
-    // This test asserts the error type's display formatting is stable.
-    let err = github_copilot_sdk::SessionErrorKind::SessionFsProviderRequired;
-    assert!(format!("{err}").contains("session_fs"));
+    for resume in [false, true] {
+        let (client_write, mut server_read) = duplex(8192);
+        let (server_write, client_read) = duplex(8192);
+        let client = Client::from_streams_with_session_fs_config(
+            client_read,
+            client_write,
+            std::env::temp_dir(),
+            SessionFsConfig::new("/workspace", "/sessions", SessionFsConventions::Posix),
+        )
+        .unwrap();
+        let result = timeout(TIMEOUT, async {
+            if resume {
+                client
+                    .resume_session(github_copilot_sdk::ResumeSessionConfig::new(
+                        SessionId::new("missing-provider"),
+                    ))
+                    .await
+            } else {
+                client.create_session(SessionConfig::default()).await
+            }
+        })
+        .await
+        .expect("provider validation must complete before an RPC");
+        let error = result.err().expect("a missing provider must be rejected");
+        assert!(
+            matches!(
+                error.kind(),
+                ErrorKind::Session(github_copilot_sdk::SessionErrorKind::SessionFsProviderRequired)
+            ),
+            "resume={resume}: {error}"
+        );
+        assert_eq!(client.registered_session_count_for_test(), 0);
+        assert!(
+            timeout(Duration::from_millis(50), read_framed(&mut server_read))
+                .await
+                .is_err(),
+            "a missing provider must not send a session RPC",
+        );
+        drop(server_write);
+    }
 }
 
 // ---------- 4.3 trace context tests ----------

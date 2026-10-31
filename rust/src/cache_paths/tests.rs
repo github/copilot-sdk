@@ -10,7 +10,40 @@ use std::path::{Path, PathBuf};
 
 use tempfile::tempdir;
 
-use super::{CLI_CACHE_DIR, cache_install_dir, runtime_install_dir};
+use super::{
+    CLI_CACHE_DIR, cache_install_dir, extracted_runtime_install_dir, platform_cache_dir,
+    runtime_install_dir,
+};
+
+#[test]
+fn build_and_runtime_shared_path_uses_the_platform_cache_or_temp_fallback() {
+    let version = "1.2.3/test";
+    let cache = crate::platform_dirs::cache_dir().unwrap_or_else(std::env::temp_dir);
+    assert_eq!(platform_cache_dir(), cache);
+    assert_eq!(
+        extracted_runtime_install_dir(version),
+        runtime_install_dir(
+            std::env::var_os("COPILOT_CLI_EXTRACT_DIR").as_deref(),
+            &cache,
+            version
+        )
+    );
+    assert_eq!(
+        runtime_install_dir(None, &cache, version),
+        cache
+            .join("github-copilot-sdk")
+            .join("runtime")
+            .join("1.2.3_test")
+    );
+}
+
+#[test]
+fn empty_custom_directory_is_not_replaced_with_a_default() {
+    assert_eq!(
+        runtime_install_dir(Some(OsStr::new("")), Path::new("cache"), "1.2.3"),
+        PathBuf::new()
+    );
+}
 
 #[test]
 fn custom_runtime_directory_is_used_directly() {

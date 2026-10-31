@@ -34,7 +34,7 @@ public sealed partial class ClientSessionLifetimeTests
         await using var client = new CopilotClient(new CopilotClientOptions
         {
             Connection = RuntimeConnection.ForUri(server.Url),
-            Entra = entra ? new EntraAuthConfig { ClientId = "host-entra-client" } : null
+            Entra = entra ? new EntraAuthOptions { ClientId = "host-entra-client" } : null
         });
         if (entra)
         {
@@ -94,6 +94,9 @@ public sealed partial class ClientSessionLifetimeTests
                     input["agentId"] = "child-actor";
                     input["agentType"] = "explore";
                     input["parentAgentId"] = "parent-actor";
+                    input["traceparent"] = "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01";
+                    input["tracestate"] = "vendor=state";
+                    input["toolCallId"] = "model-call";
                 }
                 captured.Clear();
                 await server.SendRequestAsync("hooks.invoke", new Dictionary<string, object?>
@@ -104,12 +107,17 @@ public sealed partial class ClientSessionLifetimeTests
                 }).WaitAsync(TimeSpan.FromSeconds(5));
                 var actual = Assert.Single(captured);
                 Assert.Equal("reported-session", actual.GetType().GetProperty("SessionId")!.GetValue(actual));
-                foreach (var field in new Dictionary<string, string>
+                var fields = new Dictionary<string, string>
                 {
                     ["AgentId"] = "child-actor",
                     ["AgentType"] = "explore",
                     ["ParentAgentId"] = "parent-actor"
-                })
+                };
+                if (hook is "preToolUse" or "postToolUse" or "postToolUseFailure" or "preMcpToolCall")
+                {
+                    fields["ToolCallId"] = "model-call";
+                }
+                foreach (var field in fields)
                 {
                     var property = actual.GetType().GetProperty(field.Key);
                     Assert.NotNull(property);
@@ -2137,16 +2145,16 @@ public sealed partial class ClientSessionLifetimeTests
             OnPermissionRequest = PermissionHandler.ApproveAll
         });
 
-        DispatchEvent(session, ExternalToolRequested("request-blocking-callback"));
-        await toolStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
-
-        var dispatchTask = Task.Run(() => DispatchEvent(session, new ExternalToolCompletedEvent
-        {
-            Data = new ExternalToolCompletedData { RequestId = "request-blocking-callback" }
-        }));
-        await callbackStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
         try
         {
+            DispatchEvent(session, ExternalToolRequested("request-blocking-callback"));
+            await toolStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+            var dispatchTask = Task.Run(() => DispatchEvent(session, new ExternalToolCompletedEvent
+            {
+                Data = new ExternalToolCompletedData { RequestId = "request-blocking-callback" }
+            }));
+            await callbackStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
             await dispatchTask.WaitAsync(TimeSpan.FromSeconds(5));
         }
         finally
@@ -2157,14 +2165,16 @@ public sealed partial class ClientSessionLifetimeTests
 
         async Task<string> BlockedTool(CancellationToken cancellationToken)
         {
-            toolStarted.TrySetResult();
             using var registration = cancellationToken.Register(() =>
             {
                 callbackStarted.TrySetResult();
                 releaseCallback.Task.GetAwaiter().GetResult();
             });
+            toolStarted.TrySetResult();
             try
             {
+                // Keep the registration alive until cancellation enters the blocking callback.
+                await callbackStarted.Task;
                 await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
                 return "unreachable";
             }
@@ -3310,6 +3320,39 @@ public sealed partial class ClientSessionLifetimeTests
         Assert.Null(await sendTask.WaitAsync(timeout));
     }
 
+    [Fact]
+    public async Task CapabilitiesChanged_Keeps_Capabilities_The_Event_Does_Not_Name()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(
+            new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await using var session = await client.CreateSessionAsync(new SessionConfig());
+        var timeout = TimeSpan.FromSeconds(5);
+
+        Task ChangeAsync(Dictionary<string, object?>? ui) =>
+            server.SendAndDrainSessionEventAsync(
+                session,
+                "capabilities.changed",
+                ui is null ? new Dictionary<string, object?>() : new Dictionary<string, object?> { ["ui"] = ui },
+                timeout);
+
+        await ChangeAsync(new() { ["mcpApps"] = true });
+        await ChangeAsync(new() { ["elicitation"] = true });
+        Assert.True(session.Capabilities.Ui?.McpApps);
+        Assert.True(session.Capabilities.Ui?.Elicitation);
+
+        var before = session.Capabilities;
+        await ChangeAsync(new() { ["canvases"] = true });
+        await ChangeAsync(null);
+        Assert.True(session.Capabilities.Ui?.McpApps);
+        Assert.True(session.Capabilities.Ui?.Elicitation);
+
+        await ChangeAsync(new() { ["elicitation"] = false });
+        Assert.True(session.Capabilities.Ui?.McpApps);
+        Assert.False(session.Capabilities.Ui?.Elicitation);
+        Assert.True(before.Ui?.Elicitation);
+    }
+
     [Theory]
     [MemberData(nameof(MessageSourcesAndOutcomes))]
     public async Task SendAndWaitAsync_MessageSource_Propagates_Errors(MessageSource? source, string? wireSource, bool rpcError, string? mode)
@@ -3372,17 +3415,17 @@ public sealed partial class ClientSessionLifetimeTests
             new MessageOptions { Prompt = "Context", Source = source },
             timeout: cancel ? TimeSpan.FromSeconds(30) : TimeSpan.FromMilliseconds(50),
             cancellationToken: cancellation.Token);
-        var request = await WaitForRequestAsync(server, "session.send");
-        AssertMessageSource(request.Params, source.Value);
-
         if (cancel)
         {
+            var request = await WaitForRequestAsync(server, "session.send");
+            AssertMessageSource(request.Params, source.Value);
             cancellation.Cancel();
             var error = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => sendTask.WaitAsync(TimeSpan.FromSeconds(5)));
             Assert.Equal(cancellation.Token, error.CancellationToken);
         }
         else
         {
+            // The timeout can expire during the unsupported completion-RPC probe, before session.send.
             var error = await Assert.ThrowsAsync<TimeoutException>(() => sendTask.WaitAsync(TimeSpan.FromSeconds(5)));
             Assert.Contains("SendAndWaitAsync timed out", error.Message);
         }
@@ -3884,6 +3927,11 @@ public sealed partial class ClientSessionLifetimeTests
                         Recommendation = AssistedApprovalRecommendation.Approve
                     }
                 },
+                AssistedApprovalAssessment = new AssistedApprovalAssessmentCompleted
+                {
+                    Recommendation = AssistedApprovalCompletedRecommendation.RequireApproval,
+                    Rationale = "The command modifies protected files."
+                },
                 RequestId = "managed-permission"
             }
         });
@@ -3892,6 +3940,9 @@ public sealed partial class ClientSessionLifetimeTests
         var promptRequest = Assert.IsType<PermissionPromptRequestCommands>(invocation.PromptRequest);
         Assert.Null(promptRequest.ManagedApprovalRequired);
         Assert.Equal(AssistedApprovalRecommendation.Approve, promptRequest.AssistedApproval?.Recommendation);
+        var assessment = Assert.IsType<AssistedApprovalAssessmentCompleted>(invocation.AssistedApprovalAssessment);
+        Assert.Equal(AssistedApprovalCompletedRecommendation.RequireApproval, assessment.Recommendation);
+        Assert.Equal("The command modifies protected files.", assessment.Rationale);
     }
 
     [Fact]
@@ -4415,7 +4466,8 @@ public sealed partial class ClientSessionLifetimeTests
 
         public void CloseConnection()
         {
-            _stream?.Dispose();
+            // RunAsync owns the stream and disposes it after its I/O has stopped.
+            _cts.Cancel();
         }
 
         public async Task<JsonElement> SendRequestAsync(string method, Dictionary<string, object?> parameters)

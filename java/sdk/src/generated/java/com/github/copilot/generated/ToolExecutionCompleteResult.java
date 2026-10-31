@@ -11,6 +11,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
+import java.util.Map;
 import javax.annotation.processing.Generated;
 
 /**
@@ -34,6 +35,8 @@ public record ToolExecutionCompleteResult(
     @JsonProperty("uiResource") ToolExecutionCompleteUIResource uiResource,
     /** Structured content (arbitrary JSON) returned verbatim by the MCP tool */
     @JsonProperty("structuredContent") Object structuredContent,
+    /** MCP `CallToolResult._meta` returned verbatim by an MCP Apps tool, for delivery to the app UI only; never sent to the model. Experimental. */
+    @JsonProperty("mcpResultMeta") Map<String, Object> mcpResultMeta,
     /** Provider-neutral source material this tool makes available to the model as citable content. Persisted so it survives session resume. Experimental. */
     @JsonProperty("citableSources") List<CitableSource> citableSources,
     /** FIDES IFC label projected from tool ingress metadata (MCP `CallToolResult._meta` or synthesized built-in ingress labels) — persisted as `{ ifc: ... }` (only the `ifc` key, not the whole `_meta`). Persisted so the FIDES IFC label survives session resume: the engine rehydrates accumulated taint by replaying these on load. Populated for ingress sources when FIDES IFC is on. Experimental. */

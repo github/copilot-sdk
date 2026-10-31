@@ -92,6 +92,21 @@ class CliServerManagerTest {
         }
     }
 
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void explicitTelemetryCaptureOverridesEnvironment(boolean capture) {
+        var options = new CopilotClientOptions().setTelemetry(new TelemetryConfig().setCaptureContent(capture))
+                .setEnvironment(Map.of("OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT", "SPAN_AND_EVENT"));
+        var process = new ProcessBuilder("copilot-runtime");
+
+        new CliServerManager(options).configureProcessEnvironment(process);
+
+        assertEquals(capture ? "SPAN_ONLY" : "NO_CONTENT",
+                process.environment().get("OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT"));
+        assertEquals(Boolean.toString(capture),
+                process.environment().get("OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT"));
+    }
+
     // ===== parseCliUrl tests =====
 
     @Test

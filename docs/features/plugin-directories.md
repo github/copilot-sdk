@@ -420,7 +420,16 @@ for (const plugin of plugins.plugins) {
 
 </details>
 
-Plugins loaded via `--plugin-dir` appear in this list with their cache path set to the directory you provided. Marketplace installs are tagged with their registry source.
+Plugins loaded via `--plugin-dir` appear in this list alongside marketplace installs. Each entry has these fields:
+
+| Field | Description |
+|-------|-------------|
+| `name` | The plugin name. |
+| `marketplace` | The marketplace the plugin came from. Empty for a plugin loaded from a plugin directory. |
+| `version` | The plugin version, when the plugin declares one. |
+| `enabled` | Whether the plugin is enabled. |
+
+An entry for a plugin loaded from a plugin directory doesn't report that directory.
 
 ## Retrying plugins required by managed settings
 

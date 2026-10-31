@@ -72,6 +72,21 @@ func (e *SessionFSWriteFailure) Unwrap() error {
 	return e.Err
 }
 
+// SessionFSByteRange contains raw bytes and the authoritative total file byte length at the read.
+type SessionFSByteRange struct {
+	Content    []byte
+	ByteLength int64
+}
+
+// SessionFSReadFileRangeProvider is an optional bounded-read capability, independent
+// of SessionFSBinaryProvider. Advertise ReadFileRange only when every provider implements it.
+type SessionFSReadFileRangeProvider interface {
+	// ReadFileRange reads raw bytes starting at offset. A nil length reads through EOF;
+	// zero returns only byte length. At or beyond EOF, content is empty.
+	// Offsets and lengths must be non-negative safe integers. Boundaries may split UTF-8.
+	ReadFileRange(path string, offset int64, length *int64) (*SessionFSByteRange, error)
+}
+
 // SessionFSBinaryProvider is an optional interface for exact file bytes.
 // Declare capabilities.binary only when the provider implements both methods.
 type SessionFSBinaryProvider interface {
@@ -148,7 +163,7 @@ type sessionFSAdapter struct {
 	provider SessionFSProvider
 }
 
-func newSessionFSAdapter(provider SessionFSProvider) rpc.SessionFSHandler {
+func newSessionFSAdapter(provider SessionFSProvider) *sessionFSAdapter {
 	return &sessionFSAdapter{provider: provider}
 }
 
@@ -175,6 +190,32 @@ func (a *sessionFSAdapter) ReadFileBytes(request *rpc.SessionFSReadFileBytesRequ
 		}, nil
 	}
 	return &rpc.SessionFSReadFileBytesResult{Content: base64.StdEncoding.EncodeToString(bytes)}, nil
+}
+
+func (a *sessionFSAdapter) ReadFileRange(request *rpc.SessionFSReadFileRangeRequest) (*rpc.SessionFSReadFileRangeResult, error) {
+	if request.Offset < 0 || request.Offset > 9_007_199_254_740_991 ||
+		request.Length != nil && (*request.Length < 0 || *request.Length > 9_007_199_254_740_991) {
+		return &rpc.SessionFSReadFileRangeResult{Error: toSessionFSError(errors.New("SessionFS byte offset and length must be non-negative safe integers"))}, nil
+	}
+	provider, ok := a.provider.(SessionFSReadFileRangeProvider)
+	if !ok {
+		return &rpc.SessionFSReadFileRangeResult{Error: toSessionFSError(errors.New("byte-range reads are not supported by this SessionFS provider"))}, nil
+	}
+	result, err := provider.ReadFileRange(request.Path, request.Offset, request.Length)
+	if err != nil {
+		return &rpc.SessionFSReadFileRangeResult{Error: toSessionFSError(err)}, nil
+	}
+	if result == nil || result.ByteLength < 0 || result.ByteLength > 9_007_199_254_740_991 {
+		return &rpc.SessionFSReadFileRangeResult{Error: toSessionFSError(errors.New("SessionFS byte length must be a non-negative safe integer"))}, nil
+	}
+	expected := max(int64(0), result.ByteLength-request.Offset)
+	if request.Length != nil {
+		expected = min(expected, *request.Length)
+	}
+	if int64(len(result.Content)) != expected {
+		return &rpc.SessionFSReadFileRangeResult{Error: toSessionFSError(errors.New("SessionFS returned an incorrect byte range length"))}, nil
+	}
+	return &rpc.SessionFSReadFileRangeResult{Content: base64.StdEncoding.EncodeToString(result.Content), ByteLength: result.ByteLength}, nil
 }
 
 func (a *sessionFSAdapter) WriteFile(request *rpc.SessionFSWriteFileRequest) (*rpc.SessionFSError, error) {

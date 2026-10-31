@@ -172,13 +172,14 @@ def _request(name: str) -> dict[str, Any]:
     }
 
 
-async def _connect(handler=None) -> _Harness:
+async def _connect(handler=None, *, entra=None) -> _Harness:
     sdk_process, peer_process = _pipe_process_pair()
     sdk_rpc = JsonRpcClient(sdk_process)
     peer_rpc = JsonRpcClient(peer_process)
     client = CopilotClient(
         connection=RuntimeConnection.for_uri("localhost:1234"),
         installation_confirmation_handler=handler,
+        entra=entra,
     )
     client._client = sdk_rpc  # noqa: SLF001
     sdk_rpc.on_close = client._handle_connection_close  # noqa: SLF001

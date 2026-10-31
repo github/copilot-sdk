@@ -129,10 +129,20 @@ public interface PreToolUseHandler {
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `timestamp` | number | Unix timestamp when the hook was triggered |
-| `cwd` | string | Current working directory |
+| `timestamp` | SDK timestamp type | When the hook was triggered |
+| `workingDirectory` | string | Current working directory |
+| `sessionId` | string | Session reported by the hook input, not necessarily the callback owner's session |
+| `toolCallId` | string (optional) | Original tool-call ID, unchanged by argument modifications |
+| `traceparent` | string (optional) | Existing W3C trace context |
+| `tracestate` | string (optional) | Existing W3C vendor trace state |
 | `toolName` | string | Name of the tool being called |
 | `toolArgs` | object | Arguments passed to the tool |
+
+Tracing fields are exposed in TypeScript, Python, Go, Rust, and Java, not .NET.
+See [Hook metadata](./hooks-overview.md#hook-metadata) for language-specific
+accessors and compatibility with older runtimes. Correlate with success or
+failure hooks and tool-execution events using `(input.sessionId, input.toolCallId)`.
+A pre-hook does not guarantee a matching post-hook.
 
 ## Output
 
@@ -196,7 +206,10 @@ const session = await client.createSession({
 <summary><strong>Python</strong></summary>
 
 ```python
+from copilot import CopilotClient
 from copilot.session import PermissionHandler
+
+client = CopilotClient()
 
 async def on_pre_tool_use(input_data, invocation):
     print(f"[{invocation['session_id']}] Calling {input_data['toolName']}")

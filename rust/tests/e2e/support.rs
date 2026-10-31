@@ -461,7 +461,7 @@ impl E2eContext {
         };
         // Initialize proxy state without replaying any recorded exchanges: the
         // snapshot path intentionally does not exist, so `/copilot_internal/user`
-        // and the default `/models` catalog are served while all model-layer
+        // and the default `/meta` catalog are served while all model-layer
         // traffic is fabricated by the registered inference callback.
         let dummy_snapshot = ctx.work_dir.path().join("__no_snapshot__.yaml");
         ctx.proxy()
@@ -481,11 +481,6 @@ impl E2eContext {
         self.work_dir.path()
     }
 
-    /// The runtime's `COPILOT_HOME`, which holds `session-state/`.
-    pub fn home_dir(&self) -> &Path {
-        self.home_dir.path()
-    }
-
     pub fn proxy_url(&self) -> &str {
         self.proxy().url()
     }
@@ -499,8 +494,25 @@ impl E2eContext {
     }
 
     pub fn client_options(&self) -> ClientOptions {
-        let options =
-            client_options_for_cli(&self.cli_path, self.work_dir.path(), self.environment());
+        self.client_options_with_extra_env(&[])
+    }
+
+    /// The isolated home the runtime uses as `COPILOT_HOME` and its XDG roots,
+    /// which also holds `session-state/`.
+    pub fn home_dir(&self) -> PathBuf {
+        canonical_temp_path(self.home_dir.path())
+    }
+
+    /// [`Self::client_options`] with `extra_env` appended to the runtime's
+    /// environment, where a later entry overrides an earlier one.
+    pub fn client_options_with_extra_env(&self, extra_env: &[(&str, &str)]) -> ClientOptions {
+        let mut env = self.environment();
+        env.extend(
+            extra_env
+                .iter()
+                .map(|(key, value)| (OsString::from(*key), OsString::from(*value))),
+        );
+        let options = client_options_for_cli(&self.cli_path, self.work_dir.path(), env);
         if self.diagnostics {
             options.with_log_level(github_copilot_sdk::LogLevel::Debug)
         } else {
@@ -606,6 +618,31 @@ impl E2eContext {
         self.proxy()
             .get_json("/exchanges")
             .expect("get captured proxy exchanges")
+    }
+
+    pub fn configure_scripted_replay(
+        &self,
+        responses: serde_json::Value,
+        replay: serde_json::Value,
+    ) {
+        let file_path = self.work_dir.path().join("scripted-rust-sdk-replay.yaml");
+        self.proxy()
+            .post_json(
+                "/config",
+                &json!({
+                    "filePath": file_path,
+                    "workDir": self.work_dir.path(),
+                    "replayOnly": true,
+                })
+                .to_string(),
+            )
+            .expect("configure scripted replay");
+        self.proxy()
+            .post_json("/replay-data", &replay.to_string())
+            .expect("configure scripted replay data");
+        self.proxy()
+            .post_json("/scripted-responses", &responses.to_string())
+            .expect("configure scripted responses");
     }
 
     pub async fn cleanup(&mut self, skip_writing_cache: bool) -> std::io::Result<()> {
@@ -999,6 +1036,31 @@ pub fn event_types(events: &[SessionEvent]) -> Vec<&str> {
         .iter()
         .map(|event| event.event_type.as_str())
         .collect()
+}
+
+/// Wraps a `/models` catalog body in the CAPI `GET /meta` shape, adding the
+/// Auto tier metadata the runtime needs to resolve the `auto` model.
+pub fn capi_meta_body(models: serde_json::Value) -> serde_json::Value {
+    let tier = |id: &str, display_name: &str, description: &str| {
+        json!({
+            "id": id,
+            "display_name": display_name,
+            "description": description,
+            "type": "auto",
+            "status": { "enabled": true },
+        })
+    };
+    json!({
+        "models": models,
+        "auto": {
+            "default_tier": "balance",
+            "tiers": [
+                tier("efficiency", "Efficiency", "Faster, lower-cost models"),
+                tier("balance", "Balance", "A balance of speed and capability"),
+                tier("intelligence", "Intelligence", "The most capable models"),
+            ],
+        },
+    })
 }
 
 #[allow(dead_code, reason = "used by follow-on E2E ports")]

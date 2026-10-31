@@ -122,14 +122,14 @@ client.start().get();
 ```
 
 For the native standalone runtime, include
-`"COPILOT_GITHUB_TELEMETRY_DISABLED", "true"` in the environment map passed to
-`CopilotClientOptions.setEnvironment(...)` before startup to disable direct
-GitHub telemetry uploads for the entire host, including sessionless events.
+`"COPILOT_TELEMETRY_DISABLED", "true"` in the environment map passed to
+`CopilotClientOptions.setEnvironment(...)` before startup to disable Copilot-owned
+GitHub and Entra authentication telemetry process-wide, including sessionless events.
 Authentication, `setOnGitHubTelemetry(...)` forwarding, and user-configured
 OpenTelemetry export remain unchanged. This is separate from
 `SessionConfig.setEnableSessionTelemetry(false)`, which disables only a session's
-pipeline. The value must be exactly `"true"`; changing it requires a runtime
-restart. The Node CLI host does not use this variable. In-process connections
+pipeline. The value must be exactly `"true"`; changing it requires a process
+restart. `COPILOT_GITHUB_TELEMETRY_DISABLED` remains native-runtime/GitHub-only. In-process connections
 reject per-client environment maps; set the variable in the host process
 environment before starting the runtime instead.
 
@@ -297,6 +297,49 @@ expiry, or loss of the original connection retires the review. Separately
 spawned UI work should observe this signal and retire itself when it completes.
 Dropping an outbound installation or OAuth future does not cancel that
 operation.
+
+### Kerberos authentication callback
+
+Use `CopilotClientOptions.setKerberosAuth(new KerberosAuthConfig(mode, callback))`
+when Kerberos tickets must be obtained by the SDK host, for example from Windows
+when the runtime runs in WSL. The runtime currently uses it for proxy
+authentication. The callback receives the generated `KerberosAuthAcquireRequest`,
+whose `spn()` is a service principal in the platform-independent
+`service/host[@REALM]` form, and returns a `CompletableFuture<String>` with a
+fresh base64 SPNEGO token without the `Negotiate ` prefix, or `null` when
+credentials are unavailable. The callback should validate the principal before
+issuing credentials.
+
+```java
+import com.github.copilot.generated.rpc.KerberosAuthMode;
+import com.github.copilot.rpc.CopilotClientOptions;
+import com.github.copilot.rpc.KerberosAuthConfig;
+
+var options = new CopilotClientOptions().setKerberosAuth(new KerberosAuthConfig(KerberosAuthMode.FALLBACK,
+        request -> acquireSpnegoToken(request.spn())));
+```
+
+With `KerberosAuthMode.FALLBACK`, native credential acquisition (including the
+first token) is tried first; only failure invokes the callback. With
+`KerberosAuthMode.ALWAYS`, native credential lookup is never attempted. Without
+this option, behavior is unchanged. Registration happens during `start()`,
+before sessions can be created, and startup fails if it is rejected.
+
+By default the callback authenticates only requests made for sessions this
+client creates or resumes. With `KerberosAuthScope.RUNTIME` it also
+authenticates the runtime's shared background traffic, such as catalog refreshes
+and telemetry; only one connection at a time can hold that scope, so startup
+fails if another client holds it. The registration ends when the connection
+closes. In `FALLBACK` mode, if the callback cannot supply a valid token,
+the native credential error is reported. In `ALWAYS` mode, a disconnected,
+failing, or empty callback fails authentication. The runtime waits at most 30
+seconds for the callback (less when the request's own deadline is sooner) and
+treats a timeout as a callback failure. The callback runs on the client
+executor; if the executor rejects it, the lookup fails. When the runtime cancels
+a lookup or the connection closes, a queued invocation is skipped and the
+returned future is cancelled. Tokens are not cached and must not be
+logged or persisted. The callback supplies the initial SPNEGO token only;
+exchanges requiring continuation tokens still need native negotiation.
 
 `SessionConfig.setAutopilot(AutopilotOptions)` and the corresponding
 `ResumeSessionConfig` setter configure experimental Autopilot policy.
@@ -588,6 +631,11 @@ class ProgressTools {
     }
 }
 ```
+
+`@CopilotTool` and `@CopilotToolParam` are experimental.
+Compiling a tool class also compiles the companion class that the annotation processor generates for it, and that class implements an experimental interface.
+So the build needs `-Acopilot.experimental.allowed=true`; [Using experimental APIs](#using-experimental-apis) shows the Maven and Gradle settings.
+On JDK 23 and later, `javac` runs the SDK's annotation processors only when you ask for them, for example with `-proc:full`, and otherwise generates no companion class.
 
 Position examples:
 
@@ -1039,7 +1087,7 @@ CI enforces both checks. Spotless runs explicitly in CI; `mvn verify` alone does
 
 #### Development Setup for native embedding
 
-Run native-runtime Maven commands from the `java` directory. Native packaging requires Node.js in addition to JDK 25 and Maven. In a standalone SDK checkout, `copilot-native/scripts/fetch-native.mjs` retrieves the pinned runtime package from the corresponding GitHub release. When the SDK is nested in `copilot-agent-runtime`, it instead stages the same-checkout artifacts from `dist-cli`; run `pnpm run build:cli` from the runtime repository first.
+Run native-runtime Maven commands from the `java` directory. Native packaging requires Node.js in addition to JDK 25 and Maven. In a standalone SDK checkout, `copilot-native/scripts/fetch-native.mjs` retrieves the pinned runtime package from the corresponding GitHub release. When the SDK is nested in the Copilot runtime source tree, it instead stages the same-checkout artifacts from `dist-cli`; run `pnpm run build:cli` from the runtime root first.
 
 On a native Linux glibc host, Maven activates `native-linux-x64` or `native-linux-arm64` for the matching architecture when `copilot.native.libc=glibc` is set. On a Linux musl host, Maven activates `native-linuxmusl-x64` or `native-linuxmusl-arm64` for the matching architecture when `copilot.native.libc=musl` is set. On Windows x64, Windows ARM64, Intel macOS, and Apple Silicon macOS, Maven activates `native-win32-x64`, `native-win32-arm64`, `native-darwin-x64`, or `native-darwin-arm64` automatically. The matching profile validates the host, runs the native script tests, stages the platform package during `generate-resources`, packages the classifier JAR during `package`, and verifies its native contents.
 

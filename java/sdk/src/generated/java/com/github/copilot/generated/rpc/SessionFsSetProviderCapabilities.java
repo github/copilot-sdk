@@ -24,17 +24,32 @@ public record SessionFsSetProviderCapabilities(
     /** Whether the provider supports SQLite query/exists operations */
     @JsonProperty("sqlite") Boolean sqlite,
     /** Whether the provider supports binary reads and writes through sessionFs.readFileBytes and sessionFs.writeFileBytes */
-    @JsonProperty("binary") Boolean binary
+    @JsonProperty("binary") Boolean binary,
+    /** Whether every session provider implements bounded readFileRange byte reads with an authoritative total file byte length. Independent of binary support. Omitted or false retains whole-file compatibility reads. */
+    @JsonProperty("readFileRange") Boolean readFileRange
 ) {
 
     /**
-     * Creates provider capabilities without binary reads.
+     * Creates provider capabilities without binary or byte-range reads.
      *
      * @param sqlite Whether the provider supports SQLite query/exists operations
      */
     public SessionFsSetProviderCapabilities(
         Boolean sqlite
     ) {
-        this(sqlite, null);
+        this(sqlite, null, null);
+    }
+
+    /**
+     * Creates provider capabilities without byte-range reads.
+     *
+     * @param sqlite Whether the provider supports SQLite query/exists operations
+     * @param binary Whether the provider supports binary reads and writes through sessionFs.readFileBytes and sessionFs.writeFileBytes
+     */
+    public SessionFsSetProviderCapabilities(
+        Boolean sqlite,
+        Boolean binary
+    ) {
+        this(sqlite, binary, null);
     }
 }

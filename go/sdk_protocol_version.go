@@ -3,7 +3,7 @@
 package copilot
 
 // SDKProtocolVersion is the SDK protocol version.
-// This must match the version expected by the copilot-agent-runtime server.
+// This must match the version expected by the Copilot runtime server.
 const SDKProtocolVersion = 3
 
 // GetSDKProtocolVersion returns the SDK protocol version.

@@ -23,6 +23,7 @@ import javax.annotation.processing.Generated;
 record HookInvokeRequest(
     @JsonProperty("sessionId") String sessionId,
     @JsonProperty("hookType") HookType hookType,
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("input") Object input
 ) {
 }

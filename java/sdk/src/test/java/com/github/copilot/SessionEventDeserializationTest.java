@@ -6,6 +6,9 @@ package com.github.copilot;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.time.OffsetDateTime;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
@@ -13,6 +16,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import com.github.copilot.generated.*;
 
@@ -46,6 +50,28 @@ public class SessionEventDeserializationTest {
                     "data": %s
                 }
                 """.formatted(type, payload);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"session.info", "future.event"})
+    void testCheckpointMarkerRoundTrip(String type) throws Exception {
+        for (Boolean checkpoint : new Boolean[]{null, false, true}) {
+            var wire = MAPPER.readValue(eventEnvelope(type, """
+                    {"infoType":"status","message":"Checkpoint state"}
+                    """), ObjectNode.class);
+            if (checkpoint != null) {
+                wire.put("checkpoint", checkpoint);
+            }
+            var event = parseJson(wire.toString());
+            assertEquals(checkpoint, event.getCheckpoint());
+            if ("future.event".equals(type)) {
+                assertInstanceOf(UnknownSessionEvent.class, event);
+                wire.remove("data");
+            } else {
+                assertInstanceOf(SessionInfoEvent.class, event);
+            }
+            assertEquals(wire, MAPPER.valueToTree(event));
+        }
     }
 
     // =========================================================================
@@ -1642,6 +1668,7 @@ public class SessionEventDeserializationTest {
                     "type": "assistant.usage",
                     "data": {
                         "model": "gpt-4-turbo",
+                        "responseModel": "gpt-4-turbo-2024-04-09",
                         "inputTokens": 500,
                         "outputTokens": 200,
                         "cacheReadTokens": 50,
@@ -1687,6 +1714,7 @@ public class SessionEventDeserializationTest {
         assertNotNull(event);
         var data = event.getData();
         assertEquals("gpt-4-turbo", data.model());
+        assertEquals("gpt-4-turbo-2024-04-09", data.responseModel());
         assertEquals((Long) 500L, data.inputTokens());
         assertEquals((Long) 200L, data.outputTokens());
         assertEquals((Long) 50L, data.cacheReadTokens());
@@ -1708,6 +1736,33 @@ public class SessionEventDeserializationTest {
         assertEquals("input", data.copilotUsage().tokenDetails().get(0).tokenType());
         assertEquals((Long) 500L, data.copilotUsage().tokenDetails().get(0).tokenCount());
         assertEquals("output", data.copilotUsage().tokenDetails().get(1).tokenType());
+    }
+
+    @Test
+    void testAssistantUsageEventPreservesConstructorWithoutResponseModel() throws Exception {
+        var type = AssistantUsageEvent.AssistantUsageEventData.class;
+        Class<?>[] parameterTypes = {AiCreditsStatus.class, String.class, ModelProviderRef.class, String.class,
+                UsageAccountingIdentity.class, Long.class, Long.class, Long.class, Long.class, OffsetDateTime.class,
+                Long.class, Long.class, List.class, Double.class, Long.class, Double.class, Double.class, Double.class,
+                String.class, String.class, Boolean.class, String.class, String.class, String.class, Boolean.class,
+                Long.class, Long.class, Long.class, Long.class, AssistantUsageTransport.class, Long.class, Long.class,
+                ModelCallRequestBodyEncoding.class, ModelCallRequestBodyCompressionFallback.class,
+                ModelCallRequestBodyEncoding.class, Long.class, ModelCallWebSocketFallbackReason.class, Long.class,
+                ModelCallWebSocketFallbackErrorKind.class, Long.class, Long.class, Boolean.class, Boolean.class,
+                String.class, String.class, String.class, Boolean.class, AssistantUsageApiEndpoint.class, String.class,
+                Map.class, AssistantUsageCopilotUsage.class, String.class, ReasoningSummary.class, Long.class,
+                Long.class, Long.class, Long.class, Long.class, String.class, Long.class, Long.class, String.class,
+                String.class, Boolean.class, Long.class, Map.class, String.class, Boolean.class,
+                FusionAttribution.class};
+        var arguments = new Object[parameterTypes.length];
+        arguments[1] = "gpt-4-turbo";
+        arguments[5] = 500L;
+        arguments[44] = "provider-request";
+        var data = type.getConstructor(parameterTypes).newInstance(arguments);
+        assertEquals("gpt-4-turbo", data.model());
+        assertEquals((Long) 500L, data.inputTokens());
+        assertEquals("provider-request", data.providerCallId());
+        assertNull(data.responseModel());
     }
 
     @Test

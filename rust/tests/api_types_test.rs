@@ -420,68 +420,134 @@ fn session_events_deserialize_auto_tier() {
 }
 
 #[test]
-fn extension_running_has_expected_status_and_source() {
-    let extension = running_extension("project:demo", "demo");
-    assert_eq!(extension.status, ExtensionStatus::Running);
-    assert_eq!(extension.source, ExtensionSource::Project);
+fn extension_list_decodes_each_status_and_source_from_the_wire() {
+    let list: ExtensionList = serde_json::from_value(serde_json::json!({"extensions": [
+        {"id": "project:demo", "name": "demo", "pid": 42, "source": "project", "status": "running"},
+        {"id": "user:broken", "name": "broken", "source": "user", "status": "failed"},
+        {"id": "plugin:off", "name": "off", "source": "plugin", "status": "disabled"},
+        {"id": "session:boot", "name": "boot", "source": "session", "status": "starting"},
+    ]}))
+    .unwrap();
+    let decoded: Vec<_> = list
+        .extensions
+        .iter()
+        .map(|extension| {
+            (
+                extension.id.as_str(),
+                extension.name.as_str(),
+                extension.pid,
+                extension.source.clone(),
+                extension.status.clone(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        decoded,
+        vec![
+            (
+                "project:demo",
+                "demo",
+                Some(42),
+                ExtensionSource::Project,
+                ExtensionStatus::Running,
+            ),
+            (
+                "user:broken",
+                "broken",
+                None,
+                ExtensionSource::User,
+                ExtensionStatus::Failed,
+            ),
+            (
+                "plugin:off",
+                "off",
+                None,
+                ExtensionSource::Plugin,
+                ExtensionStatus::Disabled,
+            ),
+            (
+                "session:boot",
+                "boot",
+                None,
+                ExtensionSource::Session,
+                ExtensionStatus::Starting,
+            ),
+        ]
+    );
+
+    // A value this SDK does not know yet decodes as `Unknown` instead of failing.
+    let newer: Extension = serde_json::from_value(serde_json::json!({
+        "id": "remote:demo", "name": "demo", "source": "remote", "status": "paused",
+    }))
+    .unwrap();
+    assert_eq!(newer.source, ExtensionSource::Unknown);
+    assert_eq!(newer.status, ExtensionStatus::Unknown);
 }
 
 #[test]
-fn disable_and_enable_requests_share_the_same_id() {
+fn extension_serializes_status_source_and_optional_pid() {
+    let mut extension = running_extension("project:demo", "demo");
+    assert_eq!(
+        serde_json::to_value(&extension).unwrap(),
+        serde_json::json!({
+            "id": "project:demo", "name": "demo", "pid": 42,
+            "source": "project", "status": "running",
+        })
+    );
+
+    for (status, wire) in [
+        (ExtensionStatus::Failed, "failed"),
+        (ExtensionStatus::Disabled, "disabled"),
+    ] {
+        extension.status = status;
+        extension.pid = None;
+        assert_eq!(
+            serde_json::to_value(&extension).unwrap(),
+            serde_json::json!({
+                "id": "project:demo", "name": "demo",
+                "source": "project", "status": wire,
+            })
+        );
+    }
+}
+
+#[test]
+fn extension_enable_and_disable_requests_serialize_the_id() {
     let disable = ExtensionsDisableRequest {
         id: "project:demo".to_string(),
     };
     let enable = ExtensionsEnableRequest {
-        id: disable.id.clone(),
+        id: "project:demo".to_string(),
     };
-    assert_eq!(disable.id, enable.id);
+    let expected = serde_json::json!({"id": "project:demo"});
+    assert_eq!(serde_json::to_value(&disable).unwrap(), expected);
+    assert_eq!(serde_json::to_value(&enable).unwrap(), expected);
 }
 
 #[test]
-fn extension_list_contains_newly_added_extension_by_name() {
-    let list = ExtensionList {
-        extensions: vec![running_extension("project:late", "late")],
-    };
-    assert!(list.extensions.iter().any(|e| e.name == "late"));
-}
-
-#[test]
-fn failed_extension_reports_failed_status() {
-    let mut extension = running_extension("project:broken", "broken");
-    extension.status = ExtensionStatus::Failed;
-    assert_eq!(extension.status, ExtensionStatus::Failed);
-}
-
-#[test]
-fn multiple_extensions_have_distinct_ids() {
-    let list = ExtensionList {
-        extensions: vec![
-            running_extension("project:first", "first"),
-            running_extension("user:second", "second"),
-        ],
-    };
-    assert_eq!(list.extensions.len(), 2);
-    assert_ne!(list.extensions[0].id, list.extensions[1].id);
-}
-
-#[test]
-fn disabled_extension_preserves_disabled_status() {
-    let mut extension = running_extension("project:disabled", "disabled");
-    extension.status = ExtensionStatus::Disabled;
-    assert_eq!(extension.status, ExtensionStatus::Disabled);
-}
-
-#[test]
-fn fleet_start_request_and_result_fields_are_accessible() {
+fn fleet_start_request_and_result_use_camel_case_wire_fields() {
+    assert_eq!(
+        serde_json::to_value(FleetStartRequest::default()).unwrap(),
+        serde_json::json!({})
+    );
     let mut request = FleetStartRequest::default();
     request.prompt = Some("Use the custom tool".to_string());
-    let result = FleetStartResult { started: true };
-    assert_eq!(request.prompt.as_deref(), Some("Use the custom tool"));
-    assert!(result.started);
+    request.wait = Some(true);
+    assert_eq!(
+        serde_json::to_value(&request).unwrap(),
+        serde_json::json!({"prompt": "Use the custom tool", "wait": true})
+    );
+
+    let started: FleetStartResult =
+        serde_json::from_value(serde_json::json!({"started": true})).unwrap();
+    assert!(started.started);
+    let declined: FleetStartResult =
+        serde_json::from_value(serde_json::json!({"started": false})).unwrap();
+    assert!(!declined.started);
 }
 
 #[test]
-fn tasks_start_agent_request_fields_are_accessible() {
+fn tasks_start_agent_request_uses_camel_case_wire_fields() {
     let request = TasksStartAgentRequest {
         agent_type: "general-purpose".to_string(),
         prompt: "Say hi".to_string(),
@@ -489,9 +555,19 @@ fn tasks_start_agent_request_fields_are_accessible() {
         description: Some("SDK task agent".to_string()),
         model: None,
     };
-    assert_eq!(request.agent_type, "general-purpose");
-    assert_eq!(request.name, "sdk-test-task");
-    assert_eq!(request.description.as_deref(), Some("SDK task agent"));
+    let wire = serde_json::json!({
+        "agentType": "general-purpose",
+        "description": "SDK task agent",
+        "name": "sdk-test-task",
+        "prompt": "Say hi",
+    });
+    assert_eq!(serde_json::to_value(&request).unwrap(), wire);
+
+    let mut with_model = wire;
+    with_model["model"] = serde_json::json!("claude-sonnet-5");
+    let decoded: TasksStartAgentRequest = serde_json::from_value(with_model).unwrap();
+    assert_eq!(decoded.agent_type, "general-purpose");
+    assert_eq!(decoded.model.as_deref(), Some("claude-sonnet-5"));
 }
 
 #[test]

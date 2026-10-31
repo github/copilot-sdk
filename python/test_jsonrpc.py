@@ -16,7 +16,37 @@ import time
 
 import pytest
 
+import copilot
 from copilot._jsonrpc import JsonRpcClient, ProcessExitedError
+
+
+@pytest.mark.asyncio
+async def test_public_rpc_error_preserves_transport_data(monkeypatch):
+    assert "JsonRpcError" in copilot.__all__
+    public_error = copilot.JsonRpcError
+    process = MockProcess()
+    client = JsonRpcClient(process)
+    client._loop = asyncio.get_running_loop()
+    data = {"policyHelperFailure": {"category": "timeout", "message": "Helper timed out"}}
+
+    async def respond(message):
+        assert message["method"] == "session.managedSettings.recheckPolicyHelper"
+        client._handle_message(
+            {
+                "jsonrpc": "2.0",
+                "id": message["id"],
+                "error": {"code": -32000, "message": "operation failed", "data": data},
+            }
+        )
+
+    monkeypatch.setattr(client, "_send_message", respond)
+    with pytest.raises(public_error) as caught:
+        await client.request("session.managedSettings.recheckPolicyHelper")
+    assert caught.value.code == -32000
+    assert caught.value.message == "operation failed"
+    assert caught.value.data == data
+    assert str(caught.value) == "JSON-RPC Error -32000: operation failed"
+    assert client.pending_requests == {}
 
 
 class MockProcess:

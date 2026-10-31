@@ -89,7 +89,7 @@ class FfiRuntimeHostTest {
                 .setRemote(true).setMode(CopilotClientMode.EMPTY).setCliArgs(new String[]{"--extra-flag"});
 
         FfiRuntimeHost host = new FfiRuntimeHost(binding, "/tmp/runtime.node");
-        host.start("/tmp/entrypoint.js", "github/github-app", options);
+        host.start("/tmp/entrypoint.js", "octocat/Hello-World", options);
 
         List<String> argv = MAPPER.readValue(binding.argv, new TypeReference<List<String>>() {
         });
@@ -104,7 +104,7 @@ class FfiRuntimeHostTest {
         assertTrue(argv.contains("42"));
         assertTrue(argv.contains("--remote"));
         assertTrue(argv.contains("--extra-flag"));
-        assertTrue(argv.contains("--cli-login-sync-integration-id=github/github-app"));
+        assertTrue(argv.contains("--cli-login-sync-integration-id=octocat/Hello-World"));
 
         Map<String, String> env = MAPPER.readValue(binding.env, new TypeReference<Map<String, String>>() {
         });

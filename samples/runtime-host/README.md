@@ -18,24 +18,23 @@ manual smoke; only artifact selection differs.
 
 ## Prerequisites
 
-- Use the `copilot-agent-runtime` checkout. This SDK is
-  `copilot-agent-runtime/src/sdk`, at the same source commit as the runtime.
+- Use the runtime checkout. This SDK is its `src/sdk` subtree, at the same
+  source commit as the runtime.
 - Build the native `copilot-runtime` launcher and its provider shared library
-  from the local `copilot-agent-runtime` checkout.
-- The provider links `copilotd-hosting` from the immutable `copilot-host` Git
-  revision in the runtime's `Cargo.lock`. No separate host build is staged.
+  from the local runtime checkout.
+- The provider links `copilotd-hosting` from the immutable Git revision recorded
+  in the runtime's `Cargo.lock`. No separate host build is staged.
 - Install this checkout's `nodejs` and `test/harness` dependencies.
 - Set the two absolute source-built artifact paths below. Missing paths fail
   immediately; this smoke never falls back to a downloaded CLI/runtime package.
 
-The exact Node dev dependency is `@microsoft/agent-host-protocol@0.9.0`, matching
-host's `rust/v0.9.0` pin (commit
-`60706330f2f351b09f150d9a9c3c0eaedfc8e8b9`) and wire version `0.9.0`.
+The exact Node dev dependency is `@microsoft/agent-host-protocol@0.9.0`, using
+the host's retained `0.9.0` wire compatibility floor.
 The old `ahp-adapter` prototype's `0.7.0` client is not compatible.
 
 ## Manual smoke with live inference
 
-From the SDK root (`copilot-agent-runtime/src/sdk`), with a valid GitHub Copilot credential in
+From the SDK root (`src/sdk` in the runtime checkout), with a valid GitHub Copilot credential in
 `GITHUB_TOKEN` or `GH_TOKEN`:
 
 ```sh
@@ -113,7 +112,7 @@ an unpublished local platform package:
 ```sh
 # Keep the two source artifact overrides from the prerequisites for staging.
 nodejs/node_modules/.bin/tsx samples/runtime-host/stage-candidate.ts \
-  /absolute/copilot-agent-runtime \
+  /absolute/runtime-checkout \
   "$PWD/.runtime-host-test-work/candidate"
 export COPILOT_RUNTIME_HOST_CANDIDATE_MANIFEST="$PWD/.runtime-host-test-work/candidate/candidate.json"
 unset COPILOT_CLI_PATH COPILOT_RUNTIME_PROVIDER_LIB
@@ -164,7 +163,7 @@ checksums are lowercase SHA-256 of the actual local build outputs):
   "sources": {
     "runtime": {
       "repository": "github/copilot-agent-runtime",
-      "checkout": "/absolute/copilot-agent-runtime",
+      "checkout": "/absolute/runtime-checkout",
       "commit": "<full local runtime HEAD>"
     },
     "hosting": {
@@ -173,7 +172,7 @@ checksums are lowercase SHA-256 of the actual local build outputs):
     },
     "sdk": {
       "repository": "github/copilot-agent-runtime",
-      "checkout": "/absolute/copilot-agent-runtime",
+      "checkout": "/absolute/runtime-checkout",
       "commit": "<full local runtime HEAD>",
       "path": "src/sdk"
     }
@@ -181,12 +180,12 @@ checksums are lowercase SHA-256 of the actual local build outputs):
   "artifacts": {
     "runtime": {
       "path": "prebuilds/linux-x64/copilot-runtime",
-      "sourcePath": "/absolute/copilot-agent-runtime/local-build/copilot-runtime",
+      "sourcePath": "/absolute/runtime-checkout/local-build/copilot-runtime",
       "sha256": "<SHA-256>"
     },
     "provider": {
       "path": "prebuilds/linux-x64/runtime.node",
-      "sourcePath": "/absolute/copilot-agent-runtime/local-build/runtime.node",
+      "sourcePath": "/absolute/runtime-checkout/local-build/runtime.node",
       "sha256": "<SHA-256>"
     }
   }

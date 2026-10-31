@@ -23,18 +23,29 @@ import org.junit.jupiter.api.Test;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.github.copilot.rpc.AgentStopHookInput;
 import com.github.copilot.rpc.AgentStopHookOutput;
 import com.github.copilot.rpc.PermissionRequestResult;
 import com.github.copilot.rpc.PermissionRequestResultKind;
+import com.github.copilot.rpc.PostToolUseFailureHookInput;
+import com.github.copilot.rpc.PostToolUseHookInput;
+import com.github.copilot.rpc.PreMcpToolCallHookInput;
+import com.github.copilot.rpc.PreToolUseHookInput;
+import com.github.copilot.rpc.SessionEndHookInput;
 import com.github.copilot.rpc.SessionEndHookOutput;
 import com.github.copilot.rpc.SessionHooks;
+import com.github.copilot.rpc.SessionStartHookInput;
 import com.github.copilot.rpc.SessionStartHookOutput;
+import com.github.copilot.rpc.SubagentStartHookInput;
 import com.github.copilot.rpc.SubagentStartHookOutput;
+import com.github.copilot.rpc.SubagentStopHookInput;
 import com.github.copilot.rpc.SubagentStopHookOutput;
 import com.github.copilot.rpc.ToolDefinition;
 import com.github.copilot.rpc.UserInputRequest;
 import com.github.copilot.rpc.UserInputResponse;
+import com.github.copilot.rpc.UserPromptSubmittedHookInput;
 import com.github.copilot.rpc.UserPromptSubmittedHookOutput;
+import com.github.copilot.rpc.UserPromptTransformedHookInput;
 import com.github.copilot.rpc.UserPromptTransformedHookOutput;
 
 /**
@@ -48,6 +59,60 @@ public class SessionHandlerTest {
     private static final ObjectMapper MAPPER = JsonRpcClient.getObjectMapper();
 
     private CopilotSession session;
+
+    @Test
+    void hookMetadataFluentAccessorsRoundTrip() throws Exception {
+        String traceparent = "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01";
+        String tracestate = "vendor=state";
+        var pre = new PreToolUseHookInput().setToolCallId("model-call").setTraceparent(traceparent)
+                .setTracestate(tracestate);
+        var post = new PostToolUseHookInput().setToolCallId("model-call").setTraceparent(traceparent)
+                .setTracestate(tracestate);
+        var failure = new PostToolUseFailureHookInput().setToolCallId("model-call").setTraceparent(traceparent)
+                .setTracestate(tracestate);
+        var mcp = new PreMcpToolCallHookInput().setToolCallId("model-call").setTraceparent(traceparent)
+                .setTracestate(tracestate);
+        var stop = new AgentStopHookInput().setTraceparent(traceparent).setTracestate(tracestate);
+        assertEquals("model-call", pre.getToolCallId());
+        assertEquals("model-call", post.getToolCallId());
+        assertEquals("model-call", failure.getToolCallId());
+        for (Object input : List.of(pre, post, failure, mcp, stop)) {
+            JsonNode json = MAPPER.valueToTree(input);
+            assertEquals(traceparent, json.path("traceparent").asText());
+            assertEquals(tracestate, json.path("tracestate").asText());
+            Object decoded = MAPPER.treeToValue(json, input.getClass());
+            assertEquals(json, MAPPER.valueToTree(decoded));
+            if (input != stop) {
+                assertEquals("model-call", json.path("toolCallId").asText());
+            }
+        }
+    }
+
+    @Test
+    void legacyHookRecordConstructorsRemainAvailableWithoutTracingMetadata() {
+        var inputs = List.of(new SessionStartHookInput("session", 1, "work", "new", "prompt"),
+                new SessionStartHookInput("session", 1, "work", "new", "prompt", "child", "explore", "parent"),
+                new SessionEndHookInput("session", 1, "work", "complete", "done", null),
+                new SessionEndHookInput("session", 1, "work", "complete", "done", null, "child", "explore", "parent"),
+                new UserPromptSubmittedHookInput("session", 1, "work", "prompt"),
+                new UserPromptSubmittedHookInput("session", 1, "work", "prompt", "child", "explore", "parent"),
+                new UserPromptTransformedHookInput("session", 1, "work", "prompt", "transformed"),
+                new UserPromptTransformedHookInput("session", 1, "work", "prompt", "transformed", "child", "explore",
+                        "parent"),
+                new SubagentStartHookInput("session", 1, "work", "parent.jsonl", "explore", "Explore", "description"),
+                new SubagentStartHookInput("session", 1, "work", "parent.jsonl", "explore", "Explore", "description",
+                        "child", "explore", "parent"),
+                new SubagentStopHookInput("session", 1, "work", "parent.jsonl", "explore", "explore", "child",
+                        "Explore", "description", "end_turn", "done"),
+                new SubagentStopHookInput("session", 1, "work", "parent.jsonl", "explore", "explore", "child",
+                        "Explore", "description", "end_turn", "done", "parent"));
+        for (Object input : inputs) {
+            JsonNode json = MAPPER.valueToTree(input);
+            assertEquals("session", json.path("sessionId").asText());
+            assertFalse(json.has("traceparent"), input.toString());
+            assertFalse(json.has("tracestate"), input.toString());
+        }
+    }
 
     @Test
     void typedHookDispatchRetainsChildIdentityAndOldRootInputs() throws Exception {
@@ -96,6 +161,8 @@ public class SessionHandlerTest {
                 if (enriched) {
                     input.put("agentId", "child-actor").put("agentType", "explore").put("parentAgentId",
                             "parent-actor");
+                    input.put("traceparent", "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01")
+                            .put("tracestate", "vendor=state").put("toolCallId", "model-call");
                 }
                 if (hook.equals("sessionEnd")) {
                     input.putObject("error").put("message", "session-end-error");
@@ -108,10 +175,14 @@ public class SessionHandlerTest {
                 if (hook.equals("sessionEnd")) {
                     assertEquals("session-end-error", actual.path("error").asText(), actual.toString());
                 }
-                for (var field : Map
-                        .of("agentId", "child-actor", "agentType", "explore", "parentAgentId", "parent-actor")
-                        .entrySet()) {
+                for (var field : Map.of("agentId", "child-actor", "agentType", "explore", "parentAgentId",
+                        "parent-actor", "traceparent", "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01",
+                        "tracestate", "vendor=state").entrySet()) {
                     assertEquals(enriched ? field.getValue() : "", actual.path(field.getKey()).asText(""),
+                            hook + ": " + actual);
+                }
+                if (List.of("preToolUse", "preMcpToolCall", "postToolUse", "postToolUseFailure").contains(hook)) {
+                    assertEquals(enriched ? "model-call" : "", actual.path("toolCallId").asText(""),
                             hook + ": " + actual);
                 }
             }

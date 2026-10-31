@@ -953,6 +953,15 @@ impl Session {
         .with_force_stop(self.client.inner.force_stop_requested.clone())
     }
 
+    /// Count the resume events retained for a subscriber that has not claimed
+    /// them yet, or `None` once nothing is retained for one. This is
+    /// test-harness plumbing, not part of the supported SDK API.
+    #[cfg(any(test, feature = "test-support"))]
+    #[doc(hidden)]
+    pub fn unclaimed_resume_backlog_len_for_test(&self) -> Option<usize> {
+        self.resume_bootstrap.as_ref()?.unclaimed_len()
+    }
+
     /// The underlying Client (for advanced use cases).
     pub fn client(&self) -> &Client {
         &self.client
@@ -2268,6 +2277,16 @@ impl Client {
             ));
         }
 
+        if self.inner.session_fs_read_file_range_declared
+            && let Some(ref provider) = session_fs_provider
+            && provider.byte_ranges().is_none()
+        {
+            return Err(Error::with_message(
+                ErrorKind::InvalidConfig,
+                "SessionFs capabilities declare byte-range reads but the provider does not implement SessionFsReadFileRangeProvider",
+            ));
+        }
+
         let mut params = serde_json::to_value(&wire)?;
         let trace_ctx = self.resolve_trace_context().await;
         inject_trace_context(&mut params, &trace_ctx);
@@ -2617,6 +2636,16 @@ impl Client {
             return Err(Error::with_message(
                 ErrorKind::InvalidConfig,
                 "SessionFs capabilities declare binary support but the provider does not implement SessionFsBinaryProvider",
+            ));
+        }
+
+        if self.inner.session_fs_read_file_range_declared
+            && let Some(ref provider) = session_fs_provider
+            && provider.byte_ranges().is_none()
+        {
+            return Err(Error::with_message(
+                ErrorKind::InvalidConfig,
+                "SessionFs capabilities declare byte-range reads but the provider does not implement SessionFsReadFileRangeProvider",
             ));
         }
 
@@ -3048,6 +3077,18 @@ fn remove_open_canvas_snapshot(snapshots: &mut Vec<OpenCanvasInstance>, instance
     snapshots.retain(|open| open.instance_id != instance_id);
 }
 
+/// Applies a `capabilities.changed` payload, which names only the capabilities
+/// that changed: anything it leaves out keeps its current value.
+fn apply_capabilities_change(current: &mut SessionCapabilities, changed: SessionCapabilities) {
+    let Some(changed_ui) = changed.ui else {
+        return;
+    };
+    let ui = current.ui.get_or_insert_with(Default::default);
+    ui.elicitation = changed_ui.elicitation.or(ui.elicitation);
+    ui.mcp_apps = changed_ui.mcp_apps.or(ui.mcp_apps);
+    ui.canvases = changed_ui.canvases.or(ui.canvases);
+}
+
 #[allow(clippy::too_many_arguments)]
 fn spawn_event_loop(
     session_id: SessionId,
@@ -3347,7 +3388,7 @@ async fn handle_notification(
     // response to the event observe the new state.
     if event_type == SessionEventType::CapabilitiesChanged {
         match SessionCapabilities::deserialize(&notification.event.data) {
-            Ok(changed) => *capabilities.write() = changed,
+            Ok(changed) => apply_capabilities_change(&mut capabilities.write(), changed),
             Err(e) => warn!(error = %e, "failed to deserialize capabilities.changed payload"),
         }
     }
@@ -3713,8 +3754,7 @@ async fn handle_notification(
             // The CLI follows up with a `userInput.request` JSON-RPC call
             // that drives the `UserInputHandler` dispatch — handling
             // the notification here too would double-fire the handler
-            // and produce duplicate prompts on the consumer side. See
-            // github/github-app#4249.
+            // and produce duplicate prompts on the consumer side.
         }
         SessionEventType::ElicitationRequested => {
             let Some(request_id) = extract_request_id(&notification.event.data) else {
@@ -3957,6 +3997,7 @@ async fn handle_notification(
             let command_handlers = command_handlers.clone();
             let sid = session_id.clone();
             let span = tracing::error_span!("command_handler", session_id = %sid);
+            let nested_startup_tasks = startup_tasks.cloned();
             let _ = spawn_startup_tracked(
                 async move {
                     let request_id = data.request_id;
@@ -3971,7 +4012,21 @@ async fn handle_notification(
                                 args: data.args,
                             };
                             let handler_start = Instant::now();
-                            let result = handler.on_command(ctx).await;
+                            // Keep callback construction, polling and drop inside the task boundary.
+                            let handler_task = spawn_startup_tracked(
+                                async move { handler.on_command(ctx).await }.instrument(
+                                    tracing::error_span!(
+                                        "command_callback",
+                                        session_id = %sid,
+                                        request_id = %request_id
+                                    ),
+                                ),
+                                nested_startup_tasks.as_ref(),
+                            );
+                            let Some(handler_task) = handler_task else {
+                                return;
+                            };
+                            let result = handler_task.await;
                             tracing::debug!(
                                 elapsed_ms = handler_start.elapsed().as_millis(),
                                 session_id = %sid,
@@ -3980,8 +4035,17 @@ async fn handle_notification(
                                 "CommandHandler::call dispatch"
                             );
                             match result {
-                                Ok(()) => None,
-                                Err(e) => Some(e.to_string()),
+                                Ok(Ok(())) => None,
+                                Ok(Err(e)) => Some(e.to_string()),
+                                // Startup cancellation must not emit a fallback acknowledgement.
+                                Err(error) if error.is_cancelled() => return,
+                                Err(_) => {
+                                    error!(
+                                        command_name = %command_name,
+                                        "command handler panicked"
+                                    );
+                                    Some("command handler panicked".to_string())
+                                }
                             }
                         }
                     };

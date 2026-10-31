@@ -42,6 +42,8 @@ public final class SessionModelChangeEvent extends SessionEvent {
         @JsonProperty("providerId") String providerId,
         /** Provider of previousModel, when known. A provider-only change is a model selection change even when the model identifiers are equal. */
         @JsonProperty("previousProviderId") String previousProviderId,
+        /** True when prior reasoning is incompatible with the selected provider routing even though model and provider identifiers are unchanged. Omitted for compatible or legacy selections. */
+        @JsonProperty("reasoningInvalidated") Boolean reasoningInvalidated,
         /** Reasoning effort level before the model change, if applicable */
         @JsonProperty("previousReasoningEffort") String previousReasoningEffort,
         /** Reasoning effort level after the model change, if applicable */
@@ -93,7 +95,7 @@ public final class SessionModelChangeEvent extends SessionEvent {
             AutoTier previousAutoTier,
             AutoTier autoTier
         ) {
-            this(previousModel, newModel, null, null, previousReasoningEffort, reasoningEffort, reasoningEffortModel, null, previousReasoningSummary, reasoningSummary, previousVerbosity, verbosity, contextTier, null, cause, source, previousAutoTier, autoTier, null);
+            this(previousModel, newModel, null, null, null, previousReasoningEffort, reasoningEffort, reasoningEffortModel, null, previousReasoningSummary, reasoningSummary, previousVerbosity, verbosity, contextTier, null, cause, source, previousAutoTier, autoTier, null);
         }
     }
 }

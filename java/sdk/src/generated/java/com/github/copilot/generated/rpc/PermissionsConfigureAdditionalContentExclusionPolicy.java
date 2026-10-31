@@ -25,6 +25,7 @@ public record PermissionsConfigureAdditionalContentExclusionPolicy(
     /** Content-exclusion rules to apply. */
     @JsonProperty("rules") List<PermissionsConfigureAdditionalContentExclusionPolicyRule> rules,
     /** Opaque policy update timestamp supplied by the host. */
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("last_updated_at") Object lastUpdatedAt,
     /** Allowed values for the `PermissionsConfigureAdditionalContentExclusionPolicyScope` enumeration. */
     @JsonProperty("scope") PermissionsConfigureAdditionalContentExclusionPolicyScope scope

@@ -25,6 +25,7 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record ManagedSettingsSchemaResult(
     /** JSON schema (draft 2020-12) with descriptive shared `x-composition` annotations, not a complete runtime composition contract. Model, effortLevel, and contextTier remain coupled; use `managedSettings.compose` for the runtime's effective result. */
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("schema") Object schema,
     /** Version of the runtime that owns this schema. */
     @JsonProperty("runtimeVersion") String runtimeVersion

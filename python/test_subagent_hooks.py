@@ -43,6 +43,12 @@ async def test_typed_hook_identity_retention_and_optional_declarations(
     session._register_hooks({handler: lambda data, invocation: captured.append((data, invocation))})
     payload = {"sessionId": "reported-session", "timestamp": 1, "cwd": "work"}
     identity = {"agentId": "child-actor", "agentType": "explore", "parentAgentId": "parent-actor"}
+    identity.update(
+        traceparent="00-0123456789abcdef0123456789abcdef-0123456789abcdef-01",
+        tracestate="vendor=state",
+    )
+    if hook in {"preToolUse", "postToolUse", "postToolUseFailure", "preMcpToolCall"}:
+        identity["toolCallId"] = "model-call"
     if enriched:
         payload.update(identity)
     await session._handle_hooks_invoke(hook, payload)

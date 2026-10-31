@@ -1,12 +1,17 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
 use github_copilot_sdk::handler::{PermissionHandler, PermissionResult};
-use github_copilot_sdk::rpc::PermissionsSetApproveAllRequest;
-use github_copilot_sdk::session_events::{SessionEventType, ToolExecutionCompleteData};
+use github_copilot_sdk::rpc::{PermissionsSetApproveAllRequest, PermissionsSetModeRequest};
+use github_copilot_sdk::session_events::{
+    AssistedApprovalAssessment, AssistedApprovalCompletedRecommendation, PermissionMode,
+    SessionEventType, ToolExecutionCompleteData,
+};
 use github_copilot_sdk::{
     PermissionRequestData, RequestId, ResumeSessionConfig, SessionConfig, SessionId,
 };
+use serde_json::json;
 use tokio::sync::{mpsc, oneshot};
 
 use super::support::{
@@ -309,6 +314,144 @@ async fn should_deny_tool_operations_when_handler_explicitly_denies_after_resume
             })
         },
     )
+    .await;
+}
+
+#[tokio::test]
+async fn should_preserve_assisted_assessment_in_handler_pending_and_resume() {
+    super::support::with_dedicated_e2e_context_no_snapshot(|ctx| {
+        Box::pin(async move {
+            const PROMPT: &str = "RUST_ASSISTED_ASSESSMENT_DENIAL";
+            const CALL_ID: &str = "rust_assisted_assessment_denial";
+            const RATIONALE: &str = "This action requires confirmation.";
+            let shell = if cfg!(windows) { "powershell" } else { "bash" };
+            ctx.configure_scripted_replay(
+                json!([
+                    {
+                        "requestIncludes": PROMPT,
+                        "toolCalls": [{
+                            "id": CALL_ID,
+                            "name": shell,
+                            "arguments": {
+                                "command": "node -e \"require('fs').writeFileSync('assisted-assessment.txt', 'blocked')\"",
+                                "description": "Write the assisted assessment probe",
+                                "initial_wait": 30
+                            }
+                        }]
+                    },
+                    {
+                        "requestIncludes": "Reply with exactly one line",
+                        "content": format!("DENY: {RATIONALE}"),
+                        "includeBackground": true
+                    }
+                ]),
+                json!({
+                    "models": ["claude-sonnet-4.5", "gpt-6-luna"],
+                    "modelCatalog": {
+                        "claude-sonnet-4.5": { "supported_endpoints": ["/v1/messages"] },
+                        "gpt-6-luna": {
+                            "supported_endpoints": ["/responses"],
+                            "reasoning_efforts": ["none", "low", "medium", "high"]
+                        }
+                    },
+                    "conversations": []
+                }),
+            );
+            ctx.set_default_copilot_user();
+
+            let feature_flags = HashMap::from([("AUTO_APPROVAL".to_owned(), true)]);
+            let (request_tx, mut request_rx) = mpsc::unbounded_channel();
+            let client = ctx.start_client().await;
+            let session = client
+                .create_session(
+                    SessionConfig::default()
+                        .with_model("claude-sonnet-4.5")
+                        .with_working_directory(ctx.work_dir())
+                        .with_request_extensions(false)
+                        .with_feature_flags(feature_flags.clone())
+                        .with_github_token(DEFAULT_TEST_TOKEN)
+                        .with_permission_handler(Arc::new(NotifyingPermissionHandler {
+                            request_tx,
+                            result: PermissionResult::no_result(),
+                        })),
+                )
+                .await
+                .expect("create assisted session");
+            let session_id = session.id().clone();
+
+            let set_mode = session
+                .rpc()
+                .permissions()
+                .set_mode(PermissionsSetModeRequest {
+                    mode: PermissionMode::Assisted,
+                    ..Default::default()
+                })
+                .await
+                .expect("set assisted permission mode");
+            assert!(set_mode.success);
+
+            session.send(PROMPT).await.expect("send assisted prompt");
+            let request = recv_with_timeout(&mut request_rx, "assisted permission request").await;
+            let handler_assessment = request
+                .assisted_approval_assessment()
+                .expect("decode handler assessment");
+            assert_assisted_denial(handler_assessment.as_ref(), RATIONALE);
+
+            let live_pending = session
+                .rpc()
+                .permissions()
+                .pending_requests()
+                .await
+                .expect("list live pending permissions");
+            assert_eq!(live_pending.items.len(), 1);
+            assert_assisted_denial(
+                live_pending.items[0].assisted_approval_assessment.as_ref(),
+                RATIONALE,
+            );
+
+            session
+                .disconnect()
+                .await
+                .expect("disconnect original session");
+            client.stop().await.expect("stop original client");
+
+            let resumed_client = ctx.start_client().await;
+            let resumed = resumed_client
+                .resume_session(
+                    ResumeSessionConfig::new(session_id)
+                        .with_model("claude-sonnet-4.5")
+                        .with_working_directory(ctx.work_dir())
+                        .with_request_extensions(false)
+                        .with_continue_pending_work(true)
+                        .with_feature_flags(feature_flags)
+                        .with_github_token(DEFAULT_TEST_TOKEN)
+                        .with_permission_handler(Arc::new(StaticPermissionHandler::new(
+                            PermissionResult::no_result(),
+                        ))),
+                )
+                .await
+                .expect("resume assisted session");
+            let resumed_pending = resumed
+                .rpc()
+                .permissions()
+                .pending_requests()
+                .await
+                .expect("list resumed pending permissions");
+            assert_eq!(resumed_pending.items.len(), 1);
+            assert_assisted_denial(
+                resumed_pending.items[0]
+                    .assisted_approval_assessment
+                    .as_ref(),
+                RATIONALE,
+            );
+
+            resumed
+                .disconnect()
+                .await
+                .expect("disconnect resumed session");
+            resumed_client.stop().await.expect("stop resumed client");
+        })
+    })
     .await;
 }
 
@@ -627,6 +770,21 @@ fn permission_request_tool_call_id(request: &PermissionRequestData) -> Option<&s
                 .and_then(|value| value.get("toolCallId"))
                 .and_then(|value| value.as_str())
         })
+}
+
+#[track_caller]
+fn assert_assisted_denial(
+    assessment: Option<&AssistedApprovalAssessment>,
+    expected_rationale: &str,
+) {
+    let Some(AssistedApprovalAssessment::Completed(completed)) = assessment else {
+        panic!("expected completed assisted approval assessment, got {assessment:?}");
+    };
+    assert_eq!(
+        completed.recommendation,
+        AssistedApprovalCompletedRecommendation::RequireApproval
+    );
+    assert_eq!(completed.rationale.as_deref(), Some(expected_rationale));
 }
 
 #[derive(Clone)]

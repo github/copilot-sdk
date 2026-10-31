@@ -22,9 +22,21 @@ rust_library(
         include = ["**/*.rs"],
         allow_empty = True,
     ),
-    aliases = {
-        "@sdk_vendor__native-tls-0.2.18//:native_tls": "native_tls_crate",
-    },
+    aliases = select({
+        "@rules_rust//rust/platform:aarch64-pc-windows-msvc": {
+            "@sdk_vendor__native-tls-0.2.18//:native_tls": "native_tls_crate",  # aarch64-pc-windows-msvc
+        },
+        "@rules_rust//rust/platform:aarch64-unknown-linux-gnu": {
+            "@sdk_vendor__native-tls-0.2.18//:native_tls": "native_tls_crate",  # aarch64-unknown-linux-gnu
+        },
+        "@rules_rust//rust/platform:x86_64-pc-windows-msvc": {
+            "@sdk_vendor__native-tls-0.2.18//:native_tls": "native_tls_crate",  # x86_64-pc-windows-msvc
+        },
+        "@rules_rust//rust/platform:x86_64-unknown-linux-gnu": {
+            "@sdk_vendor__native-tls-0.2.18//:native_tls": "native_tls_crate",  # x86_64-unknown-linux-gnu
+        },
+        "//conditions:default": {},
+    }),
     compile_data = glob(
         include = ["**"],
         allow_empty = True,
@@ -38,13 +50,40 @@ rust_library(
         ],
     ),
     crate_features = [
-        "__native-tls",
-        "__native-tls-alpn",
         "__tls",
         "http2",
-        "native-tls",
         "stream",
-    ],
+    ] + select({
+        "@rules_rust//rust/platform:aarch64-apple-darwin": [
+            "__rustls",  # aarch64-apple-darwin
+            "rustls-no-provider",  # aarch64-apple-darwin
+        ],
+        "@rules_rust//rust/platform:aarch64-pc-windows-msvc": [
+            "__native-tls",  # aarch64-pc-windows-msvc
+            "__native-tls-alpn",  # aarch64-pc-windows-msvc
+            "native-tls",  # aarch64-pc-windows-msvc
+        ],
+        "@rules_rust//rust/platform:aarch64-unknown-linux-gnu": [
+            "__native-tls",  # aarch64-unknown-linux-gnu
+            "__native-tls-alpn",  # aarch64-unknown-linux-gnu
+            "native-tls",  # aarch64-unknown-linux-gnu
+        ],
+        "@rules_rust//rust/platform:x86_64-apple-darwin": [
+            "__rustls",  # x86_64-apple-darwin
+            "rustls-no-provider",  # x86_64-apple-darwin
+        ],
+        "@rules_rust//rust/platform:x86_64-pc-windows-msvc": [
+            "__native-tls",  # x86_64-pc-windows-msvc
+            "__native-tls-alpn",  # x86_64-pc-windows-msvc
+            "native-tls",  # x86_64-pc-windows-msvc
+        ],
+        "@rules_rust//rust/platform:x86_64-unknown-linux-gnu": [
+            "__native-tls",  # x86_64-unknown-linux-gnu
+            "__native-tls-alpn",  # x86_64-unknown-linux-gnu
+            "native-tls",  # x86_64-unknown-linux-gnu
+        ],
+        "//conditions:default": [],
+    }),
     crate_root = "src/lib.rs",
     edition = "2021",
     rustc_env_files = [
@@ -77,11 +116,8 @@ rust_library(
         "@sdk_vendor__futures-util-0.3.34//:futures_util",
         "@sdk_vendor__h2-0.4.20//:h2",
         "@sdk_vendor__http-1.5.0//:http",
-        "@sdk_vendor__hyper-tls-0.6.0//:hyper_tls",
-        "@sdk_vendor__native-tls-0.2.18//:native_tls",
         "@sdk_vendor__rustls-pki-types-1.15.1//:rustls_pki_types",
         "@sdk_vendor__sync_wrapper-1.0.2//:sync_wrapper",
-        "@sdk_vendor__tokio-native-tls-0.3.1//:tokio_native_tls",
         "@sdk_vendor__tokio-util-0.7.20//:tokio_util",
         "@sdk_vendor__url-2.5.8//:url",
     ] + select({
@@ -89,11 +125,15 @@ rust_library(
             "@sdk_vendor__http-body-1.1.0//:http_body",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__http-body-util-0.1.5//:http_body_util",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__hyper-1.12.0//:hyper",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
+            "@sdk_vendor__hyper-rustls-0.27.10//:hyper_rustls",  # aarch64-apple-darwin
             "@sdk_vendor__hyper-util-0.1.21//:hyper_util",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__log-0.4.34//:log",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__percent-encoding-2.3.2//:percent_encoding",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__pin-project-lite-0.2.17//:pin_project_lite",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
-            "@sdk_vendor__tokio-1.53.3//:tokio",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
+            "@sdk_vendor__rustls-0.23.46//:rustls",  # aarch64-apple-darwin
+            "@sdk_vendor__rustls-platform-verifier-0.7.1//:rustls_platform_verifier",  # aarch64-apple-darwin
+            "@sdk_vendor__tokio-1.54.1//:tokio",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
+            "@sdk_vendor__tokio-rustls-0.26.6//:tokio_rustls",  # aarch64-apple-darwin
             "@sdk_vendor__tower-0.5.3//:tower",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__tower-http-0.6.11//:tower_http",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__tower-service-0.3.3//:tower_service",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
@@ -102,11 +142,14 @@ rust_library(
             "@sdk_vendor__http-body-1.1.0//:http_body",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__http-body-util-0.1.5//:http_body_util",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__hyper-1.12.0//:hyper",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
+            "@sdk_vendor__hyper-tls-0.6.0//:hyper_tls",  # aarch64-pc-windows-msvc
             "@sdk_vendor__hyper-util-0.1.21//:hyper_util",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__log-0.4.34//:log",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
+            "@sdk_vendor__native-tls-0.2.18//:native_tls",  # aarch64-pc-windows-msvc
             "@sdk_vendor__percent-encoding-2.3.2//:percent_encoding",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__pin-project-lite-0.2.17//:pin_project_lite",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
-            "@sdk_vendor__tokio-1.53.3//:tokio",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
+            "@sdk_vendor__tokio-1.54.1//:tokio",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
+            "@sdk_vendor__tokio-native-tls-0.3.1//:tokio_native_tls",  # aarch64-pc-windows-msvc
             "@sdk_vendor__tower-0.5.3//:tower",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__tower-http-0.6.11//:tower_http",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__tower-service-0.3.3//:tower_service",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
@@ -115,11 +158,14 @@ rust_library(
             "@sdk_vendor__http-body-1.1.0//:http_body",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__http-body-util-0.1.5//:http_body_util",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__hyper-1.12.0//:hyper",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
+            "@sdk_vendor__hyper-tls-0.6.0//:hyper_tls",  # aarch64-unknown-linux-gnu
             "@sdk_vendor__hyper-util-0.1.21//:hyper_util",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__log-0.4.34//:log",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
+            "@sdk_vendor__native-tls-0.2.18//:native_tls",  # aarch64-unknown-linux-gnu
             "@sdk_vendor__percent-encoding-2.3.2//:percent_encoding",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__pin-project-lite-0.2.17//:pin_project_lite",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
-            "@sdk_vendor__tokio-1.53.3//:tokio",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
+            "@sdk_vendor__tokio-1.54.1//:tokio",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
+            "@sdk_vendor__tokio-native-tls-0.3.1//:tokio_native_tls",  # aarch64-unknown-linux-gnu
             "@sdk_vendor__tower-0.5.3//:tower",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__tower-http-0.6.11//:tower_http",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__tower-service-0.3.3//:tower_service",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
@@ -128,11 +174,15 @@ rust_library(
             "@sdk_vendor__http-body-1.1.0//:http_body",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__http-body-util-0.1.5//:http_body_util",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__hyper-1.12.0//:hyper",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
+            "@sdk_vendor__hyper-rustls-0.27.10//:hyper_rustls",  # x86_64-apple-darwin
             "@sdk_vendor__hyper-util-0.1.21//:hyper_util",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__log-0.4.34//:log",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__percent-encoding-2.3.2//:percent_encoding",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__pin-project-lite-0.2.17//:pin_project_lite",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
-            "@sdk_vendor__tokio-1.53.3//:tokio",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
+            "@sdk_vendor__rustls-0.23.46//:rustls",  # x86_64-apple-darwin
+            "@sdk_vendor__rustls-platform-verifier-0.7.1//:rustls_platform_verifier",  # x86_64-apple-darwin
+            "@sdk_vendor__tokio-1.54.1//:tokio",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
+            "@sdk_vendor__tokio-rustls-0.26.6//:tokio_rustls",  # x86_64-apple-darwin
             "@sdk_vendor__tower-0.5.3//:tower",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__tower-http-0.6.11//:tower_http",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__tower-service-0.3.3//:tower_service",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
@@ -141,11 +191,14 @@ rust_library(
             "@sdk_vendor__http-body-1.1.0//:http_body",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__http-body-util-0.1.5//:http_body_util",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__hyper-1.12.0//:hyper",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
+            "@sdk_vendor__hyper-tls-0.6.0//:hyper_tls",  # x86_64-pc-windows-msvc
             "@sdk_vendor__hyper-util-0.1.21//:hyper_util",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__log-0.4.34//:log",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
+            "@sdk_vendor__native-tls-0.2.18//:native_tls",  # x86_64-pc-windows-msvc
             "@sdk_vendor__percent-encoding-2.3.2//:percent_encoding",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__pin-project-lite-0.2.17//:pin_project_lite",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
-            "@sdk_vendor__tokio-1.53.3//:tokio",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
+            "@sdk_vendor__tokio-1.54.1//:tokio",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
+            "@sdk_vendor__tokio-native-tls-0.3.1//:tokio_native_tls",  # x86_64-pc-windows-msvc
             "@sdk_vendor__tower-0.5.3//:tower",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__tower-http-0.6.11//:tower_http",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__tower-service-0.3.3//:tower_service",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
@@ -154,11 +207,14 @@ rust_library(
             "@sdk_vendor__http-body-1.1.0//:http_body",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__http-body-util-0.1.5//:http_body_util",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__hyper-1.12.0//:hyper",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
+            "@sdk_vendor__hyper-tls-0.6.0//:hyper_tls",  # x86_64-unknown-linux-gnu
             "@sdk_vendor__hyper-util-0.1.21//:hyper_util",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__log-0.4.34//:log",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
+            "@sdk_vendor__native-tls-0.2.18//:native_tls",  # x86_64-unknown-linux-gnu
             "@sdk_vendor__percent-encoding-2.3.2//:percent_encoding",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__pin-project-lite-0.2.17//:pin_project_lite",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
-            "@sdk_vendor__tokio-1.53.3//:tokio",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
+            "@sdk_vendor__tokio-1.54.1//:tokio",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
+            "@sdk_vendor__tokio-native-tls-0.3.1//:tokio_native_tls",  # x86_64-unknown-linux-gnu
             "@sdk_vendor__tower-0.5.3//:tower",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__tower-http-0.6.11//:tower_http",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__tower-service-0.3.3//:tower_service",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))

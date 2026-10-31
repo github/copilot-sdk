@@ -76,9 +76,11 @@ resumed, err := client.ResumeSession(ctx, session.SessionID, &copilot.ResumeSess
 <details>
 <summary><strong>.NET</strong></summary>
 
-<!-- docs-validate: skip -->
-
+<!-- docs-validate: hidden -->
 ```csharp
+await using var client = new CopilotClient();
+
+#pragma warning disable GHCP001 // Session limits are experimental.
 var session = await client.CreateSessionAsync(new SessionConfig
 {
     OnPermissionRequest = PermissionHandler.ApproveAll,
@@ -97,6 +99,30 @@ var resumed = await client.ResumeSessionAsync(session.SessionId, new ResumeSessi
     },
 });
 ```
+<!-- /docs-validate: hidden -->
+
+```csharp
+#pragma warning disable GHCP001 // Session limits are experimental.
+var session = await client.CreateSessionAsync(new SessionConfig
+{
+    OnPermissionRequest = PermissionHandler.ApproveAll,
+    SessionLimits = new SessionLimitsConfig
+    {
+        MaxAiCredits = 30,
+    },
+});
+
+var resumed = await client.ResumeSessionAsync(session.SessionId, new ResumeSessionConfig
+{
+    OnPermissionRequest = PermissionHandler.ApproveAll,
+    SessionLimits = new SessionLimitsConfig
+    {
+        MaxAiCredits = 30,
+    },
+});
+```
+
+The .NET `SessionLimits` property raises the `GHCP001` experimental diagnostic. Suppress it with `#pragma warning disable GHCP001` or a project-level `<NoWarn>GHCP001</NoWarn>`.
 
 </details>
 <details>

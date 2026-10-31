@@ -47,8 +47,7 @@ public final class InProcessRuntimeConnection extends RuntimeConnection {
      * Required for OneAuth interactive authentication on macOS. This
      * general-purpose scheduler may also be used for other runtime-owned native UI
      * operations. Temporary OneAuth workaround; this API may be removed if no
-     * longer needed. See
-     * https://github.com/github/copilot-agent-runtime/issues/27032.
+     * longer needed.
      *
      * @param handler
      *            the scheduler, or {@code null} to leave it unconfigured

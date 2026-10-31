@@ -41,7 +41,12 @@ from copilot import (
 )
 from copilot.session import PermissionHandler
 
-from ._copilot_request_helpers import assistant_text, model_catalog, responses_events
+from ._copilot_request_helpers import (
+    assistant_text,
+    meta_catalog,
+    model_catalog,
+    responses_events,
+)
 from .testharness import E2ETestContext
 
 pytestmark = pytest.mark.asyncio(loop_scope="module")
@@ -104,6 +109,15 @@ async def _start_fake_upstream() -> _Upstream:
             length = int(self.headers.get("content-length") or 0)
             if length:
                 self.rfile.read(length)
+            if path.endswith("/meta"):
+                self._send(
+                    200,
+                    "application/json",
+                    json.dumps(
+                        meta_catalog(supported_endpoints=["/responses", "ws:/responses"])
+                    ).encode("utf-8"),
+                )
+                return
             if path.endswith("/models"):
                 self._send(
                     200,

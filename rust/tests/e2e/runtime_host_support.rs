@@ -6,7 +6,6 @@ use std::sync::LazyLock;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use ahp::{Client as AhpClient, ClientConfig, SessionSubscription, SubscriptionEvent};
-use ahp_types::version::PROTOCOL_VERSION;
 use ahp_ws::WebSocketTransport;
 use base64::Engine as _;
 use base64::engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD};
@@ -249,7 +248,7 @@ pub async fn connect_url_as(url: &str, token: Option<&str>, client_id: String) -
     .await
     .unwrap();
     let initialized = client
-        .initialize(client_id.clone(), vec![PROTOCOL_VERSION.into()], vec![])
+        .initialize(client_id.clone(), vec!["0.9.0".into()], vec![])
         .await
         .unwrap();
     assert_eq!(initialized.protocol_version, "0.9.0");
@@ -261,7 +260,7 @@ pub async fn connect_url_as(url: &str, token: Option<&str>, client_id: String) -
     }
 }
 
-// Matches protocol_base/ahp/sealing.rs: HPKE base mode, empty info/AAD,
+// Matches protocol_base/wire/ahp/sealing.rs: HPKE base mode, empty info/AAD,
 // enc || ciphertext, and the structured connection-bound auth-token plaintext.
 // The harness owns the direct endpoint; no remote advertisement is trusted.
 fn sealed_auth_token(initialize_meta: &Value, root_meta: &Value, resource: &str) -> String {
@@ -316,11 +315,10 @@ fn sealed_auth_token(initialize_meta: &Value, root_meta: &Value, resource: &str)
     let mut seed = [0_u8; 32];
     getrandom::fill(&mut seed).unwrap();
     let mut rng = ChaCha20Rng::from_seed(seed);
-    let (enc, mut sender) = hpke::setup_sender::<
+    let (enc, mut sender) = hpke::setup_sender_with_rng::<
         hpke::aead::AesGcm256,
         hpke::kdf::HkdfSha256,
         Kem,
-        _,
     >(&hpke::OpModeS::Base, &recipient, &[], &mut rng)
     .unwrap();
     let mut ciphertext = enc.to_bytes().to_vec();
@@ -336,7 +334,8 @@ fn fixture_authentication_is_sealed_and_bound_to_the_live_challenge() {
     type Kem = hpke::kem::X25519HkdfSha256;
     let mut seed = [0_u8; 32];
     getrandom::fill(&mut seed).unwrap();
-    let (secret, public) = <Kem as hpke::Kem>::gen_keypair(&mut ChaCha20Rng::from_seed(seed));
+    let (secret, public) =
+        <Kem as hpke::Kem>::gen_keypair_with_rng(&mut ChaCha20Rng::from_seed(seed));
     let key_id = URL_SAFE_NO_PAD.encode(&Sha256::digest(public.to_bytes())[..8]);
     let challenge = "00112233445566778899aabbccddeeff";
     let initialized = json!({

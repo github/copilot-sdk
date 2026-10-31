@@ -31,14 +31,18 @@ name = "github_copilot_sdk"
 
 [features]
 default = ["bundled-cli"]
-runtime = []
+runtime = ["dep:openssl", "dep:rustls", "dep:ureq"]
 bundled-cli = ["runtime", "network-forwarding", "dep:tar", "dep:flate2", "dep:zip"]
 in-process = ["runtime", "dep:libloading"]
 local-runtime = ["in-process"]
 bundled-in-process = ["bundled-cli", "in-process"]
-network-forwarding = ["dep:native-tls", "dep:reqwest", "dep:tokio-tungstenite"]
+network-forwarding = ["dep:native-tls", "dep:openssl-sys", "dep:reqwest", "dep:tokio-tungstenite", "dep:tokio-rustls", "dep:rustls-platform-verifier"]
 derive = ["dep:schemars"]
 test-support = []
+
+[package.metadata.cargo-machete]
+# The build script consumes this target dependency's version metadata.
+ignored = ["openssl-sys"]
 
 # Build docs.rs documentation with all features so feature-gated APIs
 # (e.g. `define_tool`, `schema_for`) appear and intra-doc links resolve.
@@ -61,7 +65,6 @@ tokio = { version = "1", features = ["io-util", "sync", "rt", "process", "net", 
 tokio-stream = { version = "0.1", features = ["sync"] }
 tokio-util = { version = "0.7", default-features = false }
 tracing = "0.1"
-dirs = "7"
 libloading = { version = "0.9", optional = true }
 parking_lot = "0.12"
 regex = "1"
@@ -75,20 +78,30 @@ base64 = "0.23"
 bytes = "1"
 http = "1"
 futures-util = "0.3"
-native-tls = { version = "0.2", optional = true }
-reqwest = { version = "0.13", default-features = false, features = ["stream", "http2", "native-tls"], optional = true }
-tokio-tungstenite = { version = "0.30", default-features = false, features = ["connect", "native-tls"], optional = true }
+reqwest = { version = "0.13", default-features = false, features = ["stream", "http2"], optional = true }
+tokio-tungstenite = { version = "0.30", default-features = false, features = ["connect"], optional = true }
 
-# Linux has no universal OS TLS provider. Bundle the same OpenSSL implementation
-# for Cargo consumers, including musl, instead of requiring system development
-# files or a deployed shared libssl. Bazel uses its existing static OpenSSL.
+[target.'cfg(not(target_os = "macos"))'.dependencies]
+native-tls = { version = "0.2", optional = true }
+reqwest = { version = "0.13", default-features = false, features = ["native-tls"], optional = true }
+tokio-tungstenite = { version = "0.30", default-features = false, features = ["native-tls"], optional = true }
+
 [target.'cfg(target_os = "linux")'.dependencies]
-native-tls = { version = "0.2", features = ["vendored"], optional = true }
+openssl-sys = { version = "0.9", optional = true }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+reqwest = { version = "0.13", default-features = false, features = ["rustls-no-provider"], optional = true }
+rustls-platform-verifier = { version = "0.7", optional = true }
+# Forwarding names Rustls through this re-export: `dep:rustls` would also
+# activate acquisition's same-named build dependency, and `runtime`'s would
+# compile this target AWS-LC stack. Cargo rejects renaming one of them.
+tokio-rustls = { version = "0.26", default-features = false, features = ["aws_lc_rs", "tls12"], optional = true }
+tokio-tungstenite = { version = "0.30", default-features = false, features = ["rustls-tls-native-roots"], optional = true }
 
 [target.'cfg(windows)'.dependencies]
 # Archive acquisition only needs flate2; don't compile the Zopfli compressor
 # and second flate2 backend that zip's umbrella `deflate` feature enables.
-zip = { version = "9", default-features = false, features = ["deflate-flate2"], optional = true }
+zip = { version = "9.1", default-features = false, features = ["deflate-flate2"], optional = true }
 windows-sys = { version = "0.61", default-features = false, features = [
     "Win32_Foundation",
     "Win32_System_Diagnostics_Debug",
@@ -97,30 +110,43 @@ windows-sys = { version = "0.61", default-features = false, features = [
     "Win32_System_JobObjects",
     "Win32_System_Kernel",
     "Win32_System_Threading",
+    "Win32_System_Com",
+    "Win32_UI_Shell",
 ] }
 
 [target.'cfg(windows)'.dev-dependencies]
-windows-sys = { version = "0.61", default-features = false, features = ["Win32_Security"] }
+windows-sys = { version = "0.61", default-features = false, features = ["Win32_Security", "Win32_Security_Cryptography"] }
+
+[target.'cfg(target_os = "linux")'.dev-dependencies]
+openssl = "0.10"
+
+[target.'cfg(not(target_os = "macos"))'.dev-dependencies]
+native-tls = "0.2"
+ureq = { version = "3", default-features = false, features = ["native-tls"] }
+
+[target.'cfg(target_os = "macos")'.dev-dependencies]
+rustls = { version = "0.23", default-features = false, features = ["aws_lc_rs", "std", "tls12"] }
+ureq = { version = "3", default-features = false, features = ["rustls-no-provider", "platform-verifier"] }
 
 [dev-dependencies]
+# Offline consumer-graph fixtures exercise local-runtime even when the outer
+# test build only enables acquisition, so its optional source must be fetched.
+libloading = "0.9"
 flate2 = "1"
-# Share the runtime/host's 0.13 crypto generation rather than adding HPKE 0.14's
-# second X25519/Curve25519 generation merely for these authentication fixtures.
-hpke = { version = "0.13", default-features = false, features = ["alloc", "x25519"] }
-rand_chacha = { version = "0.9", default-features = false }
+hpke = { version = "0.15", default-features = false, features = ["aes", "alloc", "x25519"] }
+rand_chacha = { version = "0.10", default-features = false }
 rand_core = { version = "0.6", features = ["getrandom"] }
-ahp = { git = "https://github.com/microsoft/agent-host-protocol", tag = "rust/v0.9.0" }
-ahp-types = { git = "https://github.com/microsoft/agent-host-protocol", tag = "rust/v0.9.0" }
-ahp-ws = { git = "https://github.com/microsoft/agent-host-protocol", tag = "rust/v0.9.0", default-features = false }
-rusqlite = { version = "0.40", features = ["bundled"] }
+ahp = { git = "https://github.com/microsoft/agent-host-protocol", tag = "rust/v1.0.0" }
+ahp-types = { git = "https://github.com/microsoft/agent-host-protocol", tag = "rust/v1.0.0" }
+ahp-ws = { git = "https://github.com/microsoft/agent-host-protocol", tag = "rust/v1.0.0", default-features = false }
+rusqlite = { version = "0.41.1", features = ["bundled"] }
 schemars = "1"
 serial_test = "4"
-sha2 = "0.10"
+sha2 = "0.11"
 tar = "0.4"
 tempfile = "3"
 tokio = { version = "1", features = ["fs", "rt-multi-thread"] }
-ureq = { version = "3", default-features = false, features = ["native-tls"] }
-zip = { version = "9", default-features = false, features = ["deflate-flate2"] }
+zip = { version = "9.1", default-features = false, features = ["deflate-flate2"] }
 
 # Integration tests that call test-support-only Client methods (e.g.
 # `from_streams_with_connection_token`, `from_streams_with_trace_provider`)
@@ -178,13 +204,32 @@ required-features = ["test-support"]
 [[test]]
 name = "skill_provider_test"
 required-features = ["test-support"]
+
+[[test]]
+name = "kerberos_auth_test"
+required-features = ["runtime"]
 [build-dependencies]
-dirs = "7"
 flate2 = "1"
-native-tls = "0.2"
 serde_json = "1"
-# 0.11 adds a second digest/block-buffer stack beside the SDK's transitive 0.10.
-sha2 = "0.10"
 tar = "0.4"
-ureq = { version = "3", default-features = false, features = ["native-tls"] }
-zip = { version = "9", default-features = false, features = ["deflate-flate2"] }
+zip = { version = "9.1", default-features = false, features = ["deflate-flate2"] }
+
+[target.'cfg(not(target_os = "macos"))'.build-dependencies]
+ureq = { version = "3", default-features = false, features = ["native-tls"], optional = true }
+
+[target.'cfg(windows)'.build-dependencies]
+windows-sys = { version = "0.61", default-features = false, features = [
+    "Win32_Security_Cryptography",
+    "Win32_System_Com",
+    "Win32_UI_Shell",
+] }
+
+[target.'cfg(target_os = "linux")'.build-dependencies]
+openssl = { version = "0.10", optional = true }
+
+[target.'cfg(target_os = "macos")'.build-dependencies]
+rustls = { version = "0.23", default-features = false, features = ["aws_lc_rs", "std", "tls12"], optional = true }
+ureq = { version = "3", default-features = false, features = ["rustls-no-provider", "platform-verifier"], optional = true }
+
+[target.'cfg(not(any(windows, target_os = "macos", target_os = "linux")))'.build-dependencies]
+sha2 = "0.11"

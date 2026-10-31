@@ -300,8 +300,11 @@ class JsonRpcClient implements AutoCloseable {
     }
 
     private static boolean isCredentialField(String name) {
+        // Protocol messages use a bare "token" for credentials (for example Kerberos
+        // SPNEGO and connection tokens); its rare non-secret uses only lose detail in
+        // diagnostics.
         return name.equals("accessToken") || name.equals("gitHubToken") || name.equals("bearerToken")
-                || name.equals("apiKey");
+                || name.equals("apiKey") || name.equals("token");
     }
 
     private void startReader() {
@@ -364,7 +367,9 @@ class JsonRpcClient implements AutoCloseable {
                     }
 
                     String content = new String(buffer, StandardCharsets.UTF_8);
-                    LOG.fine("Received: " + content);
+                    if (LOG.isLoggable(Level.FINE)) {
+                        LOG.fine("Received: " + redactCredentialsForLogging(content));
+                    }
 
                     handleMessage(content);
                 }

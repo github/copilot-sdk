@@ -4,8 +4,8 @@ This source example uses an isolated configuration directory and a local runtime
 It makes no model request and installs no certificate.
 It does not read or write your settings or keychain.
 
-Prepare the same-checkout runtime and generated Node.js client with the
-[SDK contributor guide](../../CONTRIBUTING.md#testing-an-unreleased-runtime-api).
+Prepare the same-checkout runtime and generated Node.js client by following the
+"Testing an unreleased runtime API" section of the SDK contributor guide.
 From the SDK directory, run:
 
 ```sh

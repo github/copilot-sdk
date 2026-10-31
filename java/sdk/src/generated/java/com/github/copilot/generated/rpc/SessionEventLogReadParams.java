@@ -27,7 +27,7 @@ import javax.annotation.processing.Generated;
 public record SessionEventLogReadParams(
     /** Target session identifier */
     @JsonProperty("sessionId") String sessionId,
-    /** Opaque cursor returned by a previous read. Omit on the first call to start from the beginning of the session's persisted history. */
+    /** Opaque cursor returned by a previous read in the same view. Omit on the first call to start from the beginning of the selected view. */
     @JsonProperty("cursor") String cursor,
     /** Maximum number of events to return in this batch (1–1000, default 200). */
     @JsonProperty("max") Long max,

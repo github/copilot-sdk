@@ -16,6 +16,7 @@ async fn custom_streams_forward_entra_and_reject_legacy_servers_without_ping() {
             std::env::temp_dir(),
             Some(EntraAuthConfig {
                 client_id: "custom-stream-client".to_owned(),
+                mats_app_name: Some("Custom Stream Host".to_owned()),
             }),
         )
         .unwrap();
@@ -25,6 +26,10 @@ async fn custom_streams_forward_entra_and_reject_legacy_servers_without_ping() {
             assert_eq!(
                 request["params"]["entra"]["clientId"],
                 "custom-stream-client"
+            );
+            assert_eq!(
+                request["params"]["entra"]["matsAppName"],
+                "Custom Stream Host"
             );
             let response = if supported {
                 serde_json::json!({"jsonrpc":"2.0","id":request["id"],"result":{"ok":true,"protocolVersion":3,"version":"test"}})
@@ -112,6 +117,7 @@ async fn legacy_ping_fallback_requires_no_entra_configuration() {
         if entra {
             options = options.with_entra(EntraAuthConfig {
                 client_id: "host-entra-client".to_owned(),
+                mats_app_name: None,
             });
         }
         let result = Client::start(options).await;

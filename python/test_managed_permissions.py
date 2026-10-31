@@ -3,6 +3,8 @@ import pytest
 from copilot.rpc import PermissionDecisionApproveOnce, PermissionDecisionUserNotAvailable
 from copilot.session import CopilotSession, PermissionHandler, PermissionNoResult
 from copilot.session_events import (
+    AssistedApprovalAssessmentCompleted,
+    AssistedApprovalCompletedRecommendation,
     AssistedApprovalRecommendation,
     PermissionPromptRequestCommands,
     PermissionRequestCustomTool,
@@ -146,6 +148,11 @@ async def test_permission_callback_receives_derived_prompt_context() -> None:
                 "canOfferSessionApproval": False,
                 "assistedApproval": {"recommendation": "approve"},
             },
+            "assistedApprovalAssessment": {
+                "status": "completed",
+                "recommendation": "requireApproval",
+                "rationale": "The command modifies protected files.",
+            },
         }
     )
     captured = {}
@@ -160,6 +167,7 @@ async def test_permission_callback_receives_derived_prompt_context() -> None:
         data.permission_request,
         handler,
         data.prompt_request,
+        data.assisted_approval_assessment,
     )
 
     prompt_request = captured["prompt_request"]
@@ -167,4 +175,8 @@ async def test_permission_callback_receives_derived_prompt_context() -> None:
     assert prompt_request.managed_approval_required is None
     assert prompt_request.assisted_approval is not None
     assert prompt_request.assisted_approval.recommendation is AssistedApprovalRecommendation.APPROVE
+    assessment = captured["assisted_approval_assessment"]
+    assert isinstance(assessment, AssistedApprovalAssessmentCompleted)
+    assert assessment.recommendation is AssistedApprovalCompletedRecommendation.REQUIRE_APPROVAL
+    assert assessment.rationale == "The command modifies protected files."
     assert captured["managed_settings_enabled"] is True

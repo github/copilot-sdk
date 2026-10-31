@@ -4,6 +4,8 @@
 
 using GitHub.Copilot.Test.Harness;
 using Microsoft.Extensions.AI;
+using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Text.Json;
 using Xunit;
 using Xunit.Abstractions;
@@ -21,6 +23,34 @@ public class TelemetryExportE2ETests(E2ETestFixture fixture, ITestOutputHelper o
         const string sourceName = "dotnet-sdk-telemetry-e2e";
         const string toolName = "echo_telemetry_marker";
         const string prompt = $"Use the {toolName} tool with value '{marker}', then respond with TELEMETRY_E2E_DONE.";
+
+        using var toolSource = new ActivitySource($"dotnet-telemetry-{Guid.NewGuid():N}");
+        var sdkSpans = new ConcurrentQueue<Activity>();
+        var handlerStopped = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        ActivityTraceId traceId = default;
+        using var listener = new ActivityListener
+        {
+            ShouldListenTo = source => source == toolSource || source.Name == "github.copilot",
+            Sample = (ref ActivityCreationOptions<ActivityContext> options) =>
+                options.Source == toolSource || options.Parent.TraceId == traceId
+                    ? ActivitySamplingResult.AllDataAndRecorded
+                    : ActivitySamplingResult.None,
+            ActivityStopped = activity =>
+            {
+                if (activity.TraceId == traceId)
+                {
+                    sdkSpans.Enqueue(activity);
+                    if (activity.Source.Name == "github.copilot" && activity.OperationName == "copilot.tool_handler")
+                    {
+                        handlerStopped.TrySetResult(true);
+                    }
+                }
+            },
+        };
+        ActivitySource.AddActivityListener(listener);
+        using var parent = toolSource.CreateActivity("host", ActivityKind.Internal)!
+            .SetIdFormat(ActivityIdFormat.W3C).Start();
+        traceId = parent.TraceId;
 
         await using var client = Ctx.CreateClient(options: new CopilotClientOptions
         {
@@ -43,6 +73,7 @@ public class TelemetryExportE2ETests(E2ETestFixture fixture, ITestOutputHelper o
         var assistantMessage = await TestHelper.SendAndGetFinalAssistantMessageAsync(session, new MessageOptions { Prompt = prompt });
         Assert.NotNull(assistantMessage);
         Assert.Contains("TELEMETRY_E2E_DONE", assistantMessage!.Data.Content ?? string.Empty, StringComparison.Ordinal);
+        await handlerStopped.Task.WaitAsync(TimeSpan.FromSeconds(10));
 
         await session.DisposeAsync();
         await client.StopAsync();
@@ -57,8 +88,8 @@ public class TelemetryExportE2ETests(E2ETestFixture fixture, ITestOutputHelper o
 
         var invokeAgentSpan = AssertSpanWithOperation(spans, "invoke_agent");
         Assert.Equal(session.SessionId, GetStringAttribute(invokeAgentSpan, "gen_ai.conversation.id"));
-        Assert.True(IsRootSpan(invokeAgentSpan),
-            "invoke_agent should be the root of the SDK turn trace.");
+        Assert.Equal(parent.SpanId.ToHexString(), GetParentSpanId(invokeAgentSpan));
+        Assert.Equal(parent.TraceId.ToHexString(), GetTraceId(invokeAgentSpan));
         var invokeAgentSpanId = GetSpanId(invokeAgentSpan);
         Assert.False(string.IsNullOrEmpty(invokeAgentSpanId));
         var invokeAgentTraceId = GetTraceId(invokeAgentSpan);
@@ -82,9 +113,23 @@ public class TelemetryExportE2ETests(E2ETestFixture fixture, ITestOutputHelper o
         Assert.False(string.IsNullOrWhiteSpace(GetStringAttribute(toolSpan, "gen_ai.tool.call.id")),
             "execute_tool span should carry gen_ai.tool.call.id.");
         Assert.Equal($"{{\"value\":\"{marker}\"}}", GetStringAttribute(toolSpan, "gen_ai.tool.call.arguments"));
-        Assert.Equal(marker, GetStringAttribute(toolSpan, "gen_ai.tool.call.result"));
+        using var toolResult = JsonDocument.Parse(GetStringAttribute(toolSpan, "gen_ai.tool.call.result")!);
+        var resultProperty = Assert.Single(toolResult.RootElement.EnumerateObject());
+        Assert.Equal("content", resultProperty.Name);
+        Assert.Equal(marker, resultProperty.Value.GetString());
 
-        static string EchoTelemetryMarker(string value) => value;
+        var child = Assert.Single(sdkSpans, span => span.OperationName == "tool work");
+        var handler = Assert.Single(sdkSpans, span => span.SpanId == child.ParentSpanId);
+        Assert.Equal("copilot.tool_handler", handler.OperationName);
+        Assert.Equal("github.copilot", handler.Source.Name);
+        Assert.Equal(GetSpanId(toolSpan), handler.ParentSpanId.ToHexString());
+        Assert.Equal(invokeAgentTraceId, child.TraceId.ToHexString());
+
+        string EchoTelemetryMarker(string value)
+        {
+            using var child = toolSource.StartActivity("tool work");
+            return value;
+        }
     }
 
     [Fact]

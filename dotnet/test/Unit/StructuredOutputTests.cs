@@ -750,8 +750,19 @@ public sealed partial class ClientSessionLifetimeTests
         await using var server = await FakeCopilotServer.StartAsync();
         await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
         await using var session = await client.CreateSessionAsync(new SessionConfig());
+        var sendReplied = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        server.AfterResponseAsync = (request, _) =>
+        {
+            if (request.Method == "session.send")
+            {
+                sendReplied.TrySetResult();
+            }
+            return Task.CompletedTask;
+        };
         var task = session.SendAndWaitAsync<StructuredAnswer>("Answer", StructuredOutputJsonContext.Default.Options);
-        await WaitForRequestAsync(server, "session.send");
+        // Request receipt precedes the acknowledgment write, which must finish before closing its stream.
+        await sendReplied.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.False(task.IsCompleted);
         if (disposeSession)
         {
             await session.DisposeAsync();

@@ -2,7 +2,10 @@ use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use sha2::Digest;
+#[path = "archive_hash.rs"]
+mod archive_hash;
+
+use archive_hash::sha256;
 
 #[path = "download.rs"]
 mod download;
@@ -151,7 +154,7 @@ fn extracted_install_dir(version: &str) -> PathBuf {
     if let Some(custom) = std::env::var_os("COPILOT_CLI_EXTRACT_DIR") {
         PathBuf::from(custom)
     } else {
-        let cache = dirs::cache_dir().unwrap_or_else(std::env::temp_dir);
+        let cache = crate::platform_dirs::cache_dir().unwrap_or_else(std::env::temp_dir);
         cache
             .join("github-copilot-sdk")
             .join("cli")
@@ -255,11 +258,11 @@ fn read_version_from_package_json(path: &Path) -> String {
 }
 
 fn fetch_release_hash(version: &str, asset_name: &str) -> String {
-    let url =
-        format!("https://github.com/github/copilot-cli/releases/download/v{version}/SHA256SUMS.txt");
+    let url = format!(
+        "https://github.com/github/copilot-cli/releases/download/v{version}/SHA256SUMS.txt"
+    );
     let checksums = download_with_retry(&url);
-    let checksums =
-        std::str::from_utf8(&checksums).expect("SHA256SUMS.txt is not valid UTF-8");
+    let checksums = std::str::from_utf8(&checksums).expect("SHA256SUMS.txt is not valid UTF-8");
     find_sha256_for_asset(checksums, asset_name)
 }
 
@@ -591,22 +594,7 @@ struct DownloadError {
 }
 
 fn try_download(url: &str) -> Result<Vec<u8>, DownloadError> {
-    native_tls::TlsConnector::new().map_err(|e| DownloadError {
-        message: format!("native-tls init error: {e}"),
-        transient: false,
-    })?;
-    let agent = ureq::Agent::config_builder()
-        .tls_config(
-            ureq::tls::TlsConfig::builder()
-                .provider(ureq::tls::TlsProvider::NativeTls)
-                .root_certs(ureq::tls::RootCerts::PlatformVerifier)
-                .build(),
-        )
-        .timeout_connect(Some(Duration::from_secs(30)))
-        .timeout_recv_response(Some(Duration::from_secs(120)))
-        .timeout_recv_body(Some(download::BODY_TIMEOUT))
-        .build()
-        .new_agent();
+    let agent = download::agent();
 
     match agent.get(url).call() {
         Ok(mut response) => {
@@ -626,12 +614,6 @@ fn try_download(url: &str) -> Result<Vec<u8>, DownloadError> {
             transient: download::is_transient(&error),
         }),
     }
-}
-
-fn sha256(data: &[u8]) -> [u8; 32] {
-    let mut hasher = sha2::Sha256::new();
-    hasher.update(data);
-    hasher.finalize().into()
 }
 
 /// Walks the downloaded archive at build time to confirm an entry matching

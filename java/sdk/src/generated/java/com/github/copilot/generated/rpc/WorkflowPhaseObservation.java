@@ -28,6 +28,7 @@ public record WorkflowPhaseObservation(
     /** Phase identifier. */
     @JsonProperty("id") String id,
     /** Zero-based declared phase ordinal, or null for an undeclared phase. */
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("ordinal") Long ordinal,
     /** Human-readable phase title. */
     @JsonProperty("title") String title,

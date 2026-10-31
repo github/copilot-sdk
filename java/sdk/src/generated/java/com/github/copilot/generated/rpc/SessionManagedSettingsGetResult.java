@@ -12,6 +12,8 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.github.copilot.CopilotExperimental;
 import com.github.copilot.generated.ManagedPermissionsContext;
+import com.github.copilot.generated.PolicyHelperCapabilities;
+import com.github.copilot.generated.PolicyHelperFailure;
 import java.util.List;
 import javax.annotation.processing.Generated;
 
@@ -38,6 +40,10 @@ public record SessionManagedSettingsGetResult(
     @JsonProperty("clientManaged") Boolean clientManaged,
     /** Whether the policy-helper managed-settings layer was present. The policy helper is the weakest channel: it fills keys no enterprise source set and can never replace one. */
     @JsonProperty("policyHelperManaged") Boolean policyHelperManaged,
+    /** The latest unresolved Policy Helper failure for this exact policy context. It remains present across retained-policy refresh failures and clears only after fresh success or authoritative removal. */
+    @JsonProperty("policyHelperFailure") PolicyHelperFailure policyHelperFailure,
+    /** Explicit Policy Helper structured-failure and recheck capabilities supported by this runtime. */
+    @JsonProperty("policyHelperCapabilities") PolicyHelperCapabilities policyHelperCapabilities,
     /** Whether managed policy could not be determined (e.g. a failed server fetch) and unresolved-policy safeguards remain active. This does not by itself disable bypass-permissions; `bypassPermissionsDisabled` reports only an explicit policy restriction. */
     @JsonProperty("failClosed") Boolean failClosed,
     /** Whether the effective sandbox policy forces the sandbox on *only* because managed policy could not be determined, rather than because the policy requires it. Lets clients tell a user whose `--no-sandbox` was overridden that the sandbox stayed on as a fail-closed fallback, instead of attributing it to an administrator who set no such policy. */

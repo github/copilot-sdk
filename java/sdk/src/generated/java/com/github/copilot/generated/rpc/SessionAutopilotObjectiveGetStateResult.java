@@ -25,6 +25,7 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionAutopilotObjectiveGetStateResult(
     /** Current objective state, or `null` when the session has no objective. */
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("state") AutopilotObjectiveState state
 ) {
 }

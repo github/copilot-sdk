@@ -82,7 +82,7 @@ class CLIPool {
         await spawnCLI(port, token);
 
         const client = new CopilotClient({
-            cliUrl: `localhost:${port}`,
+            connection: RuntimeConnection.forUri(`localhost:${port}`),
         });
 
         this.instances.set(userId, { client, port });
@@ -138,7 +138,7 @@ flowchart TB
 
 ```typescript
 const sharedClient = new CopilotClient({
-    cliUrl: "localhost:4321",
+    connection: RuntimeConnection.forUri("localhost:4321"),
 });
 
 // Enforce session isolation through naming conventions
@@ -155,7 +155,7 @@ async function resumeSessionWithAuth(
     if (sessionUserId !== currentUserId) {
         throw new Error("Access denied: session belongs to another user");
     }
-    return sharedClient.resumeSession(sessionId);
+    return sharedClient.resumeSession(sessionId, {});
 }
 ```
 
@@ -229,7 +229,7 @@ async function withSessionLock<T>(
 // Usage: serialize access to shared session
 app.post("/team-chat", authMiddleware, async (req, res) => {
     const result = await withSessionLock("team-project-review", async () => {
-        const session = await client.resumeSession("team-project-review");
+        const session = await client.resumeSession("team-project-review", {});
         return session.sendAndWait({ prompt: req.body.message });
     });
 
@@ -320,7 +320,7 @@ const lb = new CLILoadBalancer([
 
 app.post("/chat", async (req, res) => {
     const server = lb.getServerForUser(req.user.id);
-    const client = new CopilotClient({ cliUrl: server });
+    const client = new CopilotClient({ connection: RuntimeConnection.forUri(server) });
 
     const session = await client.createSession({
         sessionId: `user-${req.user.id}-chat`,
@@ -487,7 +487,7 @@ app.post("/api/chat/start", async (req, res) => {
 
 // Continue the conversation
 app.post("/api/chat/message", async (req, res) => {
-    const session = await client.resumeSession(req.body.sessionId);
+    const session = await client.resumeSession(req.body.sessionId, {});
     const response = await session.sendAndWait({ prompt: req.body.message });
 
     res.json({ content: response?.data.content });

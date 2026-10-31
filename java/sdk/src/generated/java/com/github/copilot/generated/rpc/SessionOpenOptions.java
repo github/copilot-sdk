@@ -99,11 +99,13 @@ public record SessionOpenOptions(
     @JsonProperty("includedBuiltinAgents") List<String> includedBuiltinAgents,
     /** Built-in subagent names to exclude from this session. Excluded built-ins are hidden from agent discovery and cannot be dispatched unless a custom agent with the same name is available. */
     @JsonProperty("excludedBuiltinAgents") List<String> excludedBuiltinAgents,
-    /** Whether shell-script safety heuristics are enabled. */
+    /** Deprecated and ignored. Shell command analysis is always enabled; retained for wire compatibility. */
+    @Deprecated
     @JsonProperty("enableScriptSafety") Boolean enableScriptSafety,
     /** Per-session settings for built-in shell tools. */
     @JsonProperty("shell") ShellOptions shell,
     /** Use shell.initProfile instead. Shell init profile. */
+    @Deprecated
     @JsonProperty("shellInitProfile") String shellInitProfile,
     /** PowerShell process flags applied to built-in and user-requested shell commands. */
     @JsonProperty("shellProcessFlags") List<String> shellProcessFlags,

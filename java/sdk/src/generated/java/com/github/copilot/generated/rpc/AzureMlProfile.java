@@ -42,6 +42,7 @@ public record AzureMlProfile(
     /** Whether the model supports tool calls. */
     @JsonProperty("supportsToolCalls") Boolean supportsToolCalls,
     /** Validated local runtime configuration. */
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("serveOptions") Object serveOptions,
     /** Published license, when available. */
     @JsonProperty("license") AzureMlLicense license

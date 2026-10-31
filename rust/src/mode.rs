@@ -4,7 +4,6 @@
 
 //! Client-level "empty" mode for minimal/safe defaults.
 //!
-//! See the plan in <https://github.com/github/copilot-agent-runtime/issues/7155>:
 //! [`ClientMode::Empty`] disables ambient CLI-style behavior by default so an
 //! app must explicitly opt back into features. This module exposes the public
 //! enum, the [`ToolSet`] builder for source-qualified tool filter patterns,
@@ -24,6 +23,9 @@ use crate::types::{MemoryConfiguration, SectionOverride, SystemMessageConfig};
 /// - [`ClientMode::Empty`]: disables optional features by default. The app
 ///   must explicitly opt into anything it needs. Required for any scenario
 ///   where CLI-like ambient behavior is unsafe (e.g. multi-user servers).
+///   See [`Client::list_models`](crate::Client::list_models) for how a client
+///   that authenticates only per session lists models, including the
+///   authentication used with SDK-owned runtimes and external servers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ClientMode {
     /// Defaults equivalent to Copilot CLI (the default).

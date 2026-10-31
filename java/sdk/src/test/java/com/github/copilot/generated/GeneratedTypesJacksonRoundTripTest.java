@@ -23,6 +23,7 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.github.copilot.generated.rpc.SandboxConfig;
 
 /**
  * Reflection-based Jackson round-trip test for all generated types in the
@@ -52,6 +53,26 @@ class GeneratedTypesJacksonRoundTripTest {
         mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         mapper.configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false);
         return mapper;
+    }
+
+    @Test
+    void sandboxConfigLegacyConstructorPreservesRoutingAndWireDefaults() throws IOException {
+        var config = new SandboxConfig(true, null, false, true, false, true, false, true, null, null, false);
+
+        assertEquals(true, config.enabled());
+        assertEquals(false, config.addCurrentWorkingDirectory());
+        assertEquals(true, config.sandboxMcpServers());
+        assertEquals(false, config.sandboxLspServers());
+        assertEquals(true, config.allowBypass());
+        assertEquals(false, config.managedMcpRoutingLocked());
+        assertEquals(true, config.managedLspRoutingLocked());
+        assertEquals(false, config.allowDevToolAccess());
+        assertNull(config.sandboxExtensions());
+        assertNull(config.managedExtensionsRoutingLocked());
+        var json = MAPPER.readTree(MAPPER.writeValueAsString(config));
+        assertFalse(json.has("sandboxExtensions"));
+        assertFalse(json.has("managedExtensionsRoutingLocked"));
+        assertEquals(config, MAPPER.treeToValue(json, SandboxConfig.class));
     }
 
     @Test

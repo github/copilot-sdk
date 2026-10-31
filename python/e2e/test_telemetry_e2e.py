@@ -155,7 +155,9 @@ class TestTelemetryExport:
         assert (
             _string_attribute(tool_span, "gen_ai.tool.call.arguments") == f'{{"value":"{marker}"}}'
         )
-        assert _string_attribute(tool_span, "gen_ai.tool.call.result") == marker
+        tool_result = _string_attribute(tool_span, "gen_ai.tool.call.result")
+        assert tool_result is not None
+        assert json.loads(tool_result) == {"content": marker}
 
     async def test_should_export_per_request_subagent_chat_spans(self, ctx: E2ETestContext):
         telemetry_path = Path(ctx.work_dir) / f"telemetry-{uuid.uuid4().hex}.jsonl"

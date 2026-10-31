@@ -382,9 +382,37 @@ async fn list_sessions_forwards_the_owning_host_and_returns_the_catalog() {
     let request = peer.request().await;
     assert_eq!(request["method"], "host.listSessions");
     assert_eq!(request["params"], json!({"hostId": host_id}));
-    peer.respond(&request, json!({"sessions": []})).await;
+    // Two summaries in catalog order, one without the optional activity and
+    // one with every status bit set, so dropped, reordered or misdecoded
+    // entries change the round trip below.
+    let catalog = json!({"sessions": [
+        {
+            "activity": "Running tests",
+            "createdAt": "2026-01-01T00:00:00Z",
+            "modifiedAt": "2026-01-02T00:00:00Z",
+            "resource": "ahp://host/sessions/b",
+            "status": 4_294_967_295_u64,
+            "title": "Second by name, first in the catalog",
+        },
+        {
+            "createdAt": "2026-01-03T00:00:00Z",
+            "modifiedAt": "2026-01-04T00:00:00Z",
+            "resource": "ahp://host/sessions/a",
+            "status": 1,
+            "title": "Dormant",
+        },
+    ]});
+    peer.respond(&request, catalog.clone()).await;
     let result = listing.await.unwrap().unwrap();
-    assert!(result.sessions.is_empty());
+    assert_eq!(result.sessions.len(), 2);
+    assert_eq!(result.sessions[0].resource, "ahp://host/sessions/b");
+    assert_eq!(
+        result.sessions[0].activity.as_deref(),
+        Some("Running tests")
+    );
+    assert_eq!(result.sessions[0].status, 4_294_967_295);
+    assert_eq!(result.sessions[1].activity, None);
+    assert_eq!(serde_json::to_value(&result).unwrap(), catalog);
 }
 
 #[tokio::test]
@@ -776,7 +804,13 @@ async fn callback_panic_does_not_break_other_callbacks_or_rpc() {
         local_options().with_on_exit({
             let calls = calls.clone();
             move |exit| {
-                gate.lock().unwrap().recv().unwrap();
+                // Bounded: were callbacks run inline on the test's
+                // current-thread runtime, an unbounded wait would stall every
+                // timeout below and hang the test instead of failing it.
+                gate.lock()
+                    .unwrap()
+                    .recv_timeout(Duration::from_secs(10))
+                    .expect("the test releases the first callback");
                 calls.fetch_add(1, Ordering::SeqCst);
                 first_tx.send(exit).unwrap();
                 // Exercise unwinding without blocking channel closure on panic-hook output.

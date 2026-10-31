@@ -22,6 +22,7 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 record UserSettingsMergeManagedAndUserResult(
     /** The merged settings. An empty object when neither layer was supplied, so an unmanaged host with no user settings governs nothing. */
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("settingsJson") Object settingsJson
 ) {
 }

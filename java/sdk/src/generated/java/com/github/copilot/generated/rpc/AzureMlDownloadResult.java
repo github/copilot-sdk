@@ -34,6 +34,7 @@ public record AzureMlDownloadResult(
     /** Whether all prior verified files were reused. */
     @JsonProperty("reused") Boolean reused,
     /** Validated local runtime settings. */
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("serveOptions") Object serveOptions,
     /** Maximum supported local concurrency. */
     @JsonProperty("maxConcurrent") Long maxConcurrent,

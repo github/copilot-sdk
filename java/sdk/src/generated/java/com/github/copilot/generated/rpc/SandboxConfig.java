@@ -35,12 +35,16 @@ public record SandboxConfig(
     @JsonProperty("sandboxMcpServers") Boolean sandboxMcpServers,
     /** Whether language servers the session launches are confined by the sandbox. Only an explicit `false` opts out. Ignored while `enabled` is false. Default: true (enabled by default; set to false to opt out). */
     @JsonProperty("sandboxLspServers") Boolean sandboxLspServers,
+    /** Whether extension processes the session launches are confined by the sandbox. Only an explicit `false` opts out. Ignored while `enabled` is false. Default: true (enabled by default; set to false to opt out). */
+    @JsonProperty("sandboxExtensions") Boolean sandboxExtensions,
     /** Whether the agent may request that an individual command run outside the sandbox, which the host then approves or denies through the usual permission flow. A host capability flag rather than part of the policy: it is stripped from the effective spawn policy and only has an effect while `enabled` is true. Fail-closed, unlike the opt-out flags on this object: omitting it offers no bypass. Default: false (opt-in). */
     @JsonProperty("allowBypass") Boolean allowBypass,
     /** Set by the runtime when a managed policy forced `sandboxMcpServers` on and took the local opt-out away. Provenance rather than policy: it lets a sandbox startup failure point at the administrator instead of a setting the next managed merge would override, and it is ignored when comparing two configs for change. Only the managed merge may set it; a caller-supplied value is stripped. */
     @JsonProperty("managedMcpRoutingLocked") Boolean managedMcpRoutingLocked,
     /** The `sandboxLspServers` counterpart of `managedMcpRoutingLocked`. */
     @JsonProperty("managedLspRoutingLocked") Boolean managedLspRoutingLocked,
+    /** The `sandboxExtensions` counterpart of `managedMcpRoutingLocked`. */
+    @JsonProperty("managedExtensionsRoutingLocked") Boolean managedExtensionsRoutingLocked,
     /** Credential-injection capability flags. */
     @JsonProperty("auth") SandboxConfigAuth auth,
     /** Opt-in whole-value environment masking for sandboxed shell, MCP, and LSP children. Configured names get random sentinels; the local proxy substitutes them only in HTTPS request headers at their injection hosts. Approved bypasses skip masking and the sandbox proxy, so bypassed shells may receive the real environment values. Disabled or explicitly opted-out routes are not protected. No credential values are stored in this configuration. */
@@ -48,4 +52,35 @@ public record SandboxConfig(
     /** Whether to auto-grant read access to tool directories discovered on PATH and in toolchain environment variables (GOROOT, JAVA_HOME, VIRTUAL_ENV, and similar), and to common developer-tool caches, config, and toolchains. Writable grants cover scratch caches, the Unix GitHub CLI cache, and Cargo's registry, git store, and lock/tracker files. A relocated CARGO_HOME gets the same narrow split: registry and git are read-write; bin is read-only; the home root, config.toml, and credentials.toml stay ungranted. Set to false to disable every grant listed above; user-installed toolchains and caches then need explicit userPolicy.filesystem readonlyPaths and readwritePaths entries. The working directory (see addCurrentWorkingDirectory), temporary storage, session log paths, and system locations follow their own rules and stay granted. Default: true (enabled by default; set to false to opt out). */
     @JsonProperty("allowDevToolAccess") Boolean allowDevToolAccess
 ) {
+
+    /**
+     * Creates sandbox configuration with default extension routing.
+     *
+     * @param enabled Whether sandboxing is enabled for the session.
+     * @param userPolicy User-managed sandbox policy fragment merged into the auto-discovered base policy.
+     * @param addCurrentWorkingDirectory Whether to auto-add the current working directory to readwritePaths. Default: true.
+     * @param sandboxMcpServers Whether MCP servers the session launches are confined by the sandbox. Only an explicit `false` opts out; doing so also lets remote-MCP egress leave the sandbox, so the flag and `enabled` are always read together. Ignored while `enabled` is false. Default: true (enabled by default; set to false to opt out).
+     * @param sandboxLspServers Whether language servers the session launches are confined by the sandbox. Only an explicit `false` opts out. Ignored while `enabled` is false. Default: true (enabled by default; set to false to opt out).
+     * @param allowBypass Whether the agent may request that an individual command run outside the sandbox, which the host then approves or denies through the usual permission flow. A host capability flag rather than part of the policy: it is stripped from the effective spawn policy and only has an effect while `enabled` is true. Fail-closed, unlike the opt-out flags on this object: omitting it offers no bypass. Default: false (opt-in).
+     * @param managedMcpRoutingLocked Set by the runtime when a managed policy forced `sandboxMcpServers` on and took the local opt-out away. Provenance rather than policy: it lets a sandbox startup failure point at the administrator instead of a setting the next managed merge would override, and it is ignored when comparing two configs for change. Only the managed merge may set it; a caller-supplied value is stripped.
+     * @param managedLspRoutingLocked The `sandboxLspServers` counterpart of `managedMcpRoutingLocked`.
+     * @param auth Credential-injection capability flags.
+     * @param credentials Opt-in whole-value environment masking for sandboxed shell, MCP, and LSP children. Configured names get random sentinels; the local proxy substitutes them only in HTTPS request headers at their injection hosts. Approved bypasses skip masking and the sandbox proxy, so bypassed shells may receive the real environment values. Disabled or explicitly opted-out routes are not protected. No credential values are stored in this configuration.
+     * @param allowDevToolAccess Whether to auto-grant read access to tool directories discovered on PATH and in toolchain environment variables (GOROOT, JAVA_HOME, VIRTUAL_ENV, and similar), and to common developer-tool caches, config, and toolchains. Writable grants cover scratch caches, the Unix GitHub CLI cache, and Cargo's registry, git store, and lock/tracker files. A relocated CARGO_HOME gets the same narrow split: registry and git are read-write; bin is read-only; the home root, config.toml, and credentials.toml stay ungranted. Set to false to disable every grant listed above; user-installed toolchains and caches then need explicit userPolicy.filesystem readonlyPaths and readwritePaths entries. The working directory (see addCurrentWorkingDirectory), temporary storage, session log paths, and system locations follow their own rules and stay granted. Default: true (enabled by default; set to false to opt out).
+     */
+    public SandboxConfig(
+        Boolean enabled,
+        SandboxConfigUserPolicy userPolicy,
+        Boolean addCurrentWorkingDirectory,
+        Boolean sandboxMcpServers,
+        Boolean sandboxLspServers,
+        Boolean allowBypass,
+        Boolean managedMcpRoutingLocked,
+        Boolean managedLspRoutingLocked,
+        SandboxConfigAuth auth,
+        SandboxCredentialsConfig credentials,
+        Boolean allowDevToolAccess
+    ) {
+        this(enabled, userPolicy, addCurrentWorkingDirectory, sandboxMcpServers, sandboxLspServers, null, allowBypass, managedMcpRoutingLocked, managedLspRoutingLocked, null, auth, credentials, allowDevToolAccess);
+    }
 }

@@ -22,8 +22,10 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record UsageMetricsProviderModelMetric(
     /** Provider identity and product label captured when the call was dispatched; null when unknown. */
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("provider") ModelProviderRef provider,
     /** Model identity, or null for legacy aggregate-only usage. */
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("modelId") String modelId,
     /** Model display name captured at call time, when known. */
     @JsonProperty("modelDisplayName") String modelDisplayName,

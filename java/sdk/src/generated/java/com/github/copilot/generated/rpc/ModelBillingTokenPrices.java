@@ -26,6 +26,7 @@ public record ModelBillingTokenPrices(
     /** Cost per billing batch of output tokens. The unit is reported by models.listTokenPriceUnits. */
     @JsonProperty("outputPrice") Double outputPrice,
     /** Use cacheReadPrice when available. Cost per billing batch of cached tokens in the unit reported by models.listTokenPriceUnits. */
+    @Deprecated
     @JsonProperty("cachePrice") Double cachePrice,
     /** AI Credits cost per billing batch of cached (read) tokens */
     @JsonProperty("cacheReadPrice") Double cacheReadPrice,
@@ -36,6 +37,7 @@ public record ModelBillingTokenPrices(
     /** Number of tokens per standard billing batch */
     @JsonProperty("batchSize") Long batchSize,
     /** Use maxPromptTokens instead. Prompt token budget for the default tier. The total context window is this value plus the model's max_output_tokens. */
+    @Deprecated
     @JsonProperty("contextMax") Long contextMax,
     /** Prompt token budget for the default tier. The total context window is this value plus the model's max_output_tokens. */
     @JsonProperty("maxPromptTokens") Long maxPromptTokens,

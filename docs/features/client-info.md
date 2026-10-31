@@ -1,6 +1,6 @@
 # Client info
 
-Client info identifies the application using the Copilot SDK and, when applicable, a specific integration within it. An integration is an identifiable sub-part of the application through which the SDK is used, such as an extension or plugin. Set the optional `clientInfo` client option to attribute runtime telemetry for that connection to your application instead of the runtime's own build.
+Client info attributes runtime telemetry to your application and integration. Valid application names and versions also set `Editor-Version` on CAPI requests, even with telemetry disabled. `vscode-agent-host` uses `vscode/<version>` for CAPI audiences. Integration fields identify an extension or plugin for telemetry; they do not replace `Copilot-Integration-Id`. Omit application identity to retain the runtime's default CAPI identity.
 
 ## When to set client info
 
@@ -19,7 +19,7 @@ Client info has four optional string fields. Set the fields you know and omit th
 
 For a standalone application without a distinct integration, set only the application fields. For example, a developer portal could set `applicationName` to `"acme-developer-portal"` and `applicationVersion` to `"2.4.0"`, leaving both integration fields unset.
 
-The SDK sends client info once when it establishes the connection. The identity applies for the lifetime of that connection.
+The SDK sends client info once when it establishes the connection. A successful host resume refreshes the session's CAPI editor identity, including when the runtime survives an application update. Extension attachments and clients without a valid application identity do not replace it. Sessions shared by hosts with different versions use the latest successfully resumed host's identity.
 
 ## Configure client info
 

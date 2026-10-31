@@ -15,7 +15,9 @@ use http::{HeaderMap, HeaderValue};
 use parking_lot::Mutex;
 use serde_json::{Value, json};
 
-use super::support::{DEFAULT_TEST_TOKEN, E2eContext, with_e2e_context_no_snapshot};
+use super::support::{
+    DEFAULT_TEST_TOKEN, E2eContext, capi_meta_body, with_e2e_context_no_snapshot,
+};
 
 static E2E: super::support::SharedE2eGroup =
     super::support::SharedE2eGroup::standard("session_config", 4);
@@ -408,42 +410,45 @@ fn anthropic_message_stream_body(text: &str) -> String {
 
 fn synth_non_inference_response(url: &str) -> CopilotHttpResponse {
     let lower = url.to_lowercase();
+    if lower.ends_with("/meta") {
+        return http_response(200, json_headers(), capi_meta_body(model_catalog()));
+    }
     if lower.ends_with("/models") {
-        return http_response(
-            200,
-            json_headers(),
-            json!({
-                "data": [{
-                    "id": "claude-sonnet-5",
-                    "name": "Claude Sonnet 5",
-                    "object": "model",
-                    "vendor": "Anthropic",
-                    "version": "1",
-                    "preview": false,
-                    "model_picker_enabled": true,
-                    "capabilities": {
-                        "type": "chat",
-                        "family": "claude-sonnet-5",
-                        "tokenizer": "o200k_base",
-                        "limits": {
-                            "max_context_window_tokens": 200000,
-                            "max_output_tokens": 8192,
-                        },
-                        "supports": {
-                            "streaming": true,
-                            "tool_calls": true,
-                            "parallel_tool_calls": true,
-                            "vision": true,
-                        },
-                    },
-                }],
-            }),
-        );
+        return http_response(200, json_headers(), model_catalog());
     }
     if lower.contains("/policy") {
         return http_response(200, json_headers(), json!({ "state": "enabled" }));
     }
     http_response(200, json_headers(), json!({}))
+}
+
+fn model_catalog() -> Value {
+    json!({
+        "data": [{
+            "id": "claude-sonnet-5",
+            "name": "Claude Sonnet 5",
+            "object": "model",
+            "vendor": "Anthropic",
+            "version": "1",
+            "preview": false,
+            "model_picker_enabled": true,
+            "capabilities": {
+                "type": "chat",
+                "family": "claude-sonnet-5",
+                "tokenizer": "o200k_base",
+                "limits": {
+                    "max_context_window_tokens": 200000,
+                    "max_output_tokens": 8192,
+                },
+                "supports": {
+                    "streaming": true,
+                    "tool_calls": true,
+                    "parallel_tool_calls": true,
+                    "vision": true,
+                },
+            },
+        }],
+    })
 }
 
 fn synth_inference_response(url: &str, body: &[u8]) -> CopilotHttpResponse {

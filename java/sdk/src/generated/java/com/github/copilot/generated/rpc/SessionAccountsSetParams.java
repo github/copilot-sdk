@@ -27,6 +27,6 @@ public record SessionAccountsSetParams(
     /** Target session identifier */
     @JsonProperty("sessionId") String sessionId,
     /** The non-interactive mutation command to apply. */
-    @JsonProperty("command") Object command
+    @JsonProperty("command") AuthWrite command
 ) {
 }

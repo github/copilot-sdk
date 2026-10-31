@@ -21,9 +21,13 @@ public final class ServerToolsApi {
 
     private final RpcCaller caller;
 
+    /** API methods for the {@code tools.largeOutput} sub-namespace. */
+    final ServerToolsLargeOutputApi largeOutput;
+
     /** @param caller the RPC transport function */
     ServerToolsApi(RpcCaller caller) {
         this.caller = caller;
+        this.largeOutput = new ServerToolsLargeOutputApi(caller);
     }
 
     /**

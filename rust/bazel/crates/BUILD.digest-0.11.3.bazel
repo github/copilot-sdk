@@ -41,6 +41,7 @@ rust_library(
         "alloc",
         "block-api",
         "default",
+        "mac",
         "oid",
     ],
     crate_root = "src/lib.rs",
@@ -72,5 +73,6 @@ rust_library(
         "@sdk_vendor__block-buffer-0.12.1//:block_buffer",
         "@sdk_vendor__const-oid-0.10.2//:const_oid",
         "@sdk_vendor__crypto-common-0.2.2//:crypto_common",
+        "@sdk_vendor__ctutils-0.4.7//:ctutils",
     ],
 )

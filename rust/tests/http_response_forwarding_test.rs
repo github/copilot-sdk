@@ -698,6 +698,172 @@ async fn panicking_source_is_an_error_not_successful_eof() {
     peer.stop().await;
 }
 
+struct PanickingHandler;
+
+#[async_trait]
+impl CopilotRequestHandler for PanickingHandler {
+    async fn send_request(
+        &self,
+        _request: CopilotHttpRequest,
+        _context: &CopilotRequestContext,
+    ) -> Result<CopilotHttpResponse, CopilotRequestError> {
+        panic!("failed handler");
+    }
+
+    async fn open_websocket(
+        &self,
+        _context: &CopilotRequestContext,
+        _response: CopilotWebSocketResponse,
+    ) -> Result<Box<dyn CopilotWebSocketHandler>, CopilotRequestError> {
+        panic!("failed handler");
+    }
+}
+
+async fn expect_error_end(peer: &mut Peer, request_id: &str, message: &str) {
+    let end = peer.next().await;
+    assert_eq!(end["method"], "llmInference.httpResponseChunk");
+    assert_eq!(end["params"]["requestId"], request_id);
+    assert_eq!(end["params"]["end"], true);
+    assert_eq!(end["params"]["error"]["message"], message);
+    peer.ack(&end).await;
+}
+
+#[tokio::test]
+async fn panicking_handler_fails_the_request_like_an_error() {
+    let mut peer = Peer::start(PanickingHandler).await;
+    // A second request proves one panic does not wedge later traffic.
+    for request_id in ["first", "second"] {
+        begin_metadata_request(&mut peer, request_id, None, false).await;
+        peer.request_chunk(json!({"requestId": request_id, "data": "", "end": true}))
+            .await;
+        let head = peer.next().await;
+        assert_eq!(head["method"], "llmInference.httpResponseStart");
+        assert_eq!(head["params"]["requestId"], request_id);
+        assert_eq!(head["params"]["status"], 502);
+        peer.ack(&head).await;
+        expect_error_end(&mut peer, request_id, "CopilotRequestHandler panicked").await;
+    }
+
+    begin_metadata_request(&mut peer, "socket", None, true).await;
+    let head = peer.next().await;
+    assert_eq!(head["params"]["status"], 101);
+    peer.ack(&head).await;
+    expect_error_end(&mut peer, "socket", "CopilotRequestHandler panicked").await;
+    peer.stop().await;
+}
+
+struct PanickingSocketHandler(mpsc::UnboundedSender<()>);
+
+#[async_trait]
+impl CopilotRequestHandler for PanickingSocketHandler {
+    async fn open_websocket(
+        &self,
+        _context: &CopilotRequestContext,
+        response: CopilotWebSocketResponse,
+    ) -> Result<Box<dyn CopilotWebSocketHandler>, CopilotRequestError> {
+        Ok(Box::new(PanickingSocket {
+            closed: self.0.clone(),
+            response,
+        }))
+    }
+}
+
+struct PanickingSocket {
+    closed: mpsc::UnboundedSender<()>,
+    response: CopilotWebSocketResponse,
+}
+
+#[async_trait]
+impl CopilotWebSocketHandler for PanickingSocket {
+    async fn send_request_message(
+        &self,
+        _message: CopilotWebSocketMessage,
+    ) -> Result<(), CopilotRequestError> {
+        panic!("failed socket");
+    }
+
+    async fn close(&self) -> Result<(), CopilotRequestError> {
+        // Model the forwarder's reader committing EOF during socket cleanup.
+        self.response.close().await?;
+        self.closed.send(()).unwrap();
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn panicking_websocket_handler_fails_the_request_and_is_still_closed() {
+    let (closed, mut close_calls) = mpsc::unbounded_channel();
+    let mut peer = Peer::start(PanickingSocketHandler(closed)).await;
+    begin_metadata_request(&mut peer, "socket", None, true).await;
+    let head = peer.next().await;
+    assert_eq!(head["params"]["status"], 101);
+    peer.ack(&head).await;
+    peer.request_chunk(json!({"requestId": "socket", "data": "message"}))
+        .await;
+    expect_error_end(&mut peer, "socket", "CopilotWebSocketHandler panicked").await;
+    timeout(DEADLINE, close_calls.recv())
+        .await
+        .unwrap()
+        .unwrap();
+    peer.stop().await;
+}
+
+struct PanickingResponseHookHandler(String);
+
+#[async_trait]
+impl CopilotRequestHandler for PanickingResponseHookHandler {
+    async fn open_websocket(
+        &self,
+        _context: &CopilotRequestContext,
+        response: CopilotWebSocketResponse,
+    ) -> Result<Box<dyn CopilotWebSocketHandler>, CopilotRequestError> {
+        let forwarder = CopilotWebSocketForwarder::builder(self.0.clone(), HeaderMap::new())
+            .on_send_response_message(Arc::new(|_| panic!("failed hook")))
+            .connect(response)
+            .await?;
+        Ok(Box::new(forwarder))
+    }
+}
+
+#[tokio::test]
+async fn panicking_forwarder_response_hook_fails_the_response() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("ws://{}", listener.local_addr().unwrap());
+    let upstream = tokio::spawn(async move {
+        let (socket, _) = listener.accept().await.unwrap();
+        let mut socket = tokio_tungstenite::accept_async(socket).await.unwrap();
+        socket
+            .send(tokio_tungstenite::tungstenite::Message::Text(
+                "reply".into(),
+            ))
+            .await
+            .unwrap();
+        while let Some(message) = socket.next().await {
+            if matches!(
+                message.unwrap(),
+                tokio_tungstenite::tungstenite::Message::Close(_)
+            ) {
+                return;
+            }
+        }
+        panic!("upstream ended without close")
+    });
+    let mut peer = Peer::start(PanickingResponseHookHandler(url)).await;
+    begin_metadata_request(&mut peer, "socket", None, true).await;
+    let head = peer.next().await;
+    assert_eq!(head["params"]["status"], 101);
+    peer.ack(&head).await;
+    expect_error_end(
+        &mut peer,
+        "socket",
+        "on_send_response_message hook panicked",
+    )
+    .await;
+    // A terminal response error prevents the runtime from sending another frame.
+    timeout(DEADLINE, upstream).await.unwrap().unwrap();
+    peer.stop().await;
+}
+
 #[tokio::test]
 async fn always_ready_source_does_not_starve_ack_or_cancellation() {
     let body = stream::repeat_with(|| Ok(Bytes::from_static(b"x")));

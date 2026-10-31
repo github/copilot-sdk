@@ -3,7 +3,7 @@
 """
 SDK Protocol Version for the Copilot SDK.
 
-This must match the version expected by the copilot-agent-runtime server.
+This must match the version expected by the Copilot runtime server.
 """
 
 SDK_PROTOCOL_VERSION = 3

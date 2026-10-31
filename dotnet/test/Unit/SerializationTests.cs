@@ -18,6 +18,86 @@ namespace GitHub.Copilot.Test.Unit;
 /// </summary>
 public class SerializationTests
 {
+    [Fact]
+    public void AuthenticatedAuthorityUpdate_SerializesNullGrant()
+    {
+        var options = GetSerializerOptions();
+        var json = JsonSerializer.Serialize(
+            new AuthenticatedAuthorityUpdate { Revision = 2, Source = "host.source-a", Grant = null },
+            options);
+        using var document = JsonDocument.Parse(json);
+
+        Assert.Equal(2, document.RootElement.GetProperty("revision").GetInt64());
+        Assert.Equal("host.source-a", document.RootElement.GetProperty("source").GetString());
+        Assert.True(document.RootElement.TryGetProperty("grant", out var grant));
+        Assert.Equal(JsonValueKind.Null, grant.ValueKind);
+    }
+
+    [Theory]
+    [InlineData("copilot", "copilot", "GitHub Copilot")]
+    [InlineData("loki:opaque", "loki", "Microsoft 365 Copilot")]
+    public void ModelInfo_PreservesNativeProvider(string id, string kind, string label)
+    {
+        var provider = $$"""{"id":"{{id}}","kind":"{{kind}}","label":"{{label}}"}""";
+        var model = JsonSerializer.Deserialize<ModelInfo>(
+            "{\"id\":\"shared-model\",\"name\":\"Shared Model\",\"capabilities\":{},\"provider\":" + provider + "}",
+            GetSerializerOptions())!;
+
+        Assert.Equal(id, model.Provider!.Id);
+        using var encoded = JsonDocument.Parse(JsonSerializer.Serialize(model, GetSerializerOptions()));
+        var roundTripped = encoded.RootElement.GetProperty("provider");
+        Assert.Equal(
+            (id, kind, label),
+            (roundTripped.GetProperty("id").GetString(), roundTripped.GetProperty("kind").GetString(), roundTripped.GetProperty("label").GetString()));
+    }
+
+    [Fact]
+    public void ModelInfo_OmitsUnattributedProvider()
+    {
+        var model = JsonSerializer.Deserialize<ModelInfo>(
+            "{\"id\":\"configured/model\",\"name\":\"Configured Model\",\"capabilities\":{}}",
+            GetSerializerOptions())!;
+        using var encoded = JsonDocument.Parse(JsonSerializer.Serialize(model, GetSerializerOptions()));
+        Assert.Null(model.Provider);
+        Assert.False(encoded.RootElement.TryGetProperty("provider", out _));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("pending")]
+    [InlineData("enabled")]
+    [InlineData("disabled")]
+    public void GetStatusResponse_Preserves_Optional_HostDiagnostics(string? errorReporting)
+    {
+        var options = GetSerializerOptions();
+        var json = errorReporting is null
+            ? """{"version":"1.2.3","protocolVersion":2}"""
+            : $$"""
+                {
+                    "version": "1.2.3",
+                    "protocolVersion": 2,
+                    "hostDiagnostics": { "errorReporting": "{{errorReporting}}" }
+                }
+                """;
+
+        var response = JsonSerializer.Deserialize<GetStatusResponse>(json, options);
+
+        Assert.NotNull(response);
+        Assert.Equal("1.2.3", response.Version);
+        Assert.Equal(2, response.ProtocolVersion);
+        using var roundTrip = JsonDocument.Parse(JsonSerializer.Serialize(response, options));
+        if (errorReporting is null)
+        {
+            Assert.Null(response.HostDiagnostics);
+            Assert.False(roundTrip.RootElement.TryGetProperty("hostDiagnostics", out _));
+        }
+        else
+        {
+            Assert.IsType<HostDiagnostics>(response.HostDiagnostics);
+            Assert.Equal(errorReporting, roundTrip.RootElement.GetProperty("hostDiagnostics").GetProperty("errorReporting").GetString());
+        }
+    }
+
     public static IEnumerable<object?[]> MessageSources =>
     [
         new object?[] { null, null },

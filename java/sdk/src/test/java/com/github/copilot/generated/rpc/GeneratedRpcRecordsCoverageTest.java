@@ -21,6 +21,10 @@ import org.junit.jupiter.params.provider.MethodSource;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.copilot.AllowCopilotExperimental;
 import com.github.copilot.TestUtil;
+import com.github.copilot.generated.PolicyHelperCapabilities;
+import com.github.copilot.generated.PolicyHelperFailure;
+import com.github.copilot.generated.PolicyHelperFailureDetail;
+import com.github.copilot.generated.PolicyHelperHelpLink;
 import com.github.copilot.generated.SessionManagedSettingsResolvedEvent.SessionManagedSettingsResolvedEventData;
 
 /**
@@ -29,6 +33,64 @@ import com.github.copilot.generated.SessionManagedSettingsResolvedEvent.SessionM
  * of the generated code without requiring network access.
  */
 class GeneratedRpcRecordsCoverageTest {
+
+    @Test
+    void ignoredScriptSafetyAccessorsAreDeprecated() throws Exception {
+        for (var recordType : List.of(SessionOpenOptions.class, SessionOptionsUpdateParams.class)) {
+            assertTrue(recordType.getMethod("enableScriptSafety").isAnnotationPresent(Deprecated.class),
+                    () -> recordType.getSimpleName() + ".enableScriptSafety must be deprecated");
+            assertFalse(recordType.getMethod("shell").isAnnotationPresent(Deprecated.class),
+                    () -> recordType.getSimpleName() + ".shell must remain supported");
+        }
+    }
+
+    @Test
+    @AllowCopilotExperimental
+    void policyHelper_snapshots_and_events_share_dto_types() throws Exception {
+        var mapper = new ObjectMapper();
+        var json = mapper.readTree("""
+                {"policyHelperFailure":{"category":"helper-reported","failureMode":"ignore",
+                "severity":"warning","reason":"sessionStart","previousPolicyRetained":false,
+                "message":"Invalid configuration","details":[{"path":"setting","message":"Invalid value"}],
+                "helpLink":{"url":"https://example.com/help"}},
+                "policyHelperCapabilities":{"structuredFailure":true,"recheck":true}}
+                """);
+        var event = mapper.treeToValue(json, SessionManagedSettingsResolvedEventData.class);
+        var snapshot = mapper.treeToValue(json, ManagedSettingsResolvedData.class);
+        var get = mapper.treeToValue(json, SessionManagedSettingsGetResult.class);
+        var recheck = mapper.treeToValue(json, SessionManagedSettingsGetResult.class);
+        List<PolicyHelperFailure> failures = List.of(event.policyHelperFailure(), snapshot.policyHelperFailure(),
+                get.policyHelperFailure(), recheck.policyHelperFailure());
+        List<PolicyHelperCapabilities> capabilities = List.of(event.policyHelperCapabilities(),
+                snapshot.policyHelperCapabilities(), get.policyHelperCapabilities(),
+                recheck.policyHelperCapabilities());
+        for (PolicyHelperFailure failure : failures) {
+            assertEquals(event.policyHelperFailure(), failure);
+            PolicyHelperFailureDetail detail = failure.details().get(0);
+            PolicyHelperHelpLink link = failure.helpLink();
+            assertEquals("setting", detail.path());
+            assertEquals("https://example.com/help", link.url());
+        }
+        for (PolicyHelperCapabilities capability : capabilities) {
+            assertEquals(event.policyHelperCapabilities(), capability);
+        }
+    }
+
+    @Test
+    @AllowCopilotExperimental
+    void managedSettingsResolve_preserves_legacy_constructors() throws Exception {
+        var params = new ManagedSettingsResolveParams("account", null, "app", "/workspace");
+        assertEquals("account", params.selectionId());
+        assertEquals("app", params.clientName());
+        assertEquals("/workspace", params.workingDirectory());
+        var mapper = new ObjectMapper();
+        var json = mapper.valueToTree(params);
+        assertEquals("/workspace", json.get("workingDirectory").asText());
+        assertFalse(json.has("policyHelperReason"));
+        assertEquals(params, mapper.treeToValue(json, ManagedSettingsResolveParams.class));
+        var withoutDirectory = new ManagedSettingsResolveParams("account", null, "app");
+        assertNull(withoutDirectory.workingDirectory());
+    }
 
     @Test
     @AllowCopilotExperimental
@@ -52,6 +114,22 @@ class GeneratedRpcRecordsCoverageTest {
     }
 
     // ── Params records ─────────────────────────────────────────────────────
+
+    @Test
+    @AllowCopilotExperimental
+    void sessionEventLogRead_preserves_legacy_constructor_and_wire_fields() throws Exception {
+        var mapper = new ObjectMapper();
+        var params = new SessionEventLogReadParams("session", "cursor", 100L, 1234L, List.of("user.message"),
+                EventsAgentScope.PRIMARY, List.of("agent"), EventsReadDirection.BACKWARD, false);
+        var expected = mapper.readTree("""
+                {"sessionId":"session","cursor":"cursor","max":100,"waitMs":1234,
+                 "types":["user.message"],"agentScope":"primary","agentIds":["agent"],
+                 "direction":"backward","includeEphemeral":false}
+                """);
+
+        assertEquals(expected, mapper.readTree(mapper.writeValueAsString(params)));
+        assertEquals(params, mapper.treeToValue(expected, SessionEventLogReadParams.class));
+    }
 
     @Test
     void pingParams_record() {
@@ -984,14 +1062,34 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionSkillsListResult_nested() {
-        var item = new Skill("deploy", "deploy", "Deploy the app", SkillSource.PROJECT, true, true, "/skills/deploy.md",
-                null, null);
+        var item = new Skill("deploy", null, "deploy", "Deploy the app", SkillSource.PROJECT, null, true, true,
+                "/skills/deploy.md", null, null);
         var result = new SessionSkillsListResult(List.of(item));
         assertEquals(1, result.skills().size());
         assertEquals("deploy", result.skills().get(0).name());
+        assertNull(result.skills().get(0).declaredName());
         assertEquals("deploy", result.skills().get(0).commandName());
         assertEquals(SkillSource.PROJECT, result.skills().get(0).source());
+        assertNull(result.skills().get(0).mcpOrigin());
         assertTrue(result.skills().get(0).enabled());
+    }
+
+    @Test
+    void sessionSkillsListResult_mcp_identity() throws Exception {
+        var origin = new McpSkillOrigin("deployment", "skills://deployment/SKILL.md");
+        var item = new Skill("mcp1:qualified", "deploy", "mcp1:qualified", "Deploy the app", SkillSource.MCP, origin,
+                true, true, null, null, null);
+        var mapper = new ObjectMapper();
+        var result = new SessionSkillsListResult(List.of(item));
+        var json = mapper.valueToTree(result);
+        assertEquals("mcp1:qualified", json.get("skills").get(0).get("name").asText());
+        assertEquals("deploy", json.get("skills").get(0).get("declaredName").asText());
+        assertEquals("mcp1:qualified", json.get("skills").get(0).get("commandName").asText());
+        assertEquals("mcp", json.get("skills").get(0).get("source").asText());
+        assertEquals("deployment", json.get("skills").get(0).get("mcpOrigin").get("serverName").asText());
+        assertEquals("skills://deployment/SKILL.md", json.get("skills").get(0).get("mcpOrigin").get("uri").asText());
+        assertFalse(json.get("skills").get(0).has("path"));
+        assertEquals(result, mapper.treeToValue(json, SessionSkillsListResult.class));
     }
 
     @Test

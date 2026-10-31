@@ -31,6 +31,17 @@ public final class SessionExtensionsApi {
     }
 
     /**
+     * Returns the runtime-derived standalone extension admission policy for the session's actual project and managed-settings context. enforcementVersion 1 means this runtime enforces strictPluginOnlyCustomization for executable extensions. Hosts executing independent extension targets must deny standalone targets unless standalone is allowed; plugin_only requires runtime-verified eligible plugin provenance, not a caller-supplied source label or transport bridge. pending is not confirmed absence. Older runtimes return method-not-found and must not be represented as enforcing this restriction. Re-read on managed-settings changes; a snapshot is not a launch authorization token.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionExtensionsGetPolicyResult> getPolicy() {
+        return caller.invoke("session.extensions.getPolicy", java.util.Map.of("sessionId", this.sessionId), SessionExtensionsGetPolicyResult.class);
+    }
+
+    /**
      * Lists extensions discovered for the session and their current status.
      *
      * @apiNote This method is experimental and may change in a future version.

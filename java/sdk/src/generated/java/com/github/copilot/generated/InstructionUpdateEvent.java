@@ -45,7 +45,9 @@ public final class InstructionUpdateEvent extends SessionEvent {
         /** Deterministic behavior when the active provider cannot represent the update. */
         @JsonProperty("fallback") InstructionUpdateFallback fallback,
         /** Optional stable source name for diagnostics and future host-authored updates. */
-        @JsonProperty("name") String name
+        @JsonProperty("name") String name,
+        /** Whether this update was recorded after the conversation's initial user message. */
+        @JsonProperty("postInitial") Boolean postInitial
     ) {
     }
 }

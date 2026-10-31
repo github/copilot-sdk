@@ -41,6 +41,8 @@ public final class ToolExecutionStartEvent extends SessionEvent {
         @JsonProperty("toolName") String toolName,
         /** Human-readable display title for the tool, when the selected tool descriptor has a non-empty title. */
         @JsonProperty("toolTitle") String toolTitle,
+        /** Whether the selected tool descriptor explicitly classifies this call as read-only. */
+        @JsonProperty("readOnly") Boolean readOnly,
         /** Arguments passed to the tool */
         @JsonProperty("arguments") Object arguments,
         /** Shell-tool path hints derived from the command at start time for shell tools (bash/powershell/local_shell). Produced by the same shell-aware extractor as PermissionRequestShell.possiblePaths, so it is present even when the command is auto-approved and no permission request fires. Absent for non-shell tools. */
@@ -49,9 +51,9 @@ public final class ToolExecutionStartEvent extends SessionEvent {
         @JsonProperty("model") String model,
         /** Per-request treatment/eligibility signal returned by the Copilot API in the `X-GitHub-Copilot-Request-TE` response header for the associated model call; `false` when the header was absent or unparseable. */
         @JsonProperty("rte") Boolean rte,
-        /** Name of the MCP server hosting this tool, when the tool is an MCP tool */
+        /** Configured key of the MCP server hosting this tool. Legacy events may contain the display name instead; prefer mcpConfigServerName for their identity when available. */
         @JsonProperty("mcpServerName") String mcpServerName,
-        /** Preferred lookup name for the MCP server hosting this tool: the configured (namespaced) config-map key when the tool carries one, otherwise the display name from `mcpServerName`. Present when the tool is an MCP tool; this is the name unrestricted provenance telemetry hashes so it joins with `mcp_server_setup`, which keys off the configured name too. */
+        /** Configured MCP server key, retained for compatibility. New events write the same value as mcpServerName; on legacy events this field distinguishes the configured key from the display name in mcpServerName. Unrestricted provenance telemetry hashes this key to join with mcp_server_setup. */
         @JsonProperty("mcpConfigServerName") String mcpConfigServerName,
         /** Original tool name on the MCP server, when the tool is an MCP tool */
         @JsonProperty("mcpToolName") String mcpToolName,
@@ -69,7 +71,34 @@ public final class ToolExecutionStartEvent extends SessionEvent {
         @JsonProperty("parentToolCallId") String parentToolCallId,
         /** Experimental HydraFusion attribution for this tool execution. */
         @CopilotExperimental
-        @JsonProperty("fusion") FusionAttribution fusion
+        @JsonProperty("fusion") FusionAttribution fusion,
+        /** Explicitly configured MCP server display name. */
+        @JsonProperty("mcpServerDisplayName") String mcpServerDisplayName
     ) {
+
+        /**
+         * Creates event data with the components it had before later optional fields were added.
+         */
+        public ToolExecutionStartEventData(
+            String toolCallId,
+            String toolName,
+            String toolTitle,
+            Object arguments,
+            ToolExecutionStartShellToolInfo shellToolInfo,
+            String model,
+            Boolean rte,
+            String mcpServerName,
+            String mcpConfigServerName,
+            String mcpToolName,
+            McpServerTransport mcpTransport,
+            McpServerSource mcpConfigSource,
+            String turnId,
+            Boolean displayVerbatim,
+            ToolExecutionStartToolDescription toolDescription,
+            String parentToolCallId,
+            FusionAttribution fusion
+        ) {
+            this(toolCallId, toolName, toolTitle, null, arguments, shellToolInfo, model, rte, mcpServerName, mcpConfigServerName, mcpToolName, mcpTransport, mcpConfigSource, turnId, displayVerbatim, toolDescription, parentToolCallId, fusion, null);
+        }
     }
 }

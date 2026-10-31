@@ -90,6 +90,7 @@ from .generated.rpc import (
 from .generated.rpc import ModelCapabilitiesOverride as _RpcModelCapabilitiesOverride
 from .generated.session_events import (
     AssistantMessageData,
+    AssistedApprovalAssessment,
     CapabilitiesChangedData,
     CommandExecuteData,
     ElicitationRequestedData,
@@ -151,6 +152,8 @@ class ModelVisionLimitsOverride:
 
 @dataclass
 class ModelLimitsOverride:
+    """Per-field overrides; the context window does not replace a separate prompt limit."""
+
     max_prompt_tokens: int | None = None
     max_output_tokens: int | None = None
     max_context_window_tokens: int | None = None
@@ -182,19 +185,19 @@ def _capabilities_to_dict(caps: ModelCapabilitiesOverride) -> dict:
     if caps.limits is not None:
         lim: dict = {}
         if caps.limits.max_prompt_tokens is not None:
-            lim["maxPromptTokens"] = caps.limits.max_prompt_tokens
+            lim["max_prompt_tokens"] = caps.limits.max_prompt_tokens
         if caps.limits.max_output_tokens is not None:
-            lim["maxOutputTokens"] = caps.limits.max_output_tokens
+            lim["max_output_tokens"] = caps.limits.max_output_tokens
         if caps.limits.max_context_window_tokens is not None:
-            lim["maxContextWindowTokens"] = caps.limits.max_context_window_tokens
+            lim["max_context_window_tokens"] = caps.limits.max_context_window_tokens
         if caps.limits.vision is not None:
             v: dict = {}
             if caps.limits.vision.supported_media_types is not None:
-                v["supportedMediaTypes"] = caps.limits.vision.supported_media_types
+                v["supported_media_types"] = caps.limits.vision.supported_media_types
             if caps.limits.vision.max_prompt_images is not None:
-                v["maxPromptImages"] = caps.limits.vision.max_prompt_images
+                v["max_prompt_images"] = caps.limits.vision.max_prompt_images
             if caps.limits.vision.max_prompt_image_size is not None:
-                v["maxPromptImageSize"] = caps.limits.vision.max_prompt_image_size
+                v["max_prompt_image_size"] = caps.limits.vision.max_prompt_image_size
             if v:
                 lim["vision"] = v
         if lim:
@@ -285,6 +288,7 @@ def _consume_task_exception(task: asyncio.Task[Any]) -> None:
 class SessionFsCapabilities(TypedDict, total=False):
     sqlite: bool
     binary: bool
+    read_file_range: bool
 
 
 class SessionFsConfig(TypedDict):
@@ -553,6 +557,7 @@ def create_attributed_permission_result(
 class PermissionInvocation(TypedDict, total=False):
     session_id: Required[str]
     managed_settings_enabled: NotRequired[bool]
+    assisted_approval_assessment: NotRequired[AssistedApprovalAssessment]
     # Only standard prompt kinds can clear a raw managed-approval requirement.
     # Missing and other prompt kinds must remain conservative.
     prompt_request: NotRequired[PermissionPromptRequest]
@@ -842,8 +847,6 @@ class ElicitationContext(TypedDict, total=False):
     """Elicitation mode: ``"form"`` for structured input, ``"url"`` for browser redirect."""
     elicitationSource: str
     """The source that initiated the request (e.g. MCP server name)."""
-    elicitationSourceDisplayName: str
-    """Trusted display label of a Connector-owned MCP server that initiated the request."""
     url: str
     """URL to open in the browser (when mode is ``"url"``)."""
 
@@ -1018,6 +1021,9 @@ class SessionUiApi:
 class PreToolUseHookInput(TypedDict):
     """Input for pre-tool-use hook"""
 
+    toolCallId: NotRequired[str]
+    traceparent: NotRequired[str]
+    tracestate: NotRequired[str]
     sessionId: str
     timestamp: datetime
     workingDirectory: str
@@ -1048,6 +1054,8 @@ PreToolUseHandler = Callable[
 class PreMcpToolCallHookInput(TypedDict):
     """Input for pre-MCP-tool-call hook"""
 
+    traceparent: NotRequired[str]
+    tracestate: NotRequired[str]
     sessionId: str
     timestamp: datetime
     workingDirectory: str
@@ -1083,6 +1091,9 @@ PreMcpToolCallHandler = Callable[
 class PostToolUseHookInput(TypedDict):
     """Input for post-tool-use hook"""
 
+    toolCallId: NotRequired[str]
+    traceparent: NotRequired[str]
+    tracestate: NotRequired[str]
     sessionId: str
     timestamp: datetime
     workingDirectory: str
@@ -1117,6 +1128,9 @@ class PostToolUseFailureHookInput(TypedDict):
     ``error`` field (rather than passing the full result object).
     """
 
+    toolCallId: NotRequired[str]
+    traceparent: NotRequired[str]
+    tracestate: NotRequired[str]
     sessionId: str
     timestamp: datetime
     workingDirectory: str
@@ -1148,6 +1162,8 @@ PostToolUseFailureHandler = Callable[
 class UserPromptSubmittedHookInput(TypedDict):
     """Input for user-prompt-submitted hook"""
 
+    traceparent: NotRequired[str]
+    tracestate: NotRequired[str]
     sessionId: str
     timestamp: datetime
     workingDirectory: str
@@ -1182,6 +1198,8 @@ UserPromptSubmittedHandler = Callable[
 class UserPromptTransformedHookInput(TypedDict):
     """Input for the user-prompt-transformed hook."""
 
+    traceparent: NotRequired[str]
+    tracestate: NotRequired[str]
     sessionId: str
     timestamp: datetime
     workingDirectory: str
@@ -1208,6 +1226,8 @@ UserPromptTransformedHandler = Callable[
 class SessionStartHookInput(TypedDict):
     """Input for session-start hook"""
 
+    traceparent: NotRequired[str]
+    tracestate: NotRequired[str]
     sessionId: str
     timestamp: datetime
     workingDirectory: str
@@ -1235,6 +1255,8 @@ SessionStartHandler = Callable[
 class SessionEndHookInput(TypedDict):
     """Input for session-end hook"""
 
+    traceparent: NotRequired[str]
+    tracestate: NotRequired[str]
     sessionId: str
     timestamp: datetime
     workingDirectory: str
@@ -1264,6 +1286,8 @@ SessionEndHandler = Callable[
 class ErrorOccurredHookInput(TypedDict):
     """Input for error-occurred hook"""
 
+    traceparent: NotRequired[str]
+    tracestate: NotRequired[str]
     sessionId: str
     timestamp: datetime
     workingDirectory: str
@@ -1294,6 +1318,8 @@ ErrorOccurredHandler = Callable[
 class AgentStopHookInput(TypedDict):
     """Input for the agent-stop hook."""
 
+    traceparent: NotRequired[str]
+    tracestate: NotRequired[str]
     sessionId: str
     timestamp: datetime
     workingDirectory: str
@@ -1322,6 +1348,8 @@ AgentStopHandler = Callable[
 class SubagentStartHookInput(TypedDict):
     """Input when a subagent starts; session metadata belongs to its parent."""
 
+    traceparent: NotRequired[str]
+    tracestate: NotRequired[str]
     sessionId: str
     timestamp: datetime
     workingDirectory: str
@@ -1350,6 +1378,8 @@ SubagentStartHandler = Callable[
 class SubagentStopHookInput(TypedDict):
     """Input after a subagent turn completes; session metadata belongs to its parent."""
 
+    traceparent: NotRequired[str]
+    tracestate: NotRequired[str]
     sessionId: str
     timestamp: datetime
     workingDirectory: str
@@ -1708,7 +1738,9 @@ class ProviderConfig(TypedDict, total=False):
     # wire_api "responses".
     transport: Literal["http", "websockets"]
     # Product serving the model, such as "ollama" or "lm_studio", reported in
-    # telemetry as model_provider. Only affects telemetry.
+    # telemetry as model_provider. "azure_openai" also omits explicit
+    # prompt-cache breakpoints, which limit cross-turn cache reuse on Azure; set
+    # it for a proxy or custom domain in front of Azure OpenAI.
     model_provider: ProviderConfigModelProvider
     base_url: str
     api_key: str
@@ -1736,6 +1768,9 @@ class ProviderConfig(TypedDict, total=False):
     # (system message, history, tool definitions, user message) would exceed
     # this limit.
     max_prompt_tokens: int
+    # Overrides the maximum combined prompt and output context window.
+    # A separate max_prompt_tokens limit still applies.
+    max_context_window_tokens: int
     # Overrides the resolved model's default max output tokens. When hit, the
     # model stops generating and returns a truncated response.
     max_output_tokens: int
@@ -1767,7 +1802,9 @@ class NamedProviderConfig(TypedDict, total=False):
     type: Literal["openai", "azure", "anthropic"]
     wire_api: Literal["completions", "responses"]
     # Product serving this provider's models, such as "ollama" or "lm_studio",
-    # reported in telemetry as model_provider. Only affects telemetry.
+    # reported in telemetry as model_provider. "azure_openai" also omits
+    # explicit prompt-cache breakpoints, which limit cross-turn cache reuse on
+    # Azure; set it for a proxy or custom domain in front of Azure OpenAI.
     model_provider: ProviderConfigModelProvider
     base_url: str
     api_key: str
@@ -2897,7 +2934,11 @@ class CopilotSession:
 
                 asyncio.ensure_future(
                     self._execute_permission_and_respond(
-                        request_id, permission_request, perm_handler, data.prompt_request
+                        request_id,
+                        permission_request,
+                        perm_handler,
+                        data.prompt_request,
+                        data.assisted_approval_assessment,
                     )
                 )
 
@@ -2946,7 +2987,9 @@ class CopilotSession:
                             data.static_client_config.client_secret
                         )
                     if data.static_client_config.grant_type is not None:
-                        static_client_config["grantType"] = data.static_client_config.grant_type
+                        static_client_config["grantType"] = cast(
+                            Literal["client_credentials"], data.static_client_config.grant_type
+                        )
                     if data.static_client_config.public_client is not None:
                         static_client_config["publicClient"] = (
                             data.static_client_config.public_client
@@ -2987,20 +3030,19 @@ class CopilotSession:
                     context["mode"] = data.mode.value
                 if data.elicitation_source is not None:
                     context["elicitationSource"] = data.elicitation_source
-                if data.elicitation_source_display_name is not None:
-                    context["elicitationSourceDisplayName"] = data.elicitation_source_display_name
                 if data.url is not None:
                     context["url"] = data.url
                 asyncio.ensure_future(self._handle_elicitation_request(context, request_id))
 
             case CapabilitiesChangedData() as data:
-                cap: SessionCapabilities = {}
+                # The event names only the capabilities that changed; keep the rest.
                 if data.ui is not None:
-                    ui_cap: SessionUiCapabilities = {}
+                    ui_cap = self._capabilities.get("ui", SessionUiCapabilities()).copy()
                     if data.ui.elicitation is not None:
                         ui_cap["elicitation"] = data.ui.elicitation
-                    cap["ui"] = ui_cap
-                self._capabilities = {**self._capabilities, **cap}
+                    if data.ui.mcp_apps is not None:
+                        ui_cap["mcpApps"] = data.ui.mcp_apps
+                    self._capabilities = {**self._capabilities, "ui": ui_cap}
 
             case SessionCanvasOpenedData() as data:
                 try:
@@ -3155,6 +3197,7 @@ class CopilotSession:
         permission_request: Any,
         handler: _PermissionHandlerFn,
         prompt_request: PermissionPromptRequest | None = None,
+        assisted_approval_assessment: AssistedApprovalAssessment | None = None,
     ) -> None:
         """Execute a permission handler and respond via RPC."""
         try:
@@ -3165,6 +3208,8 @@ class CopilotSession:
             }
             if prompt_request is not None:
                 invocation["prompt_request"] = prompt_request
+            if assisted_approval_assessment is not None:
+                invocation["assisted_approval_assessment"] = assisted_approval_assessment
             result = handler(permission_request, invocation)
             if inspect.isawaitable(result):
                 result = await result

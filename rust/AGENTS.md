@@ -110,6 +110,6 @@ use the `test-support` feature because the library is compiled without
 
 Default features bundle the CLI; disabling them changes what must be provided
 externally. For transport-specific E2E settings, bundled-runtime checks, and
-the full platform matrix, follow the
-[Rust SDK workflow](../.github/workflows/sdk-rust.yml). A local unit test
+the full platform matrix, follow the runtime repository's Rust SDK workflow
+(`.github/workflows/sdk-rust.yml`). A local unit test
 run does not replace those checks.

@@ -8,6 +8,31 @@ using System.Text.Json;
 
 namespace GitHub.Copilot;
 
+/// <summary>Raw bytes and the authoritative total file byte length captured by the same read.</summary>
+public sealed class SessionFsByteRange
+{
+    /// <summary>Gets or sets requested bytes; boundaries may split UTF-8 characters.</summary>
+    public ReadOnlyMemory<byte> Content { get; set; }
+
+    /// <summary>Gets or sets total file byte length, independent of the requested range.</summary>
+    public long ByteLength { get; set; }
+}
+
+/// <summary>
+/// Optional bounded byte reads, independent of binary support. Advertise capabilities.readFileRange
+/// only when every provider implements this without full-file downloads.
+/// </summary>
+public interface ISessionFsReadFileRangeProvider
+{
+    /// <summary>Reads raw bytes. At or beyond EOF, content is empty.</summary>
+    /// <param name="path">Path using SessionFs conventions.</param>
+    /// <param name="offset">Zero-based byte offset from 0 through 9007199254740991.</param>
+    /// <param name="length">Maximum bytes from 0 through 9007199254740991. Null reads through EOF; zero returns only byte length.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The requested bytes and authoritative total file byte length.</returns>
+    Task<SessionFsByteRange> ReadFileRangeAsync(string path, long offset, long? length, CancellationToken cancellationToken);
+}
+
 /// <summary>
 /// Result of a SQLite query execution via <see cref="ISessionFsSqliteProvider"/>.
 /// Same shape as <see cref="SessionFsSqliteQueryResult"/> but without the <c>Error</c> field,
@@ -158,7 +183,7 @@ public sealed class SessionFsWriteException : Exception
 /// Paths use the configured <see cref="SessionFsConfig.Conventions"/> and are passed to the provider unchanged.
 /// Absolute paths refer to the provider's filesystem namespace, not necessarily the runtime host's filesystem.
 /// </remarks>
-public abstract class SessionFsProvider : ISessionFsHandler
+public abstract class SessionFsProvider : ISessionFsReadFileRangeHandler
 {
     private const int MaxBinaryBytes = (64 * 1024 * 1024 - 1024) / 4 * 3;
     private const int MaxBinaryContentLength = (MaxBinaryBytes + 2) / 3 * 4;
@@ -269,6 +294,48 @@ public abstract class SessionFsProvider : ISessionFsHandler
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             return new SessionFsReadFileBytesResult { Content = string.Empty, Error = ToSessionFsError(ex) };
+        }
+    }
+
+    async Task<SessionFsReadFileRangeResult> ISessionFsReadFileRangeHandler.ReadFileRangeAsync(SessionFsReadFileRangeRequest request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        try
+        {
+            if (request.Offset is < 0 or > 9_007_199_254_740_991L ||
+                request.Length is < 0 or > 9_007_199_254_740_991L)
+            {
+                throw new ArgumentOutOfRangeException(nameof(request),
+                    "SessionFs byte offset and length must be non-negative safe integers.");
+            }
+            if (this is not ISessionFsReadFileRangeProvider provider)
+            {
+                throw new NotSupportedException("Byte-range reads are not supported by this SessionFs provider.");
+            }
+            var result = await provider.ReadFileRangeAsync(
+                request.Path, request.Offset, request.Length, cancellationToken).ConfigureAwait(false);
+            if (result.ByteLength is < 0 or > 9_007_199_254_740_991L)
+            {
+                throw new InvalidOperationException("SessionFs byte length must be a non-negative safe integer.");
+            }
+            var available = Math.Max(0, result.ByteLength - request.Offset);
+            if (result.Content.Length != Math.Min(available, request.Length ?? available))
+            {
+                throw new InvalidOperationException("SessionFs returned an incorrect byte range length.");
+            }
+            return new SessionFsReadFileRangeResult
+            {
+#if NETSTANDARD2_0
+                Content = Convert.ToBase64String(result.Content.ToArray()),
+#else
+                Content = Convert.ToBase64String(result.Content.Span),
+#endif
+                ByteLength = result.ByteLength,
+            };
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            return new SessionFsReadFileRangeResult { Content = string.Empty, ByteLength = 0, Error = ToSessionFsError(ex) };
         }
     }
 

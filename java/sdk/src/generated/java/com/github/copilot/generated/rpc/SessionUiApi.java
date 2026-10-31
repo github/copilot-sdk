@@ -79,7 +79,7 @@ public final class SessionUiApi {
     }
 
     /**
-     * Resolves a pending elicitation request after direct interaction in the trusted in-process client. Only an accepted response to the built-in ask_user tool can become trusted human evidence.
+     * Resolves a pending elicitation request after direct interaction in the trusted in-process client or authenticated owning host. Only an accepted response to the built-in ask_user tool can become trusted human evidence.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -111,7 +111,7 @@ public final class SessionUiApi {
     }
 
     /**
-     * Resolves a pending `user_input.requested` event after direct interaction in the trusted in-process client.
+     * Resolves a pending `user_input.requested` event after direct interaction in the trusted in-process client or authenticated owning host.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -191,7 +191,7 @@ public final class SessionUiApi {
     }
 
     /**
-     * Resolves a pending `exit_plan_mode.requested` event after direct interaction in the trusted in-process client.
+     * Resolves a pending `exit_plan_mode.requested` event after direct interaction in the trusted in-process client or authenticated owning host.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.

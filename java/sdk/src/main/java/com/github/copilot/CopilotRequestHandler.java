@@ -27,7 +27,10 @@ import java.util.concurrent.CompletionException;
  * model-layer HTTP and WebSocket traffic through this handler instead of
  * issuing the calls itself. Subclass and override {@link #sendRequest} to
  * mutate or replace HTTP calls, or {@link #openWebSocket} to mutate the
- * handshake or return a fully custom {@link CopilotWebSocketHandler}.
+ * handshake or return a fully custom {@link CopilotWebSocketHandler}. Non-fatal
+ * callback failures, including assertion errors, terminate the intercepted
+ * response with an error instead of leaving the request pending. Virtual
+ * machine errors, thread death, and linkage errors are not intercepted.
  *
  * @since 1.0.0
  */
@@ -195,6 +198,7 @@ public class CopilotRequestHandler {
         ctx.setWebSocketResponse(bridge);
 
         CopilotWebSocketHandler handler = openWebSocket(ctx);
+        Thread pump = null;
         try {
             handler.open();
 
@@ -207,7 +211,7 @@ public class CopilotRequestHandler {
             bridge.start();
 
             CompletableFuture<Void> pumpDone = new CompletableFuture<>();
-            Thread pump = new Thread(() -> {
+            pump = new Thread(() -> {
                 try {
                     LlmInferenceExchange.BodyFrame frame;
                     while ((frame = exchange.readFrame()) != null) {
@@ -215,7 +219,8 @@ public class CopilotRequestHandler {
                                 ctx.withAgentInvocationId(frame.agentInvocationId()));
                     }
                     pumpDone.complete(null);
-                } catch (Exception e) {
+                } catch (Throwable e) {
+                    rethrowFatalError(e);
                     pumpDone.completeExceptionally(e);
                 }
             }, "llm-ws-request-pump");
@@ -239,8 +244,26 @@ public class CopilotRequestHandler {
             if (status.error() != null) {
                 throw asException(status.error());
             }
+        } catch (Exception | Error e) {
+            handler.suppressCloseOnDispose();
+            throw e;
         } finally {
+            if (pump != null) {
+                pump.interrupt();
+            }
             handler.close();
+        }
+    }
+
+    static void rethrowFatalError(Throwable error) {
+        if (error instanceof VirtualMachineError fatal) {
+            throw fatal;
+        }
+        if (error instanceof ThreadDeath fatal) {
+            throw fatal;
+        }
+        if (error instanceof LinkageError fatal) {
+            throw fatal;
         }
     }
 

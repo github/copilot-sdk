@@ -1,6 +1,8 @@
 import asyncio
+import gc
 import threading
 import time
+import weakref
 from unittest.mock import patch
 
 import pytest
@@ -68,6 +70,75 @@ def test_dispose_retains_callback_until_connection_close_succeeds():
         time.sleep(0.05)
         assert library.close_calls == close_calls_after_cleanup
         assert library.shutdown_calls == 1
+
+
+class _OpeningLibrary(_TestLibrary):
+    def __init__(self, connection_id: int) -> None:
+        super().__init__()
+        self.connection_id = connection_id
+
+    def host_start(self, *_args: object) -> int:
+        return 11
+
+    def connection_open(self, *_args: object) -> int:
+        return self.connection_id
+
+
+def _release_host(host: FfiRuntimeHost | None, library: _OpeningLibrary) -> None:
+    # Keep the class-level registries clean for later tests even when an
+    # assertion fails while the host is still rooted.
+    if host is None:
+        return
+    library.allow_close = True
+    host.dispose()
+    FfiRuntimeHost._callback_rooted_hosts.discard(host)
+    FfiRuntimeHost._quarantined_hosts.discard(host)
+
+
+def _start_and_drop_host(library: _OpeningLibrary) -> weakref.ref[FfiRuntimeHost]:
+    with patch("copilot._ffi_runtime_host._load_library", return_value=library):
+        host = FfiRuntimeHost("test-runtime", None)
+    try:
+        if library.connection_id:
+            host.start_blocking()
+        else:
+            with pytest.raises(RuntimeError, match="connection_open failed"):
+                host.start_blocking()
+    except BaseException:
+        _release_host(host, library)
+        raise
+    return weakref.ref(host)
+
+
+def test_open_connection_roots_callback_until_connection_close_succeeds():
+    library = _OpeningLibrary(connection_id=21)
+    # Native code holds only the callback's address; the application dropping
+    # every reference must not let the host -> callback cycle be collected.
+    host_ref = _start_and_drop_host(library)
+    try:
+        gc.collect()
+        host = host_ref()
+        assert host is not None, "An open connection's outbound callback was collected"
+        assert host._outbound_callback is not None
+
+        library.allow_close = True
+        host.dispose()
+        assert host._outbound_callback is None
+        del host
+        gc.collect()
+        assert host_ref() is None, "A closed connection's host stayed rooted"
+    finally:
+        _release_host(host_ref(), library)
+
+
+def test_refused_connection_does_not_root_callback():
+    library = _OpeningLibrary(connection_id=0)
+    host_ref = _start_and_drop_host(library)
+    try:
+        gc.collect()
+        assert host_ref() is None, "A refused connection's host stayed rooted"
+    finally:
+        _release_host(host_ref(), library)
 
 
 def test_ui_actions_are_synchronous_connection_scoped_and_reject_after_disposal():

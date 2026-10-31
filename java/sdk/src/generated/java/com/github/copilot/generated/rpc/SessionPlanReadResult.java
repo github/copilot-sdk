@@ -27,8 +27,10 @@ public record SessionPlanReadResult(
     /** Whether the plan file exists in the workspace */
     @JsonProperty("exists") Boolean exists,
     /** The content of the plan file, or null if it does not exist */
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("content") String content,
     /** Absolute file path of the plan file, or null if workspace is not enabled */
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("path") String path
 ) {
 }

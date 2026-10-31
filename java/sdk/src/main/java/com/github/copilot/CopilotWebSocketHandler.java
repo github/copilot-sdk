@@ -99,19 +99,21 @@ public abstract class CopilotWebSocketHandler implements AutoCloseable {
         if (status.error() != null) {
             response.error(status.description() != null ? status.description() : status.error().getMessage(),
                     status.errorCode());
-        } else {
+        } else if (!suppressCloseOnDispose) {
             response.end();
         }
         completion.complete(status);
     }
 
     /**
-     * Tears down the connection, finalising with a normal closure unless the
-     * connection has already been closed or close-on-dispose was suppressed.
+     * Tears down the connection unless it has already been closed. A normal
+     * runtime-facing end frame is omitted when close-on-dispose was suppressed,
+     * leaving failure finalisation to the adapter without skipping transport
+     * cleanup.
      */
     @Override
     public void close() {
-        if (!suppressCloseOnDispose && !closed.get()) {
+        if (!closed.get()) {
             try {
                 close(CopilotWebSocketCloseStatus.NORMAL_CLOSURE);
             } catch (Exception ignored) {

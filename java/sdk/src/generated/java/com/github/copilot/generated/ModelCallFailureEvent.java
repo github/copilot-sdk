@@ -48,6 +48,10 @@ public final class ModelCallFailureEvent extends SessionEvent {
         @JsonProperty("providerCallId") String providerCallId,
         /** Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation */
         @JsonProperty("serviceRequestId") String serviceRequestId,
+        /** Internal correlation identifier for the qualifying instruction-update delivery consumed by this failed model request. */
+        @JsonProperty("instructionUpdateDeliveryId") String instructionUpdateDeliveryId,
+        /** Event identifier of the latest canonical instruction update included in this failed model request. */
+        @JsonProperty("instructionUpdateLatestEventId") String instructionUpdateLatestEventId,
         /** Per-request treatment/eligibility signal returned by the Copilot API in the `X-GitHub-Copilot-Request-TE` response header for the associated model call; `false` when the header was absent or unparseable. */
         @JsonProperty("rte") Boolean rte,
         /** HTTP status code from the failed request */
@@ -58,6 +62,8 @@ public final class ModelCallFailureEvent extends SessionEvent {
         @JsonProperty("apiEndpoint") AssistantUsageApiEndpoint apiEndpoint,
         /** Transport used for the failed model call (http or websocket) */
         @JsonProperty("transport") ModelCallFailureTransport transport,
+        /** Whether this failed dispatched request selected the managed inference gateway. Absent for older producers or when no request was dispatched; not proof of gateway receipt. */
+        @JsonProperty("inferenceGateway") Boolean inferenceGateway,
         /** Whether the failure originated from an API response or the request transport */
         @JsonProperty("failureKind") ModelCallFailureKind failureKind,
         /** Serialized (uncompressed) byte length of the failed request body, before any Content-Encoding. A content-free size signal. */
@@ -74,6 +80,10 @@ public final class ModelCallFailureEvent extends SessionEvent {
         @JsonProperty("requestBodyCompressionRejectedStatus") Long requestBodyCompressionRejectedStatus,
         /** Zero-based orchestrator retry index of the failed attempt */
         @JsonProperty("retryAttempt") Long retryAttempt,
+        /** Why a chat-completions stream that the server ended could not be assembled into a response, as a fixed snake_case reason such as `missing_finish_reason`, `missing_tool_call_id` or `no_chunks`; absent for other failures. New reasons may be added */
+        @JsonProperty("incompleteStreamReason") String incompleteStreamReason,
+        /** Whether the incomplete stream ended with the `[DONE]` sentinel; present only with incompleteStreamReason */
+        @JsonProperty("streamDoneReceived") Boolean streamDoneReceived,
         /** Why the failed call was carried by the HTTP fallback of a WebSocket-capable dispatcher; absent when no fallback occurred */
         @JsonProperty("websocketFallbackReason") ModelCallWebSocketFallbackReason websocketFallbackReason,
         /** Milliseconds spent on the WebSocket attempt before falling back to HTTP */
@@ -116,6 +126,8 @@ public final class ModelCallFailureEvent extends SessionEvent {
         @JsonProperty("errorCode") String errorCode,
         /** The `type` from the CAPI error envelope of an HTTP failure of any status (e.g. 'websocket_error'), a coarser companion to errorCode for envelopes that carry no code. Raw server-controlled string, emitted only through restricted telemetry. Absent when the response carried no error envelope. */
         @JsonProperty("errorType") String errorType,
+        /** Bounded product-state failure classified before telemetry projection. */
+        @JsonProperty("productStateError") ModelCallProductStateError productStateError,
         /** Per-quota usage snapshots parsed from the failed response's quota headers, keyed by quota identifier. Present when the error response carried quota headers (e.g. a 402 once the additional spend limit is reached) so the UI can refresh the quota display on failure. */
         @JsonProperty("quotaSnapshots") Map<String, AssistantUsageQuotaSnapshot> quotaSnapshots,
         /** Content-free structural summary of the failing request. Contains only counts and shape flags (no prompt content), so it is safe for unrestricted telemetry. Populated only for client-error (4xx) failures. */

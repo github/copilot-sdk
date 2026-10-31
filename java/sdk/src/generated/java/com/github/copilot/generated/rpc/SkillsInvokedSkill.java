@@ -28,6 +28,8 @@ public record SkillsInvokedSkill(
     @JsonProperty("path") String path,
     /** Full content of the skill file */
     @JsonProperty("content") String content,
+    /** Exact invocation arguments when recorded, retained separately from the reusable skill body */
+    @JsonProperty("arguments") String arguments,
     /** Tools that should be auto-approved when this skill is active, captured at invocation time */
     @JsonProperty("allowedTools") List<String> allowedTools,
     /** Whether model invocation was disabled when this skill was invoked */

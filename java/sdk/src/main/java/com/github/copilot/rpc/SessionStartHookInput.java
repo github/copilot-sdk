@@ -33,13 +33,24 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * @param parentAgentId
  *            optional subagent identity, absent for root hooks and older
  *            runtimes
+ * @param traceparent
+ *            existing W3C trace context, or {@code null} when unavailable
+ * @param tracestate
+ *            existing W3C vendor trace state, or {@code null} when unavailable
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionStartHookInput(@JsonProperty("sessionId") String sessionId,
         @JsonProperty("timestamp") long timestamp, @JsonProperty("cwd") String cwd,
         @JsonProperty("source") String source, @JsonProperty("initialPrompt") String initialPrompt,
         @JsonProperty("agentId") String agentId, @JsonProperty("agentType") String agentType,
-        @JsonProperty("parentAgentId") String parentAgentId) {
+        @JsonProperty("parentAgentId") String parentAgentId, @JsonProperty("traceparent") String traceparent,
+        @JsonProperty("tracestate") String tracestate) {
+    /** Creates an input without tracing metadata. */
+    public SessionStartHookInput(String sessionId, long timestamp, String cwd, String source, String initialPrompt,
+            String agentId, String agentType, String parentAgentId) {
+        this(sessionId, timestamp, cwd, source, initialPrompt, agentId, agentType, parentAgentId, null, null);
+    }
+
     public SessionStartHookInput(String sessionId, long timestamp, String cwd, String source, String initialPrompt) {
         this(sessionId, timestamp, cwd, source, initialPrompt, null, null, null);
     }

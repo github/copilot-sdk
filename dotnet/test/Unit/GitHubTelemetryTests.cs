@@ -34,13 +34,14 @@ public sealed class GitHubTelemetryTests
         await using var client = new CopilotClient(new CopilotClientOptions
         {
             Connection = RuntimeConnection.ForUri(server.Url),
-            Entra = new EntraAuthConfig { ClientId = "host-entra-client" },
+            Entra = new EntraAuthOptions { ClientId = "host-entra-client", MatsAppName = "TestHost" },
         });
         await client.StartAsync();
 
         var parameters = server.LastConnectParams
             ?? throw new InvalidOperationException("connect was not captured.");
         Assert.Equal("host-entra-client", parameters.GetProperty("entra").GetProperty("clientId").GetString());
+        Assert.Equal("TestHost", parameters.GetProperty("entra").GetProperty("matsAppName").GetString());
     }
 
     [Theory]

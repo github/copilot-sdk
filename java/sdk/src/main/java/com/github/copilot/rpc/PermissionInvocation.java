@@ -4,6 +4,9 @@
 
 package com.github.copilot.rpc;
 
+import com.github.copilot.CopilotExperimental;
+import com.github.copilot.generated.AssistedApprovalAssessment;
+
 /**
  * Context information for a permission request invocation.
  * <p>
@@ -17,6 +20,7 @@ public final class PermissionInvocation {
 
     private String sessionId;
     private boolean managedSettingsEnabled;
+    private AssistedApprovalAssessment assistedApprovalAssessment;
     private PermissionRequest promptRequest;
 
     /**
@@ -58,6 +62,33 @@ public final class PermissionInvocation {
      */
     public PermissionInvocation setManagedSettingsEnabled(boolean managedSettingsEnabled) {
         this.managedSettingsEnabled = managedSettingsEnabled;
+        return this;
+    }
+
+    /**
+     * Gets the canonical runtime-owned Assisted Permissions assessment.
+     * <p>
+     * This explains the assisted review only; {@code permission.completed} remains
+     * authoritative for the final permission result. It is {@code null} with older
+     * runtimes and legacy direct permission callbacks.
+     *
+     * @return the assisted approval assessment, or {@code null} when unavailable
+     */
+    @CopilotExperimental
+    public AssistedApprovalAssessment getAssistedApprovalAssessment() {
+        return assistedApprovalAssessment;
+    }
+
+    /**
+     * Sets the canonical runtime-owned Assisted Permissions assessment.
+     *
+     * @param assistedApprovalAssessment
+     *            the assessment, or {@code null}
+     * @return this invocation for method chaining
+     */
+    @CopilotExperimental
+    public PermissionInvocation setAssistedApprovalAssessment(AssistedApprovalAssessment assistedApprovalAssessment) {
+        this.assistedApprovalAssessment = assistedApprovalAssessment;
         return this;
     }
 

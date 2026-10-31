@@ -120,6 +120,11 @@ internal sealed class RecordingRequestHandler : CopilotRequestHandler
     internal static HttpResponseMessage BuildNonInferenceResponse(string url)
     {
         var u = url.ToLowerInvariant();
+        if (u.EndsWith("/meta", StringComparison.Ordinal))
+        {
+            return Json(MetaCatalogJson);
+        }
+
         if (u.EndsWith("/models", StringComparison.Ordinal))
         {
             return Json(ModelCatalogJson);
@@ -191,6 +196,20 @@ internal sealed class RecordingRequestHandler : CopilotRequestHandler
 
     private const string ModelCatalogJson =
         "{\"data\":[{\"id\":\"claude-sonnet-5\",\"name\":\"Claude Sonnet 5\",\"object\":\"model\",\"vendor\":\"Anthropic\",\"version\":\"1\",\"preview\":false,\"model_picker_enabled\":true,\"capabilities\":{\"type\":\"chat\",\"family\":\"claude-sonnet-5\",\"tokenizer\":\"o200k_base\",\"limits\":{\"max_context_window_tokens\":200000,\"max_output_tokens\":8192},\"supports\":{\"streaming\":true,\"tool_calls\":true,\"parallel_tool_calls\":true,\"vision\":true}}}]}";
+
+    /// <summary>The Auto tier metadata CAPI returns alongside the catalog from <c>GET /meta</c>.</summary>
+    internal const string AutoMetadataJson =
+        "{\"default_tier\":\"balance\",\"tiers\":["
+        + "{\"id\":\"efficiency\",\"display_name\":\"Efficiency\",\"description\":\"Faster, lower-cost models\",\"type\":\"auto\",\"status\":{\"enabled\":true}},"
+        + "{\"id\":\"balance\",\"display_name\":\"Balance\",\"description\":\"A balance of speed and capability\",\"type\":\"auto\",\"status\":{\"enabled\":true}},"
+        + "{\"id\":\"intelligence\",\"display_name\":\"Intelligence\",\"description\":\"The most capable models\",\"type\":\"auto\",\"status\":{\"enabled\":true}}"
+        + "]}";
+
+    /// <summary>Wraps a <c>/models</c> catalog body in the CAPI <c>GET /meta</c> shape.</summary>
+    internal static string MetaJson(string modelCatalogJson) =>
+        "{\"models\":" + modelCatalogJson + ",\"auto\":" + AutoMetadataJson + "}";
+
+    private static readonly string MetaCatalogJson = MetaJson(ModelCatalogJson);
 }
 
 /// <summary>A single request the callback intercepted.</summary>

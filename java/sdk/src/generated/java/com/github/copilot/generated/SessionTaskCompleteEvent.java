@@ -10,6 +10,7 @@ package com.github.copilot.generated;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
@@ -44,8 +45,24 @@ public final class SessionTaskCompleteEvent extends SessionEvent {
         @JsonProperty("reason") String reason,
         /** Active autopilot objective ID evaluated by the completion reviewer */
         @JsonProperty("objectiveId") Long objectiveId,
+        /** Permission-protected actions that remained blocked for this genuine-user-message epoch. Present on successful completion when the objective was completed without them and on blocked completion when one or more were required. */
+        @JsonProperty("blockedActions") List<BlockedPermissionAction> blockedActions,
         /** Structured blocker details when outcome is blocked */
         @JsonProperty("blocker") TaskBlocker blocker
     ) {
+
+        /**
+         * Creates event data with the components it had before later optional fields were added.
+         */
+        public SessionTaskCompleteEventData(
+            String summary,
+            Boolean success,
+            TaskCompletionOutcome outcome,
+            String reason,
+            Long objectiveId,
+            TaskBlocker blocker
+        ) {
+            this(summary, success, outcome, reason, objectiveId, null, blocker);
+        }
     }
 }

@@ -20,6 +20,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.github.copilot.AllowCopilotExperimental;
 
 /**
  * Coverage tests for generated RPC API classes that are not exercised in
@@ -28,6 +29,25 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
  * parameters correctly.
  */
 class GeneratedRpcApiCoverageTest {
+
+    @Test
+    @AllowCopilotExperimental
+    void managedSettings_get_and_recheck_share_result_type() throws Exception {
+        var stub = new StubCaller();
+        var snapshot = new ObjectMapper().readValue("{}", SessionManagedSettingsGetResult.class);
+        stub.nextResult = snapshot;
+        var session = new SessionRpc(stub, "policy-session");
+        CompletableFuture<SessionManagedSettingsGetResult> current = session.managedSettings.get();
+        CompletableFuture<SessionManagedSettingsGetResult> refreshed = session.managedSettings.recheckPolicyHelper();
+        assertSame(snapshot, current.join());
+        assertSame(snapshot, refreshed.join());
+        assertEquals(List.of("session.managedSettings.get", "session.managedSettings.recheckPolicyHelper"),
+                stub.calls.stream().map(StubCaller.Call::method).toList());
+        for (var call : stub.calls) {
+            assertEquals(SessionManagedSettingsGetResult.class, call.resultType());
+            assertEquals(Map.of("sessionId", "policy-session"), call.params());
+        }
+    }
 
     /** A simple stub {@link RpcCaller} that records every call made to it. */
     private static final class StubCaller implements RpcCaller {

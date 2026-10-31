@@ -22,6 +22,7 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record McpServerMetadata(
     /** Non-empty natural-language guidance for using the server, or null when the server omitted instructions or advertised an empty string. */
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("instructions") String instructions
 ) {
 }

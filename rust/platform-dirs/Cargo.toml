@@ -1,0 +1,20 @@
+[package]
+name = "copilot-platform-dirs"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.94.0"
+license = "MIT"
+description = "First-party home, cache, config, and local-data directory lookups."
+publish = false
+
+[lib]
+path = "../src/platform_dirs/mod.rs"
+
+# Independently usable by hosts without pulling in the SDK or runtime.
+[workspace]
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", default-features = false, features = [
+    "Win32_System_Com",
+    "Win32_UI_Shell",
+] }

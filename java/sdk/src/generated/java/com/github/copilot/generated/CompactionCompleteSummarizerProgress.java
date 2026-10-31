@@ -49,6 +49,12 @@ public record CompactionCompleteSummarizerProgress(
     @JsonProperty("idleMs") Long idleMs,
     /** Time since the latest request's last observable output, in milliseconds. Unlike idleMs, keepalive deltas do not reset it. Absent when no output arrived. */
     @JsonProperty("sinceLastOutputMs") Long sinceLastOutputMs,
+    /** Characters of reply text the latest request streamed, counted as received, so it measures output even when the request was cut off before reporting usage. Tool-call arguments and reasoning are not counted. Absent when no request was dispatched. */
+    @JsonProperty("answerChars") Long answerChars,
+    /** Characters of reasoning text, summarized or raw, the latest request streamed, counted as received. Encrypted reasoning is not counted. Absent when no request was dispatched. */
+    @JsonProperty("reasoningChars") Long reasoningChars,
+    /** Sampled estimate of the input tokens the latest request sent, taken at dispatch, so it is known even when the request was cut off before reporting usage. Absent when no request was dispatched. */
+    @JsonProperty("inputTokensEstimate") Long inputTokensEstimate,
     /** Whether historical attachments and reasoning were dropped from the compaction's input because the session's previous compaction ran out of time. */
     @JsonProperty("inputShrunk") Boolean inputShrunk
 ) {

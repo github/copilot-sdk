@@ -70,7 +70,7 @@ rust_library(
         "@sdk_vendor__futures-core-0.3.34//:futures_core",
         "@sdk_vendor__futures-sink-0.3.34//:futures_sink",
         "@sdk_vendor__pin-project-lite-0.2.17//:pin_project_lite",
-        "@sdk_vendor__tokio-1.53.3//:tokio",
+        "@sdk_vendor__tokio-1.54.1//:tokio",
     ] + select({
         "@rules_rust//rust/platform:aarch64-apple-darwin": [
             "@sdk_vendor__libc-0.2.191//:libc",  # aarch64-apple-darwin

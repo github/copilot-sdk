@@ -83,6 +83,30 @@ def model_catalog(supported_endpoints: list[str] | None = None) -> dict:
     return {"data": [model]}
 
 
+AUTO_METADATA: dict = {
+    "default_tier": "balance",
+    "tiers": [
+        {
+            "id": tier_id,
+            "display_name": display_name,
+            "description": description,
+            "type": "auto",
+            "status": {"enabled": True},
+        }
+        for tier_id, display_name, description in (
+            ("efficiency", "Efficiency", "Faster, lower-cost models"),
+            ("balance", "Balance", "A balance of speed and capability"),
+            ("intelligence", "Intelligence", "The most capable models"),
+        )
+    ],
+}
+
+
+def meta_catalog(supported_endpoints: list[str] | None = None) -> dict:
+    """The synthetic CAPI ``/meta`` payload: the ``/models`` catalog plus Auto tiers."""
+    return {"models": model_catalog(supported_endpoints), "auto": AUTO_METADATA}
+
+
 def responses_events(text: str, resp_id: str = "resp_stub_1") -> list[dict]:
     """The ordered ``/responses`` event objects the runtime's reducer expects."""
     return [
@@ -143,6 +167,12 @@ def build_non_inference_response(
 ) -> httpx.Response:
     """Build a minimal ``httpx.Response`` for non-inference model-layer requests."""
     path = url.lower().split("?", 1)[0]  # strip query params before matching
+    if path.endswith("/meta"):
+        return httpx.Response(
+            200,
+            headers={"content-type": "application/json"},
+            content=json.dumps(meta_catalog(supported_endpoints)).encode(),
+        )
     if path.endswith("/models"):
         return httpx.Response(
             200,

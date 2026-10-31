@@ -16,7 +16,7 @@ import java.util.Map;
 import javax.annotation.processing.Generated;
 
 /**
- * Session event "session.auto_mode_resolved". Auto Intent resolution: the concrete model the session settled on for the first prompt of an auto-mode session, and why. Lets SDK clients render the chosen model and the full reason it was picked. The core selection fields (chosenModel/reasoningBucket/categoryScores) are stable; the routing-analytics fields (predictedLabel/confidence/candidateModels) mirror the upstream intent service and may evolve, hence the event's experimental stability.
+ * Session event "session.auto_mode_resolved". Auto Intent resolution: the concrete model an auto-mode session settled on, and why. Published when Auto settles on a model that differs from the one it last published in the current Auto selection, so a routing check that keeps the same model does not repeat it; selecting a model, switching Auto tiers, or returning to Auto starts a new selection. Lets SDK clients render the chosen model and the full reason it was picked. The core selection fields (chosenModel/reasoningBucket/categoryScores) are stable; the routing-analytics fields (predictedLabel/confidence/candidateModels) mirror the upstream intent service and may evolve, hence the event's experimental stability.
  *
  * @apiNote This event type is experimental and may change in a future version.
  * @since 1.0.0
@@ -43,6 +43,8 @@ public final class SessionAutoModeResolvedEvent extends SessionEvent {
     public record SessionAutoModeResolvedEventData(
         /** The concrete model the session will use after any intent refinement */
         @JsonProperty("chosenModel") String chosenModel,
+        /** The effective Auto routing preference at publication, including managed defaults. Recorded so resume can distinguish an unchanged preference from a tier switch. Absent when no preference is known or in older session histories. */
+        @JsonProperty("autoTier") AutoTier autoTier,
         /** Coarse request-difficulty bucket, for explaining why a model was chosen ("picked X because this looks like high-reasoning work") */
         @JsonProperty("reasoningBucket") AutoModeResolvedReasoningBucket reasoningBucket,
         /** Per-category classifier scores (0-1) behind the bucket: the granular HYDRA capability scores (reasoning, code_gen, debugging, tool_use), or the binary needs_reasoning/no_reasoning scores when HYDRA didn't run. Lets clients show a breakdown rather than just the bucket. */

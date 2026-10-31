@@ -7,6 +7,34 @@ See [GitHub Releases](https://github.com/github/copilot-sdk/releases) for the fu
 
 ## [Unreleased]
 
+### Feature: structured Policy Helper failures and scoped recheck
+
+Managed-settings snapshots across all six SDKs expose bounded Policy Helper failures: messages, remediation, details, help links, and diagnostics. Only applicable `session.create`/`session.resume` errors attach the DTO to `error.data.policyHelperFailure`, preserving primary code/message. Activation callers read `managedSettings.resolve(...).resolved.policyHelperFailure`.
+
+Use `policyHelperCapabilities` to detect support. Older runtimes omit the capability object; the absence of `policyHelperFailure` alone does not prove recovery or support. When `recheck` is true, the new session-scoped RPC performs a fresh helper evaluation for the current policy context.
+
+```ts
+const snapshot = await session.rpc.managedSettings.get();
+if (snapshot.policyHelperCapabilities?.recheck) {
+    await session.rpc.managedSettings.recheckPolicyHelper();
+}
+```
+
+```rust
+let snapshot = session.rpc().managed_settings().get().await?;
+if snapshot
+    .policy_helper_capabilities
+    .as_ref()
+    .is_some_and(|capabilities| capabilities.recheck)
+{
+    session
+        .rpc()
+        .managed_settings()
+        .recheck_policy_helper()
+        .await?;
+}
+```
+
 ## [v1.0.14](https://github.com/github/copilot-sdk/releases/tag/v1.0.14) (2026-09-16)
 
 ### Feature: typed message provenance for user, system, and agent sources
@@ -94,7 +122,7 @@ Session create and cold resume now accept a language-specific `askUserVariant` o
 
 All six SDKs can now acquire short-lived GitHub credentials through a session-scoped callback. The SDK registers the callback before session create or resume, maps `initial` and `refresh` requests to the owning session, and removes registrations on rollback, replacement, session close, and client close. Static per-session `gitHubToken` credentials remain supported and are mutually exclusive with the callback.
 
-Token responses use the shared tagged token/cancelled shape and require `expiresIn`, expressed as the positive number of seconds remaining when the callback completes. See [github/copilot-agent-runtime#16381](https://github.com/github/copilot-agent-runtime/pull/16381) for the runtime credential-authority implementation.
+Token responses use the shared tagged token/cancelled shape and require `expiresIn`, expressed as the positive number of seconds remaining when the callback completes.
 
 Initial acquisition occurs during create or resume; cancellation, callback errors, and invalid credentials reject that operation instead of falling back to ambient authentication. Idle sessions refresh only before their next credential-consuming operation.
 

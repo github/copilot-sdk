@@ -26,7 +26,7 @@ public record CurrentToolMetadata(
     @JsonProperty("name") String name,
     /** Optional MCP/config namespaced tool name */
     @JsonProperty("namespacedName") String namespacedName,
-    /** MCP server name for MCP-backed tools */
+    /** Configured MCP server key for MCP-backed tools */
     @JsonProperty("mcpServerName") String mcpServerName,
     /** Raw MCP tool name for MCP-backed tools */
     @JsonProperty("mcpToolName") String mcpToolName,
@@ -35,6 +35,31 @@ public record CurrentToolMetadata(
     /** JSON Schema for tool input */
     @JsonProperty("input_schema") Map<String, Object> inputSchema,
     /** Whether the tool is loaded on demand via tool search */
-    @JsonProperty("deferLoading") Boolean deferLoading
+    @JsonProperty("deferLoading") Boolean deferLoading,
+    /** Explicitly configured MCP server display name. */
+    @JsonProperty("mcpServerDisplayName") String mcpServerDisplayName
 ) {
+
+    /**
+     * Creates a record with the components it had before later optional fields were added.
+     *
+     * @param name Model-facing tool name
+     * @param namespacedName Optional MCP/config namespaced tool name
+     * @param mcpServerName Configured MCP server key for MCP-backed tools
+     * @param mcpToolName Raw MCP tool name for MCP-backed tools
+     * @param description Tool description
+     * @param inputSchema JSON Schema for tool input
+     * @param deferLoading Whether the tool is loaded on demand via tool search
+     */
+    public CurrentToolMetadata(
+        String name,
+        String namespacedName,
+        String mcpServerName,
+        String mcpToolName,
+        String description,
+        Map<String, Object> inputSchema,
+        Boolean deferLoading
+    ) {
+        this(name, namespacedName, mcpServerName, mcpToolName, description, inputSchema, deferLoading, null);
+    }
 }

@@ -99,6 +99,8 @@ public final class AssistantUsageEvent extends SessionEvent {
         @JsonProperty("rejectedPredictionTokens") Long rejectedPredictionTokens,
         /** Transport used for this model call (http or websocket) */
         @JsonProperty("transport") AssistantUsageTransport transport,
+        /** Whether this dispatched request selected the managed inference gateway. Absent for older producers or when no request was dispatched; not proof of gateway receipt. */
+        @JsonProperty("inferenceGateway") Boolean inferenceGateway,
         /** Serialized (uncompressed) byte length of the request body, before any Content-Encoding. A content-free size signal. */
         @JsonProperty("requestBodyBytes") Long requestBodyBytes,
         /** Byte length of the request body actually sent on the wire for the attempt that produced this outcome, after any Content-Encoding. Equals requestBodyBytes when the body was not compressed. */
@@ -131,6 +133,10 @@ public final class AssistantUsageEvent extends SessionEvent {
         @JsonProperty("providerCallId") String providerCallId,
         /** Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation */
         @JsonProperty("serviceRequestId") String serviceRequestId,
+        /** Internal correlation identifier for the qualifying instruction-update delivery consumed by this model request. */
+        @JsonProperty("instructionUpdateDeliveryId") String instructionUpdateDeliveryId,
+        /** Event identifier of the latest canonical instruction update included in this model request. */
+        @JsonProperty("instructionUpdateLatestEventId") String instructionUpdateLatestEventId,
         /** Per-request treatment/eligibility signal returned by the Copilot API in the `X-GitHub-Copilot-Request-TE` response header for the associated model call; `false` when the header was absent or unparseable. */
         @JsonProperty("rte") Boolean rte,
         /** API endpoint used for this model call, matching CAPI supported_endpoints vocabulary */
@@ -161,6 +167,10 @@ public final class AssistantUsageEvent extends SessionEvent {
         @JsonProperty("cacheTtlSeconds") Long cacheTtlSeconds,
         /** Request-scoped prompt-cache policy lifetime in seconds; the shortest lifetime for mixed known policies. Does not establish or refresh cache state. Omitted when the policy is unknown. */
         @JsonProperty("cachePolicyTtlSeconds") Long cachePolicyTtlSeconds,
+        /** Why the adaptive Anthropic prompt-cache policy chose this call's TTL: warmup, l1_first, l1_lapsed, l1_hot, g_guard, or ineligible. Omitted outside the adaptive TTL experiment. */
+        @JsonProperty("promptCacheTtlReason") String promptCacheTtlReason,
+        /** Bucket of AI credits the session had billed before this call, for the adaptive Anthropic prompt-cache policy. Omitted outside the adaptive TTL experiment. */
+        @JsonProperty("promptCacheCreditsBucket") String promptCacheCreditsBucket,
         /** Whether the provider reported prompt-cache usage details for this call */
         @JsonProperty("cacheDetailsReported") Boolean cacheDetailsReported,
         /** Number of tool calls returned by the model */
@@ -173,7 +183,86 @@ public final class AssistantUsageEvent extends SessionEvent {
         @JsonProperty("contentFilterTriggered") Boolean contentFilterTriggered,
         /** Experimental HydraFusion attribution for this concrete model call's usage. */
         @CopilotExperimental
-        @JsonProperty("fusion") FusionAttribution fusion
+        @JsonProperty("fusion") FusionAttribution fusion,
+        /** Model identifier returned by the provider, absent when the response does not identify it. */
+        @JsonProperty("responseModel") String responseModel
     ) {
+
+        /**
+         * Creates event data with the components it had before later optional fields were added.
+         */
+        public AssistantUsageEventData(
+            AiCreditsStatus aiCreditsStatus,
+            String model,
+            ModelProviderRef provider,
+            String modelDisplayName,
+            UsageAccountingIdentity accounting,
+            Long inputTokens,
+            Long outputTokens,
+            Long cacheReadTokens,
+            Long cacheWriteTokens,
+            OffsetDateTime cacheExpiresAt,
+            Long reasoningTokens,
+            Long thinkingDroppedBlocks,
+            List<String> thinkingDroppedReasons,
+            Double cost,
+            Long duration,
+            Double timeToFirstTokenMs,
+            Double outputTtftMs,
+            Double interTokenLatencyMs,
+            String initiator,
+            String interactionType,
+            Boolean isByok,
+            String byokKind,
+            String modelProvider,
+            String providerType,
+            Boolean isAuto,
+            Long maxPromptTokens,
+            Long maxOutputTokens,
+            Long acceptedPredictionTokens,
+            Long rejectedPredictionTokens,
+            AssistantUsageTransport transport,
+            Long requestBodyBytes,
+            Long requestBodyWireBytes,
+            ModelCallRequestBodyEncoding requestBodyEncoding,
+            ModelCallRequestBodyCompressionFallback requestBodyCompressionFallback,
+            ModelCallRequestBodyEncoding requestBodyCompressionFallbackFrom,
+            Long requestBodyCompressionRejectedStatus,
+            ModelCallWebSocketFallbackReason websocketFallbackReason,
+            Long websocketFallbackAfterMs,
+            ModelCallWebSocketFallbackErrorKind websocketFallbackErrorKind,
+            Long websocketFallbackStatusCode,
+            Long websocketFallbackCloseCode,
+            Boolean websocketFallbackReconnectAttempted,
+            Boolean websocketFallbackStartedThisCall,
+            String apiCallId,
+            String providerCallId,
+            String serviceRequestId,
+            Boolean rte,
+            AssistantUsageApiEndpoint apiEndpoint,
+            String parentToolCallId,
+            Map<String, AssistantUsageQuotaSnapshot> quotaSnapshots,
+            AssistantUsageCopilotUsage copilotUsage,
+            String reasoningEffort,
+            ReasoningSummary reasoningSummary,
+            Long availableToolCount,
+            Long toolTokenCount,
+            Long customToolCallCount,
+            Long unmatchedToolResultCount,
+            Long orphanToolCallCount,
+            String frontierSource,
+            Long cacheTtlSeconds,
+            Long cachePolicyTtlSeconds,
+            String promptCacheTtlReason,
+            String promptCacheCreditsBucket,
+            Boolean cacheDetailsReported,
+            Long numToolCalls,
+            Map<String, Long> toolCounts,
+            String finishReason,
+            Boolean contentFilterTriggered,
+            FusionAttribution fusion
+        ) {
+            this(aiCreditsStatus, model, provider, modelDisplayName, accounting, inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens, cacheExpiresAt, reasoningTokens, thinkingDroppedBlocks, thinkingDroppedReasons, cost, duration, timeToFirstTokenMs, outputTtftMs, interTokenLatencyMs, initiator, interactionType, isByok, byokKind, modelProvider, providerType, isAuto, maxPromptTokens, maxOutputTokens, acceptedPredictionTokens, rejectedPredictionTokens, transport, null, requestBodyBytes, requestBodyWireBytes, requestBodyEncoding, requestBodyCompressionFallback, requestBodyCompressionFallbackFrom, requestBodyCompressionRejectedStatus, websocketFallbackReason, websocketFallbackAfterMs, websocketFallbackErrorKind, websocketFallbackStatusCode, websocketFallbackCloseCode, websocketFallbackReconnectAttempted, websocketFallbackStartedThisCall, apiCallId, providerCallId, serviceRequestId, null, null, rte, apiEndpoint, parentToolCallId, quotaSnapshots, copilotUsage, reasoningEffort, reasoningSummary, availableToolCount, toolTokenCount, customToolCallCount, unmatchedToolResultCount, orphanToolCallCount, frontierSource, cacheTtlSeconds, cachePolicyTtlSeconds, promptCacheTtlReason, promptCacheCreditsBucket, cacheDetailsReported, numToolCalls, toolCounts, finishReason, contentFilterTriggered, fusion, null);
+        }
     }
 }

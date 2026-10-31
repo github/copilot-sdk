@@ -4,8 +4,6 @@
 
 package com.github.copilot.rpc;
 
-import java.util.Objects;
-
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
 
@@ -123,6 +121,10 @@ public final class PermissionRequestResultKind {
 
     @Override
     public int hashCode() {
-        return Objects.hashCode(value.toLowerCase(java.util.Locale.ROOT));
+        // Fold each code point the way String.equalsIgnoreCase compares it, so equal
+        // kinds hash alike. Whole-string toLowerCase is not equivalent: it expands some
+        // characters and folds case in one direction only.
+        return value.codePoints().map(cp -> Character.toLowerCase(Character.toUpperCase(cp))).reduce(0,
+                (hash, cp) -> 31 * hash + cp);
     }
 }

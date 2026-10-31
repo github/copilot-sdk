@@ -114,10 +114,14 @@ public class HooksE2ETests(E2ETestFixture fixture, ITestOutputHelper output) : E
         Assert.NotEmpty(preToolUseInputs);
         Assert.NotEmpty(postToolUseInputs);
 
-        // The same tool should appear in both
-        var preToolNames = preToolUseInputs.Select(i => i.ToolName).Where(n => !string.IsNullOrEmpty(n)).ToHashSet();
-        var postToolNames = postToolUseInputs.Select(i => i.ToolName).Where(n => !string.IsNullOrEmpty(n)).ToHashSet();
-        Assert.True(preToolNames.Overlaps(postToolNames), "Expected the same tool to appear in both pre and post hooks");
+        Assert.All(preToolUseInputs, input => Assert.False(string.IsNullOrEmpty(input.ToolCallId)));
+        Assert.All(postToolUseInputs, post =>
+        {
+            Assert.False(string.IsNullOrEmpty(post.ToolCallId));
+            var pre = Assert.Single(preToolUseInputs, input =>
+                input.SessionId == post.SessionId && input.ToolCallId == post.ToolCallId);
+            Assert.Equal(pre.ToolName, post.ToolName);
+        });
     }
 
     [Fact]

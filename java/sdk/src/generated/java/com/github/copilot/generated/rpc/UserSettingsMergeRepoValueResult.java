@@ -22,6 +22,7 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 record UserSettingsMergeRepoValueResult(
     /** The merged settings, with the per-entry managed control maps re-stamped from the runtime's ambient managed policy. */
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("settingsJson") Object settingsJson
 ) {
 }

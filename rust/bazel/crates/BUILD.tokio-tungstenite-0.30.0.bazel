@@ -22,9 +22,21 @@ rust_library(
         include = ["**/*.rs"],
         allow_empty = True,
     ),
-    aliases = {
-        "@sdk_vendor__native-tls-0.2.18//:native_tls": "native_tls_crate",
-    },
+    aliases = select({
+        "@rules_rust//rust/platform:aarch64-pc-windows-msvc": {
+            "@sdk_vendor__native-tls-0.2.18//:native_tls": "native_tls_crate",  # aarch64-pc-windows-msvc
+        },
+        "@rules_rust//rust/platform:aarch64-unknown-linux-gnu": {
+            "@sdk_vendor__native-tls-0.2.18//:native_tls": "native_tls_crate",  # aarch64-unknown-linux-gnu
+        },
+        "@rules_rust//rust/platform:x86_64-pc-windows-msvc": {
+            "@sdk_vendor__native-tls-0.2.18//:native_tls": "native_tls_crate",  # x86_64-pc-windows-msvc
+        },
+        "@rules_rust//rust/platform:x86_64-unknown-linux-gnu": {
+            "@sdk_vendor__native-tls-0.2.18//:native_tls": "native_tls_crate",  # x86_64-unknown-linux-gnu
+        },
+        "//conditions:default": {},
+    }),
     compile_data = glob(
         include = ["**"],
         allow_empty = True,
@@ -40,11 +52,46 @@ rust_library(
     crate_features = [
         "connect",
         "handshake",
-        "native-tls",
-        "native-tls-crate",
         "stream",
-        "tokio-native-tls",
-    ],
+    ] + select({
+        "@rules_rust//rust/platform:aarch64-apple-darwin": [
+            "__rustls-tls",  # aarch64-apple-darwin
+            "rustls",  # aarch64-apple-darwin
+            "rustls-native-certs",  # aarch64-apple-darwin
+            "rustls-pki-types",  # aarch64-apple-darwin
+            "rustls-tls-native-roots",  # aarch64-apple-darwin
+            "tokio-rustls",  # aarch64-apple-darwin
+        ],
+        "@rules_rust//rust/platform:aarch64-pc-windows-msvc": [
+            "native-tls",  # aarch64-pc-windows-msvc
+            "native-tls-crate",  # aarch64-pc-windows-msvc
+            "tokio-native-tls",  # aarch64-pc-windows-msvc
+        ],
+        "@rules_rust//rust/platform:aarch64-unknown-linux-gnu": [
+            "native-tls",  # aarch64-unknown-linux-gnu
+            "native-tls-crate",  # aarch64-unknown-linux-gnu
+            "tokio-native-tls",  # aarch64-unknown-linux-gnu
+        ],
+        "@rules_rust//rust/platform:x86_64-apple-darwin": [
+            "__rustls-tls",  # x86_64-apple-darwin
+            "rustls",  # x86_64-apple-darwin
+            "rustls-native-certs",  # x86_64-apple-darwin
+            "rustls-pki-types",  # x86_64-apple-darwin
+            "rustls-tls-native-roots",  # x86_64-apple-darwin
+            "tokio-rustls",  # x86_64-apple-darwin
+        ],
+        "@rules_rust//rust/platform:x86_64-pc-windows-msvc": [
+            "native-tls",  # x86_64-pc-windows-msvc
+            "native-tls-crate",  # x86_64-pc-windows-msvc
+            "tokio-native-tls",  # x86_64-pc-windows-msvc
+        ],
+        "@rules_rust//rust/platform:x86_64-unknown-linux-gnu": [
+            "native-tls",  # x86_64-unknown-linux-gnu
+            "native-tls-crate",  # x86_64-unknown-linux-gnu
+            "tokio-native-tls",  # x86_64-unknown-linux-gnu
+        ],
+        "//conditions:default": [],
+    }),
     crate_root = "src/lib.rs",
     edition = "2018",
     rustc_env_files = [
@@ -73,9 +120,37 @@ rust_library(
     deps = [
         "@sdk_vendor__futures-util-0.3.34//:futures_util",
         "@sdk_vendor__log-0.4.34//:log",
-        "@sdk_vendor__native-tls-0.2.18//:native_tls",
-        "@sdk_vendor__tokio-1.53.3//:tokio",
-        "@sdk_vendor__tokio-native-tls-0.3.1//:tokio_native_tls",
+        "@sdk_vendor__tokio-1.54.1//:tokio",
         "@sdk_vendor__tungstenite-0.30.0//:tungstenite",
-    ],
+    ] + select({
+        "@rules_rust//rust/platform:aarch64-apple-darwin": [
+            "@sdk_vendor__rustls-0.23.46//:rustls",  # aarch64-apple-darwin
+            "@sdk_vendor__rustls-native-certs-0.8.5//:rustls_native_certs",  # aarch64-apple-darwin
+            "@sdk_vendor__rustls-pki-types-1.15.1//:rustls_pki_types",  # aarch64-apple-darwin
+            "@sdk_vendor__tokio-rustls-0.26.6//:tokio_rustls",  # aarch64-apple-darwin
+        ],
+        "@rules_rust//rust/platform:aarch64-pc-windows-msvc": [
+            "@sdk_vendor__native-tls-0.2.18//:native_tls",  # aarch64-pc-windows-msvc
+            "@sdk_vendor__tokio-native-tls-0.3.1//:tokio_native_tls",  # aarch64-pc-windows-msvc
+        ],
+        "@rules_rust//rust/platform:aarch64-unknown-linux-gnu": [
+            "@sdk_vendor__native-tls-0.2.18//:native_tls",  # aarch64-unknown-linux-gnu
+            "@sdk_vendor__tokio-native-tls-0.3.1//:tokio_native_tls",  # aarch64-unknown-linux-gnu
+        ],
+        "@rules_rust//rust/platform:x86_64-apple-darwin": [
+            "@sdk_vendor__rustls-0.23.46//:rustls",  # x86_64-apple-darwin
+            "@sdk_vendor__rustls-native-certs-0.8.5//:rustls_native_certs",  # x86_64-apple-darwin
+            "@sdk_vendor__rustls-pki-types-1.15.1//:rustls_pki_types",  # x86_64-apple-darwin
+            "@sdk_vendor__tokio-rustls-0.26.6//:tokio_rustls",  # x86_64-apple-darwin
+        ],
+        "@rules_rust//rust/platform:x86_64-pc-windows-msvc": [
+            "@sdk_vendor__native-tls-0.2.18//:native_tls",  # x86_64-pc-windows-msvc
+            "@sdk_vendor__tokio-native-tls-0.3.1//:tokio_native_tls",  # x86_64-pc-windows-msvc
+        ],
+        "@rules_rust//rust/platform:x86_64-unknown-linux-gnu": [
+            "@sdk_vendor__native-tls-0.2.18//:native_tls",  # x86_64-unknown-linux-gnu
+            "@sdk_vendor__tokio-native-tls-0.3.1//:tokio_native_tls",  # x86_64-unknown-linux-gnu
+        ],
+        "//conditions:default": [],
+    }),
 )

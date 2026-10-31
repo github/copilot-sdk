@@ -27,6 +27,8 @@ public record ModelsListTokenPriceUnitsParams(
     /** Opaque account identifier returned by `account.getAllUsers`. When omitted, the current account is used. */
     @JsonProperty("selectionId") String selectionId,
     /** GitHub token accepted for compatibility with existing SDK clients. When provided, resolves this token instead of using the current account. */
-    @JsonProperty("gitHubToken") String gitHubToken
+    @JsonProperty("gitHubToken") String gitHubToken,
+    /** When true, replaces the display names of preview and hidden models with `Hidden Model N`, and masks their promotion and data-retention text. Model ids are unchanged. */
+    @JsonProperty("streamerMode") Boolean streamerMode
 ) {
 }

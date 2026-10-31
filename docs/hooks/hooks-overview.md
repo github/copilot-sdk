@@ -25,6 +25,37 @@ registered SDK callbacks, see [Repository hooks from additional directories](../
 | [`onErrorOccurred`](./error-handling.md) | Error happens | Custom error handling |
 | [`onAgentStop`](./session-lifecycle.md#agent-stop-hook) | Top-level agent naturally stops | Validate completion or request another turn |
 
+## Hook metadata
+
+The TypeScript, Python, Go, .NET, Rust, and Java SDKs expose the existing model
+tool-call ID for `preToolUse`, `postToolUse`, and `postToolUseFailure`.
+In TypeScript and Python this is optional `toolCallId`; .NET uses nullable
+`ToolCallId`, and Go uses `ToolCallID` (empty when absent). Java exposes nullable
+`getToolCallId()`.
+
+Correlate calls using `(input.sessionId, input.toolCallId)`, not tool names or
+arguments. This ID also matches tool-execution events and
+`preMcpToolCall.toolCallId`, and argument changes do not change it. Use the
+input's session ID, not the hook invocation's session ID: the callback owner can
+differ from the child session reported in the input.
+
+`postToolUse` observes successful results; `postToolUseFailure` observes failures.
+Other outcomes can invoke neither, so a pre-hook does not guarantee a matching
+post-hook.
+
+TypeScript, Python, Go, Rust, and Java also expose optional W3C `traceparent` and
+`tracestate` (`Traceparent` and `Tracestate` in Go). .NET hook inputs do not expose
+these fields. They describe existing trace context, not tool-call identity.
+Older runtimes can omit these fields and the tool-call ID.
+
+Java uses `getTraceparent()` and `getTracestate()` on class-based hook inputs,
+and `traceparent()` and `tracestate()` on record-based inputs. Existing record
+constructors remain available and leave tracing metadata `null`.
+
+In Rust, access this metadata through `HookActor::tool_call_id()`,
+`traceparent()`, and `tracestate()` in `SessionHooks::on_hook_with_actor`.
+The existing input structs and callback signatures remain unchanged.
+
 ## Quick start
 
 <details open>
@@ -204,7 +235,7 @@ Every hook receives an `invocation` parameter with context about the current ses
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `sessionId` | string | The ID of the current session |
+| `sessionId` | string | The callback owner's session ID, which can differ from `input.sessionId` for a child session |
 
 This allows hooks to maintain state or perform session-specific logic.
 

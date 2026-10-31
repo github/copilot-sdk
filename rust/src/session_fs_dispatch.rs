@@ -15,17 +15,18 @@ use tracing::warn;
 use crate::generated::api_types::{
     SessionFsAppendFileRequest, SessionFsError, SessionFsErrorCode, SessionFsExistsRequest,
     SessionFsExistsResult, SessionFsMkdirRequest, SessionFsReadFileBytesRequest,
-    SessionFsReadFileBytesResult, SessionFsReadFileRequest, SessionFsReadFileResult,
-    SessionFsReaddirRequest, SessionFsReaddirResult, SessionFsReaddirWithTypesRequest,
-    SessionFsReaddirWithTypesResult, SessionFsRenameRequest, SessionFsRmRequest,
-    SessionFsSqliteExistsParams, SessionFsSqliteExistsResult, SessionFsSqliteQueryRequest,
+    SessionFsReadFileBytesResult, SessionFsReadFileRangeRequest, SessionFsReadFileRangeResult,
+    SessionFsReadFileRequest, SessionFsReadFileResult, SessionFsReaddirRequest,
+    SessionFsReaddirResult, SessionFsReaddirWithTypesRequest, SessionFsReaddirWithTypesResult,
+    SessionFsRenameRequest, SessionFsRmRequest, SessionFsSqliteExistsParams,
+    SessionFsSqliteExistsResult, SessionFsSqliteQueryRequest,
     SessionFsSqliteQueryResult as GeneratedSqliteQueryResult,
     SessionFsSqliteTransactionError as GeneratedSqliteTransactionError,
     SessionFsSqliteTransactionErrorClass, SessionFsSqliteTransactionRequest,
     SessionFsSqliteTransactionResult as GeneratedSqliteTransactionResult, SessionFsStatRequest,
     SessionFsStatResult, SessionFsWriteFileBytesRequest, SessionFsWriteFileRequest,
 };
-use crate::session_fs::SessionFsProvider;
+use crate::session_fs::{FsError, FsErrorKind, SessionFsProvider};
 use crate::{Client, JsonRpcRequest, JsonRpcResponse, error_codes};
 
 const MAX_BINARY_BYTES: usize = (64 * 1024 * 1024 - 1024) / 4 * 3;
@@ -185,6 +186,80 @@ fn binary_read_response(
         },
         Err(error) => SessionFsReadFileBytesResult {
             content: String::new(),
+            error: Some(error.into_wire()),
+        },
+    }
+}
+
+pub(crate) async fn read_file_range(
+    client: &Client,
+    provider: &Arc<dyn SessionFsProvider>,
+    mut request: JsonRpcRequest,
+) {
+    let Some(params) = parse_params::<SessionFsReadFileRangeRequest>(&mut request) else {
+        send_error(client, request.id, "invalid sessionFs.readFileRange params").await;
+        return;
+    };
+    respond(
+        client,
+        request.id,
+        read_file_range_response(provider.as_ref(), &params).await,
+    )
+    .await;
+}
+
+async fn read_file_range_response(
+    provider: &dyn SessionFsProvider,
+    params: &SessionFsReadFileRangeRequest,
+) -> SessionFsReadFileRangeResult {
+    let result = if !(0..=9_007_199_254_740_991).contains(&params.offset)
+        || params
+            .length
+            .is_some_and(|length| !(0..=9_007_199_254_740_991).contains(&length))
+    {
+        Err(FsError::with_message(
+            FsErrorKind::Other,
+            "SessionFs byte offset and length must be non-negative safe integers",
+        ))
+    } else {
+        match provider.byte_ranges() {
+            Some(ranges) => {
+                ranges
+                    .read_file_range(&params.path, params.offset, params.length)
+                    .await
+            }
+            None => Err(FsError::with_message(
+                FsErrorKind::Other,
+                "read_file_range not supported",
+            )),
+        }
+    };
+    let result = result.and_then(|range| {
+        if !(0..=9_007_199_254_740_991).contains(&range.byte_length) {
+            return Err(FsError::with_message(
+                FsErrorKind::Other,
+                "SessionFs byte length must be a non-negative safe integer",
+            ));
+        }
+        let available = range.byte_length.saturating_sub(params.offset).max(0);
+        let expected = available.min(params.length.unwrap_or(available));
+        if i64::try_from(range.content.len()).ok() != Some(expected) {
+            return Err(FsError::with_message(
+                FsErrorKind::Other,
+                "SessionFs returned an incorrect byte range length",
+            ));
+        }
+        Ok(SessionFsReadFileRangeResult {
+            content: base64::engine::general_purpose::STANDARD.encode(range.content),
+            byte_length: range.byte_length,
+            error: None,
+        })
+    });
+    match result {
+        Ok(result) => result,
+        Err(error) => SessionFsReadFileRangeResult {
+            content: String::new(),
+            byte_length: 0,
             error: Some(error.into_wire()),
         },
     }
@@ -632,6 +707,7 @@ pub(crate) async fn dispatch(
     match method {
         "sessionFs.readFile" => read_file(client, &provider, request).await,
         "sessionFs.readFileBytes" => read_file_bytes(client, &provider, request).await,
+        "sessionFs.readFileRange" => read_file_range(client, &provider, request).await,
         "sessionFs.writeFileBytes" => write_file_bytes(client, &provider, request).await,
         "sessionFs.writeFile" => write_file(client, &provider, request).await,
         "sessionFs.appendFile" => append_file(client, &provider, request).await,

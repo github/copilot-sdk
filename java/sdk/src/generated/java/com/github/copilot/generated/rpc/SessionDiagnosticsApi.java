@@ -24,10 +24,14 @@ public final class SessionDiagnosticsApi {
     private final RpcCaller caller;
     private final String sessionId;
 
+    /** API methods for the {@code diagnostics.lifecycle} sub-namespace. */
+    final SessionDiagnosticsLifecycleApi lifecycle;
+
     /** @param caller the RPC transport function */
     SessionDiagnosticsApi(RpcCaller caller, String sessionId) {
         this.caller = caller;
         this.sessionId = sessionId;
+        this.lifecycle = new SessionDiagnosticsLifecycleApi(caller, sessionId);
     }
 
     /**

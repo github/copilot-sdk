@@ -41,6 +41,9 @@ public final class PermissionRequestedEvent extends SessionEvent {
         @JsonProperty("permissionRequest") Object permissionRequest,
         /** Derived user-facing permission prompt details for UI consumers */
         @JsonProperty("promptRequest") Object promptRequest,
+        /** Canonical runtime-owned Assisted Permissions assessment. New runtimes emit this for every permission request; absence means the event predates this field. Consumers must use `permission.completed` for the final permission result. */
+        @CopilotExperimental
+        @JsonProperty("assistedApprovalAssessment") AssistedApprovalAssessment assistedApprovalAssessment,
         /** Permission mode captured when evaluation began. Absent on historical events. */
         @JsonProperty("permissionMode") PermissionMode permissionMode,
         /** Agent mode captured from the owning turn when permission evaluation began. */

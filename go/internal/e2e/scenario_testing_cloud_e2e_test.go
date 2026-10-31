@@ -199,7 +199,7 @@ func TestScenarioTestingCloudE2E(t *testing.T) {
 			mu.Lock()
 			methods = append(methods, "sessions.connect")
 			mu.Unlock()
-			return mustJSON(t, remoteSessionConnection("github/other-repository#456")), nil
+			return mustJSON(t, remoteSessionConnection("github/docs#456")), nil
 		})
 		fixture.server.SetRequestHandler("session.resume", func(_ json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
 			mu.Lock()

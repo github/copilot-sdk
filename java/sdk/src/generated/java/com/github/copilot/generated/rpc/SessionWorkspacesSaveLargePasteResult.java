@@ -25,6 +25,7 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionWorkspacesSaveLargePasteResult(
     /** Saved-paste descriptor, or null when the workspace is unavailable (e.g. CCA runtime, non-infinite sessions, remote sessions) */
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("saved") SessionWorkspacesSaveLargePasteResultSaved saved
 ) {
 

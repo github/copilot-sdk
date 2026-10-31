@@ -183,6 +183,46 @@ repair and backup.
 > The recovery report describes the load that performed recovery, not every subsequent
 > reconnect.
 
+### Linked event journals
+
+Set `COPILOT_SESSION_EVENT_LOG_ROTATION_BYTES` in the runtime process environment
+to opt into size-based journal rotation. The value is a positive decimal byte
+count, read once per process. Leaving it unset disables rotation; an invalid
+value logs one warning and disables rotation.
+
+After a committed write reaches the threshold, the runtime can archive the
+current journal as an unused `events.N.jsonl` and atomically replace
+`events.jsonl`. The replacement starts with a predecessor link and checkpoint
+events that reconstruct the session using existing event types. There is no
+separate checkpoint file. Resume reads only this standalone head; it does not
+need the archives or the environment setting.
+
+The threshold counts bytes appended after the checkpoint prefix, not the
+complete head size. Rotation is deferred when state cannot be reconstructed
+losslessly, or when the replacement cannot pay for its copied prefix from the
+preceding append interval. Deferred attempts wait for further journal growth
+rather than rebuilding on every write. Necessary replay state may grow, so
+this is not a constant-size file or disk-usage limit.
+
+History reads traverse complete predecessor archives, excluding contiguous
+`checkpoint: true` prefixes. Removing archive lines preserves surviving history
+without changing the head's checkpoint. Missing or malformed required data fails
+history reads, not head-only resume. Forks and archived rewinds materialize
+standalone transcripts that cannot reconnect discarded suffixes. Pagination
+locates event identities or expires shifted cursors. Copy linked archives when
+historical access is required.
+
+Custom session filesystem providers must implement atomic replacement through
+their existing `rename` operation and coordinate writers that share storage.
+Optional byte-range reads reduce historical I/O; providers without them read
+the needed complete segment. An unresolved publication stops further writes
+rather than guessing whether an asynchronous replacement committed.
+
+Older runtimes can replay the known checkpoint events while ignoring the link.
+If an older runtime rewrites the head and drops that link, newer runtimes do
+not reconnect orphan archives automatically. Current model, permissions and
+other reconstructed state remain readable, but older history is detached.
+
 ```mermaid
 flowchart LR
     subgraph Day1["Day 1"]
@@ -201,7 +241,7 @@ flowchart LR
 
 ```typescript
 // Resume from a different client instance (or after restart)
-const session = await client.resumeSession("user-123-task-456");
+const session = await client.resumeSession("user-123-task-456", {});
 
 // Continue where you left off
 await session.sendAndWait({ prompt: "What did we discuss earlier?" });
@@ -210,6 +250,11 @@ await session.sendAndWait({ prompt: "What did we discuss earlier?" });
 ### Python
 
 ```python
+from copilot import CopilotClient
+from copilot.session import PermissionHandler
+
+client = CopilotClient()
+
 # Resume from a different client instance (or after restart)
 session = await client.resume_session("user-123-task-456", on_permission_request=PermissionHandler.approve_all)
 
@@ -252,32 +297,13 @@ session.SendAndWait(ctx, copilot.MessageOptions{Prompt: "What did we discuss ear
 
 ### C# (.NET)
 
-<!-- docs-validate: hidden -->
 ```csharp
 using GitHub.Copilot;
-using GitHub.Copilot.Rpc;
 
-public static class ResumeSessionExample
-{
-    public static async Task Main()
-    {
-        await using var client = new CopilotClient();
+var client = new CopilotClient();
 
-        var session = await client.ResumeSessionAsync("user-123-task-456", new ResumeSessionConfig
-        {
-            OnPermissionRequest = (req, inv) =>
-                Task.FromResult(PermissionDecision.ApproveOnce()),
-        });
-
-        await session.SendAndWaitAsync(new MessageOptions { Prompt = "What did we discuss earlier?" });
-    }
-}
-```
-<!-- /docs-validate: hidden -->
-
-```csharp
 // Resume from a different client instance (or after restart)
-var session = await client.ResumeSessionAsync("user-123-task-456");
+var session = await client.ResumeSessionAsync("user-123-task-456", new ResumeSessionConfig());
 
 // Continue where you left off
 await session.SendAndWaitAsync(new MessageOptions { Prompt = "What did we discuss earlier?" });
@@ -311,9 +337,9 @@ When resuming a session, you can optionally reconfigure many settings. This is u
 
 With `model: "auto"`, the optional `capi.autoTier` setting selects an Auto routing preference: `efficiency`, `balance`, `intelligence`, or `fast`. In Python, use `capi={"auto_tier": "balance"}`. This setting applies to V2 Auto routing; V1 Auto requests are unchanged.
 
-When the runtime's default-off `DYNAMIC_AUTO_TIERS` feature is enabled, the session's `model.list` RPC also returns optional `auto` metadata from the provider's `/meta` endpoint. Use the enabled descriptors with `type: "auto"` to discover additional supported tier identifiers, their display names, descriptions, and ordering. The existing selection methods and JSON fields accept these identifiers. A discovery failure does not fall back to `/models`, and a successful response without `auto` metadata provides no selectable Auto tiers.
+The session's `model.list` RPC also returns optional `auto` metadata from the provider's `/meta` endpoint. Use the enabled descriptors with `type: "auto"` to discover additional supported tier identifiers, their display names, descriptions, and ordering. The existing selection methods and JSON fields accept these identifiers. A discovery failure does not fall back to `/models`, and a successful response without `auto` metadata provides no selectable Auto tiers.
 
-To populate a model picker before any session exists, enable `DYNAMIC_AUTO_TIERS` in the runtime's environment (for example, the `env` client option). The server-level `models.list` RPC (`client.rpc.models.list()` in Node.js) then returns the same `auto` metadata from the same `/meta` response, with the same no-fallback behavior. The server-level listing reads the flag the runtime resolved at startup, not per-session feature flags or experiment assignments, so set the flag where you launch the runtime. With the flag disabled, `models.list` is unchanged and omits `auto`.
+To populate a model picker before any session exists, use the server-level `models.list` RPC (`client.rpc.models.list()` in Node.js). It returns the same `auto` metadata from the same `/meta` response, with the same no-fallback behavior.
 
 Treat tier identifiers as extensible values, not a closed enumeration. Existing named values remain available; for additional identifiers, use strings in Node.js and Python, `AutoTier("premium-v2")` in Go, `new AutoTier("premium-v2")` in .NET, `AutoTier::Custom` in Rust, or `AutoTier.fromValue` in Java. The provider's `defaultTier` describes its default routing without creating a committed SDK preference.
 
@@ -415,9 +441,9 @@ const session = await client.createSession({
   model: "gpt-5.2-codex",
   provider: {
     type: "azure",
-    endpoint: "https://my-resource.openai.azure.com",
+    baseUrl: "https://my-resource.openai.azure.com",
     apiKey: process.env.AZURE_OPENAI_KEY,
-    deploymentId: "my-gpt-deployment",
+    azure: { apiVersion: "2024-10-21" },
   },
 });
 
@@ -425,9 +451,9 @@ const session = await client.createSession({
 const resumed = await client.resumeSession("user-123-task-456", {
   provider: {
     type: "azure",
-    endpoint: "https://my-resource.openai.azure.com",
+    baseUrl: "https://my-resource.openai.azure.com",
     apiKey: process.env.AZURE_OPENAI_KEY,  // Required again
-    deploymentId: "my-gpt-deployment",
+    azure: { apiVersion: "2024-10-21" },
   },
 });
 ```
@@ -501,13 +527,14 @@ session_id = create_session_id("alice", "code-review")
 
 ### Listing active sessions
 
+<!-- docs-validate: strict -->
 ```typescript
 // List all sessions
 const sessions = await client.listSessions();
 console.log(`Found ${sessions.length} sessions`);
 
 for (const session of sessions) {
-  console.log(`- ${session.sessionId} (created: ${session.createdAt})`);
+  console.log(`- ${session.sessionId} (started: ${session.startTime.toISOString()})`);
 }
 
 // Filter sessions by repository
@@ -516,21 +543,85 @@ const repoSessions = await client.listSessions({ repository: "owner/repo" });
 
 ### Cleaning up old sessions
 
+Lock cleanup, creation, resume, and sends until all work, including background work, finishes and the owner disconnects. Share locks across processes or clients sharing storage. Failed cancellation blocks reuse, not unrelated cleanup. After correcting the cause, call `recoverSession` with the original resume configuration to reconnect, reacquire ownership, and drain.
+
+<!-- docs-validate: strict -->
 ```typescript
-async function cleanupExpiredSessions(maxAgeMs: number) {
-  const sessions = await client.listSessions();
-  const now = Date.now();
-  
-  for (const session of sessions) {
-    const age = now - new Date(session.createdAt).getTime();
-    if (age > maxAgeMs) {
-      await client.deleteSession(session.sessionId);
-      console.log(`Deleted expired session: ${session.sessionId}`);
+const sessionLocks = new Map<string, Promise<void>>();
+const sessionRecoveries = new Map<string, Awaited<ReturnType<typeof client.resumeSession>>>();
+
+async function withSessionLock<T>(sessionId: string, operation: () => Promise<T>, allowRecovery = false): Promise<T> {
+  const previous = sessionLocks.get(sessionId) ?? Promise.resolve();
+  let release!: () => void;
+  const current = new Promise<void>((resolve) => { release = resolve; });
+  const tail = previous.then(() => current);
+  sessionLocks.set(sessionId, tail);
+  await previous;
+  try {
+    if (!allowRecovery && sessionRecoveries.has(sessionId)) {
+      throw new Error(`Session ${sessionId} requires recovery; call recoverSession before reuse`);
     }
+    return await operation();
+  } finally {
+    release();
+    if (sessionLocks.get(sessionId) === tail) sessionLocks.delete(sessionId);
   }
 }
 
-// Clean up sessions older than 24 hours
+async function cancelAndDisconnect(sessionId: string, session: Awaited<ReturnType<typeof client.resumeSession>>) {
+  sessionRecoveries.set(sessionId, session);
+  const aborted = await session.rpc.abort({});
+  if (!aborted.success) throw new Error(aborted.error);
+  await session.disconnect();
+  sessionRecoveries.delete(sessionId);
+}
+
+async function recoverSession(sessionId: string, config: Parameters<typeof client.resumeSession>[1]) {
+  await withSessionLock(sessionId, async () => {
+    if (!sessionRecoveries.has(sessionId)) throw new Error(`No recovery pending for session ${sessionId}`);
+    await client.start();
+    const session = await client.resumeSession(sessionId, config);
+    await cancelAndDisconnect(sessionId, session);
+  }, true);
+}
+
+async function sendPrompt(sessionId: string, prompt: string) {
+  return withSessionLock(sessionId, async () => {
+    const session = await client.resumeSession(sessionId, {});
+    let response;
+    try {
+      response = await session.sendAndWait({ prompt });
+    } catch (error) {
+      try {
+        await cancelAndDisconnect(sessionId, session);
+      } catch (recoveryError) {
+        throw new AggregateError([error, recoveryError], "Session requires recovery");
+      }
+      throw error;
+    }
+    await session.disconnect();
+    return response;
+  });
+}
+
+async function cleanupExpiredSessions(maxIdleMs: number) {
+  const sessions = await client.listSessions();
+  
+  for (const session of sessions) {
+    if (Date.now() - session.modifiedTime.getTime() <= maxIdleMs) continue;
+    await withSessionLock(session.sessionId, async () => {
+      if (sessionRecoveries.has(session.sessionId)) return;
+      // The listing can become stale while another session is being deleted.
+      const latest = (await client.listSessions()).find((s) => s.sessionId === session.sessionId);
+      if (latest && Date.now() - latest.modifiedTime.getTime() > maxIdleMs) {
+        await client.deleteSession(session.sessionId);
+        console.log(`Deleted expired session: ${session.sessionId}`);
+      }
+    }, true);
+  }
+}
+
+// Clean up sessions that have been idle for more than 24 hours
 await cleanupExpiredSessions(24 * 60 * 60 * 1000);
 ```
 
@@ -588,7 +679,7 @@ const client = new CopilotClient({
 When a timeout is configured, sessions without activity for that duration are automatically cleaned up. Set to `0` or omit to disable.
 
 > [!NOTE]
-> This option only applies when the SDK spawns the runtime process. When connecting to an existing server via `cliUrl`, the server's own timeout configuration applies.
+> This option only applies when the SDK spawns the runtime process. When connecting to an existing server via a URI connection (`RuntimeConnection.forUri`), the server's own timeout configuration applies.
 
 ```mermaid
 flowchart LR
@@ -658,7 +749,7 @@ async function resumeSessionWithAuth(
     throw new Error("Access denied: session belongs to another user");
   }
   
-  return client.resumeSession(sessionId);
+  return client.resumeSession(sessionId, {});
 }
 ```
 
@@ -759,7 +850,7 @@ async function withSessionLock<T>(
 
 // Usage
 await withSessionLock("user-123-task-456", async () => {
-  const session = await client.resumeSession("user-123-task-456");
+  const session = await client.resumeSession("user-123-task-456", {});
   await session.sendAndWait({ prompt: "Continue the task" });
 });
 ```
@@ -769,7 +860,7 @@ await withSessionLock("user-123-task-456", async () => {
 | Feature | How to Use |
 |---------|------------|
 | **Create resumable session** | Provide your own `sessionId` |
-| **Resume session** | `client.resumeSession(sessionId)` |
+| **Resume session** | `client.resumeSession(sessionId, config)` |
 | **BYOK resume** | Re-provide `provider` config |
 | **List sessions** | `client.listSessions(filter?)` |
 | **Disconnect from active session** | `session.disconnect()`—releases in-memory resources; session data on disk is preserved for resumption |

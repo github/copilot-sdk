@@ -45,12 +45,18 @@ public final class SkillInvokedEvent extends SessionEvent {
         @JsonProperty("path") String path,
         /** Full content of the skill file, injected into the conversation for the model */
         @JsonProperty("content") String content,
+        /** Exact invocation arguments when recorded, retained separately from the reusable skill body */
+        @JsonProperty("arguments") String arguments,
         /** Tool names that should be auto-approved when this skill is active */
         @JsonProperty("allowedTools") List<String> allowedTools,
         /** Whether model invocation is disabled for this skill */
         @JsonProperty("disableModelInvocation") Boolean disableModelInvocation,
         /** Source identifier for where the skill was discovered. Known values include: project (workspace skill), inherited (parent-directory skill), personal-copilot (~/.copilot/skills), personal-agents (~/.agents/skills), custom (configured directory), plugin (installed plugin), builtin (bundled runtime skill), remote (org/enterprise skill), and sdk (SDK-provided skill) */
         @JsonProperty("source") String source,
+        /** Held MCP skill origin and manifest. Remote execution restrictions survive replay while this provenance remains in the session. */
+        @JsonProperty("mcpOrigin") Object mcpOrigin,
+        /** MCP resource metadata associated with the verified skill content. */
+        @JsonProperty("mcpMeta") Object mcpMeta,
         /** Name of the plugin this skill originated from, when applicable */
         @JsonProperty("pluginName") String pluginName,
         /** Version of the plugin this skill originated from, when applicable */

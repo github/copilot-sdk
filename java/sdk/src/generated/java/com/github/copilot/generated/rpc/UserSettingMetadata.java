@@ -22,8 +22,10 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record UserSettingMetadata(
     /** The effective value: the user's value if set, otherwise the default. */
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("value") Object value,
     /** The centrally-known default for this setting (null when no default is registered). */
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("default") Object default_,
     /** True when the user has not set an explicit value for this setting (i.e. it is left at its default). Reflects whether the user has overridden the key, not whether the effective value happens to equal the default — a key explicitly set to a value identical to the default still reports false. */
     @JsonProperty("isDefault") Boolean isDefault

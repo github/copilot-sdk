@@ -58,7 +58,9 @@ func RunWithInProcessIsolation(m *testing.M) int {
 		if subtestPattern != "" {
 			selector += "/" + subtestPattern
 		}
-		if err := runIsolatedProcess(ctx, name, selector, remainingTimeout(start)); err != nil {
+		output, _, err := runIsolatedProcess(ctx, name, selector, remainingTimeout(start))
+		fmt.Print(string(output))
+		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			failed = true
 		}
@@ -90,8 +92,18 @@ func RunInIsolatedProcess(t *testing.T) bool {
 		}
 	}
 	selector := exactTestSelector(t.Name())
-	if err := runIsolatedProcess(t.Context(), t.Name(), selector, timeout); err != nil {
+	output, skipped, err := runIsolatedProcess(t.Context(), t.Name(), selector, timeout)
+	// Nested worker protocol belongs to this test's output, not to the outer Go runner.
+	for _, line := range strings.SplitAfter(string(output), "\n") {
+		if line != "" {
+			fmt.Printf("isolated FFI: %s", line)
+		}
+	}
+	if err != nil {
 		t.Fatal(err)
+	}
+	if skipped {
+		t.Skip("isolated FFI child skipped the test")
 	}
 	return true
 }
@@ -118,14 +130,14 @@ func listTopLevelTests() ([]string, error) {
 	return tests, nil
 }
 
-func runIsolatedProcess(ctx context.Context, name, selector string, timeout time.Duration) (resultErr error) {
+func runIsolatedProcess(ctx context.Context, name, selector string, timeout time.Duration) (output []byte, skipped bool, resultErr error) {
 	executable, err := os.Executable()
 	if err != nil {
-		return fmt.Errorf("locate test executable: %w", err)
+		return nil, false, fmt.Errorf("locate test executable: %w", err)
 	}
 	outputFile, err := os.CreateTemp("", "copilot-sdk-isolated-e2e-")
 	if err != nil {
-		return fmt.Errorf("create isolated FFI output file: %w", err)
+		return nil, false, fmt.Errorf("create isolated FFI output file: %w", err)
 	}
 	defer func() {
 		if err := os.Remove(outputFile.Name()); err != nil {
@@ -147,15 +159,24 @@ func runIsolatedProcess(ctx context.Context, name, selector string, timeout time
 	runErr := command.Run()
 	closeErr := outputFile.Close()
 	output, readErr := os.ReadFile(outputFile.Name())
-	fmt.Print(string(output))
 	if runErr != nil || closeErr != nil || readErr != nil {
-		return fmt.Errorf("isolated FFI test %s failed: %w", name, errors.Join(runErr, closeErr, readErr))
+		return output, false, fmt.Errorf("isolated FFI test %s failed: %w", name, errors.Join(runErr, closeErr, readErr))
 	}
-	if !strings.Contains(string(output), "--- PASS: "+name+" (") &&
-		!strings.Contains(string(output), "--- SKIP: "+name+" (") {
-		return fmt.Errorf("isolated FFI process did not report completing %s", name)
+	completed := false
+	for _, line := range strings.Split(string(output), "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "--- PASS: "+name+" (") {
+			completed = true
+		}
+		if strings.HasPrefix(line, "--- SKIP: "+name+" (") {
+			completed = true
+			skipped = true
+		}
 	}
-	return nil
+	if !completed {
+		return output, false, fmt.Errorf("isolated FFI process did not report completing %s", name)
+	}
+	return output, skipped, nil
 }
 
 func isolatedTestArgs(args []string, selector string, list bool, timeout time.Duration) []string {

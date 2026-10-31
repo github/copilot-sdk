@@ -26,6 +26,7 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 record McpRegistrySearchResult(
     /** The server objects, carried opaquely. The runtime follows pages, keeps the newest entry per server name, cuts the list to `limit`, and sorts an empty-query result by GitHub stars. Each server object remains unchanged because the registry owns that shape. */
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("servers") Object servers
 ) {
 }

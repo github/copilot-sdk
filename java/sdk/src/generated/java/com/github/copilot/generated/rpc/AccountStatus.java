@@ -14,7 +14,7 @@ import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
- * One signed-in account in the roster forest.
+ * One canonical signed-in account entry shared by account-list and account-switch surfaces.
  *
  * @apiNote This type is experimental and may change in a future version.
  *
@@ -25,19 +25,29 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record AccountStatus(
+    /** Stable opaque account id used for forest lineage and account management. */
+    @JsonProperty("accountId") String accountId,
     /** Authentication host URL. */
     @JsonProperty("host") String host,
     /** Authenticated login/username. */
     @JsonProperty("login") String login,
+    /** Human-readable identity and provider label owned by the runtime. */
+    @JsonProperty("label") String label,
     /** The provider kind of this account. */
     @JsonProperty("kind") AccountKind kind,
     /** Human-readable credential source used to authenticate this account, such as `gh` or `GITHUB_TOKEN`. */
     @JsonProperty("authSource") String authSource,
-    /** Opaque id of the account this one was derived from (e.g. an EMU account's base Entra identity); absent for a root account. Matches the base identity account's selectionId, forming the derivation edge. */
+    /** Opaque accountId of the account this one was derived from; absent for a root account. */
     @JsonProperty("derivedFrom") String derivedFrom,
     /** Whether this is the active account. */
     @JsonProperty("active") Boolean active,
-    /** Opaque selection id used to switch to, or log out, this account. */
-    @JsonProperty("selectionId") String selectionId
+    /** Opaque selection id accepted by switchActive. Absent when switching is not currently valid. */
+    @JsonProperty("selectionId") String selectionId,
+    /** Whether the account is currently a valid switch target. */
+    @JsonProperty("switchable") Boolean switchable,
+    /** Canonical availability treatment for this account. */
+    @JsonProperty("health") AccountHealth health,
+    /** Human-readable availability or recovery reason. */
+    @JsonProperty("statusMessage") String statusMessage
 ) {
 }

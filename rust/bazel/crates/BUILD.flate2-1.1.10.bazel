@@ -67,7 +67,7 @@ rust_library(
     }),
     version = "1.1.10",
     deps = [
-        "@sdk_vendor__crc32fast-1.5.2//:crc32fast",
+        "@sdk_vendor__crc32fast-1.5.3//:crc32fast",
         "@sdk_vendor__miniz_oxide-0.9.1//:miniz_oxide",
     ],
 )

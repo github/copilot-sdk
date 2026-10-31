@@ -13,11 +13,16 @@ import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.logging.Handler;
+import java.util.logging.Level;
+import java.util.logging.LogRecord;
+import java.util.logging.Logger;
 
 import org.junit.jupiter.api.Test;
 
@@ -150,17 +155,58 @@ class JsonRpcClientTest {
     @Test
     void testCredentialValuesAreRedactedOnlyFromDiagnosticRendering() throws Exception {
         String json = """
-                {"jsonrpc":"2.0","result":{"accessToken":"secret","nested":{"gitHubToken":"static"}},
-                "metadata":{"tokenType":"Bearer"}}
+                {"jsonrpc":"2.0","result":{"accessToken":"secret","nested":{"gitHubToken":"static"},
+                "kerberos":{"token":"spnego"}},"metadata":{"tokenType":"Bearer"}}
                 """;
 
         String rendered = JsonRpcClient.redactCredentialsForLogging(json);
 
         assertFalse(rendered.contains("secret"));
         assertFalse(rendered.contains("static"));
+        assertFalse(rendered.contains("spnego"));
         assertEquals("<redacted>", MAPPER.readTree(rendered).at("/result/accessToken").asText());
         assertEquals("<redacted>", MAPPER.readTree(rendered).at("/result/nested/gitHubToken").asText());
+        assertEquals("<redacted>", MAPPER.readTree(rendered).at("/result/kerberos/token").asText());
         assertEquals("Bearer", MAPPER.readTree(rendered).at("/metadata/tokenType").asText());
+    }
+
+    @Test
+    void testReceivedCredentialValuesAreRedactedFromDiagnostics() throws Exception {
+        Logger logger = Logger.getLogger(JsonRpcClient.class.getName());
+        Level previousLevel = logger.getLevel();
+        var received = new CompletableFuture<String>();
+        Handler handler = new Handler() {
+            @Override
+            public void publish(LogRecord record) {
+                String message = record.getMessage();
+                if (message != null && message.startsWith("Received: ")) {
+                    received.complete(message);
+                }
+            }
+
+            @Override
+            public void flush() {
+            }
+
+            @Override
+            public void close() {
+            }
+        };
+        handler.setLevel(Level.ALL);
+        logger.addHandler(handler);
+        logger.setLevel(Level.FINE);
+        try (var pair = createSocketPair()) {
+            writeRpcMessage(pair.serverSide.getOutputStream(), """
+                    {"jsonrpc":"2.0","method":"test.notify","params":{"token":"inbound-secret"}}
+                    """);
+
+            String message = received.get(5, TimeUnit.SECONDS);
+            assertEquals(List.of(false, "<redacted>"), List.of(message.contains("inbound-secret"),
+                    MAPPER.readTree(message.substring("Received: ".length())).at("/params/token").asText()));
+        } finally {
+            logger.removeHandler(handler);
+            logger.setLevel(previousLevel);
+        }
     }
 
     // ---- isConnected() ----

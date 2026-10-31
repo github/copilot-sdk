@@ -475,7 +475,12 @@ public class CopilotWebSocketForwarder : CopilotWebSocketHandler
 public class CopilotRequestHandler
 {
     private const int HttpResponseReadAheadSize = 32 * 1024;
-    private static readonly HttpClient s_sharedHttpClient = new();
+
+    // No client-side timeout: the runtime applies its own request timeout to the
+    // wait for the response head and cancels CopilotRequestContext.CancellationToken
+    // when it expires, so HttpClient's 100-second default would only cut off
+    // requests the runtime is still willing to wait for.
+    private static readonly HttpClient s_sharedHttpClient = new() { Timeout = Timeout.InfiniteTimeSpan };
 
     private readonly HttpClient _httpClient;
 

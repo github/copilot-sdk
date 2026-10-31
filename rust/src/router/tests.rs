@@ -503,6 +503,69 @@ fn session_id() -> SessionId {
     SessionId::new("router-ownership")
 }
 
+/// The router takes each `session.event` notification out of the broadcast it
+/// shares with the lifecycle dispatcher. Whether or not another receiver still
+/// holds that notification, every session event reaches its session whole and
+/// in order, and every lifecycle event its subscriber.
+#[tokio::test]
+async fn shared_notifications_reach_sessions_and_lifecycle_subscribers_whole() {
+    let data = |n: u64| {
+        json!({
+            "deltaContent": format!("chunk {n}"),
+            "nested": {"index": n, "items": [n, {"deep": [true, null, "x"]}]},
+        })
+    };
+    for held_elsewhere in [false, true] {
+        let mut peer = Peer::new(BlockAt::Write);
+        // A receiver that never reads keeps every notification shared.
+        let _holder = held_elsewhere.then(|| peer.client.inner.notification_tx.subscribe());
+        let mut lifecycle = peer.client.subscribe_lifecycle();
+        let mut events = peer
+            .client
+            .register_session(&SessionId::new("live"))
+            .channels
+            .notifications;
+        for n in 0..3 {
+            peer.send(&crate::JsonRpcNotification {
+                jsonrpc: "2.0".into(),
+                method: "session.event".into(),
+                params: Some(json!({
+                    "sessionId": "live",
+                    "event": {
+                        "id": format!("e{n}"),
+                        "timestamp": "2025-01-01T00:00:00Z",
+                        "type": "assistant.message_delta",
+                        "data": data(n),
+                    },
+                })),
+            })
+            .await;
+            peer.send(&crate::JsonRpcNotification {
+                jsonrpc: "2.0".into(),
+                method: "session.lifecycle".into(),
+                params: Some(json!({"type": "session.updated", "sessionId": format!("s{n}")})),
+            })
+            .await;
+        }
+        for n in 0..3 {
+            let routed = timeout(DEADLINE, events.recv())
+                .await
+                .unwrap_or_else(|_| panic!("session event {n} stalled (held: {held_elsewhere})"))
+                .expect("session channel closed");
+            assert_eq!(routed.session_id, SessionId::new("live"));
+            assert_eq!(routed.event.id, format!("e{n}"));
+            assert_eq!(routed.event.event_type, "assistant.message_delta");
+            assert_eq!(routed.event.data, data(n), "held: {held_elsewhere}");
+            let changed = timeout(DEADLINE, lifecycle.recv())
+                .await
+                .unwrap_or_else(|_| panic!("lifecycle event {n} stalled (held: {held_elsewhere})"))
+                .expect("lifecycle channel closed");
+            assert_eq!(changed.session_id, SessionId::new(format!("s{n}")));
+        }
+        peer.stop().await;
+    }
+}
+
 #[test]
 fn each_registration_gets_a_distinct_token() {
     let router = SessionRouter::new();

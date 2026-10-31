@@ -139,6 +139,122 @@ func TestRequestReturnsWhenConnectionCloses(t *testing.T) {
 	}
 }
 
+// startWatchedClient starts a client whose CLI process is watched through
+// SetProcessDone, as on the stdio transport. It returns the stream that closes
+// the connection and a channel that receives each request the client writes.
+func startWatchedClient(t *testing.T, done chan struct{}, processErr *error) (*Client, io.Closer, <-chan struct{}) {
+	t.Helper()
+	stdinR, stdinW := io.Pipe()
+	stdoutR, stdoutW := io.Pipe()
+	client := NewClient(stdinW, stdoutR)
+	client.SetProcessDone(done, processErr)
+	client.Start()
+	t.Cleanup(func() {
+		client.Stop()
+		stdinR.Close()
+		stdoutW.Close()
+	})
+	written := make(chan struct{}, 1)
+	go func() {
+		reader := newHeaderReader(stdinR)
+		for {
+			if _, err := reader.Read(); err != nil {
+				return
+			}
+			written <- struct{}{}
+		}
+	}()
+	return client, stdoutW, written
+}
+
+// A watched CLI process can outlive its connection: its stdout can close, or a
+// malformed frame can end the read loop, while the process keeps running.
+func TestRequestReturnsWhenConnectionClosesWhileProcessRuns(t *testing.T) {
+	for _, sent := range []string{"before close", "after close"} {
+		t.Run(sent, func(t *testing.T) {
+			t.Parallel()
+			var processErr error
+			client, stdout, written := startWatchedClient(t, make(chan struct{}), &processErr)
+
+			result := make(chan error, 1)
+			request := func() {
+				go func() {
+					_, err := client.Request(context.Background(), "test.method", nil)
+					result <- err
+				}()
+			}
+			if sent == "before close" {
+				request()
+				<-written
+			}
+			if err := stdout.Close(); err != nil {
+				t.Fatalf("Close response stream failed: %v", err)
+			}
+			<-client.ConnectionClosed()
+			if sent == "after close" {
+				request()
+			}
+
+			select {
+			case err := <-result:
+				if err == nil || err.Error() != "connection closed" {
+					t.Fatalf("Request error = %v, want connection closed", err)
+				}
+			case <-time.After(5 * time.Second):
+				t.Fatal("Request did not return when the connection closed while the process kept running")
+			}
+			if sent == "after close" && len(written) != 0 {
+				t.Fatal("Request was written after the connection closed")
+			}
+		})
+	}
+}
+
+// When the CLI process exits, its stdout closes before the process is reaped
+// and its stderr collected, so the connection closes first. The request must
+// still report the process error, which carries the CLI's own diagnostic.
+func TestRequestReportsProcessErrorWhenConnectionClosesBeforeExit(t *testing.T) {
+	for _, sent := range []string{"before close", "after close"} {
+		t.Run(sent, func(t *testing.T) {
+			t.Parallel()
+			done := make(chan struct{})
+			var processErr error
+			client, stdout, written := startWatchedClient(t, done, &processErr)
+
+			result := make(chan error, 1)
+			request := func() {
+				go func() {
+					_, err := client.Request(context.Background(), "test.method", nil)
+					result <- err
+				}()
+			}
+			if sent == "before close" {
+				request()
+				<-written
+			}
+			if err := stdout.Close(); err != nil {
+				t.Fatalf("Close response stream failed: %v", err)
+			}
+			<-client.ConnectionClosed()
+			if sent == "after close" {
+				request()
+			}
+			time.Sleep(100 * time.Millisecond)
+			processErr = errors.New("CLI process exited: exit status 3\nstderr: fatal error")
+			close(done)
+
+			select {
+			case err := <-result:
+				if err == nil || err.Error() != processErr.Error() {
+					t.Fatalf("Request error = %v, want the process error %q", err, processErr)
+				}
+			case <-time.After(5 * time.Second):
+				t.Fatal("Request did not return after the process exited")
+			}
+		})
+	}
+}
+
 func TestCompletionCancellationDoesNotWaitForPeerToRead(t *testing.T) {
 	stdinR, stdinW := io.Pipe()
 	stdoutR, stdoutW := io.Pipe()

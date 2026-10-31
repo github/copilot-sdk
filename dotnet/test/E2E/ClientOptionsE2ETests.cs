@@ -80,8 +80,10 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         await session.DisposeAsync();
     }
 
-    [Fact]
-    public async Task Should_Propagate_Process_Options_To_Spawned_Cli()
+    [Theory]
+    [InlineData(true, "SPAN_ONLY")]
+    [InlineData(false, "NO_CONTENT")]
+    public async Task Should_Propagate_Process_Options_To_Spawned_Cli(bool captureContent, string captureMode)
     {
         var (cliPath, capturePath) = await CreateFakeCliCaptureAsync();
         var telemetryPath = Path.Join(Ctx.WorkDir, "telemetry.jsonl");
@@ -90,6 +92,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         var clientEnv = Ctx.GetEnvironment().ToDictionary(pair => pair.Key, pair => pair.Value);
         clientEnv["COPILOT_HOME"] = copilotHomeFromEnv;
         clientEnv["COPILOT_RUNTIME_PROCESS_FILE_LOGGING"] = "0";
+        clientEnv["OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT"] = "SPAN_AND_EVENT";
         await File.WriteAllTextAsync(cliPath, FakeStdioCliScript);
 
         await using var client = Ctx.CreateClient(options: new CopilotClientOptions
@@ -106,7 +109,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
                 FilePath = telemetryPath,
                 ExporterType = "file",
                 SourceName = "dotnet-sdk-e2e",
-                CaptureContent = true,
+                CaptureContent = captureContent,
             },
             UseLoggedInUser = false,
         }, environment: clientEnv);
@@ -134,7 +137,8 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         Assert.Equal(telemetryPath, capturedEnv.GetProperty("COPILOT_OTEL_FILE_EXPORTER_PATH").GetString());
         Assert.Equal("file", capturedEnv.GetProperty("COPILOT_OTEL_EXPORTER_TYPE").GetString());
         Assert.Equal("dotnet-sdk-e2e", capturedEnv.GetProperty("COPILOT_OTEL_SOURCE_NAME").GetString());
-        Assert.Equal("true", capturedEnv.GetProperty("OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT").GetString());
+        Assert.Equal(captureMode, capturedEnv.GetProperty("OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT").GetString());
+        Assert.Equal(captureContent ? "true" : "false", capturedEnv.GetProperty("OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT").GetString());
 
         var session = await Ctx.CreateSessionAsync(client, new SessionConfig
         {
@@ -1022,6 +1026,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
               COPILOT_OTEL_FILE_EXPORTER_PATH: process.env.COPILOT_OTEL_FILE_EXPORTER_PATH,
               COPILOT_OTEL_EXPORTER_TYPE: process.env.COPILOT_OTEL_EXPORTER_TYPE,
               COPILOT_OTEL_SOURCE_NAME: process.env.COPILOT_OTEL_SOURCE_NAME,
+              OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT: process.env.OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT,
               OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT: process.env.OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT
             }
           }));

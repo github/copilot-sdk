@@ -16,6 +16,80 @@ import com.fasterxml.jackson.databind.JsonNode;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class PostToolUseHookInput {
 
+    @JsonProperty("toolCallId")
+    private String toolCallId;
+
+    /**
+     * Gets the original tool-call ID, unchanged by argument modifications.
+     * Correlate using this ID and {@link #getSessionId()}, not the callback owner's
+     * session ID.
+     *
+     * @return the tool-call ID, or {@code null} on older runtimes
+     */
+    public String getToolCallId() {
+        return toolCallId;
+    }
+
+    /**
+     * Sets the original tool-call ID.
+     *
+     * @param toolCallId
+     *            the tool-call ID, or {@code null}
+     * @return this instance for method chaining
+     */
+    public PostToolUseHookInput setToolCallId(String toolCallId) {
+        this.toolCallId = toolCallId;
+        return this;
+    }
+
+    @JsonProperty("traceparent")
+    private String traceparent;
+
+    @JsonProperty("tracestate")
+    private String tracestate;
+
+    /**
+     * Gets the existing W3C trace context associated with this hook.
+     *
+     * @return the trace context, or {@code null} when unavailable
+     */
+    public String getTraceparent() {
+        return traceparent;
+    }
+
+    /**
+     * Sets the existing W3C trace context.
+     *
+     * @param traceparent
+     *            the trace context, or {@code null}
+     * @return this instance for method chaining
+     */
+    public PostToolUseHookInput setTraceparent(String traceparent) {
+        this.traceparent = traceparent;
+        return this;
+    }
+
+    /**
+     * Gets the existing W3C vendor trace state associated with this hook.
+     *
+     * @return the trace state, or {@code null} when unavailable
+     */
+    public String getTracestate() {
+        return tracestate;
+    }
+
+    /**
+     * Sets the existing W3C vendor trace state.
+     *
+     * @param tracestate
+     *            the trace state, or {@code null}
+     * @return this instance for method chaining
+     */
+    public PostToolUseHookInput setTracestate(String tracestate) {
+        this.tracestate = tracestate;
+        return this;
+    }
+
     @JsonProperty("agentId")
     private String agentId;
 

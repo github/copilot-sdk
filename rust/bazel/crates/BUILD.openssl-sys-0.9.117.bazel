@@ -38,10 +38,6 @@ rust_library(
             "WORKSPACE.bazel",
         ],
     ),
-    crate_features = [
-        "openssl-src",
-        "vendored",
-    ],
     crate_root = "src/lib.rs",
     edition = "2021",
     rustc_env_files = [
@@ -70,7 +66,15 @@ rust_library(
     deps = [
         ":build_script_main",
         "@sdk_vendor__libc-0.2.191//:libc",
-    ],
+    ] + select({
+        "@rules_rust//rust/platform:aarch64-unknown-linux-gnu": [
+            "@copilot_agent_runtime//bazel:system_openssl_link",  # aarch64-unknown-linux-gnu
+        ],
+        "@rules_rust//rust/platform:x86_64-unknown-linux-gnu": [
+            "@copilot_agent_runtime//bazel:system_openssl_link",  # x86_64-unknown-linux-gnu
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 cargo_build_script(
@@ -79,11 +83,22 @@ cargo_build_script(
         include = ["**/*.rs"],
         allow_empty = True,
     ),
-    build_script_env = {
-        "OPENSSL_DIR": "$(execpath @openssl//:gen_dir)",
-        "OPENSSL_NO_VENDOR": "1",
-        "OPENSSL_STATIC": "1",
-    },
+    build_script_env = select({
+        "@rules_rust//rust/platform:aarch64-unknown-linux-gnu": {
+            "OPENSSL_DIR": "$(execpath @copilot_agent_runtime//bazel:system_openssl)",  # aarch64-unknown-linux-gnu
+            "OPENSSL_NO_VENDOR": "1",
+            "OPENSSL_STATIC": "0",
+        },
+        "@rules_rust//rust/platform:x86_64-unknown-linux-gnu": {
+            "OPENSSL_DIR": "$(execpath @copilot_agent_runtime//bazel:system_openssl)",  # x86_64-unknown-linux-gnu
+            "OPENSSL_NO_VENDOR": "1",
+            "OPENSSL_STATIC": "0",
+        },
+        "//conditions:default": {
+            "OPENSSL_NO_VENDOR": "1",
+            "OPENSSL_STATIC": "0",
+        },
+    }),
     build_script_env_files = [
         ":cargo_toml_env_vars",
     ],
@@ -100,10 +115,6 @@ cargo_build_script(
             "WORKSPACE.bazel",
         ],
     ),
-    crate_features = [
-        "openssl-src",
-        "vendored",
-    ],
     crate_name = "build_script_main",
     crate_root = "build/main.rs",
     data = glob(
@@ -117,9 +128,15 @@ cargo_build_script(
             "WORKSPACE",
             "WORKSPACE.bazel",
         ],
-    ) + [
-        "@openssl//:gen_dir",
-    ],
+    ) + select({
+        "@rules_rust//rust/platform:aarch64-unknown-linux-gnu": [
+            "@copilot_agent_runtime//bazel:system_openssl",  # aarch64-unknown-linux-gnu
+        ],
+        "@rules_rust//rust/platform:x86_64-unknown-linux-gnu": [
+            "@copilot_agent_runtime//bazel:system_openssl",  # x86_64-unknown-linux-gnu
+        ],
+        "//conditions:default": [],
+    }),
     edition = "2021",
     emit_warnings = False,
     links = "openssl",
@@ -140,8 +157,7 @@ cargo_build_script(
     version = "0.9.117",
     visibility = ["//visibility:private"],
     deps = [
-        "@sdk_vendor__cc-1.9.0//:cc",
-        "@sdk_vendor__openssl-src-300.6.1-3.6.3//:openssl_src",
+        "@sdk_vendor__cc-1.10.0//:cc",
         "@sdk_vendor__pkg-config-0.3.34//:pkg_config",
         "@sdk_vendor__vcpkg-0.2.15//:vcpkg",
     ],

@@ -32,6 +32,7 @@ public record AzureMlResolveResult(
     /** Other paths relative to the version directory. */
     @JsonProperty("extraFiles") List<String> extraFiles,
     /** Validated local runtime settings. */
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("serveOptions") Object serveOptions,
     /** Maximum supported local concurrency. */
     @JsonProperty("maxConcurrent") Long maxConcurrent

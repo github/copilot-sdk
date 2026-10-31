@@ -49,7 +49,9 @@ public final class SessionTruncationEvent extends SessionEvent {
         /** Number of messages removed by truncation */
         @JsonProperty("messagesRemovedDuringTruncation") Long messagesRemovedDuringTruncation,
         /** Identifier of the component that performed truncation (e.g., "BasicTruncator") */
-        @JsonProperty("performedBy") String performedBy
+        @JsonProperty("performedBy") String performedBy,
+        /** Identifier of the automatic compaction applied just before this truncation, when one was */
+        @JsonProperty("compactionAttemptId") String compactionAttemptId
     ) {
     }
 }

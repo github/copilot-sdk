@@ -6,7 +6,6 @@ use std::io::{Cursor, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
-use sha2::{Digest, Sha256};
 use tempfile::TempDir;
 
 use super::*;
@@ -23,6 +22,15 @@ const PLATFORMS: &[&str] = &[
     "win32-arm64",
     "win32-x64",
 ];
+
+#[test]
+fn archive_integrity_keeps_exact_lowercase_digest_and_mismatch_checks() {
+    let hash = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
+    assert!(verify_hash(b"abc", hash));
+    assert!(!verify_hash(b"abd", hash));
+    assert!(!verify_hash(b"abc", &hash.to_ascii_uppercase()));
+    assert!(!verify_hash(b"abc", &hash[..62]));
+}
 
 #[test]
 fn windows_runtime_archive_preserves_oneauth_and_its_terms_beside_the_runtime() {
@@ -250,7 +258,7 @@ fn snapshots_reject_mismatched_versions_untrusted_locations_and_invalid_hashes()
     for url in [
         "https://github.com/github/copilot-sdk/releases/download/runtime-9.9.9",
         "https://github.com/github/copilot-sdk/releases/latest",
-        "https://github.com/github/copilot-agent-runtime/releases/download/runtime-1.2.3",
+        "https://github.com/github/docs/releases/download/runtime-1.2.3",
         "https://token@github.com/github/copilot-sdk/releases/download/runtime-1.2.3",
         "https://github.com/github/copilot-cli/releases/download/v1.2.3/",
         "https://github.com/github/copilot-cli/releases/download/v1.2.3?token=secret",
@@ -299,7 +307,8 @@ fn fixture_dir() -> TempDir {
 fn cache_hits_are_verified_and_corruption_is_evicted() {
     let fixture = fixture_dir();
     let bytes = b"verified release archive";
-    let hash = format!("{:x}", Sha256::digest(bytes));
+    // Independently computed with Node's crypto.createHash("sha256").
+    let hash = "bed93df9281ee06f13474bdf2a1280a32da01daf3926139e5b22b98c0f8122af".to_owned();
     let path = fixture.path().join(release(true).cache_key("asset"));
     assert_eq!(read_verified_cache(&path, &hash), None);
     fs::write(&path, bytes).unwrap();
@@ -394,8 +403,11 @@ impl Fixture {
             fs::write(
                 fixture.path(snapshot),
                 format!(
-                    "version={VERSION}\n{location}{key}={:x}\n",
-                    Sha256::digest(&bytes)
+                    "version={VERSION}\n{location}{key}={}\n",
+                    archive_hash::sha256(&bytes)
+                        .iter()
+                        .map(|byte| format!("{byte:02x}"))
+                        .collect::<String>()
                 ),
             )
             .unwrap();
@@ -417,6 +429,7 @@ impl Fixture {
     fn command(&self, bundled: bool, in_process: bool) -> Command {
         let mut command = Command::new(std::env::current_exe().unwrap());
         command
+            .current_dir(self.dir.path())
             .args([
                 "--exact",
                 "implementation::tests::run_build_script",
@@ -437,11 +450,23 @@ impl Fixture {
             )
             .env("CARGO_CFG_TARGET_ARCH", "x86_64")
             .env("CARGO_CFG_TARGET_ENV", "")
+            .env("HOST", "test-host")
+            .env("TARGET", "test-target")
+            .env("OPENSSL_STATIC", "0")
+            .env("OPENSSL_NO_VENDOR", "1")
             .env("CARGO_FEATURE_RUNTIME", "1")
             .env_remove("COPILOT_SKIP_CLI_DOWNLOAD")
             .env_remove("DOCS_RS")
             .env_remove("CARGO_FEATURE_LOCAL_RUNTIME")
             .env_remove("CARGO_FEATURE_BUNDLED_CLI")
+            .env_remove("CARGO_FEATURE_NETWORK_FORWARDING")
+            .env_remove("DEP_OPENSSL_VERSION_NUMBER")
+            .env_remove("DEP_OPENSSL_RUNTIME_BINDINGS")
+            .env_remove("DEP_OPENSSL_VENDORED")
+            .env_remove("TEST_HOST_OPENSSL_STATIC")
+            .env_remove("TEST_HOST_OPENSSL_NO_VENDOR")
+            .env_remove("TEST_TARGET_OPENSSL_STATIC")
+            .env_remove("TEST_TARGET_OPENSSL_NO_VENDOR")
             .env_remove("CARGO_FEATURE_IN_PROCESS");
         if bundled {
             command.env("CARGO_FEATURE_BUNDLED_CLI", "1");
@@ -474,9 +499,286 @@ fn succeeded(output: Output) -> String {
 
 #[test]
 fn run_build_script() {
-    if std::env::var_os("COPILOT_ACQUISITION_TEST_CHILD").is_some() {
-        super::main();
+    match std::env::var("COPILOT_ACQUISITION_TEST_CHILD").as_deref() {
+        Ok("verified-host-overrides") => {
+            require_dynamic_openssl("Linux SDK build host", "test-host", true);
+        }
+        Ok("verify-target-provider") => {
+            openssl_linkage::require_target_provider(false);
+        }
+        Ok(_) => super::main(),
+        Err(_) => {}
     }
+}
+
+#[test]
+fn verified_shared_hosts_accept_unset_overrides_but_reject_incompatible_values() {
+    let fixture = Fixture::new(true, false);
+    for (name, value, accepted) in [
+        ("OPENSSL_STATIC", None, true),
+        ("OPENSSL_NO_VENDOR", None, true),
+        ("OPENSSL_STATIC", Some("1"), false),
+        ("OPENSSL_STATIC", Some(""), false),
+        ("OPENSSL_NO_VENDOR", Some("0"), false),
+        ("TEST_HOST_OPENSSL_STATIC", Some("1"), false),
+        ("TEST_HOST_OPENSSL_NO_VENDOR", Some("0"), false),
+        ("DEP_OPENSSL_VENDORED", Some("1"), false),
+    ] {
+        let mut command = fixture.command(false, false);
+        command
+            .env("COPILOT_ACQUISITION_TEST_CHILD", "verified-host-overrides")
+            .env_remove("OPENSSL_STATIC")
+            .env_remove("OPENSSL_NO_VENDOR");
+        if let Some(value) = value {
+            command.env(name, value);
+        }
+        let output = command.output().unwrap();
+        assert_eq!(
+            output.status.success(),
+            accepted,
+            "{name}={value:?}:\nstdout:\n{}\nstderr:\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        if !accepted {
+            assert!(
+                String::from_utf8_lossy(&output.stderr).contains("requires OS OpenSSL 3"),
+                "{name}={value:?}"
+            );
+        }
+    }
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn linux_shared_host_build_modes_need_no_repository_openssl_overrides() {
+    for skip in [
+        None,
+        Some("CARGO_FEATURE_LOCAL_RUNTIME"),
+        Some("COPILOT_SKIP_CLI_DOWNLOAD"),
+        Some("DOCS_RS"),
+    ] {
+        let fixture = Fixture::new(true, false);
+        let mut command = fixture.command(false, true);
+        command
+            .env_remove("OPENSSL_STATIC")
+            .env_remove("OPENSSL_NO_VENDOR");
+        if let Some(skip) = skip {
+            command.env(skip, "1");
+        } else {
+            command.env_remove("CARGO_FEATURE_RUNTIME");
+        }
+        let stdout = succeeded(command.output().unwrap());
+        assert!(!stdout.contains("cargo:rustc-cfg=has_"));
+    }
+    let fixture = Fixture::new(true, false);
+    let stdout = succeeded(
+        fixture
+            .command(true, true)
+            .env_remove("OPENSSL_STATIC")
+            .env_remove("OPENSSL_NO_VENDOR")
+            .output()
+            .unwrap(),
+    );
+    assert!(stdout.contains("cargo:rustc-cfg=has_bundled_cli"));
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn native_linux_forwarding_uses_the_attested_shared_provider_without_overrides() {
+    let fixture = Fixture::new(true, false);
+    let output = fixture
+        .command(true, true)
+        .env("HOST", "test-target")
+        .env("CARGO_FEATURE_NETWORK_FORWARDING", "1")
+        .env("DEP_OPENSSL_VERSION_NUMBER", "30000000")
+        .env_remove("OPENSSL_STATIC")
+        .env_remove("OPENSSL_NO_VENDOR")
+        .output()
+        .unwrap();
+    assert!(succeeded(output).contains("cargo:rustc-cfg=has_bundled_cli"));
+}
+
+#[cfg(target_os = "macos")]
+const APPLE_TARGETS: [&str; 2] = ["aarch64-apple-darwin", "x86_64-apple-darwin"];
+
+/// Resolves a consumer's dependency graph, rooted at the SDK, for `target`
+/// (the host when `None`) without building it.
+fn consumer_sdk_packages(
+    features: &[&str],
+    edges: &str,
+    depth: Option<u32>,
+    target: Option<&str>,
+) -> Vec<String> {
+    let root = fixture_dir();
+    let sdk = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let manifest = format!(
+        "[package]\nname = \"sdk-consumer-fixture\"\nversion = \"0.0.0\"\nedition = \"2024\"\n\
+         [workspace]\n[dependencies]\ngithub-copilot-sdk = {{ path = {}, default-features = false, features = {} }}\n",
+        serde_json::to_string(&sdk.to_string_lossy()).unwrap(),
+        serde_json::to_string(features).unwrap()
+    );
+    fs::write(root.path().join("Cargo.toml"), manifest).unwrap();
+    fs::copy(sdk.join("Cargo.lock"), root.path().join("Cargo.lock")).unwrap();
+    fs::create_dir(root.path().join("src")).unwrap();
+    fs::write(root.path().join("src/lib.rs"), "").unwrap();
+    let mut command = Command::new(env!("CARGO"));
+    command.current_dir(root.path()).args([
+        "tree",
+        "--package",
+        "github-copilot-sdk",
+        "--edges",
+        edges,
+        "--prefix",
+        "none",
+        "--format",
+        "{p}",
+        "--offline",
+    ]);
+    if let Some(depth) = depth {
+        command.args(["--depth", &depth.to_string()]);
+    }
+    if let Some(target) = target {
+        command.args(["--target", target]);
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
+    let output = command.output().unwrap();
+    assert!(
+        output.status.success(),
+        "Cargo dependency resolution for {features:?} on {target:?} failed:\n{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let tree = String::from_utf8(output.stdout).unwrap();
+    let packages: Vec<_> = tree
+        .lines()
+        .map(|line| {
+            line.split_whitespace()
+                .next()
+                .expect("Cargo package name")
+                .to_owned()
+        })
+        .collect();
+    assert!(
+        packages
+            .iter()
+            .any(|package| package == "github-copilot-sdk"),
+        "{tree}"
+    );
+    packages
+}
+
+#[test]
+fn stream_only_consumers_do_not_resolve_native_acquisition_dependencies() {
+    let packages = consumer_sdk_packages(&[], "normal,build", None, None);
+    assert_excludes(
+        &packages,
+        &[
+            "ureq",
+            "native-tls",
+            "openssl",
+            "openssl-sys",
+            "rustls",
+            "aws-lc-rs",
+            "aws-lc-sys",
+        ],
+        "stream-only consumer",
+    );
+}
+
+#[track_caller]
+fn assert_excludes(packages: &[String], forbidden: &[&str], consumer: &str) {
+    for package in forbidden {
+        assert!(
+            !packages.iter().any(|resolved| resolved == package),
+            "{consumer} unexpectedly resolves {package}: {packages:?}"
+        );
+    }
+}
+
+#[track_caller]
+fn assert_includes(packages: &[String], required: &[&str], consumer: &str) {
+    for package in required {
+        assert!(
+            packages.iter().any(|resolved| resolved == package),
+            "{consumer} does not resolve {package}: {packages:?}"
+        );
+    }
+}
+
+#[test]
+fn acquisition_without_forwarding_does_not_resolve_target_tls_dependencies() {
+    let forwarding_tls = [
+        "native-tls",
+        "openssl-sys",
+        "reqwest",
+        "tokio-tungstenite",
+        "tokio-rustls",
+        "rustls",
+        "rustls-platform-verifier",
+        "aws-lc-rs",
+        "aws-lc-sys",
+    ];
+    #[cfg(target_os = "macos")]
+    let targets = [None, Some(APPLE_TARGETS[0]), Some(APPLE_TARGETS[1])];
+    #[cfg(not(target_os = "macos"))]
+    let targets = [None];
+    for target in targets {
+        for features in [["runtime"], ["local-runtime"]] {
+            let packages = consumer_sdk_packages(&features, "normal", None, target);
+            assert_excludes(
+                &packages,
+                &forwarding_tls,
+                &format!("{features:?} on {target:?}"),
+            );
+            if features == ["local-runtime"] {
+                assert_includes(
+                    &packages,
+                    &["libloading"],
+                    &format!("{features:?} on {target:?}"),
+                );
+            }
+        }
+    }
+    #[cfg(feature = "network-forwarding")]
+    {
+        let forwarding = consumer_sdk_packages(&["network-forwarding"], "normal", None, None);
+        assert_includes(&forwarding, &["reqwest"], "forwarding on the host");
+        #[cfg(target_os = "macos")]
+        for target in APPLE_TARGETS {
+            let forwarding =
+                consumer_sdk_packages(&["network-forwarding"], "normal", None, Some(target));
+            assert_includes(
+                &forwarding,
+                &[
+                    "reqwest",
+                    "tokio-rustls",
+                    "rustls",
+                    "aws-lc-rs",
+                    "aws-lc-sys",
+                ],
+                &format!("forwarding on {target}"),
+            );
+        }
+    }
+}
+
+#[test]
+#[cfg(feature = "network-forwarding")]
+fn forwarding_without_acquisition_does_not_resolve_acquisition_build_dependencies() {
+    let acquisition = ["ureq", "openssl", "rustls"];
+    let forwarding = consumer_sdk_packages(&["network-forwarding"], "normal,build", Some(1), None);
+    assert_excludes(&forwarding, &acquisition, "forwarding");
+    let runtime = consumer_sdk_packages(&["runtime"], "normal,build", Some(1), None);
+    assert_includes(&runtime, &["ureq"], "runtime");
+    #[cfg(target_os = "macos")]
+    assert_includes(&runtime, &["rustls"], "runtime");
+    #[cfg(target_os = "linux")]
+    assert_includes(&runtime, &["openssl"], "runtime");
 }
 
 #[test]
@@ -532,6 +834,28 @@ fn seeded_builds_support_bundled_in_process_and_extracted_modes_for_both_locatio
             }
         }
     }
+}
+
+#[test]
+fn seeded_acquisition_verifies_archives_without_external_toolchains() {
+    let fixture = Fixture::new(true, false);
+    let output = fixture
+        .command(true, true)
+        .env("PATH", fixture.dir.path())
+        .env("DEVELOPER_DIR", fixture.path("missing-developer-tools"))
+        .output()
+        .unwrap();
+    let stdout = succeeded(output);
+    assert!(stdout.contains("cargo:rustc-cfg=has_bundled_cli"));
+    let runtime = fs::read(fixture.path("out/copilot_runtime.archive")).unwrap();
+    assert!(archive_contains_tar_entry(
+        &runtime,
+        fixture.platform.runtime_library_name()
+    ));
+    assert!(archive_contains_tar_entry(
+        &runtime,
+        fixture.platform.runtime_wrapper_name()
+    ));
 }
 
 #[test]
@@ -609,4 +933,200 @@ fn skip_modes_need_no_snapshots_and_local_runtime_preserves_bundled_precedence()
     let mut command = fixture.command(true, true);
     command.env("CARGO_FEATURE_LOCAL_RUNTIME", "1");
     assert!(succeeded(command.output().unwrap()).contains("cargo:rustc-cfg=has_bundled_cli"));
+}
+
+#[test]
+fn openssl_version_guard_preserves_the_major_3_build_host_and_target_contract() {
+    for boundary in ["Linux SDK build host", "Linux SDK target"] {
+        for version in [0x3000_0000, 0x3000_0120, 0x3050_0090] {
+            require_openssl_3(boundary, version);
+        }
+        for version in [0, 0x1000_20bf, 0x1010_107f, 0x2000_0000, 0x4000_0000] {
+            assert!(
+                std::panic::catch_unwind(|| require_openssl_3(boundary, version)).is_err(),
+                "{boundary} accepted unsupported version {version:#x}"
+            );
+        }
+    }
+}
+
+#[test]
+fn runtime_loaded_targets_require_the_exact_common_api_profile() {
+    let fixture = Fixture::new(true, false);
+    for (version, accepted) in [
+        ("1010117f", true),
+        ("1010107f", false),
+        ("10100000", false),
+        ("30000000", false),
+        ("40000000", false),
+        ("invalid", false),
+    ] {
+        let output = fixture
+            .command(false, true)
+            .env("COPILOT_ACQUISITION_TEST_CHILD", "verify-target-provider")
+            .env("CARGO_FEATURE_NETWORK_FORWARDING", "1")
+            .env("DEP_OPENSSL_RUNTIME_BINDINGS", "1")
+            .env("DEP_OPENSSL_VERSION_NUMBER", version)
+            .env_remove("OPENSSL_STATIC")
+            .env_remove("OPENSSL_NO_VENDOR")
+            .output()
+            .unwrap();
+        assert_eq!(
+            output.status.success(),
+            accepted,
+            "runtime profile {version}: stdout:\n{}\nstderr:\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        if !accepted {
+            assert!(
+                String::from_utf8_lossy(&output.stderr).contains("runtime-loaded OpenSSL"),
+                "profile {version}: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+        }
+    }
+}
+
+#[test]
+fn runtime_loaded_targets_still_reject_static_and_vendored_overrides() {
+    let fixture = Fixture::new(true, false);
+    for (name, value) in [
+        ("OPENSSL_STATIC", "1"),
+        ("OPENSSL_NO_VENDOR", "0"),
+        ("TEST_TARGET_OPENSSL_STATIC", "1"),
+        ("TEST_TARGET_OPENSSL_NO_VENDOR", "0"),
+        ("DEP_OPENSSL_VENDORED", "1"),
+    ] {
+        let output = fixture
+            .command(false, true)
+            .env("COPILOT_ACQUISITION_TEST_CHILD", "verify-target-provider")
+            .env("CARGO_FEATURE_NETWORK_FORWARDING", "1")
+            .env("DEP_OPENSSL_RUNTIME_BINDINGS", "1")
+            .env("DEP_OPENSSL_VERSION_NUMBER", "1010117f")
+            .env(name, value)
+            .output()
+            .unwrap();
+        assert!(!output.status.success(), "accepted {name}={value}");
+        assert!(
+            String::from_utf8_lossy(&output.stderr)
+                .contains("requires non-vendored runtime OpenSSL bindings"),
+            "{name}={value}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+}
+
+#[test]
+fn linux_forwarding_builds_reject_unsupported_openssl_before_acquisition_or_skip_modes() {
+    let fixture = Fixture::new(true, false);
+    for version in [
+        None,
+        Some("1010107f"),
+        Some("20000000"),
+        Some("40000000"),
+        Some("invalid"),
+    ] {
+        for skip in [
+            None,
+            Some("DOCS_RS"),
+            Some("COPILOT_SKIP_CLI_DOWNLOAD"),
+            Some("CARGO_FEATURE_LOCAL_RUNTIME"),
+        ] {
+            let mut command = fixture.command(false, true);
+            command.env("CARGO_FEATURE_NETWORK_FORWARDING", "1");
+            if let Some(version) = version {
+                command.env("DEP_OPENSSL_VERSION_NUMBER", version);
+            }
+            if let Some(skip) = skip {
+                command.env(skip, "1");
+            }
+            let output = command.output().unwrap();
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            assert!(
+                !output.status.success(),
+                "accepted OpenSSL metadata {version:?}, skip {skip:?}:\n{stdout}\n{stderr}"
+            );
+            assert!(
+                stderr.contains("Linux SDK target requires OS OpenSSL 3"),
+                "OpenSSL metadata {version:?}, skip {skip:?}:\n{stdout}\n{stderr}"
+            );
+            assert!(!stdout.contains("Downloading "), "{stdout}");
+        }
+    }
+}
+
+#[test]
+fn linux_forwarding_builds_accept_openssl_3_0_without_requiring_optional_hpke_apis() {
+    let fixture = Fixture::new(true, false);
+    for version in ["30000000", "30000120", "30500090"] {
+        let mut command = fixture.command(false, false);
+        command
+            .env("CARGO_FEATURE_NETWORK_FORWARDING", "1")
+            .env("DEP_OPENSSL_VERSION_NUMBER", version)
+            .env("COPILOT_SKIP_CLI_DOWNLOAD", "1");
+        succeeded(command.output().unwrap());
+    }
+}
+
+#[test]
+fn linux_forwarding_rejects_static_or_vendored_inputs_before_skip_modes() {
+    let fixture = Fixture::new(true, false);
+    for (name, value) in [
+        ("OPENSSL_STATIC", None),
+        ("OPENSSL_STATIC", Some("1")),
+        ("OPENSSL_NO_VENDOR", None),
+        ("OPENSSL_NO_VENDOR", Some("0")),
+        ("TEST_TARGET_OPENSSL_STATIC", Some("1")),
+        ("TEST_TARGET_OPENSSL_NO_VENDOR", Some("0")),
+        ("DEP_OPENSSL_VENDORED", Some("1")),
+    ] {
+        for skip in [
+            "DOCS_RS",
+            "COPILOT_SKIP_CLI_DOWNLOAD",
+            "CARGO_FEATURE_LOCAL_RUNTIME",
+        ] {
+            let mut command = fixture.command(false, true);
+            command
+                .env("CARGO_FEATURE_NETWORK_FORWARDING", "1")
+                .env("DEP_OPENSSL_VERSION_NUMBER", "30000000")
+                .env(skip, "1");
+            if let Some(value) = value {
+                command.env(name, value);
+            } else {
+                command.env_remove(name);
+            }
+            let output = command.output().unwrap();
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            assert!(
+                !output.status.success(),
+                "accepted {name}={value:?}, skip {skip}:\n{stdout}\n{stderr}"
+            );
+            assert!(
+                stderr.contains("requires OS OpenSSL 3"),
+                "{name}={value:?}, skip {skip}:\n{stdout}\n{stderr}"
+            );
+            assert!(!stdout.contains("Downloading "), "{stdout}");
+        }
+    }
+}
+
+#[test]
+fn linux_forwarding_accepts_target_prefixed_dynamic_settings() {
+    let fixture = Fixture::new(true, false);
+    let mut command = fixture.command(false, false);
+    command
+        .env("CARGO_FEATURE_NETWORK_FORWARDING", "1")
+        .env("DEP_OPENSSL_VERSION_NUMBER", "30000000")
+        .env("COPILOT_SKIP_CLI_DOWNLOAD", "1")
+        .env("OPENSSL_STATIC", "1")
+        .env("OPENSSL_NO_VENDOR", "0");
+    for prefix in ["TEST_HOST", "TEST_TARGET"] {
+        command
+            .env(format!("{prefix}_OPENSSL_STATIC"), "0")
+            .env(format!("{prefix}_OPENSSL_NO_VENDOR"), "1");
+    }
+    succeeded(command.output().unwrap());
 }

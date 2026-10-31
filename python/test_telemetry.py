@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import sys
 from unittest.mock import patch
 
+import pytest
+
+from copilot import CopilotClient, RuntimeConnection, TelemetryConfig
 from copilot._telemetry import get_trace_context, trace_context
-from copilot.client import TelemetryConfig
 
 
 class TestGetTraceContext:
@@ -62,6 +65,24 @@ class TestTraceContext:
 
 
 class TestTelemetryConfig:
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("capture,mode", [(True, "SPAN_ONLY"), (False, "NO_CONTENT")])
+    async def test_explicit_capture_overrides_inherited_mode(self, capture: bool, mode: str):
+        client = CopilotClient(
+            connection=RuntimeConnection.for_stdio(path=sys.executable),
+            env={"OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT": "SPAN_AND_EVENT"},
+            telemetry={"capture_content": capture},
+        )
+        with patch(
+            "copilot.client.subprocess.Popen", side_effect=OSError("spawn stopped")
+        ) as spawn:
+            with pytest.raises(OSError, match="spawn stopped"):
+                await client._start_cli_server()
+
+        env = spawn.call_args.kwargs["env"]
+        assert env["OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT"] == mode
+        assert env["OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT"] == str(capture).lower()
+
     def test_telemetry_config_type(self):
         """TelemetryConfig can be constructed as a TypedDict."""
         config: TelemetryConfig = {

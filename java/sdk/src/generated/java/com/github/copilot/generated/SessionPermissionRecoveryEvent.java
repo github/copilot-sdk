@@ -50,7 +50,25 @@ public final class SessionPermissionRecoveryEvent extends SessionEvent {
         /** Maximum number of distinct autonomous permission attempts allowed before escalation */
         @JsonProperty("maxAttempts") Long maxAttempts,
         /** Ordered privacy-safe record of permission attempts and the successful alternative, when any */
-        @JsonProperty("attempts") List<PermissionRecoveryAttempt> attempts
+        @JsonProperty("attempts") List<PermissionRecoveryAttempt> attempts,
+        /** Optional replay checkpoint for the epoch-scoped permission-recovery breaker. New runtimes persist it on state-changing recovery snapshots; older runtimes ignore it. */
+        @JsonProperty("runState") PermissionRecoveryRunState runState
     ) {
+
+        /**
+         * Creates event data with the components it had before later optional fields were added.
+         */
+        public SessionPermissionRecoveryEventData(
+            String episodeId,
+            String ownerSessionId,
+            String ownerAgentId,
+            PermissionRecoveryStatus status,
+            PermissionRecoveryOnBlocked onBlocked,
+            PermissionRecoveryReason reason,
+            Long maxAttempts,
+            List<PermissionRecoveryAttempt> attempts
+        ) {
+            this(episodeId, ownerSessionId, ownerAgentId, status, onBlocked, reason, maxAttempts, attempts, null);
+        }
     }
 }

@@ -462,33 +462,45 @@ async def test_admission_error_is_not_hidden_by_buffered_success():
 
 @pytest.mark.parametrize("kind", ["timeout", "cancel", "disconnect"])
 @pytest.mark.asyncio
-async def test_wait_cleanup(kind):
+async def test_wait_cleanup(kind, monkeypatch):
     session, client = fake_session()
-    admitted = asyncio.Event()
+    admitted = asyncio.get_running_loop().create_future()
+    # Expire only after admission, not while generating the response schema.
+    timeout_context = asyncio.timeout(None)
+    monkeypatch.setattr(asyncio, "timeout_at", lambda _: timeout_context)
 
     async def request(method, params):
         if method == "session.sendAndWait":
             raise JsonRpcError(-32601, "Method not found")
-        admitted.set()
+        admitted.set_result(None)
         return {"messageId": "user-1"}
 
     client.request.side_effect = request
     waiting = asyncio.create_task(
-        session.send_and_wait_typed(
-            "inventory", Inventory, timeout=0.05 if kind == "timeout" else 1
-        )
+        session.send_and_wait_typed("inventory", Inventory, timeout=float("inf"))
     )
-    await admitted.wait()
-    if kind == "cancel":
+    try:
+        done, _ = await asyncio.wait((admitted, waiting), return_when=asyncio.FIRST_COMPLETED)
+        if waiting in done:
+            await waiting
+            pytest.fail("Structured wait completed before cleanup was exercised")
+        assert session._structured_waits
+        assert session._event_handlers
+        if kind == "cancel":
+            waiting.cancel()
+            error = asyncio.CancelledError
+        elif kind == "disconnect":
+            session._mark_disconnected()
+            error = RuntimeError
+        else:
+            timeout_context.reschedule(asyncio.get_running_loop().time())
+            error = TimeoutError
+        with pytest.raises(error):
+            await waiting
+        assert timeout_context.expired() == (kind == "timeout")
+    finally:
         waiting.cancel()
-        error = asyncio.CancelledError
-    elif kind == "disconnect":
-        session._mark_disconnected()
-        error = RuntimeError
-    else:
-        error = TimeoutError
-    with pytest.raises(error):
-        await waiting
+        await asyncio.gather(waiting, return_exceptions=True)
     assert_clean(session)
 
 

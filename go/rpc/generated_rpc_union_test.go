@@ -70,6 +70,45 @@ func TestOptionalNullableFieldsPreserveOmittedAndNull(t *testing.T) {
 	}
 }
 
+func TestPendingPermissionRequestUnmarshalsAssistedApprovalAssessment(t *testing.T) {
+	var result PendingPermissionRequestList
+	err := json.Unmarshal([]byte(`{
+		"items": [{
+			"requestId": "permission-1",
+			"request": {
+				"kind": "commands",
+				"fullCommandText": "git status",
+				"commandIdentifiers": ["git"],
+				"canOfferSessionApproval": false
+			},
+			"assistedApprovalAssessment": {
+				"status": "completed",
+				"recommendation": "requireApproval",
+				"rationale": "The command may change repository state."
+			}
+		}]
+	}`), &result)
+	if err != nil {
+		t.Fatalf("unmarshal pending permission requests: %v", err)
+	}
+	if len(result.Items) != 1 {
+		t.Fatalf("pending permission request count = %d, want 1", len(result.Items))
+	}
+	assessment, ok := result.Items[0].AssistedApprovalAssessment.(*AssistedApprovalAssessmentCompleted)
+	if !ok {
+		t.Fatalf(
+			"pending assessment = %T, want *AssistedApprovalAssessmentCompleted",
+			result.Items[0].AssistedApprovalAssessment,
+		)
+	}
+	if assessment.Recommendation != AssistedApprovalCompletedRecommendationRequireApproval {
+		t.Fatalf("pending recommendation = %q, want requireApproval", assessment.Recommendation)
+	}
+	if assessment.Rationale == nil || *assessment.Rationale != "The command may change repository state." {
+		t.Fatalf("pending rationale = %v", assessment.Rationale)
+	}
+}
+
 func TestFilterMappingJSONUnion(t *testing.T) {
 	var mapping FilterMapping = FilterMappingEnumMap{"secret": ContentFilterModeHiddenCharacters}
 	raw, err := json.Marshal(mapping)

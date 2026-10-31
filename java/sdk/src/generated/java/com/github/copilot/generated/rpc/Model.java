@@ -53,7 +53,7 @@ public record Model(
     @JsonProperty("infoMessages") List<ModelMessage> infoMessages,
     /** Warnings the service published for this model, such as a deprecated client version. Present only when the service published at least one warning. The model remains usable; hosts should surface these as advisory rather than blocking. */
     @JsonProperty("warningMessages") List<ModelMessage> warningMessages,
-    /** The model provider that produced this model, as a neutral reference (opaque id, human-readable label, and provider kind). Present on models returned by `session.model.list`, which resolves provider attribution from the session's account roster; absent on the flat `server.models.list`, which does not resolve a session roster. The model picker groups by this reference. */
+    /** The native model provider that produced this model, as a neutral reference (opaque id, human-readable label, and provider kind). Preserved by `session.model.list` and `server.models.list` when supplied by the catalog producer; omitted for unattributed and configured BYOK models. This identifies the model source, not an account or agent harness. */
     @JsonProperty("provider") ModelProviderRef provider
 ) {
 }

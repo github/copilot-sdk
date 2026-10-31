@@ -45,7 +45,7 @@ func sseFrame(eventType string, data map[string]any) string {
 	return "event: " + eventType + "\ndata: " + string(raw) + "\n\n"
 }
 
-func modelCatalogJSON(supportedEndpoints []string) string {
+func modelCatalog(supportedEndpoints []string) map[string]any {
 	model := map[string]any{
 		"id":                   "claude-sonnet-5",
 		"name":                 "Claude Sonnet 5",
@@ -73,7 +73,43 @@ func modelCatalogJSON(supportedEndpoints []string) string {
 	if supportedEndpoints != nil {
 		model["supported_endpoints"] = supportedEndpoints
 	}
-	raw, _ := json.Marshal(map[string]any{"data": []any{model}})
+	return map[string]any{"data": []any{model}}
+}
+
+func modelCatalogJSON(supportedEndpoints []string) string {
+	raw, _ := json.Marshal(modelCatalog(supportedEndpoints))
+	return string(raw)
+}
+
+// autoMetadata is the Auto tier metadata CAPI returns alongside the catalog
+// from GET /meta.
+func autoMetadata() map[string]any {
+	tier := func(id, displayName, description string) map[string]any {
+		return map[string]any{
+			"id":           id,
+			"display_name": displayName,
+			"description":  description,
+			"type":         "auto",
+			"status":       map[string]any{"enabled": true},
+		}
+	}
+	return map[string]any{
+		"default_tier": "balance",
+		"tiers": []any{
+			tier("efficiency", "Efficiency", "Faster, lower-cost models"),
+			tier("balance", "Balance", "A balance of speed and capability"),
+			tier("intelligence", "Intelligence", "The most capable models"),
+		},
+	}
+}
+
+// metaCatalogJSON is the synthetic CAPI GET /meta payload: the /models
+// catalog plus Auto tier metadata.
+func metaCatalogJSON(supportedEndpoints []string) string {
+	raw, _ := json.Marshal(map[string]any{
+		"models": modelCatalog(supportedEndpoints),
+		"auto":   autoMetadata(),
+	})
 	return string(raw)
 }
 
@@ -236,6 +272,8 @@ func buildInferenceResponse(url string, bodyText string) *http.Response {
 func buildNonInferenceResponse(url string) *http.Response {
 	u := strings.ToLower(url)
 	switch {
+	case strings.HasSuffix(u, "/meta"):
+		return buildJSONResponse(200, metaCatalogJSON(nil))
 	case strings.HasSuffix(u, "/models"):
 		return buildJSONResponse(200, modelCatalogJSON(nil))
 	case strings.Contains(u, "/models/session"):

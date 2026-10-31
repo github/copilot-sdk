@@ -69,8 +69,8 @@ public class CopilotRequestHandlerE2ETest {
             // request, fully replacing the runtime's outbound model-layer calls.
             List<InterceptedRequest> records = handler.records();
             assertFalse(records.isEmpty(), "Expected the runtime to invoke the request handler");
-            assertTrue(records.stream().anyMatch(r -> r.url().toLowerCase(Locale.ROOT).endsWith("/models")),
-                    "Expected to intercept the /models catalog request");
+            assertTrue(records.stream().anyMatch(r -> r.url().toLowerCase(Locale.ROOT).endsWith("/meta")),
+                    "Expected to intercept the /meta catalog request");
             assertFalse(handler.inferenceRequests().isEmpty(),
                     "Expected at least one inference request via the handler");
 

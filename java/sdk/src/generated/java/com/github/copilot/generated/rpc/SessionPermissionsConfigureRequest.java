@@ -55,6 +55,18 @@ public final class SessionPermissionsConfigureRequest {
     @JsonProperty("assistedApprovalInstructions")
     private String assistedApprovalInstructions;
 
+    /** SDK-host advisory JSON for future Assisted Permissions judge requests. The value replaces only its named source; null clears that source. Omit to leave all sources unchanged. The runtime applies strict structural and size limits, renders the source in a runtime-controlled advisory frame, and never treats the value as instructions or authorization. Session-scoped only; hosts must reapply after resume. */
+    @JsonProperty("assistedApprovalContext")
+    private PermissionsConfigureAssistedApprovalContext assistedApprovalContext;
+
+    /** Optional owner-authenticated per-source update to lifecycle-fenced session authority. Active grants from all sources are rendered together, in source order, to the Assisted Permissions judge, which alone interprets their statements and scope. Only the owning non-extension session connection, bound to the current session generation, may replace or revoke authority. Omit to leave unchanged. Hard runtime controls, mandatory policy, and later human restrictions still take precedence. Session-scoped only; hosts must reapply after resume. */
+    @JsonProperty("authenticatedAuthority")
+    private AuthenticatedAuthorityUpdate authenticatedAuthority;
+
+    /** Declares whether this connection's registered permission handler applies non-human host policy to the tools this connection registered. When true, unattended Assisted Autopilot sends permission requests for those tools to the handler before runtime Assisted Approval or unattended fallback can settle them. All other requests, including shell commands, file access, URLs, and tools registered by other connections or extensions, keep runtime settlement. Managed policy and other runtime enforcement still take precedence. Only the session's owning non-extension connection may set this field. The declaration ends when that connection detaches or the session is resumed, so hosts must reapply it after resume. Omit to leave unchanged; false clears it. Without a declaration, registered handlers are not consulted during unattended Assisted Autopilot. Remote sessions are not supported. */
+    @JsonProperty("hostPolicyPermissionHandler")
+    private Boolean hostPolicyPermissionHandler;
+
     /**
      * Creates a request with its required inputs.
      */
@@ -122,6 +134,33 @@ public final class SessionPermissionsConfigureRequest {
      */
     public String getAssistedApprovalInstructions() {
         return assistedApprovalInstructions;
+    }
+
+    /**
+     * Returns the {@code assistedApprovalContext} property.
+     *
+     * @return SDK-host advisory JSON for future Assisted Permissions judge requests. The value replaces only its named source; null clears that source. Omit to leave all sources unchanged. The runtime applies strict structural and size limits, renders the source in a runtime-controlled advisory frame, and never treats the value as instructions or authorization. Session-scoped only; hosts must reapply after resume.
+     */
+    public PermissionsConfigureAssistedApprovalContext getAssistedApprovalContext() {
+        return assistedApprovalContext;
+    }
+
+    /**
+     * Returns the {@code authenticatedAuthority} property.
+     *
+     * @return Optional owner-authenticated per-source update to lifecycle-fenced session authority. Active grants from all sources are rendered together, in source order, to the Assisted Permissions judge, which alone interprets their statements and scope. Only the owning non-extension session connection, bound to the current session generation, may replace or revoke authority. Omit to leave unchanged. Hard runtime controls, mandatory policy, and later human restrictions still take precedence. Session-scoped only; hosts must reapply after resume.
+     */
+    public AuthenticatedAuthorityUpdate getAuthenticatedAuthority() {
+        return authenticatedAuthority;
+    }
+
+    /**
+     * Returns the {@code hostPolicyPermissionHandler} property.
+     *
+     * @return Declares whether this connection's registered permission handler applies non-human host policy to the tools this connection registered. When true, unattended Assisted Autopilot sends permission requests for those tools to the handler before runtime Assisted Approval or unattended fallback can settle them. All other requests, including shell commands, file access, URLs, and tools registered by other connections or extensions, keep runtime settlement. Managed policy and other runtime enforcement still take precedence. Only the session's owning non-extension connection may set this field. The declaration ends when that connection detaches or the session is resumed, so hosts must reapply it after resume. Omit to leave unchanged; false clears it. Without a declaration, registered handlers are not consulted during unattended Assisted Autopilot. Remote sessions are not supported.
+     */
+    public Boolean getHostPolicyPermissionHandler() {
+        return hostPolicyPermissionHandler;
     }
 
     /**
@@ -198,6 +237,39 @@ public final class SessionPermissionsConfigureRequest {
      */
     public SessionPermissionsConfigureRequest setAssistedApprovalInstructions(String value) {
         this.assistedApprovalInstructions = value;
+        return this;
+    }
+
+    /**
+     * Sets the {@code assistedApprovalContext} property.
+     *
+     * @param value SDK-host advisory JSON for future Assisted Permissions judge requests. The value replaces only its named source; null clears that source. Omit to leave all sources unchanged. The runtime applies strict structural and size limits, renders the source in a runtime-controlled advisory frame, and never treats the value as instructions or authorization. Session-scoped only; hosts must reapply after resume.
+     * @return this request
+     */
+    public SessionPermissionsConfigureRequest setAssistedApprovalContext(PermissionsConfigureAssistedApprovalContext value) {
+        this.assistedApprovalContext = value;
+        return this;
+    }
+
+    /**
+     * Sets the {@code authenticatedAuthority} property.
+     *
+     * @param value Optional owner-authenticated per-source update to lifecycle-fenced session authority. Active grants from all sources are rendered together, in source order, to the Assisted Permissions judge, which alone interprets their statements and scope. Only the owning non-extension session connection, bound to the current session generation, may replace or revoke authority. Omit to leave unchanged. Hard runtime controls, mandatory policy, and later human restrictions still take precedence. Session-scoped only; hosts must reapply after resume.
+     * @return this request
+     */
+    public SessionPermissionsConfigureRequest setAuthenticatedAuthority(AuthenticatedAuthorityUpdate value) {
+        this.authenticatedAuthority = value;
+        return this;
+    }
+
+    /**
+     * Sets the {@code hostPolicyPermissionHandler} property.
+     *
+     * @param value Declares whether this connection's registered permission handler applies non-human host policy to the tools this connection registered. When true, unattended Assisted Autopilot sends permission requests for those tools to the handler before runtime Assisted Approval or unattended fallback can settle them. All other requests, including shell commands, file access, URLs, and tools registered by other connections or extensions, keep runtime settlement. Managed policy and other runtime enforcement still take precedence. Only the session's owning non-extension connection may set this field. The declaration ends when that connection detaches or the session is resumed, so hosts must reapply it after resume. Omit to leave unchanged; false clears it. Without a declaration, registered handlers are not consulted during unattended Assisted Autopilot. Remote sessions are not supported.
+     * @return this request
+     */
+    public SessionPermissionsConfigureRequest setHostPolicyPermissionHandler(Boolean value) {
+        this.hostPolicyPermissionHandler = value;
         return this;
     }
 }

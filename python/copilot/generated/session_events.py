@@ -6,7 +6,7 @@ Generated from: session-events.schema.json
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any, ClassVar, TypeVar, cast
@@ -123,6 +123,7 @@ def to_enum(c: type[EnumT], x: Any) -> str:
 
 
 class SessionEventType(Enum):
+    SESSION_JOURNAL_LINK = "session.journal_link"
     SESSION_START = "session.start"
     SESSION_RESUME = "session.resume"
     SESSION_REMOTE_STEERABLE_CHANGED = "session.remote_steerable_changed"
@@ -801,6 +802,117 @@ class AssistantMessageServerTools:
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
+class AssistedApprovalAssessmentCompleted:
+    "The Assisted Permissions judge returned a usable verdict."
+    recommendation: AssistedApprovalCompletedRecommendation
+    status: ClassVar[str] = "completed"
+    rationale: str | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "AssistedApprovalAssessmentCompleted":
+        assert isinstance(obj, dict)
+        recommendation = parse_enum(AssistedApprovalCompletedRecommendation, obj.get("recommendation"))
+        rationale = from_union([from_none, from_str], obj.get("rationale"))
+        return AssistedApprovalAssessmentCompleted(
+            recommendation=recommendation,
+            rationale=rationale,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["recommendation"] = to_enum(AssistedApprovalCompletedRecommendation, self.recommendation)
+        result["status"] = self.status
+        if self.rationale is not None:
+            result["rationale"] = from_union([from_none, from_str], self.rationale)
+        return result
+
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class AssistedApprovalAssessmentExcluded:
+    "A deterministic runtime or policy gate prevented automatic approval without consulting the judge."
+    reason: str
+    status: ClassVar[str] = "excluded"
+
+    @staticmethod
+    def from_dict(obj: Any) -> "AssistedApprovalAssessmentExcluded":
+        assert isinstance(obj, dict)
+        reason = from_str(obj.get("reason"))
+        return AssistedApprovalAssessmentExcluded(
+            reason=reason,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["reason"] = from_str(self.reason)
+        result["status"] = self.status
+        return result
+
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class AssistedApprovalAssessmentFailed:
+    "The judge path produced no usable verdict."
+    reason: str
+    status: ClassVar[str] = "failed"
+
+    @staticmethod
+    def from_dict(obj: Any) -> "AssistedApprovalAssessmentFailed":
+        assert isinstance(obj, dict)
+        reason = from_str(obj.get("reason"))
+        return AssistedApprovalAssessmentFailed(
+            reason=reason,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["reason"] = from_str(self.reason)
+        result["status"] = self.status
+        return result
+
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class AssistedApprovalAssessmentNotRun:
+    "The request did not reach the Assisted Permissions judge."
+    reason: str
+    status: ClassVar[str] = "not-run"
+
+    @staticmethod
+    def from_dict(obj: Any) -> "AssistedApprovalAssessmentNotRun":
+        assert isinstance(obj, dict)
+        reason = from_str(obj.get("reason"))
+        return AssistedApprovalAssessmentNotRun(
+            reason=reason,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["reason"] = from_str(self.reason)
+        result["status"] = self.status
+        return result
+
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class AssistedApprovalAssessmentUnavailable:
+    "No trusted Assisted Permissions assessment is available, including for historical events."
+    status: ClassVar[str] = "unavailable"
+
+    @staticmethod
+    def from_dict(obj: Any) -> "AssistedApprovalAssessmentUnavailable":
+        assert isinstance(obj, dict)
+        return AssistedApprovalAssessmentUnavailable(
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["status"] = self.status
+        return result
+
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
 class BinaryAssetReference:
     "A reference to binary data persisted once on a session.binary_asset event and shared by id"
     asset_id: str
@@ -838,6 +950,39 @@ class BinaryAssetReference:
             result["description"] = from_union([from_none, from_str], self.description)
         if self.metadata is not None:
             result["metadata"] = from_union([from_none, lambda x: from_dict(lambda x: x, x)], self.metadata)
+        return result
+
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class BlockedPermissionAction:
+    "Privacy-safe reference to a permission-protected action that remains blocked for the current Autopilot epoch"
+    episode_id: str
+    permission_kind: str
+    recovery_reason: PermissionRecoveryReason
+    tool_call_id: str | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "BlockedPermissionAction":
+        assert isinstance(obj, dict)
+        episode_id = from_str(obj.get("episodeId"))
+        permission_kind = from_str(obj.get("permissionKind"))
+        recovery_reason = parse_enum(PermissionRecoveryReason, obj.get("recoveryReason"))
+        tool_call_id = from_union([from_none, from_str], obj.get("toolCallId"))
+        return BlockedPermissionAction(
+            episode_id=episode_id,
+            permission_kind=permission_kind,
+            recovery_reason=recovery_reason,
+            tool_call_id=tool_call_id,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["episodeId"] = from_str(self.episode_id)
+        result["permissionKind"] = from_str(self.permission_kind)
+        result["recoveryReason"] = to_enum(PermissionRecoveryReason, self.recovery_reason)
+        if self.tool_call_id is not None:
+            result["toolCallId"] = from_union([from_none, from_str], self.tool_call_id)
         return result
 
 
@@ -1771,6 +1916,39 @@ class PermissionMessageAuthorizationReadData:
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
+class PermissionRecoveryRunState:
+    "Replay-safe epoch counters for Autopilot Assisted Permissions recovery"
+    consecutive_blocked_episodes: int
+    terminal_outcome_claimed: bool
+    total_denial_dispositions: int
+    permission_recovery_terminal_claimed: bool | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "PermissionRecoveryRunState":
+        assert isinstance(obj, dict)
+        consecutive_blocked_episodes = from_int(obj.get("consecutiveBlockedEpisodes"))
+        terminal_outcome_claimed = from_bool(obj.get("terminalOutcomeClaimed"))
+        total_denial_dispositions = from_int(obj.get("totalDenialDispositions"))
+        permission_recovery_terminal_claimed = from_union([from_none, from_bool], obj.get("permissionRecoveryTerminalClaimed"))
+        return PermissionRecoveryRunState(
+            consecutive_blocked_episodes=consecutive_blocked_episodes,
+            terminal_outcome_claimed=terminal_outcome_claimed,
+            total_denial_dispositions=total_denial_dispositions,
+            permission_recovery_terminal_claimed=permission_recovery_terminal_claimed,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["consecutiveBlockedEpisodes"] = to_int(self.consecutive_blocked_episodes)
+        result["terminalOutcomeClaimed"] = from_bool(self.terminal_outcome_claimed)
+        result["totalDenialDispositions"] = to_int(self.total_denial_dispositions)
+        if self.permission_recovery_terminal_claimed is not None:
+            result["permissionRecoveryTerminalClaimed"] = from_union([from_none, from_bool], self.permission_recovery_terminal_claimed)
+        return result
+
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
 class PermissionSandboxPathGrant:
     "A sandbox filesystem policy edit that would let a blocked operation run inside the sandbox instead of outside it. Offered only on a sandbox escalation request whose denial adding this path lifts, and only when managed policy permits the grant. A host accepts it with session.sandbox.grantPathForRequest, which adds the path to the session's sandbox policy and re-runs the operation sandboxed; a host that persists sandbox settings may also save the path there."
     access: PermissionSandboxPathGrantAccess
@@ -1965,8 +2143,9 @@ class ProviderQuotaState:
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class SessionAutoModeResolvedData:
-    "Auto Intent resolution: the concrete model the session settled on for the first prompt of an auto-mode session, and why. Lets SDK clients render the chosen model and the full reason it was picked. The core selection fields (chosenModel/reasoningBucket/categoryScores) are stable; the routing-analytics fields (predictedLabel/confidence/candidateModels) mirror the upstream intent service and may evolve, hence the event's experimental stability."
+    "Auto Intent resolution: the concrete model an auto-mode session settled on, and why. Published when Auto settles on a model that differs from the one it last published in the current Auto selection, so a routing check that keeps the same model does not repeat it; selecting a model, switching Auto tiers, or returning to Auto starts a new selection. Lets SDK clients render the chosen model and the full reason it was picked. The core selection fields (chosenModel/reasoningBucket/categoryScores) are stable; the routing-analytics fields (predictedLabel/confidence/candidateModels) mirror the upstream intent service and may evolve, hence the event's experimental stability."
     chosen_model: str
+    auto_tier: AutoTier | None = None
     available_models: list[str] | None = None
     candidate_models: list[str] | None = None
     category_scores: dict[str, float] | None = None
@@ -1987,6 +2166,7 @@ class SessionAutoModeResolvedData:
     def from_dict(obj: Any) -> "SessionAutoModeResolvedData":
         assert isinstance(obj, dict)
         chosen_model = from_str(obj.get("chosenModel"))
+        auto_tier = from_union([from_none, lambda x: parse_enum(AutoTier, x)], obj.get("autoTier"))
         available_models = from_union([from_none, lambda x: from_list(from_str, x)], obj.get("availableModels"))
         candidate_models = from_union([from_none, lambda x: from_list(from_str, x)], obj.get("candidateModels"))
         category_scores = from_union([from_none, lambda x: from_dict(from_float, x)], obj.get("categoryScores"))
@@ -2004,6 +2184,7 @@ class SessionAutoModeResolvedData:
         sticky_override = from_union([from_none, from_bool], obj.get("stickyOverride"))
         return SessionAutoModeResolvedData(
             chosen_model=chosen_model,
+            auto_tier=auto_tier,
             available_models=available_models,
             candidate_models=candidate_models,
             category_scores=category_scores,
@@ -2024,6 +2205,8 @@ class SessionAutoModeResolvedData:
     def to_dict(self) -> dict:
         result: dict = {}
         result["chosenModel"] = from_str(self.chosen_model)
+        if self.auto_tier is not None:
+            result["autoTier"] = from_union([from_none, lambda x: to_enum(AutoTier, x)], self.auto_tier)
         if self.available_models is not None:
             result["availableModels"] = from_union([from_none, lambda x: from_list(from_str, x)], self.available_models)
         if self.candidate_models is not None:
@@ -2722,6 +2905,8 @@ class SessionManagedSettingsResolvedData:
     client_managed: bool | None = None
     permissions_allow_intersected: bool | None = None
     permissions_context: ManagedPermissionsContext | None = None
+    policy_helper_capabilities: PolicyHelperCapabilities | None = None
+    policy_helper_failure: PolicyHelperFailure | None = None
     policy_helper_managed: bool | None = None
     sandbox_enabled_by_undetermined_policy: bool | None = None
     settings: Any = None
@@ -2738,6 +2923,8 @@ class SessionManagedSettingsResolvedData:
         client_managed = from_union([from_none, from_bool], obj.get("clientManaged"))
         permissions_allow_intersected = from_union([from_none, from_bool], obj.get("permissionsAllowIntersected"))
         permissions_context = from_union([from_none, ManagedPermissionsContext.from_dict], obj.get("permissionsContext"))
+        policy_helper_capabilities = from_union([from_none, PolicyHelperCapabilities.from_dict], obj.get("policyHelperCapabilities"))
+        policy_helper_failure = from_union([from_none, PolicyHelperFailure.from_dict], obj.get("policyHelperFailure"))
         policy_helper_managed = from_union([from_none, from_bool], obj.get("policyHelperManaged"))
         sandbox_enabled_by_undetermined_policy = from_union([from_none, from_bool], obj.get("sandboxEnabledByUndeterminedPolicy"))
         settings = obj.get("settings")
@@ -2751,6 +2938,8 @@ class SessionManagedSettingsResolvedData:
             client_managed=client_managed,
             permissions_allow_intersected=permissions_allow_intersected,
             permissions_context=permissions_context,
+            policy_helper_capabilities=policy_helper_capabilities,
+            policy_helper_failure=policy_helper_failure,
             policy_helper_managed=policy_helper_managed,
             sandbox_enabled_by_undetermined_policy=sandbox_enabled_by_undetermined_policy,
             settings=settings,
@@ -2770,6 +2959,10 @@ class SessionManagedSettingsResolvedData:
             result["permissionsAllowIntersected"] = from_union([from_none, from_bool], self.permissions_allow_intersected)
         if self.permissions_context is not None:
             result["permissionsContext"] = from_union([from_none, lambda x: to_class(ManagedPermissionsContext, x)], self.permissions_context)
+        if self.policy_helper_capabilities is not None:
+            result["policyHelperCapabilities"] = from_union([from_none, lambda x: to_class(PolicyHelperCapabilities, x)], self.policy_helper_capabilities)
+        if self.policy_helper_failure is not None:
+            result["policyHelperFailure"] = from_union([from_none, lambda x: to_class(PolicyHelperFailure, x)], self.policy_helper_failure)
         if self.policy_helper_managed is not None:
             result["policyHelperManaged"] = from_union([from_none, from_bool], self.policy_helper_managed)
         if self.sandbox_enabled_by_undetermined_policy is not None:
@@ -2839,7 +3032,7 @@ class TaskBlocker:
     "Structured reason that the task cannot continue without intervention"
     kind: TaskBlockerKind
     permission_recovery: PermissionRecoveryData
-    reason: PermissionRecoveryReason
+    reason: TaskBlockerReason
     resumable: bool
 
     @staticmethod
@@ -2847,7 +3040,7 @@ class TaskBlocker:
         assert isinstance(obj, dict)
         kind = parse_enum(TaskBlockerKind, obj.get("kind"))
         permission_recovery = PermissionRecoveryData.from_dict(obj.get("permissionRecovery"))
-        reason = parse_enum(PermissionRecoveryReason, obj.get("reason"))
+        reason = parse_enum(TaskBlockerReason, obj.get("reason"))
         resumable = from_bool(obj.get("resumable"))
         return TaskBlocker(
             kind=kind,
@@ -2860,7 +3053,7 @@ class TaskBlocker:
         result: dict = {}
         result["kind"] = to_enum(TaskBlockerKind, self.kind)
         result["permissionRecovery"] = to_class(PermissionRecoveryData, self.permission_recovery)
-        result["reason"] = to_enum(PermissionRecoveryReason, self.reason)
+        result["reason"] = to_enum(TaskBlockerReason, self.reason)
         result["resumable"] = from_bool(self.resumable)
         return result
 
@@ -3457,6 +3650,7 @@ class AssistantMessageToolRequest:
     mcp_tool_name: str | None = None
     tool_title: str | None = None
     type: AssistantMessageToolRequestType | None = None
+    mcp_server_display_name: str | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "AssistantMessageToolRequest":
@@ -3470,6 +3664,7 @@ class AssistantMessageToolRequest:
         mcp_tool_name = from_union([from_none, from_str], obj.get("mcpToolName"))
         tool_title = from_union([from_none, from_str], obj.get("toolTitle"))
         type = from_union([from_none, lambda x: parse_enum(AssistantMessageToolRequestType, x)], obj.get("type"))
+        mcp_server_display_name = from_union([from_none, from_str], obj.get("mcpServerDisplayName"))
         return AssistantMessageToolRequest(
             name=name,
             tool_call_id=tool_call_id,
@@ -3480,6 +3675,7 @@ class AssistantMessageToolRequest:
             mcp_tool_name=mcp_tool_name,
             tool_title=tool_title,
             type=type,
+            mcp_server_display_name=mcp_server_display_name,
         )
 
     def to_dict(self) -> dict:
@@ -3500,6 +3696,8 @@ class AssistantMessageToolRequest:
             result["toolTitle"] = from_union([from_none, from_str], self.tool_title)
         if self.type is not None:
             result["type"] = from_union([from_none, lambda x: to_enum(AssistantMessageToolRequestType, x)], self.type)
+        if self.mcp_server_display_name is not None:
+            result["mcpServerDisplayName"] = from_union([from_none, from_str], self.mcp_server_display_name)
         return result
 
 
@@ -3531,26 +3729,46 @@ class AssistantReasoningData:
     "Assistant reasoning content for timeline display with complete thinking text"
     content: str
     reasoning_id: str
+    api_call_id: str | None = None
+    is_byok: bool | None = None
+    model: str | None = None
     rte: bool | None = None
+    turn_id: str | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "AssistantReasoningData":
         assert isinstance(obj, dict)
         content = from_str(obj.get("content"))
         reasoning_id = from_str(obj.get("reasoningId"))
+        api_call_id = from_union([from_none, from_str], obj.get("apiCallId"))
+        is_byok = from_union([from_none, from_bool], obj.get("isByok"))
+        model = from_union([from_none, from_str], obj.get("model"))
         rte = from_union([from_none, from_bool], obj.get("rte"))
+        turn_id = from_union([from_none, from_str], obj.get("turnId"))
         return AssistantReasoningData(
             content=content,
             reasoning_id=reasoning_id,
+            api_call_id=api_call_id,
+            is_byok=is_byok,
+            model=model,
             rte=rte,
+            turn_id=turn_id,
         )
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["content"] = from_str(self.content)
         result["reasoningId"] = from_str(self.reasoning_id)
+        if self.api_call_id is not None:
+            result["apiCallId"] = from_union([from_none, from_str], self.api_call_id)
+        if self.is_byok is not None:
+            result["isByok"] = from_union([from_none, from_bool], self.is_byok)
+        if self.model is not None:
+            result["model"] = from_union([from_none, from_str], self.model)
         if self.rte is not None:
             result["rte"] = from_union([from_none, from_bool], self.rte)
+        if self.turn_id is not None:
+            result["turnId"] = from_union([from_none, from_str], self.turn_id)
         return result
 
 
@@ -3718,6 +3936,7 @@ class AssistantTurnRetryData:
 class AssistantTurnStartData:
     "Turn initialization metadata including identifier and interaction tracking"
     turn_id: str
+    agent_mode: SessionMode | None = None
     interaction_id: str | None = None
     model: str | None = None
     parent_tool_call_id: str | None = None
@@ -3726,11 +3945,13 @@ class AssistantTurnStartData:
     def from_dict(obj: Any) -> "AssistantTurnStartData":
         assert isinstance(obj, dict)
         turn_id = from_str(obj.get("turnId"))
+        agent_mode = from_union([from_none, lambda x: parse_enum(SessionMode, x)], obj.get("agentMode"))
         interaction_id = from_union([from_none, from_str], obj.get("interactionId"))
         model = from_union([from_none, from_str], obj.get("model"))
         parent_tool_call_id = from_union([from_none, from_str], obj.get("parentToolCallId"))
         return AssistantTurnStartData(
             turn_id=turn_id,
+            agent_mode=agent_mode,
             interaction_id=interaction_id,
             model=model,
             parent_tool_call_id=parent_tool_call_id,
@@ -3739,6 +3960,8 @@ class AssistantTurnStartData:
     def to_dict(self) -> dict:
         result: dict = {}
         result["turnId"] = from_str(self.turn_id)
+        if self.agent_mode is not None:
+            result["agentMode"] = from_union([from_none, lambda x: to_enum(SessionMode, x)], self.agent_mode)
         if self.interaction_id is not None:
             result["interactionId"] = from_union([from_none, from_str], self.interaction_id)
         if self.model is not None:
@@ -3847,8 +4070,13 @@ class AssistantUsageData:
     _frontier_source: str | None = None
     # Experimental: this field is part of an experimental API and may change or be removed.
     fusion: FusionAttribution | None = None
+    inference_gateway: bool | None = None
     initiator: str | None = None
     input_tokens: int | None = None
+    # Internal: this field is an internal SDK API and is not part of the public surface.
+    _instruction_update_delivery_id: str | None = None
+    # Internal: this field is an internal SDK API and is not part of the public surface.
+    _instruction_update_latest_event_id: str | None = None
     interaction_type: str | None = None
     inter_token_latency: timedelta | None = None
     is_auto: bool | None = None
@@ -3865,6 +4093,10 @@ class AssistantUsageData:
     output_ttft: timedelta | None = None
     # Deprecated: this field is deprecated.
     parent_tool_call_id: str | None = None
+    # Internal: this field is an internal SDK API and is not part of the public surface.
+    _prompt_cache_credits_bucket: str | None = None
+    # Internal: this field is an internal SDK API and is not part of the public surface.
+    _prompt_cache_ttl_reason: str | None = None
     provider: ModelProviderRef | None = None
     provider_call_id: str | None = None
     # Internal: this field is an internal SDK API and is not part of the public surface.
@@ -3902,6 +4134,7 @@ class AssistantUsageData:
     websocket_fallback_reconnect_attempted: bool | None = None
     websocket_fallback_started_this_call: bool | None = None
     websocket_fallback_status_code: int | None = None
+    response_model: str | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "AssistantUsageData":
@@ -3928,8 +4161,11 @@ class AssistantUsageData:
         finish_reason = from_union([from_none, from_str], obj.get("finishReason"))
         _frontier_source = from_union([from_none, from_str], obj.get("frontierSource"))
         fusion = from_union([from_none, FusionAttribution.from_dict], obj.get("fusion"))
+        inference_gateway = from_union([from_none, from_bool], obj.get("inferenceGateway"))
         initiator = from_union([from_none, from_str], obj.get("initiator"))
         input_tokens = from_union([from_none, from_int], obj.get("inputTokens"))
+        _instruction_update_delivery_id = from_union([from_none, from_str], obj.get("instructionUpdateDeliveryId"))
+        _instruction_update_latest_event_id = from_union([from_none, from_str], obj.get("instructionUpdateLatestEventId"))
         interaction_type = from_union([from_none, from_str], obj.get("interactionType"))
         inter_token_latency = from_union([from_none, from_timedelta], obj.get("interTokenLatencyMs"))
         is_auto = from_union([from_none, from_bool], obj.get("isAuto"))
@@ -3943,6 +4179,8 @@ class AssistantUsageData:
         output_tokens = from_union([from_none, from_int], obj.get("outputTokens"))
         output_ttft = from_union([from_none, from_timedelta], obj.get("outputTtftMs"))
         parent_tool_call_id = from_union([from_none, from_str], obj.get("parentToolCallId"))
+        _prompt_cache_credits_bucket = from_union([from_none, from_str], obj.get("promptCacheCreditsBucket"))
+        _prompt_cache_ttl_reason = from_union([from_none, from_str], obj.get("promptCacheTtlReason"))
         provider = from_union([from_none, ModelProviderRef.from_dict], obj.get("provider"))
         provider_call_id = from_union([from_none, from_str], obj.get("providerCallId"))
         _provider_type = from_union([from_none, from_str], obj.get("providerType"))
@@ -3973,6 +4211,7 @@ class AssistantUsageData:
         websocket_fallback_reconnect_attempted = from_union([from_none, from_bool], obj.get("websocketFallbackReconnectAttempted"))
         websocket_fallback_started_this_call = from_union([from_none, from_bool], obj.get("websocketFallbackStartedThisCall"))
         websocket_fallback_status_code = from_union([from_none, from_int], obj.get("websocketFallbackStatusCode"))
+        response_model = from_union([from_none, from_str], obj.get("responseModel"))
         return AssistantUsageData(
             model=model,
             accepted_prediction_tokens=accepted_prediction_tokens,
@@ -3996,8 +4235,11 @@ class AssistantUsageData:
             finish_reason=finish_reason,
             _frontier_source=_frontier_source,
             fusion=fusion,
+            inference_gateway=inference_gateway,
             initiator=initiator,
             input_tokens=input_tokens,
+            _instruction_update_delivery_id=_instruction_update_delivery_id,
+            _instruction_update_latest_event_id=_instruction_update_latest_event_id,
             interaction_type=interaction_type,
             inter_token_latency=inter_token_latency,
             is_auto=is_auto,
@@ -4011,6 +4253,8 @@ class AssistantUsageData:
             output_tokens=output_tokens,
             output_ttft=output_ttft,
             parent_tool_call_id=parent_tool_call_id,
+            _prompt_cache_credits_bucket=_prompt_cache_credits_bucket,
+            _prompt_cache_ttl_reason=_prompt_cache_ttl_reason,
             provider=provider,
             provider_call_id=provider_call_id,
             _provider_type=_provider_type,
@@ -4041,6 +4285,7 @@ class AssistantUsageData:
             websocket_fallback_reconnect_attempted=websocket_fallback_reconnect_attempted,
             websocket_fallback_started_this_call=websocket_fallback_started_this_call,
             websocket_fallback_status_code=websocket_fallback_status_code,
+            response_model=response_model,
         )
 
     def to_dict(self) -> dict:
@@ -4088,10 +4333,16 @@ class AssistantUsageData:
             result["frontierSource"] = from_union([from_none, from_str], self._frontier_source)
         if self.fusion is not None:
             result["fusion"] = from_union([from_none, lambda x: to_class(FusionAttribution, x)], self.fusion)
+        if self.inference_gateway is not None:
+            result["inferenceGateway"] = from_union([from_none, from_bool], self.inference_gateway)
         if self.initiator is not None:
             result["initiator"] = from_union([from_none, from_str], self.initiator)
         if self.input_tokens is not None:
             result["inputTokens"] = from_union([from_none, to_int], self.input_tokens)
+        if self._instruction_update_delivery_id is not None:
+            result["instructionUpdateDeliveryId"] = from_union([from_none, from_str], self._instruction_update_delivery_id)
+        if self._instruction_update_latest_event_id is not None:
+            result["instructionUpdateLatestEventId"] = from_union([from_none, from_str], self._instruction_update_latest_event_id)
         if self.interaction_type is not None:
             result["interactionType"] = from_union([from_none, from_str], self.interaction_type)
         if self.inter_token_latency is not None:
@@ -4118,6 +4369,10 @@ class AssistantUsageData:
             result["outputTtftMs"] = from_union([from_none, to_timedelta], self.output_ttft)
         if self.parent_tool_call_id is not None:
             result["parentToolCallId"] = from_union([from_none, from_str], self.parent_tool_call_id)
+        if self._prompt_cache_credits_bucket is not None:
+            result["promptCacheCreditsBucket"] = from_union([from_none, from_str], self._prompt_cache_credits_bucket)
+        if self._prompt_cache_ttl_reason is not None:
+            result["promptCacheTtlReason"] = from_union([from_none, from_str], self._prompt_cache_ttl_reason)
         if self.provider is not None:
             result["provider"] = from_union([from_none, lambda x: to_class(ModelProviderRef, x)], self.provider)
         if self.provider_call_id is not None:
@@ -4178,6 +4433,8 @@ class AssistantUsageData:
             result["websocketFallbackStartedThisCall"] = from_union([from_none, from_bool], self.websocket_fallback_started_this_call)
         if self.websocket_fallback_status_code is not None:
             result["websocketFallbackStatusCode"] = from_union([from_none, to_int], self.websocket_fallback_status_code)
+        if self.response_model is not None:
+            result["responseModel"] = from_union([from_none, from_str], self.response_model)
         return result
 
 
@@ -5137,7 +5394,7 @@ class CommandsChangedCommand:
 
 @dataclass
 class CommandsChangedData:
-    "SDK command registration change notification"
+    "Session command list change notification, for SDK command registration or built-in command availability; `session.commands.list` returns the full list"
     commands: list[CommandsChangedCommand]
 
     @staticmethod
@@ -5151,6 +5408,134 @@ class CommandsChangedData:
     def to_dict(self) -> dict:
         result: dict = {}
         result["commands"] = from_list(lambda x: to_class(CommandsChangedCommand, x), self.commands)
+        return result
+
+
+@dataclass
+class _CompactionCompleteAttemptMetrics:
+    "End-to-end timing of a compaction attempt and the configuration it ran under, measured from the start of the compaction to its terminal event."
+    # Internal: this field is an internal SDK API and is not part of the public surface.
+    _duration: timedelta
+    # Internal: this field is an internal SDK API and is not part of the public surface.
+    _apply_delay: timedelta | None = None
+    # Internal: this field is an internal SDK API and is not part of the public surface.
+    _blocking_wait: timedelta | None = None
+    # Internal: this field is an internal SDK API and is not part of the public surface.
+    _cancelled_request_count: int | None = None
+    # Internal: this field is an internal SDK API and is not part of the public surface.
+    _deadline_limit: timedelta | None = None
+    # Internal: this field is an internal SDK API and is not part of the public surface.
+    _deadline_overshoot: timedelta | None = None
+    # Internal: this field is an internal SDK API and is not part of the public surface.
+    _deadline_policy: str | None = None
+    # Internal: this field is an internal SDK API and is not part of the public surface.
+    _failed_request_count: int | None = None
+    # Internal: this field is an internal SDK API and is not part of the public surface.
+    _failed_request_input_tokens_estimate: int | None = None
+    # Internal: this field is an internal SDK API and is not part of the public surface.
+    _failure_operation: str | None = None
+    # Internal: this field is an internal SDK API and is not part of the public surface.
+    _last_retry_after: timedelta | None = None
+    # Internal: this field is an internal SDK API and is not part of the public surface.
+    _max_output_tokens: float | None = None
+    # Internal: this field is an internal SDK API and is not part of the public surface.
+    _requested_reasoning_effort: str | None = None
+    # Internal: this field is an internal SDK API and is not part of the public surface.
+    _retry_wait: timedelta | None = None
+    # Internal: this field is an internal SDK API and is not part of the public surface.
+    _shrink_removed_attachments: int | None = None
+    # Internal: this field is an internal SDK API and is not part of the public surface.
+    _shrink_stripped_reasoning: int | None = None
+    # Internal: this field is an internal SDK API and is not part of the public surface.
+    _summarizer_reasoning_effort: str | None = None
+    # Internal: this field is an internal SDK API and is not part of the public surface.
+    _suspended: timedelta | None = None
+    # Internal: this field is an internal SDK API and is not part of the public surface.
+    _trigger_threshold: float | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "_CompactionCompleteAttemptMetrics":
+        assert isinstance(obj, dict)
+        _duration = from_timedelta(obj.get("durationMs"))
+        _apply_delay = from_union([from_none, from_timedelta], obj.get("applyDelayMs"))
+        _blocking_wait = from_union([from_none, from_timedelta], obj.get("blockingWaitMs"))
+        _cancelled_request_count = from_union([from_none, from_int], obj.get("cancelledRequestCount"))
+        _deadline_limit = from_union([from_none, from_timedelta], obj.get("deadlineLimitMs"))
+        _deadline_overshoot = from_union([from_none, from_timedelta], obj.get("deadlineOvershootMs"))
+        _deadline_policy = from_union([from_none, from_str], obj.get("deadlinePolicy"))
+        _failed_request_count = from_union([from_none, from_int], obj.get("failedRequestCount"))
+        _failed_request_input_tokens_estimate = from_union([from_none, from_int], obj.get("failedRequestInputTokensEstimate"))
+        _failure_operation = from_union([from_none, from_str], obj.get("failureOperation"))
+        _last_retry_after = from_union([from_none, from_timedelta], obj.get("lastRetryAfterMs"))
+        _max_output_tokens = from_union([from_none, from_float], obj.get("maxOutputTokens"))
+        _requested_reasoning_effort = from_union([from_none, from_str], obj.get("requestedReasoningEffort"))
+        _retry_wait = from_union([from_none, from_timedelta], obj.get("retryWaitMs"))
+        _shrink_removed_attachments = from_union([from_none, from_int], obj.get("shrinkRemovedAttachments"))
+        _shrink_stripped_reasoning = from_union([from_none, from_int], obj.get("shrinkStrippedReasoning"))
+        _summarizer_reasoning_effort = from_union([from_none, from_str], obj.get("summarizerReasoningEffort"))
+        _suspended = from_union([from_none, from_timedelta], obj.get("suspendedMs"))
+        _trigger_threshold = from_union([from_none, from_float], obj.get("triggerThreshold"))
+        return _CompactionCompleteAttemptMetrics(
+            _duration=_duration,
+            _apply_delay=_apply_delay,
+            _blocking_wait=_blocking_wait,
+            _cancelled_request_count=_cancelled_request_count,
+            _deadline_limit=_deadline_limit,
+            _deadline_overshoot=_deadline_overshoot,
+            _deadline_policy=_deadline_policy,
+            _failed_request_count=_failed_request_count,
+            _failed_request_input_tokens_estimate=_failed_request_input_tokens_estimate,
+            _failure_operation=_failure_operation,
+            _last_retry_after=_last_retry_after,
+            _max_output_tokens=_max_output_tokens,
+            _requested_reasoning_effort=_requested_reasoning_effort,
+            _retry_wait=_retry_wait,
+            _shrink_removed_attachments=_shrink_removed_attachments,
+            _shrink_stripped_reasoning=_shrink_stripped_reasoning,
+            _summarizer_reasoning_effort=_summarizer_reasoning_effort,
+            _suspended=_suspended,
+            _trigger_threshold=_trigger_threshold,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["durationMs"] = to_timedelta_int(self._duration)
+        if self._apply_delay is not None:
+            result["applyDelayMs"] = from_union([from_none, to_timedelta_int], self._apply_delay)
+        if self._blocking_wait is not None:
+            result["blockingWaitMs"] = from_union([from_none, to_timedelta_int], self._blocking_wait)
+        if self._cancelled_request_count is not None:
+            result["cancelledRequestCount"] = from_union([from_none, to_int], self._cancelled_request_count)
+        if self._deadline_limit is not None:
+            result["deadlineLimitMs"] = from_union([from_none, to_timedelta_int], self._deadline_limit)
+        if self._deadline_overshoot is not None:
+            result["deadlineOvershootMs"] = from_union([from_none, to_timedelta_int], self._deadline_overshoot)
+        if self._deadline_policy is not None:
+            result["deadlinePolicy"] = from_union([from_none, from_str], self._deadline_policy)
+        if self._failed_request_count is not None:
+            result["failedRequestCount"] = from_union([from_none, to_int], self._failed_request_count)
+        if self._failed_request_input_tokens_estimate is not None:
+            result["failedRequestInputTokensEstimate"] = from_union([from_none, to_int], self._failed_request_input_tokens_estimate)
+        if self._failure_operation is not None:
+            result["failureOperation"] = from_union([from_none, from_str], self._failure_operation)
+        if self._last_retry_after is not None:
+            result["lastRetryAfterMs"] = from_union([from_none, to_timedelta_int], self._last_retry_after)
+        if self._max_output_tokens is not None:
+            result["maxOutputTokens"] = from_union([from_none, to_float], self._max_output_tokens)
+        if self._requested_reasoning_effort is not None:
+            result["requestedReasoningEffort"] = from_union([from_none, from_str], self._requested_reasoning_effort)
+        if self._retry_wait is not None:
+            result["retryWaitMs"] = from_union([from_none, to_timedelta_int], self._retry_wait)
+        if self._shrink_removed_attachments is not None:
+            result["shrinkRemovedAttachments"] = from_union([from_none, to_int], self._shrink_removed_attachments)
+        if self._shrink_stripped_reasoning is not None:
+            result["shrinkStrippedReasoning"] = from_union([from_none, to_int], self._shrink_stripped_reasoning)
+        if self._summarizer_reasoning_effort is not None:
+            result["summarizerReasoningEffort"] = from_union([from_none, from_str], self._summarizer_reasoning_effort)
+        if self._suspended is not None:
+            result["suspendedMs"] = from_union([from_none, to_timedelta_int], self._suspended)
+        if self._trigger_threshold is not None:
+            result["triggerThreshold"] = from_union([from_none, to_float], self._trigger_threshold)
         return result
 
 
@@ -5293,6 +5678,45 @@ class CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail:
 
 
 @dataclass
+class _CompactionCompleteFailureDiagnostics:
+    "Evidence about the summarizer's latest model call when a compaction failed. Every value is a string so that new values stay readable by older runtimes."
+    # Internal: this field is an internal SDK API and is not part of the public surface.
+    _finish_reason: str | None = None
+    # Internal: this field is an internal SDK API and is not part of the public surface.
+    _last_attempt_failure_reason: str | None = None
+    # Internal: this field is an internal SDK API and is not part of the public surface.
+    _provider_error_code: str | None = None
+    # Internal: this field is an internal SDK API and is not part of the public surface.
+    _transport_error_kind: str | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "_CompactionCompleteFailureDiagnostics":
+        assert isinstance(obj, dict)
+        _finish_reason = from_union([from_none, from_str], obj.get("finishReason"))
+        _last_attempt_failure_reason = from_union([from_none, from_str], obj.get("lastAttemptFailureReason"))
+        _provider_error_code = from_union([from_none, from_str], obj.get("providerErrorCode"))
+        _transport_error_kind = from_union([from_none, from_str], obj.get("transportErrorKind"))
+        return _CompactionCompleteFailureDiagnostics(
+            _finish_reason=_finish_reason,
+            _last_attempt_failure_reason=_last_attempt_failure_reason,
+            _provider_error_code=_provider_error_code,
+            _transport_error_kind=_transport_error_kind,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        if self._finish_reason is not None:
+            result["finishReason"] = from_union([from_none, from_str], self._finish_reason)
+        if self._last_attempt_failure_reason is not None:
+            result["lastAttemptFailureReason"] = from_union([from_none, from_str], self._last_attempt_failure_reason)
+        if self._provider_error_code is not None:
+            result["providerErrorCode"] = from_union([from_none, from_str], self._provider_error_code)
+        if self._transport_error_kind is not None:
+            result["transportErrorKind"] = from_union([from_none, from_str], self._transport_error_kind)
+        return result
+
+
+@dataclass
 class _CompactionCompleteSummarizerProgress:
     "How far the compaction's summarizer model calls had progressed when the compaction's outcome was decided. Stream statistics describe the latest model request; durationMs and attemptCount cover every request."
     # Internal: this field is an internal SDK API and is not part of the public surface.
@@ -5304,6 +5728,8 @@ class _CompactionCompleteSummarizerProgress:
     # Internal: this field is an internal SDK API and is not part of the public surface.
     _stream_event_count: int
     # Internal: this field is an internal SDK API and is not part of the public surface.
+    _answer_chars: int | None = None
+    # Internal: this field is an internal SDK API and is not part of the public surface.
     _attempt_age: timedelta | None = None
     # Internal: this field is an internal SDK API and is not part of the public surface.
     _attempt_settled: bool | None = None
@@ -5312,11 +5738,15 @@ class _CompactionCompleteSummarizerProgress:
     # Internal: this field is an internal SDK API and is not part of the public surface.
     _input_shrunk: bool | None = None
     # Internal: this field is an internal SDK API and is not part of the public surface.
+    _input_tokens_estimate: int | None = None
+    # Internal: this field is an internal SDK API and is not part of the public surface.
     _max_output_gap_after_answer: timedelta | None = None
     # Internal: this field is an internal SDK API and is not part of the public surface.
     _max_output_gap_before_answer: timedelta | None = None
     # Internal: this field is an internal SDK API and is not part of the public surface.
     _max_stream_event_gap: timedelta | None = None
+    # Internal: this field is an internal SDK API and is not part of the public surface.
+    _reasoning_chars: int | None = None
     # Internal: this field is an internal SDK API and is not part of the public surface.
     _since_last_output: timedelta | None = None
     # Internal: this field is an internal SDK API and is not part of the public surface.
@@ -5333,13 +5763,16 @@ class _CompactionCompleteSummarizerProgress:
         _duration = from_timedelta(obj.get("durationMs"))
         _output_event_count = from_int(obj.get("outputEventCount"))
         _stream_event_count = from_int(obj.get("streamEventCount"))
+        _answer_chars = from_union([from_none, from_int], obj.get("answerChars"))
         _attempt_age = from_union([from_none, from_timedelta], obj.get("attemptAgeMs"))
         _attempt_settled = from_union([from_none, from_bool], obj.get("attemptSettled"))
         _idle = from_union([from_none, from_timedelta], obj.get("idleMs"))
         _input_shrunk = from_union([from_none, from_bool], obj.get("inputShrunk"))
+        _input_tokens_estimate = from_union([from_none, from_int], obj.get("inputTokensEstimate"))
         _max_output_gap_after_answer = from_union([from_none, from_timedelta], obj.get("maxOutputGapAfterAnswerMs"))
         _max_output_gap_before_answer = from_union([from_none, from_timedelta], obj.get("maxOutputGapBeforeAnswerMs"))
         _max_stream_event_gap = from_union([from_none, from_timedelta], obj.get("maxStreamEventGapMs"))
+        _reasoning_chars = from_union([from_none, from_int], obj.get("reasoningChars"))
         _since_last_output = from_union([from_none, from_timedelta], obj.get("sinceLastOutputMs"))
         _time_to_first_answer_output = from_union([from_none, from_timedelta], obj.get("timeToFirstAnswerOutputMs"))
         _time_to_first_output = from_union([from_none, from_timedelta], obj.get("timeToFirstOutputMs"))
@@ -5349,13 +5782,16 @@ class _CompactionCompleteSummarizerProgress:
             _duration=_duration,
             _output_event_count=_output_event_count,
             _stream_event_count=_stream_event_count,
+            _answer_chars=_answer_chars,
             _attempt_age=_attempt_age,
             _attempt_settled=_attempt_settled,
             _idle=_idle,
             _input_shrunk=_input_shrunk,
+            _input_tokens_estimate=_input_tokens_estimate,
             _max_output_gap_after_answer=_max_output_gap_after_answer,
             _max_output_gap_before_answer=_max_output_gap_before_answer,
             _max_stream_event_gap=_max_stream_event_gap,
+            _reasoning_chars=_reasoning_chars,
             _since_last_output=_since_last_output,
             _time_to_first_answer_output=_time_to_first_answer_output,
             _time_to_first_output=_time_to_first_output,
@@ -5368,6 +5804,8 @@ class _CompactionCompleteSummarizerProgress:
         result["durationMs"] = to_timedelta_int(self._duration)
         result["outputEventCount"] = to_int(self._output_event_count)
         result["streamEventCount"] = to_int(self._stream_event_count)
+        if self._answer_chars is not None:
+            result["answerChars"] = from_union([from_none, to_int], self._answer_chars)
         if self._attempt_age is not None:
             result["attemptAgeMs"] = from_union([from_none, to_timedelta_int], self._attempt_age)
         if self._attempt_settled is not None:
@@ -5376,12 +5814,16 @@ class _CompactionCompleteSummarizerProgress:
             result["idleMs"] = from_union([from_none, to_timedelta_int], self._idle)
         if self._input_shrunk is not None:
             result["inputShrunk"] = from_union([from_none, from_bool], self._input_shrunk)
+        if self._input_tokens_estimate is not None:
+            result["inputTokensEstimate"] = from_union([from_none, to_int], self._input_tokens_estimate)
         if self._max_output_gap_after_answer is not None:
             result["maxOutputGapAfterAnswerMs"] = from_union([from_none, to_timedelta_int], self._max_output_gap_after_answer)
         if self._max_output_gap_before_answer is not None:
             result["maxOutputGapBeforeAnswerMs"] = from_union([from_none, to_timedelta_int], self._max_output_gap_before_answer)
         if self._max_stream_event_gap is not None:
             result["maxStreamEventGapMs"] = from_union([from_none, to_timedelta_int], self._max_stream_event_gap)
+        if self._reasoning_chars is not None:
+            result["reasoningChars"] = from_union([from_none, to_int], self._reasoning_chars)
         if self._since_last_output is not None:
             result["sinceLastOutputMs"] = from_union([from_none, to_timedelta_int], self._since_last_output)
         if self._time_to_first_answer_output is not None:
@@ -6245,6 +6687,8 @@ class InstructionUpdateData:
     fallback: InstructionUpdateFallback
     lifetime: InstructionUpdateLifetime
     name: str | None = None
+    # Internal: this field is an internal SDK API and is not part of the public surface.
+    _post_initial: bool | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "InstructionUpdateData":
@@ -6255,6 +6699,7 @@ class InstructionUpdateData:
         fallback = parse_enum(InstructionUpdateFallback, obj.get("fallback"))
         lifetime = parse_enum(InstructionUpdateLifetime, obj.get("lifetime"))
         name = from_union([from_none, from_str], obj.get("name"))
+        _post_initial = from_union([from_none, from_bool], obj.get("postInitial"))
         return InstructionUpdateData(
             authority=authority,
             boundary=boundary,
@@ -6262,6 +6707,7 @@ class InstructionUpdateData:
             fallback=fallback,
             lifetime=lifetime,
             name=name,
+            _post_initial=_post_initial,
         )
 
     def to_dict(self) -> dict:
@@ -6273,6 +6719,8 @@ class InstructionUpdateData:
         result["lifetime"] = to_enum(InstructionUpdateLifetime, self.lifetime)
         if self.name is not None:
             result["name"] = from_union([from_none, from_str], self.name)
+        if self._post_initial is not None:
+            result["postInitial"] = from_union([from_none, from_bool], self._post_initial)
         return result
 
 
@@ -6788,6 +7236,29 @@ class McpServersLoadedServer:
 
 
 @dataclass
+class McpSkillOrigin:
+    "Public MCP skill provenance. The server name and resource URI address session.mcp.resources.read without invoking the skill; they do not grant permission or identify a durable server registration."
+    server_name: str
+    uri: str
+
+    @staticmethod
+    def from_dict(obj: Any) -> "McpSkillOrigin":
+        assert isinstance(obj, dict)
+        server_name = from_str(obj.get("serverName"))
+        uri = from_str(obj.get("uri"))
+        return McpSkillOrigin(
+            server_name=server_name,
+            uri=uri,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["serverName"] = from_str(self.server_name)
+        result["uri"] = from_str(self.uri)
+        return result
+
+
+@dataclass
 class McpToolsListChangedData:
     "Payload identifying the MCP server associated with a list change."
     server_name: str
@@ -6821,7 +7292,13 @@ class ModelCallFailureData:
     failure_kind: ModelCallFailureKind | None = None
     # Experimental: this field is part of an experimental API and may change or be removed.
     fusion: FusionAttribution | None = None
+    incomplete_stream_reason: str | None = None
+    inference_gateway: bool | None = None
     initiator: str | None = None
+    # Internal: this field is an internal SDK API and is not part of the public surface.
+    _instruction_update_delivery_id: str | None = None
+    # Internal: this field is an internal SDK API and is not part of the public surface.
+    _instruction_update_latest_event_id: str | None = None
     interaction_type: str | None = None
     is_auto: bool | None = None
     is_byok: bool | None = None
@@ -6830,6 +7307,8 @@ class ModelCallFailureData:
     model: str | None = None
     model_provider: str | None = None
     parent_tool_call_id: str | None = None
+    # Internal: this field is an internal SDK API and is not part of the public surface.
+    _product_state_error: _ModelCallProductStateError | None = None
     provider_call_id: str | None = None
     # Internal: this field is an internal SDK API and is not part of the public surface.
     _provider_type: str | None = None
@@ -6847,6 +7326,7 @@ class ModelCallFailureData:
     rte: bool | None = None
     service_request_id: str | None = None
     status_code: int | None = None
+    stream_done_received: bool | None = None
     transport: ModelCallFailureTransport | None = None
     websocket_fallback_after: timedelta | None = None
     websocket_fallback_close_code: int | None = None
@@ -6870,7 +7350,11 @@ class ModelCallFailureData:
         error_type = from_union([from_none, from_str], obj.get("errorType"))
         failure_kind = from_union([from_none, lambda x: parse_enum(ModelCallFailureKind, x)], obj.get("failureKind"))
         fusion = from_union([from_none, FusionAttribution.from_dict], obj.get("fusion"))
+        incomplete_stream_reason = from_union([from_none, from_str], obj.get("incompleteStreamReason"))
+        inference_gateway = from_union([from_none, from_bool], obj.get("inferenceGateway"))
         initiator = from_union([from_none, from_str], obj.get("initiator"))
+        _instruction_update_delivery_id = from_union([from_none, from_str], obj.get("instructionUpdateDeliveryId"))
+        _instruction_update_latest_event_id = from_union([from_none, from_str], obj.get("instructionUpdateLatestEventId"))
         interaction_type = from_union([from_none, from_str], obj.get("interactionType"))
         is_auto = from_union([from_none, from_bool], obj.get("isAuto"))
         is_byok = from_union([from_none, from_bool], obj.get("isByok"))
@@ -6879,6 +7363,7 @@ class ModelCallFailureData:
         model = from_union([from_none, from_str], obj.get("model"))
         model_provider = from_union([from_none, from_str], obj.get("modelProvider"))
         parent_tool_call_id = from_union([from_none, from_str], obj.get("parentToolCallId"))
+        _product_state_error = from_union([from_none, lambda x: parse_enum(_ModelCallProductStateError, x)], obj.get("productStateError"))
         provider_call_id = from_union([from_none, from_str], obj.get("providerCallId"))
         _provider_type = from_union([from_none, from_str], obj.get("providerType"))
         _quota_snapshots = from_union([from_none, lambda x: from_dict(_AssistantUsageQuotaSnapshot.from_dict, x)], obj.get("quotaSnapshots"))
@@ -6894,6 +7379,7 @@ class ModelCallFailureData:
         rte = from_union([from_none, from_bool], obj.get("rte"))
         service_request_id = from_union([from_none, from_str], obj.get("serviceRequestId"))
         status_code = from_union([from_none, from_int], obj.get("statusCode"))
+        stream_done_received = from_union([from_none, from_bool], obj.get("streamDoneReceived"))
         transport = from_union([from_none, lambda x: parse_enum(ModelCallFailureTransport, x)], obj.get("transport"))
         websocket_fallback_after = from_union([from_none, from_timedelta], obj.get("websocketFallbackAfterMs"))
         websocket_fallback_close_code = from_union([from_none, from_int], obj.get("websocketFallbackCloseCode"))
@@ -6914,7 +7400,11 @@ class ModelCallFailureData:
             error_type=error_type,
             failure_kind=failure_kind,
             fusion=fusion,
+            incomplete_stream_reason=incomplete_stream_reason,
+            inference_gateway=inference_gateway,
             initiator=initiator,
+            _instruction_update_delivery_id=_instruction_update_delivery_id,
+            _instruction_update_latest_event_id=_instruction_update_latest_event_id,
             interaction_type=interaction_type,
             is_auto=is_auto,
             is_byok=is_byok,
@@ -6923,6 +7413,7 @@ class ModelCallFailureData:
             model=model,
             model_provider=model_provider,
             parent_tool_call_id=parent_tool_call_id,
+            _product_state_error=_product_state_error,
             provider_call_id=provider_call_id,
             _provider_type=_provider_type,
             _quota_snapshots=_quota_snapshots,
@@ -6938,6 +7429,7 @@ class ModelCallFailureData:
             rte=rte,
             service_request_id=service_request_id,
             status_code=status_code,
+            stream_done_received=stream_done_received,
             transport=transport,
             websocket_fallback_after=websocket_fallback_after,
             websocket_fallback_close_code=websocket_fallback_close_code,
@@ -6971,8 +7463,16 @@ class ModelCallFailureData:
             result["failureKind"] = from_union([from_none, lambda x: to_enum(ModelCallFailureKind, x)], self.failure_kind)
         if self.fusion is not None:
             result["fusion"] = from_union([from_none, lambda x: to_class(FusionAttribution, x)], self.fusion)
+        if self.incomplete_stream_reason is not None:
+            result["incompleteStreamReason"] = from_union([from_none, from_str], self.incomplete_stream_reason)
+        if self.inference_gateway is not None:
+            result["inferenceGateway"] = from_union([from_none, from_bool], self.inference_gateway)
         if self.initiator is not None:
             result["initiator"] = from_union([from_none, from_str], self.initiator)
+        if self._instruction_update_delivery_id is not None:
+            result["instructionUpdateDeliveryId"] = from_union([from_none, from_str], self._instruction_update_delivery_id)
+        if self._instruction_update_latest_event_id is not None:
+            result["instructionUpdateLatestEventId"] = from_union([from_none, from_str], self._instruction_update_latest_event_id)
         if self.interaction_type is not None:
             result["interactionType"] = from_union([from_none, from_str], self.interaction_type)
         if self.is_auto is not None:
@@ -6989,6 +7489,8 @@ class ModelCallFailureData:
             result["modelProvider"] = from_union([from_none, from_str], self.model_provider)
         if self.parent_tool_call_id is not None:
             result["parentToolCallId"] = from_union([from_none, from_str], self.parent_tool_call_id)
+        if self._product_state_error is not None:
+            result["productStateError"] = from_union([from_none, lambda x: to_enum(_ModelCallProductStateError, x)], self._product_state_error)
         if self.provider_call_id is not None:
             result["providerCallId"] = from_union([from_none, from_str], self.provider_call_id)
         if self._provider_type is not None:
@@ -7019,6 +7521,8 @@ class ModelCallFailureData:
             result["serviceRequestId"] = from_union([from_none, from_str], self.service_request_id)
         if self.status_code is not None:
             result["statusCode"] = from_union([from_none, to_int], self.status_code)
+        if self.stream_done_received is not None:
+            result["streamDoneReceived"] = from_union([from_none, from_bool], self.stream_done_received)
         if self.transport is not None:
             result["transport"] = from_union([from_none, lambda x: to_enum(ModelCallFailureTransport, x)], self.transport)
         if self.websocket_fallback_after is not None:
@@ -8298,6 +8802,7 @@ class PermissionRecoveryData:
     status: PermissionRecoveryStatus
     owner_agent_id: str | None = None
     owner_session_id: str | None = None
+    run_state: PermissionRecoveryRunState | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "PermissionRecoveryData":
@@ -8310,6 +8815,7 @@ class PermissionRecoveryData:
         status = parse_enum(PermissionRecoveryStatus, obj.get("status"))
         owner_agent_id = from_union([from_none, from_str], obj.get("ownerAgentId"))
         owner_session_id = from_union([from_none, from_str], obj.get("ownerSessionId"))
+        run_state = from_union([from_none, PermissionRecoveryRunState.from_dict], obj.get("runState"))
         return PermissionRecoveryData(
             attempts=attempts,
             episode_id=episode_id,
@@ -8319,6 +8825,7 @@ class PermissionRecoveryData:
             status=status,
             owner_agent_id=owner_agent_id,
             owner_session_id=owner_session_id,
+            run_state=run_state,
         )
 
     def to_dict(self) -> dict:
@@ -8333,6 +8840,8 @@ class PermissionRecoveryData:
             result["ownerAgentId"] = from_union([from_none, from_str], self.owner_agent_id)
         if self.owner_session_id is not None:
             result["ownerSessionId"] = from_union([from_none, from_str], self.owner_session_id)
+        if self.run_state is not None:
+            result["runState"] = from_union([from_none, lambda x: to_class(PermissionRecoveryRunState, x)], self.run_state)
         return result
 
 
@@ -9102,6 +9611,8 @@ class PermissionRequestedData:
     request_id: str
     agent_mode: SessionMode | None = None
     # Experimental: this field is part of an experimental API and may change or be removed.
+    assisted_approval_assessment: AssistedApprovalAssessment | None = None
+    # Experimental: this field is part of an experimental API and may change or be removed.
     fusion: FusionAttribution | None = None
     owner_agent_id: str | None = None
     owner_session_id: str | None = None
@@ -9117,6 +9628,7 @@ class PermissionRequestedData:
         permission_request = _load_PermissionRequest(obj.get("permissionRequest"))
         request_id = from_str(obj.get("requestId"))
         agent_mode = from_union([from_none, lambda x: parse_enum(SessionMode, x)], obj.get("agentMode"))
+        assisted_approval_assessment = from_union([from_none, _load_AssistedApprovalAssessment], obj.get("assistedApprovalAssessment"))
         fusion = from_union([from_none, FusionAttribution.from_dict], obj.get("fusion"))
         owner_agent_id = from_union([from_none, from_str], obj.get("ownerAgentId"))
         owner_session_id = from_union([from_none, from_str], obj.get("ownerSessionId"))
@@ -9129,6 +9641,7 @@ class PermissionRequestedData:
             permission_request=permission_request,
             request_id=request_id,
             agent_mode=agent_mode,
+            assisted_approval_assessment=assisted_approval_assessment,
             fusion=fusion,
             owner_agent_id=owner_agent_id,
             owner_session_id=owner_session_id,
@@ -9145,6 +9658,8 @@ class PermissionRequestedData:
         result["requestId"] = from_str(self.request_id)
         if self.agent_mode is not None:
             result["agentMode"] = from_union([from_none, lambda x: to_enum(SessionMode, x)], self.agent_mode)
+        if self.assisted_approval_assessment is not None:
+            result["assistedApprovalAssessment"] = from_union([from_none, lambda x: x.to_dict()], self.assisted_approval_assessment)
         if self.fusion is not None:
             result["fusion"] = from_union([from_none, lambda x: to_class(FusionAttribution, x)], self.fusion)
         if self.owner_agent_id is not None:
@@ -9269,6 +9784,146 @@ class PersistedBinaryImage:
             result["description"] = from_union([from_none, from_str], self.description)
         if self.metadata is not None:
             result["metadata"] = from_union([from_none, lambda x: from_dict(lambda x: x, x)], self.metadata)
+        return result
+
+
+@dataclass
+class PolicyHelperCapabilities:
+    "Policy Helper failure and recovery features implemented by this runtime. Capability presence, not absence of an optional failure, determines whether a client may rely on these contracts."
+    recheck: bool
+    structured_failure: bool
+
+    @staticmethod
+    def from_dict(obj: Any) -> "PolicyHelperCapabilities":
+        assert isinstance(obj, dict)
+        recheck = from_bool(obj.get("recheck"))
+        structured_failure = from_bool(obj.get("structuredFailure"))
+        return PolicyHelperCapabilities(
+            recheck=recheck,
+            structured_failure=structured_failure,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["recheck"] = from_bool(self.recheck)
+        result["structuredFailure"] = from_bool(self.structured_failure)
+        return result
+
+
+@dataclass
+class PolicyHelperFailure:
+    "The latest unresolved Policy Helper failure for this policy context. Helper-authored text is bounded display-intended content but remains untrusted; render it as plain text, keep diagnostics secondary, and do not automatically log, persist, export, execute, or inject it into model context."
+    category: str
+    failure_mode: str
+    message: str
+    previous_policy_retained: bool
+    reason: str
+    severity: str
+    authority: str | None = None
+    code: str | None = None
+    details: list[PolicyHelperFailureDetail] | None = None
+    diagnostic: str | None = None
+    help_link: PolicyHelperHelpLink | None = None
+    remediation: str | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "PolicyHelperFailure":
+        assert isinstance(obj, dict)
+        category = from_str(obj.get("category"))
+        failure_mode = from_str(obj.get("failureMode"))
+        message = from_str(obj.get("message"))
+        previous_policy_retained = from_bool(obj.get("previousPolicyRetained"))
+        reason = from_str(obj.get("reason"))
+        severity = from_str(obj.get("severity"))
+        authority = from_union([from_none, from_str], obj.get("authority"))
+        code = from_union([from_none, from_str], obj.get("code"))
+        details = from_union([from_none, lambda x: from_list(PolicyHelperFailureDetail.from_dict, x)], obj.get("details"))
+        diagnostic = from_union([from_none, from_str], obj.get("diagnostic"))
+        help_link = from_union([from_none, PolicyHelperHelpLink.from_dict], obj.get("helpLink"))
+        remediation = from_union([from_none, from_str], obj.get("remediation"))
+        return PolicyHelperFailure(
+            category=category,
+            failure_mode=failure_mode,
+            message=message,
+            previous_policy_retained=previous_policy_retained,
+            reason=reason,
+            severity=severity,
+            authority=authority,
+            code=code,
+            details=details,
+            diagnostic=diagnostic,
+            help_link=help_link,
+            remediation=remediation,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["category"] = from_str(self.category)
+        result["failureMode"] = from_str(self.failure_mode)
+        result["message"] = from_str(self.message)
+        result["previousPolicyRetained"] = from_bool(self.previous_policy_retained)
+        result["reason"] = from_str(self.reason)
+        result["severity"] = from_str(self.severity)
+        if self.authority is not None:
+            result["authority"] = from_union([from_none, from_str], self.authority)
+        if self.code is not None:
+            result["code"] = from_union([from_none, from_str], self.code)
+        if self.details is not None:
+            result["details"] = from_union([from_none, lambda x: from_list(lambda x: to_class(PolicyHelperFailureDetail, x), x)], self.details)
+        if self.diagnostic is not None:
+            result["diagnostic"] = from_union([from_none, from_str], self.diagnostic)
+        if self.help_link is not None:
+            result["helpLink"] = from_union([from_none, lambda x: to_class(PolicyHelperHelpLink, x)], self.help_link)
+        if self.remediation is not None:
+            result["remediation"] = from_union([from_none, from_str], self.remediation)
+        return result
+
+
+@dataclass
+class PolicyHelperFailureDetail:
+    "One bounded field-specific finding reported by a Policy Helper. The path is a helper-defined logical configuration path, not necessarily a filesystem path."
+    message: str
+    path: str | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "PolicyHelperFailureDetail":
+        assert isinstance(obj, dict)
+        message = from_str(obj.get("message"))
+        path = from_union([from_none, from_str], obj.get("path"))
+        return PolicyHelperFailureDetail(
+            message=message,
+            path=path,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["message"] = from_str(self.message)
+        if self.path is not None:
+            result["path"] = from_union([from_none, from_str], self.path)
+        return result
+
+
+@dataclass
+class PolicyHelperHelpLink:
+    "An explicit bounded absolute HTTP(S) destination supplied by a Policy Helper. The runtime validates but never fetches, previews, resolves redirects for, or opens it; clients must sanitize it again before navigation."
+    url: str
+    label: str | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "PolicyHelperHelpLink":
+        assert isinstance(obj, dict)
+        url = from_str(obj.get("url"))
+        label = from_union([from_none, from_str], obj.get("label"))
+        return PolicyHelperHelpLink(
+            url=url,
+            label=label,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["url"] = from_str(self.url)
+        if self.label is not None:
+            result["label"] = from_union([from_none, from_str], self.label)
         return result
 
 
@@ -9891,14 +10546,22 @@ class SessionCompactionCompleteData:
     success: bool
     # Internal: this field is an internal SDK API and is not part of the public surface.
     _active_workflow_summary: str | None = None
+    # Internal: this field is an internal SDK API and is not part of the public surface.
+    _attempt_metrics: _CompactionCompleteAttemptMetrics | None = None
     behavior_model_id: str | None = None
     checkpoint_number: int | None = None
     checkpoint_path: str | None = None
+    # Internal: this field is an internal SDK API and is not part of the public surface.
+    _client_request_id: str | None = None
     compaction_attempt_id: str | None = None
     compaction_tokens_used: CompactionCompleteCompactionTokensUsed | None = None
     conversation_tokens: int | None = None
     custom_instructions: str | None = None
     error: str | None = None
+    # Internal: this field is an internal SDK API and is not part of the public surface.
+    _execution: str | None = None
+    # Internal: this field is an internal SDK API and is not part of the public surface.
+    _failure_diagnostics: _CompactionCompleteFailureDiagnostics | None = None
     failure_reason: str | None = None
     initial_model: str | None = None
     messages_removed: int | None = None
@@ -9908,6 +10571,7 @@ class SessionCompactionCompleteData:
     post_compaction_tokens: int | None = None
     pre_compaction_messages_length: int | None = None
     pre_compaction_tokens: int | None = None
+    reasoning_effort: str | None = None
     request_id: str | None = None
     responses_reasoning: ResponsesReasoning | None = None
     service_request_id: str | None = None
@@ -9929,14 +10593,18 @@ class SessionCompactionCompleteData:
         assert isinstance(obj, dict)
         success = from_bool(obj.get("success"))
         _active_workflow_summary = from_union([from_none, from_str], obj.get("activeWorkflowSummary"))
+        _attempt_metrics = from_union([from_none, _CompactionCompleteAttemptMetrics.from_dict], obj.get("attemptMetrics"))
         behavior_model_id = from_union([from_none, from_str], obj.get("behaviorModelId"))
         checkpoint_number = from_union([from_none, from_int], obj.get("checkpointNumber"))
         checkpoint_path = from_union([from_none, from_str], obj.get("checkpointPath"))
+        _client_request_id = from_union([from_none, from_str], obj.get("clientRequestId"))
         compaction_attempt_id = from_union([from_none, from_str], obj.get("compactionAttemptId"))
         compaction_tokens_used = from_union([from_none, CompactionCompleteCompactionTokensUsed.from_dict], obj.get("compactionTokensUsed"))
         conversation_tokens = from_union([from_none, from_int], obj.get("conversationTokens"))
         custom_instructions = from_union([from_none, from_str], obj.get("customInstructions"))
         error = from_union([from_none, from_str], obj.get("error"))
+        _execution = from_union([from_none, from_str], obj.get("execution"))
+        _failure_diagnostics = from_union([from_none, _CompactionCompleteFailureDiagnostics.from_dict], obj.get("failureDiagnostics"))
         failure_reason = from_union([from_none, from_str], obj.get("failureReason"))
         initial_model = from_union([from_none, from_str], obj.get("initialModel"))
         messages_removed = from_union([from_none, from_int], obj.get("messagesRemoved"))
@@ -9946,6 +10614,7 @@ class SessionCompactionCompleteData:
         post_compaction_tokens = from_union([from_none, from_int], obj.get("postCompactionTokens"))
         pre_compaction_messages_length = from_union([from_none, from_int], obj.get("preCompactionMessagesLength"))
         pre_compaction_tokens = from_union([from_none, from_int], obj.get("preCompactionTokens"))
+        reasoning_effort = from_union([from_none, from_str], obj.get("reasoningEffort"))
         request_id = from_union([from_none, from_str], obj.get("requestId"))
         responses_reasoning = from_union([from_none, ResponsesReasoning.from_dict], obj.get("responsesReasoning"))
         service_request_id = from_union([from_none, from_str], obj.get("serviceRequestId"))
@@ -9963,14 +10632,18 @@ class SessionCompactionCompleteData:
         return SessionCompactionCompleteData(
             success=success,
             _active_workflow_summary=_active_workflow_summary,
+            _attempt_metrics=_attempt_metrics,
             behavior_model_id=behavior_model_id,
             checkpoint_number=checkpoint_number,
             checkpoint_path=checkpoint_path,
+            _client_request_id=_client_request_id,
             compaction_attempt_id=compaction_attempt_id,
             compaction_tokens_used=compaction_tokens_used,
             conversation_tokens=conversation_tokens,
             custom_instructions=custom_instructions,
             error=error,
+            _execution=_execution,
+            _failure_diagnostics=_failure_diagnostics,
             failure_reason=failure_reason,
             initial_model=initial_model,
             messages_removed=messages_removed,
@@ -9980,6 +10653,7 @@ class SessionCompactionCompleteData:
             post_compaction_tokens=post_compaction_tokens,
             pre_compaction_messages_length=pre_compaction_messages_length,
             pre_compaction_tokens=pre_compaction_tokens,
+            reasoning_effort=reasoning_effort,
             request_id=request_id,
             responses_reasoning=responses_reasoning,
             service_request_id=service_request_id,
@@ -10001,12 +10675,16 @@ class SessionCompactionCompleteData:
         result["success"] = from_bool(self.success)
         if self._active_workflow_summary is not None:
             result["activeWorkflowSummary"] = from_union([from_none, from_str], self._active_workflow_summary)
+        if self._attempt_metrics is not None:
+            result["attemptMetrics"] = from_union([from_none, lambda x: to_class(_CompactionCompleteAttemptMetrics, x)], self._attempt_metrics)
         if self.behavior_model_id is not None:
             result["behaviorModelId"] = from_union([from_none, from_str], self.behavior_model_id)
         if self.checkpoint_number is not None:
             result["checkpointNumber"] = from_union([from_none, to_int], self.checkpoint_number)
         if self.checkpoint_path is not None:
             result["checkpointPath"] = from_union([from_none, from_str], self.checkpoint_path)
+        if self._client_request_id is not None:
+            result["clientRequestId"] = from_union([from_none, from_str], self._client_request_id)
         if self.compaction_attempt_id is not None:
             result["compactionAttemptId"] = from_union([from_none, from_str], self.compaction_attempt_id)
         if self.compaction_tokens_used is not None:
@@ -10017,6 +10695,10 @@ class SessionCompactionCompleteData:
             result["customInstructions"] = from_union([from_none, from_str], self.custom_instructions)
         if self.error is not None:
             result["error"] = from_union([from_none, from_str], self.error)
+        if self._execution is not None:
+            result["execution"] = from_union([from_none, from_str], self._execution)
+        if self._failure_diagnostics is not None:
+            result["failureDiagnostics"] = from_union([from_none, lambda x: to_class(_CompactionCompleteFailureDiagnostics, x)], self._failure_diagnostics)
         if self.failure_reason is not None:
             result["failureReason"] = from_union([from_none, from_str], self.failure_reason)
         if self.initial_model is not None:
@@ -10035,6 +10717,8 @@ class SessionCompactionCompleteData:
             result["preCompactionMessagesLength"] = from_union([from_none, to_int], self.pre_compaction_messages_length)
         if self.pre_compaction_tokens is not None:
             result["preCompactionTokens"] = from_union([from_none, to_int], self.pre_compaction_tokens)
+        if self.reasoning_effort is not None:
+            result["reasoningEffort"] = from_union([from_none, from_str], self.reasoning_effort)
         if self.request_id is not None:
             result["requestId"] = from_union([from_none, from_str], self.request_id)
         if self.responses_reasoning is not None:
@@ -10072,6 +10756,8 @@ class SessionCompactionStartData:
     compaction_attempt_id: str | None = None
     conversation_tokens: int | None = None
     current_tokens: int | None = None
+    # Internal: this field is an internal SDK API and is not part of the public surface.
+    _execution: str | None = None
     model: str | None = None
     switch_target_model: str | None = None
     system_tokens: int | None = None
@@ -10086,6 +10772,7 @@ class SessionCompactionStartData:
         compaction_attempt_id = from_union([from_none, from_str], obj.get("compactionAttemptId"))
         conversation_tokens = from_union([from_none, from_int], obj.get("conversationTokens"))
         current_tokens = from_union([from_none, from_int], obj.get("currentTokens"))
+        _execution = from_union([from_none, from_str], obj.get("execution"))
         model = from_union([from_none, from_str], obj.get("model"))
         switch_target_model = from_union([from_none, from_str], obj.get("switchTargetModel"))
         system_tokens = from_union([from_none, from_int], obj.get("systemTokens"))
@@ -10097,6 +10784,7 @@ class SessionCompactionStartData:
             compaction_attempt_id=compaction_attempt_id,
             conversation_tokens=conversation_tokens,
             current_tokens=current_tokens,
+            _execution=_execution,
             model=model,
             switch_target_model=switch_target_model,
             system_tokens=system_tokens,
@@ -10114,6 +10802,8 @@ class SessionCompactionStartData:
             result["conversationTokens"] = from_union([from_none, to_int], self.conversation_tokens)
         if self.current_tokens is not None:
             result["currentTokens"] = from_union([from_none, to_int], self.current_tokens)
+        if self._execution is not None:
+            result["execution"] = from_union([from_none, from_str], self._execution)
         if self.model is not None:
             result["model"] = from_union([from_none, from_str], self.model)
         if self.switch_target_model is not None:
@@ -10615,6 +11305,33 @@ class SessionInfoData:
 
 
 @dataclass
+class SessionJournalLinkData:
+    "Links a standalone replay head to its complete preceding numbered journal archive."
+    previous_file: str
+    session_id: str
+    version: int
+
+    @staticmethod
+    def from_dict(obj: Any) -> "SessionJournalLinkData":
+        assert isinstance(obj, dict)
+        previous_file = from_str(obj.get("previousFile"))
+        session_id = from_str(obj.get("sessionId"))
+        version = from_int(obj.get("version"))
+        return SessionJournalLinkData(
+            previous_file=previous_file,
+            session_id=session_id,
+            version=version,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["previousFile"] = from_str(self.previous_file)
+        result["sessionId"] = from_str(self.session_id)
+        result["version"] = to_int(self.version)
+        return result
+
+
+@dataclass
 class SessionLimitsConfig:
     "Optional session limits."
     max_ai_credits: float | None = None
@@ -10902,6 +11619,7 @@ class SessionModelChangeData:
     reasoning_effort: str | None = None
     reasoning_effort_managed: bool | None = None
     reasoning_effort_model: str | None = None
+    reasoning_invalidated: bool | None = None
     reasoning_summary: ReasoningSummary | None = None
     source: ModelChangeSource | None = None
     verbosity: Verbosity | None = None
@@ -10925,6 +11643,7 @@ class SessionModelChangeData:
         reasoning_effort = from_union([from_none, from_str], obj.get("reasoningEffort"))
         reasoning_effort_managed = from_union([from_none, from_bool], obj.get("reasoningEffortManaged"))
         reasoning_effort_model = from_union([from_none, from_str], obj.get("reasoningEffortModel"))
+        reasoning_invalidated = from_union([from_none, from_bool], obj.get("reasoningInvalidated"))
         reasoning_summary = from_union([from_none, lambda x: parse_enum(ReasoningSummary, x)], obj.get("reasoningSummary"))
         source = from_union([from_none, lambda x: parse_enum(ModelChangeSource, x)], obj.get("source"))
         verbosity = from_union([from_none, lambda x: parse_enum(Verbosity, x)], obj.get("verbosity"))
@@ -10945,6 +11664,7 @@ class SessionModelChangeData:
             reasoning_effort=reasoning_effort,
             reasoning_effort_managed=reasoning_effort_managed,
             reasoning_effort_model=reasoning_effort_model,
+            reasoning_invalidated=reasoning_invalidated,
             reasoning_summary=reasoning_summary,
             source=source,
             verbosity=verbosity,
@@ -10983,6 +11703,8 @@ class SessionModelChangeData:
             result["reasoningEffortManaged"] = from_union([from_none, from_bool], self.reasoning_effort_managed)
         if self.reasoning_effort_model is not None:
             result["reasoningEffortModel"] = from_union([from_none, from_str], self.reasoning_effort_model)
+        if self.reasoning_invalidated is not None:
+            result["reasoningInvalidated"] = from_union([from_none, from_bool], self.reasoning_invalidated)
         if self.reasoning_summary is not None:
             result["reasoningSummary"] = from_union([from_none, lambda x: to_enum(ReasoningSummary, x)], self.reasoning_summary)
         if self.source is not None:
@@ -11026,6 +11748,7 @@ class SessionPermissionRecoveryData:
     status: PermissionRecoveryStatus
     owner_agent_id: str | None = None
     owner_session_id: str | None = None
+    run_state: PermissionRecoveryRunState | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "SessionPermissionRecoveryData":
@@ -11038,6 +11761,7 @@ class SessionPermissionRecoveryData:
         status = parse_enum(PermissionRecoveryStatus, obj.get("status"))
         owner_agent_id = from_union([from_none, from_str], obj.get("ownerAgentId"))
         owner_session_id = from_union([from_none, from_str], obj.get("ownerSessionId"))
+        run_state = from_union([from_none, PermissionRecoveryRunState.from_dict], obj.get("runState"))
         return SessionPermissionRecoveryData(
             attempts=attempts,
             episode_id=episode_id,
@@ -11047,6 +11771,7 @@ class SessionPermissionRecoveryData:
             status=status,
             owner_agent_id=owner_agent_id,
             owner_session_id=owner_session_id,
+            run_state=run_state,
         )
 
     def to_dict(self) -> dict:
@@ -11061,6 +11786,8 @@ class SessionPermissionRecoveryData:
             result["ownerAgentId"] = from_union([from_none, from_str], self.owner_agent_id)
         if self.owner_session_id is not None:
             result["ownerSessionId"] = from_union([from_none, from_str], self.owner_session_id)
+        if self.run_state is not None:
+            result["runState"] = from_union([from_none, lambda x: to_class(PermissionRecoveryRunState, x)], self.run_state)
         return result
 
 
@@ -11629,6 +12356,7 @@ class SessionTaskCompleteData:
     reason: str | None = None
     success: bool | None = None
     summary: str | None = None
+    blocked_actions: list[BlockedPermissionAction] | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "SessionTaskCompleteData":
@@ -11639,6 +12367,7 @@ class SessionTaskCompleteData:
         reason = from_union([from_none, from_str], obj.get("reason"))
         success = from_union([from_none, from_bool], obj.get("success"))
         summary = from_union([from_none, from_str], obj.get("summary"))
+        blocked_actions = from_union([from_none, lambda x: from_list(BlockedPermissionAction.from_dict, x)], obj.get("blockedActions"))
         return SessionTaskCompleteData(
             blocker=blocker,
             objective_id=objective_id,
@@ -11646,6 +12375,7 @@ class SessionTaskCompleteData:
             reason=reason,
             success=success,
             summary=summary,
+            blocked_actions=blocked_actions,
         )
 
     def to_dict(self) -> dict:
@@ -11662,6 +12392,8 @@ class SessionTaskCompleteData:
             result["success"] = from_union([from_none, from_bool], self.success)
         if self.summary is not None:
             result["summary"] = from_union([from_none, from_str], self.summary)
+        if self.blocked_actions is not None:
+            result["blockedActions"] = from_union([from_none, lambda x: from_list(lambda x: to_class(BlockedPermissionAction, x), x)], self.blocked_actions)
         return result
 
 
@@ -11726,6 +12458,7 @@ class SessionTruncationData:
     pre_truncation_tokens_in_messages: int
     token_limit: int
     tokens_removed_during_truncation: int
+    compaction_attempt_id: str | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "SessionTruncationData":
@@ -11738,6 +12471,7 @@ class SessionTruncationData:
         pre_truncation_tokens_in_messages = from_int(obj.get("preTruncationTokensInMessages"))
         token_limit = from_int(obj.get("tokenLimit"))
         tokens_removed_during_truncation = from_int(obj.get("tokensRemovedDuringTruncation"))
+        compaction_attempt_id = from_union([from_none, from_str], obj.get("compactionAttemptId"))
         return SessionTruncationData(
             messages_removed_during_truncation=messages_removed_during_truncation,
             performed_by=performed_by,
@@ -11747,6 +12481,7 @@ class SessionTruncationData:
             pre_truncation_tokens_in_messages=pre_truncation_tokens_in_messages,
             token_limit=token_limit,
             tokens_removed_during_truncation=tokens_removed_during_truncation,
+            compaction_attempt_id=compaction_attempt_id,
         )
 
     def to_dict(self) -> dict:
@@ -11759,6 +12494,8 @@ class SessionTruncationData:
         result["preTruncationTokensInMessages"] = to_int(self.pre_truncation_tokens_in_messages)
         result["tokenLimit"] = to_int(self.token_limit)
         result["tokensRemovedDuringTruncation"] = to_int(self.tokens_removed_during_truncation)
+        if self.compaction_attempt_id is not None:
+            result["compactionAttemptId"] = from_union([from_none, from_str], self.compaction_attempt_id)
         return result
 
 
@@ -12201,9 +12938,12 @@ class SkillInvokedData:
     name: str
     path: str
     allowed_tools: list[str] | None = None
+    arguments: str | None = None
     description: str | None = None
     disable_model_invocation: bool | None = None
     invoked_at_turn: int | None = None
+    mcp_meta: Any = None
+    mcp_origin: Any = None
     model: str | None = None
     plugin_name: str | None = None
     plugin_version: str | None = None
@@ -12217,9 +12957,12 @@ class SkillInvokedData:
         name = from_str(obj.get("name"))
         path = from_str(obj.get("path"))
         allowed_tools = from_union([from_none, lambda x: from_list(from_str, x)], obj.get("allowedTools"))
+        arguments = from_union([from_none, from_str], obj.get("arguments"))
         description = from_union([from_none, from_str], obj.get("description"))
         disable_model_invocation = from_union([from_none, from_bool], obj.get("disableModelInvocation"))
         invoked_at_turn = from_union([from_none, from_int], obj.get("invokedAtTurn"))
+        mcp_meta = obj.get("mcpMeta")
+        mcp_origin = obj.get("mcpOrigin")
         model = from_union([from_none, from_str], obj.get("model"))
         plugin_name = from_union([from_none, from_str], obj.get("pluginName"))
         plugin_version = from_union([from_none, from_str], obj.get("pluginVersion"))
@@ -12230,9 +12973,12 @@ class SkillInvokedData:
             name=name,
             path=path,
             allowed_tools=allowed_tools,
+            arguments=arguments,
             description=description,
             disable_model_invocation=disable_model_invocation,
             invoked_at_turn=invoked_at_turn,
+            mcp_meta=mcp_meta,
+            mcp_origin=mcp_origin,
             model=model,
             plugin_name=plugin_name,
             plugin_version=plugin_version,
@@ -12247,12 +12993,18 @@ class SkillInvokedData:
         result["path"] = from_str(self.path)
         if self.allowed_tools is not None:
             result["allowedTools"] = from_union([from_none, lambda x: from_list(from_str, x)], self.allowed_tools)
+        if self.arguments is not None:
+            result["arguments"] = from_union([from_none, from_str], self.arguments)
         if self.description is not None:
             result["description"] = from_union([from_none, from_str], self.description)
         if self.disable_model_invocation is not None:
             result["disableModelInvocation"] = from_union([from_none, from_bool], self.disable_model_invocation)
         if self.invoked_at_turn is not None:
             result["invokedAtTurn"] = from_union([from_none, to_int], self.invoked_at_turn)
+        if self.mcp_meta is not None:
+            result["mcpMeta"] = self.mcp_meta
+        if self.mcp_origin is not None:
+            result["mcpOrigin"] = self.mcp_origin
         if self.model is not None:
             result["model"] = from_union([from_none, from_str], self.model)
         if self.plugin_name is not None:
@@ -12274,9 +13026,12 @@ class SkillInvokedRefData:
     name: str
     path: str
     allowed_tools: list[str] | None = None
+    arguments: str | None = None
     description: str | None = None
     disable_model_invocation: bool | None = None
     invoked_at_turn: int | None = None
+    mcp_meta: Any = None
+    mcp_origin: Any = None
     model: str | None = None
     plugin_name: str | None = None
     plugin_version: str | None = None
@@ -12291,9 +13046,12 @@ class SkillInvokedRefData:
         name = from_str(obj.get("name"))
         path = from_str(obj.get("path"))
         allowed_tools = from_union([from_none, lambda x: from_list(from_str, x)], obj.get("allowedTools"))
+        arguments = from_union([from_none, from_str], obj.get("arguments"))
         description = from_union([from_none, from_str], obj.get("description"))
         disable_model_invocation = from_union([from_none, from_bool], obj.get("disableModelInvocation"))
         invoked_at_turn = from_union([from_none, from_int], obj.get("invokedAtTurn"))
+        mcp_meta = obj.get("mcpMeta")
+        mcp_origin = obj.get("mcpOrigin")
         model = from_union([from_none, from_str], obj.get("model"))
         plugin_name = from_union([from_none, from_str], obj.get("pluginName"))
         plugin_version = from_union([from_none, from_str], obj.get("pluginVersion"))
@@ -12305,9 +13063,12 @@ class SkillInvokedRefData:
             name=name,
             path=path,
             allowed_tools=allowed_tools,
+            arguments=arguments,
             description=description,
             disable_model_invocation=disable_model_invocation,
             invoked_at_turn=invoked_at_turn,
+            mcp_meta=mcp_meta,
+            mcp_origin=mcp_origin,
             model=model,
             plugin_name=plugin_name,
             plugin_version=plugin_version,
@@ -12323,12 +13084,18 @@ class SkillInvokedRefData:
         result["path"] = from_str(self.path)
         if self.allowed_tools is not None:
             result["allowedTools"] = from_union([from_none, lambda x: from_list(from_str, x)], self.allowed_tools)
+        if self.arguments is not None:
+            result["arguments"] = from_union([from_none, from_str], self.arguments)
         if self.description is not None:
             result["description"] = from_union([from_none, from_str], self.description)
         if self.disable_model_invocation is not None:
             result["disableModelInvocation"] = from_union([from_none, from_bool], self.disable_model_invocation)
         if self.invoked_at_turn is not None:
             result["invokedAtTurn"] = from_union([from_none, to_int], self.invoked_at_turn)
+        if self.mcp_meta is not None:
+            result["mcpMeta"] = self.mcp_meta
+        if self.mcp_origin is not None:
+            result["mcpOrigin"] = self.mcp_origin
         if self.model is not None:
             result["model"] = from_union([from_none, from_str], self.model)
         if self.plugin_name is not None:
@@ -12352,6 +13119,8 @@ class SkillsLoadedSkill:
     user_invocable: bool
     argument_hint: str | None = None
     command_name: str | None = None
+    declared_name: str | None = None
+    mcp_origin: McpSkillOrigin | None = None
     path: str | None = None
 
     @staticmethod
@@ -12364,6 +13133,8 @@ class SkillsLoadedSkill:
         user_invocable = from_bool(obj.get("userInvocable"))
         argument_hint = from_union([from_none, from_str], obj.get("argumentHint"))
         command_name = from_union([from_none, from_str], obj.get("commandName"))
+        declared_name = from_union([from_none, from_str], obj.get("declaredName"))
+        mcp_origin = from_union([from_none, McpSkillOrigin.from_dict], obj.get("mcpOrigin"))
         path = from_union([from_none, from_str], obj.get("path"))
         return SkillsLoadedSkill(
             description=description,
@@ -12373,6 +13144,8 @@ class SkillsLoadedSkill:
             user_invocable=user_invocable,
             argument_hint=argument_hint,
             command_name=command_name,
+            declared_name=declared_name,
+            mcp_origin=mcp_origin,
             path=path,
         )
 
@@ -12387,6 +13160,10 @@ class SkillsLoadedSkill:
             result["argumentHint"] = from_union([from_none, from_str], self.argument_hint)
         if self.command_name is not None:
             result["commandName"] = from_union([from_none, from_str], self.command_name)
+        if self.declared_name is not None:
+            result["declaredName"] = from_union([from_none, from_str], self.declared_name)
+        if self.mcp_origin is not None:
+            result["mcpOrigin"] = from_union([from_none, lambda x: to_class(McpSkillOrigin, x)], self.mcp_origin)
         if self.path is not None:
             result["path"] = from_union([from_none, from_str], self.path)
         return result
@@ -13518,6 +14295,8 @@ class ToolExecutionCompleteResult:
     detailed_content: str | None = None
     # Experimental: this field is part of an experimental API and may change or be removed.
     mcp_meta: Any = None
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    mcp_result_meta: dict[str, Any] | None = None
     structured_content: Any = None
     ui_resource: ToolExecutionCompleteUIResource | None = None
 
@@ -13530,6 +14309,7 @@ class ToolExecutionCompleteResult:
         contents = from_union([from_none, lambda x: from_list(_load_ToolExecutionCompleteContent, x)], obj.get("contents"))
         detailed_content = from_union([from_none, from_str], obj.get("detailedContent"))
         mcp_meta = obj.get("mcpMeta")
+        mcp_result_meta = from_union([from_none, lambda x: from_dict(lambda x: x, x)], obj.get("mcpResultMeta"))
         structured_content = obj.get("structuredContent")
         ui_resource = from_union([from_none, ToolExecutionCompleteUIResource.from_dict], obj.get("uiResource"))
         return ToolExecutionCompleteResult(
@@ -13539,6 +14319,7 @@ class ToolExecutionCompleteResult:
             contents=contents,
             detailed_content=detailed_content,
             mcp_meta=mcp_meta,
+            mcp_result_meta=mcp_result_meta,
             structured_content=structured_content,
             ui_resource=ui_resource,
         )
@@ -13556,6 +14337,8 @@ class ToolExecutionCompleteResult:
             result["detailedContent"] = from_union([from_none, from_str], self.detailed_content)
         if self.mcp_meta is not None:
             result["mcpMeta"] = self.mcp_meta
+        if self.mcp_result_meta is not None:
+            result["mcpResultMeta"] = from_union([from_none, lambda x: from_dict(lambda x: x, x)], self.mcp_result_meta)
         if self.structured_content is not None:
             result["structuredContent"] = self.structured_content
         if self.ui_resource is not None:
@@ -13899,6 +14682,8 @@ class ToolExecutionStartData:
     tool_description: ToolExecutionStartToolDescription | None = None
     tool_title: str | None = None
     turn_id: str | None = None
+    mcp_server_display_name: str | None = None
+    read_only: bool | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "ToolExecutionStartData":
@@ -13920,6 +14705,8 @@ class ToolExecutionStartData:
         tool_description = from_union([from_none, ToolExecutionStartToolDescription.from_dict], obj.get("toolDescription"))
         tool_title = from_union([from_none, from_str], obj.get("toolTitle"))
         turn_id = from_union([from_none, from_str], obj.get("turnId"))
+        mcp_server_display_name = from_union([from_none, from_str], obj.get("mcpServerDisplayName"))
+        read_only = from_union([from_none, from_bool], obj.get("readOnly"))
         return ToolExecutionStartData(
             tool_call_id=tool_call_id,
             tool_name=tool_name,
@@ -13938,6 +14725,8 @@ class ToolExecutionStartData:
             tool_description=tool_description,
             tool_title=tool_title,
             turn_id=turn_id,
+            mcp_server_display_name=mcp_server_display_name,
+            read_only=read_only,
         )
 
     def to_dict(self) -> dict:
@@ -13974,6 +14763,10 @@ class ToolExecutionStartData:
             result["toolTitle"] = from_union([from_none, from_str], self.tool_title)
         if self.turn_id is not None:
             result["turnId"] = from_union([from_none, from_str], self.turn_id)
+        if self.mcp_server_display_name is not None:
+            result["mcpServerDisplayName"] = from_union([from_none, from_str], self.mcp_server_display_name)
+        if self.read_only is not None:
+            result["readOnly"] = from_union([from_none, from_bool], self.read_only)
         return result
 
 
@@ -15006,6 +15799,18 @@ class WorkingDirectoryContext:
         return result
 
 
+def _load_AssistedApprovalAssessment(obj: Any) -> "AssistedApprovalAssessment":
+    assert isinstance(obj, dict)
+    kind = obj.get("status")
+    match kind:
+        case "unavailable": return AssistedApprovalAssessmentUnavailable.from_dict(obj)
+        case "not-run": return AssistedApprovalAssessmentNotRun.from_dict(obj)
+        case "excluded": return AssistedApprovalAssessmentExcluded.from_dict(obj)
+        case "completed": return AssistedApprovalAssessmentCompleted.from_dict(obj)
+        case "failed": return AssistedApprovalAssessmentFailed.from_dict(obj)
+        case _: raise ValueError(f"Unknown AssistedApprovalAssessment status: {kind!r}")
+
+
 def _load_Attachment(obj: Any) -> "Attachment":
     assert isinstance(obj, dict)
     kind = obj.get("type")
@@ -15152,6 +15957,10 @@ PersistedBinaryResult = PersistedBinaryImage | OmittedBinaryResult | BinaryAsset
 Attachment = AttachmentFile | AttachmentDirectory | AttachmentSelection | AttachmentGitHubReference | AttachmentGitHubCommit | AttachmentGitHubRelease | AttachmentGitHubActionsJob | AttachmentGitHubRepository | AttachmentGitHubFileDiff | AttachmentGitHubTreeComparison | AttachmentGitHubUrl | AttachmentGitHubFile | AttachmentGitHubSnippet | AttachmentBlob | AttachmentExtensionContext
 
 
+# Canonical runtime-owned Assisted Permissions assessment for one permission request. This assessment is advisory; `permission.completed` remains the authoritative final permission decision.
+AssistedApprovalAssessment = AssistedApprovalAssessmentUnavailable | AssistedApprovalAssessmentNotRun | AssistedApprovalAssessmentExcluded | AssistedApprovalAssessmentCompleted | AssistedApprovalAssessmentFailed
+
+
 # Derived user-facing permission prompt details for UI consumers
 PermissionPromptRequest = PermissionPromptRequestCommands | PermissionPromptRequestWrite | PermissionPromptRequestRead | PermissionPromptRequestMcp | PermissionPromptRequestUrl | PermissionPromptRequestMemory | PermissionPromptRequestCustomTool | PermissionPromptRequestPath | PermissionPromptRequestHook | PermissionPromptRequestExtensionManagement | PermissionPromptRequestWorkflow | PermissionPromptRequestExtensionPermissionAccess | PermissionPromptRequestExtensionEnvAccess
 
@@ -15178,6 +15987,15 @@ ToolExecutionCompleteContentResourceDetails = EmbeddedTextResourceContents | Emb
 
 # The result of the permission request
 PermissionResult = PermissionApproved | PermissionApprovedReadOnlyForSession | PermissionApprovedForSession | PermissionApprovedForLocation | PermissionCancelled | PermissionDeniedByRules | PermissionDeniedNoApprovalRuleAndCouldNotRequestFromUser | PermissionDeniedInteractivelyByUser | PermissionDeniedByContentExclusionPolicy | PermissionDeniedByPermissionRequestHook
+
+
+# Experimental: this enum is part of an experimental API and may change or be removed.
+class AssistedApprovalCompletedRecommendation(Enum):
+    "Usable verdict returned by the Assisted Permissions judge."
+    # The judge recommends automatic approval.
+    APPROVE = "approve"
+    # The judge requires an explicit permission decision.
+    REQUIRE_APPROVAL = "requireApproval"
 
 
 # Experimental: this enum is part of an experimental API and may change or be removed.
@@ -16008,6 +16826,12 @@ class ModelCallFinishedOutcome(Enum):
     REJECTED = "rejected"
 
 
+class _ModelCallProductStateError(Enum):
+    "Bounded product-state failure classified before telemetry projection."
+    # A Responses input item belongs to a different transport connection.
+    INPUT_ITEM_CONNECTION_MISMATCH = "input_item_connection_mismatch"
+
+
 class ModelCallRequestBodyCompressionFallback(Enum):
     "How the runtime fell back to an uncompressed request body after a compressed body was rejected"
     # A compressed body was rejected with HTTP 400 or 415 and this outcome comes from the single uncompressed resend.
@@ -16218,6 +17042,8 @@ class PermissionApprovalEvaluationReasonCode(Enum):
     JUDGE_VERDICT = "judge-verdict"
     # The judge interface returned an error.
     JUDGE_ERROR = "judge-error"
+    # The fully assembled judge request exceeded the selected model's input capacity after reserving output headroom.
+    JUDGE_CONTEXT_TOO_LARGE = "judge-context-too-large"
     # The request inherited an outcome from another decision.
     INHERITED = "inherited"
 
@@ -16766,7 +17592,7 @@ class SkillInvokedTrigger(Enum):
 
 
 class SkillSource(Enum):
-    "Source location type (e.g., project, personal-copilot, plugin, builtin, sdk)"
+    "Source location type (e.g., project, personal-copilot, plugin, builtin, sdk, mcp)"
     # Skill defined in the current project's skill directories.
     PROJECT = "project"
     # Skill discovered from a parent directory in the current workspace tree.
@@ -16783,6 +17609,8 @@ class SkillSource(Enum):
     BUILTIN = "builtin"
     # Pathless skill supplied lazily by an SDK skill provider.
     SDK = "sdk"
+    # Pathless skill discovered from an MCP server through the skills extension.
+    MCP = "mcp"
 
 
 class SubagentModelSelectionSource(Enum):
@@ -16855,6 +17683,26 @@ class TaskBlockerKind(Enum):
     "Category of structured task blocker"
     # Autopilot permission recovery requires intervention or has no safe autonomous path.
     PERMISSION_RECOVERY = "permission_recovery"
+
+
+class TaskBlockerReason(Enum):
+    "Controlled reason that a task is blocked by permission recovery"
+    # A required action is waiting on or could not obtain permission.
+    PERMISSION_REQUIRED = "permission_required"
+    # The agent repeated an equivalent denied permission request.
+    REPEATED_ATTEMPT = "repeated_attempt"
+    # The bounded autonomous attempts for one permission-recovery episode were exhausted.
+    ATTEMPTS_EXHAUSTED = "attempts_exhausted"
+    # Historical compatibility value for a recovery resolved by permission approval; new task blockers do not emit it.
+    PERMISSION_APPROVED = "permission_approved"
+    # A responder denied the escalated permission request.
+    PERMISSION_DENIED = "permission_denied"
+    # No response-capable client remained available for the permission request.
+    RESPONDER_UNAVAILABLE = "responder_unavailable"
+    # Historical compatibility value for a recovery resolved by an equivalent permitted alternative; new task blockers do not emit it.
+    EQUIVALENT_ALTERNATIVE_SUCCEEDED = "equivalent_alternative_succeeded"
+    # The epoch-wide consecutive-block or total-denial limit was reached.
+    PERMISSION_RECOVERY_RUN_LIMIT = "permission_recovery_run_limit"
 
 
 class TaskCompletionOutcome(Enum):
@@ -16971,7 +17819,7 @@ class WorkspaceFileChangedOperation(Enum):
     UPDATE = "update"
 
 
-SessionEventData = SessionStartData | SessionResumeData | SessionRemoteSteerableChangedData | SessionErrorData | SessionIdleData | SessionAutopilotStoppedData | SessionTitleChangedData | SessionScheduleCreatedData | SessionScheduleCancelledData | SessionScheduleRearmedData | SessionAutopilotObjectiveChangedData | SessionInfoData | SessionIndexedSearchData | SessionWarningData | SessionModelChangeData | SessionModelDeselectedData | SessionAutoTierRecommendationData | SessionAutoTierSwitchFailedData | SessionModeChangedData | SessionModeNoticeDeliveredData | SessionSessionLimitsChangedData | SessionPermissionsChangedData | SessionPlanChangedData | SessionTodosChangedData | SessionWorkspaceFileChangedData | SessionHandoffData | SessionTruncationData | SessionSnapshotRewindData | SessionShutdownData | SessionUsageCheckpointData | SessionQuotaObservationData | SessionContextChangedData | SessionUsageInfoData | SessionContextClearedData | SessionCompactionStartData | SessionCompactionCompleteData | SessionTaskCompleteData | SessionCompletionReceiptData | SessionFusionRouteStartedData | SessionFusionRouteFailedData | SessionFusionResolvedData | SessionFusionCompletedData | SessionPermissionRecoveryData | UserMessageData | PendingMessagesModifiedData | AssistantTurnStartData | AssistantTurnRetryData | AgentInterruptedData | AssistantIntentData | AssistantFusionPhaseStartedData | AssistantFusionPhaseActivityData | AssistantFusionPhaseCompletedData | AssistantFusionPhaseFailedData | AssistantServerToolProgressData | AssistantReasoningData | AssistantReasoningDeltaData | AssistantToolCallDeltaData | AssistantStreamingDeltaData | AssistantMessageData | AssistantMessageStartData | AssistantMessageDeltaData | AssistantTurnEndData | AssistantIdleData | AssistantUsageData | PromptCacheBreakData | ModelCallFailureData | ModelCallFinalResultData | ModelCallFinishedData | ModelCallStartData | AbortData | ToolUserRequestedData | ToolExecutionStartData | ToolExecutionPartialResultData | ToolShellOutputData | ToolExecutionProgressData | ToolExecutionCompleteData | ToolSearchActivatedData | SkillInvokedData | SkillInvokedRefData | SkillContextDeliveredData | SkillContextDeliveredRefData | SandboxDecisionData | SubagentStartedData | SubagentConfiguredData | SubagentCompletedData | SubagentFailedData | SubagentSelectedData | SubagentDeselectedData | HookStartData | HookEndData | HookProgressData | SessionBinaryAssetData | SystemMessageData | InstructionUpdateData | SystemNotificationData | PermissionRequestedData | PermissionCompletedData | PermissionCarriedForwardData | PermissionMessageAuthorizationData | PermissionMessageAuthorizationReadData | PermissionMessageAuthorizationDegradedData | PermissionAssentDetectedData | PermissionContextualAuthorizationData | UserInputRequestedData | UserInputCompletedData | ElicitationRequestedData | ElicitationCompletedData | SamplingRequestedData | SamplingCompletedData | McpOauthRequiredData | McpOauthCompletedData | McpOauthRecoveryCompletedData | McpHeadersRefreshRequiredData | McpHeadersRefreshCompletedData | SessionCustomNotificationData | UiEphemeralQueryData | ExternalToolRequestedData | ExternalToolCompletedData | CommandQueuedData | CommandExecuteData | CommandCompletedData | AutoModeSwitchRequestedData | AutoModeSwitchCompletedData | SessionLimitsExhaustedRequestedData | SessionLimitsExhaustedCompletedData | SessionAutoModeResolvedData | SessionManagedPluginProgressData | SessionManagedSettingsResolvedData | SessionManagedSettingsEnforcedData | CommandsChangedData | CapabilitiesChangedData | ExitPlanModeRequestedData | ExitPlanModeCompletedData | HumanResponseRecordedData | SessionToolsUpdatedData | SessionBackgroundTasksChangedData | WorkflowRunUpdatedData | WorkflowRunStartedData | WorkflowRunSettledData | SessionSkillsLoadedData | SessionCustomAgentsUpdatedData | SessionMcpServersLoadedData | SessionMcpServerStatusChangedData | SessionMcpServerToolsLoadedData | SessionMcpServerRemovedData | SessionMcpServerNeedsReconnectData | McpToolsListChangedData | McpResourcesListChangedData | McpPromptsListChangedData | SessionExtensionsLoadedData | SessionCanvasOpenedData | SessionCanvasRegistryChangedData | SessionCanvasClosedData | SessionCanvasUnavailableData | SessionCanvasRecordedData | SessionCanvasRemovedData | SessionExtensionsAttachmentsPushedData | McpAppToolCallCompleteData | RawSessionEventData | Data
+SessionEventData = SessionJournalLinkData | SessionStartData | SessionResumeData | SessionRemoteSteerableChangedData | SessionErrorData | SessionIdleData | SessionAutopilotStoppedData | SessionTitleChangedData | SessionScheduleCreatedData | SessionScheduleCancelledData | SessionScheduleRearmedData | SessionAutopilotObjectiveChangedData | SessionInfoData | SessionIndexedSearchData | SessionWarningData | SessionModelChangeData | SessionModelDeselectedData | SessionAutoTierRecommendationData | SessionAutoTierSwitchFailedData | SessionModeChangedData | SessionModeNoticeDeliveredData | SessionSessionLimitsChangedData | SessionPermissionsChangedData | SessionPlanChangedData | SessionTodosChangedData | SessionWorkspaceFileChangedData | SessionHandoffData | SessionTruncationData | SessionSnapshotRewindData | SessionShutdownData | SessionUsageCheckpointData | SessionQuotaObservationData | SessionContextChangedData | SessionUsageInfoData | SessionContextClearedData | SessionCompactionStartData | SessionCompactionCompleteData | SessionTaskCompleteData | SessionCompletionReceiptData | SessionFusionRouteStartedData | SessionFusionRouteFailedData | SessionFusionResolvedData | SessionFusionCompletedData | SessionPermissionRecoveryData | UserMessageData | PendingMessagesModifiedData | AssistantTurnStartData | AssistantTurnRetryData | AgentInterruptedData | AssistantIntentData | AssistantFusionPhaseStartedData | AssistantFusionPhaseActivityData | AssistantFusionPhaseCompletedData | AssistantFusionPhaseFailedData | AssistantServerToolProgressData | AssistantReasoningData | AssistantReasoningDeltaData | AssistantToolCallDeltaData | AssistantStreamingDeltaData | AssistantMessageData | AssistantMessageStartData | AssistantMessageDeltaData | AssistantTurnEndData | AssistantIdleData | AssistantUsageData | PromptCacheBreakData | ModelCallFailureData | ModelCallFinalResultData | ModelCallFinishedData | ModelCallStartData | AbortData | ToolUserRequestedData | ToolExecutionStartData | ToolExecutionPartialResultData | ToolShellOutputData | ToolExecutionProgressData | ToolExecutionCompleteData | ToolSearchActivatedData | SkillInvokedData | SkillInvokedRefData | SkillContextDeliveredData | SkillContextDeliveredRefData | SandboxDecisionData | SubagentStartedData | SubagentConfiguredData | SubagentCompletedData | SubagentFailedData | SubagentSelectedData | SubagentDeselectedData | HookStartData | HookEndData | HookProgressData | SessionBinaryAssetData | SystemMessageData | InstructionUpdateData | SystemNotificationData | PermissionRequestedData | PermissionCompletedData | PermissionCarriedForwardData | PermissionMessageAuthorizationData | PermissionMessageAuthorizationReadData | PermissionMessageAuthorizationDegradedData | PermissionAssentDetectedData | PermissionContextualAuthorizationData | UserInputRequestedData | UserInputCompletedData | ElicitationRequestedData | ElicitationCompletedData | SamplingRequestedData | SamplingCompletedData | McpOauthRequiredData | McpOauthCompletedData | McpOauthRecoveryCompletedData | McpHeadersRefreshRequiredData | McpHeadersRefreshCompletedData | SessionCustomNotificationData | UiEphemeralQueryData | ExternalToolRequestedData | ExternalToolCompletedData | CommandQueuedData | CommandExecuteData | CommandCompletedData | AutoModeSwitchRequestedData | AutoModeSwitchCompletedData | SessionLimitsExhaustedRequestedData | SessionLimitsExhaustedCompletedData | SessionAutoModeResolvedData | SessionManagedPluginProgressData | SessionManagedSettingsResolvedData | SessionManagedSettingsEnforcedData | CommandsChangedData | CapabilitiesChangedData | ExitPlanModeRequestedData | ExitPlanModeCompletedData | HumanResponseRecordedData | SessionToolsUpdatedData | SessionBackgroundTasksChangedData | WorkflowRunUpdatedData | WorkflowRunStartedData | WorkflowRunSettledData | SessionSkillsLoadedData | SessionCustomAgentsUpdatedData | SessionMcpServersLoadedData | SessionMcpServerStatusChangedData | SessionMcpServerToolsLoadedData | SessionMcpServerRemovedData | SessionMcpServerNeedsReconnectData | McpToolsListChangedData | McpResourcesListChangedData | McpPromptsListChangedData | SessionExtensionsLoadedData | SessionCanvasOpenedData | SessionCanvasRegistryChangedData | SessionCanvasClosedData | SessionCanvasUnavailableData | SessionCanvasRecordedData | SessionCanvasRemovedData | SessionExtensionsAttachmentsPushedData | McpAppToolCallCompleteData | RawSessionEventData | Data
 
 
 @dataclass
@@ -16981,6 +17829,7 @@ class SessionEvent:
     timestamp: datetime
     type: SessionEventType
     agent_id: str | None = None
+    checkpoint: bool | None = field(default=None, kw_only=True)
     ephemeral: bool | None = None
     parent_id: UUID | None = None
     raw_type: str | None = None
@@ -16991,12 +17840,14 @@ class SessionEvent:
         raw_type = from_str(obj.get("type"))
         event_type = SessionEventType(raw_type)
         agent_id = from_union([from_none, from_str], obj.get("agentId"))
+        checkpoint = from_union([from_none, from_bool], obj.get("checkpoint"))
         ephemeral = from_union([from_none, from_bool], obj.get("ephemeral"))
         id = from_uuid(obj.get("id"))
         parent_id = from_union([from_none, from_uuid], obj.get("parentId"))
         timestamp = from_datetime(obj.get("timestamp"))
         data_obj = obj.get("data")
         match event_type:
+            case SessionEventType.SESSION_JOURNAL_LINK: data = SessionJournalLinkData.from_dict(data_obj)
             case SessionEventType.SESSION_START: data = SessionStartData.from_dict(data_obj)
             case SessionEventType.SESSION_RESUME: data = SessionResumeData.from_dict(data_obj)
             case SessionEventType.SESSION_REMOTE_STEERABLE_CHANGED: data = SessionRemoteSteerableChangedData.from_dict(data_obj)
@@ -17162,6 +18013,7 @@ class SessionEvent:
             timestamp=timestamp,
             type=event_type,
             agent_id=agent_id,
+            checkpoint=checkpoint,
             ephemeral=ephemeral,
             parent_id=parent_id,
             raw_type=raw_type if event_type == SessionEventType.UNKNOWN else None,
@@ -17175,6 +18027,8 @@ class SessionEvent:
         result["type"] = self.raw_type if self.type == SessionEventType.UNKNOWN and self.raw_type is not None else to_enum(SessionEventType, self.type)
         if self.agent_id is not None:
             result["agentId"] = from_union([from_none, from_str], self.agent_id)
+        if self.checkpoint is not None:
+            result["checkpoint"] = from_union([from_none, from_bool], self.checkpoint)
         if self.ephemeral is not None:
             result["ephemeral"] = from_union([from_none, from_bool], self.ephemeral)
         result["parentId"] = from_union([from_none, to_uuid], self.parent_id)
@@ -17224,6 +18078,13 @@ __all__ = [
     "AssistantUsageCopilotUsageTokenDetail",
     "AssistantUsageData",
     "AssistantUsageTransport",
+    "AssistedApprovalAssessment",
+    "AssistedApprovalAssessmentCompleted",
+    "AssistedApprovalAssessmentExcluded",
+    "AssistedApprovalAssessmentFailed",
+    "AssistedApprovalAssessmentNotRun",
+    "AssistedApprovalAssessmentUnavailable",
+    "AssistedApprovalCompletedRecommendation",
     "AssistedApprovalJudgeFailureReason",
     "AssistedApprovalRecommendation",
     "Attachment",
@@ -17260,6 +18121,7 @@ __all__ = [
     "BinaryAssetReference",
     "BinaryAssetReferenceType",
     "BinaryAssetType",
+    "BlockedPermissionAction",
     "CanvasRegistryChangedCanvas",
     "CanvasRegistryChangedCanvasAction",
     "CapabilitiesChangedData",
@@ -17369,6 +18231,7 @@ __all__ = [
     "McpServerStatus",
     "McpServerTransport",
     "McpServersLoadedServer",
+    "McpSkillOrigin",
     "McpToolsListChangedData",
     "ModelCallFailureBadRequestKind",
     "ModelCallFailureData",
@@ -17441,6 +18304,7 @@ __all__ = [
     "PermissionRecoveryData",
     "PermissionRecoveryOnBlocked",
     "PermissionRecoveryReason",
+    "PermissionRecoveryRunState",
     "PermissionRecoveryStatus",
     "PermissionRequest",
     "PermissionRequestCustomTool",
@@ -17472,6 +18336,10 @@ __all__ = [
     "PersistedBinaryImageType",
     "PersistedBinaryResult",
     "PlanChangedOperation",
+    "PolicyHelperCapabilities",
+    "PolicyHelperFailure",
+    "PolicyHelperFailureDetail",
+    "PolicyHelperHelpLink",
     "PromptCacheBreakData",
     "ProviderMonthlyUsage",
     "ProviderMonthlyUsageScope",
@@ -17543,6 +18411,7 @@ __all__ = [
     "SessionIndexedSearchData",
     "SessionIndexedSearchDataKind",
     "SessionInfoData",
+    "SessionJournalLinkData",
     "SessionLimitsConfig",
     "SessionLimitsExhaustedCompletedData",
     "SessionLimitsExhaustedRequestedData",
@@ -17627,6 +18496,7 @@ __all__ = [
     "SystemNotificationWorkflowPauseInfoType",
     "TaskBlocker",
     "TaskBlockerKind",
+    "TaskBlockerReason",
     "TaskCompletionOutcome",
     "ToolExecutionCompleteContent",
     "ToolExecutionCompleteContentAudio",

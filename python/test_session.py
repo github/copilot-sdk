@@ -14,6 +14,8 @@ from copilot._jsonrpc import JsonRpcError, ProcessExitedError
 from copilot.session import Attachment, CopilotSession
 from copilot.session_events import (
     AssistantMessageData,
+    CapabilitiesChangedData,
+    CapabilitiesChangedUI,
     ExternalToolCompletedData,
     ExternalToolRequestedData,
     SessionAutopilotStoppedData,
@@ -1193,3 +1195,45 @@ async def test_disconnect_from_tool_task_does_not_cancel_detach_request():
     await session.disconnect()
 
     client.request.assert_awaited_once_with("session.detach", {"sessionId": "session-1"})
+
+
+def _capabilities_changed(session: CopilotSession, ui: CapabilitiesChangedUI | None) -> None:
+    session._dispatch_event(
+        SessionEvent(
+            data=CapabilitiesChangedData(ui=ui),
+            id=uuid4(),
+            timestamp=datetime.now(UTC),
+            type=SessionEventType.CAPABILITIES_CHANGED,
+            ephemeral=True,
+        )
+    )
+
+
+def test_capabilities_changed_keeps_capabilities_the_event_does_not_name():
+    session = CopilotSession("sess-1", client=None)
+    session._set_capabilities({"ui": {"mcpApps": True}})
+
+    _capabilities_changed(session, CapabilitiesChangedUI(elicitation=True))
+    assert session.capabilities == {"ui": {"mcpApps": True, "elicitation": True}}
+
+    _capabilities_changed(session, CapabilitiesChangedUI(elicitation=False))
+    assert session.capabilities == {"ui": {"mcpApps": True, "elicitation": False}}
+
+
+def test_capabilities_changed_applies_mcp_apps():
+    session = CopilotSession("sess-1", client=None)
+    session._set_capabilities({"ui": {"elicitation": True}})
+
+    _capabilities_changed(session, CapabilitiesChangedUI(mcp_apps=True))
+
+    assert session.capabilities == {"ui": {"elicitation": True, "mcpApps": True}}
+
+
+def test_capabilities_changed_without_ui_leaves_capabilities_unchanged():
+    session = CopilotSession("sess-1", client=None)
+    session._set_capabilities({"ui": {"elicitation": True}})
+
+    _capabilities_changed(session, None)
+    _capabilities_changed(session, CapabilitiesChangedUI(canvases=True))
+
+    assert session.capabilities["ui"].get("elicitation") is True

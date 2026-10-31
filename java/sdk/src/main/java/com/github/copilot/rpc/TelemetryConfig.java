@@ -155,8 +155,8 @@ public class TelemetryConfig {
     /**
      * Gets whether to capture message content as part of telemetry.
      * <p>
-     * Maps to the {@code OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT}
-     * environment variable.
+     * Maps to {@code OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT} and its legacy
+     * alias environment variable.
      *
      * @return an {@link java.util.Optional} containing {@code true} to capture
      *         content or {@code false} to suppress it, or

@@ -25,6 +25,14 @@ export type { SessionFsSqliteQueryType, SessionFsSqliteTransactionErrorClass };
  */
 export type SessionFsFileInfo = Omit<SessionFsStatResult, "error">;
 
+/** Raw bytes and the authoritative total file byte length captured by the same read. */
+export interface SessionFsByteRange {
+    /** Requested bytes; boundaries may split UTF-8 characters. */
+    content: Uint8Array;
+    /** Total file byte length, independent of the requested range. */
+    byteLength: number;
+}
+
 /**
  * Result of a SQLite query execution via {@link SessionFsSqliteProvider.query}.
  * Same shape as the generated {@link GeneratedSqliteQueryResult} but without the
@@ -123,6 +131,15 @@ export interface SessionFsProvider {
     /** Read exact file bytes. Required when capabilities.binary is enabled. */
     readFileBytes?(path: string): Promise<Uint8Array>;
 
+    /**
+     * Reads raw bytes starting at a non-negative safe integer byte offset.
+     * Omit length to read through EOF; zero returns only byte length.
+     * At or beyond EOF, content is empty. Advertise capabilities.readFileRange
+     * only when every provider implements bounded reads without full-file downloads.
+     * This capability is independent of binary reads and writes.
+     */
+    readFileRange?(path: string, offset: number, length?: number): Promise<SessionFsByteRange>;
+
     /** Write exact file bytes. Required when capabilities.binary is enabled. */
     writeFileBytes?(path: string, content: Uint8Array, mode?: number): Promise<void>;
 
@@ -180,6 +197,38 @@ function normalizeSqliteParams(
  */
 export function createSessionFsAdapter(provider: SessionFsProvider): SessionFsHandler {
     return {
+        readFileRange: async ({ path, offset, length }) => {
+            try {
+                if (
+                    !Number.isSafeInteger(offset) ||
+                    offset < 0 ||
+                    (length !== undefined && (!Number.isSafeInteger(length) || length < 0))
+                ) {
+                    throw new RangeError(
+                        "SessionFs byte offset and length must be non-negative safe integers"
+                    );
+                }
+                if (!provider.readFileRange) {
+                    throw new Error(
+                        "Byte-range reads are not supported by this SessionFs provider"
+                    );
+                }
+                const result = await provider.readFileRange(path, offset, length);
+                if (!Number.isSafeInteger(result.byteLength) || result.byteLength < 0) {
+                    throw new Error("SessionFs byte length must be a non-negative safe integer");
+                }
+                const available = Math.max(0, result.byteLength - offset);
+                if (result.content.byteLength !== Math.min(length ?? available, available)) {
+                    throw new Error("SessionFs returned an incorrect byte range length");
+                }
+                return {
+                    content: Buffer.from(result.content).toString("base64"),
+                    byteLength: result.byteLength,
+                };
+            } catch (err) {
+                return { content: "", byteLength: 0, error: toSessionFsError(err) };
+            }
+        },
         readFile: async ({ path }) => {
             try {
                 const content = await provider.readFile(path);

@@ -10,6 +10,7 @@ package com.github.copilot.generated.rpc;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.github.copilot.generated.AssistedApprovalAssessment;
 import javax.annotation.processing.Generated;
 
 /**
@@ -25,6 +26,8 @@ public record PendingPermissionRequest(
     @JsonProperty("requestId") String requestId,
     /** The user-facing permission prompt details (commands, write, read, mcp, url, memory, custom-tool, path, hook) */
     @JsonProperty("request") Object request,
+    /** Canonical runtime-owned Assisted Permissions assessment captured on the originating permission request. Absent for historical events. */
+    @JsonProperty("assistedApprovalAssessment") AssistedApprovalAssessment assistedApprovalAssessment,
     /** Permission-recovery episode that authorized this request to surface for interactive attention */
     @JsonProperty("recoveryEpisodeId") String recoveryEpisodeId
 ) {

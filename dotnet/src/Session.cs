@@ -1186,7 +1186,12 @@ public sealed partial class CopilotSession : IAsyncDisposable
                         if (handler is null)
                             return; // This client doesn't handle permissions; another client will.
 
-                        await ExecutePermissionAndRespondAsync(data.RequestId, data.PermissionRequest, data.PromptRequest, handler);
+                        await ExecutePermissionAndRespondAsync(
+                            data.RequestId,
+                            data.PermissionRequest,
+                            data.PromptRequest,
+                            data.AssistedApprovalAssessment,
+                            handler);
                         break;
                     }
 
@@ -1264,7 +1269,6 @@ public sealed partial class CopilotSession : IAsyncDisposable
                                     RequestedSchema = schema,
                                     Mode = data.Mode,
                                     ElicitationSource = data.ElicitationSource,
-                                    ElicitationSourceDisplayName = data.ElicitationSourceDisplayName,
                                     Url = data.Url
                                 },
                                 data.RequestId);
@@ -1274,13 +1278,20 @@ public sealed partial class CopilotSession : IAsyncDisposable
 
                 case CapabilitiesChangedEvent capEvent:
                     {
-                        var data = capEvent.Data;
-                        Capabilities = new SessionCapabilities
+                        // The event names only the capabilities that changed; keep the rest.
+                        var changed = capEvent.Data.Ui;
+                        if (changed is not null)
                         {
-                            Ui = data.Ui is not null
-                                ? new SessionUiCapabilities { Elicitation = data.Ui.Elicitation }
-                                : Capabilities.Ui
-                        };
+                            var current = Capabilities.Ui;
+                            Capabilities = new SessionCapabilities
+                            {
+                                Ui = new SessionUiCapabilities
+                                {
+                                    Elicitation = changed.Elicitation ?? current?.Elicitation,
+                                    McpApps = changed.McpApps ?? current?.McpApps,
+                                }
+                            };
+                        }
                         break;
                     }
             }
@@ -1647,6 +1658,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
         string requestId,
         PermissionRequest permissionRequest,
         PermissionPromptRequest? promptRequest,
+        AssistedApprovalAssessment? assistedApprovalAssessment,
         Func<PermissionRequest, PermissionInvocation, Task<PermissionDecision>> handler)
     {
         try
@@ -1655,6 +1667,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
             {
                 SessionId = SessionId,
                 ManagedSettingsEnabled = _managedSettingsEnabled,
+                AssistedApprovalAssessment = assistedApprovalAssessment,
                 PromptRequest = promptRequest
             };
 

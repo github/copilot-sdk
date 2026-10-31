@@ -152,7 +152,7 @@ async fn should_handle_freeform_user_input_response() {
 
 /// Regression test for the per-session event-loop starvation bug where a pending
 /// `ask_user` (`userInput.request`) blocked the `tokio::select!` loop and starved
-/// a sibling tool call co-emitted in the same turn (github/copilot-experiences#12540).
+/// a sibling tool call co-emitted in the same turn.
 ///
 /// The model emits both `set_marker` and `ask_user` in one assistant turn. The
 /// `set_marker` tool fires a `Notify`; the user-input handler waits on that

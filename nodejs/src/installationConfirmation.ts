@@ -2,13 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import {
-    CancellationTokenSource,
-    ResponseError,
-    type CancellationToken,
-    type Disposable,
-    type MessageConnection,
-} from "vscode-jsonrpc/node.js";
+import { CancellationTokenSource, ResponseError } from "vscode-jsonrpc/node";
+import type { CancellationToken, Disposable, MessageConnection } from "./jsonrpcTypes.js";
 import type {
     InstallationConfirmationRequest,
     InstallationDecision,

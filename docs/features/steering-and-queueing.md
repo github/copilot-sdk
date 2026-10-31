@@ -91,7 +91,8 @@ await session.send({
 <summary><strong>Python</strong></summary>
 
 ```python
-from copilot import CopilotClient, PermissionDecisionApproveOnce
+from copilot import CopilotClient
+from copilot.session import PermissionDecisionApproveOnce
 
 async def main():
     client = CopilotClient()
@@ -283,7 +284,8 @@ await session.send({
 <summary><strong>Python</strong></summary>
 
 ```python
-from copilot import CopilotClient, PermissionDecisionApproveOnce
+from copilot import CopilotClient
+from copilot.session import PermissionDecisionApproveOnce
 
 async def main():
     client = CopilotClient()
@@ -523,6 +525,11 @@ await session.send({
 <summary><strong>Python</strong></summary>
 
 ```python
+from copilot import CopilotClient
+from copilot.session import PermissionDecisionApproveOnce
+
+client = CopilotClient()
+
 session = await client.create_session(
     on_permission_request=lambda req, inv: PermissionDecisionApproveOnce(),
     model="gpt-5.4",

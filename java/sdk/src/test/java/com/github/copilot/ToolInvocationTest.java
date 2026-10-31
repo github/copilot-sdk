@@ -6,6 +6,9 @@ package com.github.copilot;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.time.Instant;
+import java.time.LocalDate;
+
 import org.junit.jupiter.api.Test;
 
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
@@ -105,6 +108,27 @@ public class ToolInvocationTest {
     }
 
     /**
+     * Test getArgumentsAs deserializes java.time fields, which tool parameter
+     * schemas describe as ISO-8601 {@code date-time} and {@code date} strings.
+     */
+    @Test
+    void testGetArgumentsAsWithJavaTimeFields() {
+        ToolInvocation invocation = new ToolInvocation();
+
+        ObjectNode argsNode = JsonNodeFactory.instance.objectNode();
+        argsNode.put("title", "standup");
+        argsNode.put("when", "2026-08-27T21:00:00Z");
+        argsNode.put("day", "2026-08-27");
+
+        invocation.setArguments(argsNode);
+
+        EventArgs args = invocation.getArgumentsAs(EventArgs.class);
+        assertEquals("standup", args.title());
+        assertEquals(Instant.parse("2026-08-27T21:00:00Z"), args.when());
+        assertEquals(LocalDate.of(2026, 8, 27), args.day());
+    }
+
+    /**
      * Test getArgumentsAs throws IllegalArgumentException on deserialization
      * failure.
      */
@@ -131,6 +155,12 @@ public class ToolInvocationTest {
      * Record for testing type-safe argument deserialization.
      */
     record WeatherArgs(String city, String units) {
+    }
+
+    /**
+     * Record with java.time fields for testing date and time deserialization.
+     */
+    record EventArgs(String title, Instant when, LocalDate day) {
     }
 
     /**

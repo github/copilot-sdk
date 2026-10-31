@@ -3,7 +3,7 @@
 `tests/runtime_host_e2e.rs` exercises the real Rust SDK, a separate
 `copilot-runtime` process, its provider library, and its in-process AHP
 WebSocket listener. The AHP client is the standard upstream Rust
-`ahp`/`ahp-ws` client, pinned to `rust/v0.9.0`.
+`ahp`/`ahp-ws` client, pinned to `rust/v1.0.0`.
 
 These tests reuse `tests/e2e/support.rs` and the existing Node CapiProxy, including
 its normal inference matcher. Every inference uses model `claude-sonnet-5`,
@@ -28,9 +28,9 @@ The suite does not build native artifacts or download a replacement runtime.
 
 ## Source artifacts
 
-Use the `copilot-agent-runtime` checkout with its locked `copilotd-hosting`
-library. The SDK is the runtime repository's `src/sdk` subtree. From
-`copilot-agent-runtime/src/sdk/rust/`, substitute absolute local-build paths:
+Use the runtime checkout with its locked `copilotd-hosting` library. The SDK is
+the runtime repository's `src/sdk` subtree. From `src/sdk/rust/` in that
+checkout, substitute absolute local-build paths:
 
 ```sh
 mkdir -p ../.runtime-host-test-work/rust

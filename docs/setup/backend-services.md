@@ -22,7 +22,7 @@ flowchart TB
 
     Users["👥 Users"] --> API
     API --> SDK
-    SDK -- "cliUrl: localhost:4321" --> RPC
+    SDK -- "RuntimeConnection.forUri: localhost:4321" --> RPC
     RPC --> Sessions
     RPC --> Copilot["☁️ GitHub Copilot<br/>or Model Provider"]
 
@@ -48,7 +48,7 @@ flowchart LR
     end
 
     subgraph External["External Server (Backend)"]
-        B1["SDK"] -->|"cliUrl"| B2["CLI Server"]
+        B1["SDK"] -->|"forUri"| B2["CLI Server"]
         B2 -.->|"independent<br/>lifecycle"| B1
     end
 
@@ -149,8 +149,12 @@ res.json({ content: response?.data.content });
 <summary><strong>Python</strong></summary>
 
 ```python
+import time
 from copilot import CopilotClient, RuntimeConnection
 from copilot.session import PermissionHandler
+
+user_id = "123"
+message = "Hello!"
 
 client = CopilotClient(
     connection=RuntimeConnection.for_uri("localhost:4321"),
@@ -384,6 +388,10 @@ flowchart TB
     style CLI fill:#0d1117,stroke:#3fb950,color:#c9d1d9
 ```
 
+Include the helpers from [Session cleanup](#session-cleanup) before accepting requests. On timeout, cancel and drain before disconnecting; retain failed cancellations for explicit recovery.
+
+Your application's `authMiddleware` must set `req.user.id` and `req.user.githubToken` from the authenticated identity. Clients send a per-chat `sessionKey` (or omit it for the default chat), not an SDK session ID. Encode the user ID and key together to keep sessions isolated without ambiguous separators. Reuse the returned `sessionKey` for follow-up requests.
+
 ```typescript
 import express from "express";
 import { CopilotClient, RuntimeConnection } from "@github/copilot-sdk";
@@ -397,24 +405,44 @@ const client = new CopilotClient({
     mode: "empty",
 });
 
-app.post("/api/chat", async (req, res) => {
-    const { sessionId, message } = req.body;
-
-    // Create or resume session
-    let session;
-    try {
-        session = await client.resumeSession(sessionId);
-    } catch {
-        session = await client.createSession({
-            sessionId,
-            model: "gpt-5.4",
-            availableTools: ["custom:*"],
-            gitHubToken: req.user.githubToken,
-        });
+app.post("/api/chat", authMiddleware, async (req, res) => {
+    const { sessionKey = "default", message } = req.body;
+    if (typeof sessionKey !== "string" || sessionKey.length === 0) {
+        return res.status(400).json({ error: "sessionKey must be a non-empty string" });
     }
+    const sessionId = Buffer.from(JSON.stringify([req.user.id, sessionKey])).toString("base64url");
 
-    const response = await session.sendAndWait({ prompt: message });
+    const response = await withSessionLock(sessionId, async () => {
+        let session;
+        try {
+            session = await client.resumeSession(sessionId, {
+                availableTools: ["custom:*"],
+                gitHubToken: req.user.githubToken,
+            });
+        } catch {
+            session = await client.createSession({
+                sessionId,
+                model: "gpt-5.4",
+                availableTools: ["custom:*"],
+                gitHubToken: req.user.githubToken,
+            });
+        }
+        let response;
+        try {
+            response = await session.sendAndWait({ prompt: message });
+        } catch (error) {
+            try {
+                await cancelAndDisconnect(sessionId, session);
+            } catch (recoveryError) {
+                throw new AggregateError([error, recoveryError], "Session requires recovery");
+            }
+            throw error;
+        }
+        await session.disconnect();
+        return response;
+    });
     res.json({
+        sessionKey,
         sessionId,
         content: response?.data.content,
     });
@@ -513,24 +541,68 @@ async function checkCLIHealth(): Promise<boolean> {
 
 ## Session cleanup
 
-Backend services should actively clean up sessions to avoid resource leaks:
+Lock cleanup, creation, resume, and sends until all work completes. Share locks across processes or clients sharing storage. Failed cancellation blocks reuse, not unrelated cleanup. Call `recoverSession` with the original resume configuration after correcting the cause to reconnect, reacquire ownership, and drain.
 
+<!-- docs-validate: strict -->
 ```typescript
-// Clean up expired sessions periodically
-async function cleanupSessions(maxAgeMs: number) {
+const sessionLocks = new Map<string, Promise<void>>();
+const sessionRecoveries = new Map<string, Awaited<ReturnType<typeof client.resumeSession>>>();
+
+async function withSessionLock<T>(sessionId: string, operation: () => Promise<T>, allowRecovery = false): Promise<T> {
+    const previous = sessionLocks.get(sessionId) ?? Promise.resolve();
+    let release!: () => void;
+    const current = new Promise<void>((resolve) => { release = resolve; });
+    const tail = previous.then(() => current);
+    sessionLocks.set(sessionId, tail);
+    await previous;
+    try {
+        if (!allowRecovery && sessionRecoveries.has(sessionId)) {
+            throw new Error(`Session ${sessionId} requires recovery; call recoverSession before reuse`);
+        }
+        return await operation();
+    } finally {
+        release();
+        if (sessionLocks.get(sessionId) === tail) sessionLocks.delete(sessionId);
+    }
+}
+
+async function cancelAndDisconnect(sessionId: string, session: Awaited<ReturnType<typeof client.resumeSession>>) {
+    sessionRecoveries.set(sessionId, session);
+    const aborted = await session.rpc.abort({});
+    if (!aborted.success) throw new Error(aborted.error);
+    await session.disconnect();
+    sessionRecoveries.delete(sessionId);
+}
+
+async function recoverSession(sessionId: string, config: Parameters<typeof client.resumeSession>[1]) {
+    await withSessionLock(sessionId, async () => {
+        if (!sessionRecoveries.has(sessionId)) throw new Error(`No recovery pending for session ${sessionId}`);
+        await client.start();
+        const session = await client.resumeSession(sessionId, config);
+        await cancelAndDisconnect(sessionId, session);
+    }, true);
+}
+
+async function cleanupSessions(maxIdleMs: number) {
     const sessions = await client.listSessions();
-    const now = Date.now();
 
     for (const session of sessions) {
-        const age = now - new Date(session.createdAt).getTime();
-        if (age > maxAgeMs) {
-            await client.deleteSession(session.sessionId);
-        }
+        if (Date.now() - session.modifiedTime.getTime() <= maxIdleMs) continue;
+        await withSessionLock(session.sessionId, async () => {
+            if (sessionRecoveries.has(session.sessionId)) return;
+            // Recheck freshness while requests for this session are excluded.
+            const latest = (await client.listSessions()).find((s) => s.sessionId === session.sessionId);
+            if (latest && Date.now() - latest.modifiedTime.getTime() > maxIdleMs) {
+                await client.deleteSession(session.sessionId);
+            }
+        }, true);
     }
 }
 
 // Run every hour
-setInterval(() => cleanupSessions(24 * 60 * 60 * 1000), 60 * 60 * 1000);
+setInterval(() => {
+    cleanupSessions(24 * 60 * 60 * 1000).catch(console.error);
+}, 60 * 60 * 1000);
 ```
 
 ## Limitations

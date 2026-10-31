@@ -25,6 +25,7 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionWorkspacesReadCheckpointResult(
     /** Checkpoint content as a UTF-8 string, or null when the checkpoint or workspace is missing */
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("content") String content
 ) {
 }

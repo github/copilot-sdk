@@ -10,10 +10,12 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"sync"
 	"testing"
 
+	"github.com/coder/websocket"
 	"github.com/github/copilot-sdk/go/rpc"
 )
 
@@ -170,6 +172,120 @@ func (s *metadataWebSocket) SendRequestMessage(_ context.Context, message Copilo
 func (s *metadataWebSocket) Done() <-chan struct{} { return s.done }
 func (s *metadataWebSocket) Err() error            { return nil }
 func (s *metadataWebSocket) Close() error {
+	s.once.Do(func() { close(s.done) })
+	return nil
+}
+
+func TestInferenceHTTPTransportPanicFailsRequest(t *testing.T) {
+	peer := newResponseProtocolPeerWithTransport(t, roundTripFunc(func(*http.Request) (*http.Response, error) {
+		panic("transport panic")
+	}))
+	peer.beginRequest()
+
+	assertResponseStartStatus(t, peer, http.StatusBadGateway)
+	assertTerminalErrorMessage(t, peer, "CopilotRequestHandler panicked: transport panic")
+}
+
+func TestInferenceHTTPResponseBodyPanicFailsRequest(t *testing.T) {
+	peer := newResponseProtocolPeer(t, panickingResponseBody{})
+	peer.beginRequest()
+
+	assertResponseStartStatus(t, peer, http.StatusOK)
+	assertTerminalErrorMessage(t, peer, "HTTP response body read panicked: body read panic")
+}
+
+func TestInferenceWebSocketSendRequestMessagePanicFailsRequest(t *testing.T) {
+	socket := &panickingSendWebSocket{done: make(chan struct{})}
+	peer := newResponseProtocolPeerWithTransport(t, nil)
+	peer.adapter.handler.OpenWebSocket = func(*CopilotRequestContext) (CopilotWebSocketHandler, error) {
+		return socket, nil
+	}
+	beginInferenceRequest(t, peer, "panicking-socket", nil, "websocket")
+	assertResponseStartStatus(t, peer, http.StatusSwitchingProtocols)
+
+	if _, err := peer.adapter.HttpRequestChunk(&rpc.LlmInferenceHTTPRequestChunkRequest{
+		RequestID: "panicking-socket", Data: "message",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	assertTerminalErrorMessage(t, peer, "CopilotWebSocketHandler.SendRequestMessage panicked: send panic")
+}
+
+func TestInferenceWebSocketForwarderResponseHookPanicFailsRequest(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := websocket.Accept(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer conn.CloseNow()
+		if err := conn.Write(r.Context(), websocket.MessageText, []byte("upstream message")); err != nil {
+			return
+		}
+		for {
+			if _, _, err := conn.Read(r.Context()); err != nil {
+				return
+			}
+		}
+	}))
+	t.Cleanup(upstream.Close)
+
+	peer := newResponseProtocolPeerWithTransport(t, nil)
+	peer.adapter.handler.OpenWebSocket = func(*CopilotRequestContext) (CopilotWebSocketHandler, error) {
+		forwarder := NewCopilotWebSocketForwarder("ws"+strings.TrimPrefix(upstream.URL, "http"), nil)
+		forwarder.OnSendResponseMessage = func(CopilotWebSocketMessage) *CopilotWebSocketMessage {
+			panic("response hook panic")
+		}
+		return forwarder, nil
+	}
+	beginInferenceRequest(t, peer, "forwarded-socket", nil, "websocket")
+	assertResponseStartStatus(t, peer, http.StatusSwitchingProtocols)
+	assertTerminalErrorMessage(t, peer, "CopilotWebSocketForwarder panicked while forwarding a response message: response hook panic")
+}
+
+func assertResponseStartStatus(t *testing.T, peer *responseProtocolPeer, want int) {
+	t.Helper()
+	head := peer.nextRequest()
+	if head.Method != "llmInference.httpResponseStart" {
+		t.Fatalf("first response method = %q, want httpResponseStart", head.Method)
+	}
+	var params map[string]any
+	if err := json.Unmarshal(head.Params, &params); err != nil {
+		t.Fatal(err)
+	}
+	if params["status"] != float64(want) {
+		t.Fatalf("response status = %v, want %d", params["status"], want)
+	}
+	peer.ack(head)
+}
+
+func assertTerminalErrorMessage(t *testing.T, peer *responseProtocolPeer, want string) {
+	t.Helper()
+	terminal := peer.nextRequest()
+	params := responseChunkParams(t, terminal)
+	errorValue, ok := params["error"].(map[string]any)
+	if params["end"] != true || !ok || errorValue["message"] != want {
+		t.Fatalf("terminal chunk = %s, want error %q", terminal.Params, want)
+	}
+	peer.ack(terminal)
+}
+
+type panickingResponseBody struct{}
+
+func (panickingResponseBody) Read([]byte) (int, error) { panic("body read panic") }
+func (panickingResponseBody) Close() error             { return nil }
+
+type panickingSendWebSocket struct {
+	done chan struct{}
+	once sync.Once
+}
+
+func (s *panickingSendWebSocket) Open(context.Context, WebSocketResponseWriter) error { return nil }
+func (s *panickingSendWebSocket) SendRequestMessage(context.Context, CopilotWebSocketMessage) error {
+	panic("send panic")
+}
+func (s *panickingSendWebSocket) Done() <-chan struct{} { return s.done }
+func (s *panickingSendWebSocket) Err() error            { return nil }
+func (s *panickingSendWebSocket) Close() error {
 	s.once.Do(func() { close(s.done) })
 	return nil
 }

@@ -131,6 +131,21 @@ async fn typed_dispatch_retains_optional_child_identity_and_old_root_inputs() {
                 enriched.then_some("parent-actor"),
                 "{hook}"
             );
+            assert_eq!(
+                actor.tool_call_id(),
+                enriched.then_some("model-call"),
+                "{hook}"
+            );
+            assert_eq!(
+                actor.traceparent(),
+                enriched.then_some("00-0123456789abcdef0123456789abcdef-0123456789abcdef-01"),
+                "{hook}"
+            );
+            assert_eq!(
+                actor.tracestate(),
+                enriched.then_some("vendor=state"),
+                "{hook}"
+            );
         }
     }
 }
@@ -163,6 +178,9 @@ fn hook_identity_input(hook: &str, enriched: bool) -> Value {
     if enriched {
         input["agentId"] = "child-actor".into();
         input["parentAgentId"] = "parent-actor".into();
+        input["toolCallId"] = "model-call".into();
+        input["traceparent"] = "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01".into();
+        input["tracestate"] = "vendor=state".into();
     } else if hook != "subagentStop" {
         input.as_object_mut().unwrap().remove("agentType");
     }
@@ -212,16 +230,27 @@ async fn actor_metadata_does_not_use_tool_arguments_or_null_fields() {
             assert_eq!(actor.agent_id(), None);
             assert_eq!(actor.agent_type(), None);
             assert_eq!(actor.parent_agent_id(), None);
+            assert_eq!(actor.tool_call_id(), None);
+            assert_eq!(actor.traceparent(), None);
+            assert_eq!(actor.tracestate(), None);
             HookOutput::None
         }
     }
     for null_fields in [false, true] {
         let mut input = hook_identity_input("preToolUse", false);
         input["toolArgs"] = serde_json::json!({
-            "agentId": "untrusted", "agentType": "untrusted", "parentAgentId": "untrusted"
+            "agentId": "untrusted", "agentType": "untrusted", "parentAgentId": "untrusted",
+            "toolCallId": "untrusted", "traceparent": "untrusted", "tracestate": "untrusted"
         });
         if null_fields {
-            for key in ["agentId", "agentType", "parentAgentId"] {
+            for key in [
+                "agentId",
+                "agentType",
+                "parentAgentId",
+                "toolCallId",
+                "traceparent",
+                "tracestate",
+            ] {
                 input[key] = Value::Null;
             }
         }

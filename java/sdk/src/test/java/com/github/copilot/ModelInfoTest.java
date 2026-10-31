@@ -10,6 +10,7 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.copilot.rpc.ModelInfo;
 import com.github.copilot.rpc.ModelSupports;
 import com.github.copilot.rpc.SessionMetadata;
@@ -19,6 +20,22 @@ import com.github.copilot.rpc.SessionMetadata;
  * {@link SessionMetadata} getters and setters.
  */
 class ModelInfoTest {
+
+    @Test
+    void modelInfoPreservesOptionalNativeProvider() throws Exception {
+        var mapper = new ObjectMapper();
+        for (var provider : List.of("{\"id\":\"copilot\",\"kind\":\"copilot\",\"label\":\"GitHub Copilot\"}",
+                "{\"id\":\"loki:opaque\",\"kind\":\"loki\",\"label\":\"Microsoft 365 Copilot\"}")) {
+            var model = mapper
+                    .readValue("{\"id\":\"shared-model\",\"name\":\"Shared Model\",\"capabilities\":{},\"provider\":"
+                            + provider + "}", ModelInfo.class);
+            assertEquals(mapper.readTree(provider), mapper.valueToTree(model.getProvider()));
+            assertEquals(mapper.readTree(provider), mapper.valueToTree(model).get("provider"));
+        }
+        var unattributed = mapper.readValue("{\"id\":\"configured/model\"}", ModelInfo.class);
+        assertNull(unattributed.getProvider());
+        assertFalse(mapper.valueToTree(unattributed).has("provider"));
+    }
 
     @Test
     void modelSupportsReasoningEffortGetterSetter() {

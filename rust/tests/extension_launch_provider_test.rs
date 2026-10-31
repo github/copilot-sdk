@@ -103,6 +103,18 @@ impl ExtensionLaunchProvider for AppProvider {
     }
 }
 
+struct PanickingProvider;
+
+#[async_trait]
+impl ExtensionLaunchProvider for PanickingProvider {
+    async fn resolve(
+        &self,
+        _request: ExtensionLaunchProviderResolveRequest,
+    ) -> github_copilot_sdk::Result<ExtensionLaunchProviderResolveResult> {
+        panic!("extension profile lookup failed");
+    }
+}
+
 struct FailingProvider;
 
 #[async_trait]
@@ -286,6 +298,46 @@ async fn provider_error_is_returned_as_json_rpc_error() {
             .unwrap()
             .contains("extension profile lookup failed")
     );
+}
+
+#[tokio::test]
+async fn provider_panic_is_returned_as_json_rpc_error() {
+    let (client_write, mut server_read) = duplex(8192);
+    let (mut server_write, client_read) = duplex(8192);
+    let temp = tempfile::tempdir().unwrap();
+    let client = Client::from_streams_with_extension_launch_provider(
+        client_read,
+        client_write,
+        temp.path().to_path_buf(),
+        Arc::new(PanickingProvider),
+    )
+    .unwrap();
+    client.start_router_for_test();
+
+    // A second request proves one panic does not stop later requests being answered.
+    for id in [44, 45] {
+        write_framed(
+            &mut server_write,
+            &json!({
+                "jsonrpc": "2.0",
+                "id": id,
+                "method": "extensionLaunchProvider.resolve",
+                "params": resolve_params()
+            }),
+        )
+        .await;
+
+        let response = timeout(TEST_TIMEOUT, read_framed(&mut server_read))
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(response["id"], id);
+        assert_eq!(response["error"]["code"], -32603);
+        assert_eq!(
+            response["error"]["message"],
+            "Extension launch provider panicked"
+        );
+    }
 }
 
 async fn respond_to_connect(

@@ -35,6 +35,10 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * @param parentAgentId
  *            optional subagent identity, absent for root hooks and older
  *            runtimes
+ * @param traceparent
+ *            existing W3C trace context, or {@code null} when unavailable
+ * @param tracestate
+ *            existing W3C vendor trace state, or {@code null} when unavailable
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SubagentStopHookInput(@JsonProperty("sessionId") String sessionId,
@@ -43,7 +47,16 @@ public record SubagentStopHookInput(@JsonProperty("sessionId") String sessionId,
         @JsonProperty("agentType") String agentType, @JsonProperty("agentId") String agentId,
         @JsonProperty("agentDisplayName") String agentDisplayName,
         @JsonProperty("agentDescription") String agentDescription, @JsonProperty("stopReason") String stopReason,
-        @JsonProperty("response") String response, @JsonProperty("parentAgentId") String parentAgentId) {
+        @JsonProperty("response") String response, @JsonProperty("parentAgentId") String parentAgentId,
+        @JsonProperty("traceparent") String traceparent, @JsonProperty("tracestate") String tracestate) {
+    /** Creates an input without tracing metadata. */
+    public SubagentStopHookInput(String sessionId, long timestamp, String cwd, String transcriptPath, String agentName,
+            String agentType, String agentId, String agentDisplayName, String agentDescription, String stopReason,
+            String response, String parentAgentId) {
+        this(sessionId, timestamp, cwd, transcriptPath, agentName, agentType, agentId, agentDisplayName,
+                agentDescription, stopReason, response, parentAgentId, null, null);
+    }
+
     public SubagentStopHookInput(String sessionId, long timestamp, String cwd, String transcriptPath, String agentName,
             String agentType, String agentId, String agentDisplayName, String agentDescription, String stopReason,
             String response) {

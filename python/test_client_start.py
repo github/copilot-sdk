@@ -5,7 +5,14 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from copilot import CopilotClient, RuntimeConnection
+import copilot
+from copilot import (
+    CopilotClient,
+    GetStatusResponse,
+    HostDiagnostics,
+    HostErrorReportingStatus,
+    RuntimeConnection,
+)
 
 
 @pytest.fixture
@@ -15,6 +22,42 @@ def client():
     client._connect_to_server = AsyncMock()
     client._verify_protocol_version = AsyncMock()
     return client
+
+
+@pytest.mark.parametrize("error_reporting", [None, "pending", "enabled", "disabled"])
+async def test_get_status_preserves_optional_host_diagnostics(client, error_reporting):
+    payload = {"version": "1.2.3", "protocolVersion": 2}
+    if error_reporting is not None:
+        payload["hostDiagnostics"] = {"errorReporting": error_reporting}
+    client._client = Mock()
+    client._client.request = AsyncMock(return_value=payload)
+
+    status = await client.get_status()
+
+    client._client.request.assert_awaited_once_with("status.get", {})
+    assert status.version == "1.2.3"
+    assert status.protocol_version == 2
+    if error_reporting is None:
+        assert status.host_diagnostics is None
+    else:
+        assert isinstance(status.host_diagnostics, HostDiagnostics)
+        assert status.host_diagnostics.error_reporting is HostErrorReportingStatus(error_reporting)
+        assert status.host_diagnostics.to_dict() == {"errorReporting": error_reporting}
+    assert status.to_dict() == payload
+
+
+def test_host_error_reporting_status_is_public():
+    assert "HostErrorReportingStatus" in copilot.__all__
+    diagnostics = HostDiagnostics(error_reporting=HostErrorReportingStatus.ENABLED)
+
+    assert diagnostics.to_dict() == {"errorReporting": "enabled"}
+
+
+def test_status_retains_existing_positional_construction():
+    status = GetStatusResponse("1.2.3", 2)
+
+    assert status.host_diagnostics is None
+    assert status.to_dict() == {"version": "1.2.3", "protocolVersion": 2}
 
 
 @pytest.mark.parametrize(

@@ -214,6 +214,36 @@ public sealed class CopilotRequestHandlerProtocolTests
         await peer.AcknowledgeAsync(error);
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(101)]
+    public async Task HttpRequest_DefaultClientLeavesAWithheldResponseHeadToRuntimeCancellation(int responseHeadWaitSeconds)
+    {
+        using var upstream = new TcpListener(IPAddress.Loopback, 0);
+        upstream.Start();
+        var port = ((IPEndPoint)upstream.LocalEndpoint).Port;
+        await using var peer = await ProtocolPeer.StartAsync(new CopilotRequestHandler());
+
+        await peer.BeginRequestAsync(url: $"http://127.0.0.1:{port}/chat/completions");
+        using var connection = await upstream.AcceptTcpClientAsync().WaitAsync(s_timeout);
+        var upstreamStream = connection.GetStream();
+        await ReadRequestHeadAsync(upstreamStream);
+        // Cross HttpClient's former 100-second deadline using only the public protocol.
+        await Task.Delay(TimeSpan.FromSeconds(responseHeadWaitSeconds));
+        await peer.AssertNoMethodAsync();
+
+        await peer.CancelRequestAsync();
+        var head = await peer.NextMethodAsync();
+        Assert.Equal("llmInference.httpResponseStart", Method(head));
+        Assert.Equal(499, head.GetProperty("params").GetProperty("status").GetInt32());
+        await peer.AcknowledgeAsync(head);
+        var error = await peer.NextMethodAsync();
+        Assert.True(error.GetProperty("params").GetProperty("end").GetBoolean());
+        Assert.Equal("cancelled", error.GetProperty("params").GetProperty("error").GetProperty("code").GetString());
+        await peer.AcknowledgeAsync(error);
+        Assert.Equal(0, await upstreamStream.ReadAsync(new byte[1]).AsTask().WaitAsync(s_timeout));
+    }
+
     [Fact]
     public async Task HttpResponse_RejectedDataRpcDisposesSourceAndReportsError()
     {
@@ -290,6 +320,18 @@ public sealed class CopilotRequestHandlerProtocolTests
         Assert.False(parameters.GetProperty("end").GetBoolean());
         Assert.True(parameters.GetProperty("binary").GetBoolean());
         return Convert.FromBase64String(parameters.GetProperty("data").GetString()!);
+    }
+
+    private static async Task ReadRequestHeadAsync(Stream stream)
+    {
+        var received = new StringBuilder();
+        var buffer = new byte[1024];
+        while (!received.ToString().Contains("\r\n\r\n", StringComparison.Ordinal))
+        {
+            var read = await stream.ReadAsync(buffer).AsTask().WaitAsync(s_timeout);
+            Assert.NotEqual(0, read);
+            received.Append(Encoding.ASCII.GetString(buffer, 0, read));
+        }
     }
 
     private sealed class StreamRequestHandler(Stream source) : CopilotRequestHandler
@@ -538,7 +580,7 @@ public sealed class CopilotRequestHandlerProtocolTests
             return new ProtocolPeer(client, tcpClient);
         }
 
-        internal async Task BeginRequestAsync(string requestId = "test", string? invocationId = null, bool websocket = false, string? body = null)
+        internal async Task BeginRequestAsync(string requestId = "test", string? invocationId = null, bool websocket = false, string? body = null, string url = "http://unused.test")
         {
             await WriteRequestAsync(
                 "llmInference.httpRequestStart",
@@ -546,7 +588,7 @@ public sealed class CopilotRequestHandlerProtocolTests
                 {
                     writer.WriteString("requestId", requestId);
                     writer.WriteString("method", body is null ? "GET" : "POST");
-                    writer.WriteString("url", "http://unused.test");
+                    writer.WriteString("url", url);
                     writer.WriteStartObject("headers");
                     writer.WriteStartArray("x-multiple");
                     writer.WriteStringValue("one");

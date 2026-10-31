@@ -1166,7 +1166,7 @@ function handleMessage(message) {
   }
   if (message.method === "sessions.connect") {
     const resourceId = behavior === "resource-mismatch"
-      ? "github/other-repository#456"
+      ? "github/docs#456"
       : "github/copilot-sdk#123";
     writeResponse(message.id, {
       sessionId: "runtime-session-id",

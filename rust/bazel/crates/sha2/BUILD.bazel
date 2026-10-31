@@ -10,6 +10,6 @@ package(default_visibility = ["//visibility:public"])
 
 alias(
     name = "sha2",
-    actual = "@sdk_vendor__sha2-0.10.9//:sha2",
+    actual = "@sdk_vendor__sha2-0.11.1//:sha2",
     tags = ["manual"],
 )

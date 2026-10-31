@@ -8,13 +8,13 @@
  */
 
 import { AsyncLocalStorage } from "node:async_hooks";
-import type { CancellationToken, MessageConnection } from "vscode-jsonrpc/node.js";
+import type { CancellationToken, MessageConnection } from "vscode-jsonrpc/node";
 import {
     CancellationTokenSource,
     ConnectionError,
     ErrorCodes,
     ResponseError,
-} from "vscode-jsonrpc/node.js";
+} from "vscode-jsonrpc/node";
 import { createInternalSessionRpc, createSessionRpc } from "./generated/rpc.js";
 import type {
     ClientSessionApiHandlers,
@@ -439,6 +439,26 @@ function isWorkflowFatalError(error: unknown): boolean {
         error instanceof ResponseError ||
         error instanceof ConnectionError
     );
+}
+
+/** Node.js fires a timer whose delay exceeds this after 1 ms instead. */
+const MAX_TIMER_DELAY_MS = 2 ** 31 - 1;
+
+/**
+ * Like `setTimeout`, but a delay beyond {@link MAX_TIMER_DELAY_MS}, including
+ * `Infinity`, waits its full length instead of firing after 1 ms.
+ * Returns a function that cancels the timer.
+ */
+function setLongTimeout(callback: () => void, delayMs: number): () => void {
+    let timer: ReturnType<typeof setTimeout>;
+    const arm = (remainingMs: number) => {
+        timer =
+            remainingMs > MAX_TIMER_DELAY_MS
+                ? setTimeout(() => arm(remainingMs - MAX_TIMER_DELAY_MS), MAX_TIMER_DELAY_MS)
+                : setTimeout(callback, remainingMs);
+    };
+    arm(delayMs);
+    return () => clearTimeout(timer);
 }
 
 /** Assistant message event - the final response from the assistant. */
@@ -1041,11 +1061,11 @@ export class CopilotSession {
         };
         this.pendingResponseWaits.add(fail);
 
-        let timeoutId: ReturnType<typeof setTimeout> | undefined;
+        let cancelTimeout: (() => void) | undefined;
         let waiting = true;
         try {
             const timeoutPromise = new Promise<never>((_, reject) => {
-                timeoutId = setTimeout(
+                cancelTimeout = setLongTimeout(
                     () =>
                         reject(
                             new Error(
@@ -1075,9 +1095,7 @@ export class CopilotSession {
             return outcome.message;
         } finally {
             waiting = false;
-            if (timeoutId !== undefined) {
-                clearTimeout(timeoutId);
-            }
+            cancelTimeout?.();
             unsubscribe();
             buffered.length = 0;
             this.pendingResponseWaits.delete(fail);
@@ -1121,7 +1139,7 @@ export class CopilotSession {
             fail = reject;
         });
         this.pendingResponseWaits.add(fail);
-        const timer = setTimeout(
+        const cancelTimeout = setLongTimeout(
             () => fail(new Error(`Timeout after ${timeout}ms waiting for session.idle`)),
             timeout
         );
@@ -1167,7 +1185,7 @@ export class CopilotSession {
         try {
             return await Promise.race([operation(), stopped]);
         } finally {
-            clearTimeout(timer);
+            cancelTimeout();
             unsubscribe();
             this.pendingResponseWaits.delete(fail);
             resolveDispatched();
@@ -1252,7 +1270,7 @@ export class CopilotSession {
         });
         this.pendingStructuredWaits.add(fail);
         let waiting = true;
-        const timer = setTimeout(
+        const cancelTimeout = setLongTimeout(
             () => fail(new Error(`Timeout after ${timeout}ms waiting for the structured response`)),
             timeout
         );
@@ -1279,7 +1297,7 @@ export class CopilotSession {
             return outcome.message;
         } finally {
             waiting = false;
-            clearTimeout(timer);
+            cancelTimeout();
             buffered.length = 0;
             unsubscribe();
             this.pendingStructuredWaits.delete(fail);
@@ -1511,13 +1529,23 @@ export class CopilotSession {
                 }
             }
         } else if (event.type === "permission.requested") {
-            const { requestId, permissionRequest, promptRequest, resolvedByHook } =
-                event.data as PermissionRequestedData;
+            const {
+                requestId,
+                permissionRequest,
+                promptRequest,
+                assistedApprovalAssessment,
+                resolvedByHook,
+            } = event.data as PermissionRequestedData;
             if (resolvedByHook) {
                 return; // Already resolved by a permissionRequest hook; no client action needed.
             }
             if (this.permissionHandler) {
-                void this._executePermissionAndRespond(requestId, permissionRequest, promptRequest);
+                void this._executePermissionAndRespond(
+                    requestId,
+                    permissionRequest,
+                    promptRequest,
+                    assistedApprovalAssessment
+                );
             }
         } else if (event.type === "mcp.oauth_required") {
             const data = event.data as McpAuthRequest | undefined;
@@ -1542,15 +1570,8 @@ export class CopilotSession {
             void this._executeCommandAndRespond(requestId, commandName, command, args);
         } else if (event.type === "elicitation.requested") {
             if (this.elicitationHandler) {
-                const {
-                    message,
-                    requestedSchema,
-                    mode,
-                    elicitationSource,
-                    elicitationSourceDisplayName,
-                    url,
-                    requestId,
-                } = event.data;
+                const { message, requestedSchema, mode, elicitationSource, url, requestId } =
+                    event.data;
                 void this._handleElicitationRequest(
                     {
                         sessionId: this.sessionId,
@@ -1558,14 +1579,18 @@ export class CopilotSession {
                         requestedSchema: requestedSchema as ElicitationContext["requestedSchema"],
                         mode,
                         elicitationSource,
-                        elicitationSourceDisplayName,
                         url,
                     },
                     requestId
                 );
             }
         } else if (event.type === "capabilities.changed") {
-            this._capabilities = { ...this._capabilities, ...event.data };
+            // The event names only the capabilities that changed, so merge `ui` key by key.
+            const { ui, ...changed } = event.data;
+            this._capabilities = { ...this._capabilities, ...changed };
+            if (ui) {
+                this._capabilities.ui = { ...this._capabilities.ui, ...ui };
+            }
         } else if (event.type === "session.canvas.opened") {
             this.upsertOpenCanvasFromEvent(event.data);
         } else if (event.type === "session.canvas.closed") {
@@ -1722,13 +1747,15 @@ export class CopilotSession {
     private async _executePermissionAndRespond(
         requestId: string,
         permissionRequest: PermissionRequest,
-        promptRequest?: PermissionRequestedData["promptRequest"]
+        promptRequest?: PermissionRequestedData["promptRequest"],
+        assistedApprovalAssessment?: PermissionRequestedData["assistedApprovalAssessment"]
     ): Promise<void> {
         try {
             const invocation: PermissionHandlerInvocation = {
                 sessionId: this.sessionId,
                 managedSettingsEnabled: this.managedSettingsEnabled,
                 ...(promptRequest === undefined ? {} : { promptRequest }),
+                ...(assistedApprovalAssessment === undefined ? {} : { assistedApprovalAssessment }),
             };
             const handlerResult = await this.permissionHandler!(permissionRequest, invocation);
             const isAttributed = isAttributedPermissionResult(handlerResult);

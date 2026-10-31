@@ -82,7 +82,7 @@ rust_library(
         "@sdk_vendor__percent-encoding-2.3.2//:percent_encoding",
         "@sdk_vendor__pin-project-lite-0.2.17//:pin_project_lite",
         "@sdk_vendor__socket2-0.6.5//:socket2",
-        "@sdk_vendor__tokio-1.53.3//:tokio",
+        "@sdk_vendor__tokio-1.54.1//:tokio",
         "@sdk_vendor__tower-service-0.3.3//:tower_service",
         "@sdk_vendor__tracing-0.1.44//:tracing",
     ],

@@ -27,8 +27,6 @@ public record SandboxConfigUserPolicyFilesystem(
     /** Paths granted read-only access. */
     @JsonProperty("readonlyPaths") List<String> readonlyPaths,
     /** Paths explicitly denied. */
-    @JsonProperty("deniedPaths") List<String> deniedPaths,
-    /** Whether to clear the policy when the session exits. */
-    @JsonProperty("clearPolicyOnExit") Boolean clearPolicyOnExit
+    @JsonProperty("deniedPaths") List<String> deniedPaths
 ) {
 }

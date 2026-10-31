@@ -24,6 +24,24 @@ replaces both with the CLI version published for that snapshot.
 npm install @github/copilot-sdk
 ```
 
+## Model provider metadata
+
+`client.listModels()` and `client.rpc.models.list()` preserve the runtime's optional
+`provider` reference on each model: `{ id, kind, label }`. The existing `Model`,
+`ModelInfo`, and `ModelProviderRef` types are available from the package root.
+Native kinds remain `copilot` and `loki`; `id` is opaque and `label` is display text.
+Configured BYOK and older, unattributed rows omit `provider`; do not infer Copilot
+branding from a model ID or fill it from the active account. This metadata identifies
+the model source, not the agent harness, an account, or a new routing/selection API.
+
+## Kerberos authentication callback
+
+Provide `kerberosAuth: { mode, callback }` in `CopilotClientOptions` when Kerberos tickets must be obtained by the SDK host, for example from Windows when the runtime runs in WSL. The runtime currently uses it for proxy authentication. The callback receives `{ spn }`, a service principal in the platform-independent `service/host[@REALM]` form, and returns a fresh base64 SPNEGO token without the `Negotiate ` prefix, or `undefined` when credentials are unavailable. The callback should validate the principal before issuing credentials. Its second argument is an `AbortSignal` that fires when the runtime stops waiting (it cancels the request, for example after its timeout, or the connection closes); the SDK then stops awaiting the callback and ignores any later result.
+
+With `mode: "fallback"`, native credential acquisition (including the first token) is tried first; only failure invokes the callback. With `mode: "always"`, native credential lookup is never attempted. Without this option, behavior is unchanged. Registration happens during `start()`, before sessions can be created.
+
+By default the callback authenticates only requests made for sessions this client creates or resumes. With `scope: "runtime"` it also authenticates the runtime's shared background traffic, such as catalog refreshes and telemetry; only one connection at a time can hold that scope, so startup fails if another client holds it. The registration ends when the connection closes. In `fallback` mode, if the callback cannot supply a valid token, the native credential error is reported. In `always` mode, a disconnected, throwing, or empty callback fails authentication. The runtime waits at most 30 seconds for the callback (less when the request's own deadline is sooner) and treats a timeout as a callback failure. Tokens are not cached and must not be logged or persisted. The callback supplies the initial SPNEGO token only; exchanges requiring continuation tokens still need native negotiation.
+
 ## Runtime-supervised AHP host (experimental)
 
 `startAhpHost()` requires `authentication`: `github`, or direct-only `none` / `custom`
@@ -244,16 +262,15 @@ new CopilotClient(options?: CopilotClientOptions)
 - `logLevel?: "none" | "error" | "warning" | "info" | "debug" | "all"` - Log level. When omitted, the runtime uses its own default (currently `"info"`).
 - `env?: Record<string, string | undefined>` - Environment variables for the runtime process. When omitted, inherits `process.env`.
 
-    For the native standalone runtime, set `COPILOT_GITHUB_TELEMETRY_DISABLED=true`
-    before startup to disable direct GitHub telemetry uploads for the entire host,
-    including session and sessionless events. Authentication, SDK
-    `onGitHubTelemetry` forwarding, and user-configured OpenTelemetry export remain
-    unchanged. The value must be exactly `"true"` and is read at startup; changing
-    it requires a runtime restart. With `RuntimeConnection.forInProcess()`, set it
-    in the host process environment; per-client `env` is rejected for that
-    transport. This is separate from `enableSessionTelemetry: false`, which
-    disables only a session's telemetry pipeline. The Node CLI host does not use
-    this environment variable.
+    Set `COPILOT_TELEMETRY_DISABLED=true` before startup to disable Copilot-owned
+    GitHub and Entra authentication telemetry process-wide, including sessionless
+    events. Authentication, SDK `onGitHubTelemetry` forwarding, and user-configured
+    OpenTelemetry remain unchanged. The value must be exactly `"true"`; restart
+    the process to change it. With `RuntimeConnection.forInProcess()`, set the host
+    process environment; per-client `env` is rejected. `enableSessionTelemetry: false`
+    affects only the session pipeline. The existing native-runtime-only
+    `COPILOT_GITHUB_TELEMETRY_DISABLED=true` remains GitHub-only; the Node CLI host
+    uses the general variable or `--disable-client-telemetry` instead.
 
 - `gitHubToken?: string` - GitHub token for authentication. When provided, takes priority over other auth methods.
 - `useLoggedInUser?: boolean` - Whether to use logged-in user for authentication (default: true, but false when `gitHubToken` is provided). Cannot be used with `RuntimeConnection.forUri`.
@@ -341,7 +358,7 @@ Retirement releases session-owned tool, hook, auth/input, provider, workflow, ca
 and transform registrations without changing caller-owned configuration. Late
 registration and callback dispatch are rejected; callbacks already admitted may finish.
 
-##### `createSession(config?: SessionConfig): Promise<CopilotSession>`
+##### `createSession(config: SessionConfig): Promise<CopilotSession>`
 
 Create a new conversation session.
 
@@ -358,6 +375,7 @@ Create a new conversation session.
 - `trustWorkingDirectory?: "session" | "user"` - Grant trust to the canonical working directory during session creation. `"session"` trusts it only for this session; `"user"` persists trust for later sessions. Omit to leave trust unchanged. Not available on resume.
 - `refreshCustomInstructions?: boolean` - Invalidates the process-wide custom-instruction discovery cache before creating this session, so instruction-file edits made in the same runtime are read again. Defaults to `false` (cache reuse). Other sessions in this runtime may observe updated instructions on later turns or discovery. This does not watch files or enable disabled instruction loading. Available on `SessionConfig`, not `ResumeSessionConfig`.
 - `enableSessionStore?: boolean` - Enables the cross-session store for search and retrieval across sessions. When unset in `"copilot-cli"` mode, the runtime default applies (enabled). In `"empty"` mode, defaults to disabled.
+- `enableSessionTelemetry?: boolean` - Disables internal session telemetry only when set to `false`. Omission or `true` enables it for eligible GitHub-authenticated sessions, including custom-provider (BYOK) sessions. Host and account policies still control uploads; this is separate from OpenTelemetry configuration.
 - `gitHubTokenProvider?: GitHubTokenProvider` - Acquires rotating, session-scoped GitHub tokens. Token results require a positive `expiresIn` value in seconds remaining when the callback completes; production tokens typically last eight hours. Cannot be combined with `gitHubToken`.
 - `provider?: ProviderConfig` - Custom API provider configuration (BYOK - Bring Your Own Key). See [Custom Providers](#custom-providers) section.
 - `onPermissionRequest?: PermissionHandler` - Optional handler called before each tool execution to approve or deny it. When omitted, permission requests are emitted as events and left pending for manual resolution. `approveAll` approves requests when managed settings are disabled and throws when `enableManagedSettings` is true. Custom handlers can inspect `managedApprovalRequired` for human-facing confirmation logic. See [Permission Handling](#permission-handling) section.
@@ -380,7 +398,7 @@ const session = await client.createSession({
 
 Initial acquisition runs during session creation or resume. Cancellation, provider errors, and invalid token responses reject that operation instead of falling back to ambient authentication. Idle sessions refresh only before their next credential-consuming operation; there is no background refresh timer.
 
-##### `resumeSession(sessionId: string, config?: ResumeSessionConfig): Promise<CopilotSession>`
+##### `resumeSession(sessionId: string, config: ResumeSessionConfig): Promise<CopilotSession>`
 
 Both create and resume accept experimental `autopilot: AutopilotOptions`, and
 `session.rpc.options.update({ autopilot: ... })` patches the same policy.
@@ -785,7 +803,7 @@ await session.send({
 });
 ```
 
-Supported image formats include JPG, PNG, GIF, and other common image types. The agent's `view` tool can also read images directly from the filesystem, so you can also ask questions like:
+Supported image formats are PNG, JPEG, WebP, and GIF. Images in other formats, such as BMP or TIFF, are not sent to the model. The agent's `view` tool can also read images directly from the filesystem, so you can also ask questions like:
 
 ```typescript
 await session.send({ prompt: "What does the most recent jpg in this directory portray?" });
@@ -1443,6 +1461,33 @@ These APIs evaluate managed permission rules only: they do not replace browser
 security checks, user permissions, or sandbox policy. `permissions.limitTo` neither
 enables the sandbox nor changes `sandbox.userPolicy.network`; configure sandbox
 network restrictions explicitly.
+
+### Policy Helper failures and scoped recheck
+
+Snapshots may expose `policyHelperFailure` and `policyHelperCapabilities`.
+Recheck requires session opt-in through `enableManagedSettings: true`.
+Treat helper text as untrusted plain text, keep `diagnostic` secondary,
+and sanitize `helpLink` before navigation.
+
+```typescript
+const snapshot = await session.rpc.managedSettings.get();
+
+if (snapshot.policyHelperFailure) {
+    console.warn(snapshot.policyHelperFailure.message);
+}
+
+if (snapshot.policyHelperCapabilities?.recheck === true) {
+    const refreshed = await session.rpc.managedSettings.recheckPolicyHelper();
+    // Only a current capable snapshot without policyHelperFailure establishes recovery.
+    console.log(refreshed.policyHelperFailure ?? "Policy Helper recovered");
+}
+```
+
+Older runtimes omit `policyHelperCapabilities`. Do not infer support or recovery
+only because `policyHelperFailure` is absent. Only applicable `session.create` and
+`session.resume` failures attach it to `error.data.policyHelperFailure`, retaining
+the primary code/message. Activation callers read
+`managedSettings.resolve(...).resolved.policyHelperFailure` instead.
 
 ### Permission Result Kinds
 

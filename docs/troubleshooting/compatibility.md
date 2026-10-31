@@ -16,7 +16,6 @@ The Copilot SDK communicates with the CLI via JSON-RPC protocol. Features must b
 | Create session | `createSession()` | Full config support |
 | Resume session | `resumeSession()` | With infinite session workspaces |
 | Disconnect session | `disconnect()` | Release in-memory resources |
-| Destroy session *(deprecated)* | `destroy()` | Use `disconnect()` instead |
 | Delete session | `deleteSession()` | Remove from storage |
 | List sessions | `listSessions()` | All stored sessions |
 | Get last session | `getLastSessionId()` | For quick resume |
@@ -32,7 +31,7 @@ The Copilot SDK communicates with the CLI via JSON-RPC protocol. Features must b
 | Get history | `getEvents()` | All session events |
 | Abort | `abort()` | Cancel in-flight request |
 | **Tools** | | |
-| Register custom tools | `registerTools()` | Full JSON Schema support |
+| Register custom tools | `tools` in session config | Full JSON Schema support |
 | Replace custom tools (mid-session) | `session.setTools()` | Experimental; see [Changing tools during a session](../features/changing-tools.md) |
 | Tool permission control | `onPreToolUse` hook | Allow/deny/ask |
 | Tool result modification | `onPostToolUse` hook | Transform results |
@@ -71,7 +70,7 @@ The Copilot SDK communicates with the CLI via JSON-RPC protocol. Features must b
 | Session start/end | `onSessionStart`, `onSessionEnd` | Lifecycle with source/reason |
 | Error handling | `onErrorOccurred` | Custom handling |
 | **Events** | | |
-| All session events | `on()`, `once()` | 40+ event types |
+| All session events | `on()` | 40+ event types |
 | Streaming | `streaming: true` | Delta events |
 | **Session Config** | | |
 | Custom agents | `customAgents` config | Define specialized agents |

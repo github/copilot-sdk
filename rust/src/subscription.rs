@@ -231,6 +231,15 @@ impl ResumeBootstrap {
         None
     }
 
+    /// The number of retained events while no subscriber has claimed them.
+    #[cfg(any(test, feature = "test-support"))]
+    pub(crate) fn unclaimed_len(&self) -> Option<usize> {
+        match &*self.state.lock() {
+            ResumeBootstrapState::Unclaimed(events) => Some(events.len()),
+            ResumeBootstrapState::Claimed(_) | ResumeBootstrapState::Disabled => None,
+        }
+    }
+
     pub(crate) fn release_unclaimed(&self) {
         let mut state = self.state.lock();
         if matches!(*state, ResumeBootstrapState::Unclaimed(_)) {

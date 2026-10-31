@@ -4,15 +4,35 @@ use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use sha2::Digest;
+#[path = "archive_hash.rs"]
+mod archive_hash;
 
 #[path = "download.rs"]
 mod download;
+
+#[path = "openssl_linkage.rs"]
+mod openssl_linkage;
+
+#[cfg(any(target_os = "linux", test))]
+use openssl_linkage::require_dynamic_openssl;
+#[cfg(test)]
+use openssl_linkage::require_openssl_3;
 
 #[path = "../src/cache_paths.rs"]
 mod cache_paths;
 
 pub(crate) fn main() {
+    #[cfg(target_os = "linux")]
+    {
+        openssl_linkage::require_shared_host_provider();
+        require_dynamic_openssl(
+            "Linux SDK build host",
+            &std::env::var("HOST").expect("Cargo provides HOST"),
+            true,
+        );
+    }
+    openssl_linkage::require_target_provider(cfg!(target_os = "linux"));
+
     println!("cargo:rerun-if-env-changed=DOCS_RS");
     println!("cargo:rerun-if-env-changed=COPILOT_SKIP_CLI_DOWNLOAD");
     println!("cargo:rerun-if-env-changed=COPILOT_CLI_EXTRACT_DIR");
@@ -1012,22 +1032,7 @@ struct DownloadError {
 }
 
 fn try_download(url: &str) -> Result<Vec<u8>, DownloadError> {
-    native_tls::TlsConnector::new().map_err(|e| DownloadError {
-        message: format!("native-tls init error: {e}"),
-        transient: false,
-    })?;
-    let agent = ureq::Agent::config_builder()
-        .tls_config(
-            ureq::tls::TlsConfig::builder()
-                .provider(ureq::tls::TlsProvider::NativeTls)
-                .root_certs(ureq::tls::RootCerts::PlatformVerifier)
-                .build(),
-        )
-        .timeout_connect(Some(Duration::from_secs(30)))
-        .timeout_recv_response(Some(Duration::from_secs(120)))
-        .timeout_recv_body(Some(download::BODY_TIMEOUT))
-        .build()
-        .new_agent();
+    let agent = download::agent();
 
     match agent.get(url).call() {
         Ok(mut response) => {
@@ -1113,9 +1118,11 @@ fn archive_zip_entry_size(zip_bytes: &[u8], binary_name: &str) -> Option<u64> {
 }
 
 fn verify_hash(data: &[u8], expected: &str) -> bool {
-    let mut hasher = sha2::Sha256::new();
-    hasher.update(data);
-    format!("{:x}", hasher.finalize()) == expected
+    let actual: String = archive_hash::sha256(data)
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect();
+    actual == expected
 }
 
 #[cfg(test)]

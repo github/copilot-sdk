@@ -137,7 +137,7 @@ public class ScenarioTestingCloudE2ETests(E2ETestFixture fixture, ITestOutputHel
         {
             Connection = RuntimeConnection.ForStdio(
                 path: cliPath,
-                args: ["--capture-file", capturePath, "--resource-id", "github/other-repository#456"]),
+                args: ["--capture-file", capturePath, "--resource-id", "github/docs#456"]),
             UseLoggedInUser = false,
         });
         await client.StartAsync();

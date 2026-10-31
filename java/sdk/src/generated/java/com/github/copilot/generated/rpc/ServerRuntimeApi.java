@@ -37,4 +37,15 @@ public final class ServerRuntimeApi {
         return caller.invoke("runtime.shutdown", java.util.Map.of(), Void.class);
     }
 
+    /**
+     * Opens an authorization URL using the same browser policy as the runtime's OAuth flows, including BROWSER and COPILOT_DEBUG_BROWSER. Refuses extension callers.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    CompletableFuture<Void> openBrowser(RuntimeOpenBrowserParams params) {
+        return caller.invoke("runtime.openBrowser", params, Void.class);
+    }
+
 }

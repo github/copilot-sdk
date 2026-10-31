@@ -12,7 +12,7 @@ By default, the Node.js, Python, and .NET SDKs include their own CLI dependency 
 flowchart LR
     subgraph YourMachine["Your Machine"]
         App["Your App"] --> SDK["SDK Client"]
-        SDK -- "cliPath" --> CLI["Copilot CLI<br/>(your own binary)"]
+        SDK -- "RuntimeConnection.forStdio(path)" --> CLI["Copilot CLI<br/>(your own binary)"]
         CLI --> Keychain["🔐 System Keychain<br/>(stored credentials)"]
     end
     CLI -- "API calls" --> Copilot["☁️ GitHub Copilot"]
@@ -34,10 +34,10 @@ flowchart LR
 <summary><strong>Node.js / TypeScript</strong></summary>
 
 ```typescript
-import { CopilotClient } from "@github/copilot-sdk";
+import { CopilotClient, RuntimeConnection } from "@github/copilot-sdk";
 
 const client = new CopilotClient({
-    cliPath: "/usr/local/bin/copilot",
+    connection: RuntimeConnection.forStdio({ path: "/usr/local/bin/copilot" }),
 });
 
 const session = await client.createSession({ model: "gpt-5.4" });
@@ -53,13 +53,13 @@ await client.stop();
 <summary><strong>Python</strong></summary>
 
 ```python
-from copilot import CopilotClient
+from copilot import CopilotClient, RuntimeConnection
 from copilot.session_events import AssistantMessageData
 from copilot.session import PermissionHandler
 
-client = CopilotClient({
-    "cli_path": "/usr/local/bin/copilot",
-})
+client = CopilotClient(
+    connection=RuntimeConnection.for_stdio(path="/usr/local/bin/copilot"),
+)
 await client.start()
 
 session = await client.create_session(on_permission_request=PermissionHandler.approve_all, model="gpt-5.4")
@@ -156,16 +156,18 @@ Console.WriteLine(response?.Data.Content);
 
 ```typescript
 const client = new CopilotClient({
-    cliPath: "/usr/local/bin/copilot",
+    connection: RuntimeConnection.forStdio({
+        path: "/usr/local/bin/copilot",
+
+        // Pass extra CLI arguments
+        args: ["--log-dir=/tmp/copilot-logs"],
+    }),
 
     // Set log level for debugging
     logLevel: "debug",
 
-    // Pass extra CLI arguments
-    cliArgs: ["--log-dir=/tmp/copilot-logs"],
-
     // Set working directory
-    cwd: "/path/to/project",
+    workingDirectory: "/path/to/project",
 });
 ```
 
@@ -194,7 +196,7 @@ const session = await client.createSession({
 });
 
 // Later, resume it
-const resumed = await client.resumeSession("my-project-analysis");
+const resumed = await client.resumeSession("my-project-analysis", {});
 ```
 
 Session state is stored locally at `~/.copilot/session-state/{sessionId}/`.

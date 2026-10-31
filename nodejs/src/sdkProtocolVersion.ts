@@ -6,7 +6,7 @@
 
 /**
  * The SDK protocol version.
- * This must match the version expected by the copilot-agent-runtime server.
+ * This must match the version expected by the Copilot runtime server.
  */
 export const SDK_PROTOCOL_VERSION = 3;
 

@@ -34,6 +34,11 @@ rust_library(
             "WORKSPACE.bazel",
         ],
     ),
+    crate_features = [
+        "http1",
+        "http2",
+        "tls12",
+    ],
     crate_root = "src/lib.rs",
     edition = "2021",
     rustc_env_files = [
@@ -64,7 +69,7 @@ rust_library(
         "@sdk_vendor__hyper-1.12.0//:hyper",
         "@sdk_vendor__hyper-util-0.1.21//:hyper_util",
         "@sdk_vendor__rustls-0.23.46//:rustls",
-        "@sdk_vendor__tokio-1.53.3//:tokio",
+        "@sdk_vendor__tokio-1.54.1//:tokio",
         "@sdk_vendor__tokio-rustls-0.26.6//:tokio_rustls",
         "@sdk_vendor__tower-service-0.3.3//:tower_service",
     ],

@@ -11,6 +11,7 @@ from . import rpc as rpc  # noqa: F401  -- register the public ``copilot.rpc`` n
 
 # Register the public ``copilot.session_events`` namespace.
 from . import session_events as session_events  # noqa: F401
+from ._jsonrpc import JsonRpcError
 from ._mode import (
     BUILTIN_TOOLS_ISOLATED,
     CopilotClientMode,
@@ -49,6 +50,7 @@ from .client import (
     GitHubTokenProviderResult,
     GitHubTokenResult,
     InProcessRuntimeConnection,
+    KerberosAuthConfig,
     LogLevel,
     ManagedSettings,
     ManagedSettingsPermissions,
@@ -89,10 +91,20 @@ from .copilot_request_handler import (
     CopilotWebSocketHandler,
     LlmInferenceHeaders,
 )
+from .entra import (
+    EntraAuthOptions,
+    EntraTokenProvider,
+    EntraTokenProviderArgs,
+    EntraTokenProviderContext,
+    EntraTokenProviderResult,
+)
 from .generated.rpc import (
     CurrentModel,
     CurrentToolMetadata,
     EntraAuthConfig,
+    EntraTokenAcquireReason,
+    EntraTokenAcquireRequestKind,
+    EntraTokenAcquireResultKind,
     ExtensionLaunchProfile,
     ExtensionLaunchProviderHandler,
     ExtensionLaunchProviderResolveRequest,
@@ -103,6 +115,11 @@ from .generated.rpc import (
     GitHubTokenAcquireReason,
     GitHubTokenAcquireResult,
     GitHubTokenAcquireResultKind,
+    HostDiagnostics,
+    HostErrorReportingStatus,
+    KerberosAuthAcquireRequest,
+    KerberosAuthMode,
+    KerberosAuthScope,
     ModelBillingTokenPrices,
     ModelBillingTokenPricesLongContext,
     ModelSwitchAutoTierResult,
@@ -240,8 +257,10 @@ from .session import (
 )
 from .session_fs_provider import (
     SessionFsBinaryProvider,
+    SessionFsByteRange,
     SessionFsFileInfo,
     SessionFsProvider,
+    SessionFsReadFileRangeProvider,
     SessionFsSqliteProvider,
     SessionFsSqliteQueryResult,
     SessionFsSqliteTransactionFailure,
@@ -268,6 +287,15 @@ except PackageNotFoundError:
     __version__ = "0.0.0.dev0"
 
 __all__ = [
+    "JsonRpcError",
+    "EntraAuthOptions",
+    "EntraTokenAcquireReason",
+    "EntraTokenAcquireRequestKind",
+    "EntraTokenAcquireResultKind",
+    "EntraTokenProvider",
+    "EntraTokenProviderArgs",
+    "EntraTokenProviderContext",
+    "EntraTokenProviderResult",
     "AhpAuthenticationRequest",
     "AhpAuthenticationResult",
     "AhpHostAuthentication",
@@ -342,6 +370,8 @@ __all__ = [
     "GetAuthStatusResponse",
     "BearerTokenProvider",
     "GetStatusResponse",
+    "HostDiagnostics",
+    "HostErrorReportingStatus",
     "GitHubMcpToolConfig",
     "GitHubTelemetryClientInfo",
     "GitHubTelemetryEvent",
@@ -360,6 +390,10 @@ __all__ = [
     "InstallationConfirmationHandler",
     "InProcessRuntimeConnection",
     "InputOptions",
+    "KerberosAuthAcquireRequest",
+    "KerberosAuthConfig",
+    "KerberosAuthMode",
+    "KerberosAuthScope",
     "LargeToolOutputConfig",
     "LlmInferenceHeaders",
     "LogLevel",
@@ -439,6 +473,8 @@ __all__ = [
     "SessionFsFileInfo",
     "SessionFsProvider",
     "SessionFsBinaryProvider",
+    "SessionFsByteRange",
+    "SessionFsReadFileRangeProvider",
     "SessionFsSqliteProvider",
     "SessionFsSqliteQueryResult",
     "SessionFsSqliteTransactionFailure",

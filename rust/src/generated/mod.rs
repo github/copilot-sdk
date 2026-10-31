@@ -14,12 +14,16 @@
 #![allow(missing_docs)]
 #![allow(rustdoc::bare_urls)]
 
+#[path = "api_facade.rs"]
 pub mod api_types;
+pub mod lifecycle_diagnostics;
 pub mod rpc;
+#[path = "event_facade.rs"]
 pub mod session_events;
 
 // Re-export session event types at the module root — no conflicts with
 // hand-written types. API types are kept namespaced under `api_types::`
 // because some names (Tool, ModelCapabilities, etc.) overlap with the
 // hand-written SDK API types in `types.rs`.
+#[allow(unused_imports)]
 pub use session_events::*;

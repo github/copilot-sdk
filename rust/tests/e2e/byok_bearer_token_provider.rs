@@ -15,13 +15,14 @@ use github_copilot_sdk::{
 };
 use http::HeaderMap;
 
-use super::support::with_e2e_context_no_snapshot;
+use super::support::{capi_meta_body, with_e2e_context_no_snapshot};
 
 const PRIMARY_BASE_URL: &str = "https://byok-endpoint.invalid/v1";
 const RED_HOST: &str = "byok-red.invalid";
 const RED_BASE_URL: &str = "https://byok-red.invalid/v1";
 const BLUE_HOST: &str = "byok-blue.invalid";
 const BLUE_BASE_URL: &str = "https://byok-blue.invalid/v1";
+const MODEL_CATALOG_JSON: &str = r#"{"data":[{"id":"gpt-4o","name":"GPT-4o","object":"model","vendor":"OpenAI","version":"1","preview":false,"model_picker_enabled":true,"capabilities":{"type":"chat","family":"gpt-4o","tokenizer":"o200k_base","limits":{"max_context_window_tokens":128000,"max_output_tokens":4096},"supports":{"streaming":true,"tool_calls":true,"parallel_tool_calls":true}}}]}"#;
 
 #[derive(Debug, Clone)]
 struct CapturedRequest {
@@ -103,12 +104,12 @@ fn json_response(status: u16, body: Vec<u8>) -> CopilotHttpResponse {
 
 fn synth_non_inference_response(url: &str) -> CopilotHttpResponse {
     let lower = url.to_lowercase();
+    if lower.ends_with("/meta") {
+        let body = capi_meta_body(serde_json::from_str(MODEL_CATALOG_JSON).unwrap());
+        return json_response(200, serde_json::to_vec(&body).unwrap());
+    }
     if lower.ends_with("/models") {
-        return json_response(
-            200,
-            br#"{"data":[{"id":"gpt-4o","name":"GPT-4o","object":"model","vendor":"OpenAI","version":"1","preview":false,"model_picker_enabled":true,"capabilities":{"type":"chat","family":"gpt-4o","tokenizer":"o200k_base","limits":{"max_context_window_tokens":128000,"max_output_tokens":4096},"supports":{"streaming":true,"tool_calls":true,"parallel_tool_calls":true}}}]}"#
-                .to_vec(),
-        );
+        return json_response(200, MODEL_CATALOG_JSON.as_bytes().to_vec());
     }
     if lower.contains("/models/session") {
         return json_response(200, b"{}".to_vec());

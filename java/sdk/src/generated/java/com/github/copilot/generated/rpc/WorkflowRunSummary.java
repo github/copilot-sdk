@@ -38,12 +38,15 @@ public record WorkflowRunSummary(
     /** Epoch milliseconds when the run was created. */
     @JsonProperty("createdAt") Long createdAt,
     /** Epoch milliseconds when execution first started, or null before start. */
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("startedAt") Long startedAt,
     /** Epoch milliseconds when the durable run was last updated. */
     @JsonProperty("updatedAt") Long updatedAt,
     /** Epoch milliseconds when the run completed, or null while nonterminal. */
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("completedAt") Long completedAt,
     /** Current phase identity, or null before any phase is entered. */
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("currentPhase") WorkflowCurrentPhase currentPhase,
     /** Number of phases declared by the workflow. */
     @JsonProperty("declaredPhaseCount") Long declaredPhaseCount,
@@ -56,12 +59,15 @@ public record WorkflowRunSummary(
     /** Resource ceilings declared by the workflow. */
     @JsonProperty("declaredLimits") WorkflowDeclaredLimits declaredLimits,
     /** Approved effective resource ceilings, or null until approved. */
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("approved") WorkflowDeclaredLimits approved,
     /** Epoch milliseconds when this live-overlay snapshot was observed. */
     @JsonProperty("observedAt") Long observedAt,
     /** Epoch milliseconds when the current active segment started, or null while inactive. */
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("activeSegmentStartedAt") Long activeSegmentStartedAt,
     /** Terminal run outcome, or null while nonterminal. */
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("terminal") WorkflowRunTerminal terminal,
     /** Whether the durable run state currently passes runtime resume eligibility checks. */
     @JsonProperty("canResume") Boolean canResume

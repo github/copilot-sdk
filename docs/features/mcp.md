@@ -79,7 +79,7 @@ const session = await client.createSession({
             command: "node",
             args: ["./mcp-server.js"],
             env: { DEBUG: "true" },
-            cwd: "./servers",
+            workingDirectory: "./servers",
             tools: ["*"],  // "*" = all tools, [] = none, or list specific tools
             timeout: 30000,
         },
@@ -100,6 +100,7 @@ const session = await client.createSession({
 import asyncio
 from copilot import CopilotClient
 from copilot.session import PermissionHandler
+from copilot.session_events import AssistantMessageData
 
 async def main():
     client = CopilotClient()
@@ -112,7 +113,7 @@ async def main():
             "command": "python",
             "args": ["./mcp_server.py"],
             "env": {"DEBUG": "true"},
-            "cwd": "./servers",
+            "working_directory": "./servers",
             "tools": ["*"],
             "timeout": 30000,
         },
@@ -126,7 +127,8 @@ async def main():
     })
 
     response = await session.send_and_wait("List my recent GitHub notifications")
-    print(response.data.content)
+    if response and isinstance(response.data, AssistantMessageData):
+        print(response.data.content)
 
     await client.stop()
 

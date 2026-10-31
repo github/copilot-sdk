@@ -60,7 +60,7 @@ class CopilotClientTransportTest {
     void legacyPingFallbackRequiresNoEntraConfiguration(boolean entra) throws Exception {
         var options = new CopilotClientOptions().setConnection(RuntimeConnection.forInProcess());
         if (entra) {
-            options.setEntra(new EntraAuthConfig("host-entra-client"));
+            options.setEntra(new EntraAuthConfig("host-entra-client", null));
         }
         try (var runtime = new FakeInProcessRuntime(); var client = new CopilotClient(options)) {
             runtime.rejectConnect = true;

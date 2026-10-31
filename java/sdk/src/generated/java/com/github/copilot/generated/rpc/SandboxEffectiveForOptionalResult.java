@@ -22,6 +22,7 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 record SandboxEffectiveForOptionalResult(
     /** The effective sandbox config for the requested feature, or a disabled sandbox when the feature is routed out of it. */
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("sandboxJson") Object sandboxJson
 ) {
 }

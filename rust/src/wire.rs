@@ -98,6 +98,9 @@ pub(crate) struct SessionCreateWire {
     pub mcp_servers: Option<IndexMap<String, McpServerConfig>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub diagnostics: Option<crate::generated::api_types::DiagnosticsConfiguration>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub lifecycle_diagnostics:
+        Option<crate::generated::api_types::LifecycleDiagnosticsConfiguration>,
     #[serde(
         rename = "mcpOAuthTokenStorage",
         skip_serializing_if = "Option::is_none"
@@ -288,6 +291,9 @@ pub(crate) struct SessionResumeWire {
     pub mcp_servers: Option<IndexMap<String, McpServerConfig>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub diagnostics: Option<crate::generated::api_types::DiagnosticsConfiguration>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub lifecycle_diagnostics:
+        Option<crate::generated::api_types::LifecycleDiagnosticsConfiguration>,
     #[serde(
         rename = "mcpOAuthTokenStorage",
         skip_serializing_if = "Option::is_none"

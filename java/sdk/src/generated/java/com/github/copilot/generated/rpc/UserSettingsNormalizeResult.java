@@ -22,6 +22,7 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 record UserSettingsNormalizeResult(
     /** The same settings with every legacy or snake_case key renamed to its canonical spelling. */
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("settings") Object settings
 ) {
 }

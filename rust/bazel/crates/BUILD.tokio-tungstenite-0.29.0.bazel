@@ -67,7 +67,7 @@ rust_library(
     deps = [
         "@sdk_vendor__futures-util-0.3.34//:futures_util",
         "@sdk_vendor__log-0.4.34//:log",
-        "@sdk_vendor__tokio-1.53.3//:tokio",
+        "@sdk_vendor__tokio-1.54.1//:tokio",
         "@sdk_vendor__tungstenite-0.29.0//:tungstenite",
     ],
 )

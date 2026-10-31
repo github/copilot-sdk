@@ -95,6 +95,9 @@ export {
     type WorkflowProgressLine,
     type WorkflowPhaseObservation,
     type WorkflowPhaseStatus,
+    type WorkflowAgentContextObservation,
+    type WorkflowAgentModelObservation,
+    type WorkflowAgentReasoningEffortObservation,
     type WorkflowAgentSummary,
 } from "./workflow.js";
 

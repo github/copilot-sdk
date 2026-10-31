@@ -1541,7 +1541,7 @@ public final class CopilotSession implements AutoCloseable {
             executePermissionAndRespondAsync(data.requestId(),
                     MAPPER.convertValue(data.permissionRequest(), PermissionRequest.class),
                     data.promptRequest() == null ? null : PermissionRequest.fromJsonValue(data.promptRequest()),
-                    handler);
+                    data.assistedApprovalAssessment(), handler);
         } else if (event instanceof McpOauthRequiredEvent authEvent) {
             var data = authEvent.getData();
             if (data == null || data.requestId() == null) {
@@ -1578,20 +1578,27 @@ public final class CopilotSession implements AutoCloseable {
                 }
                 var context = new ElicitationContext().setSessionId(sessionId).setMessage(data.message())
                         .setRequestedSchema(schema).setMode(data.mode() != null ? data.mode().getValue() : null)
-                        .setElicitationSource(data.elicitationSource())
-                        .setElicitationSourceDisplayName(data.elicitationSourceDisplayName()).setUrl(data.url());
+                        .setElicitationSource(data.elicitationSource()).setUrl(data.url());
                 handleElicitationRequestAsync(context, data.requestId());
             }
         } else if (event instanceof CapabilitiesChangedEvent capEvent) {
             var data = capEvent.getData();
-            if (data != null) {
-                var newCapabilities = new SessionCapabilities();
-                if (data.ui() != null) {
-                    newCapabilities.setUi(new SessionUiCapabilities().setElicitation(data.ui().elicitation()));
-                } else {
-                    newCapabilities.setUi(capabilities.getUi());
+            if (data != null && data.ui() != null) {
+                // The event names only the capabilities that changed; keep the rest.
+                var changed = data.ui();
+                var current = capabilities.getUi();
+                var ui = new SessionUiCapabilities();
+                if (current != null) {
+                    current.getElicitation().ifPresent(ui::setElicitation);
+                    current.getMcpApps().ifPresent(ui::setMcpApps);
                 }
-                capabilities = newCapabilities;
+                if (changed.elicitation() != null) {
+                    ui.setElicitation(changed.elicitation());
+                }
+                if (changed.mcpApps() != null) {
+                    ui.setMcpApps(changed.mcpApps());
+                }
+                capabilities = new SessionCapabilities().setUi(ui);
             }
         }
     }
@@ -1744,12 +1751,15 @@ public final class CopilotSession implements AutoCloseable {
      * {@code session.permissions.handlePendingPermissionRequest}.
      */
     private void executePermissionAndRespondAsync(String requestId, PermissionRequest permissionRequest,
-            PermissionRequest promptRequest, PermissionHandler handler) {
+            PermissionRequest promptRequest,
+            com.github.copilot.generated.AssistedApprovalAssessment assistedApprovalAssessment,
+            PermissionHandler handler) {
         Runnable task = () -> {
             try {
                 var invocation = new PermissionInvocation();
                 invocation.setSessionId(sessionId);
                 invocation.setManagedSettingsEnabled(managedSettingsEnabled);
+                invocation.setAssistedApprovalAssessment(assistedApprovalAssessment);
                 invocation.setPromptRequest(promptRequest);
                 handler.handle(permissionRequest, invocation).thenAccept(result -> {
                     try {
@@ -3189,7 +3199,8 @@ public final class CopilotSession implements AutoCloseable {
      * releases tool and permission handlers. After calling this method, the session
      * cannot be used again. Subsequent calls to this method have no effect. Pending
      * response waits fail when the session retires; ordinary callbacks remain
-     * active until the detach acknowledgement.
+     * active until the detach request completes, even if this method's wait times
+     * out or is interrupted. Forced client shutdown retires callbacks immediately.
      */
     @Override
     public void close() {
@@ -3198,10 +3209,15 @@ public final class CopilotSession implements AutoCloseable {
         }
 
         RuntimeException detachFailure = null;
+        CompletableFuture<SessionDetachResponse> detach = null;
         try {
-            SessionDetachResponse response = rpc
-                    .invoke("session.detach", Map.of("sessionId", sessionId), SessionDetachResponse.class)
-                    .get(5, TimeUnit.SECONDS);
+            detach = rpc.invoke("session.detach", Map.of("sessionId", sessionId), SessionDetachResponse.class);
+            // A caller's wait can end before the detach RPC does.
+            SessionDetachResponse response = detach.whenComplete((ignored, error) -> {
+                if (!callbacksRetired) {
+                    retireCallbacks();
+                }
+            }).get(5, TimeUnit.SECONDS);
             if (response == null || !response.success()) {
                 String detail = response != null && response.error() != null ? response.error() : "unknown error";
                 detachFailure = new IllegalStateException("Failed to detach session " + sessionId + ": " + detail);
@@ -3212,7 +3228,9 @@ public final class CopilotSession implements AutoCloseable {
             }
             detachFailure = new IllegalStateException("Failed to detach session " + sessionId, e);
         } finally {
-            retireCallbacks();
+            if (detach == null || detach.isDone()) {
+                retireCallbacks();
+            }
         }
 
         if (detachFailure != null) {

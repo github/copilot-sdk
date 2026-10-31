@@ -32,38 +32,38 @@ filegroup(
 
 # Workspace Member Dependencies
 alias(
-    name = "ahp-0.9.0",
-    actual = "@sdk_vendor__ahp-0.9.0//:ahp",
+    name = "ahp-1.0.0",
+    actual = "@sdk_vendor__ahp-1.0.0//:ahp",
     tags = ["manual"],
 )
 
 alias(
     name = "ahp",
-    actual = "@sdk_vendor__ahp-0.9.0//:ahp",
+    actual = "@sdk_vendor__ahp-1.0.0//:ahp",
     tags = ["manual"],
 )
 
 alias(
-    name = "ahp-types-0.9.0",
-    actual = "@sdk_vendor__ahp-types-0.9.0//:ahp_types",
+    name = "ahp-types-1.0.0",
+    actual = "@sdk_vendor__ahp-types-1.0.0//:ahp_types",
     tags = ["manual"],
 )
 
 alias(
     name = "ahp-types",
-    actual = "@sdk_vendor__ahp-types-0.9.0//:ahp_types",
+    actual = "@sdk_vendor__ahp-types-1.0.0//:ahp_types",
     tags = ["manual"],
 )
 
 alias(
-    name = "ahp-ws-0.9.0",
-    actual = "@sdk_vendor__ahp-ws-0.9.0//:ahp_ws",
+    name = "ahp-ws-1.0.0",
+    actual = "@sdk_vendor__ahp-ws-1.0.0//:ahp_ws",
     tags = ["manual"],
 )
 
 alias(
     name = "ahp-ws",
-    actual = "@sdk_vendor__ahp-ws-0.9.0//:ahp_ws",
+    actual = "@sdk_vendor__ahp-ws-1.0.0//:ahp_ws",
     tags = ["manual"],
 )
 
@@ -104,18 +104,6 @@ alias(
 )
 
 alias(
-    name = "dirs-7.0.0",
-    actual = "@sdk_vendor__dirs-7.0.0//:dirs",
-    tags = ["manual"],
-)
-
-alias(
-    name = "dirs",
-    actual = "@sdk_vendor__dirs-7.0.0//:dirs",
-    tags = ["manual"],
-)
-
-alias(
     name = "flate2-1.1.10",
     actual = "@sdk_vendor__flate2-1.1.10//:flate2",
     tags = ["manual"],
@@ -152,14 +140,14 @@ alias(
 )
 
 alias(
-    name = "hpke-0.13.0",
-    actual = "@sdk_vendor__hpke-0.13.0//:hpke",
+    name = "hpke-0.15.1",
+    actual = "@sdk_vendor__hpke-0.15.1//:hpke",
     tags = ["manual"],
 )
 
 alias(
     name = "hpke",
-    actual = "@sdk_vendor__hpke-0.13.0//:hpke",
+    actual = "@sdk_vendor__hpke-0.15.1//:hpke",
     tags = ["manual"],
 )
 
@@ -194,13 +182,7 @@ alias(
 )
 
 alias(
-    name = "sdk_libloading-0.9.0",
-    actual = "@sdk_vendor__libloading-0.9.0//:libloading",
-    tags = ["manual"],
-)
-
-alias(
-    name = "sdk_libloading",
+    name = "libloading",
     actual = "@sdk_vendor__libloading-0.9.0//:libloading",
     tags = ["manual"],
 )
@@ -218,6 +200,30 @@ alias(
 )
 
 alias(
+    name = "openssl-0.10.81",
+    actual = "@sdk_vendor__openssl-0.10.81//:openssl",
+    tags = ["manual"],
+)
+
+alias(
+    name = "openssl",
+    actual = "@sdk_vendor__openssl-0.10.81//:openssl",
+    tags = ["manual"],
+)
+
+alias(
+    name = "openssl-sys-0.9.117",
+    actual = "@sdk_vendor__openssl-sys-0.9.117//:openssl_sys",
+    tags = ["manual"],
+)
+
+alias(
+    name = "openssl-sys",
+    actual = "@sdk_vendor__openssl-sys-0.9.117//:openssl_sys",
+    tags = ["manual"],
+)
+
+alias(
     name = "parking_lot-0.12.5",
     actual = "@sdk_vendor__parking_lot-0.12.5//:parking_lot",
     tags = ["manual"],
@@ -230,14 +236,14 @@ alias(
 )
 
 alias(
-    name = "rand_chacha-0.9.0",
-    actual = "@sdk_vendor__rand_chacha-0.9.0//:rand_chacha",
+    name = "rand_chacha-0.10.0",
+    actual = "@sdk_vendor__rand_chacha-0.10.0//:rand_chacha",
     tags = ["manual"],
 )
 
 alias(
     name = "rand_chacha",
-    actual = "@sdk_vendor__rand_chacha-0.9.0//:rand_chacha",
+    actual = "@sdk_vendor__rand_chacha-0.10.0//:rand_chacha",
     tags = ["manual"],
 )
 
@@ -278,14 +284,38 @@ alias(
 )
 
 alias(
-    name = "rusqlite-0.40.2",
-    actual = "@sdk_vendor__rusqlite-0.40.2//:rusqlite",
+    name = "rusqlite-0.41.1",
+    actual = "@sdk_vendor__rusqlite-0.41.1//:rusqlite",
     tags = ["manual"],
 )
 
 alias(
     name = "rusqlite",
-    actual = "@sdk_vendor__rusqlite-0.40.2//:rusqlite",
+    actual = "@sdk_vendor__rusqlite-0.41.1//:rusqlite",
+    tags = ["manual"],
+)
+
+alias(
+    name = "rustls-0.23.46",
+    actual = "@sdk_vendor__rustls-0.23.46//:rustls",
+    tags = ["manual"],
+)
+
+alias(
+    name = "rustls",
+    actual = "@sdk_vendor__rustls-0.23.46//:rustls",
+    tags = ["manual"],
+)
+
+alias(
+    name = "rustls-platform-verifier-0.7.1",
+    actual = "@sdk_vendor__rustls-platform-verifier-0.7.1//:rustls_platform_verifier",
+    tags = ["manual"],
+)
+
+alias(
+    name = "rustls-platform-verifier",
+    actual = "@sdk_vendor__rustls-platform-verifier-0.7.1//:rustls_platform_verifier",
     tags = ["manual"],
 )
 
@@ -338,14 +368,14 @@ alias(
 )
 
 alias(
-    name = "sha2-0.10.9",
-    actual = "@sdk_vendor__sha2-0.10.9//:sha2",
+    name = "sha2-0.11.1",
+    actual = "@sdk_vendor__sha2-0.11.1//:sha2",
     tags = ["manual"],
 )
 
 alias(
     name = "sha2",
-    actual = "@sdk_vendor__sha2-0.10.9//:sha2",
+    actual = "@sdk_vendor__sha2-0.11.1//:sha2",
     tags = ["manual"],
 )
 
@@ -374,14 +404,26 @@ alias(
 )
 
 alias(
-    name = "tokio-1.53.3",
-    actual = "@sdk_vendor__tokio-1.53.3//:tokio",
+    name = "tokio-1.54.1",
+    actual = "@sdk_vendor__tokio-1.54.1//:tokio",
     tags = ["manual"],
 )
 
 alias(
     name = "tokio",
-    actual = "@sdk_vendor__tokio-1.53.3//:tokio",
+    actual = "@sdk_vendor__tokio-1.54.1//:tokio",
+    tags = ["manual"],
+)
+
+alias(
+    name = "tokio-rustls-0.26.6",
+    actual = "@sdk_vendor__tokio-rustls-0.26.6//:tokio_rustls",
+    tags = ["manual"],
+)
+
+alias(
+    name = "tokio-rustls",
+    actual = "@sdk_vendor__tokio-rustls-0.26.6//:tokio_rustls",
     tags = ["manual"],
 )
 
@@ -434,26 +476,26 @@ alias(
 )
 
 alias(
-    name = "ureq-3.4.2",
-    actual = "@sdk_vendor__ureq-3.4.2//:ureq",
+    name = "ureq-3.5.0",
+    actual = "@sdk_vendor__ureq-3.5.0//:ureq",
     tags = ["manual"],
 )
 
 alias(
     name = "ureq",
-    actual = "@sdk_vendor__ureq-3.4.2//:ureq",
+    actual = "@sdk_vendor__ureq-3.5.0//:ureq",
     tags = ["manual"],
 )
 
 alias(
-    name = "uuid-1.28.0",
-    actual = "@sdk_vendor__uuid-1.28.0//:uuid",
+    name = "uuid-1.29.0",
+    actual = "@sdk_vendor__uuid-1.29.0//:uuid",
     tags = ["manual"],
 )
 
 alias(
     name = "uuid",
-    actual = "@sdk_vendor__uuid-1.28.0//:uuid",
+    actual = "@sdk_vendor__uuid-1.29.0//:uuid",
     tags = ["manual"],
 )
 
@@ -470,13 +512,13 @@ alias(
 )
 
 alias(
-    name = "zip-9.0.5",
-    actual = "@sdk_vendor__zip-9.0.5//:zip",
+    name = "zip-9.1.3",
+    actual = "@sdk_vendor__zip-9.1.3//:zip",
     tags = ["manual"],
 )
 
 alias(
     name = "zip",
-    actual = "@sdk_vendor__zip-9.0.5//:zip",
+    actual = "@sdk_vendor__zip-9.1.3//:zip",
     tags = ["manual"],
 )

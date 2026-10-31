@@ -385,13 +385,13 @@ All options are kw-only parameters:
 - `env` (dict | None): Environment variables for the CLI process.
 
     For the native standalone runtime, include
-    `{"COPILOT_GITHUB_TELEMETRY_DISABLED": "true"}` in `env` before startup to
-    disable direct GitHub telemetry uploads for the entire host, including
+    `{"COPILOT_TELEMETRY_DISABLED": "true"}` in `env` before startup to
+    disable Copilot-owned GitHub and Entra authentication telemetry process-wide, including
     sessionless events. Authentication, `on_github_telemetry` forwarding, and
     user-configured OpenTelemetry export remain unchanged. This is separate from
     `enable_session_telemetry=False`, which disables only a session's pipeline.
-    The value must be exactly `"true"`; changing it requires a runtime restart.
-    The Node CLI host does not use this variable. In-process connections reject
+    The value must be exactly `"true"`; changing it requires a process restart.
+    `COPILOT_GITHUB_TELEMETRY_DISABLED` remains native-runtime/GitHub-only. In-process connections reject
     per-client `env`; set the variable in the host process environment before
     starting the runtime instead.
 
@@ -399,6 +399,7 @@ All options are kw-only parameters:
 - `base_directory` (str | None): Base directory for Copilot data (session state, config, etc.). Sets `COPILOT_HOME` on the spawned CLI process. When `None`, the CLI defaults to `~/.copilot`. Useful in restricted environments where only specific directories are writable. Ignored when using a `UriRuntimeConnection`.
 - `extension_launch_provider` (ExtensionLaunchProviderHandler | None): Experimental connection-level resolver for extension launch profiles. The client installs the reverse-RPC handler and registers the provider during startup before sessions can be created.
 - `installation_confirmation_handler` (InstallationConfirmationHandler | None): Experimental connection-global human review for `installations.confirm`. Receives the typed request and one cancellation signal, and returns an explicit decision. Does not enable installation capabilities.
+- `kerberos_auth` (KerberosAuthConfig | None): Supplies Kerberos credentials from the SDK host. The client installs the `kerberosAuth.acquire` handler and registers `mode` and `scope` during startup before sessions can be created. See [Kerberos authentication callback](#kerberos-authentication-callback).
 - `use_logged_in_user` (bool | None): Whether to use logged-in user for authentication (default: True, but False when `github_token` is provided).
 - `telemetry` (dict | None): OpenTelemetry configuration for the CLI process. Providing this enables telemetry — no separate flag needed. See [Telemetry](#telemetry) below.
 - `session_fs` (dict | None): Connection-level session filesystem provider configuration. To let `view` read provider-only images, set `capabilities.binary` to `True` and return a provider implementing `SessionFsBinaryProvider` (`read_file_bytes(path)` and `write_file_bytes(path, content, mode=None)`) from `create_session_fs_handler`; image reads do not fall back to local files. Binary reads and writes are limited to 50,330,880 raw bytes (approximately 48 MiB); larger results return a filesystem error before encoding or decoding.
@@ -471,6 +472,27 @@ Capability negotiation does not promise availability; preserve typed refusals
 instead of falling back to raw configuration writes. Generated presence and
 transport tests do not establish a working installer, live OAuth or restart
 safety.
+
+### Kerberos authentication callback
+
+Provide `kerberos_auth={"mode": ..., "callback": ...}` (a `KerberosAuthConfig`) to `CopilotClient` when Kerberos tickets must be obtained by the SDK host, for example from Windows when the runtime runs in WSL. The runtime currently uses it for proxy authentication. The callback receives a `KerberosAuthAcquireRequest` whose `spn` is a service principal in the platform-independent `service/host[@REALM]` form, and returns a fresh base64 SPNEGO token without the `Negotiate ` prefix, or `None` when credentials are unavailable. The callback may be sync or async and should validate the principal before issuing credentials.
+
+```python
+from copilot import CopilotClient, KerberosAuthAcquireRequest
+
+
+async def acquire_token(request: KerberosAuthAcquireRequest) -> str | None:
+    if request.spn != "HTTP/proxy.example.com":
+        return None
+    return await get_spnego_token(request.spn)  # Your Kerberos/SSPI integration.
+
+
+client = CopilotClient(kerberos_auth={"mode": "fallback", "callback": acquire_token})
+```
+
+With `mode="fallback"`, native credential acquisition (including the first token) is tried first; only failure invokes the callback. With `mode="always"`, native credential lookup is never attempted. Without this option, behavior is unchanged. Registration happens during `start()`, before sessions can be created; if it fails, `start()` fails.
+
+By default the callback authenticates only requests made for sessions this client creates or resumes. With `scope="runtime"` it also authenticates the runtime's shared background traffic, such as catalog refreshes and telemetry; only one connection at a time can hold that scope, so `start()` fails if another client holds it. The registration ends when the connection closes; a `start()` that fails or is cancelled closes it. In `fallback` mode, if the callback cannot supply a valid token, the native credential error is reported. In `always` mode, a disconnected, raising, or empty callback fails authentication. The runtime waits at most 30 seconds for the callback (less when the request's own deadline is sooner) and treats a timeout as a callback failure. When the runtime stops waiting, an awaitable the callback returned is cancelled with `asyncio.CancelledError`. Like other client callbacks, the callback runs on the client's event loop, so keep a sync callback fast and offload a blocking lookup, for example with `await asyncio.to_thread(lookup, request.spn)`; its late result is ignored. Tokens are not cached and must not be logged or persisted. The callback supplies the initial SPNEGO token only; exchanges requiring continuation tokens still need native negotiation.
 
 ### In-process (FFI) transport
 
@@ -788,7 +810,7 @@ await session.send(
 )
 ```
 
-Supported image formats include JPG, PNG, GIF, and other common image types. The agent's `view` tool can also read images directly from the filesystem, so you can also ask questions like:
+Supported image formats are PNG, JPEG, WebP, and GIF. Images in other formats, such as BMP or TIFF, are not sent to the model. The agent's `view` tool can also read images directly from the filesystem, so you can also ask questions like:
 
 ```python
 await session.send("What does the most recent jpg in this directory portray?")
@@ -1281,7 +1303,7 @@ It defaults to `True` in all modes; set it to `False` to reject recovery. If rep
 `session.transcript_recovery` reports `planned_backup_path`,
 `invalid_line_numbers` (including discarded torn-tail lines), and
 `session_start_moved`; otherwise it is `None`. If repair is rejected, the
-existing `JsonRpcError` exposes the server's `code` and `data` (with
+public `copilot.JsonRpcError` exposes the server's `code` and `data` (with
 `invalidLineNumbers` and `sessionStartMoved`) alongside its message.
 Disabling recovery still permits adding a missing newline after an intact final
 record; it rejects torn tails.

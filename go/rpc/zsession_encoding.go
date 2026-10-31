@@ -16,19 +16,21 @@ func (r *SessionEvent) Marshal() ([]byte, error) {
 
 func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 	type rawEvent struct {
-		AgentID   *string          `json:"agentId,omitempty"`
-		Data      json.RawMessage  `json:"data"`
-		Ephemeral *bool            `json:"ephemeral,omitempty"`
-		ID        string           `json:"id"`
-		ParentID  *string          `json:"parentId"`
-		Timestamp time.Time        `json:"timestamp"`
-		Type      SessionEventType `json:"type"`
+		AgentID    *string          `json:"agentId,omitempty"`
+		Checkpoint *bool            `json:"checkpoint,omitempty"`
+		Data       json.RawMessage  `json:"data"`
+		Ephemeral  *bool            `json:"ephemeral,omitempty"`
+		ID         string           `json:"id"`
+		ParentID   *string          `json:"parentId"`
+		Timestamp  time.Time        `json:"timestamp"`
+		Type       SessionEventType `json:"type"`
 	}
 	var raw rawEvent
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return err
 	}
 	e.AgentID = raw.AgentID
+	e.Checkpoint = raw.Checkpoint
 	e.Ephemeral = raw.Ephemeral
 	e.ID = raw.ID
 	e.ParentID = raw.ParentID
@@ -605,6 +607,12 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
+	case SessionEventTypeSessionJournalLink:
+		var d SessionJournalLinkData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
 	case SessionEventTypeSessionLimitsExhaustedCompleted:
 		var d SessionLimitsExhaustedCompletedData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
@@ -991,22 +999,24 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 
 func (e SessionEvent) MarshalJSON() ([]byte, error) {
 	type rawEvent struct {
-		AgentID   *string          `json:"agentId,omitempty"`
-		Data      any              `json:"data"`
-		Ephemeral *bool            `json:"ephemeral,omitempty"`
-		ID        string           `json:"id"`
-		ParentID  *string          `json:"parentId"`
-		Timestamp time.Time        `json:"timestamp"`
-		Type      SessionEventType `json:"type"`
+		AgentID    *string          `json:"agentId,omitempty"`
+		Checkpoint *bool            `json:"checkpoint,omitempty"`
+		Data       any              `json:"data"`
+		Ephemeral  *bool            `json:"ephemeral,omitempty"`
+		ID         string           `json:"id"`
+		ParentID   *string          `json:"parentId"`
+		Timestamp  time.Time        `json:"timestamp"`
+		Type       SessionEventType `json:"type"`
 	}
 	return json.Marshal(rawEvent{
-		AgentID:   e.AgentID,
-		Data:      e.Data,
-		Ephemeral: e.Ephemeral,
-		ID:        e.ID,
-		ParentID:  e.ParentID,
-		Timestamp: e.Timestamp,
-		Type:      e.Type(),
+		AgentID:    e.AgentID,
+		Checkpoint: e.Checkpoint,
+		Data:       e.Data,
+		Ephemeral:  e.Ephemeral,
+		ID:         e.ID,
+		ParentID:   e.ParentID,
+		Timestamp:  e.Timestamp,
+		Type:       e.Type(),
 	})
 }
 
@@ -1569,6 +1579,7 @@ func (r *ToolExecutionCompleteResult) UnmarshalJSON(data []byte) error {
 		Contents            []json.RawMessage                `json:"contents,omitzero"`
 		DetailedContent     *string                          `json:"detailedContent,omitempty"`
 		MCPMeta             any                              `json:"mcpMeta,omitempty"`
+		MCPResultMeta       map[string]any                   `json:"mcpResultMeta,omitzero"`
 		StructuredContent   any                              `json:"structuredContent,omitempty"`
 		UIResource          *ToolExecutionCompleteUIResource `json:"uiResource,omitempty"`
 	}
@@ -1600,6 +1611,7 @@ func (r *ToolExecutionCompleteResult) UnmarshalJSON(data []byte) error {
 	}
 	r.DetailedContent = raw.DetailedContent
 	r.MCPMeta = raw.MCPMeta
+	r.MCPResultMeta = raw.MCPResultMeta
 	r.StructuredContent = raw.StructuredContent
 	r.UIResource = raw.UIResource
 	return nil
@@ -1899,6 +1911,120 @@ func (r *SystemNotificationData) UnmarshalJSON(data []byte) error {
 	}
 	r.ResponsesReasoning = raw.ResponsesReasoning
 	return nil
+}
+
+func unmarshalAssistedApprovalAssessment(data []byte) (AssistedApprovalAssessment, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	type rawUnion struct {
+		Status AssistedApprovalAssessmentStatus `json:"status"`
+	}
+	var raw rawUnion
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+
+	switch raw.Status {
+	case AssistedApprovalAssessmentStatusCompleted:
+		var d AssistedApprovalAssessmentCompleted
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case AssistedApprovalAssessmentStatusExcluded:
+		var d AssistedApprovalAssessmentExcluded
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case AssistedApprovalAssessmentStatusFailed:
+		var d AssistedApprovalAssessmentFailed
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case AssistedApprovalAssessmentStatusNotRun:
+		var d AssistedApprovalAssessmentNotRun
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case AssistedApprovalAssessmentStatusUnavailable:
+		var d AssistedApprovalAssessmentUnavailable
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	default:
+		return &RawAssistedApprovalAssessment{Discriminator: raw.Status, Raw: data}, nil
+	}
+}
+
+func (r RawAssistedApprovalAssessment) MarshalJSON() ([]byte, error) {
+	if r.Raw != nil {
+		return r.Raw, nil
+	}
+	return json.Marshal(struct {
+		Status AssistedApprovalAssessmentStatus `json:"status"`
+	}{
+		Status: r.Discriminator,
+	})
+}
+
+func (r AssistedApprovalAssessmentCompleted) MarshalJSON() ([]byte, error) {
+	type alias AssistedApprovalAssessmentCompleted
+	return json.Marshal(struct {
+		Status AssistedApprovalAssessmentStatus `json:"status"`
+		alias
+	}{
+		Status: r.Status(),
+		alias:  alias(r),
+	})
+}
+
+func (r AssistedApprovalAssessmentExcluded) MarshalJSON() ([]byte, error) {
+	type alias AssistedApprovalAssessmentExcluded
+	return json.Marshal(struct {
+		Status AssistedApprovalAssessmentStatus `json:"status"`
+		alias
+	}{
+		Status: r.Status(),
+		alias:  alias(r),
+	})
+}
+
+func (r AssistedApprovalAssessmentFailed) MarshalJSON() ([]byte, error) {
+	type alias AssistedApprovalAssessmentFailed
+	return json.Marshal(struct {
+		Status AssistedApprovalAssessmentStatus `json:"status"`
+		alias
+	}{
+		Status: r.Status(),
+		alias:  alias(r),
+	})
+}
+
+func (r AssistedApprovalAssessmentNotRun) MarshalJSON() ([]byte, error) {
+	type alias AssistedApprovalAssessmentNotRun
+	return json.Marshal(struct {
+		Status AssistedApprovalAssessmentStatus `json:"status"`
+		alias
+	}{
+		Status: r.Status(),
+		alias:  alias(r),
+	})
+}
+
+func (r AssistedApprovalAssessmentUnavailable) MarshalJSON() ([]byte, error) {
+	type alias AssistedApprovalAssessmentUnavailable
+	return json.Marshal(struct {
+		Status AssistedApprovalAssessmentStatus `json:"status"`
+		alias
+	}{
+		Status: r.Status(),
+		alias:  alias(r),
+	})
 }
 
 func unmarshalPermissionRequest(data []byte) (PermissionRequest, error) {
@@ -2386,23 +2512,31 @@ func (r PermissionPromptRequestWrite) MarshalJSON() ([]byte, error) {
 
 func (r *PermissionRequestedData) UnmarshalJSON(data []byte) error {
 	type rawPermissionRequestedData struct {
-		AgentMode         *SessionMode       `json:"agentMode,omitempty"`
-		Fusion            *FusionAttribution `json:"fusion,omitempty"`
-		OwnerAgentID      *string            `json:"ownerAgentId,omitempty"`
-		OwnerSessionID    *string            `json:"ownerSessionId,omitempty"`
-		PermissionMode    *PermissionMode    `json:"permissionMode,omitempty"`
-		PermissionRequest json.RawMessage    `json:"permissionRequest"`
-		PromptRequest     json.RawMessage    `json:"promptRequest,omitempty"`
-		RecoveryEpisodeID *string            `json:"recoveryEpisodeId,omitempty"`
-		RequestID         string             `json:"requestId"`
-		ResolvedByHook    *bool              `json:"resolvedByHook,omitempty"`
-		RiskAssessment    any                `json:"riskAssessment,omitempty"`
+		AgentMode                  *SessionMode       `json:"agentMode,omitempty"`
+		AssistedApprovalAssessment json.RawMessage    `json:"assistedApprovalAssessment,omitempty"`
+		Fusion                     *FusionAttribution `json:"fusion,omitempty"`
+		OwnerAgentID               *string            `json:"ownerAgentId,omitempty"`
+		OwnerSessionID             *string            `json:"ownerSessionId,omitempty"`
+		PermissionMode             *PermissionMode    `json:"permissionMode,omitempty"`
+		PermissionRequest          json.RawMessage    `json:"permissionRequest"`
+		PromptRequest              json.RawMessage    `json:"promptRequest,omitempty"`
+		RecoveryEpisodeID          *string            `json:"recoveryEpisodeId,omitempty"`
+		RequestID                  string             `json:"requestId"`
+		ResolvedByHook             *bool              `json:"resolvedByHook,omitempty"`
+		RiskAssessment             any                `json:"riskAssessment,omitempty"`
 	}
 	var raw rawPermissionRequestedData
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return err
 	}
 	r.AgentMode = raw.AgentMode
+	if raw.AssistedApprovalAssessment != nil {
+		value, err := unmarshalAssistedApprovalAssessment(raw.AssistedApprovalAssessment)
+		if err != nil {
+			return err
+		}
+		r.AssistedApprovalAssessment = value
+	}
 	r.Fusion = raw.Fusion
 	r.OwnerAgentID = raw.OwnerAgentID
 	r.OwnerSessionID = raw.OwnerSessionID

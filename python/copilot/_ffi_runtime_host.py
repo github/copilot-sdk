@@ -346,6 +346,12 @@ class FfiRuntimeHost:
     """
 
     _quarantined_hosts: set[FfiRuntimeHost] = set()
+    # Native code retains only the outbound callback's address, and the
+    # host -> callback -> bound method -> host cycle is otherwise collectable
+    # once the application drops the host. This class-level set is that
+    # callback's independent strong root from connection_open until
+    # connection_close confirms native callbacks are quiescent.
+    _callback_rooted_hosts: set[FfiRuntimeHost] = set()
 
     def __init__(
         self,
@@ -371,6 +377,7 @@ class FfiRuntimeHost:
         self._receive_buffer = _ReceiveBuffer()
         # Keep a strong reference to the ctypes callback for its whole lifetime;
         # dropping it while native code can still invoke it is a use-after-free.
+        # `_callback_rooted_hosts` keeps this host, and so this reference, alive.
         self._outbound_callback: ctypes._FuncPointer | None = None
         self._process = _FfiProcessAdapter(self)
 
@@ -443,6 +450,7 @@ class FfiRuntimeHost:
                     raise RuntimeError("The in-process runtime host was disposed during startup.")
 
             self._outbound_callback = _OutboundCallback(self._on_outbound)
+            self._callback_rooted_hosts.add(self)
             self._connection_id = self._lib.connection_open(
                 self._server_id,
                 self._outbound_callback,
@@ -456,6 +464,7 @@ class FfiRuntimeHost:
             )
             if not self._connection_id:
                 self._outbound_callback = None
+                self._callback_rooted_hosts.discard(self)
                 self._lib.host_shutdown(self._server_id)
                 self._server_id = 0
                 raise RuntimeError("copilot_runtime_connection_open failed.")
@@ -545,6 +554,7 @@ class FfiRuntimeHost:
                         return
                     self._connection_id = 0
                     self._outbound_callback = None
+                    self._callback_rooted_hosts.discard(self)
                     self._quarantined_hosts.discard(self)
 
                 if self._server_id:

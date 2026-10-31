@@ -149,12 +149,13 @@ from copilot import CopilotClient
 from copilot.session import PermissionHandler
 
 def create_client_for_user(user_token: str) -> CopilotClient:
-    return CopilotClient({
-        "github_token": user_token,
-        "use_logged_in_user": False,
-    })
+    return CopilotClient(
+        github_token=user_token,
+        use_logged_in_user=False,
+    )
 
 # Usage
+user_id = "123"
 client = create_client_for_user("gho_user_access_token")
 await client.start()
 

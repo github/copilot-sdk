@@ -27,6 +27,7 @@ from copilot.session_events import (
     PermissionRequestMemory,
     PermissionRequestMemoryAction,
     SessionAutoTierSwitchFailedData,
+    SessionEvent,
     SessionEventType,
     SessionManagedSettingsResolvedData,
     SessionResumeData,
@@ -41,6 +42,57 @@ from copilot.session_events import (
 
 class TestEventForwardCompatibility:
     """Test forward compatibility for unknown event types."""
+
+    @pytest.mark.parametrize("ephemeral", [False, True])
+    def test_event_preserves_legacy_positional_constructor(self, ephemeral):
+        original = session_event_from_dict(
+            {
+                "id": "11111111-1111-1111-1111-111111111111",
+                "timestamp": "2026-09-18T22:00:00+00:00",
+                "parentId": "22222222-2222-2222-2222-222222222222",
+                "type": "future.event",
+                "data": {"future": "payload"},
+            }
+        )
+        event = SessionEvent(
+            original.data,
+            original.id,
+            original.timestamp,
+            original.type,
+            "worker",
+            ephemeral,
+            original.parent_id,
+            original.raw_type,
+        )
+        assert event.ephemeral is ephemeral
+        assert event.parent_id == original.parent_id
+        assert event.raw_type == "future.event"
+        assert event.checkpoint is None
+        wire = session_event_to_dict(event)
+        assert wire["ephemeral"] is ephemeral
+        assert wire["parentId"] == str(original.parent_id)
+        assert wire["type"] == "future.event"
+        assert "checkpoint" not in wire
+
+    @pytest.mark.parametrize("checkpoint", [None, False, True])
+    def test_checkpoint_metadata_round_trips_as_a_keyword(self, checkpoint):
+        event = session_event_from_dict(
+            {
+                "id": "11111111-1111-1111-1111-111111111111",
+                "timestamp": "2026-09-18T22:00:00+00:00",
+                "type": "session.idle",
+                "data": {},
+            }
+        )
+        event = SessionEvent(
+            event.data, event.id, event.timestamp, event.type, checkpoint=checkpoint
+        )
+        wire = session_event_to_dict(event)
+        assert session_event_from_dict(wire).checkpoint is checkpoint
+        if checkpoint is None:
+            assert "checkpoint" not in wire
+        else:
+            assert wire["checkpoint"] is checkpoint
 
     def test_future_file_edit_kind_preserves_tool_completion(self):
         wire = {

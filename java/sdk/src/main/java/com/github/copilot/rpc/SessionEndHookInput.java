@@ -46,6 +46,10 @@ import com.fasterxml.jackson.databind.deser.std.StringDeserializer;
  * @param parentAgentId
  *            optional subagent identity, absent for root hooks and older
  *            runtimes
+ * @param traceparent
+ *            existing W3C trace context, or {@code null} when unavailable
+ * @param tracestate
+ *            existing W3C vendor trace state, or {@code null} when unavailable
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionEndHookInput(@JsonProperty("sessionId") String sessionId,
@@ -53,7 +57,14 @@ public record SessionEndHookInput(@JsonProperty("sessionId") String sessionId,
         @JsonProperty("reason") String reason, @JsonProperty("finalMessage") String finalMessage,
         @JsonProperty("error") @JsonDeserialize(using = HookErrorTextDeserializer.class) String error,
         @JsonProperty("agentId") String agentId, @JsonProperty("agentType") String agentType,
-        @JsonProperty("parentAgentId") String parentAgentId) {
+        @JsonProperty("parentAgentId") String parentAgentId, @JsonProperty("traceparent") String traceparent,
+        @JsonProperty("tracestate") String tracestate) {
+    /** Creates an input without tracing metadata. */
+    public SessionEndHookInput(String sessionId, long timestamp, String cwd, String reason, String finalMessage,
+            String error, String agentId, String agentType, String parentAgentId) {
+        this(sessionId, timestamp, cwd, reason, finalMessage, error, agentId, agentType, parentAgentId, null, null);
+    }
+
     public SessionEndHookInput(String sessionId, long timestamp, String cwd, String reason, String finalMessage,
             String error) {
         this(sessionId, timestamp, cwd, reason, finalMessage, error, null, null, null);

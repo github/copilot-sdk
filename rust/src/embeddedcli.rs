@@ -97,7 +97,7 @@ static INSTALLED_RUNTIME_PATH: OnceLock<Option<PathBuf>> = OnceLock::new();
 /// On first call this extracts the embedded archive to
 /// `<platform cache dir>/github-copilot-sdk/cli/<version>/copilot[.exe]`
 /// and returns the resulting path. The cache dir comes from
-/// [`dirs::cache_dir()`] — `%LOCALAPPDATA%` on Windows,
+/// the OS's LocalAppData known folder on Windows,
 /// `~/Library/Caches/` on macOS, `$XDG_CACHE_HOME` (or `~/.cache/`) on
 /// Linux. Subsequent calls return the cached result. Extraction
 /// is skipped when a previously-published binary is still present and
@@ -255,7 +255,7 @@ fn runtime_install_dir(base_dir: &Path, version: &str) -> Result<PathBuf, Embedd
 
 #[cfg(has_bundled_cli)]
 fn default_install_dir(version: &str) -> PathBuf {
-    let cache = dirs::cache_dir().unwrap_or_else(std::env::temp_dir);
+    let cache = crate::platform_dirs::cache_dir().unwrap_or_else(std::env::temp_dir);
     let root = cache.join("github-copilot-sdk").join("cli");
     if version.is_empty() {
         root.join("unversioned")

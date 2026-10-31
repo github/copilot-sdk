@@ -155,7 +155,15 @@ public class ResumeSessionConfig {
     }
 
     /**
-     * Gets whether pending work should continue after resuming the session.
+     * Gets whether pending work should continue after resuming the session. When
+     * {@code false} (the default), pending work is treated as interrupted on
+     * resume. Completed tool results already durably recorded by the runtime are
+     * preserved.
+     * <p>
+     * When {@code true}, pending permission requests and external tool calls wait
+     * for caller-supplied results via the corresponding low-level RPC methods.
+     * Resuming does not re-emit restored permission requests or re-invoke
+     * permission handlers or already-dispatched external tool callbacks.
      *
      * @return the explicit choice, or empty to use the runtime default
      */
@@ -170,6 +178,7 @@ public class ResumeSessionConfig {
      * @param continuePendingWork
      *            whether to continue pending work
      * @return this config for method chaining
+     * @see #getContinuePendingWork()
      */
     public ResumeSessionConfig setContinuePendingWork(boolean continuePendingWork) {
         this.continuePendingWork = continuePendingWork;
@@ -463,10 +472,10 @@ public class ResumeSessionConfig {
 
     /**
      * Enables or disables internal session telemetry for this session. When
-     * {@code false}, disables session telemetry. When unset (the default) or
-     * {@code true}, telemetry is enabled for GitHub-authenticated sessions. When a
-     * custom {@link ProviderConfig} (BYOK) is configured, session telemetry is
-     * always disabled regardless of this setting. This is independent of
+     * {@code false}, disables session telemetry. {@code true} enables it for
+     * eligible GitHub-authenticated sessions, including BYOK. When unset, preserves
+     * a resident session's choice; otherwise defaults to enabled. Host and account
+     * policies still control uploads. This is independent of
      * {@link CopilotClientOptions#getTelemetry()
      * CopilotClientOptions.TelemetryConfig}, which configures OpenTelemetry export
      * for observability.
@@ -481,10 +490,10 @@ public class ResumeSessionConfig {
 
     /**
      * Enables or disables internal session telemetry for this session. When
-     * {@code false}, disables session telemetry. When unset (the default) or
-     * {@code true}, telemetry is enabled for GitHub-authenticated sessions. When a
-     * custom {@link ProviderConfig} (BYOK) is configured, session telemetry is
-     * always disabled regardless of this setting.
+     * {@code false}, disables session telemetry. {@code true} enables it for
+     * eligible GitHub-authenticated sessions, including BYOK. When unset, preserves
+     * a resident session's choice; otherwise defaults to enabled. Host and account
+     * policies still control uploads.
      *
      * @param enableSessionTelemetry
      *            whether to enable session telemetry
@@ -773,7 +782,7 @@ public class ResumeSessionConfig {
 
     /**
      * Sets whether the runtime is allowed to append a {@code Co-authored-by}
-     * trailer.
+     * trailer. Subagents inherit this setting.
      * <p>
      * This option is sent to the server via a {@code session.options.update}
      * JSON-RPC call immediately after session resume. In
@@ -1496,6 +1505,7 @@ public class ResumeSessionConfig {
      * @param continuePendingWork
      *            explicit setting, or {@code null} for the default
      * @return this config instance
+     * @see #getContinuePendingWork()
      */
     public ResumeSessionConfig setContinuePendingWork(Boolean continuePendingWork) {
         this.continuePendingWork = continuePendingWork;

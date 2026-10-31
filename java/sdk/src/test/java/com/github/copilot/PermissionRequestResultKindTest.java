@@ -61,6 +61,22 @@ public class PermissionRequestResultKindTest {
     }
 
     @Test
+    void hashCode_agreesWithEquals_forNonAsciiCaseVariants() {
+        assertEqualKindsHashAlike("\u0130", "i"); // capital I with dot above
+        assertEqualKindsHashAlike("\u0131", "I"); // dotless small i
+        assertEqualKindsHashAlike("\u03C2", "\u03A3"); // final sigma, capital sigma
+        assertEqualKindsHashAlike("\u03C2", "\u03C3"); // final sigma, small sigma
+        assertEqualKindsHashAlike("\uD801\uDC00", "\uD801\uDC28"); // Deseret, outside the BMP
+    }
+
+    private static void assertEqualKindsHashAlike(String a, String b) {
+        var left = new PermissionRequestResultKind("approve-" + a);
+        var right = new PermissionRequestResultKind("approve-" + b);
+        assertEquals(left, right);
+        assertEquals(left.hashCode(), right.hashCode(), "equal kinds must hash alike: " + left + " vs " + right);
+    }
+
+    @Test
     void toString_returnsValue() {
         assertEquals("approve-once", PermissionRequestResultKind.APPROVED.toString());
         assertEquals("reject", PermissionRequestResultKind.REJECTED.toString());

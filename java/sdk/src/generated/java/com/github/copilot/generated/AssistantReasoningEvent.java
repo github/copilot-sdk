@@ -39,7 +39,15 @@ public final class AssistantReasoningEvent extends SessionEvent {
         /** The complete extended thinking text from the model */
         @JsonProperty("content") String content,
         /** Per-request treatment/eligibility signal returned by the Copilot API in the `X-GitHub-Copilot-Request-TE` response header for the associated model call; `false` when the header was absent or unparseable. */
-        @JsonProperty("rte") Boolean rte
+        @JsonProperty("rte") Boolean rte,
+        /** Identifier for the agent loop turn that produced this reasoning, matching the corresponding assistant.turn_start event */
+        @JsonProperty("turnId") String turnId,
+        /** Provider's completion / response identifier of the model call that produced this reasoning, matching the apiCallId of that call's assistant.message */
+        @JsonProperty("apiCallId") String apiCallId,
+        /** Model that produced this reasoning, if known */
+        @JsonProperty("model") String model,
+        /** Whether the model call that produced this reasoning used a user-managed provider or an on-device model */
+        @JsonProperty("isByok") Boolean isByok
     ) {
     }
 }

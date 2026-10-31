@@ -6,7 +6,7 @@ A Go SDK for programmatic access to the GitHub Copilot CLI.
 
 To use the SDK, you'll need:
 
-- Go 1.24 or later
+- Go 1.26.0 or later
 - GitHub Copilot CLI installed and in `PATH` (or set `COPILOT_CLI_PATH`)
 
 ## Installation
@@ -280,6 +280,25 @@ instead of falling back to raw configuration writes. Generated presence and
 transport tests do not establish live OAuth, activation or cross-process
 recovery.
 
+## Kerberos authentication callback
+
+Set `ClientOptions.KerberosAuth` to a `KerberosAuthConfig{Mode, Callback}` when Kerberos tickets must be obtained by the SDK host, for example from Windows when the runtime runs in WSL. The runtime currently uses it for proxy authentication. The callback receives a `context.Context` and a `KerberosAuthAcquireRequest` whose `Spn` is a service principal in the platform-independent `service/host[@REALM]` form, and returns a fresh base64 SPNEGO token without the `Negotiate ` prefix, or `""` when credentials are unavailable. A returned error is reported to the runtime as a callback failure. The callback should validate the principal before issuing credentials.
+
+```go
+client := copilot.NewClient(&copilot.ClientOptions{
+    KerberosAuth: &copilot.KerberosAuthConfig{
+        Mode: copilot.KerberosAuthModeFallback,
+        Callback: func(ctx context.Context, request copilot.KerberosAuthAcquireRequest) (string, error) {
+            return acquireSPNEGOToken(ctx, request.Spn) // host-side credential lookup
+        },
+    },
+})
+```
+
+With `KerberosAuthModeFallback`, native credential acquisition (including the first token) is tried first; only failure invokes the callback. With `KerberosAuthModeAlways`, native credential lookup is never attempted. Without this option, behavior is unchanged. Registration happens during `Start` (including the auto-start in `CreateSession` and `ResumeSession`), before sessions can be created. `NewClient` panics if `Mode` or `Callback` is missing.
+
+By default the callback authenticates only requests made for sessions this client creates or resumes. With the `runtime` scope it also authenticates the runtime's shared background traffic, such as catalog refreshes and telemetry; only one connection at a time can hold that scope, so startup fails if another client holds it. The registration ends when the connection closes; a failed `Start`, including one whose context is cancelled, closes it. In fallback mode, if the callback cannot supply a valid token, the native credential error is reported. In always mode, a disconnected, failing, or empty callback fails authentication. The runtime waits at most 30 seconds for the callback (less when the request's own deadline is sooner) and treats a timeout as a callback failure. When the runtime stops waiting or the connection closes, the callback's context is cancelled and any later result is ignored, so a lookup that can hang should abandon its work once the context is done. Tokens are not cached and must not be logged or persisted. The callback supplies the initial SPNEGO token only; exchanges requiring continuation tokens still need native negotiation.
+
 ## Distributing your application with an embedded GitHub Copilot CLI
 
 The SDK supports bundling, using Go's `embed` package, the Copilot CLI binary within your application's distribution.
@@ -394,18 +413,19 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
 - `WorkingDirectory` (string): Working directory for the runtime process (default: current process working directory)
 - `BaseDirectory` (string): Base directory for Copilot data (session state, config, etc.). Sets `COPILOT_HOME` on the spawned runtime. When empty, the runtime defaults to `~/.copilot`. Ignored with `URIConnection`. This does **not** affect where the Go SDK extracts the embedded CLI binary; use `embeddedcli.Config.Dir` for the extraction/cache location.
 - `ExtensionLaunchProvider` (ExtensionLaunchProvider): Experimental connection-level resolver for extension launch profiles. `Start` installs the reverse-RPC handler and registers the provider before sessions can be created.
+- `KerberosAuth` (\*KerberosAuthConfig): Supplies Kerberos credentials from the SDK host. `Start` installs the `kerberosAuth.acquire` handler and registers the callback with its `Mode` and optional `Scope` (`KerberosAuthScopeConnection` by default, or `KerberosAuthScopeRuntime`) before sessions can be created. See [Kerberos authentication callback](#kerberos-authentication-callback).
 - `InstallationConfirmationHandler` (InstallationConfirmationHandler): Experimental connection-global human review for `installations.confirm`. Receives the typed request, a per-request cancellation context and a separate connection-closed signal, then returns an explicit decision. Does not enable installation capabilities.
 - `LogLevel` (string): Log level. When empty (default), the runtime uses its own default level (the SDK does not pass `--log-level`).
 - `Env` ([]string): Environment variables for the runtime process (default: inherits from current process)
 
   For the native standalone runtime, include
-  `"COPILOT_GITHUB_TELEMETRY_DISABLED=true"` in `Env` before startup to disable
-  direct GitHub telemetry uploads for the entire host, including sessionless
+  `"COPILOT_TELEMETRY_DISABLED=true"` in `Env` before startup to disable
+  Copilot-owned GitHub and Entra authentication telemetry process-wide, including sessionless
   events. Authentication, `OnGitHubTelemetry` forwarding, and user-configured
   OpenTelemetry export remain unchanged. This is separate from
   `EnableSessionTelemetry: copilot.Bool(false)`, which disables only a session's
-  pipeline. The value must be exactly `"true"`; changing it requires a runtime
-  restart. The Node CLI host does not use this variable. In-process connections
+  pipeline. The value must be exactly `"true"`; changing it requires a process
+  restart. `COPILOT_GITHUB_TELEMETRY_DISABLED` remains native-runtime/GitHub-only. In-process connections
   reject per-client `Env`; set the variable in the host process environment
   before starting the runtime instead.
 
@@ -519,6 +539,32 @@ supply its reply.
 
 Control the system prompt using `SystemMessage` in session config:
 
+<!-- docs-validate: hidden -->
+<!--
+```go
+package main
+
+import (
+	"context"
+
+	copilot "github.com/github/copilot-sdk/go"
+)
+
+func main() {
+	ctx := context.Background()
+	client := copilot.NewClient(nil)
+
+	session, err := client.CreateSession(ctx, &copilot.SessionConfig{
+		SystemMessage: &copilot.SystemMessageConfig{
+			Content: "Always check for security vulnerabilities before suggesting changes.",
+		},
+	})
+	_, _ = session, err
+}
+```
+-->
+<!-- /docs-validate: hidden -->
+
 ```go
 session, err := client.CreateSession(ctx, &copilot.SessionConfig{
     SystemMessage: &copilot.SystemMessageConfig{
@@ -532,6 +578,42 @@ The SDK auto-injects environment context, tool instructions, and security guardr
 #### Customize Mode
 
 Use `Mode: "customize"` to selectively override individual sections of the prompt while preserving the rest:
+
+<!-- docs-validate: hidden -->
+<!--
+```go
+package main
+
+import (
+	"context"
+
+	copilot "github.com/github/copilot-sdk/go"
+)
+
+func main() {
+	ctx := context.Background()
+	client := copilot.NewClient(nil)
+
+	session, err := client.CreateSession(ctx, &copilot.SessionConfig{
+		SystemMessage: &copilot.SystemMessageConfig{
+			Mode: "customize",
+			Sections: map[string]copilot.SectionOverride{
+				// Replace the tone/style section
+				copilot.SectionTone: {Action: "replace", Content: "Respond in a warm, professional tone. Be thorough in explanations."},
+				// Remove coding-specific rules
+				copilot.SectionCodeChangeRules: {Action: "remove"},
+				// Append to existing guidelines
+				copilot.SectionGuidelines: {Action: "append", Content: "\n* Always cite data sources"},
+			},
+			// Additional instructions appended after all sections
+			Content: "Focus on financial analysis and reporting.",
+		},
+	})
+	_, _ = session, err
+}
+```
+-->
+<!-- /docs-validate: hidden -->
 
 ```go
 session, err := client.CreateSession(ctx, &copilot.SessionConfig{
@@ -557,13 +639,63 @@ Available section constants: `SectionPreamble`, `SectionIdentity`, `SectionTone`
 
 `SectionLastInstructions` (`last_instructions`) includes configured subagent-model guidance when the `task` tool is available. Removing or replacing this section also removes that guidance; a `SectionOverride.Transform` callback receives the complete section, including the guidance, and its returned content is authoritative. Append, prepend, and preserve retain their usual section semantics. These overrides change prompt prose only, not configured subagent models, tool availability, or runtime dispatch policy. `SectionRuntimeInstructions` is a separate section: removing it does not remove `SectionLastInstructions`.
 
-Each section override supports five actions:
+Each section override supports five static actions:
 
 - **`replace`** — Replace the section content entirely
 - **`remove`** — Remove the section from the prompt
 - **`append`** — Add content after the existing section
 - **`prepend`** — Add content before the existing section
 - **`preserve`** — No-op that opts an individually-addressable section out of a group-level `remove`
+
+A sixth operation, `transform`, computes the new content from the current content. Set the `Transform` callback on a `SectionOverride` instead of `Action`; it takes precedence over `Action` and `Content`. The SDK calls it with the section's current content and uses the string it returns. Transform callbacks apply in `customize` mode only. If the callback returns an error, the section keeps its current content.
+
+<!-- docs-validate: hidden -->
+<!--
+```go
+package main
+
+import (
+	"context"
+
+	copilot "github.com/github/copilot-sdk/go"
+)
+
+func main() {
+	ctx := context.Background()
+	client := copilot.NewClient(nil)
+
+	session, err := client.CreateSession(ctx, &copilot.SessionConfig{
+		SystemMessage: &copilot.SystemMessageConfig{
+			Mode: "customize",
+			Sections: map[string]copilot.SectionOverride{
+				copilot.SectionGuidelines: {
+					Transform: func(current string) (string, error) {
+						return current + "\n* Always cite data sources", nil
+					},
+				},
+			},
+		},
+	})
+	_, _ = session, err
+}
+```
+-->
+<!-- /docs-validate: hidden -->
+
+```go
+session, err := client.CreateSession(ctx, &copilot.SessionConfig{
+    SystemMessage: &copilot.SystemMessageConfig{
+        Mode: "customize",
+        Sections: map[string]copilot.SectionOverride{
+            copilot.SectionGuidelines: {
+                Transform: func(current string) (string, error) {
+                    return current + "\n* Always cite data sources", nil
+                },
+            },
+        },
+    },
+})
+```
 
 Unknown section IDs are handled gracefully: content from `replace`/`append`/`prepend` overrides is appended to additional instructions, and `remove` overrides are silently ignored.
 
@@ -624,7 +756,7 @@ _, err = session.Send(context.Background(), copilot.MessageOptions{
 })
 ```
 
-Supported image formats include JPG, PNG, GIF, and other common image types. The agent's `view` tool can also read images directly from the filesystem, so you can also ask questions like:
+Supported image formats are PNG, JPEG, WebP, and GIF. Images in other formats, such as BMP or TIFF, are not sent to the model. The agent's `view` tool can also read images directly from the filesystem, so you can also ask questions like:
 
 ```go
 _, err = session.Send(context.Background(), copilot.MessageOptions{

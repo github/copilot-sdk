@@ -129,8 +129,8 @@ public interface UserPromptSubmittedHandler {
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `timestamp` | number | Unix timestamp when the hook was triggered |
-| `cwd` | string | Current working directory |
+| `timestamp` | SDK timestamp type | When the hook was triggered |
+| `workingDirectory` | string | Current working directory |
 | `prompt` | string | The user's submitted prompt |
 
 ## Output
@@ -189,7 +189,10 @@ const session = await client.createSession({
 <summary><strong>Python</strong></summary>
 
 ```python
+from copilot import CopilotClient
 from copilot.session import PermissionHandler
+
+client = CopilotClient()
 
 async def on_user_prompt_submitted(input_data, invocation):
     print(f"[{invocation['session_id']}] User: {input_data['prompt']}")

@@ -16,6 +16,7 @@ import type {
     AgentModelPolicy,
     AttachmentExtensionContext as GeneratedExtensionContextAttachment,
     AutoTier,
+    ModelProviderRef,
     PermissionRequest as GeneratedPermissionRequest,
     PermissionRequestedData as GeneratedPermissionRequestedData,
     PermissionRequestedEvent as GeneratedPermissionRequestedEvent,
@@ -31,14 +32,24 @@ import type {
     GitHubTokenAcquireRequest,
     GitHubTokenAcquireResult,
     GitHubTelemetryNotification,
+    HostDiagnostics,
     ModelBillingTokenPrices,
     DiagnosticsConfiguration,
+    LifecycleDiagnosticsConfiguration,
     OpenCanvasInstance,
     ProtocolExternalToolNamespace,
     CurrentToolMetadata,
+    KerberosAuthAcquireRequest,
+    KerberosAuthMode,
+    KerberosAuthScope,
     SandboxConfig,
 } from "./generated/rpc.js";
 import type { ToolSet } from "./toolSet.js";
+export type {
+    KerberosAuthAcquireRequest,
+    KerberosAuthMode,
+    KerberosAuthScope,
+} from "./generated/rpc.js";
 export type { RemoteSessionMode } from "./generated/rpc.js";
 export type { AutopilotOptions } from "./generated/rpc.js";
 export type { CurrentToolMetadata } from "./generated/rpc.js";
@@ -70,6 +81,8 @@ export type {
     GitHubTelemetryNotification,
     GitHubTelemetryEvent,
     GitHubTelemetryClientInfo,
+    HostDiagnostics,
+    HostErrorReportingStatus,
     InstallationConfirmationRequest,
     InstallationConfirmationResponse,
     InstallationDecision,
@@ -118,6 +131,7 @@ export type {
 export type { SessionFsProvider } from "./sessionFsProvider.js";
 export { createSessionFsAdapter } from "./sessionFsProvider.js";
 export type { SessionFsFileInfo } from "./sessionFsProvider.js";
+export type { SessionFsByteRange } from "./sessionFsProvider.js";
 export type { SessionFsSqliteQueryResult } from "./sessionFsProvider.js";
 export type { SessionFsSqliteQueryType } from "./sessionFsProvider.js";
 export type { SessionFsSqliteProvider } from "./sessionFsProvider.js";
@@ -179,7 +193,7 @@ export interface TelemetryConfig {
     exporterType?: string;
     /** Instrumentation scope name. Sets COPILOT_OTEL_SOURCE_NAME. */
     sourceName?: string;
-    /** Whether to capture message content (prompts, responses). Sets OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT. */
+    /** Whether to capture span content. Sets OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT and its legacy boolean alias. */
     captureContent?: boolean;
 }
 
@@ -246,7 +260,6 @@ export interface InProcessRuntimeConnection {
      * Required for OneAuth interactive authentication on macOS. This general-purpose
      * scheduler may also be used for other runtime-owned native UI operations.
      * Temporary OneAuth workaround; this API may be removed if no longer needed.
-     * See https://github.com/github/copilot-agent-runtime/issues/27032.
      * @experimental
      */
     readonly runOnUiThread?: (action: () => void) => void | Promise<void>;
@@ -397,7 +410,32 @@ export interface CopilotClientInfo {
     integrationVersion?: string;
 }
 
-export type EntraAuthConfig = import("./generated/rpc.js").EntraAuthConfig;
+/** Host application's Microsoft Entra registration. @experimental */
+export type EntraAuthConfig = Pick<
+    import("./generated/rpc.js").EntraAuthConfig,
+    "clientId" | "matsAppName"
+>;
+
+/** Host-owned Entra identity or resource acquisition. @experimental */
+export type EntraTokenProviderArgs = import("./generated/rpc.js").EntraTokenAcquireRequest;
+/** Response matching the requested acquisition kind and pinned account. @experimental */
+export type EntraTokenProviderResult = import("./generated/rpc.js").EntraTokenAcquireResult;
+/**
+ * Selects/revalidates an identity or acquires its resource token. Renewal must be
+ * silent and account-pinned. Cancellation and unavailability never open runtime sign-in.
+ * The cancellation token fires when the request or original connection ends.
+ * @experimental
+ */
+export type EntraTokenProvider = (
+    request: EntraTokenProviderArgs,
+    cancellation: import("./jsonrpcTypes.js").CancellationToken
+) => EntraTokenProviderResult | Promise<EntraTokenProviderResult>;
+
+/** Entra application and optional host-owned acquisition. @experimental */
+export interface EntraAuthOptions extends EntraAuthConfig {
+    /** Host-owned acquisition; omission retains built-in runtime authentication. @experimental */
+    tokenProvider?: EntraTokenProvider;
+}
 
 export interface CopilotClientOptions {
     /**
@@ -405,7 +443,7 @@ export interface CopilotClientOptions {
      * Required for built-in Entra sign-in and token renewal; other authentication methods remain available.
      * @experimental
      */
-    entra?: EntraAuthConfig;
+    entra?: EntraAuthOptions;
     /**
      * How to connect to the Copilot runtime. When omitted, defaults to
      * {@link RuntimeConnection.forStdio} with the bundled runtime.
@@ -455,6 +493,11 @@ export interface CopilotClientOptions {
      * @experimental
      */
     extensionLaunchProvider?: ExtensionLaunchProvider;
+
+    /**
+     * Supplies Kerberos credentials from the SDK host. Registered before sessions start.
+     */
+    kerberosAuth?: KerberosAuthConfig;
 
     /**
      * Connection-global human review for experimental installation operations.
@@ -602,6 +645,30 @@ export interface CopilotClientOptions {
 
 /** Resolves launch profiles for extension entrypoints discovered by the runtime. */
 export type ExtensionLaunchProvider = GeneratedExtensionLaunchProvider;
+
+/** Supplies Kerberos credentials from the SDK host for a requested service principal. */
+export interface KerberosAuthConfig {
+    /** `fallback` uses the callback only when native lookup fails; `always` never attempts native lookup. */
+    mode: KerberosAuthMode;
+    /**
+     * `connection` (the default) authenticates only requests made for sessions this client creates or resumes;
+     * `runtime` also authenticates the runtime's shared background traffic. Only one connection at a time can
+     * hold `runtime` scope, so startup fails if another client holds it. The registration ends when the
+     * connection closes.
+     */
+    scope?: KerberosAuthScope;
+    /**
+     * Returns a fresh, single-use base64 SPNEGO token without the `Negotiate ` prefix, or `undefined` when unavailable.
+     * The SPN uses the platform-independent `service/host[@REALM]` form; validate it before issuing credentials.
+     * `signal` aborts when the runtime stops waiting: it cancels the request (for example when its wait times
+     * out) or the connection closes. The SDK then stops awaiting the callback and ignores any later result,
+     * so pass `signal` to credential lookups that support cancellation.
+     */
+    callback: (
+        request: KerberosAuthAcquireRequest,
+        signal: AbortSignal
+    ) => Promise<string | undefined>;
+}
 
 /**
  * Configuration for creating a session
@@ -1114,7 +1181,7 @@ export interface ElicitationResult {
     /** User action: "accept" (submitted), "decline" (rejected), or "cancel" (dismissed). */
     action: "accept" | "decline" | "cancel";
     /** Form values submitted by the user (present when action is "accept"). */
-    content?: Record<string, ElicitationFieldValue>;
+    content?: Record<string, ElicitationFieldValue | undefined>;
 }
 
 /**
@@ -1142,8 +1209,6 @@ export interface ElicitationContext {
     mode?: "form" | "url";
     /** The source that initiated the request (e.g. MCP server name). */
     elicitationSource?: string;
-    /** Trusted display label of a Connector-owned MCP server that initiated the request, such as "Work IQ". */
-    elicitationSourceDisplayName?: string;
     /** URL to open in the user's browser (url mode only). */
     url?: string;
 }
@@ -1446,6 +1511,16 @@ export interface PermissionHandlerInvocation {
     sessionId: string;
     managedSettingsEnabled?: boolean;
     /**
+     * Canonical runtime-owned Assisted Permissions assessment.
+     *
+     * This explains the assisted review only; `permission.completed` remains
+     * authoritative for the final permission result. It is absent with older
+     * runtimes and legacy direct permission callbacks.
+     *
+     * @experimental
+     */
+    assistedApprovalAssessment?: PermissionRequestedData["assistedApprovalAssessment"];
+    /**
      * Derived user-facing prompt context when supplied by the runtime.
      *
      * Managed requests retain their raw `managedApprovalRequired` marker. Only
@@ -1604,9 +1679,13 @@ export interface BaseHookInput {
     agentType?: string;
     /** Immediate parent actor ID, when available. */
     parentAgentId?: string;
+    /** W3C trace context for the runtime span associated with this hook, when available. */
+    traceparent?: string;
+    /** W3C vendor trace state associated with traceparent, when available. */
+    tracestate?: string;
     /** The runtime session ID associated with the hook. Child tool hooks use
      * the child session ID; sub-agent lifecycle hooks use the parent session ID,
-     * matching `invocation.sessionId`. */
+     * which can differ from `invocation.sessionId`. */
     sessionId: string;
     /** Time at which the hook event was emitted by the runtime. */
     timestamp: Date;
@@ -1617,6 +1696,8 @@ export interface BaseHookInput {
  * Input for pre-tool-use hook
  */
 export interface PreToolUseHookInput extends BaseHookInput {
+    /** Existing tool-call ID; correlate using (sessionId, toolCallId). Absent on older runtimes. */
+    toolCallId?: string;
     toolName: string;
     toolArgs: unknown;
 }
@@ -1676,6 +1757,8 @@ export type PreMcpToolCallHandler = (
  * Input for post-tool-use hook
  */
 export interface PostToolUseHookInput extends BaseHookInput {
+    /** Existing tool-call ID; correlate using (sessionId, toolCallId). Absent on older runtimes. */
+    toolCallId?: string;
     toolName: string;
     toolArgs: unknown;
     toolResult: ToolResultObject;
@@ -1707,6 +1790,8 @@ export type PostToolUseHandler = (
  * stringified failure message extracted from the tool's result, is provided.
  */
 export interface PostToolUseFailureHookInput extends BaseHookInput {
+    /** Existing tool-call ID; correlate using (sessionId, toolCallId). Absent on older runtimes. */
+    toolCallId?: string;
     toolName: string;
     toolArgs: unknown;
     /**
@@ -2653,6 +2738,12 @@ export interface SessionConfigBase {
      */
     diagnostics?: DiagnosticsConfiguration;
 
+    /**
+     * Enables the experimental runtime lifecycle diagnostic read and persistence surfaces.
+     * @internal
+     */
+    lifecycleDiagnostics?: LifecycleDiagnosticsConfiguration;
+
     /** Per-property overrides for model capabilities, deep-merged over runtime defaults. */
     modelCapabilities?: ModelCapabilitiesOverride;
 
@@ -2845,10 +2936,10 @@ export interface SessionConfigBase {
 
     /**
      * Enables or disables internal session telemetry for this session.
-     * When `false`, disables session telemetry. When omitted (the default) or `true`,
-     * telemetry is enabled for GitHub-authenticated sessions.
-     * When a custom {@link provider} (BYOK) is configured, session telemetry is always
-     * disabled regardless of this setting.
+     * `false` disables it; `true` enables it for eligible GitHub-authenticated sessions,
+     * including custom {@link provider} (BYOK) sessions. Omission preserves a resident
+     * session's choice; otherwise defaults to enabled. Host and account policies still
+     * determine whether telemetry can be uploaded.
      * This is independent of the OpenTelemetry configuration in {@link CopilotClientOptions.telemetry}.
      */
     enableSessionTelemetry?: boolean;
@@ -2905,7 +2996,7 @@ export interface SessionConfigBase {
 
     /**
      * When true, the runtime instructs the agent to include a `Co-authored-by`
-     * trailer in commit messages it composes.
+     * trailer in commit messages it composes. Subagents inherit this setting.
      *
      * Defaults to `true`. Under {@link CopilotClientOptions.mode} = `"empty"`,
      * defaults to `false`; apps can pass `true` here to opt back in.
@@ -3432,10 +3523,10 @@ export interface ResumeSessionConfig extends SessionConfigBase {
      * runtime treats pending work as interrupted on resume. Completed tool results
      * already durably recorded by the runtime are preserved.
      *
-     * For permission requests, the runtime re-emits `permission.requested` so the
-     * registered `onPermissionRequest` handler can re-prompt; for external tool calls,
-     * the consumer is expected to supply the result via the corresponding low-level
-     * RPC method.
+     * When true, pending permission requests and external tool calls wait for
+     * caller-supplied results via the corresponding low-level RPC methods. Resuming
+     * does not re-emit restored permission requests or re-invoke permission handlers
+     * or already-dispatched external tool callbacks.
      * @default false
      */
     continuePendingWork?: boolean;
@@ -3553,7 +3644,9 @@ export interface ProviderConfig {
 
     /**
      * Product serving the model, such as "ollama" or "lm_studio", reported in
-     * telemetry as `model_provider`. Only affects telemetry.
+     * telemetry as `model_provider`. "azure_openai" also omits explicit
+     * prompt-cache breakpoints, which limit cross-turn cache reuse on Azure; set
+     * it for a proxy or custom domain in front of Azure OpenAI.
      */
     modelProvider?: ProviderConfigModelProvider;
 
@@ -3672,7 +3765,9 @@ export interface NamedProviderConfig {
 
     /**
      * Product serving this provider's models, such as "ollama" or "lm_studio",
-     * reported in telemetry as `model_provider`. Only affects telemetry.
+     * reported in telemetry as `model_provider`. "azure_openai" also omits
+     * explicit prompt-cache breakpoints, which limit cross-turn cache reuse on
+     * Azure; set it for a proxy or custom domain in front of Azure OpenAI.
      */
     modelProvider?: ProviderConfigModelProvider;
 
@@ -3955,6 +4050,8 @@ export interface SessionFsConfig {
          * @default false
          */
         binary?: boolean;
+        /** Whether every session provider supports bounded byte-range reads, independently of binary support. */
+        readFileRange?: boolean;
     };
 }
 
@@ -3993,6 +4090,8 @@ export interface GetStatusResponse {
     version: string;
     /** Protocol version for SDK compatibility */
     protocolVersion: number;
+    /** Host diagnostics, when supplied by the runtime. */
+    hostDiagnostics?: HostDiagnostics;
 }
 
 /**
@@ -4068,6 +4167,8 @@ export interface ModelInfo {
     id: string;
     /** Display name */
     name: string;
+    /** Native serving provider, when attributed by the runtime. Absent for configured BYOK models. */
+    provider?: ModelProviderRef;
     /** Model capabilities and limits */
     capabilities: ModelCapabilities;
     /** Policy state */

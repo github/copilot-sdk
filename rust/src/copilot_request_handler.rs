@@ -14,7 +14,8 @@
 //! [`send_request`](CopilotRequestHandler::send_request) to mutate / replace HTTP
 //! requests, or [`open_websocket`](CopilotRequestHandler::open_websocket) to
 //! mutate the handshake or return a custom [`CopilotWebSocketHandler`].
-//! Default pass-through uses native-tls for HTTPS and secure WebSockets.
+//! Default pass-through uses platform-verified Rustls on macOS for TLS 1.3,
+//! and native-tls on other platforms, for HTTPS and secure WebSockets.
 //!
 //! # Cancellation
 //!
@@ -23,6 +24,7 @@
 //! it to the upstream call so it is torn down too, and stop writing the response.
 
 use std::collections::HashMap;
+use std::panic::AssertUnwindSafe;
 use std::pin::Pin;
 #[cfg(feature = "network-forwarding")]
 use std::sync::LazyLock;
@@ -31,7 +33,7 @@ use std::sync::{Arc, OnceLock, Weak};
 use async_trait::async_trait;
 use base64::Engine;
 use bytes::Bytes;
-use futures_util::Stream;
+use futures_util::{FutureExt, Stream};
 #[cfg(feature = "network-forwarding")]
 use futures_util::{SinkExt, StreamExt};
 use http::HeaderMap;
@@ -286,7 +288,11 @@ impl CopilotWebSocketResponse {
         message: impl Into<String>,
         code: Option<String>,
     ) -> Result<(), CopilotRequestError> {
-        self.exchange.error_response(message, code).await
+        let result = self.exchange.error_response(message, code).await;
+        // The runtime treats a terminal error as closed and will not cancel
+        // the request pump. Stop it locally after committing the error.
+        self.exchange.push_cancel();
+        result
     }
 }
 
@@ -431,13 +437,22 @@ fn strip_forbidden_headers(headers: &mut HeaderMap) {
 }
 
 #[cfg(feature = "network-forwarding")]
-static SHARED_HTTP_CLIENT: LazyLock<Result<reqwest::Client, reqwest::Error>> =
-    LazyLock::new(|| {
-        reqwest::Client::builder()
-            .tls_backend_native()
-            .redirect(reqwest::redirect::Policy::none())
-            .build()
-    });
+static SHARED_HTTP_CLIENT: LazyLock<
+    Result<reqwest::Client, Box<dyn std::error::Error + Send + Sync>>,
+> = LazyLock::new(|| {
+    let builder = reqwest::Client::builder();
+    #[cfg(target_os = "macos")]
+    let builder = {
+        let mut tls = crate::network_tls::client_config()?;
+        tls.alpn_protocols = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
+        builder.tls_backend_preconfigured(tls)
+    };
+    #[cfg(not(target_os = "macos"))]
+    let builder = builder.tls_backend_native();
+    Ok(builder
+        .redirect(reqwest::redirect::Policy::none())
+        .build()?)
+});
 
 /// Forward an HTTP request to its real upstream and stream the response back.
 ///
@@ -555,17 +570,38 @@ impl CopilotWebSocketForwarderBuilder {
 
         // Explicit selection survives consumers enabling another TLS backend.
         let connector = if request.uri().scheme_str() == Some("wss") {
-            let connector = tokio::task::spawn_blocking(native_tls::TlsConnector::new)
-                .await
-                .map_err(|e| {
-                    CopilotRequestError::Upstream(format!("websocket TLS setup task failed: {e}"))
-                })?
-                .map_err(|e| {
-                    CopilotRequestError::Upstream(format!(
-                        "websocket TLS configuration failed: {e}"
-                    ))
-                })?;
-            Connector::NativeTls(connector)
+            #[cfg(target_os = "macos")]
+            {
+                let config = tokio::task::spawn_blocking(crate::network_tls::client_config)
+                    .await
+                    .map_err(|e| {
+                        CopilotRequestError::Upstream(format!(
+                            "websocket TLS setup task failed: {e}"
+                        ))
+                    })?
+                    .map_err(|e| {
+                        CopilotRequestError::Upstream(format!(
+                            "websocket TLS configuration failed: {e}"
+                        ))
+                    })?;
+                Connector::Rustls(Arc::new(config))
+            }
+            #[cfg(not(target_os = "macos"))]
+            {
+                let connector = tokio::task::spawn_blocking(native_tls::TlsConnector::new)
+                    .await
+                    .map_err(|e| {
+                        CopilotRequestError::Upstream(format!(
+                            "websocket TLS setup task failed: {e}"
+                        ))
+                    })?
+                    .map_err(|e| {
+                        CopilotRequestError::Upstream(format!(
+                            "websocket TLS configuration failed: {e}"
+                        ))
+                    })?;
+                Connector::NativeTls(connector)
+            }
         } else {
             Connector::Plain
         };
@@ -579,20 +615,14 @@ impl CopilotWebSocketForwarderBuilder {
         let on_response = self.on_send_response_message.clone();
         tokio::spawn(async move {
             loop {
-                tokio::select! {
+                let message = tokio::select! {
                     _ = loop_cancel.cancelled() => break,
                     msg = read.next() => match msg {
                         Some(Ok(Message::Text(text))) => {
-                            let message = CopilotWebSocketMessage { data: bytes::Bytes::from(text).into(), binary: false };
-                            if let Some(out) = apply_transform(&on_response, message) {
-                                let _ = response.send_message(out).await;
-                            }
+                            CopilotWebSocketMessage { data: bytes::Bytes::from(text).into(), binary: false }
                         }
                         Some(Ok(Message::Binary(data))) => {
-                            let message = CopilotWebSocketMessage { data: data.into(), binary: true };
-                            if let Some(out) = apply_transform(&on_response, message) {
-                                let _ = response.send_message(out).await;
-                            }
+                            CopilotWebSocketMessage { data: data.into(), binary: true }
                         }
                         Some(Ok(Message::Close(_))) | None => break,
                         Some(Ok(_)) => continue,
@@ -601,6 +631,19 @@ impl CopilotWebSocketForwarderBuilder {
                             return;
                         }
                     }
+                };
+                // Fail the response as on an upstream error: a panic would end
+                // this task silently and leave the runtime waiting.
+                let Ok(message) = std::panic::catch_unwind(AssertUnwindSafe(|| {
+                    apply_transform(&on_response, message)
+                })) else {
+                    let _ = response
+                        .fail("on_send_response_message hook panicked", None)
+                        .await;
+                    return;
+                };
+                if let Some(out) = message {
+                    let _ = response.send_message(out).await;
                 }
             }
             let _ = response.close().await;
@@ -1033,22 +1076,32 @@ async fn drive_exchange(
             exchange.ensure_ws_started().await?;
             let response = CopilotWebSocketResponse::new(exchange.clone());
             let ws = handler.open_websocket(&ctx, response).await?;
-            let result = pump_websocket_requests(ws.as_ref(), exchange, &ctx.cancel).await;
-            let _ = ws.close().await;
-            match result {
+            // A panicking handler is still closed, as it is after an error.
+            let result =
+                AssertUnwindSafe(pump_websocket_requests(ws.as_ref(), exchange, &ctx.cancel))
+                    .catch_unwind()
+                    .await
+                    .unwrap_or_else(|_| {
+                        Err(CopilotRequestError::message(
+                            "CopilotWebSocketHandler panicked",
+                        ))
+                    });
+            // Socket cleanup can let the reader commit EOF, so finalize the
+            // pump's result first to preserve a handler failure.
+            let result = match result {
                 Ok(()) => exchange.end_response().await,
-                Err(err) if ctx.cancel.is_cancelled() => {
+                Err(_) if ctx.cancel.is_cancelled() => {
                     exchange
                         .error_response(
                             "Request cancelled by runtime",
                             Some("cancelled".to_string()),
                         )
-                        .await?;
-                    let _ = err;
-                    Ok(())
+                        .await
                 }
-                Err(err) => Err(err),
-            }
+                Err(err) => exchange.error_response(err.to_string(), None).await,
+            };
+            let _ = ws.close().await;
+            result
         }
     }
 }
@@ -1268,7 +1321,16 @@ impl CopilotRequestDispatcher {
         let dispatcher = Arc::clone(self);
         let exchange_for_task = exchange.clone();
         tokio::spawn(async move {
-            let result = drive_exchange(&exchange_for_task, &handler).await;
+            // Tokio isolates a panic to this task; catch it so the runtime
+            // still gets an answer for this request.
+            let result = AssertUnwindSafe(drive_exchange(&exchange_for_task, &handler))
+                .catch_unwind()
+                .await
+                .unwrap_or_else(|_| {
+                    Err(CopilotRequestError::message(
+                        "CopilotRequestHandler panicked",
+                    ))
+                });
             finalize_exchange(&exchange_for_task, result).await;
             dispatcher.remove_pending(&request_id);
         });

@@ -6,7 +6,7 @@ The Copilot SDK for Java supports an experimental in-process connection that loa
 
 ### The runtime artifact
 
-The artifact to be embedded is `runtime.node`, a Rust [`cdylib`](#references) produced by the `src/runtime` crate in `github/copilot-agent-runtime` using the [napi-rs](#references) build toolchain. Despite the `.node` file extension (a naming convention of napi-rs), this is an ordinary platform-specific shared library (`.so` on Linux, `.dylib` on macOS, `.dll` on Windows). It exposes two front doors built over the same internal engine:
+The artifact to be embedded is `runtime.node`, a Rust [`cdylib`](#references) produced by the `src/runtime` crate in the Copilot runtime source tree using the [napi-rs](#references) build toolchain. Despite the `.node` file extension (a naming convention of napi-rs), this is an ordinary platform-specific shared library (`.so` on Linux, `.dylib` on macOS, `.dll` on Windows). It exposes two front doors built over the same internal engine:
 
 * **[napi](#references) front door**: loaded by a Node.js process as a native addon for the current CLI path.
 * **[C ABI](#references) front door**: a fixed set of 5 `extern "C"` lifecycle and transport entry points that any language can call in-process via [FFI](#references) ([JNA](#references) for Java, Python/cffi, C#/`DllImport`, Go/purego). All API methods travel as JSON-RPC data through this fixed transport; the export list does not change as the method set grows.
@@ -37,7 +37,7 @@ The Java SDK does not independently spawn this child for JSON-RPC transport. The
 
 ### Platform dimensions
 
-The runtime must be built for each unique combination of OS, CPU architecture, and (on Linux) C runtime variant. The build system in `github/copilot-agent-runtime` produces eight Rust target triples:
+The runtime must be built for each unique combination of OS, CPU architecture, and (on Linux) C runtime variant. The runtime build system produces eight Rust target triples:
 
 | Platform label    | Rust triple                  | Constraint                                                       |
 | ----------------- | ---------------------------- | ---------------------------------------------------------------- |
@@ -66,7 +66,7 @@ If the Linux executable cannot be read or its interpreter is not recognized, the
 
 ### Size baseline
 
-Measured from `github/copilot-agent-runtime` release `cli-1.0.69-2` (2026-07-06):
+Measured from runtime release `cli-1.0.69-2` (2026-07-06):
 
 | Platform          | `runtime.node` (uncompressed) | Compressed (~40% deflate) |
 | ----------------- | ----------------------------- | ------------------------- |
@@ -400,7 +400,7 @@ Additional source references:
 - DJL native distribution pattern: https://github.com/deepjavalibrary/djl/tree/master/engines/pytorch/pytorch-native
 - DJL `Platform.fromSystem()` (OS/arch detection): https://github.com/deepjavalibrary/djl/blob/master/api/src/main/java/ai/djl/util/Platform.java
 - `detect-libc` npm package (ELF PT_INTERP libc detection): https://github.com/lovell/detect-libc
-- `github/copilot-agent-runtime` C ABI front door (`cabi.rs`): `src/runtime/src/interop/cabi.rs`
-- `github/copilot-agent-runtime` build target definitions: `script/build-runtime.ts`
-- `github/copilot-agent-runtime` glibc sysroot and verification: `script/linux/install-sysroot.cjs`, `script/linux/verify-glibc-requirements.sh`
+- Runtime C ABI front door (`cabi.rs`): `src/runtime/src/interop/cabi.rs`
+- Runtime build target definitions: `script/build-runtime.ts`
+- Runtime glibc sysroot and verification: `script/linux/install-sysroot.cjs`, `script/linux/verify-glibc-requirements.sh`
 - ONNX Runtime Java on Maven Central (size comparable): https://repo1.maven.org/maven2/com/microsoft/onnxruntime/onnxruntime/1.21.0/

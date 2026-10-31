@@ -1,0 +1,22 @@
+load("@rules_rust//rust:defs.bzl", "rust_library", "rust_test")
+
+package(default_visibility = ["//visibility:public"])
+
+PLATFORM_DEPS = select({
+    "@platforms//os:windows": ["@sdk_vendor//:windows-sys"],
+    "//conditions:default": [],
+})
+
+rust_library(
+    name = "copilot-platform-dirs",
+    srcs = ["//src/sdk/rust:platform_dirs_srcs"],
+    crate_name = "copilot_platform_dirs",
+    crate_root = "//src/sdk/rust:src/platform_dirs/mod.rs",
+    edition = "2024",
+    deps = PLATFORM_DEPS,
+)
+
+rust_test(
+    name = "copilot-platform-dirs_test",
+    crate = ":copilot-platform-dirs",
+)

@@ -62,8 +62,15 @@ const session = await client.createSession({
 <summary><strong>Python</strong></summary>
 
 ```python
+import os
+from types import SimpleNamespace
 from copilot import CopilotClient, RuntimeConnection
 from copilot.session import PermissionHandler
+
+runtime_instance_id = "tenant-runtime-1"
+runtime_url = "localhost:4321"
+request_id = "request-456"
+user = SimpleNamespace(id="123", github_token=os.environ["GITHUB_TOKEN"])
 
 client = CopilotClient(
     mode="empty",

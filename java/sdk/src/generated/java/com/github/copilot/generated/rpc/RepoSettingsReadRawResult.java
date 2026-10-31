@@ -22,6 +22,7 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 record RepoSettingsReadRawResult(
     /** Stored JSON values after the existing JSONC parser and prototype-safety checks. Empty when the file is missing, blank, or invalid. */
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("config") Object config,
     /** True when the file exists but did not parse, so `config` is empty for that reason rather than because nothing is set. */
     @JsonProperty("invalid") Boolean invalid

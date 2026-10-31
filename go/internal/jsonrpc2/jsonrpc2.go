@@ -13,9 +13,14 @@ import (
 	"reflect"
 	"sync"
 	"sync/atomic"
+	"time"
 )
 
 const version = "2.0"
+
+// processExitGracePeriod bounds how long a request whose connection has closed
+// waits for the watched CLI process to report its exit.
+const processExitGracePeriod = time.Second
 
 // Standard JSON-RPC 2.0 error codes.
 var (
@@ -291,7 +296,7 @@ func (c *Client) RequestWithInlineResponse(ctx context.Context, method string, p
 		c.mu.Unlock()
 	}()
 
-	// Check if process already exited before sending
+	// Check if the process exited or the connection closed before sending
 	if c.processDone != nil {
 		select {
 		case <-ctx.Done():
@@ -301,6 +306,8 @@ func (c *Client) RequestWithInlineResponse(ctx context.Context, method string, p
 				return nil, err
 			}
 			return nil, fmt.Errorf("process exited unexpectedly")
+		case <-c.connectionClosed:
+			return c.responseAfterConnectionClosed(ctx, responseChan)
 		default:
 			// Process still running, continue
 		}
@@ -373,6 +380,8 @@ func (c *Client) RequestWithInlineResponse(ctx context.Context, method string, p
 				return responseAfterShutdown(responseChan, err)
 			}
 			return responseAfterShutdown(responseChan, fmt.Errorf("process exited unexpectedly"))
+		case <-c.connectionClosed:
+			return c.responseAfterConnectionClosed(ctx, responseChan)
 		case <-c.stopChan:
 			return responseAfterShutdown(responseChan, fmt.Errorf("client stopped"))
 		}
@@ -389,6 +398,39 @@ func (c *Client) RequestWithInlineResponse(ctx context.Context, method string, p
 		return responseAfterShutdown(responseChan, fmt.Errorf("connection closed"))
 	case <-c.stopChan:
 		return responseAfterShutdown(responseChan, fmt.Errorf("client stopped"))
+	}
+}
+
+// responseAfterConnectionClosed settles a request whose connection closed while
+// the CLI process is watched. The connection usually closes because the process
+// exited, and the exit is reported moments later with the error that carries
+// the CLI's stderr, so wait up to processExitGracePeriod for it. A process still
+// running after that has lost its connection, and no reply will ever come.
+func (c *Client) responseAfterConnectionClosed(ctx context.Context, responseChan <-chan *Response) (json.RawMessage, error) {
+	select {
+	case response := <-responseChan:
+		// The read loop admitted this reply before it ended.
+		if response.Error != nil {
+			return nil, response.Error
+		}
+		return response.Result, nil
+	default:
+	}
+
+	timer := time.NewTimer(processExitGracePeriod)
+	defer timer.Stop()
+	select {
+	case <-c.processDone:
+		if err := c.getProcessError(); err != nil {
+			return nil, err
+		}
+		return nil, fmt.Errorf("process exited unexpectedly")
+	case <-c.stopChan:
+		return nil, fmt.Errorf("client stopped")
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-timer.C:
+		return nil, fmt.Errorf("connection closed")
 	}
 }
 

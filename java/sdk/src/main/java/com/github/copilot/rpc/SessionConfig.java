@@ -551,9 +551,9 @@ public class SessionConfig {
     /**
      * Enables or disables internal session telemetry for this session. When
      * {@code false}, disables session telemetry. When unset (the default) or
-     * {@code true}, telemetry is enabled for GitHub-authenticated sessions. When a
-     * custom {@link ProviderConfig} (BYOK) is configured, session telemetry is
-     * always disabled regardless of this setting. This is independent of
+     * {@code true}, telemetry is enabled for eligible GitHub-authenticated
+     * sessions, including custom {@link ProviderConfig} (BYOK) sessions. Host and
+     * account policies still control uploads. This is independent of
      * {@link com.github.copilot.rpc.CopilotClientOptions#getTelemetry()
      * CopilotClientOptions.TelemetryConfig}, which configures OpenTelemetry export
      * for observability.
@@ -569,9 +569,9 @@ public class SessionConfig {
     /**
      * Enables or disables internal session telemetry for this session. When
      * {@code false}, disables session telemetry. When unset (the default) or
-     * {@code true}, telemetry is enabled for GitHub-authenticated sessions. When a
-     * custom {@link ProviderConfig} (BYOK) is configured, session telemetry is
-     * always disabled regardless of this setting.
+     * {@code true}, telemetry is enabled for eligible GitHub-authenticated
+     * sessions, including custom {@link ProviderConfig} (BYOK) sessions. Host and
+     * account policies still control uploads.
      *
      * @param enableSessionTelemetry
      *            whether to enable session telemetry
@@ -863,7 +863,8 @@ public class SessionConfig {
 
     /**
      * Sets whether the runtime is allowed to append a {@code Co-authored-by}
-     * trailer when it commits on behalf of the user.
+     * trailer when it commits on behalf of the user. Subagents inherit this
+     * setting.
      * <p>
      * This option is sent to the server via a {@code session.options.update}
      * JSON-RPC call immediately after session creation. In

@@ -268,6 +268,9 @@ final class CopilotRequestTestSupport {
      */
     static HttpResponse<InputStream> buildNonInferenceResponse(String url) {
         String u = url.toLowerCase(Locale.ROOT);
+        if (u.endsWith("/meta")) {
+            return jsonResponse(metaCatalog(null));
+        }
         if (u.endsWith("/models")) {
             return jsonResponse(modelCatalog(null));
         }
@@ -322,6 +325,35 @@ final class CopilotRequestTestSupport {
         Map<String, Object> root = new LinkedHashMap<>();
         root.put("data", List.of(model));
         return json(root);
+    }
+
+    /**
+     * The synthetic CAPI {@code GET /meta} payload: the {@code /models} catalog
+     * plus Auto tier metadata.
+     */
+    static String metaCatalog(List<String> supportedEndpoints) {
+        return "{\"models\":" + modelCatalog(supportedEndpoints) + ",\"auto\":" + json(autoMetadata()) + "}";
+    }
+
+    private static Map<String, Object> autoMetadata() {
+        Map<String, Object> auto = new LinkedHashMap<>();
+        auto.put("default_tier", "balance");
+        List<Map<String, Object>> tiers = new ArrayList<>();
+        tiers.add(autoTier("efficiency", "Efficiency", "Faster, lower-cost models"));
+        tiers.add(autoTier("balance", "Balance", "A balance of speed and capability"));
+        tiers.add(autoTier("intelligence", "Intelligence", "The most capable models"));
+        auto.put("tiers", tiers);
+        return auto;
+    }
+
+    private static Map<String, Object> autoTier(String id, String displayName, String description) {
+        Map<String, Object> tier = new LinkedHashMap<>();
+        tier.put("id", id);
+        tier.put("display_name", displayName);
+        tier.put("description", description);
+        tier.put("type", "auto");
+        tier.put("status", Map.of("enabled", true));
+        return tier;
     }
 
     /**

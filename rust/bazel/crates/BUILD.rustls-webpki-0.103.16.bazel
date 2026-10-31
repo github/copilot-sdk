@@ -37,6 +37,11 @@ rust_library(
             "WORKSPACE.bazel",
         ],
     ),
+    crate_features = [
+        "alloc",
+        "aws-lc-rs",
+        "std",
+    ],
     crate_root = "src/lib.rs",
     edition = "2021",
     rustc_env_files = [
@@ -63,6 +68,7 @@ rust_library(
     }),
     version = "0.103.16",
     deps = [
+        "@sdk_vendor__aws-lc-rs-1.19.0//:aws_lc_rs",
         "@sdk_vendor__rustls-pki-types-1.15.1//:rustls_pki_types",
         "@sdk_vendor__untrusted-0.9.0//:untrusted",
     ],
