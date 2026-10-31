@@ -197,7 +197,7 @@ func (c *Client) StartAhpHost(ctx context.Context, options *AhpHostOptions) (*Ah
 	if options.Authentication.Mode != rpc.HostAuthenticationModeGitHub && options.GitHubEnvironment != nil {
 		return nil, errors.New("githubEnvironment requires github authentication")
 	}
-	if err := c.ensureConnected(ctx); err != nil {
+	if _, err := c.ensureConnected(ctx); err != nil {
 		return nil, err
 	}
 	if err := ctx.Err(); err != nil {

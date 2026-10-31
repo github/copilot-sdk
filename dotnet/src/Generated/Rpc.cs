@@ -48,6 +48,11 @@ internal sealed class PingRequest
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 internal sealed class ConnectResult
 {
+    /// <summary>Acknowledges that this connection's host-owned Entra token provider is enabled. Clients requesting it must reject a missing or false acknowledgement.</summary>
+    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+    [JsonPropertyName("entraTokenProvider")]
+    public bool? EntraTokenProvider { get; set; }
+
     /// <summary>Always true on success.</summary>
     [JsonPropertyName("ok")]
     public bool Ok { get; set; }
@@ -111,8 +116,14 @@ internal sealed class ConnectRequest
     public bool? EnableGitHubTelemetryForwarding { get; set; }
 
     /// <summary>Entra application used by this client's authentication flows. Required to enable built-in Microsoft Entra sign-in and token renewal; other authentication methods remain available.</summary>
+    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
     [JsonPropertyName("entra")]
     public EntraAuthConfig? Entra { get; set; }
+
+    /// <summary>Opt this connection in to host-owned Entra identity and token acquisition through entraToken.getToken. Requires entra.clientId and an explicit true acknowledgement in the response. SDKs set this internally when a callback is configured.</summary>
+    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+    [JsonPropertyName("entraTokenProvider")]
+    public bool? EntraTokenProvider { get; set; }
 
     /// <summary>Task kinds this connection can decode when observing session tasks. Omit to retain agent and shell compatibility.</summary>
     [JsonPropertyName("supportedTaskKinds")]
@@ -13006,6 +13017,19 @@ internal sealed class LlmInferenceHttpResponseChunkRequest
     /// <summary>Matches the requestId from the originating httpRequestStart frame.</summary>
     [JsonPropertyName("requestId")]
     public string RequestId { get; set; } = string.Empty;
+}
+
+/// <summary>Registers the calling SDK connection's Kerberos credential provider.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class KerberosAuthSetProviderRequest
+{
+    /// <summary>Native lookup fallback or exclusive client callback.</summary>
+    [JsonPropertyName("mode")]
+    public KerberosAuthMode Mode { get; set; }
+
+    /// <summary>Traffic the callback authenticates; defaults to `connection`.</summary>
+    [JsonPropertyName("scope")]
+    public KerberosAuthScope? Scope { get; set; }
 }
 
 /// <summary>Pre-resolved working-directory context for session startup.</summary>
@@ -32756,6 +32780,24 @@ public sealed class ExtensionLaunchProviderResolveRequest
     public ExtensionSource Source { get; set; }
 }
 
+/// <summary>Client credentials for a single authentication exchange.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class KerberosAuthAcquireResult
+{
+    /// <summary>Base64 initial SPNEGO token without the Negotiate prefix; omitted when unavailable. Never log or persist it.</summary>
+    [JsonPropertyName("token")]
+    public string? Token { get; set; }
+}
+
+/// <summary>Requests a fresh initial SPNEGO token for a Kerberos service principal.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class KerberosAuthAcquireRequest
+{
+    /// <summary>Service principal in the platform-independent `service/host` form, optionally followed by `@REALM`.</summary>
+    [JsonPropertyName("spn")]
+    public string Spn { get; set; } = string.Empty;
+}
+
 /// <summary>Acknowledgement. Returning successfully simply means the SDK accepted the start frame; it does not imply the request will succeed.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public sealed class LlmInferenceHttpRequestStartResult
@@ -33027,6 +33069,169 @@ public sealed class GitHubTokenAcquireRequest
     /// <summary>Session receiving the token. Absent only before a cloud session has been assigned its id.</summary>
     [JsonPropertyName("sessionId")]
     public string? SessionId { get; set; }
+}
+
+/// <summary>Host response to Entra acquisition. Unavailable, cancellation and errors are terminal: the runtime must not substitute another account or sign-in transport.</summary>
+/// <remarks>Polymorphic base type discriminated by <c>kind</c>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonPolymorphic(
+    TypeDiscriminatorPropertyName = "kind",
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+[JsonDerivedType(typeof(EntraTokenAcquireResultIdentity), "identity")]
+[JsonDerivedType(typeof(EntraTokenAcquireResultToken), "token")]
+[JsonDerivedType(typeof(EntraTokenAcquireResultUnavailable), "unavailable")]
+[JsonDerivedType(typeof(EntraTokenAcquireResultCancelled), "cancelled")]
+public partial class EntraTokenAcquireResult
+{
+    /// <summary>The type discriminator.</summary>
+    [JsonPropertyName("kind")]
+    public virtual string Kind { get; set; } = string.Empty;
+}
+
+
+/// <summary>The <c>identity</c> variant of <see cref="EntraTokenAcquireResult"/>.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class EntraTokenAcquireResultIdentity : EntraTokenAcquireResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "identity";
+
+    /// <summary>Stable nonblank opaque account ID owned by the host.</summary>
+    [RegularExpression("\\S")]
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [JsonPropertyName("accountId")]
+    public required string AccountId { get; set; }
+
+    /// <summary>Optional display name; not an account identifier or credential.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("username")]
+    public string? Username { get; set; }
+}
+
+/// <summary>The <c>token</c> variant of <see cref="EntraTokenAcquireResult"/>.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class EntraTokenAcquireResultToken : EntraTokenAcquireResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "token";
+
+    /// <summary>Nonblank resource access token. The host owns its caching and renewal.</summary>
+    [RegularExpression("\\S")]
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [JsonPropertyName("accessToken")]
+    public required string AccessToken { get; set; }
+
+    /// <summary>Exact host account ID supplied in the request.</summary>
+    [JsonPropertyName("accountId")]
+    public required string AccountId { get; set; }
+}
+
+/// <summary>The <c>unavailable</c> variant of <see cref="EntraTokenAcquireResult"/>.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class EntraTokenAcquireResultUnavailable : EntraTokenAcquireResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "unavailable";
+}
+
+/// <summary>The <c>cancelled</c> variant of <see cref="EntraTokenAcquireResult"/>.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class EntraTokenAcquireResultCancelled : EntraTokenAcquireResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "cancelled";
+}
+
+/// <summary>Requests a host-selected Entra identity or a resource token for that exact identity. Host account ids are opaque and distinct from runtime account-selection ids.</summary>
+/// <remarks>Polymorphic base type discriminated by <c>kind</c>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonPolymorphic(
+    TypeDiscriminatorPropertyName = "kind",
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+[JsonDerivedType(typeof(EntraTokenAcquireRequestIdentity), "identity")]
+[JsonDerivedType(typeof(EntraTokenAcquireRequestToken), "token")]
+public partial class EntraTokenAcquireRequest
+{
+    /// <summary>The type discriminator.</summary>
+    [JsonPropertyName("kind")]
+    public virtual string Kind { get; set; } = string.Empty;
+}
+
+
+/// <summary>The <c>identity</c> variant of <see cref="EntraTokenAcquireRequest"/>.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class EntraTokenAcquireRequestIdentity : EntraTokenAcquireRequest
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "identity";
+
+    /// <summary>Host account to revalidate. When supplied, the response must identify this exact account.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("accountId")]
+    public string? AccountId { get; set; }
+
+    /// <summary>Effective application client ID. Treat it as opaque.</summary>
+    [JsonPropertyName("clientId")]
+    public required string ClientId { get; set; }
+
+    /// <summary>Interaction policy. Only a fresh explicit sign-in may select an unpinned account.</summary>
+    [JsonPropertyName("reason")]
+    public required EntraTokenAcquireReason Reason { get; set; }
+}
+
+/// <summary>The <c>token</c> variant of <see cref="EntraTokenAcquireRequest"/>.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class EntraTokenAcquireRequestToken : EntraTokenAcquireRequest
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "token";
+
+    /// <summary>Pinned opaque host account ID. The response must identify this exact account.</summary>
+    [JsonPropertyName("accountId")]
+    public required string AccountId { get; set; }
+
+    /// <summary>Target resource audience, when known.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("audience")]
+    public string? Audience { get; set; }
+
+    /// <summary>Effective application client ID, including any resource-specific override.</summary>
+    [JsonPropertyName("clientId")]
+    public required string ClientId { get; set; }
+
+    /// <summary>Interaction policy. Renewal must remain silent.</summary>
+    [JsonPropertyName("reason")]
+    public required EntraTokenAcquireReason Reason { get; set; }
+
+    /// <summary>Scopes required for this resource token.</summary>
+    [JsonPropertyName("scopes")]
+    public required IList<string> Scopes { get; set; }
+
+    /// <summary>Bypass cached access tokens without changing account selection or interaction policy.</summary>
+    [JsonPropertyName("skipCachedAccessToken")]
+    public required bool SkipCachedAccessToken { get; set; }
+
+    /// <summary>Target Entra tenant, when different from the host's default.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("tenant")]
+    public string? Tenant { get; set; }
+}
+
+/// <summary>Parameters for one connection-owned Entra acquisition callback.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class EntraTokenGetTokenRequest
+{
+    /// <summary>Typed identity or resource-token acquisition request.</summary>
+    [JsonPropertyName("request")]
+    public EntraTokenAcquireRequest Request { get => field ??= new(); set; }
 }
 
 /// <summary>Identifies one runtime-owned native action for an in-process SDK UI dispatcher.</summary>
@@ -40423,6 +40628,132 @@ public readonly struct SessionFsSetProviderConventions : IEquatable<SessionFsSet
         public override void Write(Utf8JsonWriter writer, SessionFsSetProviderConventions value, JsonSerializerOptions options)
         {
             GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SessionFsSetProviderConventions));
+        }
+    }
+}
+
+
+/// <summary>Selects whether Kerberos credentials come from native lookup with a client fallback, or only from the client.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct KerberosAuthMode : IEquatable<KerberosAuthMode>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="KerberosAuthMode"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="KerberosAuthMode"/>.</param>
+    [JsonConstructor]
+    public KerberosAuthMode(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="KerberosAuthMode"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Use the callback only when native credential lookup fails.</summary>
+    public static KerberosAuthMode Fallback { get; } = new("fallback");
+
+    /// <summary>Always use the callback without native credential lookup.</summary>
+    public static KerberosAuthMode Always { get; } = new("always");
+
+    /// <summary>Returns a value indicating whether two <see cref="KerberosAuthMode"/> instances are equivalent.</summary>
+    public static bool operator ==(KerberosAuthMode left, KerberosAuthMode right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="KerberosAuthMode"/> instances are not equivalent.</summary>
+    public static bool operator !=(KerberosAuthMode left, KerberosAuthMode right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is KerberosAuthMode other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(KerberosAuthMode other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{KerberosAuthMode}"/> for serializing <see cref="KerberosAuthMode"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<KerberosAuthMode>
+    {
+        /// <inheritdoc />
+        public override KerberosAuthMode Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, KerberosAuthMode value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(KerberosAuthMode));
+        }
+    }
+}
+
+
+/// <summary>Selects which traffic a client's Kerberos callback authenticates.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct KerberosAuthScope : IEquatable<KerberosAuthScope>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="KerberosAuthScope"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="KerberosAuthScope"/>.</param>
+    [JsonConstructor]
+    public KerberosAuthScope(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="KerberosAuthScope"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Authenticate only requests made for this connection's sessions.</summary>
+    public static KerberosAuthScope Connection { get; } = new("connection");
+
+    /// <summary>Also authenticate the runtime's shared background traffic. Only one connection at a time may claim this scope.</summary>
+    public static KerberosAuthScope Runtime { get; } = new("runtime");
+
+    /// <summary>Returns a value indicating whether two <see cref="KerberosAuthScope"/> instances are equivalent.</summary>
+    public static bool operator ==(KerberosAuthScope left, KerberosAuthScope right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="KerberosAuthScope"/> instances are not equivalent.</summary>
+    public static bool operator !=(KerberosAuthScope left, KerberosAuthScope right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is KerberosAuthScope other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(KerberosAuthScope other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{KerberosAuthScope}"/> for serializing <see cref="KerberosAuthScope"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<KerberosAuthScope>
+    {
+        /// <inheritdoc />
+        public override KerberosAuthScope Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, KerberosAuthScope value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(KerberosAuthScope));
         }
     }
 }
@@ -50831,6 +51162,72 @@ public readonly struct GitHubTokenAcquireReason : IEquatable<GitHubTokenAcquireR
 }
 
 
+/// <summary>Interaction policy for host-owned Microsoft Entra acquisition.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct EntraTokenAcquireReason : IEquatable<EntraTokenAcquireReason>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="EntraTokenAcquireReason"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="EntraTokenAcquireReason"/>.</param>
+    [JsonConstructor]
+    public EntraTokenAcquireReason(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="EntraTokenAcquireReason"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Establish an identity; interaction is permitted if necessary.</summary>
+    public static EntraTokenAcquireReason SignIn { get; } = new("signIn");
+
+    /// <summary>Renew the pinned identity silently; never select another account or prompt.</summary>
+    public static EntraTokenAcquireReason Renewal { get; } = new("renewal");
+
+    /// <summary>Explicitly show account selection rather than satisfying identity selection from cache.</summary>
+    public static EntraTokenAcquireReason ForceInteractive { get; } = new("forceInteractive");
+
+    /// <summary>Returns a value indicating whether two <see cref="EntraTokenAcquireReason"/> instances are equivalent.</summary>
+    public static bool operator ==(EntraTokenAcquireReason left, EntraTokenAcquireReason right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="EntraTokenAcquireReason"/> instances are not equivalent.</summary>
+    public static bool operator !=(EntraTokenAcquireReason left, EntraTokenAcquireReason right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is EntraTokenAcquireReason other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(EntraTokenAcquireReason other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{EntraTokenAcquireReason}"/> for serializing <see cref="EntraTokenAcquireReason"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<EntraTokenAcquireReason>
+    {
+        /// <inheritdoc />
+        public override EntraTokenAcquireReason Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, EntraTokenAcquireReason value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(EntraTokenAcquireReason));
+        }
+    }
+}
+
+
 /// <summary>Explicit user decisions, never inferred from a permission grant or model response.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
@@ -50920,6 +51317,7 @@ public sealed class ServerRpc
 
     /// <summary>Performs the SDK server connection handshake and validates the optional connection token. Marked internal because this is JSON-RPC transport plumbing invoked automatically by an SDK client's own `connect()` wrapper, not a user-facing method. Stays internal as long as the SDK client owns the handshake; would only become public if the SDK ever exposed the raw schema surface to consumers without a connection wrapper.</summary>
     /// <param name="entra">Entra application used by this client's authentication flows. Required to enable built-in Microsoft Entra sign-in and token renewal; other authentication methods remain available.</param>
+    /// <param name="entraTokenProvider">Opt this connection in to host-owned Entra identity and token acquisition through entraToken.getToken. Requires entra.clientId and an explicit true acknowledgement in the response. SDKs set this internally when a callback is configured.</param>
     /// <param name="enableGitHubTelemetryForwarding">Opt this connection in to GitHub telemetry forwarding for its lifetime. When set, the runtime forwards this host's telemetry across all its sessions, its sessionless events, and explicitly process-wide events over the `gitHubTelemetry.event` notification. Connections intentionally sharing one server receive that server's events; independently embedded runtime hosts do not receive each other's host-owned events. Regular events are also written to the runtime's normal GitHub/CTS path (dual-write); host-only compatibility events are forward-only and intentionally skip that path. Intended for first-party hosts that re-emit the events into their own telemetry stores. Both unrestricted and restricted events are forwarded, each tagged with a `restricted` discriminator; a backstop drops restricted events when restricted telemetry is disabled — using the process-global gate for ordinary events and an explicit session-scoped decision for host-only events.</param>
     /// <param name="clientInfo">Identity of the integrating host. Optional; omit it to keep the default attribution.</param>
     /// <param name="supportedTaskKinds">Task kinds this connection can decode when observing session tasks. Omit to retain agent and shell compatibility.</param>
@@ -50927,9 +51325,9 @@ public sealed class ServerRpc
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Handshake result reporting the server's protocol version and package version on success.</returns>
     [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-    internal async Task<ConnectResult> ConnectAsync(EntraAuthConfig? entra = null, bool? enableGitHubTelemetryForwarding = null, ConnectClientInfo? clientInfo = null, IList<TaskKind>? supportedTaskKinds = null, string? token = null, CancellationToken cancellationToken = default)
+    internal async Task<ConnectResult> ConnectAsync(EntraAuthConfig? entra = null, bool? entraTokenProvider = null, bool? enableGitHubTelemetryForwarding = null, ConnectClientInfo? clientInfo = null, IList<TaskKind>? supportedTaskKinds = null, string? token = null, CancellationToken cancellationToken = default)
     {
-        var request = new ConnectRequest { Entra = entra, EnableGitHubTelemetryForwarding = enableGitHubTelemetryForwarding, ClientInfo = clientInfo, SupportedTaskKinds = supportedTaskKinds, Token = token };
+        var request = new ConnectRequest { Entra = entra, EntraTokenProvider = entraTokenProvider, EnableGitHubTelemetryForwarding = enableGitHubTelemetryForwarding, ClientInfo = clientInfo, SupportedTaskKinds = supportedTaskKinds, Token = token };
         return await CopilotClient.InvokeRpcAsync<ConnectResult>(_rpc, "connect", [request], cancellationToken);
     }
 
@@ -51123,6 +51521,12 @@ public sealed class ServerRpc
 
     /// <summary>LlmInference APIs.</summary>
     public ServerLlmInferenceApi LlmInference =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_rpc), null) ??
+        field;
+
+    /// <summary>KerberosAuth APIs.</summary>
+    public ServerKerberosAuthApi KerberosAuth =>
         field ??
         Interlocked.CompareExchange(ref field, new(_rpc), null) ??
         field;
@@ -54497,6 +54901,28 @@ public sealed class ServerLlmInferenceApi
 
         var request = new LlmInferenceHttpResponseChunkRequest { RequestId = requestId, Data = data, Binary = binary, End = end, Error = error };
         return await CopilotClient.InvokeRpcAsync<LlmInferenceHttpResponseChunkResult>(_rpc, "llmInference.httpResponseChunk", [request], cancellationToken);
+    }
+}
+
+/// <summary>Provides server-scoped KerberosAuth APIs.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class ServerKerberosAuthApi
+{
+    private readonly JsonRpc _rpc;
+
+    internal ServerKerberosAuthApi(JsonRpc rpc)
+    {
+        _rpc = rpc;
+    }
+
+    /// <summary>Registers the calling SDK client's Kerberos callback. The callback authenticates requests made for the client's sessions and, with `runtime` scope, the runtime's shared background traffic; only one connection may hold `runtime` scope. The registration ends when the connection closes.</summary>
+    /// <param name="mode">Native lookup fallback or exclusive client callback.</param>
+    /// <param name="scope">Traffic the callback authenticates; defaults to `connection`.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    public async Task SetProviderAsync(KerberosAuthMode mode, KerberosAuthScope? scope = null, CancellationToken cancellationToken = default)
+    {
+        var request = new KerberosAuthSetProviderRequest { Mode = mode, Scope = scope };
+        await CopilotClient.InvokeRpcAsync(_rpc, "kerberosAuth.setProvider", [request], cancellationToken);
     }
 }
 
@@ -61093,6 +61519,17 @@ public interface IExtensionLaunchProviderHandler
     Task<ExtensionLaunchProviderResolveResult> ResolveAsync(ExtensionLaunchProviderResolveRequest request, CancellationToken cancellationToken = default);
 }
 
+/// <summary>Handles `kerberosAuth` client global API methods.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public interface IKerberosAuthHandler
+{
+    /// <summary>Requests a fresh base64 initial SPNEGO token for a Kerberos service principal; the runtime currently uses it for proxy authentication. Tokens must not be logged, persisted or reused across connections. Continuation challenges are not supported by this callback.</summary>
+    /// <param name="request">Requests a fresh initial SPNEGO token for a Kerberos service principal.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Client credentials for a single authentication exchange.</returns>
+    Task<KerberosAuthAcquireResult> AcquireAsync(KerberosAuthAcquireRequest request, CancellationToken cancellationToken = default);
+}
+
 /// <summary>Handles `llmInference` client global API methods.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public interface ILlmInferenceHandler
@@ -61130,6 +61567,17 @@ public interface IGitHubTokenHandler
     Task<GitHubTokenAcquireResult> GetTokenAsync(GitHubTokenAcquireRequest request, CancellationToken cancellationToken = default);
 }
 
+/// <summary>Handles `entraToken` client global API methods.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public interface IEntraTokenHandler
+{
+    /// <summary>Asks this connection's host-owned Entra provider to select or revalidate an identity, or acquire a token for the pinned identity and requested resource. Standard JSON-RPC cancellation and connection closure retire acquisition; late responses cannot establish credentials.</summary>
+    /// <param name="request">Parameters for one connection-owned Entra acquisition callback.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Host response to Entra acquisition. Unavailable, cancellation and errors are terminal: the runtime must not substitute another account or sign-in transport.</returns>
+    Task<EntraTokenAcquireResult> GetTokenAsync(EntraTokenGetTokenRequest request, CancellationToken cancellationToken = default);
+}
+
 /// <summary>Handles `uiThread` client global API methods.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public interface IUiThreadHandler
@@ -61160,6 +61608,9 @@ public sealed class ClientGlobalApiHandlers
     /// <summary>Optional handler for ExtensionLaunchProvider client global API methods.</summary>
     public IExtensionLaunchProviderHandler? ExtensionLaunchProvider { get; set; }
 
+    /// <summary>Optional handler for KerberosAuth client global API methods.</summary>
+    public IKerberosAuthHandler? KerberosAuth { get; set; }
+
     /// <summary>Optional handler for LlmInference client global API methods.</summary>
     public ILlmInferenceHandler? LlmInference { get; set; }
 
@@ -61168,6 +61619,9 @@ public sealed class ClientGlobalApiHandlers
 
     /// <summary>Optional handler for GitHubToken client global API methods.</summary>
     public IGitHubTokenHandler? GitHubToken { get; set; }
+
+    /// <summary>Optional handler for EntraToken client global API methods.</summary>
+    public IEntraTokenHandler? EntraToken { get; set; }
 
     /// <summary>Optional handler for UiThread client global API methods.</summary>
     public IUiThreadHandler? UiThread { get; set; }
@@ -61197,6 +61651,11 @@ internal static class ClientGlobalApiRegistration
             var handler = handlers.ExtensionLaunchProvider ?? throw new InvalidOperationException("No extensionLaunchProvider client-global handler registered");
             return await handler.ResolveAsync(request, cancellationToken);
         }), singleObjectParam: true);
+        rpc.SetLocalRpcMethod("kerberosAuth.acquire", (Func<KerberosAuthAcquireRequest, CancellationToken, ValueTask<KerberosAuthAcquireResult>>)(async (request, cancellationToken) =>
+        {
+            var handler = handlers.KerberosAuth ?? throw new InvalidOperationException("No kerberosAuth client-global handler registered");
+            return await handler.AcquireAsync(request, cancellationToken);
+        }), singleObjectParam: true);
         rpc.SetLocalRpcMethod("llmInference.httpRequestStart", (Func<LlmInferenceHttpRequestStartRequest, CancellationToken, ValueTask<LlmInferenceHttpRequestStartResult>>)(async (request, cancellationToken) =>
         {
             var handler = handlers.LlmInference ?? throw new InvalidOperationException("No llmInference client-global handler registered");
@@ -61215,6 +61674,11 @@ internal static class ClientGlobalApiRegistration
         rpc.SetLocalRpcMethod("gitHubToken.getToken", (Func<GitHubTokenAcquireRequest, CancellationToken, ValueTask<GitHubTokenAcquireResult>>)(async (request, cancellationToken) =>
         {
             var handler = handlers.GitHubToken ?? throw new InvalidOperationException("No gitHubToken client-global handler registered");
+            return await handler.GetTokenAsync(request, cancellationToken);
+        }), singleObjectParam: true);
+        rpc.SetLocalRpcMethod("entraToken.getToken", (Func<EntraTokenGetTokenRequest, CancellationToken, ValueTask<EntraTokenAcquireResult>>)(async (request, cancellationToken) =>
+        {
+            var handler = handlers.EntraToken ?? throw new InvalidOperationException("No entraToken client-global handler registered");
             return await handler.GetTokenAsync(request, cancellationToken);
         }), singleObjectParam: true);
         rpc.SetLocalRpcMethod("uiThread.run", (Func<UiThreadRunRequest, CancellationToken, ValueTask>)(async (request, cancellationToken) =>
@@ -61991,6 +62455,9 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(EnqueueCommandParams))]
 [JsonSerializable(typeof(EnqueueCommandResult))]
 [JsonSerializable(typeof(EntraAuthConfig))]
+[JsonSerializable(typeof(EntraTokenAcquireRequest))]
+[JsonSerializable(typeof(EntraTokenAcquireResult))]
+[JsonSerializable(typeof(EntraTokenGetTokenRequest))]
 [JsonSerializable(typeof(EnvironmentCapabilities))]
 [JsonSerializable(typeof(EnvironmentsDeleteRequest))]
 [JsonSerializable(typeof(EnvironmentsDeleteResult))]
@@ -62129,6 +62596,9 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(InterruptMainTurnRequest))]
 [JsonSerializable(typeof(InterruptMainTurnResult))]
 [JsonSerializable(typeof(JsonSchemaResponseFormat))]
+[JsonSerializable(typeof(KerberosAuthAcquireRequest))]
+[JsonSerializable(typeof(KerberosAuthAcquireResult))]
+[JsonSerializable(typeof(KerberosAuthSetProviderRequest))]
 [JsonSerializable(typeof(LlmInferenceHttpRequestChunkRequest))]
 [JsonSerializable(typeof(LlmInferenceHttpRequestChunkResult))]
 [JsonSerializable(typeof(LlmInferenceHttpRequestStartRequest))]

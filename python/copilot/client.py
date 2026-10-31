@@ -71,6 +71,7 @@ from .copilot_request_handler import (
     _CopilotRequestAdapterHandler,
     create_copilot_request_adapter,
 )
+from .entra import EntraAuthOptions, _EntraTokenAdapter
 from .generated.rpc import (
     ClientGlobalApiHandlers,
     ClientSessionApiHandlers,
@@ -81,6 +82,11 @@ from .generated.rpc import (
     GitHubTokenAcquireReason,
     GitHubTokenAcquireRequest,
     GitHubTokenAcquireResult,
+    KerberosAuthAcquireRequest,
+    KerberosAuthAcquireResult,
+    KerberosAuthMode,
+    KerberosAuthScope,
+    KerberosAuthSetProviderRequest,
     ModelBillingTokenPrices,
     ModelBillingTokenPricesLongContext,  # noqa: F401
     OpenCanvasInstance,
@@ -610,6 +616,44 @@ def _client_info_to_wire(client_info: ClientInfo | None) -> dict[str, str] | Non
     return wire or None
 
 
+class KerberosAuthConfig(TypedDict):
+    """Supplies Kerberos credentials from the SDK host for a requested service principal."""
+
+    mode: KerberosAuthMode | Literal["fallback", "always"]
+    """``"fallback"`` uses the callback only when native lookup fails; ``"always"`` never
+    attempts native lookup.
+    """
+    scope: NotRequired[KerberosAuthScope | Literal["connection", "runtime"]]
+    """``"connection"`` (default) authenticates only requests made for sessions this client
+    creates or resumes; ``"runtime"`` also authenticates the runtime's shared background
+    traffic. Only one connection at a time can hold ``"runtime"``, so startup fails if another
+    client holds it. The registration ends when the connection closes.
+    """
+    callback: Callable[[KerberosAuthAcquireRequest], str | None | Awaitable[str | None]]
+    """Returns a fresh, single-use base64 SPNEGO token without the ``Negotiate `` prefix, or
+    ``None`` when unavailable.
+
+    The SPN uses the platform-independent ``service/host[@REALM]`` form; validate it before
+    issuing credentials. Like other client callbacks it runs on the event loop, so offload a
+    blocking lookup, e.g. with :func:`asyncio.to_thread`.
+    """
+
+
+def _kerberos_auth_registration(config: KerberosAuthConfig) -> KerberosAuthSetProviderRequest:
+    try:
+        mode = KerberosAuthMode(config.get("mode"))
+    except ValueError:
+        raise ValueError("kerberos_auth.mode must be either 'fallback' or 'always'") from None
+    scope_value = config.get("scope")
+    try:
+        scope = None if scope_value is None else KerberosAuthScope(scope_value)
+    except ValueError:
+        raise ValueError("kerberos_auth.scope must be either 'connection' or 'runtime'") from None
+    if not callable(config.get("callback")):
+        raise ValueError("kerberos_auth.callback must be callable")
+    return KerberosAuthSetProviderRequest(mode=mode, scope=scope)
+
+
 @dataclass
 class RuntimeConnection:
     """Discriminated config describing how to reach the Copilot runtime.
@@ -842,6 +886,56 @@ class _GitHubTelemetryAdapter:
             logger.warning("Error handling gitHubTelemetry.event notification", exc_info=True)
 
 
+class _KerberosAuthAdapter:
+    """Adapts a ``kerberos_auth`` callback to the generated ``KerberosAuthHandler`` protocol."""
+
+    def __init__(self, config: KerberosAuthConfig) -> None:
+        self._callback = config["callback"]
+        self._pending: set[asyncio.Future[object]] = set()
+        self._closed = False
+
+    def cancel_pending(self) -> None:
+        """Cancel in-flight callbacks because the connection closed; later requests fail."""
+        self._closed = True
+        pending = list(self._pending)
+        self._pending.clear()
+        for lookup in pending:
+            lookup.cancel()
+
+    async def acquire(self, params: KerberosAuthAcquireRequest) -> KerberosAuthAcquireResult:
+        if self._closed:
+            raise RuntimeError("Kerberos auth connection closed")
+        token = self._callback(params)
+        if inspect.isawaitable(token):
+            token = await self._await_callback(token)
+        return KerberosAuthAcquireResult(token=cast(str | None, token))
+
+    async def _await_callback(self, awaitable: Awaitable[object]) -> object:
+        lookup = asyncio.ensure_future(awaitable)
+        self._pending.add(lookup)
+        try:
+            # Unlike ``await lookup``, this raises CancelledError only when the request itself
+            # is cancelled, not when the callback's own awaitable is.
+            await asyncio.wait({lookup})
+        except BaseException:
+            lookup.cancel()
+            raise
+        finally:
+            self._pending.discard(lookup)
+        if lookup.cancelled():
+            # The dispatcher answers only the request's own cancellation; a propagated
+            # CancelledError would leave the runtime waiting for its deadline.
+            if self._closed:
+                raise RuntimeError("Kerberos auth connection closed")
+            raise RuntimeError("Kerberos credential callback was cancelled")
+        return lookup.result()
+
+    async def handle_request(self, params: dict) -> dict:
+        """Wire-level ``kerberosAuth.acquire`` handler, registered as cancellable."""
+        result = await self.acquire(KerberosAuthAcquireRequest.from_dict(params))
+        return result.to_dict()
+
+
 @dataclass
 class _GitHubTokenProviderRegistration:
     provider: GitHubTokenProvider
@@ -916,6 +1010,7 @@ class _CopilotClientOptions:
     builtin_plugin_directories: tuple[str, ...] = ()
     extension_launch_provider: ExtensionLaunchProviderHandler | None = None
     installation_confirmation_handler: InstallationConfirmationHandler | None = None
+    kerberos_auth: KerberosAuthConfig | None = None
     use_logged_in_user: bool | None = None
     telemetry: TelemetryConfig | None = None
     session_fs: SessionFsConfig | None = None
@@ -1674,6 +1769,7 @@ class CopilotClient:
         builtin_plugin_directories: Sequence[str] | None = None,
         extension_launch_provider: ExtensionLaunchProviderHandler | None = None,
         installation_confirmation_handler: InstallationConfirmationHandler | None = None,
+        kerberos_auth: KerberosAuthConfig | None = None,
         use_logged_in_user: bool | None = None,
         telemetry: TelemetryConfig | None = None,
         session_fs: SessionFsConfig | None = None,
@@ -1700,6 +1796,8 @@ class CopilotClient:
         :meth:`RuntimeConnection.for_uri`.
 
         Args:
+            entra: **Experimental.** Host Entra application and optional host-owned
+                identity and token acquisition callback. May change or be removed.
             connection: How to reach the runtime. Defaults to
                 :meth:`RuntimeConnection.for_stdio` with the bundled binary.
             working_directory: Working directory for the runtime process.
@@ -1724,6 +1822,10 @@ class CopilotClient:
                 typed request and independent request/connection cancellation
                 signals, and returns only an explicit decision. This does not
                 enable installation capabilities.
+            kerberos_auth: Supplies Kerberos credentials from the SDK host. The
+                client installs the ``kerberosAuth.acquire`` handler and
+                registers ``mode`` and ``scope`` during startup before
+                sessions can be created.
             use_logged_in_user: Use the logged-in user for authentication.
                 ``None`` (default) resolves to ``True`` unless ``github_token``
                 is set.
@@ -1776,6 +1878,7 @@ class CopilotClient:
             builtin_plugin_directories=tuple(builtin_plugin_directories or ()),
             extension_launch_provider=extension_launch_provider,
             installation_confirmation_handler=installation_confirmation_handler,
+            kerberos_auth=kerberos_auth,
             use_logged_in_user=use_logged_in_user,
             telemetry=telemetry,
             session_fs=session_fs,
@@ -1797,6 +1900,11 @@ class CopilotClient:
                 raise ValueError(
                     f"builtin_plugin_directories must contain only absolute paths: {path}"
                 )
+        self._kerberos_auth_registration = (
+            _kerberos_auth_registration(options.kerberos_auth)
+            if options.kerberos_auth is not None
+            else None
+        )
         _require_storage_for_empty_mode(
             mode=options.mode,
             base_directory=options.base_directory,
@@ -1896,7 +2004,12 @@ class CopilotClient:
         self._session_fs_config = options.session_fs
         self._request_handler = options.request_handler
         self._llm_inference_adapter: _CopilotRequestAdapterHandler | None = None
+        self._kerberos_auth_adapter: _KerberosAuthAdapter | None = None
         self._installation_confirmation_adapter: _InstallationConfirmationAdapter | None = None
+        self._entra_token_provider = (
+            options.entra.token_provider if isinstance(options.entra, EntraAuthOptions) else None
+        )
+        self._entra_token_adapter: _EntraTokenAdapter | None = None
 
     def _resolve_runtime_entrypoint(
         self,
@@ -2091,48 +2204,18 @@ class CopilotClient:
                 start_time,
             )
 
-            # Verify protocol version compatibility
             try:
-                await self._verify_protocol_version()
-            except Exception as handshake_error:
+                await self._initialize_connection(start_time)
+            except BaseException as startup_error:
+                # The runtime keeps registrations made on this connection, such as an exclusive
+                # Kerberos claim, until it closes. Cancellation bypasses the outer startup
+                # cleanup, so close the connection here for every outcome and never let a
+                # cleanup error mask the startup error.
                 try:
                     await self.force_stop()
                 except Exception as cleanup_error:
-                    raise handshake_error from cleanup_error
+                    raise startup_error from cleanup_error
                 raise
-            log_timing(
-                logger,
-                logging.DEBUG,
-                "CopilotClient.start protocol verification complete",
-                start_time,
-            )
-
-            if self._options.extension_launch_provider is not None:
-                await self.rpc.register_extension_launch_provider()
-
-            if self._options.builtin_plugin_directories:
-                assert self._client is not None
-                try:
-                    await self._client.request(
-                        "plugins.builtin.set",
-                        {"paths": list(self._options.builtin_plugin_directories)},
-                    )
-                except Exception:
-                    await self.force_stop()
-                    raise
-
-            if self._session_fs_config:
-                session_fs_start = time.perf_counter()
-                await self._set_session_fs_provider()
-                log_timing(
-                    logger,
-                    logging.DEBUG,
-                    "CopilotClient.start session filesystem setup complete",
-                    session_fs_start,
-                )
-
-            if self._request_handler is not None:
-                await self._set_llm_inference_provider()
 
             with self._sessions_lock:
                 self._session_admission_closed = False
@@ -2176,6 +2259,42 @@ class CopilotClient:
                     raise RuntimeError(self._client._get_process_exit_error()) from e
             raise
 
+    async def _initialize_connection(self, start_time: float) -> None:
+        """Verify the protocol version and register this client's providers on a new connection."""
+        await self._verify_protocol_version()
+        log_timing(
+            logger,
+            logging.DEBUG,
+            "CopilotClient.start protocol verification complete",
+            start_time,
+        )
+
+        if self._kerberos_auth_registration is not None:
+            await self.rpc.kerberos_auth.set_provider(self._kerberos_auth_registration)
+
+        if self._options.extension_launch_provider is not None:
+            await self.rpc.register_extension_launch_provider()
+
+        if self._options.builtin_plugin_directories:
+            assert self._client is not None
+            await self._client.request(
+                "plugins.builtin.set",
+                {"paths": list(self._options.builtin_plugin_directories)},
+            )
+
+        if self._session_fs_config:
+            session_fs_start = time.perf_counter()
+            await self._set_session_fs_provider()
+            log_timing(
+                logger,
+                logging.DEBUG,
+                "CopilotClient.start session filesystem setup complete",
+                session_fs_start,
+            )
+
+        if self._request_handler is not None:
+            await self._set_llm_inference_provider()
+
     async def stop(self) -> None:
         """
         Stop the CLI server and close all active sessions.
@@ -2201,6 +2320,8 @@ class CopilotClient:
             ...         print(f"Cleanup error: {error.message}")
         """
         errors: list[StopError] = []
+        if self._entra_token_adapter is not None:
+            self._entra_token_adapter.close_connection()
         if self._installation_confirmation_adapter is not None:
             self._installation_confirmation_adapter.close_connection()
         self._ahp_hosts.disconnect()
@@ -2273,7 +2394,10 @@ class CopilotClient:
             except OSError:
                 logger.debug("Error while closing Copilot CLI stdin", exc_info=True)
 
-        # Close client
+        # Close client. Kerberos lookups stay available until here because the runtime may
+        # still authenticate while it shuts down.
+        if self._kerberos_auth_adapter is not None:
+            self._kerberos_auth_adapter.cancel_pending()
         if self._client:
             await self._client.stop()
             self._client = None
@@ -2359,11 +2483,15 @@ class CopilotClient:
             ... except asyncio.TimeoutError:
             ...     await client.force_stop()
         """
+        if self._entra_token_adapter is not None:
+            self._entra_token_adapter.close_connection()
         if self._installation_confirmation_adapter is not None:
             self._installation_confirmation_adapter.close_connection()
         self._ahp_hosts.disconnect()
         if self._llm_inference_adapter is not None:
             self._llm_inference_adapter.cancel_pending()
+        if self._kerberos_auth_adapter is not None:
+            self._kerberos_auth_adapter.cancel_pending()
 
         # Clear sessions immediately without trying to destroy them
         with self._sessions_lock:
@@ -2803,7 +2931,8 @@ class CopilotClient:
             raise ValueError('ask_user_variant must be "legacy" or "elicitation"')
         if cloud is not None and skill_provider is not None:
             raise ValueError("Skill providers are not supported for cloud sessions.")
-        if not self._client:
+        # Wait for in-progress startup too: its provider registrations must precede any session.
+        if not self._client or self._start_lock.locked():
             await self.start()
 
         tool_defs = [definition.to_dict() for definition in _tools_to_wire_definitions(tools)]
@@ -3730,7 +3859,8 @@ class CopilotClient:
             raise ValueError("github_token and github_token_provider are mutually exclusive")
         if ask_user_variant not in (None, "legacy", "elicitation"):
             raise ValueError('ask_user_variant must be "legacy" or "elicitation"')
-        if not self._client:
+        # Wait for in-progress startup too: its provider registrations must precede any session.
+        if not self._client or self._start_lock.locked():
             await self.start()
 
         tool_defs = [definition.to_dict() for definition in _tools_to_wire_definitions(tools)]
@@ -4583,6 +4713,8 @@ class CopilotClient:
             }
             if self._options.entra is not None:
                 connect_params["entra"] = self._options.entra.to_dict()
+            if self._entra_token_provider is not None:
+                connect_params["entraTokenProvider"] = True
             if self._effective_connection_token is not None:
                 connect_params["token"] = self._effective_connection_token
             # Opt in to GitHub telemetry forwarding at the connection level when a
@@ -4601,6 +4733,13 @@ class CopilotClient:
                 await self._client.request("connect", connect_params)
             )
             server_version = connect_result.protocol_version
+            if (
+                self._entra_token_provider is not None
+                and connect_result.entra_token_provider is not True
+            ):
+                raise RuntimeError(
+                    "This runtime does not support host-owned Entra token providers."
+                )
         except JsonRpcError as err:
             if err.code == -32601 or err.message == "Unhandled method connect":
                 if self._options.entra is not None:
@@ -5329,17 +5468,29 @@ class CopilotClient:
         github_telemetry_adapter = None
         if self._on_github_telemetry is not None:
             github_telemetry_adapter = _GitHubTelemetryAdapter(self._on_github_telemetry)
+        kerberos_auth_adapter = self._kerberos_auth_adapter = (
+            _KerberosAuthAdapter(self._options.kerberos_auth)
+            if self._options.kerberos_auth is not None
+            else None
+        )
         register_client_global_api_handlers(
             self._client,
             ClientGlobalApiHandlers(
                 hooks=_HooksAdapter(self._get_session),
                 extension_launch_provider=self._options.extension_launch_provider,
+                kerberos_auth=kerberos_auth_adapter,
                 llm_inference=self._llm_inference_adapter,
                 git_hub_telemetry=github_telemetry_adapter,
                 git_hub_token=self._github_token_provider_adapter,
                 ui_thread=_UiThreadAdapter(self),
             ),
         )
+        if kerberos_auth_adapter is not None:
+            # The runtime sends ``$/cancelRequest`` when it stops waiting for a token; a
+            # cancellable handler lets that cancel an async callback still in flight.
+            self._client.set_request_handler(
+                "kerberosAuth.acquire", kerberos_auth_adapter.handle_request, cancellable=True
+            )
         if self._ffi_host is not None:
             self._ffi_host.configure_ui_thread(
                 isinstance(self._connection, InProcessRuntimeConnection)
@@ -5350,6 +5501,30 @@ class CopilotClient:
             self._options.installation_confirmation_handler,
         )
         self._installation_confirmation_adapter.register()
+        if self._entra_token_provider is not None:
+            self._entra_token_adapter = _EntraTokenAdapter(self._client, self._entra_token_provider)
+            self._entra_token_adapter.register()
+        client = self._client
+        entra_token_adapter = self._entra_token_adapter
+        installation_confirmation_adapter = self._installation_confirmation_adapter
+
+        def handle_connection_close() -> None:
+            if entra_token_adapter is not None:
+                entra_token_adapter.close_connection()
+            installation_confirmation_adapter.close_connection()
+            if kerberos_auth_adapter is not None:
+                # Cancel this connection's own lookups: a reconnect may already have
+                # replaced the client's adapter.
+                loop = client._loop
+                if loop is not None and not loop.is_closed():
+                    try:
+                        loop.call_soon_threadsafe(kerberos_auth_adapter.cancel_pending)
+                    except RuntimeError:
+                        logger.debug("Event loop closed while handling connection loss")
+            if self._client is client:
+                self._handle_connection_close()
+
+        client.on_close = handle_connection_close
         self._client.set_request_handler("host.materializeSession", self._ahp_hosts.materialize)
         self._client.set_request_handler(
             "host.validateAuthentication", self._ahp_hosts.validate_authentication, ordered=True
@@ -5380,8 +5555,6 @@ class CopilotClient:
 
     def _handle_connection_close(self) -> None:
         self._state = "disconnected"
-        if self._installation_confirmation_adapter is not None:
-            self._installation_confirmation_adapter.close_connection()
         with self._sessions_lock:
             self._session_admission_closed = True
             sessions = list(self._sessions.values())

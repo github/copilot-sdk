@@ -131,6 +131,7 @@ new CopilotClient(CopilotClientOptions? options = null)
 - `Telemetry` - OpenTelemetry configuration for the runtime process. Providing this enables telemetry — no separate flag needed. See [Telemetry](#telemetry) below.
 - `SessionFs` - Custom session filesystem provider configuration. To serve provider-only images to the `view` tool, set `Capabilities.Binary` to `true` and return a provider implementing `ISessionFsBinaryProvider` (`ReadFileBytesAsync` and `WriteFileBytesAsync`) from `SessionConfig.CreateSessionFsProvider`. Image reads do not fall back to local files. Binary reads and writes are limited to 50,330,880 raw bytes (approximately 48 MiB); larger results return a filesystem error before encoding or decoding.
 - `InstallationConfirmationHandler` - Experimental connection-global human review for `installations.confirm`. Receives the typed request and one cancellation token that is cancelled when the request is retired or the connection closes, and returns an explicit decision. Does not enable installation capabilities.
+- `KerberosAuth` - Experimental Kerberos credentials supplied by the SDK host as a `KerberosAuthConfig` with `Mode`, optional `Scope`, and `Callback`. Registered during `StartAsync()` before sessions can be created. See "Kerberos authentication callback" below.
 
 #### RuntimeConnection
 
@@ -187,6 +188,27 @@ A matching runtime contract and available owned-lifecycle support are required.
 Capability negotiation does not promise availability; preserve typed refusals
 instead of falling back to raw configuration writes. Generated presence and
 transport tests do not establish live OAuth, activation or cross-process recovery.
+
+#### Kerberos authentication callback (experimental)
+
+Set `CopilotClientOptions.KerberosAuth` when Kerberos tickets must be obtained by the SDK host, for example from Windows when the runtime runs in WSL. The runtime currently uses it for proxy authentication. The callback receives the generated `GitHub.Copilot.Rpc.KerberosAuthAcquireRequest`, whose `Spn` is a service principal in the platform-independent `service/host[@REALM]` form, and a `CancellationToken`. It returns a fresh base64 SPNEGO token without the `Negotiate ` prefix, or `null` when credentials are unavailable. The callback should validate the principal before issuing credentials.
+
+```csharp
+#pragma warning disable GHCP001 // The Kerberos authentication callback is experimental.
+await using var client = new CopilotClient(new CopilotClientOptions
+{
+    KerberosAuth = new KerberosAuthConfig
+    {
+        Mode = KerberosAuthMode.Fallback,
+        Callback = (request, cancellationToken) => AcquireSpnegoTokenAsync(request.Spn, cancellationToken),
+    },
+});
+#pragma warning restore GHCP001
+```
+
+With `KerberosAuthMode.Fallback`, native credential acquisition (including the first token) is tried first; only failure invokes the callback. With `KerberosAuthMode.Always`, native credential lookup is never attempted. Without this option, behavior is unchanged. Registration happens during `StartAsync()` (including the automatic start of `CreateSessionAsync` and `ResumeSessionAsync`), before sessions can be created; if registration fails, startup fails. Exceptions thrown by the callback, including cancellation not requested through the supplied `CancellationToken`, are returned to the runtime as JSON-RPC errors. The callback is started on a thread-pool thread and may block, for example while prompting for credentials; the supplied `CancellationToken` is cancelled when the runtime abandons the request or the connection closes.
+
+By default the callback authenticates only requests made for sessions this client creates or resumes. With `KerberosAuthScope.Runtime` it also authenticates the runtime's shared background traffic, such as catalog refreshes and telemetry; only one connection at a time can hold that scope, so startup fails if another client holds it. The registration ends when the connection closes. In fallback mode, if the callback cannot supply a valid token, the native credential error is reported. In always mode, a disconnected, throwing, or empty callback fails authentication. The runtime waits at most 30 seconds for the callback (less when the request's own deadline is sooner) and treats a timeout as a callback failure. Tokens are not cached and must not be logged or persisted. The callback supplies the initial SPNEGO token only; exchanges requiring continuation tokens still need native negotiation.
 
 #### Methods
 

@@ -28,6 +28,8 @@ record ConnectResult(
     @JsonProperty("protocolVersion") Long protocolVersion,
     /** Server package version */
     @JsonProperty("version") String version,
+    /** Acknowledges that this connection's host-owned Entra token provider is enabled. Clients requesting it must reject a missing or false acknowledgement. */
+    @JsonProperty("entraTokenProvider") Boolean entraTokenProvider,
     /** Task kinds the server may return to this connection. */
     @JsonProperty("taskKinds") List<TaskKind> taskKinds
 ) {

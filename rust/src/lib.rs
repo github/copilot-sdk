@@ -42,6 +42,7 @@ pub use errors::*;
 /// model-layer HTTP and WebSocket traffic the runtime issues for both CAPI and
 /// BYOK sessions.
 pub mod copilot_request_handler;
+pub mod entra;
 /// GitHub telemetry forwarding callback surface (experimental). Public but
 /// `#[doc(hidden)]` — re-exports the generated telemetry payload types.
 #[doc(hidden)]
@@ -55,6 +56,8 @@ pub mod hooks;
 /// Connection-global human confirmation for experimental installation operations.
 pub mod installation_confirmation;
 mod jsonrpc;
+/// Kerberos credentials supplied by the SDK host.
+pub mod kerberos_auth;
 /// Permission-policy helpers that produce a [`handler::PermissionHandler`].
 pub mod permission;
 mod process_tree;
@@ -404,6 +407,12 @@ pub struct ClientOptions {
     /// of sessions.
     pub extension_launch_provider:
         Option<Arc<dyn crate::extension_launch_provider::ExtensionLaunchProvider>>,
+    /// Kerberos credentials supplied by the SDK host.
+    ///
+    /// When set, the SDK handles `kerberosAuth.acquire` requests and registers
+    /// with the runtime via `kerberosAuth.setProvider` during [`Client::start`],
+    /// before any session can be created.
+    pub kerberos_auth: Option<crate::kerberos_auth::KerberosAuthConfig>,
     /// Connection-global human review handler for `installations.confirm` (experimental).
     ///
     /// This receives requests without session routing or inferred operation authority.
@@ -484,7 +493,9 @@ pub struct ClientOptions {
     pub client_info: Option<ClientInfo>,
     /// Host's Entra registration, shared by its sessions. Omission disables
     /// built-in Entra sign-in and token renewal; other auth methods remain available.
-    pub entra: Option<EntraAuthConfig>,
+    ///
+    /// **Experimental.** May change or be removed in future releases.
+    pub entra: Option<types::EntraAuthOptions>,
 }
 
 /// Identity of the integrating application, declared on the `server.connect`
@@ -617,6 +628,7 @@ impl std::fmt::Debug for ClientOptions {
                 "extension_launch_provider",
                 &self.extension_launch_provider.as_ref().map(|_| "<set>"),
             )
+            .field("kerberos_auth", &self.kerberos_auth)
             .field(
                 "installation_confirmation_handler",
                 &self
@@ -912,6 +924,7 @@ impl Default for ClientOptions {
             session_fs: None,
             request_handler: None,
             extension_launch_provider: None,
+            kerberos_auth: None,
             installation_confirmation_handler: None,
             on_github_telemetry: None,
             on_get_trace_context: None,
@@ -1087,6 +1100,33 @@ impl ClientOptions {
         self
     }
 
+    /// Supply Kerberos credentials from the SDK host.
+    ///
+    /// [`KerberosAuthMode::Fallback`](crate::kerberos_auth::KerberosAuthMode::Fallback)
+    /// uses the provider only when the runtime's native lookup fails;
+    /// [`KerberosAuthMode::Always`](crate::kerberos_auth::KerberosAuthMode::Always)
+    /// never attempts native lookup. The provider is registered with the runtime
+    /// before [`Client::start`] returns.
+    ///
+    /// The provider authenticates only requests made for sessions this client
+    /// creates or resumes. To also authenticate the runtime's shared background
+    /// traffic, set [`ClientOptions::kerberos_auth`] to a
+    /// [`KerberosAuthConfig`](crate::kerberos_auth::KerberosAuthConfig) with
+    /// [`KerberosAuthScope::Runtime`](crate::kerberos_auth::KerberosAuthScope::Runtime).
+    pub fn with_kerberos_auth<P>(
+        mut self,
+        mode: crate::kerberos_auth::KerberosAuthMode,
+        provider: P,
+    ) -> Self
+    where
+        P: crate::kerberos_auth::KerberosAuthProvider,
+    {
+        self.kerberos_auth = Some(crate::kerberos_auth::KerberosAuthConfig::new(
+            mode, provider,
+        ));
+        self
+    }
+
     /// Install a connection-global human confirmation handler (experimental).
     pub fn with_installation_confirmation_handler<H>(mut self, handler: H) -> Self
     where
@@ -1177,8 +1217,10 @@ impl ClientOptions {
     }
 
     /// Configure the host's Microsoft Entra application for its sessions.
-    pub fn with_entra(mut self, entra: EntraAuthConfig) -> Self {
-        self.entra = Some(entra);
+    ///
+    /// **Experimental.** May change or be removed in future releases.
+    pub fn with_entra(mut self, entra: impl Into<types::EntraAuthOptions>) -> Self {
+        self.entra = Some(entra.into());
         self
     }
 }
@@ -1352,6 +1394,7 @@ struct ClientInner {
     llm_inference: OnceLock<Arc<copilot_request_handler::CopilotRequestDispatcher>>,
     extension_launch_provider: Arc<extension_launch_provider::ExtensionLaunchProviderDispatcher>,
     installation_confirmation: Arc<installation_confirmation::InstallationConfirmationDispatcher>,
+    entra_token: Arc<entra::EntraTokenDispatcher>,
     /// Connection-level GitHub telemetry forwarding callback, set from
     /// [`ClientOptions::on_github_telemetry`]. Drives the
     /// `enableGitHubTelemetryForwarding` wire flag and the
@@ -1367,7 +1410,7 @@ struct ClientInner {
     /// [`ClientOptions::client_info`]. `None` keeps the runtime's default
     /// telemetry attribution.
     client_info: Option<ClientInfo>,
-    entra: Option<EntraAuthConfig>,
+    entra: Option<types::EntraAuthOptions>,
     /// SDK [`ClientMode`] captured at start time. Drives empty-mode safe
     /// defaults inside `create_session` / `resume_session`.
     pub(crate) mode: ClientMode,
@@ -1431,6 +1474,8 @@ impl Client {
     ///
     /// After establishing the connection, calls [`verify_protocol_version`](Self::verify_protocol_version)
     /// to ensure the CLI server speaks a compatible protocol version.
+    /// When [`ClientOptions::kerberos_auth`] is set, next registers the SDK as
+    /// the Kerberos credential provider via `kerberosAuth.setProvider`.
     /// When [`ClientOptions::session_fs`] is set, also calls
     /// `sessionFs.setProvider` to register the SDK as the filesystem
     /// backend.
@@ -1555,6 +1600,7 @@ impl Client {
         let session_fs_config = options.session_fs.clone();
         let request_handler = options.request_handler.clone();
         let extension_launch_provider = options.extension_launch_provider.clone();
+        let kerberos_auth_config = options.kerberos_auth.clone();
         let installation_confirmation_handler = options.installation_confirmation_handler.clone();
         let session_fs_sqlite_declared = session_fs_config
             .as_ref()
@@ -1848,6 +1894,9 @@ impl Client {
             dispatcher
         });
         client.inner.router.ensure_started(&client.inner);
+        if let Some(config) = kerberos_auth_config {
+            kerberos_auth::register(&client, config).await?;
+        }
         if client.inner.extension_launch_provider.is_configured() {
             client.rpc().register_extension_launch_provider().await?;
         }
@@ -1987,11 +2036,27 @@ impl Client {
     /// registration. `None` retains the behavior of [`Self::from_streams`].
     /// Call [`Self::verify_protocol_version`] before using the client to send the
     /// configuration and reject legacy servers that cannot accept it.
+    ///
+    /// **Experimental.** May change or be removed in future releases.
     pub fn from_streams_with_entra(
         reader: impl AsyncRead + Unpin + Send + 'static,
         writer: impl AsyncWrite + Unpin + Send + 'static,
         cwd: PathBuf,
         entra: Option<EntraAuthConfig>,
+    ) -> Result<Self> {
+        Self::from_streams_with_entra_options(reader, writer, cwd, entra.map(Into::into))
+    }
+
+    /// Create a custom-transport client with optional host-owned Entra acquisition.
+    ///
+    /// Call [`Self::verify_protocol_version`] before issuing other operations.
+    ///
+    /// **Experimental.** May change or be removed in future releases.
+    pub fn from_streams_with_entra_options(
+        reader: impl AsyncRead + Unpin + Send + 'static,
+        writer: impl AsyncWrite + Unpin + Send + 'static,
+        cwd: PathBuf,
+        entra: Option<types::EntraAuthOptions>,
     ) -> Result<Self> {
         Self::from_transport(
             reader,
@@ -2269,7 +2334,7 @@ impl Client {
         effective_connection_token: Option<String>,
         mode: ClientMode,
         client_info: Option<ClientInfo>,
-        entra: Option<EntraAuthConfig>,
+        entra: Option<types::EntraAuthOptions>,
         owns_stdio: bool,
     ) -> Result<Self> {
         let setup_start = Instant::now();
@@ -2295,6 +2360,11 @@ impl Client {
         );
         let installation_confirmation =
             Arc::new(installation_confirmation::InstallationConfirmationDispatcher::new());
+        let entra_token = Arc::new(entra::EntraTokenDispatcher::new(
+            entra
+                .as_ref()
+                .and_then(|options| options.token_provider.clone()),
+        ));
         let ahp_host_sessions = Arc::new(ahp_host::HostSessions::new());
         let client = Self {
             ahp_host_sessions: Some(ahp_host_sessions.clone()),
@@ -2324,6 +2394,7 @@ impl Client {
                 llm_inference: OnceLock::new(),
                 extension_launch_provider: extension_launch_provider.clone(),
                 installation_confirmation: installation_confirmation.clone(),
+                entra_token: entra_token.clone(),
                 on_github_telemetry,
                 on_get_trace_context,
                 effective_connection_token,
@@ -2337,9 +2408,18 @@ impl Client {
         github_token_registry.set_client(Arc::downgrade(&client.inner));
         extension_launch_provider.set_client(Arc::downgrade(&client.inner));
         installation_confirmation.set_client(Arc::downgrade(&client.inner));
+        entra_token.set_client(Arc::downgrade(&client.inner));
         client.spawn_lifecycle_dispatcher();
         client.spawn_ahp_host_dispatcher(host_notification_rx);
         client.register_ahp_session_factory()?;
+        if client
+            .inner
+            .entra
+            .as_ref()
+            .is_some_and(|options| options.token_provider.is_some())
+        {
+            client.inner.router.ensure_started(&client.inner);
+        }
         debug!(
             elapsed_ms = setup_start.elapsed().as_millis(),
             pid = ?pid,
@@ -2977,7 +3057,17 @@ impl Client {
     /// started with `COPILOT_CONNECTION_TOKEN`.
     async fn connect_handshake(&self) -> Result<Option<u32>> {
         let params = crate::generated::api_types::ConnectRequest {
-            entra: self.inner.entra.clone(),
+            entra: self
+                .inner
+                .entra
+                .as_ref()
+                .map(types::EntraAuthOptions::to_wire),
+            entra_token_provider: self
+                .inner
+                .entra
+                .as_ref()
+                .is_some_and(|options| options.token_provider.is_some())
+                .then_some(true),
             token: self.inner.effective_connection_token.clone(),
             enable_git_hub_telemetry_forwarding: self
                 .inner
@@ -3006,6 +3096,18 @@ impl Client {
             )
             .await?;
         let result: crate::generated::api_types::ConnectResult = serde_json::from_value(value)?;
+        if self
+            .inner
+            .entra
+            .as_ref()
+            .is_some_and(|options| options.token_provider.is_some())
+            && result.entra_token_provider != Some(true)
+        {
+            return Err(Error::with_message(
+                ErrorKind::InvalidConfig,
+                "This runtime does not support host-owned Entra token providers",
+            ));
+        }
         Ok(Some(u32::try_from(result.protocol_version).map_err(
             |_| ProtocolErrorKind::InvalidProtocolVersion {
                 server: result.protocol_version,

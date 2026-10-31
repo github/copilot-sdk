@@ -24,6 +24,14 @@ replaces both with the CLI version published for that snapshot.
 npm install @github/copilot-sdk
 ```
 
+## Kerberos authentication callback
+
+Provide `kerberosAuth: { mode, callback }` in `CopilotClientOptions` when Kerberos tickets must be obtained by the SDK host, for example from Windows when the runtime runs in WSL. The runtime currently uses it for proxy authentication. The callback receives `{ spn }`, a service principal in the platform-independent `service/host[@REALM]` form, and returns a fresh base64 SPNEGO token without the `Negotiate ` prefix, or `undefined` when credentials are unavailable. The callback should validate the principal before issuing credentials. Its second argument is an `AbortSignal` that fires when the runtime stops waiting (it cancels the request, for example after its timeout, or the connection closes); the SDK then stops awaiting the callback and ignores any later result.
+
+With `mode: "fallback"`, native credential acquisition (including the first token) is tried first; only failure invokes the callback. With `mode: "always"`, native credential lookup is never attempted. Without this option, behavior is unchanged. Registration happens during `start()`, before sessions can be created.
+
+By default the callback authenticates only requests made for sessions this client creates or resumes. With `scope: "runtime"` it also authenticates the runtime's shared background traffic, such as catalog refreshes and telemetry; only one connection at a time can hold that scope, so startup fails if another client holds it. The registration ends when the connection closes. In `fallback` mode, if the callback cannot supply a valid token, the native credential error is reported. In `always` mode, a disconnected, throwing, or empty callback fails authentication. The runtime waits at most 30 seconds for the callback (less when the request's own deadline is sooner) and treats a timeout as a callback failure. Tokens are not cached and must not be logged or persisted. The callback supplies the initial SPNEGO token only; exchanges requiring continuation tokens still need native negotiation.
+
 ## Runtime-supervised AHP host (experimental)
 
 `startAhpHost()` requires `authentication`: `github`, or direct-only `none` / `custom`

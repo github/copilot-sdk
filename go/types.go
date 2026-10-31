@@ -151,6 +151,10 @@ type ClientOptions struct {
 	// discovered by the runtime. When non-nil, Start registers the provider
 	// before any sessions can be created.
 	ExtensionLaunchProvider ExtensionLaunchProvider
+	// KerberosAuth supplies Kerberos credentials from the SDK host. When
+	// non-nil, Start installs the `kerberosAuth.acquire` handler and registers
+	// the callback before any sessions can be created.
+	KerberosAuth *KerberosAuthConfig
 	// InstallationConfirmationHandler receives connection-global human reviews
 	// for experimental `installations.confirm` callbacks. It does not enable
 	// installation capabilities or perform any runtime registration RPC.
@@ -219,7 +223,9 @@ type ClientOptions struct {
 
 	// Entra configures the host's Entra application for its sessions.
 	// Required for built-in Entra sign-in and token renewal; other authentication methods remain available.
-	Entra *rpc.EntraAuthConfig
+	//
+	// Experimental: this API may change or be removed.
+	Entra *EntraAuthOptions
 	// Mode controls the default tool surface and feature flags presented to
 	// sessions created by this client. The zero value ([ModeCopilotCli])
 	// matches legacy CLI defaults. Set to [ModeEmpty] to opt in to

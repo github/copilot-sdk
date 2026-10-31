@@ -2403,6 +2403,122 @@ export type ModelProviderOperationOutcomeCode =
 /** @experimental */
 export type EnqueueCommandResult = AcceptedEnqueueCommandResult | UnsupportedEnqueueCommandResult;
 /**
+ * Interaction policy for host-owned Microsoft Entra acquisition.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "EntraTokenAcquireReason".
+ */
+/** @experimental */
+export type EntraTokenAcquireReason =
+  /** Establish an identity; interaction is permitted if necessary. */
+  | "signIn"
+  /** Renew the pinned identity silently; never select another account or prompt. */
+  | "renewal"
+  /** Explicitly show account selection rather than satisfying identity selection from cache. */
+  | "forceInteractive";
+/**
+ * Requests a host-selected Entra identity or a resource token for that exact identity. Host account ids are opaque and distinct from runtime account-selection ids.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "EntraTokenAcquireRequest".
+ */
+/** @experimental */
+export type EntraTokenAcquireRequest =
+  | {
+      /**
+       * Entra identity or resource-token acquisition discriminator.
+       */
+      kind: "identity";
+      /**
+       * Effective application client ID. Treat it as opaque.
+       */
+      clientId: string;
+      reason: EntraTokenAcquireReason;
+      /**
+       * Host account to revalidate. When supplied, the response must identify this exact account.
+       */
+      accountId?: string;
+    }
+  | {
+      /**
+       * Entra identity or resource-token acquisition discriminator.
+       */
+      kind: "token";
+      /**
+       * Effective application client ID, including any resource-specific override.
+       */
+      clientId: string;
+      reason: EntraTokenAcquireReason;
+      /**
+       * Pinned opaque host account ID. The response must identify this exact account.
+       */
+      accountId: string;
+      /**
+       * Scopes required for this resource token.
+       */
+      scopes: string[];
+      /**
+       * Target resource audience, when known.
+       */
+      audience?: string;
+      /**
+       * Target Entra tenant, when different from the host's default.
+       */
+      tenant?: string;
+      /**
+       * Bypass cached access tokens without changing account selection or interaction policy.
+       */
+      skipCachedAccessToken: boolean;
+    };
+/**
+ * Host response to Entra acquisition. Unavailable, cancellation and errors are terminal: the runtime must not substitute another account or sign-in transport.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "EntraTokenAcquireResult".
+ */
+/** @experimental */
+export type EntraTokenAcquireResult =
+  | {
+      /**
+       * Entra acquisition response variant discriminator.
+       */
+      kind: "identity";
+      /**
+       * Stable nonblank opaque account ID owned by the host.
+       */
+      accountId: string;
+      /**
+       * Optional display name; not an account identifier or credential.
+       */
+      username?: string;
+    }
+  | {
+      /**
+       * Entra acquisition response variant discriminator.
+       */
+      kind: "token";
+      /**
+       * Exact host account ID supplied in the request.
+       */
+      accountId: string;
+      /**
+       * Nonblank resource access token. The host owns its caching and renewal.
+       */
+      accessToken: string;
+    }
+  | {
+      /**
+       * Entra acquisition response variant discriminator.
+       */
+      kind: "unavailable";
+    }
+  | {
+      /**
+       * Entra acquisition response variant discriminator.
+       */
+      kind: "cancelled";
+    };
+/**
  * GitHub Mission Control compute kind.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -3196,6 +3312,30 @@ export type InstructionSourceLocation =
   | "working-directory"
   /** Instructions live in plugin-provided configuration. */
   | "plugin";
+/**
+ * Selects whether Kerberos credentials come from native lookup with a client fallback, or only from the client.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "KerberosAuthMode".
+ */
+/** @experimental */
+export type KerberosAuthMode =
+  /** Use the callback only when native credential lookup fails. */
+  | "fallback"
+  /** Always use the callback without native credential lookup. */
+  | "always";
+/**
+ * Selects which traffic a client's Kerberos callback authenticates.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "KerberosAuthScope".
+ */
+/** @experimental */
+export type KerberosAuthScope =
+  /** Authenticate only requests made for this connection's sessions. */
+  | "connection"
+  /** Also authenticate the runtime's shared background traffic. Only one connection at a time may claim this scope. */
+  | "runtime";
 /**
  * Transport the runtime would otherwise use for this request. `http` (the default when absent) covers plain HTTP and SSE responses; `websocket` indicates a full-duplex message channel where each body chunk maps to one WebSocket message and the `binary` flag distinguishes text from binary frames. The SDK consumer uses this to decide whether to service the request with an HTTP client or a WebSocket client. It is the one piece of request metadata the consumer cannot reliably infer from the URL or headers alone.
  *
@@ -12822,7 +12962,22 @@ export interface ConnectRemoteSessionParams {
 /** @experimental */
 /** @internal */
 export interface ConnectRequest {
+  /**
+   * Entra application used by this client's authentication flows. Required to enable built-in Microsoft Entra sign-in and token renewal; other authentication methods remain available.
+   *
+   * @experimental
+   *
+   * @experimental
+   */
   entra?: EntraAuthConfig;
+  /**
+   * Opt this connection in to host-owned Entra identity and token acquisition through entraToken.getToken. Requires entra.clientId and an explicit true acknowledgement in the response. SDKs set this internally when a callback is configured.
+   *
+   * @experimental
+   *
+   * @experimental
+   */
+  entraTokenProvider?: boolean;
   /**
    * Opt this connection in to GitHub telemetry forwarding for its lifetime. When set, the runtime forwards this host's telemetry across all its sessions, its sessionless events, and explicitly process-wide events over the `gitHubTelemetry.event` notification. Connections intentionally sharing one server receive that server's events; independently embedded runtime hosts do not receive each other's host-owned events. Regular events are also written to the runtime's normal GitHub/CTS path (dual-write); host-only compatibility events are forward-only and intentionally skip that path. Intended for first-party hosts that re-emit the events into their own telemetry stores. Both unrestricted and restricted events are forwarded, each tagged with a `restricted` discriminator; a backstop drops restricted events when restricted telemetry is disabled — using the process-global gate for ordinary events and an explicit session-scoped decision for host-only events.
    */
@@ -12871,6 +13026,14 @@ export interface ConnectResult {
    * Server package version
    */
   version: string;
+  /**
+   * Acknowledges that this connection's host-owned Entra token provider is enabled. Clients requesting it must reject a missing or false acknowledgement.
+   *
+   * @experimental
+   *
+   * @experimental
+   */
+  entraTokenProvider?: boolean;
   /**
    * Task kinds the server may return to this connection.
    */
@@ -13790,6 +13953,16 @@ export interface UnsupportedEnqueueCommandResult {
    * Legacy null queue ID accepted for compatibility with older runtimes.
    */
   queueId?: null;
+}
+/**
+ * Parameters for one connection-owned Entra acquisition callback.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "EntraTokenGetTokenRequest".
+ */
+/** @experimental */
+export interface EntraTokenGetTokenRequest {
+  request: EntraTokenAcquireRequest;
 }
 /**
  * Hosting capabilities and session capacity advertised by an environment.
@@ -17149,6 +17322,43 @@ export interface JsonSchemaResponseFormat {
    * Optional strict enforcement setting for OpenAI providers. Omitted uses the provider default. Anthropic always enforces its supported schema subset.
    */
   strict?: boolean;
+}
+/**
+ * Requests a fresh initial SPNEGO token for a Kerberos service principal.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "KerberosAuthAcquireRequest".
+ */
+/** @experimental */
+export interface KerberosAuthAcquireRequest {
+  /**
+   * Service principal in the platform-independent `service/host` form, optionally followed by `@REALM`.
+   */
+  spn: string;
+}
+/**
+ * Client credentials for a single authentication exchange.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "KerberosAuthAcquireResult".
+ */
+/** @experimental */
+export interface KerberosAuthAcquireResult {
+  /**
+   * Base64 initial SPNEGO token without the Negotiate prefix; omitted when unavailable. Never log or persist it.
+   */
+  token?: string;
+}
+/**
+ * Registers the calling SDK connection's Kerberos credential provider.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "KerberosAuthSetProviderRequest".
+ */
+/** @experimental */
+export interface KerberosAuthSetProviderRequest {
+  mode: KerberosAuthMode;
+  scope?: KerberosAuthScope;
 }
 /**
  * HTTP headers as a map from lowercased header name to a list of values. Multi-valued headers (e.g. Set-Cookie) preserve all values.
@@ -38849,6 +39059,16 @@ export function createServerRpc(connection: MessageConnection) {
                 connection.sendRequest("llmInference.httpResponseChunk", params),
         },
         /** @experimental */
+        kerberosAuth: {
+            /**
+             * Registers the calling SDK client's Kerberos callback. The callback authenticates requests made for the client's sessions and, with `runtime` scope, the runtime's shared background traffic; only one connection may hold `runtime` scope. The registration ends when the connection closes.
+             *
+             * @param params Registers the calling SDK connection's Kerberos credential provider.
+             */
+            setProvider: async (params: KerberosAuthSetProviderRequest): Promise<void> =>
+                connection.sendRequest("kerberosAuth.setProvider", params),
+        },
+        /** @experimental */
         sessions: {
             /**
              * Creates or resumes a local session and returns the opened session ID.
@@ -43459,6 +43679,19 @@ export interface ExtensionLaunchProviderHandler {
     resolve(params: ExtensionLaunchProviderResolveRequest): Promise<ExtensionLaunchProviderResolveResult>;
 }
 
+/** Handler for `kerberosAuth` client global API methods. */
+/** @experimental */
+export interface KerberosAuthHandler {
+    /**
+     * Requests a fresh base64 initial SPNEGO token for a Kerberos service principal; the runtime currently uses it for proxy authentication. Tokens must not be logged, persisted or reused across connections. Continuation challenges are not supported by this callback.
+     *
+     * @param params Requests a fresh initial SPNEGO token for a Kerberos service principal.
+     *
+     * @returns Client credentials for a single authentication exchange.
+     */
+    acquire(params: KerberosAuthAcquireRequest): Promise<KerberosAuthAcquireResult>;
+}
+
 /** Handler for `llmInference` client global API methods. */
 /** @experimental */
 export interface LlmInferenceHandler {
@@ -43504,6 +43737,19 @@ export interface GitHubTokenHandler {
     getToken(params: GitHubTokenAcquireRequest): Promise<GitHubTokenAcquireResult>;
 }
 
+/** Handler for `entraToken` client global API methods. */
+/** @experimental */
+export interface EntraTokenHandler {
+    /**
+     * Asks this connection's host-owned Entra provider to select or revalidate an identity, or acquire a token for the pinned identity and requested resource. Standard JSON-RPC cancellation and connection closure retire acquisition; late responses cannot establish credentials.
+     *
+     * @param params Parameters for one connection-owned Entra acquisition callback.
+     *
+     * @returns Host response to Entra acquisition. Unavailable, cancellation and errors are terminal: the runtime must not substitute another account or sign-in transport.
+     */
+    getToken(params: EntraTokenGetTokenRequest): Promise<EntraTokenAcquireResult>;
+}
+
 /** Handler for `uiThread` client global API methods. */
 /** @experimental */
 export interface UiThreadHandler {
@@ -43532,9 +43778,11 @@ export interface InstallationsHandler {
 export interface ClientGlobalApiHandlers {
     host?: HostHandler;
     extensionLaunchProvider?: ExtensionLaunchProviderHandler;
+    kerberosAuth?: KerberosAuthHandler;
     llmInference?: LlmInferenceHandler;
     gitHubTelemetry?: GitHubTelemetryHandler;
     gitHubToken?: GitHubTokenHandler;
+    entraToken?: EntraTokenHandler;
     uiThread?: UiThreadHandler;
     installations?: InstallationsHandler;
 }
@@ -43560,6 +43808,11 @@ export function registerClientGlobalApiHandlers(
         if (!handler) throw new Error("No extensionLaunchProvider client-global handler registered");
         return handler.resolve(params);
     });
+    connection.onRequest("kerberosAuth.acquire", async (params: KerberosAuthAcquireRequest) => {
+        const handler = handlers.kerberosAuth;
+        if (!handler) throw new Error("No kerberosAuth client-global handler registered");
+        return handler.acquire(params);
+    });
     connection.onRequest("llmInference.httpRequestStart", async (params: LlmInferenceHttpRequestStartRequest) => {
         const handler = handlers.llmInference;
         if (!handler) throw new Error("No llmInference client-global handler registered");
@@ -43578,6 +43831,11 @@ export function registerClientGlobalApiHandlers(
     connection.onRequest("gitHubToken.getToken", async (params: GitHubTokenAcquireRequest) => {
         const handler = handlers.gitHubToken;
         if (!handler) throw new Error("No gitHubToken client-global handler registered");
+        return handler.getToken(params);
+    });
+    connection.onRequest("entraToken.getToken", async (params: EntraTokenGetTokenRequest) => {
+        const handler = handlers.entraToken;
+        if (!handler) throw new Error("No entraToken client-global handler registered");
         return handler.getToken(params);
     });
     connection.onRequest("uiThread.run", async (params: UiThreadRunRequest) => {

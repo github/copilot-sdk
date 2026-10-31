@@ -298,6 +298,49 @@ spawned UI work should observe this signal and retire itself when it completes.
 Dropping an outbound installation or OAuth future does not cancel that
 operation.
 
+### Kerberos authentication callback
+
+Use `CopilotClientOptions.setKerberosAuth(new KerberosAuthConfig(mode, callback))`
+when Kerberos tickets must be obtained by the SDK host, for example from Windows
+when the runtime runs in WSL. The runtime currently uses it for proxy
+authentication. The callback receives the generated `KerberosAuthAcquireRequest`,
+whose `spn()` is a service principal in the platform-independent
+`service/host[@REALM]` form, and returns a `CompletableFuture<String>` with a
+fresh base64 SPNEGO token without the `Negotiate ` prefix, or `null` when
+credentials are unavailable. The callback should validate the principal before
+issuing credentials.
+
+```java
+import com.github.copilot.generated.rpc.KerberosAuthMode;
+import com.github.copilot.rpc.CopilotClientOptions;
+import com.github.copilot.rpc.KerberosAuthConfig;
+
+var options = new CopilotClientOptions().setKerberosAuth(new KerberosAuthConfig(KerberosAuthMode.FALLBACK,
+        request -> acquireSpnegoToken(request.spn())));
+```
+
+With `KerberosAuthMode.FALLBACK`, native credential acquisition (including the
+first token) is tried first; only failure invokes the callback. With
+`KerberosAuthMode.ALWAYS`, native credential lookup is never attempted. Without
+this option, behavior is unchanged. Registration happens during `start()`,
+before sessions can be created, and startup fails if it is rejected.
+
+By default the callback authenticates only requests made for sessions this
+client creates or resumes. With `KerberosAuthScope.RUNTIME` it also
+authenticates the runtime's shared background traffic, such as catalog refreshes
+and telemetry; only one connection at a time can hold that scope, so startup
+fails if another client holds it. The registration ends when the connection
+closes. In `FALLBACK` mode, if the callback cannot supply a valid token,
+the native credential error is reported. In `ALWAYS` mode, a disconnected,
+failing, or empty callback fails authentication. The runtime waits at most 30
+seconds for the callback (less when the request's own deadline is sooner) and
+treats a timeout as a callback failure. The callback runs on the client
+executor; if the executor rejects it, the lookup fails. When the runtime cancels
+a lookup or the connection closes, a queued invocation is skipped and the
+returned future is cancelled. Tokens are not cached and must not be
+logged or persisted. The callback supplies the initial SPNEGO token only;
+exchanges requiring continuation tokens still need native negotiation.
+
 `SessionConfig.setAutopilot(AutopilotOptions)` and the corresponding
 `ResumeSessionConfig` setter configure experimental Autopilot policy.
 `continuationEnabled` defaults to true and does not change session mode.

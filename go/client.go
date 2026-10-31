@@ -191,6 +191,9 @@ type Client struct {
 	nextLifecycleHandlerID    uint64
 	lifecycleHandlersMux      sync.Mutex
 	startStopMux              sync.RWMutex // protects process and state during start/[force]stop
+	transportMux              sync.Mutex   // guards startup and transport visibility outside startStopMux; see ensureConnected
+	startup                   *startupAttempt
+	testHookTransportAcquired func() // tests only: runs after ensureConnected acquires a transport
 	processDone               chan struct{}
 	processErrorPtr           *error
 	osProcess                 atomic.Pointer[os.Process]
@@ -352,6 +355,11 @@ func NewClient(options *ClientOptions) *Client {
 			panic(err.Error())
 		}
 	}
+	if opts.KerberosAuth != nil {
+		if err := validateKerberosAuthConfig(opts.KerberosAuth); err != nil {
+			panic(err.Error())
+		}
+	}
 
 	client.options = opts
 	validateNewClientForMode(&client.options)
@@ -472,6 +480,8 @@ func parseCLIURL(url string) (string, int) {
 // Otherwise, spawns the CLI server process and then connects.
 //
 // This method is called automatically when creating a session if AutoStart is true (default).
+// Operations called while Start is in progress wait for it and fail with its
+// error if it fails.
 //
 // Returns an error if the server fails to start or the connection fails.
 //
@@ -482,13 +492,27 @@ func parseCLIURL(url string) (string, int) {
 //	    log.Fatal("Failed to start:", err)
 //	}
 //	// Now ready to create sessions
-func (c *Client) Start(ctx context.Context) error {
+func (c *Client) Start(ctx context.Context) (err error) {
 	c.startStopMux.Lock()
 	defer c.startStopMux.Unlock()
 
 	if c.state == stateConnected {
 		return nil
 	}
+
+	// Publish startup before creating the transport and while holding
+	// startStopMux, so ensureConnected never observes a partially started
+	// transport and never waits on startup while Stop holds the lock.
+	startup := &startupAttempt{done: make(chan struct{})}
+	c.transportMux.Lock()
+	c.startup = startup
+	c.transportMux.Unlock()
+	defer func() {
+		c.transportMux.Lock()
+		c.startup = nil
+		c.transportMux.Unlock()
+		startup.finish(err)
+	}()
 
 	c.state = stateConnecting
 
@@ -508,8 +532,12 @@ func (c *Client) Start(ctx context.Context) error {
 		return errors.Join(err, killErr)
 	}
 
-	// Verify protocol version compatibility
-	if err := c.verifyProtocolVersion(ctx); err != nil {
+	if err := c.initializeConnection(ctx); err != nil {
+		// Fail waiting operations first: one may be a handler on the reader that
+		// closing the connection joins.
+		startup.finish(err)
+		// The runtime keeps registrations made on this connection, such as an
+		// exclusive Kerberos claim, until it closes, so close it on any failure.
 		c.client.Stop()
 		c.client = nil
 		c.conn = nil
@@ -520,16 +548,31 @@ func (c *Client) Start(ctx context.Context) error {
 		return errors.Join(err, killErr)
 	}
 
+	c.state = stateConnected
+	return nil
+}
+
+// initializeConnection verifies the protocol version and registers the
+// client's providers on a new connection.
+func (c *Client) initializeConnection(ctx context.Context) error {
+	// Verify protocol version compatibility
+	if err := c.verifyProtocolVersion(ctx); err != nil {
+		return err
+	}
+
+	if c.options.KerberosAuth != nil {
+		request := &rpc.KerberosAuthSetProviderRequest{Mode: c.options.KerberosAuth.Mode}
+		if scope := c.options.KerberosAuth.Scope; scope != "" {
+			request.Scope = &scope
+		}
+		if _, err := c.RPC.KerberosAuth.SetProvider(ctx, request); err != nil {
+			return err
+		}
+	}
+
 	if c.options.ExtensionLaunchProvider != nil {
 		if _, err := c.RPC.RegisterExtensionLaunchProvider(ctx); err != nil {
-			c.client.Stop()
-			c.client = nil
-			c.conn = nil
-			c.RPC = nil
-			c.internalRPC = nil
-			killErr := c.killProcess()
-			c.state = stateError
-			return errors.Join(err, killErr)
+			return err
 		}
 	}
 
@@ -537,14 +580,7 @@ func (c *Client) Start(ctx context.Context) error {
 		if _, err := c.client.Request(ctx, "plugins.builtin.set", map[string]any{
 			"paths": c.options.BuiltinPluginDirectories,
 		}); err != nil {
-			c.client.Stop()
-			c.client = nil
-			c.conn = nil
-			c.RPC = nil
-			c.internalRPC = nil
-			killErr := c.killProcess()
-			c.state = stateError
-			return errors.Join(err, killErr)
+			return err
 		}
 	}
 
@@ -565,22 +601,17 @@ func (c *Client) Start(ctx context.Context) error {
 		}
 		_, err := c.RPC.SessionFS.SetProvider(ctx, req)
 		if err != nil {
-			killErr := c.killProcess()
-			c.state = stateError
-			return errors.Join(err, killErr)
+			return err
 		}
 	}
 
 	// If a request handler was configured, register as the inference provider.
 	if c.options.RequestHandler != nil {
 		if _, err := c.RPC.LlmInference.SetProvider(ctx); err != nil {
-			killErr := c.killProcess()
-			c.state = stateError
-			return errors.Join(err, killErr)
+			return err
 		}
 	}
 
-	c.state = stateConnected
 	return nil
 }
 
@@ -697,8 +728,8 @@ func (c *Client) Stop() error {
 	// Then close JSON-RPC client (readLoop can now exit)
 	if c.client != nil {
 		c.client.Stop()
-		c.client = nil
 	}
+	c.retireTransport()
 
 	// Clear models cache
 	c.modelsCacheMux.Lock()
@@ -710,9 +741,17 @@ func (c *Client) Stop() error {
 		c.actualPort = 0
 	}
 
+	return errors.Join(errs...)
+}
+
+// retireTransport clears the stopped transport. Callers that passed
+// ensureConnected keep their snapshot, whose requests then fail with an error.
+func (c *Client) retireTransport() {
+	c.transportMux.Lock()
+	defer c.transportMux.Unlock()
+	c.client = nil
 	c.RPC = nil
 	c.internalRPC = nil
-	return errors.Join(errs...)
 }
 
 func (c *Client) logDebugTiming(start time.Time, message string) {
@@ -803,8 +842,8 @@ func (c *Client) ForceStop() {
 	// Close JSON-RPC client
 	if c.client != nil {
 		c.client.Stop()
-		c.client = nil
 	}
+	c.retireTransport()
 
 	// Clear models cache
 	c.modelsCacheMux.Lock()
@@ -815,16 +854,74 @@ func (c *Client) ForceStop() {
 	if !c.isExternalServer {
 		c.actualPort = 0
 	}
-
-	c.RPC = nil
-	c.internalRPC = nil
 }
 
-func (c *Client) ensureConnected(ctx context.Context) error {
-	if c.client != nil {
-		return nil
+// startupAttempt publishes the outcome of an in-progress Start to the
+// operations waiting for it in ensureConnected.
+type startupAttempt struct {
+	done chan struct{} // closed once the outcome is published
+	err  error         // the startup failure; written before done is closed
+	once sync.Once
+}
+
+// finish publishes the outcome of the attempt; only the first call has effect.
+func (a *startupAttempt) finish(err error) {
+	a.once.Do(func() {
+		a.err = err
+		close(a.done)
+	})
+}
+
+// ensureConnected returns the transport for the caller's requests, waiting for
+// an in-progress Start and starting the client when it is disconnected. Callers
+// must use the returned client rather than re-reading c.client, which a
+// concurrent Stop may retire; a stopped transport fails requests with an error.
+//
+// transportMux, never held across I/O or while joining the JSON-RPC reader,
+// orders this check with transport changes: Start writes the transport while
+// startup is set and publishes it by clearing startup, and Stop and ForceStop
+// retire it through retireTransport. A failed Start publishes its error before
+// closing the transport and keeps startup set until it returns, so callers fail
+// with that error instead of restarting the client during its cleanup.
+func (c *Client) ensureConnected(ctx context.Context) (*jsonrpc2.Client, error) {
+	// Do not take startStopMux: the caller may be the JSON-RPC reader, which
+	// Stop joins while holding that lock.
+	started := false
+	for {
+		c.transportMux.Lock()
+		startup := c.startup
+		var transport *jsonrpc2.Client
+		if startup == nil {
+			transport = c.client
+		}
+		c.transportMux.Unlock()
+		if startup != nil {
+			// Start creates the transport before its registrations complete, and
+			// sessions must not be created before them.
+			select {
+			case <-startup.done:
+				if startup.err != nil {
+					return nil, fmt.Errorf("client failed to start: %w", startup.err)
+				}
+				continue
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			}
+		}
+		if transport != nil {
+			if hook := c.testHookTransportAcquired; hook != nil {
+				hook()
+			}
+			return transport, nil
+		}
+		if started {
+			return nil, errors.New("client is not connected")
+		}
+		if err := c.Start(ctx); err != nil {
+			return nil, err
+		}
+		started = true
 	}
-	return c.Start(ctx)
 }
 
 // CreateSession creates a new conversation session with the Copilot CLI.
@@ -924,7 +1021,8 @@ func (c *Client) createSession(ctx context.Context, config *SessionConfig, runti
 		return nil, fmt.Errorf("invalid TrustWorkingDirectory %q: expected %q, %q, or unset", trust, WorkingDirectoryTrustSession, WorkingDirectoryTrustUser)
 	}
 
-	if err := c.ensureConnected(ctx); err != nil {
+	transport, err := c.ensureConnected(ctx)
+	if err != nil {
 		return nil, err
 	}
 
@@ -1130,7 +1228,7 @@ func (c *Client) createSession(ctx context.Context, config *SessionConfig, runti
 	initializeSession := func(sessionID string) (*Session, error) {
 		s := newSession(
 			sessionID,
-			c.client,
+			transport,
 			"",
 			hasManagedSettings(config.EnableManagedSettings, config.ManagedSettings),
 		)
@@ -1271,7 +1369,7 @@ func (c *Client) createSession(ctx context.Context, config *SessionConfig, runti
 		}
 	}
 
-	result, err := c.client.RequestWithInlineResponse(ctx, "session.create", req, inlineCb)
+	result, err := transport.RequestWithInlineResponse(ctx, "session.create", req, inlineCb)
 	inlineMu.Lock()
 	requestFinished = true
 	cleanupSessionID := orphanedSessionID
@@ -1307,7 +1405,7 @@ func (c *Client) createSession(ctx context.Context, config *SessionConfig, runti
 		return nil, fmt.Errorf("session.create returned sessionId %s but the caller requested %s", response.SessionID, localSessionID)
 	}
 	if config.OnMCPAuthRequest != nil || runtimeRefreshHandler != nil {
-		if _, err := c.client.Request(ctx, "session.eventLog.registerInterest", map[string]any{
+		if _, err := transport.Request(ctx, "session.eventLog.registerInterest", map[string]any{
 			"sessionId": session.SessionID,
 			"eventType": "mcp.oauth_required",
 		}); err != nil {
@@ -1391,7 +1489,8 @@ func (c *Client) resumeSession(ctx context.Context, sessionID string, config *Re
 		return nil, err
 	}
 
-	if err := c.ensureConnected(ctx); err != nil {
+	transport, err := c.ensureConnected(ctx)
+	if err != nil {
 		return nil, err
 	}
 
@@ -1563,7 +1662,7 @@ func (c *Client) resumeSession(ctx context.Context, sessionID string, config *Re
 	// events emitted by the CLI (e.g. session.start) are not dropped.
 	session := newSession(
 		sessionID,
-		c.client,
+		transport,
 		"",
 		hasManagedSettings(config.EnableManagedSettings, config.ManagedSettings),
 	)
@@ -1652,7 +1751,7 @@ func (c *Client) resumeSession(ctx context.Context, sessionID string, config *Re
 		session.stopEventProcessing()
 	}
 
-	result, err := c.client.Request(ctx, "session.resume", req)
+	result, err := transport.Request(ctx, "session.resume", req)
 	if err != nil {
 		restoreReplacedSession()
 		return nil, fmt.Errorf("failed to resume session: %w", err)
@@ -1665,7 +1764,7 @@ func (c *Client) resumeSession(ctx context.Context, sessionID string, config *Re
 	}
 
 	if config.OnMCPAuthRequest != nil || runtimeRefreshHandler != nil {
-		if _, err := c.client.Request(ctx, "session.eventLog.registerInterest", map[string]any{
+		if _, err := transport.Request(ctx, "session.eventLog.registerInterest", map[string]any{
 			"sessionId": sessionID,
 			"eventType": "mcp.oauth_required",
 		}); err != nil {
@@ -1727,7 +1826,8 @@ func (c *Client) resumeSession(ctx context.Context, sessionID string, config *Re
 //
 //	sessions, err := client.ListSessions(context.Background(), &SessionListFilter{Repository: "owner/repo"})
 func (c *Client) ListSessions(ctx context.Context, filter *SessionListFilter) ([]SessionMetadata, error) {
-	if err := c.ensureConnected(ctx); err != nil {
+	transport, err := c.ensureConnected(ctx)
+	if err != nil {
 		return nil, err
 	}
 
@@ -1735,7 +1835,7 @@ func (c *Client) ListSessions(ctx context.Context, filter *SessionListFilter) ([
 	if filter != nil {
 		params.Filter = filter
 	}
-	result, err := c.client.Request(ctx, "session.list", params)
+	result, err := transport.Request(ctx, "session.list", params)
 	if err != nil {
 		return nil, err
 	}
@@ -1763,11 +1863,12 @@ func (c *Client) ListSessions(ctx context.Context, filter *SessionListFilter) ([
 //	    fmt.Printf("Session started at: %s\n", metadata.StartTime)
 //	}
 func (c *Client) GetSessionMetadata(ctx context.Context, sessionID string) (*SessionMetadata, error) {
-	if err := c.ensureConnected(ctx); err != nil {
+	transport, err := c.ensureConnected(ctx)
+	if err != nil {
 		return nil, err
 	}
 
-	result, err := c.client.Request(ctx, "session.getMetadata", getSessionMetadataRequest{SessionID: sessionID})
+	result, err := transport.Request(ctx, "session.getMetadata", getSessionMetadataRequest{SessionID: sessionID})
 	if err != nil {
 		return nil, err
 	}
@@ -1797,11 +1898,12 @@ func (c *Client) DeleteSession(ctx context.Context, sessionID string) error {
 	unlockSession := c.lockSessionOperation(sessionID)
 	defer unlockSession()
 
-	if err := c.ensureConnected(ctx); err != nil {
+	transport, err := c.ensureConnected(ctx)
+	if err != nil {
 		return err
 	}
 
-	result, err := c.client.Request(ctx, "session.delete", deleteSessionRequest{SessionID: sessionID})
+	result, err := transport.Request(ctx, "session.delete", deleteSessionRequest{SessionID: sessionID})
 	if err != nil {
 		return err
 	}
@@ -1849,11 +1951,12 @@ func (c *Client) DeleteSession(ctx context.Context, sessionID string) error {
 //	    })
 //	}
 func (c *Client) GetLastSessionID(ctx context.Context) (*string, error) {
-	if err := c.ensureConnected(ctx); err != nil {
+	transport, err := c.ensureConnected(ctx)
+	if err != nil {
 		return nil, err
 	}
 
-	result, err := c.client.Request(ctx, "session.getLastId", getLastSessionIDRequest{})
+	result, err := transport.Request(ctx, "session.getLastId", getLastSessionIDRequest{})
 	if err != nil {
 		return nil, err
 	}
@@ -1881,11 +1984,12 @@ func (c *Client) GetLastSessionID(ctx context.Context) (*string, error) {
 //	    fmt.Printf("TUI is displaying session: %s\n", *sessionID)
 //	}
 func (c *Client) GetForegroundSessionID(ctx context.Context) (*string, error) {
-	if err := c.ensureConnected(ctx); err != nil {
+	transport, err := c.ensureConnected(ctx)
+	if err != nil {
 		return nil, err
 	}
 
-	result, err := c.client.Request(ctx, "session.getForeground", getForegroundSessionRequest{})
+	result, err := transport.Request(ctx, "session.getForeground", getForegroundSessionRequest{})
 	if err != nil {
 		return nil, err
 	}
@@ -1909,11 +2013,12 @@ func (c *Client) GetForegroundSessionID(ctx context.Context) (*string, error) {
 //	    log.Fatal(err)
 //	}
 func (c *Client) SetForegroundSessionID(ctx context.Context, sessionID string) error {
-	if err := c.ensureConnected(ctx); err != nil {
+	transport, err := c.ensureConnected(ctx)
+	if err != nil {
 		return err
 	}
 
-	result, err := c.client.Request(ctx, "session.setForeground", setForegroundSessionRequest{SessionID: sessionID})
+	result, err := transport.Request(ctx, "session.setForeground", setForegroundSessionRequest{SessionID: sessionID})
 	if err != nil {
 		return err
 	}
@@ -2174,13 +2279,18 @@ func (c *Client) verifyProtocolVersion(ctx context.Context) error {
 		tokenPtr = &t
 	}
 	connectReq := &connectHandshakeRequest{
-		Entra: c.options.Entra,
 		Token: tokenPtr,
 		SupportedTaskKinds: []rpc.TaskKind{
 			rpc.TaskKindAgent,
 			rpc.TaskKindClient,
 			rpc.TaskKindShell,
 		},
+	}
+	if c.options.Entra != nil {
+		connectReq.Entra = &rpc.EntraAuthConfig{ClientID: c.options.Entra.ClientID}
+		if c.options.Entra.TokenProvider != nil {
+			connectReq.EntraTokenProvider = Bool(true)
+		}
 	}
 	// Opt in to GitHub telemetry forwarding at the connection level when a handler is
 	// registered (mirrors the runtime, which reads this flag on the `connect` handshake
@@ -2215,6 +2325,10 @@ func (c *Client) verifyProtocolVersion(ctx context.Context) error {
 		if err := json.Unmarshal(rawConnectResult, &connectResult); err != nil {
 			return err
 		}
+		if c.options.Entra != nil && c.options.Entra.TokenProvider != nil &&
+			(connectResult.EntraTokenProvider == nil || !*connectResult.EntraTokenProvider) {
+			return fmt.Errorf("this runtime does not support host-owned Entra token providers")
+		}
 		v := int(connectResult.ProtocolVersion)
 		serverVersion = &v
 	}
@@ -2233,6 +2347,7 @@ func (c *Client) verifyProtocolVersion(ctx context.Context) error {
 
 type connectHandshakeRequest struct {
 	Entra                           *rpc.EntraAuthConfig   `json:"entra,omitempty"`
+	EntraTokenProvider              *bool                  `json:"entraTokenProvider,omitempty"`
 	Token                           *string                `json:"token,omitempty"`
 	EnableGitHubTelemetryForwarding *bool                  `json:"enableGitHubTelemetryForwarding,omitempty"`
 	ClientInfo                      *rpc.ConnectClientInfo `json:"clientInfo,omitempty"`
@@ -2715,6 +2830,15 @@ func (c *Client) setupNotificationHandler() {
 		handlers.GitHubTelemetry = &gitHubTelemetryAdapter{callback: c.options.OnGitHubTelemetry}
 	}
 	rpc.RegisterClientGlobalAPIHandlers(c.client, handlers)
+	if c.options.Entra != nil && c.options.Entra.TokenProvider != nil {
+		c.client.SetRequestContextHandler("entraToken.getToken",
+			entraTokenHandler(c.options.Entra.TokenProvider, c.client.ConnectionClosed()))
+	}
+	if c.options.KerberosAuth != nil {
+		// Registered directly so the callback receives the request's cancellation.
+		adapter := &kerberosAuthAdapter{callback: c.options.KerberosAuth.Callback, connectionClosed: c.client.ConnectionClosed()}
+		c.client.SetRequestContextHandler("kerberosAuth.acquire", adapter.handle)
+	}
 	if c.options.InstallationConfirmationHandler != nil {
 		adapter := newInstallationConfirmationAdapter(c.options.InstallationConfirmationHandler, c.client.ConnectionClosed())
 		c.installationConfirmationAdapterMux.Lock()

@@ -5,6 +5,175 @@
 #![cfg(test)]
 
 use super::*;
+use crate::entra::{EntraTokenProviderArgs, EntraTokenProviderContext, EntraTokenProviderResult};
+
+fn entra_transport(
+    options: types::EntraAuthOptions,
+) -> (tempfile::TempDir, Client, Arc<jsonrpc::JsonRpcClient>) {
+    let temp = tempfile::tempdir().unwrap();
+    let (client_stream, server_stream) = tokio::io::duplex(8192);
+    let (client_read, client_write) = tokio::io::split(client_stream);
+    let (server_read, server_write) = tokio::io::split(server_stream);
+    let client = Client::from_streams_with_entra_options(
+        client_read,
+        client_write,
+        temp.path().to_owned(),
+        Some(options),
+    )
+    .unwrap();
+    let (notifications, _) = tokio::sync::broadcast::channel(1);
+    let (requests, _) = tokio::sync::mpsc::unbounded_channel();
+    let server = Arc::new(jsonrpc::JsonRpcClient::new(
+        server_write,
+        server_read,
+        notifications,
+        requests,
+    ));
+    (temp, client, server)
+}
+
+fn entra_identity_request() -> serde_json::Value {
+    serde_json::json!({
+        "request": {
+            "kind": "identity", "clientId": "host-client", "reason": "signIn",
+        }
+    })
+}
+
+#[tokio::test]
+async fn custom_streams_route_entra_callbacks_without_a_session() {
+    let (_temp, client, server) = entra_transport(
+        types::EntraAuthOptions::new("host-client").with_token_provider(
+            |_: EntraTokenProviderArgs, _: EntraTokenProviderContext| async {
+                Ok(EntraTokenProviderResult::Identity {
+                    account_id: "host-account".to_owned(),
+                    username: None,
+                })
+            },
+        ),
+    );
+    server
+        .register_request_handler(
+            "connect",
+            Arc::new(|params| {
+                assert_eq!(params["entraTokenProvider"], true);
+                Box::pin(async {
+                    Ok(serde_json::json!({
+                        "ok": true, "protocolVersion": 3, "version": "test",
+                        "entraTokenProvider": true,
+                    }))
+                })
+            }),
+        )
+        .unwrap();
+    let result = tokio::time::timeout(Duration::from_secs(5), async {
+        client.verify_protocol_version().await.unwrap();
+        server
+            .send_request(entra::ACQUIRE_METHOD, Some(entra_identity_request()))
+            .await
+    })
+    .await;
+    client.force_stop();
+    server.force_close();
+    let response = result.unwrap().unwrap();
+    assert!(response.error.is_none());
+    assert_eq!(
+        response.result.unwrap(),
+        serde_json::json!({"kind": "identity", "accountId": "host-account"}),
+    );
+}
+
+#[tokio::test]
+async fn pending_entra_acquisition_does_not_keep_the_client_alive() {
+    let (entered, mut started) = tokio::sync::mpsc::unbounded_channel();
+    let (_temp, client, server) = entra_transport(
+        types::EntraAuthOptions::new("host-client").with_token_provider(
+            move |_: EntraTokenProviderArgs, context: EntraTokenProviderContext| {
+                let entered = entered.clone();
+                async move {
+                    entered.send(context.cancellation()).unwrap();
+                    std::future::pending::<Result<EntraTokenProviderResult>>().await
+                }
+            },
+        ),
+    );
+    client.inner.router.ensure_started(&client.inner);
+    let peer = server.clone();
+    let request = tokio::spawn(async move {
+        peer.send_request(entra::ACQUIRE_METHOD, Some(entra_identity_request()))
+            .await
+    });
+    let cancellation = tokio::time::timeout(Duration::from_secs(5), started.recv())
+        .await
+        .unwrap()
+        .unwrap();
+    let inner = Arc::downgrade(&client.inner);
+    drop(client);
+    let cancelled = tokio::time::timeout(Duration::from_secs(5), cancellation.cancelled()).await;
+    if let Some(retained) = inner.upgrade() {
+        Client::from_inner(retained).force_stop();
+    }
+    server.force_close();
+    assert!(request.await.unwrap().is_err());
+    assert!(
+        cancelled.is_ok(),
+        "dropping the client must cancel acquisition"
+    );
+    assert!(inner.upgrade().is_none());
+}
+
+#[tokio::test]
+async fn entra_router_observes_an_inference_dispatcher_installed_later() {
+    use crate::copilot_request_handler::*;
+
+    struct NoNetwork;
+    #[async_trait::async_trait]
+    impl CopilotRequestHandler for NoNetwork {
+        async fn send_request(
+            &self,
+            _: CopilotHttpRequest,
+            _: &CopilotRequestContext,
+        ) -> std::result::Result<CopilotHttpResponse, CopilotRequestError> {
+            panic!("this routing test must not issue HTTP requests");
+        }
+
+        async fn open_websocket(
+            &self,
+            _: &CopilotRequestContext,
+            _: CopilotWebSocketResponse,
+        ) -> std::result::Result<Box<dyn CopilotWebSocketHandler>, CopilotRequestError> {
+            panic!("this routing test must not open WebSockets");
+        }
+    }
+
+    let (_temp, client, server) = entra_transport(
+        types::EntraAuthOptions::new("host-client").with_token_provider(
+            |_: EntraTokenProviderArgs, _: EntraTokenProviderContext| async {
+                Ok(EntraTokenProviderResult::Unavailable)
+            },
+        ),
+    );
+    let dispatcher = Arc::new(CopilotRequestDispatcher::new(Arc::new(NoNetwork)));
+    dispatcher.set_client(Arc::downgrade(&client.inner));
+    assert!(client.inner.llm_inference.set(dispatcher).is_ok());
+    client.inner.router.ensure_started(&client.inner);
+    let response = tokio::time::timeout(
+        Duration::from_secs(5),
+        server.send_request("llmInference.unknown", Some(serde_json::json!({}))),
+    )
+    .await;
+    client.force_stop();
+    server.force_close();
+    assert!(
+        response
+            .unwrap()
+            .unwrap()
+            .error
+            .unwrap()
+            .message
+            .contains("unknown llmInference")
+    );
+}
 
 #[tokio::test]
 async fn connect_forwards_optional_entra_configuration() {
@@ -34,7 +203,7 @@ async fn connect_forwards_optional_entra_configuration() {
             None,
             ClientMode::default(),
             None,
-            entra.clone(),
+            entra.clone().map(Into::into),
             false,
         )
         .unwrap();
@@ -918,6 +1087,7 @@ fn client_with_list_models_handler(handler: Arc<dyn ListModelsHandler>) -> Clien
             installation_confirmation: Arc::new(
                 installation_confirmation::InstallationConfirmationDispatcher::new(),
             ),
+            entra_token: Arc::new(entra::EntraTokenDispatcher::new(None)),
             on_github_telemetry: None,
             on_get_trace_context: None,
             effective_connection_token: None,

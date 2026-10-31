@@ -39,6 +39,8 @@ import type {
     GitHubTokenAcquireRequest,
     GitHubTokenAcquireResult,
     InstallationConfirmationRequest,
+    KerberosAuthAcquireRequest,
+    KerberosAuthAcquireResult,
     OpenCanvasInstance,
     SessionUpdateOptionsParams,
     TaskKind,
@@ -60,6 +62,7 @@ import {
     createInstallationConfirmationAdapter,
     type InstallationConfirmationHandler,
 } from "./installationConfirmation.js";
+import { registerEntraTokenProvider } from "./entra.js";
 import type { CopilotRequestHandler } from "./copilotRequestHandler.js";
 import { getTraceContext } from "./telemetry.js";
 import { toJsonSchema } from "./schema.js";
@@ -81,6 +84,7 @@ import type {
     GitHubTokenProvider,
     GetStatusResponse,
     InternalRuntimeConnection,
+    KerberosAuthConfig,
     RuntimeConnection,
     LargeToolOutputConfig,
     MCPServerConfig,
@@ -225,6 +229,46 @@ async function waitForChildExit(child: ChildProcess, timeoutMs: number): Promise
             onExit();
         }
     });
+}
+
+/**
+ * Runs the Kerberos callback with a signal that aborts when the runtime cancels the request
+ * (`$/cancelRequest`) or the connection ends. Cancellation stops awaiting the callback and
+ * answers with the standard request-cancelled error; any later result is ignored.
+ */
+async function acquireKerberosToken(
+    connection: MessageConnection,
+    callback: KerberosAuthConfig["callback"],
+    request: KerberosAuthAcquireRequest,
+    token: CancellationToken
+): Promise<KerberosAuthAcquireResult> {
+    const ended = () =>
+        token.isCancellationRequested
+            ? new ResponseError(-32800, "Kerberos auth request cancelled")
+            : new Error("Kerberos auth connection closed");
+    if (token.isCancellationRequested) {
+        throw ended();
+    }
+    const controller = new AbortController();
+    const abandoned = new Promise<never>((_resolve, reject) => {
+        controller.signal.addEventListener("abort", () => reject(ended()), { once: true });
+    });
+    const abort = () => controller.abort();
+    const subscriptions = [
+        token.onCancellationRequested(abort),
+        connection.onClose(abort),
+        connection.onDispose(abort),
+    ];
+    try {
+        // Invoke the callback from a microtask so the race handles `abandoned` even when the
+        // callback aborts and then throws synchronously.
+        const lookup = Promise.resolve().then(() => callback(request, controller.signal));
+        return { token: await Promise.race([lookup, abandoned]) };
+    } finally {
+        for (const subscription of subscriptions) {
+            subscription.dispose();
+        }
+    }
 }
 
 /** Implicit provider name for the singular, whole-session {@link ProviderConfig}. */
@@ -577,6 +621,7 @@ export class CopilotClient {
     private sessionFsConfig: SessionFsConfig | null = null;
     private requestHandler: CopilotRequestHandler | null = null;
     private extensionLaunchProvider?: ExtensionLaunchProvider;
+    private readonly kerberosAuth?: CopilotClientOptions["kerberosAuth"];
     private installationConfirmationHandler?: InstallationConfirmationHandler;
     private builtinPluginDirectories: string[] = [];
     private onGitHubTelemetry?: (notification: GitHubTelemetryNotification) => void | Promise<void>;
@@ -777,6 +822,7 @@ export class CopilotClient {
         this.sessionFsConfig = options.sessionFs ?? null;
         this.requestHandler = options.requestHandler ?? null;
         this.extensionLaunchProvider = options.extensionLaunchProvider;
+        this.kerberosAuth = options.kerberosAuth;
         this.installationConfirmationHandler = options.installationConfirmationHandler;
         this.onGitHubTelemetry = options.onGitHubTelemetry;
         this.setupClientGlobalHandlers();
@@ -802,7 +848,9 @@ export class CopilotClient {
         this.connectionExtraArgs = [...connArgs];
 
         this.options = {
-            entra: options.entra ? { ...options.entra } : undefined,
+            entra: options.entra
+                ? { ...options.entra, tokenProvider: options.entra.tokenProvider }
+                : undefined,
             workingDirectory: options.workingDirectory ?? process.cwd(),
             logLevel: options.logLevel,
             gitHubToken: options.gitHubToken,
@@ -1084,6 +1132,11 @@ export class CopilotClient {
 
             // Verify protocol version compatibility
             await this.verifyProtocolVersion();
+
+            if (this.kerberosAuth) {
+                const { mode, scope } = this.kerberosAuth;
+                await this.rpc.kerberosAuth.setProvider(scope ? { mode, scope } : { mode });
+            }
 
             if (this.extensionLaunchProvider) {
                 await this.rpc.registerExtensionLaunchProvider();
@@ -1710,7 +1763,8 @@ export class CopilotClient {
         if (config.cloud != null && config.skillProvider) {
             throw new Error("Skill providers are not supported for cloud sessions.");
         }
-        if (!this.connection) {
+        // Wait for in-progress startup too: its provider registrations must precede any session.
+        if (!this.connection || this.startPromise) {
             await this.start();
         }
 
@@ -2060,7 +2114,8 @@ export class CopilotClient {
         if (config.gitHubToken !== undefined && config.gitHubTokenProvider !== undefined) {
             throw new Error("gitHubToken and gitHubTokenProvider are mutually exclusive");
         }
-        if (!this.connection) {
+        // Wait for in-progress startup too: its provider registrations must precede any session.
+        if (!this.connection || this.startPromise) {
             await this.start();
         }
 
@@ -2764,12 +2819,16 @@ export class CopilotClient {
         try {
             const connectParams: {
                 entra?: CopilotClientOptions["entra"];
+                entraTokenProvider?: boolean;
                 token?: string;
                 enableGitHubTelemetryForwarding?: boolean;
                 clientInfo?: ConnectClientInfo;
                 supportedTaskKinds?: TaskKind[];
             } = {
-                entra: this.options.entra,
+                entra: this.options.entra && {
+                    clientId: this.options.entra.clientId,
+                },
+                entraTokenProvider: this.options.entra?.tokenProvider ? true : undefined,
                 token: this.effectiveConnectionToken,
                 supportedTaskKinds: ["agent", "client", "shell"],
             };
@@ -2789,6 +2848,9 @@ export class CopilotClient {
                 connectParams.clientInfo = clientInfo;
             }
             const result = await raceAgainstExit(this.internalRpc.connect(connectParams));
+            if (this.options.entra?.tokenProvider && result.entraTokenProvider !== true) {
+                throw new Error("This runtime does not support host-owned Entra token providers.");
+            }
             serverVersion = result.protocolVersion;
         } catch (err) {
             if (
@@ -3653,6 +3715,9 @@ export class CopilotClient {
         // same connection. These methods carry no implicit sessionId dispatch
         // — the runtime calls into a single handler for the whole connection.
         registerClientGlobalApiHandlers(this.connection, this.clientGlobalHandlers);
+        if (this.options.entra?.tokenProvider) {
+            registerEntraTokenProvider(this.connection, this.options.entra.tokenProvider);
+        }
         if (this.installationConfirmationHandler) {
             // Registered directly so the review receives the transport's request cancellation.
             const confirmation = createInstallationConfirmationAdapter(
@@ -3663,6 +3728,16 @@ export class CopilotClient {
                 "installations.confirm",
                 (params: InstallationConfirmationRequest, token: CancellationToken) =>
                     confirmation.confirm(params, token)
+            );
+        }
+        if (this.kerberosAuth) {
+            // Registered directly so the callback receives the transport's request cancellation.
+            const { callback } = this.kerberosAuth;
+            const connection = this.connection;
+            this.connection.onRequest(
+                "kerberosAuth.acquire",
+                (params: KerberosAuthAcquireRequest, token: CancellationToken) =>
+                    acquireKerberosToken(connection, callback, params, token)
             );
         }
         this.connection.onRequest("host.materializeSession", (params) =>

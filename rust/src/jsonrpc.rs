@@ -465,6 +465,8 @@ pub(crate) fn encode_frame<T: serde::Serialize>(message: &T) -> Result<EncodedFr
 ///
 /// The read loop registers each one synchronously before forwarding it. This
 /// preserves request/cancellation ordering across the router's separate queues.
+/// A connection request handler for one of these methods is dropped when its
+/// request is cancelled, and the request is answered with `REQUEST_CANCELLED`.
 #[derive(Default)]
 pub(crate) struct CancellableRequests {
     pending: Mutex<HashMap<u64, Arc<CancellationToken>>>,
@@ -477,6 +479,8 @@ impl CancellableRequests {
         matches!(
             method,
             crate::installation_confirmation::CONFIRM_METHOD
+                | crate::entra::ACQUIRE_METHOD
+                | crate::kerberos_auth::ACQUIRE_METHOD
                 | rpc_methods::SKILLPROVIDER_LIST
                 | rpc_methods::SKILLPROVIDER_READ
         )
@@ -843,9 +847,8 @@ impl JsonRpcClient {
                         let _ = notifications.0.send(notification);
                     }
                     JsonRpcMessage::Request(request) => {
-                        if CancellableRequests::honors_cancellation(&request.method)
-                            && !cancellable_requests.register(request.id)
-                        {
+                        let cancellable = CancellableRequests::honors_cancellation(&request.method);
+                        if cancellable && !cancellable_requests.register(request.id) {
                             warn!(method = %request.method, "duplicate pending cancellable request ID");
                             break;
                         }
@@ -853,25 +856,43 @@ impl JsonRpcClient {
                         if let Some(handler) = handler {
                             let write_tx = write_tx.clone();
                             let closed = connection_closed.clone();
+                            // The handler owns the request's cancellation until it responds.
+                            let pending = cancellable
+                                .then(|| cancellable_requests.claim(request.id))
+                                .flatten();
                             // Internal handlers may register request state before
                             // the reader dispatches a following notification.
                             let response = handler(request.params.unwrap_or(Value::Null));
                             tokio::spawn(async move {
-                                let result = tokio::select! {
+                                let request_cancelled = async {
+                                    match &pending {
+                                        Some(pending) => pending.cancellation().cancelled().await,
+                                        None => std::future::pending().await,
+                                    }
+                                };
+                                // Leaving the select drops the handler future.
+                                let (result, error) = tokio::select! {
                                     biased;
                                     _ = closed.cancelled() => return,
-                                    result = response => result,
-                                };
-                                let (result, error) = match result {
-                                    Ok(value) => (Some(value), None),
-                                    Err(error) => (
+                                    _ = request_cancelled => (
                                         None,
                                         Some(JsonRpcError {
-                                            code: error_codes::INTERNAL_ERROR.into(),
-                                            message: error.to_string(),
+                                            code: error_codes::REQUEST_CANCELLED.into(),
+                                            message: "Request cancelled".into(),
                                             data: None,
                                         }),
                                     ),
+                                    result = response => match result {
+                                        Ok(value) => (Some(value), None),
+                                        Err(error) => (
+                                            None,
+                                            Some(JsonRpcError {
+                                                code: error_codes::INTERNAL_ERROR.into(),
+                                                message: error.to_string(),
+                                                data: None,
+                                            }),
+                                        ),
+                                    },
                                 };
                                 let mut response = JsonRpcResponse {
                                     jsonrpc: "2.0".into(),
@@ -886,6 +907,7 @@ impl JsonRpcClient {
                                 {
                                     warn!(%error, "failed to send connection request response");
                                 }
+                                drop(pending);
                             });
                         } else if request_tx.send(request).is_err() {
                             warn!("failed to forward JSON-RPC request, channel closed");

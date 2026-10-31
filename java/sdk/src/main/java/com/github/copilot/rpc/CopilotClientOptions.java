@@ -57,7 +57,7 @@ public class CopilotClientOptions {
     private String cliUrl;
     private RuntimeConnection connection;
     private ClientInfo clientInfo;
-    private EntraAuthConfig entra;
+    private EntraAuthOptions entra;
     private String copilotHome;
     private String cwd;
     private Map<String, String> environment;
@@ -67,6 +67,7 @@ public class CopilotClientOptions {
     private CopilotClientMode mode = CopilotClientMode.COPILOT_CLI;
     private ExtensionLaunchProvider extensionLaunchProvider;
     private InstallationConfirmationHandler installationConfirmationHandler;
+    private KerberosAuthConfig kerberosAuth;
     private Supplier<CompletableFuture<List<ModelInfo>>> onListModels;
     private CopilotRequestHandler requestHandler;
     private Function<GitHubTelemetryNotification, CompletableFuture<Void>> onGitHubTelemetry;
@@ -217,6 +218,32 @@ public class CopilotClientOptions {
             InstallationConfirmationHandler installationConfirmationHandler) {
         this.installationConfirmationHandler = Objects.requireNonNull(installationConfirmationHandler,
                 "installationConfirmationHandler must not be null");
+        return this;
+    }
+
+    /**
+     * Gets the SDK-host Kerberos credential callback configuration.
+     *
+     * @return the configuration, or {@code null} if not set
+     */
+    @JsonIgnore
+    public KerberosAuthConfig getKerberosAuth() {
+        return kerberosAuth;
+    }
+
+    /**
+     * Supplies Kerberos credentials from the SDK host.
+     * <p>
+     * When provided, the client handles the runtime's {@code kerberosAuth.acquire}
+     * requests with the configured callback and registers it during startup, before
+     * any session can be created. Startup fails if registration fails.
+     *
+     * @param kerberosAuth
+     *            the configuration (must not be {@code null})
+     * @return this options instance for method chaining
+     */
+    public CopilotClientOptions setKerberosAuth(KerberosAuthConfig kerberosAuth) {
+        this.kerberosAuth = Objects.requireNonNull(kerberosAuth, "kerberosAuth must not be null");
         return this;
     }
 
@@ -757,7 +784,8 @@ public class CopilotClientOptions {
      *
      * @return the Entra configuration
      */
-    public EntraAuthConfig getEntra() {
+    @CopilotExperimental
+    public EntraAuthOptions getEntra() {
         return entra;
     }
 
@@ -768,7 +796,22 @@ public class CopilotClientOptions {
      *            the Entra configuration
      * @return this options instance
      */
+    @CopilotExperimental
     public CopilotClientOptions setEntra(EntraAuthConfig entra) {
+        Objects.requireNonNull(entra, "entra must not be null");
+        this.entra = new EntraAuthOptions().setClientId(entra.clientId());
+        return this;
+    }
+
+    /**
+     * Sets the Entra application and optional host-owned acquisition callback.
+     *
+     * @param entra
+     *            the host's Entra options
+     * @return this options instance
+     */
+    @CopilotExperimental
+    public CopilotClientOptions setEntra(EntraAuthOptions entra) {
         this.entra = Objects.requireNonNull(entra, "entra must not be null");
         return this;
     }
@@ -953,6 +996,7 @@ public class CopilotClientOptions {
         copy.executor = this.executor;
         copy.extensionLaunchProvider = this.extensionLaunchProvider;
         copy.installationConfirmationHandler = this.installationConfirmationHandler;
+        copy.kerberosAuth = this.kerberosAuth;
         copy.gitHubToken = this.gitHubToken;
         copy.logLevel = this.logLevel;
         copy.onListModels = this.onListModels;

@@ -280,6 +280,25 @@ instead of falling back to raw configuration writes. Generated presence and
 transport tests do not establish live OAuth, activation or cross-process
 recovery.
 
+## Kerberos authentication callback
+
+Set `ClientOptions.KerberosAuth` to a `KerberosAuthConfig{Mode, Callback}` when Kerberos tickets must be obtained by the SDK host, for example from Windows when the runtime runs in WSL. The runtime currently uses it for proxy authentication. The callback receives a `context.Context` and a `KerberosAuthAcquireRequest` whose `Spn` is a service principal in the platform-independent `service/host[@REALM]` form, and returns a fresh base64 SPNEGO token without the `Negotiate ` prefix, or `""` when credentials are unavailable. A returned error is reported to the runtime as a callback failure. The callback should validate the principal before issuing credentials.
+
+```go
+client := copilot.NewClient(&copilot.ClientOptions{
+    KerberosAuth: &copilot.KerberosAuthConfig{
+        Mode: copilot.KerberosAuthModeFallback,
+        Callback: func(ctx context.Context, request copilot.KerberosAuthAcquireRequest) (string, error) {
+            return acquireSPNEGOToken(ctx, request.Spn) // host-side credential lookup
+        },
+    },
+})
+```
+
+With `KerberosAuthModeFallback`, native credential acquisition (including the first token) is tried first; only failure invokes the callback. With `KerberosAuthModeAlways`, native credential lookup is never attempted. Without this option, behavior is unchanged. Registration happens during `Start` (including the auto-start in `CreateSession` and `ResumeSession`), before sessions can be created. `NewClient` panics if `Mode` or `Callback` is missing.
+
+By default the callback authenticates only requests made for sessions this client creates or resumes. With the `runtime` scope it also authenticates the runtime's shared background traffic, such as catalog refreshes and telemetry; only one connection at a time can hold that scope, so startup fails if another client holds it. The registration ends when the connection closes; a failed `Start`, including one whose context is cancelled, closes it. In fallback mode, if the callback cannot supply a valid token, the native credential error is reported. In always mode, a disconnected, failing, or empty callback fails authentication. The runtime waits at most 30 seconds for the callback (less when the request's own deadline is sooner) and treats a timeout as a callback failure. When the runtime stops waiting or the connection closes, the callback's context is cancelled and any later result is ignored, so a lookup that can hang should abandon its work once the context is done. Tokens are not cached and must not be logged or persisted. The callback supplies the initial SPNEGO token only; exchanges requiring continuation tokens still need native negotiation.
+
 ## Distributing your application with an embedded GitHub Copilot CLI
 
 The SDK supports bundling, using Go's `embed` package, the Copilot CLI binary within your application's distribution.
@@ -394,6 +413,7 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
 - `WorkingDirectory` (string): Working directory for the runtime process (default: current process working directory)
 - `BaseDirectory` (string): Base directory for Copilot data (session state, config, etc.). Sets `COPILOT_HOME` on the spawned runtime. When empty, the runtime defaults to `~/.copilot`. Ignored with `URIConnection`. This does **not** affect where the Go SDK extracts the embedded CLI binary; use `embeddedcli.Config.Dir` for the extraction/cache location.
 - `ExtensionLaunchProvider` (ExtensionLaunchProvider): Experimental connection-level resolver for extension launch profiles. `Start` installs the reverse-RPC handler and registers the provider before sessions can be created.
+- `KerberosAuth` (\*KerberosAuthConfig): Supplies Kerberos credentials from the SDK host. `Start` installs the `kerberosAuth.acquire` handler and registers the callback with its `Mode` and optional `Scope` (`KerberosAuthScopeConnection` by default, or `KerberosAuthScopeRuntime`) before sessions can be created. See [Kerberos authentication callback](#kerberos-authentication-callback).
 - `InstallationConfirmationHandler` (InstallationConfirmationHandler): Experimental connection-global human review for `installations.confirm`. Receives the typed request, a per-request cancellation context and a separate connection-closed signal, then returns an explicit decision. Does not enable installation capabilities.
 - `LogLevel` (string): Log level. When empty (default), the runtime uses its own default level (the SDK does not pass `--log-level`).
 - `Env` ([]string): Environment variables for the runtime process (default: inherits from current process)

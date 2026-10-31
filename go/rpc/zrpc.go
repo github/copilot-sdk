@@ -4675,7 +4675,14 @@ type ConnectRequest struct {
 	EnableGitHubTelemetryForwarding *bool `json:"enableGitHubTelemetryForwarding,omitempty"`
 	// Entra application used by this client's authentication flows. Required to enable built-in
 	// Microsoft Entra sign-in and token renewal; other authentication methods remain available.
+	// Experimental: Entra is part of an experimental API and may change or be removed.
 	Entra *EntraAuthConfig `json:"entra,omitempty"`
+	// Opt this connection in to host-owned Entra identity and token acquisition through
+	// entraToken.getToken. Requires entra.clientId and an explicit true acknowledgement in the
+	// response. SDKs set this internally when a callback is configured.
+	// Experimental: EntraTokenProvider is part of an experimental API and may change or be
+	// removed.
+	EntraTokenProvider *bool `json:"entraTokenProvider,omitempty"`
 	// Task kinds this connection can decode when observing session tasks. Omit to retain agent
 	// and shell compatibility.
 	SupportedTaskKinds []TaskKind `json:"supportedTaskKinds,omitzero"`
@@ -4687,6 +4694,11 @@ type ConnectRequest struct {
 // Experimental: ConnectResult is part of an experimental API and may change or be removed.
 // Internal: ConnectResult is an internal SDK API and is not part of the public surface.
 type ConnectResult struct {
+	// Acknowledges that this connection's host-owned Entra token provider is enabled. Clients
+	// requesting it must reject a missing or false acknowledgement.
+	// Experimental: EntraTokenProvider is part of an experimental API and may change or be
+	// removed.
+	EntraTokenProvider *bool `json:"entraTokenProvider,omitempty"`
 	// Always true on success
 	Ok bool `json:"ok"`
 	// Server protocol version number
@@ -5488,6 +5500,128 @@ type EntraAuthConfig struct {
 	// Application (client) ID of the host's Microsoft Entra registration. Must be nonblank. The
 	// runtime does not supply a default application.
 	ClientID string `json:"clientId"`
+}
+
+// Requests a host-selected Entra identity or a resource token for that exact identity. Host
+// account ids are opaque and distinct from runtime account-selection ids.
+// Experimental: EntraTokenAcquireRequest is part of an experimental API and may change or
+// be removed.
+type EntraTokenAcquireRequest interface {
+	entraTokenAcquireRequest()
+	Kind() EntraTokenAcquireRequestKind
+}
+
+type RawEntraTokenAcquireRequestData struct {
+	Discriminator EntraTokenAcquireRequestKind
+	Raw           json.RawMessage
+}
+
+func (RawEntraTokenAcquireRequestData) entraTokenAcquireRequest() {}
+func (r RawEntraTokenAcquireRequestData) Kind() EntraTokenAcquireRequestKind {
+	return r.Discriminator
+}
+
+type EntraTokenAcquireRequestIdentity struct {
+	// Host account to revalidate. When supplied, the response must identify this exact account.
+	AccountID *string `json:"accountId,omitempty"`
+	// Effective application client ID. Treat it as opaque.
+	ClientID string `json:"clientId"`
+	// Interaction policy. Only a fresh explicit sign-in may select an unpinned account.
+	Reason EntraTokenAcquireReason `json:"reason"`
+}
+
+func (EntraTokenAcquireRequestIdentity) entraTokenAcquireRequest() {}
+func (EntraTokenAcquireRequestIdentity) Kind() EntraTokenAcquireRequestKind {
+	return EntraTokenAcquireRequestKindIdentity
+}
+
+type EntraTokenAcquireRequestToken struct {
+	// Pinned opaque host account ID. The response must identify this exact account.
+	AccountID string `json:"accountId"`
+	// Target resource audience, when known.
+	Audience *string `json:"audience,omitempty"`
+	// Effective application client ID, including any resource-specific override.
+	ClientID string `json:"clientId"`
+	// Interaction policy. Renewal must remain silent.
+	Reason EntraTokenAcquireReason `json:"reason"`
+	// Scopes required for this resource token.
+	Scopes []string `json:"scopes"`
+	// Bypass cached access tokens without changing account selection or interaction policy.
+	SkipCachedAccessToken bool `json:"skipCachedAccessToken"`
+	// Target Entra tenant, when different from the host's default.
+	Tenant *string `json:"tenant,omitempty"`
+}
+
+func (EntraTokenAcquireRequestToken) entraTokenAcquireRequest() {}
+func (EntraTokenAcquireRequestToken) Kind() EntraTokenAcquireRequestKind {
+	return EntraTokenAcquireRequestKindToken
+}
+
+// Host response to Entra acquisition. Unavailable, cancellation and errors are terminal:
+// the runtime must not substitute another account or sign-in transport.
+// Experimental: EntraTokenAcquireResult is part of an experimental API and may change or be
+// removed.
+type EntraTokenAcquireResult interface {
+	entraTokenAcquireResult()
+	Kind() EntraTokenAcquireResultKind
+}
+
+type RawEntraTokenAcquireResultData struct {
+	Discriminator EntraTokenAcquireResultKind
+	Raw           json.RawMessage
+}
+
+func (RawEntraTokenAcquireResultData) entraTokenAcquireResult() {}
+func (r RawEntraTokenAcquireResultData) Kind() EntraTokenAcquireResultKind {
+	return r.Discriminator
+}
+
+type EntraTokenAcquireResultCancelled struct {
+}
+
+func (EntraTokenAcquireResultCancelled) entraTokenAcquireResult() {}
+func (EntraTokenAcquireResultCancelled) Kind() EntraTokenAcquireResultKind {
+	return EntraTokenAcquireResultKindCancelled
+}
+
+type EntraTokenAcquireResultIdentity struct {
+	// Stable nonblank opaque account ID owned by the host.
+	AccountID string `json:"accountId"`
+	// Optional display name; not an account identifier or credential.
+	Username *string `json:"username,omitempty"`
+}
+
+func (EntraTokenAcquireResultIdentity) entraTokenAcquireResult() {}
+func (EntraTokenAcquireResultIdentity) Kind() EntraTokenAcquireResultKind {
+	return EntraTokenAcquireResultKindIdentity
+}
+
+type EntraTokenAcquireResultToken struct {
+	// Nonblank resource access token. The host owns its caching and renewal.
+	AccessToken string `json:"accessToken"`
+	// Exact host account ID supplied in the request.
+	AccountID string `json:"accountId"`
+}
+
+func (EntraTokenAcquireResultToken) entraTokenAcquireResult() {}
+func (EntraTokenAcquireResultToken) Kind() EntraTokenAcquireResultKind {
+	return EntraTokenAcquireResultKindToken
+}
+
+type EntraTokenAcquireResultUnavailable struct {
+}
+
+func (EntraTokenAcquireResultUnavailable) entraTokenAcquireResult() {}
+func (EntraTokenAcquireResultUnavailable) Kind() EntraTokenAcquireResultKind {
+	return EntraTokenAcquireResultKindUnavailable
+}
+
+// Parameters for one connection-owned Entra acquisition callback.
+// Experimental: EntraTokenGetTokenRequest is part of an experimental API and may change or
+// be removed.
+type EntraTokenGetTokenRequest struct {
+	// Typed identity or resource-token acquisition request.
+	Request EntraTokenAcquireRequest `json:"request"`
 }
 
 // Hosting capabilities and session capacity advertised by an environment.
@@ -8147,6 +8281,39 @@ type JSONSchemaResponseFormat struct {
 	// Optional strict enforcement setting for OpenAI providers. Omitted uses the provider
 	// default. Anthropic always enforces its supported schema subset.
 	Strict *bool `json:"strict,omitempty"`
+}
+
+// Requests a fresh initial SPNEGO token for a Kerberos service principal.
+// Experimental: KerberosAuthAcquireRequest is part of an experimental API and may change or
+// be removed.
+type KerberosAuthAcquireRequest struct {
+	// Service principal in the platform-independent `service/host` form, optionally followed by
+	// `@REALM`.
+	Spn string `json:"spn"`
+}
+
+// Client credentials for a single authentication exchange.
+// Experimental: KerberosAuthAcquireResult is part of an experimental API and may change or
+// be removed.
+type KerberosAuthAcquireResult struct {
+	// Base64 initial SPNEGO token without the Negotiate prefix; omitted when unavailable. Never
+	// log or persist it.
+	Token *string `json:"token,omitempty"`
+}
+
+// Registers the calling SDK connection's Kerberos credential provider.
+// Experimental: KerberosAuthSetProviderRequest is part of an experimental API and may
+// change or be removed.
+type KerberosAuthSetProviderRequest struct {
+	// Native lookup fallback or exclusive client callback.
+	Mode KerberosAuthMode `json:"mode"`
+	// Traffic the callback authenticates; defaults to `connection`.
+	Scope *KerberosAuthScope `json:"scope,omitempty"`
+}
+
+// Experimental: KerberosAuthSetProviderResult is part of an experimental API and may change
+// or be removed.
+type KerberosAuthSetProviderResult struct {
 }
 
 // HTTP headers as a map from lowercased header name to a list of values. Multi-valued
@@ -28801,6 +28968,42 @@ const (
 	DiscoveredMCPServerTypeStdio DiscoveredMCPServerType = "stdio"
 )
 
+// Interaction policy for host-owned Microsoft Entra acquisition.
+// Experimental: EntraTokenAcquireReason is part of an experimental API and may change or be
+// removed.
+type EntraTokenAcquireReason string
+
+const (
+	// Explicitly show account selection rather than satisfying identity selection from cache.
+	EntraTokenAcquireReasonForceInteractive EntraTokenAcquireReason = "forceInteractive"
+	// Renew the pinned identity silently; never select another account or prompt.
+	EntraTokenAcquireReasonRenewal EntraTokenAcquireReason = "renewal"
+	// Establish an identity; interaction is permitted if necessary.
+	EntraTokenAcquireReasonSignIn EntraTokenAcquireReason = "signIn"
+)
+
+// Kind discriminator for EntraTokenAcquireRequest.
+// Experimental: EntraTokenAcquireRequestKind is part of an experimental API and may change
+// or be removed.
+type EntraTokenAcquireRequestKind string
+
+const (
+	EntraTokenAcquireRequestKindIdentity EntraTokenAcquireRequestKind = "identity"
+	EntraTokenAcquireRequestKindToken    EntraTokenAcquireRequestKind = "token"
+)
+
+// Kind discriminator for EntraTokenAcquireResult.
+// Experimental: EntraTokenAcquireResultKind is part of an experimental API and may change
+// or be removed.
+type EntraTokenAcquireResultKind string
+
+const (
+	EntraTokenAcquireResultKindCancelled   EntraTokenAcquireResultKind = "cancelled"
+	EntraTokenAcquireResultKindIdentity    EntraTokenAcquireResultKind = "identity"
+	EntraTokenAcquireResultKindToken       EntraTokenAcquireResultKind = "token"
+	EntraTokenAcquireResultKindUnavailable EntraTokenAcquireResultKind = "unavailable"
+)
+
 // GitHub Mission Control compute kind.
 // Experimental: EnvironmentKind is part of an experimental API and may change or be removed.
 type EnvironmentKind string
@@ -29346,6 +29549,32 @@ const (
 	InstructionSourceTypeRepo InstructionSourceType = "repo"
 	// Instructions loaded from VS Code instruction files.
 	InstructionSourceTypeVscode InstructionSourceType = "vscode"
+)
+
+// Selects whether Kerberos credentials come from native lookup with a client fallback, or
+// only from the client.
+// Experimental: KerberosAuthMode is part of an experimental API and may change or be
+// removed.
+type KerberosAuthMode string
+
+const (
+	// Always use the callback without native credential lookup.
+	KerberosAuthModeAlways KerberosAuthMode = "always"
+	// Use the callback only when native credential lookup fails.
+	KerberosAuthModeFallback KerberosAuthMode = "fallback"
+)
+
+// Selects which traffic a client's Kerberos callback authenticates.
+// Experimental: KerberosAuthScope is part of an experimental API and may change or be
+// removed.
+type KerberosAuthScope string
+
+const (
+	// Authenticate only requests made for this connection's sessions.
+	KerberosAuthScopeConnection KerberosAuthScope = "connection"
+	// Also authenticate the runtime's shared background traffic. Only one connection at a time
+	// may claim this scope.
+	KerberosAuthScopeRuntime KerberosAuthScope = "runtime"
 )
 
 // Transport the runtime would otherwise use for this request. `http` (the default when
@@ -34137,6 +34366,30 @@ func (a *ServerInstructionsAPI) GetDiscoveryPaths(ctx context.Context, params *I
 	return &result, nil
 }
 
+// Experimental: ServerKerberosAuthAPI contains experimental APIs that may change or be
+// removed.
+type ServerKerberosAuthAPI serverAPI
+
+// SetProvider registers the calling SDK client's Kerberos callback. The callback
+// authenticates requests made for the client's sessions and, with `runtime` scope, the
+// runtime's shared background traffic; only one connection may hold `runtime` scope. The
+// registration ends when the connection closes.
+//
+// RPC method: kerberosAuth.setProvider.
+//
+// Parameters: Registers the calling SDK connection's Kerberos credential provider.
+func (a *ServerKerberosAuthAPI) SetProvider(ctx context.Context, params *KerberosAuthSetProviderRequest) (*KerberosAuthSetProviderResult, error) {
+	raw, err := a.client.Request(ctx, "kerberosAuth.setProvider", params)
+	if err != nil {
+		return nil, err
+	}
+	var result KerberosAuthSetProviderResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // Experimental: ServerLlmInferenceAPI contains experimental APIs that may change or be
 // removed.
 type ServerLlmInferenceAPI serverAPI
@@ -36332,6 +36585,7 @@ type ServerRPC struct {
 	Hooks            *ServerHooksAPI
 	Host             *ServerHostAPI
 	Instructions     *ServerInstructionsAPI
+	KerberosAuth     *ServerKerberosAuthAPI
 	LlmInference     *ServerLlmInferenceAPI
 	ManagedSettings  *ServerManagedSettingsAPI
 	MCP              *ServerMCPAPI
@@ -36403,6 +36657,7 @@ func NewServerRPC(client *jsonrpc2.Client) *ServerRPC {
 	r.Hooks = (*ServerHooksAPI)(&r.common)
 	r.Host = (*ServerHostAPI)(&r.common)
 	r.Instructions = (*ServerInstructionsAPI)(&r.common)
+	r.KerberosAuth = (*ServerKerberosAuthAPI)(&r.common)
 	r.LlmInference = (*ServerLlmInferenceAPI)(&r.common)
 	r.ManagedSettings = (*ServerManagedSettingsAPI)(&r.common)
 	r.MCP = (*ServerMCPAPI)(&r.common)
@@ -49593,6 +49848,22 @@ func RegisterClientSessionAPIHandlers(client *jsonrpc2.Client, getHandlers func(
 	})
 }
 
+// Experimental: EntraTokenHandler contains experimental APIs that may change or be removed.
+type EntraTokenHandler interface {
+	// GetToken asks this connection's host-owned Entra provider to select or revalidate an
+	// identity, or acquire a token for the pinned identity and requested resource. Standard
+	// JSON-RPC cancellation and connection closure retire acquisition; late responses cannot
+	// establish credentials.
+	//
+	// RPC method: entraToken.getToken.
+	//
+	// Parameters: Parameters for one connection-owned Entra acquisition callback.
+	//
+	// Returns: Host response to Entra acquisition. Unavailable, cancellation and errors are
+	// terminal: the runtime must not substitute another account or sign-in transport.
+	GetToken(request *EntraTokenGetTokenRequest) (EntraTokenAcquireResult, error)
+}
+
 // Experimental: ExtensionLaunchProviderHandler contains experimental APIs that may change
 // or be removed.
 type ExtensionLaunchProviderHandler interface {
@@ -49741,6 +50012,22 @@ type InstallationsHandler interface {
 	Confirm(request *InstallationConfirmationRequest) (*InstallationsConfirmResult, error)
 }
 
+// Experimental: KerberosAuthHandler contains experimental APIs that may change or be
+// removed.
+type KerberosAuthHandler interface {
+	// Acquire requests a fresh base64 initial SPNEGO token for a Kerberos service principal;
+	// the runtime currently uses it for proxy authentication. Tokens must not be logged,
+	// persisted or reused across connections. Continuation challenges are not supported by this
+	// callback.
+	//
+	// RPC method: kerberosAuth.acquire.
+	//
+	// Parameters: Requests a fresh initial SPNEGO token for a Kerberos service principal.
+	//
+	// Returns: Client credentials for a single authentication exchange.
+	Acquire(request *KerberosAuthAcquireRequest) (*KerberosAuthAcquireResult, error)
+}
+
 // Experimental: LlmInferenceHandler contains experimental APIs that may change or be
 // removed.
 type LlmInferenceHandler interface {
@@ -49792,12 +50079,14 @@ type UIThreadHandler interface {
 // Unlike client-session handlers these carry no implicit session id dispatch
 // key; a single set of handlers serves the entire connection.
 type ClientGlobalAPIHandlers struct {
+	EntraToken              EntraTokenHandler
 	ExtensionLaunchProvider ExtensionLaunchProviderHandler
 	GitHubTelemetry         GitHubTelemetryHandler
 	GitHubToken             GitHubTokenHandler
 	Hooks                   HooksHandler
 	Host                    HostHandler
 	Installations           InstallationsHandler
+	KerberosAuth            KerberosAuthHandler
 	LlmInference            LlmInferenceHandler
 	UIThread                UIThreadHandler
 }
@@ -49816,6 +50105,24 @@ func clientGlobalHandlerError(err error) *jsonrpc2.Error {
 // RegisterClientGlobalAPIHandlers registers handlers for server-to-client client-global API
 // calls.
 func RegisterClientGlobalAPIHandlers(client *jsonrpc2.Client, handlers *ClientGlobalAPIHandlers) {
+	client.SetRequestHandler("entraToken.getToken", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		var request EntraTokenGetTokenRequest
+		if err := json.Unmarshal(params, &request); err != nil {
+			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
+		}
+		if handlers == nil || handlers.EntraToken == nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: "No entraToken client-global handler registered"}
+		}
+		result, err := handlers.EntraToken.GetToken(&request)
+		if err != nil {
+			return nil, clientGlobalHandlerError(err)
+		}
+		raw, err := json.Marshal(result)
+		if err != nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("Failed to marshal response: %v", err)}
+		}
+		return raw, nil
+	})
 	client.SetRequestHandler("extensionLaunchProvider.resolve", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
 		var request ExtensionLaunchProviderResolveRequest
 		if err := json.Unmarshal(params, &request); err != nil {
@@ -50021,6 +50328,24 @@ func RegisterClientGlobalAPIHandlers(client *jsonrpc2.Client, handlers *ClientGl
 			return nil, &jsonrpc2.Error{Code: -32603, Message: "No installations client-global handler registered"}
 		}
 		result, err := handlers.Installations.Confirm(&request)
+		if err != nil {
+			return nil, clientGlobalHandlerError(err)
+		}
+		raw, err := json.Marshal(result)
+		if err != nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("Failed to marshal response: %v", err)}
+		}
+		return raw, nil
+	})
+	client.SetRequestHandler("kerberosAuth.acquire", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		var request KerberosAuthAcquireRequest
+		if err := json.Unmarshal(params, &request); err != nil {
+			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
+		}
+		if handlers == nil || handlers.KerberosAuth == nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: "No kerberosAuth client-global handler registered"}
+		}
+		result, err := handlers.KerberosAuth.Acquire(&request)
 		if err != nil {
 			return nil, clientGlobalHandlerError(err)
 		}

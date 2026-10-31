@@ -34,7 +34,7 @@ public sealed class GitHubTelemetryTests
         await using var client = new CopilotClient(new CopilotClientOptions
         {
             Connection = RuntimeConnection.ForUri(server.Url),
-            Entra = new EntraAuthConfig { ClientId = "host-entra-client" },
+            Entra = new EntraAuthOptions { ClientId = "host-entra-client" },
         });
         await client.StartAsync();
 

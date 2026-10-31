@@ -36,9 +36,17 @@ import type {
     OpenCanvasInstance,
     ProtocolExternalToolNamespace,
     CurrentToolMetadata,
+    KerberosAuthAcquireRequest,
+    KerberosAuthMode,
+    KerberosAuthScope,
     SandboxConfig,
 } from "./generated/rpc.js";
 import type { ToolSet } from "./toolSet.js";
+export type {
+    KerberosAuthAcquireRequest,
+    KerberosAuthMode,
+    KerberosAuthScope,
+} from "./generated/rpc.js";
 export type { RemoteSessionMode } from "./generated/rpc.js";
 export type { AutopilotOptions } from "./generated/rpc.js";
 export type { CurrentToolMetadata } from "./generated/rpc.js";
@@ -397,7 +405,29 @@ export interface CopilotClientInfo {
     integrationVersion?: string;
 }
 
-export type EntraAuthConfig = import("./generated/rpc.js").EntraAuthConfig;
+/** Host application's Microsoft Entra registration. @experimental */
+export type EntraAuthConfig = Pick<import("./generated/rpc.js").EntraAuthConfig, "clientId">;
+
+/** Host-owned Entra identity or resource acquisition. @experimental */
+export type EntraTokenProviderArgs = import("./generated/rpc.js").EntraTokenAcquireRequest;
+/** Response matching the requested acquisition kind and pinned account. @experimental */
+export type EntraTokenProviderResult = import("./generated/rpc.js").EntraTokenAcquireResult;
+/**
+ * Selects/revalidates an identity or acquires its resource token. Renewal must be
+ * silent and account-pinned. Cancellation and unavailability never open runtime sign-in.
+ * The cancellation token fires when the request or original connection ends.
+ * @experimental
+ */
+export type EntraTokenProvider = (
+    request: EntraTokenProviderArgs,
+    cancellation: import("vscode-jsonrpc").CancellationToken
+) => EntraTokenProviderResult | Promise<EntraTokenProviderResult>;
+
+/** Entra application and optional host-owned acquisition. @experimental */
+export interface EntraAuthOptions extends EntraAuthConfig {
+    /** Host-owned acquisition; omission retains built-in runtime authentication. @experimental */
+    tokenProvider?: EntraTokenProvider;
+}
 
 export interface CopilotClientOptions {
     /**
@@ -405,7 +435,7 @@ export interface CopilotClientOptions {
      * Required for built-in Entra sign-in and token renewal; other authentication methods remain available.
      * @experimental
      */
-    entra?: EntraAuthConfig;
+    entra?: EntraAuthOptions;
     /**
      * How to connect to the Copilot runtime. When omitted, defaults to
      * {@link RuntimeConnection.forStdio} with the bundled runtime.
@@ -455,6 +485,11 @@ export interface CopilotClientOptions {
      * @experimental
      */
     extensionLaunchProvider?: ExtensionLaunchProvider;
+
+    /**
+     * Supplies Kerberos credentials from the SDK host. Registered before sessions start.
+     */
+    kerberosAuth?: KerberosAuthConfig;
 
     /**
      * Connection-global human review for experimental installation operations.
@@ -602,6 +637,30 @@ export interface CopilotClientOptions {
 
 /** Resolves launch profiles for extension entrypoints discovered by the runtime. */
 export type ExtensionLaunchProvider = GeneratedExtensionLaunchProvider;
+
+/** Supplies Kerberos credentials from the SDK host for a requested service principal. */
+export interface KerberosAuthConfig {
+    /** `fallback` uses the callback only when native lookup fails; `always` never attempts native lookup. */
+    mode: KerberosAuthMode;
+    /**
+     * `connection` (the default) authenticates only requests made for sessions this client creates or resumes;
+     * `runtime` also authenticates the runtime's shared background traffic. Only one connection at a time can
+     * hold `runtime` scope, so startup fails if another client holds it. The registration ends when the
+     * connection closes.
+     */
+    scope?: KerberosAuthScope;
+    /**
+     * Returns a fresh, single-use base64 SPNEGO token without the `Negotiate ` prefix, or `undefined` when unavailable.
+     * The SPN uses the platform-independent `service/host[@REALM]` form; validate it before issuing credentials.
+     * `signal` aborts when the runtime stops waiting: it cancels the request (for example when its wait times
+     * out) or the connection closes. The SDK then stops awaiting the callback and ignores any later result,
+     * so pass `signal` to credential lookups that support cancellation.
+     */
+    callback: (
+        request: KerberosAuthAcquireRequest,
+        signal: AbortSignal
+    ) => Promise<string | undefined>;
+}
 
 /**
  * Configuration for creating a session

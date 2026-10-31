@@ -1,7 +1,7 @@
 "Defines the Rust SDK targets shared by its independent and runtime-local graphs."
 
 load("@rules_rust//cargo:defs.bzl", "cargo_build_script")
-load("@rules_rust//rust:defs.bzl", "rust_library")
+load("@rules_rust//rust:defs.bzl", "rust_library", "rust_test")
 load("//src/sdk/rust/bazel/crates:defs.bzl", "aliases", "all_crate_deps", "crate_deps")
 
 _LOCAL_RUNTIME_DEPS = [
@@ -106,4 +106,16 @@ def sdk_targets():
         ],
         visibility = ["//visibility:public"],
         deps = _LOCAL_RUNTIME_DEPS,
+    )
+
+    rust_test(
+        name = "sdk_kerberos_auth_test",
+        srcs = ["tests/kerberos_auth_test.rs"],
+        crate_root = "tests/kerberos_auth_test.rs",
+        edition = "2024",
+        deps = [
+            ":github-copilot-sdk-local-runtime",
+            "@vendor//tokio",
+            "@vendor__serde_json-1.0.154//:serde_json",
+        ],
     )

@@ -34,7 +34,7 @@ public sealed partial class ClientSessionLifetimeTests
         await using var client = new CopilotClient(new CopilotClientOptions
         {
             Connection = RuntimeConnection.ForUri(server.Url),
-            Entra = entra ? new EntraAuthConfig { ClientId = "host-entra-client" } : null
+            Entra = entra ? new EntraAuthOptions { ClientId = "host-entra-client" } : null
         });
         if (entra)
         {

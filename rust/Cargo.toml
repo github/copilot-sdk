@@ -178,6 +178,10 @@ required-features = ["test-support"]
 [[test]]
 name = "skill_provider_test"
 required-features = ["test-support"]
+
+[[test]]
+name = "kerberos_auth_test"
+required-features = ["runtime"]
 [build-dependencies]
 dirs = "7"
 flate2 = "1"

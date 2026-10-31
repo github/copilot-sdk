@@ -450,6 +450,11 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                     "CopilotClient.StartAsync protocol verification complete. Elapsed={Elapsed}",
                     startTimestamp);
 
+                if (_clientGlobalApis?.KerberosAuth is KerberosAuthAdapter kerberosAuth)
+                {
+                    await connection.Server.KerberosAuth.SetProviderAsync(kerberosAuth.Mode, kerberosAuth.Scope, ct);
+                }
+
                 if (_options.ExtensionLaunchProvider is not null)
                 {
                     await connection.Server.RegisterExtensionLaunchProviderAsync(ct);
@@ -2145,12 +2150,17 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         var handler = _options.RequestHandler;
         var onGitHubTelemetry = _options.OnGitHubTelemetry;
         var installationConfirmationHandler = _options.InstallationConfirmationHandler;
+        var kerberosAuth = _options.KerberosAuth;
         return new ClientGlobalApiHandlers
         {
             ExtensionLaunchProvider = _options.ExtensionLaunchProvider,
+            KerberosAuth = kerberosAuth is null ? null : new KerberosAuthAdapter(kerberosAuth),
             LlmInference = handler is null ? null : new LlmInferenceAdapter(handler, () => _serverRpc),
             GitHubTelemetry = onGitHubTelemetry is null ? null : new GitHubTelemetryAdapter(onGitHubTelemetry, _logger),
             GitHubToken = new GitHubTokenAdapter(this),
+            EntraToken = _options.Entra?.TokenProvider is { } entraProvider
+                ? new EntraTokenAdapter(entraProvider)
+                : null,
             UiThread = new UiThreadAdapter(this),
             Installations = installationConfirmationHandler is null
                 ? null
@@ -2319,10 +2329,15 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                     // of its own build. Null when the app didn't supply it.
                     ConnectHandshakeClientInfo.From(_options.ClientInfo),
                     SupportedTaskKinds: [TaskKind.Agent, TaskKind.Client, TaskKind.Shell],
-                    Entra: _options.Entra)],
+                    Entra: _options.Entra?.ToWire(),
+                    EntraTokenProvider: _options.Entra?.TokenProvider is null ? null : true)],
                 connection.StderrBuffer,
                 cancellationToken);
             serverVersion = (int)connectResponse.ProtocolVersion;
+            if (_options.Entra?.TokenProvider is not null && connectResponse.EntraTokenProvider != true)
+            {
+                throw new InvalidOperationException("This runtime does not support host-owned Entra token providers.");
+            }
         }
         catch (IOException ex) when (ex.InnerException is RemoteRpcException remoteEx && IsUnsupportedConnectMethod(remoteEx))
         {
@@ -2852,6 +2867,10 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             });
             if (_clientGlobalApis is not null)
             {
+                if (_clientGlobalApis.EntraToken is EntraTokenAdapter entraTokenAdapter)
+                {
+                    entraTokenAdapter.Attach(rpc);
+                }
                 if (_clientGlobalApis.Installations is InstallationConfirmationAdapter installationConfirmationAdapter)
                 {
                     installationConfirmationAdapter.Attach(rpc);
@@ -3525,7 +3544,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         [property: JsonPropertyName("enableGitHubTelemetryForwarding")] bool? EnableGitHubTelemetryForwarding = null,
         [property: JsonPropertyName("clientInfo")] ConnectHandshakeClientInfo? ClientInfo = null,
         [property: JsonPropertyName("supportedTaskKinds")] IList<TaskKind>? SupportedTaskKinds = null,
-        [property: JsonPropertyName("entra")] EntraAuthConfig? Entra = null);
+        [property: JsonPropertyName("entra")] EntraAuthConfig? Entra = null,
+        [property: JsonPropertyName("entraTokenProvider")] bool? EntraTokenProvider = null);
 
     internal record ConnectHandshakeClientInfo(
         [property: JsonPropertyName("editorName")] string? EditorName = null,

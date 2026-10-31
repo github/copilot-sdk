@@ -148,6 +148,13 @@ impl<'a> ClientRpc<'a> {
         }
     }
 
+    /// `kerberosAuth.*` sub-namespace.
+    pub fn kerberos_auth(&self) -> ClientRpcKerberosAuth<'a> {
+        ClientRpcKerberosAuth {
+            client: self.client,
+        }
+    }
+
     /// `llmInference.*` sub-namespace.
     pub fn llm_inference(&self) -> ClientRpcLlmInference<'a> {
         ClientRpcLlmInference {
@@ -2963,6 +2970,38 @@ impl<'a> ClientRpcInstructions<'a> {
         let _value = self
             .client
             .call(rpc_methods::INSTRUCTIONS_CLEARCACHE, Some(wire_params))
+            .await?;
+        Ok(())
+    }
+}
+
+/// `kerberosAuth.*` RPCs.
+#[derive(Clone, Copy)]
+pub struct ClientRpcKerberosAuth<'a> {
+    pub(crate) client: &'a Client,
+}
+
+impl<'a> ClientRpcKerberosAuth<'a> {
+    /// Registers the calling SDK client's Kerberos callback. The callback authenticates requests made for the client's sessions and, with `runtime` scope, the runtime's shared background traffic; only one connection may hold `runtime` scope. The registration ends when the connection closes.
+    ///
+    /// Wire method: `kerberosAuth.setProvider`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Registers the calling SDK connection's Kerberos credential provider.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn set_provider(&self, params: KerberosAuthSetProviderRequest) -> Result<(), Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::KERBEROSAUTH_SETPROVIDER, Some(wire_params))
             .await?;
         Ok(())
     }

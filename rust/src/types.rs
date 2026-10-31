@@ -14,6 +14,60 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::canvas::{CanvasDeclaration, CanvasHandler};
+/// Host's Entra registration and optional connection-owned acquisition.
+///
+/// **Experimental.** May change or be removed in future releases.
+#[derive(Clone)]
+pub struct EntraAuthOptions {
+    /// **Experimental.** Application registration used for identity establishment.
+    pub client_id: String,
+    /// **Experimental.** Host callback. Omission retains built-in runtime authentication.
+    pub token_provider: Option<Arc<dyn crate::entra::EntraTokenProvider>>,
+}
+
+impl EntraAuthOptions {
+    /// Configure an Entra application with built-in runtime acquisition.
+    ///
+    /// **Experimental.** May change or be removed in future releases.
+    pub fn new(client_id: impl Into<String>) -> Self {
+        Self {
+            client_id: client_id.into(),
+            token_provider: None,
+        }
+    }
+
+    /// Delegate identity and resource acquisition to the host.
+    ///
+    /// **Experimental.** May change or be removed in future releases.
+    pub fn with_token_provider(mut self, provider: impl crate::entra::EntraTokenProvider) -> Self {
+        self.token_provider = Some(Arc::new(provider));
+        self
+    }
+
+    pub(crate) fn to_wire(&self) -> crate::rpc::EntraAuthConfig {
+        crate::rpc::EntraAuthConfig {
+            client_id: self.client_id.clone(),
+        }
+    }
+}
+
+impl From<crate::rpc::EntraAuthConfig> for EntraAuthOptions {
+    fn from(config: crate::rpc::EntraAuthConfig) -> Self {
+        Self::new(config.client_id)
+    }
+}
+
+impl std::fmt::Debug for EntraAuthOptions {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("EntraAuthOptions")
+            .field("client_id", &self.client_id)
+            .field(
+                "token_provider",
+                &self.token_provider.as_ref().map(|_| "<provider>"),
+            )
+            .finish()
+    }
+}
 pub use crate::copilot_request_handler::{
     CopilotHttpRequest, CopilotHttpResponse, CopilotHttpResponseBody, CopilotRequestContext,
     CopilotRequestError, CopilotRequestHandler, CopilotRequestTransport, CopilotWebSocketHandler,

@@ -415,6 +415,7 @@ public sealed class CopilotClientOptions
         SessionFs = other.SessionFs;
         RequestHandler = other.RequestHandler;
         ExtensionLaunchProvider = other.ExtensionLaunchProvider;
+        KerberosAuth = other.KerberosAuth;
         InstallationConfirmationHandler = other.InstallationConfirmationHandler;
         OnGitHubTelemetry = other.OnGitHubTelemetry;
         SessionIdleTimeoutSeconds = other.SessionIdleTimeoutSeconds;
@@ -539,6 +540,14 @@ public sealed class CopilotClientOptions
     public IExtensionLaunchProviderHandler? ExtensionLaunchProvider { get; set; }
 
     /// <summary>
+    /// Supplies Kerberos credentials from the SDK host.
+    /// When set, the SDK registers the callback during <c>StartAsync()</c>
+    /// before any session can be created.
+    /// </summary>
+    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+    public KerberosAuthConfig? KerberosAuth { get; set; }
+
+    /// <summary>
     /// Connection-global human review for experimental installation operations.
     /// Does not register or enable installation capabilities on the runtime.
     /// </summary>
@@ -585,7 +594,7 @@ public sealed class CopilotClientOptions
     /// </summary>
     [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public EntraAuthConfig? Entra { get; set; }
+    public EntraAuthOptions? Entra { get; set; }
 
     /// <summary>
     /// Creates a shallow clone of this <see cref="CopilotClientOptions"/> instance.

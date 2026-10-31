@@ -142,6 +142,7 @@ leaves only direct-child cleanup, without crash-safe SDK-host-exit ownership.
 | `extra_args`        | `Vec<String>`               | Extra CLI flags                                                   |
 | `transport`         | `Transport`                 | `Default`, `Stdio`, `InProcess`, `Tcp`, or `External`             |
 | `extension_launch_provider` | `Option<Arc<dyn ExtensionLaunchProvider>>` | Connection-global extension launch resolver |
+| `kerberos_auth` | `Option<KerberosAuthConfig>` | Host-supplied Kerberos credentials; see [Kerberos authentication callback](#kerberos-authentication-callback) |
 | `installation_confirmation_handler` | `Option<Arc<dyn InstallationConfirmationHandler>>` | Experimental connection-global human installation review |
 
 For the native standalone runtime, include
@@ -401,6 +402,53 @@ CLI distribution containing `index.js` and its matching preloads. When the
 executable is a version-matched standalone Copilot binary, omit that variable
 and set `COPILOT_AUTO_UPDATE=false` so its embedded distribution remains
 selected.
+
+#### Kerberos authentication callback
+
+Use `ClientOptions::with_kerberos_auth(mode, provider)` when Kerberos tickets
+must be obtained by the SDK host, for example from Windows when the runtime
+runs in WSL. The runtime currently uses it for proxy authentication. The
+`kerberos_auth::KerberosAuthProvider` receives the generated
+`KerberosAuthAcquireRequest`, whose `spn` is a service principal in the
+platform-independent `service/host[@REALM]` form, and returns a fresh base64
+SPNEGO token without the `Negotiate ` prefix, or `None` when credentials are
+unavailable. Async functions and closures implement the trait. The provider
+should validate the principal before issuing credentials.
+
+```rust,ignore
+use github_copilot_sdk::kerberos_auth::{KerberosAuthAcquireRequest, KerberosAuthMode};
+use github_copilot_sdk::{Client, ClientOptions, Result};
+
+async fn acquire_token(request: KerberosAuthAcquireRequest) -> Result<Option<String>> {
+    // Validate `request.spn`, then return a fresh base64 SPNEGO token.
+    todo!()
+}
+
+let client = Client::start(
+    ClientOptions::new().with_kerberos_auth(KerberosAuthMode::Fallback, acquire_token),
+).await?;
+```
+
+With `KerberosAuthMode::Fallback`, native credential acquisition (including the
+first token) is tried first; only failure invokes the provider. With
+`KerberosAuthMode::Always`, native credential lookup is never attempted.
+Without this option, behavior is unchanged. `Client::start` registers the
+provider before returning, so it precedes every session; a failed registration
+fails startup.
+
+By default the provider authenticates only requests made for sessions this
+client creates or resumes. With `KerberosAuthScope::Runtime` it also
+authenticates the runtime's shared background traffic, such as catalog
+refreshes and telemetry; only one connection at a time can hold that scope, so
+startup fails if another client holds it. The registration ends when the
+connection closes. In `Fallback` mode, if the provider cannot supply a valid
+token, the native credential error is reported. In `Always` mode, a
+disconnected, failing, or empty provider fails authentication. A provider error
+is returned to the runtime as a JSON-RPC error. The runtime waits at most 30
+seconds for the provider (less when the request's own deadline is sooner) and
+treats a timeout as a provider failure. Tokens are not cached and must not be
+logged or persisted. The provider supplies the initial SPNEGO token only;
+exchanges requiring continuation tokens still need native negotiation.
 
 ### Azure ML model acquisition (experimental)
 

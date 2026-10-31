@@ -202,10 +202,10 @@ impl SessionRouter {
         *started = true;
         let weak_client = Arc::downgrade(client);
         let extension_launch_provider = client.extension_launch_provider.clone();
-        let llm_inference = client.llm_inference.get().cloned();
         let github_telemetry = client.on_github_telemetry.clone();
         let github_token_registry = client.github_token_registry.clone();
         let installation_confirmation = client.installation_confirmation.clone();
+        let entra_token = client.entra_token.clone();
 
         // Notification routing task
         let sessions = self.sessions.clone();
@@ -317,6 +317,10 @@ impl SessionRouter {
                         installation_confirmation.dispatch(request);
                         continue;
                     }
+                    if request.method == crate::entra::ACQUIRE_METHOD {
+                        entra_token.dispatch(request);
+                        continue;
+                    }
                     if request.method == crate::extension_launch_provider::RESOLVE_METHOD {
                         // The host's resolver may take arbitrarily long, so it must
                         // not hold up routing of later requests.
@@ -331,7 +335,10 @@ impl SessionRouter {
                     // Client-global `llmInference.*` requests carry no routable
                     // session and are handled by the inference dispatcher.
                     if request.method.starts_with("llmInference.") {
-                        if let Some(dispatcher) = &llm_inference {
+                        let dispatcher = weak_client
+                            .upgrade()
+                            .and_then(|client| client.llm_inference.get().cloned());
+                        if let Some(dispatcher) = dispatcher {
                             dispatcher.dispatch(request).await;
                         } else {
                             warn!(

@@ -460,6 +460,8 @@ pub mod rpc_methods {
     pub const LLMINFERENCE_HTTPRESPONSESTART: &str = "llmInference.httpResponseStart";
     /// `llmInference.httpResponseChunk`
     pub const LLMINFERENCE_HTTPRESPONSECHUNK: &str = "llmInference.httpResponseChunk";
+    /// `kerberosAuth.setProvider`
+    pub const KERBEROSAUTH_SETPROVIDER: &str = "kerberosAuth.setProvider";
     /// `sessions.open`
     pub const SESSIONS_OPEN: &str = "sessions.open";
     /// `sessions.fork`
@@ -8404,8 +8406,25 @@ pub(crate) struct ConnectRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_git_hub_telemetry_forwarding: Option<bool>,
     /// Entra application used by this client's authentication flows. Required to enable built-in Microsoft Entra sign-in and token renewal; other authentication methods remain available.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
     #[serde(skip_serializing_if = "Option::is_none")]
     pub entra: Option<EntraAuthConfig>,
+    /// Opt this connection in to host-owned Entra identity and token acquisition through entraToken.getToken. Requires entra.clientId and an explicit true acknowledgement in the response. SDKs set this internally when a callback is configured.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub entra_token_provider: Option<bool>,
     /// Task kinds this connection can decode when observing session tasks. Omit to retain agent and shell compatibility.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub supported_task_kinds: Option<Vec<TaskKind>>,
@@ -8425,6 +8444,16 @@ pub(crate) struct ConnectRequest {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct ConnectResult {
+    /// Acknowledges that this connection's host-owned Entra token provider is enabled. Clients requesting it must reject a missing or false acknowledgement.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub entra_token_provider: Option<bool>,
     /// Always true on success
     pub ok: bool,
     /// Server protocol version number
@@ -9471,6 +9500,137 @@ pub struct EnqueueCommandParams {
     /// Optional user-facing text for the queue row. The command string is shown when omitted.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub display_text: Option<String>,
+}
+
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EntraTokenAcquireRequestIdentity {
+    /// Host account to revalidate. When supplied, the response must identify this exact account.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub account_id: Option<String>,
+    /// Effective application client ID. Treat it as opaque.
+    pub client_id: String,
+    /// Entra identity or resource-token acquisition discriminator.
+    pub kind: EntraTokenAcquireRequestIdentityKind,
+    /// Interaction policy. Only a fresh explicit sign-in may select an unpinned account.
+    pub reason: EntraTokenAcquireReason,
+}
+
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EntraTokenAcquireRequestToken {
+    /// Pinned opaque host account ID. The response must identify this exact account.
+    pub account_id: String,
+    /// Target resource audience, when known.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub audience: Option<String>,
+    /// Effective application client ID, including any resource-specific override.
+    pub client_id: String,
+    /// Entra identity or resource-token acquisition discriminator.
+    pub kind: EntraTokenAcquireRequestTokenKind,
+    /// Interaction policy. Renewal must remain silent.
+    pub reason: EntraTokenAcquireReason,
+    /// Scopes required for this resource token.
+    pub scopes: Vec<String>,
+    /// Bypass cached access tokens without changing account selection or interaction policy.
+    pub skip_cached_access_token: bool,
+    /// Target Entra tenant, when different from the host's default.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tenant: Option<String>,
+}
+
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EntraTokenAcquireResultIdentity {
+    /// Stable nonblank opaque account ID owned by the host.
+    pub account_id: String,
+    /// Entra acquisition response variant discriminator.
+    pub kind: EntraTokenAcquireResultIdentityKind,
+    /// Optional display name; not an account identifier or credential.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub username: Option<String>,
+}
+
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EntraTokenAcquireResultToken {
+    /// Nonblank resource access token. The host owns its caching and renewal.
+    pub access_token: String,
+    /// Exact host account ID supplied in the request.
+    pub account_id: String,
+    /// Entra acquisition response variant discriminator.
+    pub kind: EntraTokenAcquireResultTokenKind,
+}
+
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EntraTokenAcquireResultUnavailable {
+    /// Entra acquisition response variant discriminator.
+    pub kind: EntraTokenAcquireResultUnavailableKind,
+}
+
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EntraTokenAcquireResultCancelled {
+    /// Entra acquisition response variant discriminator.
+    pub kind: EntraTokenAcquireResultCancelledKind,
+}
+
+/// Parameters for one connection-owned Entra acquisition callback.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EntraTokenGetTokenRequest {
+    /// Typed identity or resource-token acquisition request.
+    pub request: EntraTokenAcquireRequest,
 }
 
 /// Hosting capabilities and session capacity advertised by an environment.
@@ -13215,6 +13375,41 @@ pub struct JsonSchemaResponseFormat {
     /// Optional strict enforcement setting for OpenAI providers. Omitted uses the provider default. Anthropic always enforces its supported schema subset.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub strict: Option<bool>,
+}
+
+/// Requests a fresh initial SPNEGO token for a Kerberos service principal.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KerberosAuthAcquireRequest {
+    /// Service principal in the platform-independent `service/host` form, optionally followed by `@REALM`.
+    pub spn: String,
+}
+
+/// Client credentials for a single authentication exchange.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KerberosAuthAcquireResult {
+    /// Base64 initial SPNEGO token without the Negotiate prefix; omitted when unavailable. Never log or persist it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub token: Option<String>,
+}
+
+/// Registers the calling SDK connection's Kerberos credential provider.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KerberosAuthSetProviderRequest {
+    /// Native lookup fallback or exclusive client callback.
+    pub mode: KerberosAuthMode,
+    /// Traffic the callback authenticates; defaults to `connection`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scope: Option<KerberosAuthScope>,
 }
 
 /// A request body chunk or cancellation signal.
@@ -48289,6 +48484,111 @@ pub enum ModelProviderOperationOutcomeCode {
     Unknown,
 }
 
+/// Interaction policy for host-owned Microsoft Entra acquisition.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum EntraTokenAcquireReason {
+    /// Establish an identity; interaction is permitted if necessary.
+    #[serde(rename = "signIn")]
+    SignIn,
+    /// Renew the pinned identity silently; never select another account or prompt.
+    #[serde(rename = "renewal")]
+    Renewal,
+    /// Explicitly show account selection rather than satisfying identity selection from cache.
+    #[serde(rename = "forceInteractive")]
+    ForceInteractive,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Entra identity or resource-token acquisition discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum EntraTokenAcquireRequestIdentityKind {
+    #[serde(rename = "identity")]
+    #[default]
+    Identity,
+}
+
+/// Entra identity or resource-token acquisition discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum EntraTokenAcquireRequestTokenKind {
+    #[serde(rename = "token")]
+    #[default]
+    Token,
+}
+
+/// Requests a host-selected Entra identity or a resource token for that exact identity. Host account ids are opaque and distinct from runtime account-selection ids.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum EntraTokenAcquireRequest {
+    Identity(EntraTokenAcquireRequestIdentity),
+    Token(EntraTokenAcquireRequestToken),
+}
+
+/// Entra acquisition response variant discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum EntraTokenAcquireResultIdentityKind {
+    #[serde(rename = "identity")]
+    #[default]
+    Identity,
+}
+
+/// Entra acquisition response variant discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum EntraTokenAcquireResultTokenKind {
+    #[serde(rename = "token")]
+    #[default]
+    Token,
+}
+
+/// Entra acquisition response variant discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum EntraTokenAcquireResultUnavailableKind {
+    #[serde(rename = "unavailable")]
+    #[default]
+    Unavailable,
+}
+
+/// Entra acquisition response variant discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum EntraTokenAcquireResultCancelledKind {
+    #[serde(rename = "cancelled")]
+    #[default]
+    Cancelled,
+}
+
+/// Host response to Entra acquisition. Unavailable, cancellation and errors are terminal: the runtime must not substitute another account or sign-in transport.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum EntraTokenAcquireResult {
+    Identity(EntraTokenAcquireResultIdentity),
+    Token(EntraTokenAcquireResultToken),
+    Unavailable(EntraTokenAcquireResultUnavailable),
+    Cancelled(EntraTokenAcquireResultCancelled),
+}
+
 /// GitHub Mission Control compute kind.
 ///
 /// <div class="warning">
@@ -49394,6 +49694,50 @@ pub enum InstructionSourceType {
     /// Instructions supplied by an installed plugin.
     #[serde(rename = "plugin")]
     Plugin,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Selects whether Kerberos credentials come from native lookup with a client fallback, or only from the client.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum KerberosAuthMode {
+    /// Use the callback only when native credential lookup fails.
+    #[serde(rename = "fallback")]
+    Fallback,
+    /// Always use the callback without native credential lookup.
+    #[serde(rename = "always")]
+    Always,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Selects which traffic a client's Kerberos callback authenticates.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum KerberosAuthScope {
+    /// Authenticate only requests made for this connection's sessions.
+    #[serde(rename = "connection")]
+    Connection,
+    /// Also authenticate the runtime's shared background traffic. Only one connection at a time may claim this scope.
+    #[serde(rename = "runtime")]
+    Runtime,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]

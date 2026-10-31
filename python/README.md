@@ -399,6 +399,7 @@ All options are kw-only parameters:
 - `base_directory` (str | None): Base directory for Copilot data (session state, config, etc.). Sets `COPILOT_HOME` on the spawned CLI process. When `None`, the CLI defaults to `~/.copilot`. Useful in restricted environments where only specific directories are writable. Ignored when using a `UriRuntimeConnection`.
 - `extension_launch_provider` (ExtensionLaunchProviderHandler | None): Experimental connection-level resolver for extension launch profiles. The client installs the reverse-RPC handler and registers the provider during startup before sessions can be created.
 - `installation_confirmation_handler` (InstallationConfirmationHandler | None): Experimental connection-global human review for `installations.confirm`. Receives the typed request and one cancellation signal, and returns an explicit decision. Does not enable installation capabilities.
+- `kerberos_auth` (KerberosAuthConfig | None): Supplies Kerberos credentials from the SDK host. The client installs the `kerberosAuth.acquire` handler and registers `mode` and `scope` during startup before sessions can be created. See [Kerberos authentication callback](#kerberos-authentication-callback).
 - `use_logged_in_user` (bool | None): Whether to use logged-in user for authentication (default: True, but False when `github_token` is provided).
 - `telemetry` (dict | None): OpenTelemetry configuration for the CLI process. Providing this enables telemetry — no separate flag needed. See [Telemetry](#telemetry) below.
 - `session_fs` (dict | None): Connection-level session filesystem provider configuration. To let `view` read provider-only images, set `capabilities.binary` to `True` and return a provider implementing `SessionFsBinaryProvider` (`read_file_bytes(path)` and `write_file_bytes(path, content, mode=None)`) from `create_session_fs_handler`; image reads do not fall back to local files. Binary reads and writes are limited to 50,330,880 raw bytes (approximately 48 MiB); larger results return a filesystem error before encoding or decoding.
@@ -471,6 +472,27 @@ Capability negotiation does not promise availability; preserve typed refusals
 instead of falling back to raw configuration writes. Generated presence and
 transport tests do not establish a working installer, live OAuth or restart
 safety.
+
+### Kerberos authentication callback
+
+Provide `kerberos_auth={"mode": ..., "callback": ...}` (a `KerberosAuthConfig`) to `CopilotClient` when Kerberos tickets must be obtained by the SDK host, for example from Windows when the runtime runs in WSL. The runtime currently uses it for proxy authentication. The callback receives a `KerberosAuthAcquireRequest` whose `spn` is a service principal in the platform-independent `service/host[@REALM]` form, and returns a fresh base64 SPNEGO token without the `Negotiate ` prefix, or `None` when credentials are unavailable. The callback may be sync or async and should validate the principal before issuing credentials.
+
+```python
+from copilot import CopilotClient, KerberosAuthAcquireRequest
+
+
+async def acquire_token(request: KerberosAuthAcquireRequest) -> str | None:
+    if request.spn != "HTTP/proxy.example.com":
+        return None
+    return await get_spnego_token(request.spn)  # Your Kerberos/SSPI integration.
+
+
+client = CopilotClient(kerberos_auth={"mode": "fallback", "callback": acquire_token})
+```
+
+With `mode="fallback"`, native credential acquisition (including the first token) is tried first; only failure invokes the callback. With `mode="always"`, native credential lookup is never attempted. Without this option, behavior is unchanged. Registration happens during `start()`, before sessions can be created; if it fails, `start()` fails.
+
+By default the callback authenticates only requests made for sessions this client creates or resumes. With `scope="runtime"` it also authenticates the runtime's shared background traffic, such as catalog refreshes and telemetry; only one connection at a time can hold that scope, so `start()` fails if another client holds it. The registration ends when the connection closes; a `start()` that fails or is cancelled closes it. In `fallback` mode, if the callback cannot supply a valid token, the native credential error is reported. In `always` mode, a disconnected, raising, or empty callback fails authentication. The runtime waits at most 30 seconds for the callback (less when the request's own deadline is sooner) and treats a timeout as a callback failure. When the runtime stops waiting or the connection closes, an awaitable the callback returned is cancelled with `asyncio.CancelledError`; if that awaitable is cancelled otherwise, the runtime receives a callback failure. Like other client callbacks, the callback runs on the client's event loop, so keep a sync callback fast and offload a blocking lookup, for example with `await asyncio.to_thread(lookup, request.spn)`; its late result is ignored. Tokens are not cached and must not be logged or persisted. The callback supplies the initial SPNEGO token only; exchanges requiring continuation tokens still need native negotiation.
 
 ### In-process (FFI) transport
 

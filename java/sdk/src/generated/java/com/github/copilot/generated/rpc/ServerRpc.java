@@ -87,6 +87,8 @@ public final class ServerRpc {
     public final ServerSessionFsApi sessionFs;
     /** API methods for the {@code llmInference} namespace. */
     public final ServerLlmInferenceApi llmInference;
+    /** API methods for the {@code kerberosAuth} namespace. */
+    public final ServerKerberosAuthApi kerberosAuth;
     /** API methods for the {@code sessions} namespace. */
     public final ServerSessionsApi sessions;
     /** API methods for the {@code agentRegistry} namespace. */
@@ -132,6 +134,7 @@ public final class ServerRpc {
         this.runtime = new ServerRuntimeApi(caller);
         this.sessionFs = new ServerSessionFsApi(caller);
         this.llmInference = new ServerLlmInferenceApi(caller);
+        this.kerberosAuth = new ServerKerberosAuthApi(caller);
         this.sessions = new ServerSessionsApi(caller);
         this.agentRegistry = new ServerAgentRegistryApi(caller);
         this.connectors = new ServerConnectorsApi(caller);
