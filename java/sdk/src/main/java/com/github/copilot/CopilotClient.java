@@ -1656,10 +1656,12 @@ public final class CopilotClient implements AutoCloseable {
     }
 
     /**
-     * Lists available models with their metadata.
+     * Lists available models with their metadata. Models hidden from the model
+     * picker are not listed.
      * <p>
-     * Results are cached after the first successful call to avoid rate limiting.
-     * The cache is cleared when the client disconnects.
+     * A non-empty result is cached after the first successful call to avoid rate
+     * limiting. An empty result is returned but not cached, so a later call asks
+     * again. The cache is cleared when the client disconnects.
      * <p>
      * If an {@code onListModels} handler was provided in
      * {@link com.github.copilot.rpc.CopilotClientOptions}, it is called instead of
@@ -1684,9 +1686,7 @@ public final class CopilotClient implements AutoCloseable {
                 }
             }
             return onListModels.get().thenApply(models -> {
-                synchronized (modelsCacheLock) {
-                    modelsCache = models;
-                }
+                cacheIfNonEmpty(models);
                 return new ArrayList<>(models);
             });
         }
@@ -1701,12 +1701,22 @@ public final class CopilotClient implements AutoCloseable {
 
             return connection.rpc.invoke("models.list", Map.of(), GetModelsResponse.class).thenApply(response -> {
                 List<ModelInfo> models = response.getModels();
-                synchronized (modelsCacheLock) {
-                    modelsCache = models;
-                }
+                cacheIfNonEmpty(models);
                 return new ArrayList<>(models); // Return a copy to prevent cache mutation
             });
         });
+    }
+
+    /**
+     * Keeps a successful listing for later calls. An empty listing is not kept, so
+     * a later call asks again.
+     */
+    private void cacheIfNonEmpty(List<ModelInfo> models) {
+        if (models != null && !models.isEmpty()) {
+            synchronized (modelsCacheLock) {
+                modelsCache = models;
+            }
+        }
     }
 
     /**

@@ -1017,6 +1017,21 @@ public class CopilotClientTest {
     }
 
     @Test
+    void testListModels_EmptyResultIsNotCached() throws Exception {
+        var callCount = new int[]{0};
+        var options = new CopilotClientOptions().setOnListModels(() -> {
+            callCount[0]++;
+            return CompletableFuture.completedFuture(new ArrayList<com.github.copilot.rpc.ModelInfo>());
+        });
+
+        try (var client = new CopilotClient(options)) {
+            assertTrue(client.listModels().get().isEmpty());
+            assertTrue(client.listModels().get().isEmpty());
+            assertEquals(2, callCount[0], "An empty result must not be cached: a later call should ask again");
+        }
+    }
+
+    @Test
     void testListModels_WithCustomHandler_WorksWithoutStart() throws Exception {
         var customModels = new ArrayList<com.github.copilot.rpc.ModelInfo>();
         var model = new com.github.copilot.rpc.ModelInfo();
